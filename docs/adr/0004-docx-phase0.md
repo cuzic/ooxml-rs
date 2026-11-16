@@ -43,7 +43,7 @@
 - **Revision 3** (after `0004-opus-review-round2.md`, the first review of the implementation;
   again written with the code):
   - **N1** (deep nesting) — core's parser now refuses element nesting deeper than
-    `ParseOptions::max_depth` (default 1024; the deepest real part measured is 33) with
+    `ParseOptions::max_depth` (default 256; the deepest real part measured is 33) with
     `Error::TooDeep` before the tree grows (core PR #16, ADR-0002 post-acceptance note). It is the
     new open refusal **O5** (§6). In ooxml-docx the body index no longer stores a full path per run
     (paragraphs and runs refer to a frame: parent, child index, wrapper), so it is linear in the
@@ -434,7 +434,7 @@ any mutation, so a failed call leaves the tree untouched. At open:
 | O2 | `Core(DtdNotAllowed)` | core's parser sees a `DocType` event in the main part, `settings.xml` or a story part. This is the parser event, anywhere in the prolog, not a byte search of the first 4 kB (review m9, resolved in core) | `poi-ExternalEntityInText`; unit test with the DOCTYPE after a 10 kB comment, and one in a header |
 | O3 | `Core(StrictNotSupported)` | Strict package relationship type, or Strict namespace on the main root | `sdk-strict-CommentRangeStart`; unit test (Strict root, Transitional relationship) |
 | O4 | `MainPartMissing` | no `officeDocument` relationship, or its target is absent | unit tests |
-| O5 | `Core(TooDeep { limit, position })` | the main part, `settings.xml` or a scanned story part nests elements deeper than core's `ParseOptions::max_depth` (default 1024; root = depth 1). Refused while parsing, before the tree grows (revision 3, review round 2 N1). Revision 2 accepted any depth: 5.7 kB of nested tables cost 4.7 GB at open and 20 kB aborted the process with a stack overflow. The deepest real part measured is 33 (POI `bug59058`), median 9 over 556 files | `adversarial.rs`: 10,000- and 40,000-deep nested tables are refused quickly; a document just under the limit opens and edits |
+| O5 | `Core(TooDeep { limit, position })` | the main part, `settings.xml` or a scanned story part nests elements deeper than core's `ParseOptions::max_depth` (default 256, about 80 nested tables; root = depth 1). Refused while parsing, before the tree grows (revision 3, review round 2 N1). Revision 2 accepted any depth: 5.7 kB of nested tables cost 4.7 GB at open and 20 kB aborted the process with a stack overflow. The deepest real part measured is 33 (POI `bug59058`), median 9 over 556 files | `adversarial.rs`: 10,000- and 40,000-deep nested tables are refused quickly; a document just under the limit opens and edits |
 | — | `Core(WrongElement)` | the main part's root is not `w:document` | unit test |
 
 Document-level write gates. Computed once at open. Reads still work; every write method returns
@@ -636,8 +636,8 @@ Fixtures are `reference/fixtures/docx/*.docx`: 23 open as packages, 3 are O1–O
   `deep-table-cell.docx` (5,000 nested tables, 15,000+ element levels) is refused at open since
   revision 3 (O5). Revision 2 opened it with 1.2 GB RSS and took 3–4 s per edit; the review
   showed the open cost, not only the edit cost, was quadratic, and that 40,000 levels overflowed
-  the stack. Under the 1024 limit, path-based `LensMut` descent costs at most 1024 steps per
-  edit, the body index is linear, and every walk is iterative or bounded by 1024 frames.
+  the stack. Under the 256 default limit, path-based `LensMut` descent costs at most 256 steps per
+  edit, the body index is linear, and every walk is iterative or bounded by 256 frames (core tests them at the limit on a 1 MiB stack).
 - **Manual (explicit gap, as in ADR-0001)**: there is no Word or LibreOffice in this sandbox.
   `cargo run -p ooxml-docx --example manual_check -- <outdir>` writes ten named outputs from
   fixtures (table cell, hyperlink run, run with `w:lastRenderedPageBreak`, paragraph with

@@ -34,7 +34,7 @@ doc.save("letter-filled.docx")?;
 
 | When | Error |
 |---|---|
-| open | `Core(EncryptedPackage)`, `Core(DtdNotAllowed)`, `Core(StrictNotSupported)`, `MainPartMissing`, `Core(TooDeep)` (nesting deeper than core's limit, 1024) |
+| open | `Core(EncryptedPackage)`, `Core(DtdNotAllowed)`, `Core(StrictNotSupported)`, `MainPartMissing`, `Core(TooDeep)` (nesting deeper than core's limit, 256) |
 | any write (`write_gate()`) | `TrackRevisionsOn`, `DocumentProtected { edit }`, `StaleFieldRisk { codes }` (codes carry the argument for `INFO`/`DOCPROPERTY`; `<malformed field>` for field markup that cannot be followed) |
 | `set_run_text` (`Run::check_settable()`) | `InsideField`, `InsideRevision`, `UnsupportedContext`, `RunNotTextOnly` |
 | text | `InvalidXmlChar` |
@@ -48,7 +48,7 @@ recommended") and `is_marked_final()` are reported, not enforced.
 Headers/footers/notes/comments editing, cross-run replace, formatting, new structure, and
 `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
 
-Nesting depth is bounded by `ooxml-core`'s parser limit (1024 levels; real documents reach about
+Nesting depth is bounded by `ooxml-core`'s parser limit (256 levels by default; real documents reach about
 30), so a hostile file of nested tables is refused at open with `Core(TooDeep)` instead of costing
 gigabytes or the stack. Below the limit the body index is linear and every walk is iterative.
 

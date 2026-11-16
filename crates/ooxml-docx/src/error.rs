@@ -17,7 +17,7 @@ pub enum Error {
     /// - O3 [`ooxml_core::Error::StrictNotSupported`] (Strict relationship
     ///   type, or the main part's root in a Strict namespace);
     /// - O5 [`ooxml_core::Error::TooDeep`] (a parsed or scanned part nests
-    ///   elements deeper than the core parser's limit, 1024 by default);
+    ///   elements deeper than the core parser's limit, 256 by default);
     /// - A1 [`ooxml_core::Error::UnresolvedSibling`] (append into a body
     ///   with an `mc:AlternateContent` child);
     /// - [`ooxml_core::Error::WrongElement`] (the main part is not a
