@@ -2,7 +2,7 @@
 //! (ADR-0014 §5, §6): data validations and conditional formatting are read
 //! and preserved, and only removed or renumbered by Phase4.
 
-use ooxml_core::{AttrSpec, ChildOf, Content, ElementSpec, QName, RawNode, SimpleType, Slot, Wildcard};
+use ooxml_core::{AttrSpec, ChildOf, Content, ElementSpec, LensMut, QName, RawNode, SimpleType, Slot, Wildcard};
 use ooxml_schema::sml;
 
 pub(crate) const NS_X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
@@ -47,4 +47,15 @@ pub(crate) fn exts<'n>(ws: &'n RawNode, uri: &str) -> Vec<(usize, &'n RawNode)> 
 /// `xm:sqref` text of an x14 rule element.
 pub(crate) fn sqref(rule: &RawNode) -> Option<String> {
     rule.elements().find(|e| e.is(QName::new(NS_XM, "sqref"))).map(|e| e.text().into_owned())
+}
+
+/// Item indices of the `ext` elements with `uri` in a worksheet `extLst`.
+pub(crate) fn exts_in_list(list: &RawNode, uri: &str) -> Vec<usize> {
+    list.indexed_elements().filter(|(_, e)| e.is(sml::WorksheetExtension::QNAME) && e.attr(QName::new("", "uri")) == Some(uri)).map(|(i, _)| i).collect()
+}
+
+/// A mutable lens on the `C` child at item index `i` (planned to exist).
+pub(crate) fn child_at<'s, P: ElementSpec, C: ChildOf<P>>(l: &'s mut LensMut<'_, P>, i: usize) -> LensMut<'s, C> {
+    let k = l.node().indexed_elements().filter(|(_, e)| e.is(C::QNAME)).position(|(j, _)| j == i).expect("planned child");
+    l.nth_child_mut::<C>(k).expect("planned child")
 }

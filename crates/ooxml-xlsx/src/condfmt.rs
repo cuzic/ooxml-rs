@@ -5,7 +5,7 @@
 //! **existing** `dxf` (`Rule::with_dxf`), checked against `styles.xml`;
 //! colour scales, data bars and icon sets need none.
 
-use ooxml_core::{ElementSpec, LensMut, QName, RawNode};
+use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode};
 use ooxml_schema::sml;
 
 use crate::error::{Error, Result};
@@ -163,12 +163,12 @@ fn priorities(ws: &RawNode) -> (Vec<u32>, bool) {
     let mut pivot = false;
     for b in ws.elements().filter(|e| e.is(sml::ConditionalFormatting::QNAME)) {
         pivot |= matches!(b.attr(q("pivot")), Some("1" | "true"));
-        out.extend(b.elements().filter(|r| r.is(sml::ConditionalFormattingRule::QNAME)).filter_map(|r| r.attr(q("priority")).and_then(|v| v.trim().parse().ok())));
+        out.extend(b.elements().filter(|r| r.is(sml::ConditionalFormattingRule::QNAME)).filter_map(|r| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok())));
     }
     for (_, ext) in x14::exts(ws, x14::URI_CF) {
         for cfs in ext.elements() {
             for cf in cfs.elements() {
-                out.extend(cf.elements().filter(|r| r.is(x14::CfRule::QNAME)).filter_map(|r| r.attr(q("priority")).and_then(|v| v.trim().parse().ok())));
+                out.extend(cf.elements().filter(|r| r.is(x14::CfRule::QNAME)).filter_map(|r| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok())));
             }
         }
     }
@@ -261,8 +261,8 @@ impl Workbook {
         let priority = if first { 1 } else { prios.iter().max().map_or(1, |m| m + 1) };
         {
             let doc = self.pkg.xml_part_mut(&part)?;
-            let mut ws = doc.lens_mut::<sml::Worksheet>()?;
-            ws.check_insert_by::<sml::ConditionalFormatting>(|_, _| false)?;
+            let ws = doc.lens_mut::<sml::Worksheet>()?;
+            ws.check_insert::<sml::ConditionalFormatting>()?;
         }
         let rule = rule.clone();
         self.poisoning_layout(|wb| {
@@ -344,7 +344,7 @@ impl Workbook {
                 if *emptied {
                     ws.remove_at(*bi);
                 } else {
-                    let mut b = ws.as_child_at::<sml::ConditionalFormatting>(*bi)?;
+                    let mut b = x14::child_at::<_, sml::ConditionalFormatting>(&mut ws, *bi);
                     for &i in rules.iter().rev() {
                         b.remove_at(i);
                     }
@@ -373,13 +373,13 @@ fn remove_x14_rule(ws: &mut LensMut<'_, sml::Worksheet>, ei: usize, si: usize, c
     let mut list = ws.child_mut::<sml::WorksheetExtensionList>().expect("planned");
     let ext_empty;
     {
-        let mut ext = list.as_child_at::<sml::WorksheetExtension>(ei)?;
+        let mut ext = x14::child_at::<_, sml::WorksheetExtension>(&mut list, ei);
         let cfs_empty;
         {
-            let mut cfs = ext.as_child_at::<x14::ConditionalFormattings>(si)?;
+            let mut cfs = x14::child_at::<_, x14::ConditionalFormattings>(&mut ext, si);
             let cf_empty;
             {
-                let mut cf = cfs.as_child_at::<x14::ConditionalFormatting>(ci)?;
+                let mut cf = x14::child_at::<_, x14::ConditionalFormatting>(&mut cfs, ci);
                 cf.remove_at(ri);
                 cf_empty = !cf.node().elements().any(|e| e.is(x14::CfRule::QNAME));
             }
@@ -403,35 +403,35 @@ fn remove_x14_rule(ws: &mut LensMut<'_, sml::Worksheet>, ei: usize, si: usize, c
 fn renumber(ws: &mut LensMut<'_, sml::Worksheet>) -> Result<()> {
     let blocks: Vec<usize> = ws.node().indexed_elements().filter(|(_, e)| e.is(sml::ConditionalFormatting::QNAME)).map(|(i, _)| i).collect();
     for bi in blocks {
-        let mut b = ws.as_child_at::<sml::ConditionalFormatting>(bi)?;
+        let mut b = x14::child_at::<_, sml::ConditionalFormatting>(ws, bi);
         let rules: Vec<(usize, u32)> = b
             .node()
             .indexed_elements()
             .filter(|(_, r)| r.is(sml::ConditionalFormattingRule::QNAME))
-            .filter_map(|(i, r)| r.attr(q("priority")).and_then(|v| v.trim().parse().ok()).map(|p| (i, p)))
+            .filter_map(|(i, r)| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok()).map(|p| (i, p)))
             .collect();
         for (ri, p) in rules {
-            b.as_child_at::<sml::ConditionalFormattingRule>(ri)?.set_attr(q("priority"), &(p + 1).to_string())?;
+            x14::child_at::<_, sml::ConditionalFormattingRule>(&mut b, ri).set_attr(q("priority"), &(p + 1).to_string())?;
         }
     }
     let Some(mut list) = ws.child_mut::<sml::WorksheetExtensionList>() else { return Ok(()) };
     let exts: Vec<usize> = x14::exts_in_list(list.node(), x14::URI_CF);
     for ei in exts {
-        let mut ext = list.as_child_at::<sml::WorksheetExtension>(ei)?;
+        let mut ext = x14::child_at::<_, sml::WorksheetExtension>(&mut list, ei);
         let cfss: Vec<usize> = ext.node().indexed_elements().filter(|(_, e)| e.is(x14::ConditionalFormattings::QNAME)).map(|(i, _)| i).collect();
         for si in cfss {
-            let mut cfs = ext.as_child_at::<x14::ConditionalFormattings>(si)?;
+            let mut cfs = x14::child_at::<_, x14::ConditionalFormattings>(&mut ext, si);
             let cfl: Vec<usize> = cfs.node().indexed_elements().filter(|(_, e)| e.is(x14::ConditionalFormatting::QNAME)).map(|(i, _)| i).collect();
             for ci in cfl {
-                let mut cf = cfs.as_child_at::<x14::ConditionalFormatting>(ci)?;
+                let mut cf = x14::child_at::<_, x14::ConditionalFormatting>(&mut cfs, ci);
                 let rules: Vec<(usize, u32)> = cf
                     .node()
                     .indexed_elements()
                     .filter(|(_, r)| r.is(x14::CfRule::QNAME))
-                    .filter_map(|(i, r)| r.attr(q("priority")).and_then(|v| v.trim().parse().ok()).map(|p| (i, p)))
+                    .filter_map(|(i, r)| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok()).map(|p| (i, p)))
                     .collect();
                 for (ri, p) in rules {
-                    cf.as_child_at::<x14::CfRule>(ri)?.set_attr(q("priority"), &(p + 1).to_string())?;
+                    x14::child_at::<_, x14::CfRule>(&mut cf, ri).set_attr(q("priority"), &(p + 1).to_string())?;
                 }
             }
         }
@@ -439,8 +439,9 @@ fn renumber(ws: &mut LensMut<'_, sml::Worksheet>) -> Result<()> {
     Ok(())
 }
 
-fn cfvo(parent: &mut LensMut<'_, impl ElementSpec>, c: &Cfvo) -> Result<()>
+fn cfvo<P: ElementSpec>(parent: &mut LensMut<'_, P>, c: &Cfvo) -> Result<()>
 where
+    sml::ConditionalFormatValueObject: ChildOf<P>,
 {
     let (ty, val) = match c {
         Cfvo::Min => ("min", None),
@@ -450,7 +451,7 @@ where
         Cfvo::Percentile(x) => ("percentile", Some(num(*x))),
         Cfvo::Formula(f) => ("formula", Some(f.strip_prefix('=').unwrap_or(f).to_owned())),
     };
-    let mut e = parent.insert_untyped(sml::ConditionalFormatValueObject::QNAME)?;
+    let mut e = parent.insert::<sml::ConditionalFormatValueObject>()?;
     e.set_attr(q("type"), ty)?;
     if let Some(v) = val {
         e.set_attr(q("val"), &v)?;

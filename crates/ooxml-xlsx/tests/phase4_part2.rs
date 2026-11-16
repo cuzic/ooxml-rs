@@ -297,3 +297,110 @@ fn hyperlinks_external_internal_and_removal() {
     let (_, res) = try_on(&merged_in, |ws| ws.set_hyperlink("D1", &Link::Location("Sheet1!A1".into()), &LinkOptions::default()));
     res.unwrap();
 }
+
+// ---- conditional formatting (§6) ----
+
+fn cf_try(input: &[u8], f: impl FnOnce(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<()>) -> String {
+    let (wb, r) = try_on(input, f);
+    r.unwrap();
+    out_xml(&wb)
+}
+
+/// Every priority in the sheet, 2007 and x14, sorted.
+fn priorities(xml: &str) -> Vec<u32> {
+    let mut v: Vec<u32> = xml.split("priority=\"").skip(1).map(|t| t[..t.find('"').unwrap()].parse().unwrap()).collect();
+    v.sort_unstable();
+    v
+}
+
+#[test]
+fn conditional_formats_add_priorities_and_kinds() {
+    use ooxml_xlsx::{CfOperator, Cfvo, Rule, RuleKind};
+    let input = read("poi/NewStyleConditionalFormattings.xlsx");
+    let before = sheet_xml(&input);
+    // max + 1 over 2007 and x14 (23 is the highest); a new block after the last one
+    let xml = cf_try(&input, |ws| ws.add_conditional_format("A2:A9 B4", &Rule::new(RuleKind::CellIs(CfOperator::Between, "1".into(), Some("=$T$5".into()))).with_dxf(2)));
+    assert!(xml.contains(r#"<conditionalFormatting sqref="A2:A9 B4"><cfRule type="cellIs" dxfId="2" priority="24" operator="between"><formula>1</formula><formula>$T$5</formula></cfRule></conditionalFormatting><pageMargins "#), "{}", &xml[xml.find("</sheetData>").unwrap()..]);
+    let mut p = priorities(&before);
+    p.push(24);
+    p.sort_unstable();
+    assert_eq!(priorities(&xml), p, "no other priority changed");
+    // first: every priority + 1, x14 included
+    let xml = cf_try(&input, |ws| ws.add_conditional_format_first("A1", &Rule::new(RuleKind::Expression("MOD(ROW(),2)=0".into())).with_dxf(0).stop_if_true(true)));
+    let mut p: Vec<u32> = priorities(&before).iter().map(|p| p + 1).collect();
+    p.push(1);
+    p.sort_unstable();
+    assert_eq!(priorities(&xml), p);
+    assert!(xml.contains(r#"<cfRule type="expression" dxfId="0" priority="1" stopIfTrue="1"><formula>MOD(ROW(),2)=0</formula></cfRule>"#));
+    assert!(xml.contains(r#"<x14:cfRule type="iconSet" priority="7" id="{23404A22"#));
+    // the 2007 kinds, from scratch
+    let empty = sheet_with("", "", "");
+    let xml = cf_try(&empty, |ws| {
+        ws.add_conditional_format("A1:A9", &Rule::new(RuleKind::ContainsText("a\"b".into())))?;
+        ws.add_conditional_format("B1:B9", &Rule::new(RuleKind::BeginsWith("x".into())))?;
+        ws.add_conditional_format("C1:C9", &Rule::new(RuleKind::Top10 { rank: 10, percent: true, bottom: true }))?;
+        ws.add_conditional_format("D1:D9", &Rule::new(RuleKind::AboveAverage(false)))?;
+        ws.add_conditional_format("E1:E9", &Rule::new(RuleKind::ColorScale(vec![(Cfvo::Min, "FFF8696B".into()), (Cfvo::Percentile(50.0), "FFFFEB84".into()), (Cfvo::Max, "FF63BE7B".into())])))?;
+        ws.add_conditional_format("F1:F9", &Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Formula("=$A$1".into()), "FF638EC6".into())))?;
+        ws.add_conditional_format("G1:G9", &Rule::new(RuleKind::IconSet("3Arrows".into(), vec![Cfvo::Percent(0.0), Cfvo::Percent(33.0), Cfvo::Num(67.5)])))?;
+        ws.add_conditional_format("H1:H9", &Rule::new(RuleKind::DuplicateValues))
+    });
+    for want in [
+        r#"<conditionalFormatting sqref="A1:A9"><cfRule type="containsText" priority="1" operator="containsText" text="a&quot;b"><formula>NOT(ISERROR(SEARCH("a""b",A1)))</formula></cfRule></conditionalFormatting>"#,
+        r#"<cfRule type="beginsWith" priority="2" operator="beginsWith" text="x"><formula>LEFT(B1,LEN("x"))="x"</formula></cfRule>"#,
+        r#"<cfRule type="top10" priority="3" percent="1" bottom="1" rank="10"/>"#,
+        r#"<cfRule type="aboveAverage" priority="4" aboveAverage="0"/>"#,
+        r#"<colorScale><cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/><color rgb="FFF8696B"/><color rgb="FFFFEB84"/><color rgb="FF63BE7B"/></colorScale>"#,
+        r#"<dataBar><cfvo type="min"/><cfvo type="formula" val="$A$1"/><color rgb="FF638EC6"/></dataBar>"#,
+        r#"<iconSet iconSet="3Arrows"><cfvo type="percent" val="0"/><cfvo type="percent" val="33"/><cfvo type="num" val="67.5"/></iconSet>"#,
+        r#"<cfRule type="duplicateValues" priority="8"/></conditionalFormatting></worksheet>"#,
+    ] {
+        assert!(xml.contains(want), "{want}\n{xml}");
+    }
+}
+
+#[test]
+fn conditional_format_refusals_and_removal() {
+    use ooxml_xlsx::{CfOperator, Cfvo, Rule, RuleKind};
+    let input = book(&[("S", ""), ("Other", "")], "", "");
+    let cases: Vec<(Rule, fn(&Error) -> bool)> = vec![
+        (Rule::new(RuleKind::Expression("Other!A1>0".into())), |e| matches!(e, Error::CrossSheetReference { .. })),
+        (Rule::new(RuleKind::CellIs(CfOperator::Equal, "Nope!A1".into(), None)), |e| matches!(e, Error::UnknownSheet(_))),
+        (Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Formula("Other!$A$1".into()), "FF000000".into())), |e| matches!(e, Error::CrossSheetReference { .. })),
+        (Rule::new(RuleKind::Expression("SUM((".into())), |e| matches!(e, Error::InvalidFormula { .. })),
+        (Rule::new(RuleKind::Expression("1".into())).with_dxf(0), |e| matches!(e, Error::InvalidSetting { .. })), // no dxfs
+        (Rule::new(RuleKind::ColorScale(vec![(Cfvo::Min, "red".into()), (Cfvo::Max, "FF000000".into())])), |e| matches!(e, Error::InvalidSetting { .. })),
+    ];
+    for (rule, ok) in cases {
+        let (_, r) = try_on(&input, |ws| ws.add_conditional_format("A1", &rule));
+        let e = r.unwrap_err();
+        assert!(ok(&e), "{e}");
+    }
+    // pivot blocks: add_first refused, removal refused
+    let pivot = sheet_with("", r#"<conditionalFormatting sqref="A1:B2" pivot="1"><cfRule type="expression" priority="1"><formula>1</formula></cfRule></conditionalFormatting>"#, "");
+    let (_, r) = try_on(&pivot, |ws| ws.add_conditional_format_first("C1", &Rule::new(RuleKind::UniqueValues)));
+    assert_matches!(r, Err(Error::PivotConditionalFormat(_)));
+    let (_, r) = try_on(&pivot, |ws| ws.remove_conditional_format("A1:B2", None).map(drop));
+    assert_matches!(r, Err(Error::PivotConditionalFormat(_)));
+    let (_, r) = try_on(&pivot, |ws| ws.add_conditional_format("C1", &Rule::new(RuleKind::UniqueValues)));
+    r.unwrap(); // a plain add leaves the pivot block alone
+    // removal with its x14 link: the data bar on E2:E17
+    let ncf = read("poi/NewStyleConditionalFormattings.xlsx");
+    let (wb, r) = try_on(&ncf, |ws| ws.remove_conditional_format("E2:E17", None));
+    let rep = r.unwrap();
+    assert_eq!((rep.removed, rep.broken_x14_link), (1, false));
+    let xml = out_xml(&wb);
+    assert!(!xml.contains("E2:E17") && !xml.contains("9B4F274F"), "{xml}");
+    assert!(xml.contains("{23404A22"), "the other x14 rule stays");
+    // by priority, in a two-rule block: T2:T17 keeps its iconSet
+    let (wb, r) = try_on(&ncf, |ws| ws.remove_conditional_format("T2:T17", Some(2)));
+    r.unwrap();
+    let xml = out_xml(&wb);
+    assert!(xml.contains(r#"<conditionalFormatting sqref="T2:T17"><cfRule type="iconSet" priority="3">"#) && !xml.contains("MOD(ROW($T2),2)=1"), "{xml}");
+    let (_, r) = try_on(&ncf, |ws| ws.remove_conditional_format("T2:T17", Some(99)).map(drop));
+    assert_matches!(r, Err(Error::NoSuchRule { .. }));
+    // a broken link is reported
+    let broken = sheet_with("", r#"<conditionalFormatting sqref="A1"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF000000"/></dataBar><extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:id>{0000}</x14:id></ext></extLst></cfRule></conditionalFormatting>"#, "");
+    let (_, r) = try_on(&broken, |ws| ws.remove_conditional_format("A1", None));
+    assert!(r.unwrap().broken_x14_link);
+}
