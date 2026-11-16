@@ -10,18 +10,27 @@
 //! present value; XSD defaults never stop a chain. Attributes of a group's
 //! member element (autofit scales, `startAt`, a font's `pitchFamily` /
 //! `charset`, `xfrm` `rot` / `flip*`) are read only from the element that won
-//! the group; absent there, they are that element's XSD default with
-//! `defaulted: true` (review r2-m1).
+//! the group; each is a [`WinnerAttr`]: the value (an `AttrError` with the
+//! raw text when invalid) or, absent there, that element's XSD default with
+//! `defaulted: true` (review r2-m1, #56 m3).
+//!
+//! Enumerated attributes are returned as [`EnumValue`] of the generated
+//! simple type (ADR-0002 owner decision Q2, #56 M2); [`RunProps::xsd_default`]
+//! and friends give the schema default for an `Unset` property (§1.3).
 //!
 //! Values are **as specified**, not as displayed (§1.6): autofit scales and
 //! colour transforms are not applied; a linked run's display colour follows
 //! [`crate::Link::color_rule`].
 //!
-//! This implementation covers the slide context (§1.2–§1.6). The notes and
-//! layout/master contexts of §1.7 are a follow-up (ADR-0008 §2 notes
-//! editing is out of this PR).
+//! Contexts (§1.7): a [`Sheet`] is a slide, notes slide, layout or master
+//! with the parts its shapes inherit from; [`DeckSlide`] delegates to its
+//! slide `Sheet`.
 
-use ooxml_core::{AttrError, QName, RawNode};
+use ooxml_core::{AttrError, ElementSpec, EnumType, EnumValue, QName, RawNode};
+use ooxml_schema::dml::{
+    BodyProperties, ParagraphProperties, RunProperties, TextAlignmentTypeValues, TextAnchoringTypeValues, TextAutoNumberSchemeValues,
+    TextCapsValues, TextStrikeValues, TextUnderlineValues, TextVerticalValues, TextWrappingValues,
+};
 use ooxml_core::value::{DmlPercent, parse_dml_percent};
 
 use crate::deck::{DeckSlide, Sheet, SheetKind, a, child, p, un};
@@ -67,9 +76,39 @@ pub struct Resolved<'a, T> {
     pub value: std::result::Result<T, AttrError>,
     /// Where it came from.
     pub source: Source<'a>,
-    /// The winning group member lacked the attribute: this is its XSD
-    /// default (§1.3, review r2-m1).
+    /// The value is the XSD default of an attribute absent on the element
+    /// that won its group (an autofit scale on the shape itself, §1.6).
+    /// Attributes inside a value carry their own flag ([`WinnerAttr`]).
     pub defaulted: bool,
+}
+
+/// An attribute read only from the element that won its group (§1.3,
+/// review r2-m1): present → its value (`Err` with the raw text when
+/// invalid); absent → the XSD default, `defaulted: true`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WinnerAttr<T> {
+    /// The value or the invalid raw text.
+    pub value: std::result::Result<T, AttrError>,
+    /// The attribute is absent on the winning element (XSD default).
+    pub defaulted: bool,
+}
+
+impl<T: Copy> WinnerAttr<T> {
+    /// The value when valid.
+    pub fn get(&self) -> Option<T> {
+        self.value.as_ref().ok().copied()
+    }
+}
+
+fn winner<T>(n: &RawNode, name: &'static str, default: T, parse: impl Fn(&str) -> Option<T>) -> WinnerAttr<T> {
+    match n.attr(un(name)) {
+        None => WinnerAttr { value: Ok(default), defaulted: true },
+        Some(raw) => WinnerAttr { value: parse(raw).ok_or_else(|| attr_error(name, raw)), defaulted: false },
+    }
+}
+
+fn defaulted<T>(v: T) -> WinnerAttr<T> {
+    WinnerAttr { value: Ok(v), defaulted: true }
 }
 
 /// Why a lookup is not decided.
@@ -192,7 +231,10 @@ pub enum MatchKind {
     Family,
     /// No layout placeholder: resolved from the master by family.
     Orphan,
-    /// Layout → master (by the layout placeholder's family).
+    /// Layout → master (by the layout placeholder's family). A value from
+    /// a slide's master placeholder reports the slide placeholder's own
+    /// match kind instead (§1.2: "every resolved value … reports the
+    /// `MatchKind`").
     MasterFamily,
     /// A placeholder on a master: it inherits from no placeholder (§1.7).
     OnMaster,
@@ -295,6 +337,11 @@ fn placeholders(root: &RawNode) -> Vec<Ph<'_>> {
         for c in n.elements() {
             if c.is(p("grpSp")) {
                 walk(c, true, out);
+            } else if c.is(ooxml_core::name::MC_ALTERNATE_CONTENT) {
+                // the branch a reader uses (as for slide shapes, #56 m4)
+                if let Some(ph) = ac_representative(c).and_then(|r| ph_of(r, in_group)) {
+                    out.push(ph);
+                }
             } else if let Some(ph) = ph_of(c, in_group) {
                 out.push(ph);
             }
@@ -307,8 +354,13 @@ fn placeholders(root: &RawNode) -> Vec<Ph<'_>> {
     out
 }
 
-fn first_canon<'a>(v: &[Ph<'a>]) -> Option<Ph<'a>> {
-    v.iter().find(|x| x.idx == Some(0)).or(v.first()).copied()
+/// Step 3's choice: idx 0 preferred, else the first. Returns the pick and
+/// the number of equal candidates it was chosen from (those with idx 0 if
+/// any has it, else all): "ambiguous" means more than one (#56 nit).
+fn first_canon<'a>(v: &[Ph<'a>]) -> Option<(Ph<'a>, usize)> {
+    let zero = v.iter().filter(|x| x.idx == Some(0)).count();
+    let equal = if zero > 0 { zero } else { v.len() };
+    v.iter().find(|x| x.idx == Some(0)).or(v.first()).map(|f| (*f, equal))
 }
 
 /// §1.2: slide → layout. Returns (layout placeholder, kind, ambiguous, candidates).
@@ -328,12 +380,12 @@ fn match_layout<'a>(sp: &Ph<'_>, lph: &[Ph<'a>]) -> (Option<Ph<'a>>, MatchKind, 
         return (Some(f), MatchKind::IdxTypeMismatch, tie, by_idx.len());
     }
     let by_type: Vec<Ph<'a>> = lph.iter().filter(|x| x.ty == sp.ty).copied().collect();
-    if let Some(f) = first_canon(&by_type) {
-        return (Some(f), MatchKind::Type, by_type.len() > 1, by_type.len());
+    if let Some((f, n)) = first_canon(&by_type) {
+        return (Some(f), MatchKind::Type, n > 1, n);
     }
     let by_fam: Vec<Ph<'a>> = lph.iter().filter(|x| fam(x.ty) == fam(sp.ty)).copied().collect();
-    if let Some(f) = first_canon(&by_fam) {
-        return (Some(f), MatchKind::Family, by_fam.len() > 1, by_fam.len());
+    if let Some((f, n)) = first_canon(&by_fam) {
+        return (Some(f), MatchKind::Family, n > 1, n);
     }
     (None, MatchKind::Orphan, false, 0)
 }
@@ -493,14 +545,15 @@ impl<'a> Sheet<'a> {
                 let nph = placeholders(self.master()?.root());
                 let by_type: Vec<Ph<'a>> = nph.iter().filter(|x| x.ty == sp.ty).copied().collect();
                 let by_fam: Vec<Ph<'a>> = nph.iter().filter(|x| Family::of(x.ty) == family).copied().collect();
-                let (found, kind, v) = match first_canon(&by_type) {
-                    Some(f) => (Some(f), MatchKind::Type, by_type),
+                let (found, kind) = match first_canon(&by_type) {
+                    Some(f) => (Some(f), MatchKind::Type),
                     None => match first_canon(&by_fam) {
-                        Some(f) => (Some(f), MatchKind::Family, by_fam),
-                        None => (None, MatchKind::Orphan, Vec::new()),
+                        Some(f) => (Some(f), MatchKind::Family),
+                        None => (None, MatchKind::Orphan),
                     },
                 };
-                Ok(Some(PlaceholderMatch { master: found.map(|f| f.shape), ambiguous: v.len() > 1, candidates: v.len(), ..none(kind) }))
+                let n = found.map_or(0, |f| f.1);
+                Ok(Some(PlaceholderMatch { master: found.map(|f| f.0.shape), ambiguous: n > 1, candidates: n, ..none(kind) }))
             }
             _ => {
                 let (layout, master) = (self.layout()?, self.master()?);
@@ -514,7 +567,7 @@ impl<'a> Sheet<'a> {
         }
     }
 
-    fn chain(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: Option<ParagraphRef<'a>>, level: Option<u8>, run_level: bool) -> Result<Chain<'a>> {
+    fn chain(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, level: Option<u8>, run_level: bool) -> Result<Chain<'a>> {
         let node = representative(shape);
         let is_cell = body.raw().is(a("txBody"));
         let lvl = level.unwrap_or(0);
@@ -523,7 +576,6 @@ impl<'a> Sheet<'a> {
         let clr_map = self.color_map().ok().flatten();
         let mut chain = Chain { steps: Vec::new(), stop_after: None, tail: Tail::Unset, theme, theme_override: self.theme_override, clr_map };
         // steps 1–2 are added by the caller (they depend on the item)
-        let _ = para;
         let pre = |steps: &mut Vec<Step<'a>>, source: Source<'a>, n: Option<&'a RawNode>| steps.push(Step { source, node: n, font_ref: false });
         if level.is_none() {
             // invalid level: stop at the first level-dependent step (r2-m9)
@@ -564,7 +616,7 @@ impl<'a> Sheet<'a> {
                     pre(&mut steps, Source::Placeholder { role: Role::Layout, part: lp.name, shape_id: shape_id(l), matched: m.kind, level: Some(lvl) }, level_el(lst_style(txbody(l)), lvl));
                 }
                 if let Some(mp) = m.master {
-                    pre(&mut steps, Source::Placeholder { role: Role::Master, part: master.name, shape_id: shape_id(mp), matched: MatchKind::MasterFamily, level: Some(lvl) }, level_el(lst_style(txbody(mp)), lvl));
+                    pre(&mut steps, Source::Placeholder { role: Role::Master, part: master.name, shape_id: shape_id(mp), matched: m.kind, level: Some(lvl) }, level_el(lst_style(txbody(mp)), lvl));
                 }
                 if let Some(kind) = m.family.text_style() {
                     let local = match kind {
@@ -598,7 +650,7 @@ impl<'a> Sheet<'a> {
             RunItem::End => child(para.raw(), a("endParaRPr")),
         };
         let ppr = child(para.raw(), a("pPr"));
-        let mut chain = self.chain(shape, body, Some(para), level.as_ref().ok().copied(), true)?;
+        let mut chain = self.chain(shape, body, level.as_ref().ok().copied(), true)?;
         let mut steps = vec![
             Step { source: Source::Direct, node: own, font_ref: false },
             Step { source: Source::ParagraphDefault, node: ppr.and_then(|n| child(n, a("defRPr"))), font_ref: false },
@@ -620,7 +672,7 @@ impl<'a> Sheet<'a> {
     /// Paragraph properties (§1.3: the chain without steps 2 and 4).
     pub fn para_props(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: ParagraphRef<'a>) -> Result<ParaProps<'a>> {
         let level = level_of(para.raw());
-        let mut chain = self.chain(shape, body, Some(para), level.as_ref().ok().copied(), false)?;
+        let mut chain = self.chain(shape, body, level.as_ref().ok().copied(), false)?;
         let mut steps = vec![Step { source: Source::Direct, node: child(para.raw(), a("pPr")), font_ref: false }];
         if let Some((_, reason)) = chain.stop_after.take() {
             chain.stop_after = Some((1, reason));
@@ -657,14 +709,22 @@ impl<'a> Sheet<'a> {
 
     /// The source of a value from the master-side placeholder `mp`.
     fn master_source(&self, m: &PlaceholderMatch<'a>, mp: &'a RawNode) -> Result<Source<'a>> {
-        let (role, matched) = if self.kind == SheetKind::Notes { (Role::NotesMaster, m.kind) } else { (Role::Master, MatchKind::MasterFamily) };
+        let role = if self.kind == SheetKind::Notes { Role::NotesMaster } else { Role::Master };
+        let matched = m.kind;
         Ok(Source::Placeholder { role, part: self.master()?.name, shape_id: shape_id(mp), matched, level: None })
     }
 
     fn geometry_steps(&self, shape: &ShapeRef<'a>) -> Result<std::result::Result<Vec<Step<'a>>, Reason<'a>>> {
         let node = representative(shape);
         let own = |n: &'a RawNode| -> Option<&'a RawNode> {
-            if n.is(p("graphicFrame")) { child(n, p("xfrm")) } else { child(n, p("spPr")) }
+            if n.is(p("graphicFrame")) {
+                child(n, p("xfrm"))
+            } else if n.is(p("grpSp")) {
+                // #56 m2: a group's own a:xfrm (CT_GroupTransform2D)
+                child(n, p("grpSpPr"))
+            } else {
+                child(n, p("spPr"))
+            }
         };
         let mut steps = vec![Step { source: Source::Direct, node: own(node), font_ref: false }];
         if let Some(m) = self.placeholder_match(shape)? {
@@ -697,23 +757,68 @@ impl<'a> Sheet<'a> {
             let x = s.node.and_then(|n| if n.is(p("xfrm")) { Some(n) } else { child(n, a("xfrm")) });
             let Some(x) = x else { continue };
             let (Some(off), Some(ext)) = (child(x, a("off")), child(x, a("ext"))) else { continue };
-            let num = |n: &RawNode, k: &'static str| n.attr(un(k)).and_then(|v| v.parse::<i64>().ok());
-            let value = match (num(off, "x"), num(off, "y"), num(ext, "cx"), num(ext, "cy")) {
-                (Some(x0), Some(y0), Some(cx), Some(cy)) => Ok(Xfrm {
-                    x: x0,
-                    y: y0,
-                    cx,
-                    cy,
-                    rot: x.attr(un("rot")).and_then(|v| v.parse().ok()).unwrap_or(0),
-                    flip_h: x.attr(un("flipH")).and_then(ooxml_core::value::parse_bool).unwrap_or(false),
-                    flip_v: x.attr(un("flipV")).and_then(ooxml_core::value::parse_bool).unwrap_or(false),
-                }),
-                _ => Err(attr_error("xfrm", "off/ext")),
+            // a missing or invalid coordinate is an AttrError with its raw text (#56 m3)
+            let num = |n: &RawNode, k: &'static str| -> std::result::Result<i64, AttrError> {
+                let raw = n.attr(un(k)).unwrap_or("");
+                raw.parse::<i64>().map_err(|_| attr_error(k, raw))
             };
-            let defaulted = x.attr(un("rot")).is_none() && x.attr(un("flipH")).is_none() && x.attr(un("flipV")).is_none();
-            return Ok(Lookup::Set(Resolved { value, source: s.source, defaulted }));
+            let value = (|| {
+                Ok(Xfrm {
+                    x: num(off, "x")?,
+                    y: num(off, "y")?,
+                    cx: num(ext, "cx")?,
+                    cy: num(ext, "cy")?,
+                    rot: winner(x, "rot", 0, |v| v.parse().ok()),
+                    flip_h: winner(x, "flipH", false, ooxml_core::value::parse_bool),
+                    flip_v: winner(x, "flipV", false, ooxml_core::value::parse_bool),
+                })
+            })();
+            return Ok(Lookup::Set(Resolved { value, source: s.source, defaulted: false }));
         }
         Ok(Lookup::Unset)
+    }
+
+    /// The shape's rectangle in slide coordinates (§1.5): its resolved
+    /// geometry, mapped through every enclosing group's
+    /// `a:off`/`a:ext`/`a:chOff`/`a:chExt` (scaled, rounded to EMU).
+    /// `None` when the geometry is not `Set` and valid (including a
+    /// placeholder in a group, `GroupCoordinates`).
+    ///
+    /// Errors: [`crate::Error::TransformedGroup`] if an enclosing group has
+    /// `rot` ≠ 0, `flipH` or `flipV`; chain errors.
+    pub fn slide_rect(&self, shape: &ShapeRef<'a>) -> Result<Option<Rect>> {
+        let Lookup::Set(Resolved { value: Ok(x), .. }) = self.geometry(shape)? else { return Ok(None) };
+        let (mut rx, mut ry, mut rcx, mut rcy) = (x.x as f64, x.y as f64, x.cx as f64, x.cy as f64);
+        let path = shape.path();
+        let path = path.as_slice();
+        let root = self.own.root();
+        // enclosing groups, innermost first: the nodes at path[..k], k = len-1 … 3
+        for k in (3..path.len()).rev() {
+            let Some(g) = crate::write::node_at(root, &path[..k]) else { break };
+            if !g.is(p("grpSp")) {
+                continue;
+            }
+            let Some(gx) = child(g, p("grpSpPr")).and_then(|sp| child(sp, a("xfrm"))) else { continue };
+            let rot = gx.attr(un("rot")).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+            let flip = |k: &'static str| gx.attr(un(k)).and_then(ooxml_core::value::parse_bool).unwrap_or(false);
+            if rot % 21_600_000 != 0 || flip("flipH") || flip("flipV") {
+                return Err(crate::Error::TransformedGroup { group_id: shape_id(g) });
+            }
+            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<(f64, f64)> {
+                let e = child(gx, a(n))?;
+                Some((e.attr(un(ax))?.parse().ok()?, e.attr(un(ay))?.parse().ok()?))
+            };
+            let (Some(off), Some(ext)) = (pt("off", "x", "y"), pt("ext", "cx", "cy")) else { continue };
+            let ch_off = pt("chOff", "x", "y").unwrap_or(off);
+            let ch_ext = pt("chExt", "cx", "cy").unwrap_or(ext);
+            let sx = if ch_ext.0 == 0.0 { 1.0 } else { ext.0 / ch_ext.0 };
+            let sy = if ch_ext.1 == 0.0 { 1.0 } else { ext.1 / ch_ext.1 };
+            rx = off.0 + (rx - ch_off.0) * sx;
+            ry = off.1 + (ry - ch_off.1) * sy;
+            rcx *= sx;
+            rcy *= sy;
+        }
+        Ok(Some(Rect { x: rx.round() as i64, y: ry.round() as i64, cx: rcx.round() as i64, cy: rcy.round() as i64 }))
     }
 
     /// The outline: the XSD choice `a:prstGeom | a:custGeom` (§1.5, review m5a).
@@ -761,6 +866,10 @@ impl<'a> DeckSlide<'a, '_> {
     pub fn geometry(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Xfrm>> {
         self.sheet().geometry(shape)
     }
+    /// [`Sheet::slide_rect`] of a slide shape.
+    pub fn slide_rect(&self, shape: &ShapeRef<'a>) -> Result<Option<Rect>> {
+        self.sheet().slide_rect(shape)
+    }
     /// [`Sheet::outline`] of a slide shape.
     pub fn outline(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Outline<'a>>> {
         self.sheet().outline(shape)
@@ -773,7 +882,7 @@ fn representative<'a>(shape: &ShapeRef<'a>) -> &'a RawNode {
 }
 
 /// Position and size in EMU, with rotation (60000ths of a degree) and flips.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Xfrm {
     /// `a:off@x`.
     pub x: i64,
@@ -784,11 +893,24 @@ pub struct Xfrm {
     /// `a:ext@cy`.
     pub cy: i64,
     /// `@rot` (default 0, from the winning element).
-    pub rot: i32,
-    /// `@flipH`.
-    pub flip_h: bool,
-    /// `@flipV`.
-    pub flip_v: bool,
+    pub rot: WinnerAttr<i32>,
+    /// `@flipH` (default false).
+    pub flip_h: WinnerAttr<bool>,
+    /// `@flipV` (default false).
+    pub flip_v: WinnerAttr<bool>,
+}
+
+/// A rectangle in slide coordinates (EMU), from [`Sheet::slide_rect`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rect {
+    /// Left.
+    pub x: i64,
+    /// Top.
+    pub y: i64,
+    /// Width.
+    pub cx: i64,
+    /// Height.
+    pub cy: i64,
 }
 
 /// A shape's outline.
@@ -811,9 +933,9 @@ pub struct Font<'a> {
     /// `+mj-lt` etc. when the value came from the theme.
     pub theme_ref: Option<&'a str>,
     /// `@pitchFamily` of the winning element (default 0, r2-m1).
-    pub pitch_family: u8,
+    pub pitch_family: WinnerAttr<u8>,
     /// `@charset` of the winning element (default 1).
-    pub charset: u8,
+    pub charset: WinnerAttr<u8>,
 }
 
 /// A fill (§1.3 element group).
@@ -999,6 +1121,14 @@ fn parse_bool(s: &str) -> Option<bool> {
 fn parse_str(s: &str) -> Option<&str> {
     Some(s)
 }
+fn parse_enum<E: EnumType>(s: &str) -> Option<EnumValue<'_, E>> {
+    Some(EnumValue::from_raw(s))
+}
+
+/// The XSD default of an attribute of element `E` (None if it has none).
+fn xsd_default_of<E: ElementSpec>(name: &str) -> Option<&'static str> {
+    E::ATTRS.iter().find(|a| a.name.ns.is_empty() && a.name.local == name).and_then(|a| a.default)
+}
 
 /// Run properties as specified (§1.3, §1.6).
 #[derive(Clone, Debug)]
@@ -1009,12 +1139,12 @@ pub struct RunProps<'a> {
     pub bold: Lookup<'a, bool>,
     /// `i`.
     pub italic: Lookup<'a, bool>,
-    /// `u` (raw `ST_TextUnderlineType`).
-    pub underline: Lookup<'a, &'a str>,
+    /// `u`.
+    pub underline: Lookup<'a, EnumValue<'a, TextUnderlineValues>>,
     /// `strike`.
-    pub strike: Lookup<'a, &'a str>,
+    pub strike: Lookup<'a, EnumValue<'a, TextStrikeValues>>,
     /// `cap`.
-    pub caps: Lookup<'a, &'a str>,
+    pub caps: Lookup<'a, EnumValue<'a, TextCapsValues>>,
     /// `baseline` (`DmlPercent`).
     pub baseline: Lookup<'a, DmlPercent>,
     /// `spc` (1/100 pt).
@@ -1023,6 +1153,8 @@ pub struct RunProps<'a> {
     pub kern: Lookup<'a, u32>,
     /// `lang`.
     pub lang: Lookup<'a, &'a str>,
+    /// `altLang`.
+    pub alt_lang: Lookup<'a, &'a str>,
     /// `a:latin`.
     pub latin: Lookup<'a, Font<'a>>,
     /// `a:ea`.
@@ -1041,13 +1173,14 @@ impl<'a> RunProps<'a> {
             size: find_attr(c, "sz", parse_u32),
             bold: find_attr(c, "b", parse_bool),
             italic: find_attr(c, "i", parse_bool),
-            underline: find_attr(c, "u", parse_str),
-            strike: find_attr(c, "strike", parse_str),
-            caps: find_attr(c, "cap", parse_str),
+            underline: find_attr(c, "u", parse_enum),
+            strike: find_attr(c, "strike", parse_enum),
+            caps: find_attr(c, "cap", parse_enum),
             baseline: find_attr(c, "baseline", parse_dml_percent),
             spacing: find_attr(c, "spc", parse_i64),
             kern: find_attr(c, "kern", parse_u32),
             lang: find_attr(c, "lang", parse_str),
+            alt_lang: find_attr(c, "altLang", parse_str),
             latin: font(c, "latin", "lt"),
             east_asian: font(c, "ea", "ea"),
             complex_script: font(c, "cs", "cs"),
@@ -1079,19 +1212,16 @@ fn font<'a>(c: &Chain<'a>, slot: &'static str, suffix: &'static str) -> Lookup<'
                 (Some("minor"), "cs") => "+mn-cs",
                 _ => continue, // idx="none": no typeface
             };
-            return theme_ref(c, reference, s.source.clone(), 0, 1, true);
+            return theme_ref(c, reference, s.source.clone(), defaulted(0), defaulted(1));
         }
         let Some(f) = child(n, a(slot)) else { continue };
         let raw = f.attr(un("typeface")).unwrap_or("");
-        let pf = f.attr(un("pitchFamily"));
-        let cs = f.attr(un("charset"));
-        let pitch = pf.and_then(|v| v.parse().ok()).unwrap_or(0);
-        let charset = cs.and_then(|v| v.parse().ok()).unwrap_or(1);
-        let defaulted = pf.is_none() && cs.is_none();
-        if raw.starts_with('+') && raw.len() == 6 {
-            return theme_ref(c, raw, s.source.clone(), pitch, charset, defaulted);
+        let pitch = winner(f, "pitchFamily", 0u8, |v| v.parse().ok());
+        let charset = winner(f, "charset", 1u8, |v| v.parse().ok());
+        if is_theme_font_ref(raw) {
+            return theme_ref(c, raw, s.source.clone(), pitch, charset);
         }
-        return Lookup::Set(Resolved { value: Ok(Font { typeface: raw, theme_ref: None, pitch_family: pitch, charset }), source: s.source.clone(), defaulted });
+        return Lookup::Set(Resolved { value: Ok(Font { typeface: raw, theme_ref: None, pitch_family: pitch, charset }), source: s.source.clone(), defaulted: false });
     }
     if let Some((_, reason)) = &c.stop_after {
         return Lookup::Unresolved(reason.clone());
@@ -1102,13 +1232,18 @@ fn font<'a>(c: &Chain<'a>, slot: &'static str, suffix: &'static str) -> Lookup<'
     }
 }
 
-fn theme_ref<'a>(c: &Chain<'a>, reference: &'a str, source: Source<'a>, pitch: u8, charset: u8, defaulted: bool) -> Lookup<'a, Font<'a>> {
+/// `+mj-lt`, `+mj-ea`, `+mj-cs`, `+mn-lt`, `+mn-ea`, `+mn-cs` (§1.4).
+fn is_theme_font_ref(s: &str) -> bool {
+    matches!(s, "+mj-lt" | "+mj-ea" | "+mj-cs" | "+mn-lt" | "+mn-ea" | "+mn-cs")
+}
+
+fn theme_ref<'a>(c: &Chain<'a>, reference: &'a str, source: Source<'a>, pitch: WinnerAttr<u8>, charset: WinnerAttr<u8>) -> Lookup<'a, Font<'a>> {
     if c.theme_override {
         return Lookup::Unresolved(Reason::ThemeOverride);
     }
     let Some(theme) = c.theme else { return Lookup::Unresolved(Reason::BrokenChain) };
     match theme_font(theme, reference) {
-        Ok(tf) => Lookup::Set(Resolved { value: Ok(Font { typeface: tf, theme_ref: Some(reference), pitch_family: pitch, charset }), source, defaulted }),
+        Ok(tf) => Lookup::Set(Resolved { value: Ok(Font { typeface: tf, theme_ref: Some(reference), pitch_family: pitch, charset }), source, defaulted: false }),
         Err(r) => Lookup::Unresolved(r),
     }
 }
@@ -1159,10 +1294,10 @@ pub enum Bullet<'a> {
     Char(&'a str),
     /// `a:buAutoNum@type` and `@startAt` (default 1 from the winning element).
     AutoNum {
-        /// Numbering scheme.
-        scheme: &'a str,
-        /// First number.
-        start_at: u32,
+        /// Numbering scheme (`@type`).
+        scheme: EnumValue<'a, TextAutoNumberSchemeValues>,
+        /// First number (`@startAt`, default 1 on the winning element).
+        start_at: WinnerAttr<u32>,
     },
     /// `a:buBlip`.
     Picture,
@@ -1174,7 +1309,7 @@ pub struct ParaProps<'a> {
     /// `a:pPr@lvl` (direct; `Err` when invalid).
     pub level: std::result::Result<u8, AttrError>,
     /// `algn`.
-    pub align: Lookup<'a, &'a str>,
+    pub align: Lookup<'a, EnumValue<'a, TextAlignmentTypeValues>>,
     /// `marL` (EMU).
     pub margin_left: Lookup<'a, i64>,
     /// `indent` (EMU).
@@ -1209,12 +1344,14 @@ impl<'a> ParaProps<'a> {
                 Err(r) => Lookup::Unresolved(r),
                 Ok(None) => Lookup::Unset,
                 Ok(Some((n, source))) => {
-                    let v = if let Some(p) = child(n, a("spcPct")) {
-                        p.attr(un("val")).and_then(parse_dml_percent).map(Spacing::Percent)
-                    } else {
-                        child(n, a("spcPts")).and_then(|p| p.attr(un("val"))).and_then(|v| v.parse().ok()).map(Spacing::Points)
+                    // an invalid or missing @val is an AttrError with its raw text (#56 m3)
+                    let (el, pct) = match child(n, a("spcPct")) {
+                        Some(p) => (Some(p), true),
+                        None => (child(n, a("spcPts")), false),
                     };
-                    Lookup::Set(Resolved { value: v.ok_or_else(|| attr_error("val", "")), source, defaulted: false })
+                    let raw = el.and_then(|e| e.attr(un("val"))).unwrap_or("");
+                    let v = if pct { parse_dml_percent(raw).map(Spacing::Percent) } else { raw.parse().ok().map(Spacing::Points) };
+                    Lookup::Set(Resolved { value: v.ok_or_else(|| attr_error("val", raw)), source, defaulted: false })
                 }
             }
         };
@@ -1222,21 +1359,21 @@ impl<'a> ParaProps<'a> {
             Err(r) => Lookup::Unresolved(r),
             Ok(None) => Lookup::Unset,
             Ok(Some((n, source))) => {
-                let (v, defaulted) = match n.name().local() {
-                    "buNone" => (Bullet::None, false),
-                    "buChar" => (Bullet::Char(n.attr(un("char")).unwrap_or("")), false),
-                    "buAutoNum" => {
-                        let s = n.attr(un("startAt"));
-                        (Bullet::AutoNum { scheme: n.attr(un("type")).unwrap_or(""), start_at: s.and_then(|v| v.parse().ok()).unwrap_or(1) }, s.is_none())
-                    }
-                    _ => (Bullet::Picture, false),
+                let v = match n.name().local() {
+                    "buNone" => Bullet::None,
+                    "buChar" => Bullet::Char(n.attr(un("char")).unwrap_or("")),
+                    "buAutoNum" => Bullet::AutoNum {
+                        scheme: EnumValue::from_raw(n.attr(un("type")).unwrap_or("")),
+                        start_at: winner(n, "startAt", 1, |v| v.parse().ok()),
+                    },
+                    _ => Bullet::Picture,
                 };
-                Lookup::Set(Resolved { value: Ok(v), source, defaulted })
+                Lookup::Set(Resolved { value: Ok(v), source, defaulted: false })
             }
         };
         ParaProps {
             level,
-            align: find_attr(c, "algn", parse_str),
+            align: find_attr(c, "algn", parse_enum),
             margin_left: find_attr(c, "marL", parse_i64),
             indent: find_attr(c, "indent", parse_i64),
             rtl: find_attr(c, "rtl", parse_bool),
@@ -1271,15 +1408,15 @@ pub enum Autofit<'a> {
 #[derive(Clone, Debug)]
 pub struct BodyProps<'a> {
     /// `anchor`.
-    pub anchor: Lookup<'a, &'a str>,
+    pub anchor: Lookup<'a, EnumValue<'a, TextAnchoringTypeValues>>,
     /// `anchorCtr`.
     pub anchor_center: Lookup<'a, bool>,
     /// `wrap`.
-    pub wrap: Lookup<'a, &'a str>,
+    pub wrap: Lookup<'a, EnumValue<'a, TextWrappingValues>>,
     /// `lIns`, `tIns`, `rIns`, `bIns` (EMU).
     pub insets: [Lookup<'a, i64>; 4],
     /// `vert`.
-    pub vertical: Lookup<'a, &'a str>,
+    pub vertical: Lookup<'a, EnumValue<'a, TextVerticalValues>>,
     /// `rot`.
     pub rotation: Lookup<'a, i64>,
     /// `numCol`.
@@ -1317,17 +1454,102 @@ impl<'a> BodyProps<'a> {
             }
         };
         BodyProps {
-            anchor: find_attr(&c, "anchor", parse_str),
+            anchor: find_attr(&c, "anchor", parse_enum),
             anchor_center: find_attr(&c, "anchorCtr", parse_bool),
-            wrap: find_attr(&c, "wrap", parse_str),
+            wrap: find_attr(&c, "wrap", parse_enum),
             insets: [find_attr(&c, "lIns", parse_i64), find_attr(&c, "tIns", parse_i64), find_attr(&c, "rIns", parse_i64), find_attr(&c, "bIns", parse_i64)],
-            vertical: find_attr(&c, "vert", parse_str),
+            vertical: find_attr(&c, "vert", parse_enum),
             rotation: find_attr(&c, "rot", parse_i64),
             columns: find_attr(&c, "numCol", parse_u32),
             upright: find_attr(&c, "upright", parse_bool),
             autofit,
         }
     }
+}
+
+impl RunProps<'_> {
+    /// The XSD default of an `a:rPr` attribute (`"sz"`, `"b"`, …), for a
+    /// property that is `Unset` (§1.3, §5). `None` if the schema has none.
+    pub fn xsd_default(attr: &str) -> Option<&'static str> {
+        xsd_default_of::<RunProperties>(attr)
+    }
+
+    /// Q4 helper (§1.4, owner decision): when a font slot is
+    /// `Unresolved(ScriptDependent)`, picks the theme's script font for the
+    /// run's language — `altLang` first for `ea`/`cs`, then `lang`
+    /// ([`script_for_lang`]). A candidate, never a `Set` value: PowerPoint
+    /// decides per character.
+    pub fn script_font_candidate<'f>(&self, slot: &'f Lookup<'_, Font<'_>>) -> Option<(&'static str, &'f str)> {
+        let Lookup::Unresolved(Reason::ScriptDependent { script_fonts, .. }) = slot else { return None };
+        [self.alt_lang.value(), self.lang.value()].into_iter().flatten().find_map(|l| {
+            let script = script_for_lang(l)?;
+            script_fonts.iter().find(|(s, _)| *s == script).map(|(_, t)| (script, *t))
+        })
+    }
+}
+
+impl ParaProps<'_> {
+    /// The XSD default of an `a:pPr` attribute (`"algn"`, `"marL"`, …).
+    pub fn xsd_default(attr: &str) -> Option<&'static str> {
+        xsd_default_of::<ParagraphProperties>(attr)
+    }
+}
+
+impl BodyProps<'_> {
+    /// The XSD default of an `a:bodyPr` attribute (`"anchor"`, `"wrap"`, …).
+    pub fn xsd_default(attr: &str) -> Option<&'static str> {
+        xsd_default_of::<BodyProperties>(attr)
+    }
+}
+
+/// The ISO 15924 script tag (as in a theme's `a:font@script`) for a
+/// language tag (`lang`/`altLang`), for [`RunProps::script_font_candidate`]
+/// (ADR-0008 §1.4, owner decision Q4). `None` for languages written in the
+/// Latin script or unknown ones.
+pub fn script_for_lang(lang: &str) -> Option<&'static str> {
+    let lower = lang.to_ascii_lowercase();
+    let mut parts = lower.split(['-', '_']);
+    let primary = parts.next()?;
+    let rest: Vec<&str> = parts.collect();
+    let has = |t: &str| rest.contains(&t);
+    Some(match primary {
+        "ja" => "Jpan",
+        "ko" => "Hang",
+        "zh" => {
+            if has("hant") || has("tw") || has("hk") || has("mo") {
+                "Hant"
+            } else {
+                "Hans"
+            }
+        }
+        "ar" | "fa" | "ur" | "ps" | "sd" => "Arab",
+        "he" | "yi" => "Hebr",
+        "th" => "Thai",
+        "am" | "ti" => "Ethi",
+        "bn" | "as" => "Beng",
+        "gu" => "Gujr",
+        "km" => "Khmr",
+        "kn" => "Knda",
+        "pa" => "Guru",
+        "iu" => "Cans",
+        "chr" => "Cher",
+        "ii" => "Yiii",
+        "bo" => "Tibt",
+        "dv" => "Thaa",
+        "hi" | "mr" | "ne" | "sa" | "kok" => "Deva",
+        "te" => "Telu",
+        "ta" => "Taml",
+        "syr" => "Syrc",
+        "or" => "Orya",
+        "ml" => "Mlym",
+        "lo" => "Laoo",
+        "si" => "Sinh",
+        "mn" if has("mong") => "Mong",
+        "vi" => "Viet",
+        "ug" => "Uigh",
+        "ka" => "Geor",
+        _ => return None,
+    })
 }
 
 impl<'a> Lookup<'a, Font<'a>> {

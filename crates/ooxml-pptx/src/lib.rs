@@ -43,13 +43,13 @@ mod write;
 
 pub use deck::{ChainLink, Deck, DeckSlide, PartRef, Sheet, SheetKind};
 pub use deckread::{
-    Anchor, Author, Branch, Build, Comment, Effect, Link, LinkColor, LinkEvent, LinkLocation, LinkTarget, Section, Sections, ShowJump, Target,
+    Anchor, Author, Branch, Build, Comment, Effect, Link, LinkColor, LinkEvent, LinkLocation, LinkTarget, PartLinks, Section, Sections, ShowJump, Target,
     Timing, Transition, UNDERSTOOD_NAMESPACES,
 };
 pub use error::{Error, Result};
 pub use resolve::{
     Autofit, BodyProps, Bullet, ClrMap, Color, Family, Fill, Font, Lookup, MapSource, MatchKind, Outline, ParaProps, PlaceholderMatch,
-    Reason, Resolved, Role, RunItem, RunProps, Source, Spacing, TextStyleKind, Xfrm,
+    Reason, Rect, Resolved, Role, RunItem, RunProps, Source, Spacing, TextStyleKind, WinnerAttr, Xfrm, script_for_lang,
 };
 pub use notes::{NotesMut, NotesRef};
 pub use presentation::Presentation;

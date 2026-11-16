@@ -13,6 +13,10 @@ every fixture and its
   §2  each notes slide's text (python-pptx notes_text_frame.text, None
       without a body placeholder) must equal ooxml-pptx's NotesRef text.
 
+The known differences are keyed by fixture path, so on another corpus
+they are reported as "no longer differs" (#56 m6); CI runs it on the
+fixtures only.
+
     python3 -I resolve_check.py [--site DIR] DUMP.json FIXTURES_DIR
 """
 import json

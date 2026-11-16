@@ -193,7 +193,8 @@ fn notes_refusals() {
     type Op = fn(&mut ooxml_pptx::TextBodyMut<'_>) -> Result<(), Error>;
     let mut q = Presentation::from_bytes(cases::read_fixture("poi/sample.pptx")).unwrap();
     assert_matches!(refused(&mut q, |p| p.notes_mut(0)?.body_mut()?.remove_paragraph(0)), Error::LastParagraph);
-    let ops: [(Op, fn(&Error) -> bool); 8] = [
+    type Want = fn(&Error) -> bool;
+    let ops: [(Op, Want); 8] = [
         (|b| b.paragraph_mut(5).map(|_| ()), |e| matches!(e, Error::ParagraphNotFound(5))),
         (|b| b.paragraph_mut(0)?.run_mut(7).map(|_| ()), |e| matches!(e, Error::RunNotFound(7))),
         (|b| b.paragraph_mut(0)?.remove_field(0), |e| matches!(e, Error::FieldNotFound(0))),
@@ -285,6 +286,8 @@ fn notes_resolve_in_the_notes_master_context() {
     let para = tb.paragraphs()[0];
     let TextItem::Field(f) = para.items()[0] else { panic!() };
     let rp = sheet.run_props(&num, tb, para, RunItem::Field(f)).unwrap();
+    // notesStyle's lvl1 sets kern="1200": not reached by a non-body placeholder
+    assert_eq!(rp.kern, Lookup::Unset, "{:?}", rp.kern);
     match rp.size {
         Lookup::Set(r) => assert_matches!(r.source, Source::Placeholder { role: Role::NotesMaster, .. } | Source::Direct),
         Lookup::Unset => {}
@@ -451,4 +454,31 @@ fn corpus_notes_edits() {
         }
     }
     eprintln!("{files} files, {bodies} notes bodies, {ok} edits applied, refused {refused_n:?}");
+}
+
+/// §3.1 "on slides and notes" and §1.7: links in notes, layouts and masters
+/// (review #56 M1, deferred to this PR).
+#[test]
+fn links_in_notes_layouts_and_masters() {
+    let link = r#"<a:hlinkClick r:id="" action="ppaction://hlinkshowjump?jump=lastslide"/>"#;
+    let bytes = patched(
+        "poi/sample.pptx",
+        &[
+            (NOTES1, "<a:p><a:endParaRPr lang=\"en-US\"/></a:p>", &format!("<a:p><a:r><a:rPr lang=\"en-US\">{link}</a:rPr><a:t>jump</a:t></a:r></a:p>")),
+            ("ppt/slideLayouts/slideLayout1.xml", "<p:cNvPr id=\"25\" name=\"Rectangle 3\"/>", &format!("<p:cNvPr id=\"25\" name=\"Rectangle 3\">{link}</p:cNvPr>")),
+        ],
+    );
+    let mut p = Presentation::from_bytes(bytes).unwrap();
+    let deck = p.deck().unwrap();
+    let s = deck.slide(0).unwrap();
+    let nl = s.notes_link_reader().unwrap().links();
+    assert_eq!(nl.len(), 1);
+    assert_eq!(nl[0].1.target, ooxml_pptx::LinkTarget::Jump(ooxml_pptx::ShowJump::Last));
+    assert_eq!(nl[0].0.text, Some((0, 0)));
+    assert!(s.links().is_empty() || s.links().iter().all(|(_, l)| l.target != nl[0].1.target));
+    let layout = deck.layouts().into_iter().find(|l| l.part().part_name() == "ppt/slideLayouts/slideLayout1.xml").unwrap();
+    let ll = deck.link_reader(&layout).links();
+    assert_eq!(ll.len(), 1);
+    assert_eq!(ll[0].0.text, None);
+    assert!(deck.masters().iter().all(|m| deck.link_reader(m).links().is_empty()));
 }

@@ -176,6 +176,14 @@ pub enum Error {
     /// The notes slide has no body placeholder (`p:ph@type="body"`).
     #[error("the notes slide has no body placeholder")]
     NoNotesBody,
+    /// `slide_rect` of a shape inside a group with `rot`, `flipH` or
+    /// `flipV`: the rectangle is not axis-aligned in slide space
+    /// (ADR-0008 §1.5).
+    #[error("an enclosing group (id {group_id:?}) is rotated or flipped")]
+    TransformedGroup {
+        /// `cNvPr@id` of that group.
+        group_id: Option<u32>,
+    },
     /// A link of the slide → layout → master → theme chain is missing or
     /// does not parse (ADR-0008 §1.1). Only resolver calls that need the
     /// link fail; Phase 0 reads and writes on that slide keep working.
