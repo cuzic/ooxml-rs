@@ -1,6 +1,7 @@
 //! Writes a small, named set of edited presentations plus `CHECKLIST.md`
 //! for the project owner's manual check in Microsoft 365 PowerPoint
-//! (ADR-0005 §7 "Manual"; the sandbox has no PowerPoint).
+//! (ADR-0005 §7 "Manual"; items 14–16: ADR-0008 §4 find/replace; the
+//! sandbox has no PowerPoint).
 //!
 //! ```text
 //! cargo run -p ooxml-pptx --example manual_check -- <outdir>
@@ -331,14 +332,117 @@ fn main() -> R {
         });
     }
 
-    // 14–19. Phase 2 (ADR-0012 §10 "Manual"): slides as units
+    // 14–16. Cross-run find/replace (ADR-0008 §4).
+    // Each pattern is picked from the fixture so that the case applies.
+    {
+        // 14: a match across two runs with different formatting
+        let mut p = Presentation::open(fixture("poi/with_japanese.pptx"))?;
+        let mut pick = None;
+        'outer: for i in 0..p.slide_count() {
+            let s = p.slide(i)?;
+            for sh in s.shapes() {
+                let Some(b) = sh.text_body() else { continue };
+                for para in b.paragraphs() {
+                    let runs = para.runs();
+                    for w in runs.windows(2) {
+                        let (a, b) = (w[0].text(), w[1].text());
+                        let differ = match (w[0].raw().elements().next(), w[1].raw().elements().next()) {
+                            (Some(x), Some(y)) => !x.structurally_eq(y),
+                            _ => true,
+                        };
+                        if a.chars().count() >= 2 && b.chars().count() >= 2 && differ {
+                            let tail: String = a.chars().rev().take(2).collect::<Vec<_>>().into_iter().rev().collect();
+                            let head: String = b.chars().take(2).collect();
+                            pick = Some((i, format!("{tail}{head}")));
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+        }
+        let (si, pat) = pick.ok_or("no cross-run pair")?;
+        let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Slide(si)));
+        let rep = p.replace_all(&pat, "【置換】", &o)?;
+        items.push(Item {
+            file: save(&out, "14-replace-across-runs", &p)?,
+            source: "poi/with_japanese.pptx",
+            edit: format!("slide {}: replace_all({pat:?} → \"【置換】\"), {} match(es) across two differently formatted runs", si + 1, rep.replaced.len()),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "The replacement shows in the format of the run where the match started; the text after it keeps its own format.",
+            ],
+        });
+    }
+    {
+        // 15: a line break in the replacement (the start run's a:rPr has child elements: subtree copy)
+        let mut chosen = None;
+        for f in ["poi/sample.pptx", "poi/layouts.pptx", "python-pptx/ph-inherit-props.pptx", "libreoffice/slide-sections.pptx"] {
+            let mut p = Presentation::open(fixture(f))?;
+            for i in 0..p.slide_count() {
+                let word = {
+                    let s = p.slide(i)?;
+                    s.shapes().into_iter().filter_map(|x| x.text_body()).flat_map(|b| b.paragraphs()).flat_map(|q| q.runs()).find_map(|r| {
+                        let t = r.text();
+                        let w = t.split_whitespace().nth(1)?.to_owned();
+                        (w.chars().all(char::is_alphanumeric) && w.len() > 3).then_some(w)
+                    })
+                };
+                let Some(w) = word else { continue };
+                let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Slide(i)));
+                let rep = p.replace_all(&w, &format!("{w}\u{b}(new line)"), &o)?;
+                if !rep.replaced.is_empty() {
+                    chosen = Some((f, i, w, rep.replaced.len(), p));
+                    break;
+                }
+            }
+            if chosen.is_some() {
+                break;
+            }
+        }
+        let (f, si, w, n, p) = chosen.ok_or("no plain run")?;
+        items.push(Item {
+            file: save(&out, "15-replace-with-line-break", &p)?,
+            source: f,
+            edit: format!("slide {}: replace_all({w:?} → \"{w}\\v(new line)\"), {n} match(es): a:br + a new run copying the start run's a:rPr (subtree, links skipped)", si + 1),
+            observe: vec!["Opens without a repair prompt.", "\"(new line)\" starts a new line in the same paragraph (Shift+Enter), in the same format as the word before it."],
+        });
+    }
+    {
+        // 16: text inside a hyperlink run replaced (no line break): the link stays
+        let mut p = Presentation::open(fixture("poi/with_japanese.pptx"))?;
+        let mut pick = None;
+        for i in 0..p.slide_count() {
+            let s = p.slide(i)?;
+            let found = s.shapes().into_iter().filter_map(|x| x.text_body()).flat_map(|b| b.paragraphs()).flat_map(|q| q.runs()).find_map(|r| {
+                let linked = r.raw().elements().flat_map(|e| e.elements()).any(|c| c.name().local() == "hlinkClick");
+                let t = r.text();
+                let w = t.split_whitespace().last()?.to_owned();
+                (linked && w.len() > 2).then_some(w)
+            });
+            if let Some(w) = found {
+                pick = Some((i, w));
+                break;
+            }
+        }
+        let (si, w) = pick.ok_or("no hyperlink run")?;
+        let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Slide(si)));
+        let rep = p.replace_all(&w, &format!("[{w}]"), &o)?;
+        items.push(Item {
+            file: save(&out, "16-replace-in-hyperlink", &p)?,
+            source: "poi/with_japanese.pptx",
+            edit: format!("slide {}: replace_all({w:?} → \"[{w}]\"), {} match(es) inside a run with a:hlinkClick", si + 1, rep.replaced.len()),
+            observe: vec!["Opens without a repair prompt.", "The edited text is still a working hyperlink to the same target (Ctrl+click / Slide Show)."],
+        });
+    }
+
+    // 17–22. Phase 2 (ADR-0012 §10 "Manual"): slides as units
     {
         let mut p = Presentation::new_with(ooxml_pptx::NewOptions { created: std::time::UNIX_EPOCH })?;
         for l in p.layouts()? {
             p.add_slide(&l, None)?;
         }
         items.push(Item {
-            file: save(&out, "14-new-all-layouts", &p)?,
+            file: save(&out, "17-new-all-layouts", &p)?,
             source: "Presentation::new() (built-in template)",
             edit: "one slide per layout, in layout order (11 slides, nothing typed)".into(),
             observe: vec![
@@ -357,7 +461,7 @@ fn main() -> R {
         let n = p.slide_count();
         p.move_slide(n - 1, 0)?;
         items.push(Item {
-            file: save(&out, "15-add-duplicate-move", &p)?,
+            file: save(&out, "18-add-duplicate-move", &p)?,
             source: "poi/sample.pptx",
             edit: "add_slide(Title and Content, at 1); duplicate_slide(0) (copy after it); move_slide(last, 0)".into(),
             observe: vec![
@@ -375,7 +479,7 @@ fn main() -> R {
         p.delete_slide(4)?;
         p.move_slide(0, 5)?;
         items.push(Item {
-            file: save(&out, "16-sections", &p)?,
+            file: save(&out, "19-sections", &p)?,
             source: "libreoffice/slide-sections.pptx",
             edit: "add_slide at 1 (joins slide 1's section), add_slide at 0 (joins the first slide's section), delete_slide(4), move_slide(0, 5) (joins the section of its new predecessor)".into(),
             observe: vec![
@@ -391,7 +495,7 @@ fn main() -> R {
         p.add_slide(&l, None)?;
         p.duplicate_slide(0, None)?;
         items.push(Item {
-            file: save(&out, "17-only-slide2-part", &p)?,
+            file: save(&out, "20-only-slide2-part", &p)?,
             source: "libreoffice/airplane-transition.pptx (its only slide part is slide2.xml)",
             edit: "duplicate_slide(0), add_slide at the end: new parts are slide3.xml and slide4.xml (largest number + 1), nothing renamed".into(),
             observe: vec!["Opens without a repair prompt.", "The copy keeps the slide transition of the original."],
@@ -402,7 +506,7 @@ fn main() -> R {
         p.duplicate_slide(0, None)?;
         p.delete_slide(2)?;
         items.push(Item {
-            file: save(&out, "18-notes-duplicate-delete", &p)?,
+            file: save(&out, "21-notes-duplicate-delete", &p)?,
             source: "python-pptx/sld-notes.pptx",
             edit: "duplicate_slide(0) (its notes slide is copied); delete_slide(2) (the original second slide and its notes)".into(),
             observe: vec![
@@ -421,14 +525,14 @@ fn main() -> R {
             .ok_or("a slide with a picture")?;
         p.delete_slide(i)?;
         items.push(Item {
-            file: save(&out, "19-delete-with-picture", &p)?,
+            file: save(&out, "22-delete-with-picture", &p)?,
             source: "poi/layouts.pptx",
             edit: format!("delete_slide({i}): the slide with a picture; its image part goes with it when nothing else uses it"),
             observe: vec!["Opens without a repair prompt.", "The other slides are unchanged."],
         });
     }
 
-    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 / 2 — manual check in Microsoft 365 PowerPoint\n\n");
+    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4) and slides as units (17–22, ADR-0012) — manual check in Microsoft 365 PowerPoint\n\n");
     md.push_str("Generated by `cargo run -p ooxml-pptx --example manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
     md.push_str("For each file: open it in current Microsoft 365 PowerPoint (desktop), tick what holds, and write notes for anything else.\n");
     md.push_str("Inputs are third-party fixtures from `reference/fixtures/pptx/` (see its README for licences); do not redistribute the outputs.\n\n");

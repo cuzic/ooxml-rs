@@ -13,7 +13,7 @@
 
 use std::path::PathBuf;
 
-use ooxml_pptx::{Error, Presentation, ShapeKind, TextBodyMut, TextItem};
+use ooxml_pptx::{Error, Match, MixedFormat, Presentation, ReplaceOptions, ShapeKind, TextBodyMut, TextItem};
 use serde_json::{Value, json};
 
 pub fn fixtures_dir() -> PathBuf {
@@ -257,6 +257,9 @@ pub struct Case {
     /// (edit, refusal) pairs that were attempted but refused.
     pub refused: Vec<(Edit, String)>,
     pub output: Vec<u8>,
+    /// Deck-wide find/replace calls applied after `edits` (ADR-0008 §4):
+    /// `{pattern, replacement, refuse_mixed, replaced: [loc], refused: [loc]}`.
+    pub replaces: Vec<Value>,
 }
 
 pub fn run_case(name: String, fixture: &str, plan: impl FnOnce(&mut Presentation) -> Vec<Edit>) -> Case {
@@ -270,7 +273,7 @@ pub fn run_case(name: String, fixture: &str, plan: impl FnOnce(&mut Presentation
         }
     }
     let output = pres.to_bytes().expect("save");
-    Case { name, fixture: fixture.to_owned(), edits, refused, output }
+    Case { name, fixture: fixture.to_owned(), edits, refused, output, replaces: Vec::new() }
 }
 
 /// The "edit everything" case of one fixture.
@@ -302,7 +305,7 @@ pub fn multi_case(fixture: &str) -> Case {
         }
     }
     let output = pres.to_bytes().expect("save");
-    Case { name, fixture: fixture.to_owned(), edits, refused, output }
+    Case { name, fixture: fixture.to_owned(), edits, refused, output, replaces: Vec::new() }
 }
 
 /// Named cases with hand-picked targets (ids from the fixtures).
@@ -374,8 +377,127 @@ pub fn cases_json(cases: &[Case]) -> Value {
                     "fixture": c.fixture,
                     "output": format!("{}.pptx", c.name),
                     "edits": c.edits.iter().map(Edit::to_json).collect::<Vec<_>>(),
+                    "replace": c.replaces,
                 })
             })
             .collect(),
     )
 }
+
+// ---------------------------------------------------------------------------
+// Find/replace cases (ADR-0008 §7 O5, review #48 M1): deck-wide
+// `replace_all` calls. check.py redoes the §4 edits independently on
+// python-pptx's lxml tree for the matches ooxml-pptx accepted, and checks
+// that the accepted set is python's own match set minus the refused ones.
+
+/// A phrase that crosses two adjacent runs with different `a:rPr` (the last
+/// two characters of one run and the first two of the next), if any.
+fn cross_run_phrase(pres: &mut Presentation) -> Option<String> {
+    for i in 0..pres.slide_count() {
+        let Ok(s) = pres.slide(i) else { continue };
+        let mut bodies: Vec<ooxml_pptx::TextBodyRef<'_>> = Vec::new();
+        for sh in s.shapes() {
+            bodies.extend(sh.text_body());
+            if let Some(t) = sh.table() {
+                bodies.extend(t.rows().into_iter().flatten().filter_map(|c| c.text_body()));
+            }
+        }
+        for b in bodies {
+            for p in b.paragraphs() {
+                for w in p.runs().windows(2) {
+                    let (a, c) = (w[0].text(), w[1].text());
+                    let differ = match (w[0].raw().elements().next(), w[1].raw().elements().next()) {
+                        (Some(x), Some(y)) => !x.structurally_eq(y),
+                        _ => true,
+                    };
+                    let (ta, tc): (Vec<char>, Vec<char>) = (a.chars().collect(), c.chars().collect());
+                    if differ && ta.len() >= 2 && tc.len() >= 2 {
+                        let phrase: String = ta[ta.len() - 2..].iter().chain(&tc[..2]).collect();
+                        if !phrase.contains(['\n', '\r', '\u{b}']) {
+                            return Some(phrase);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// The text of the second run of the first paragraph with at least two
+/// non-empty runs, if any.
+fn whole_run_text(pres: &mut Presentation) -> Option<String> {
+    for i in 0..pres.slide_count() {
+        let Ok(s) = pres.slide(i) else { continue };
+        for sh in s.shapes() {
+            let Some(b) = sh.text_body() else { continue };
+            for p in b.paragraphs() {
+                let runs: Vec<String> = p.runs().iter().map(|r| r.text().into_owned()).filter(|t| !t.is_empty()).collect();
+                if runs.len() >= 2 && !runs[1].contains(['\n', '\r', '\u{b}']) {
+                    return Some(runs[1].clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn location(input: &mut Presentation, m: &Match) -> Value {
+    let id = input
+        .slide(m.location.slide)
+        .ok()
+        .and_then(|s| s.shapes().into_iter().find(|x| x.path() == m.location.shape).and_then(|x| x.id().ok()));
+    json!({
+        "slide": m.location.slide,
+        "shape_id": id,
+        "cell": m.location.cell.map(|(r, c)| [r, c]),
+        "paragraph": m.location.paragraph,
+        "start": m.range.start,
+        "end": m.range.end,
+    })
+}
+
+pub fn replace_case(name: String, fixture: &str, pattern: &str, replacement: &str, refuse_mixed: bool) -> Case {
+    let mut pres = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
+    let o = ReplaceOptions::default().mixed_format(if refuse_mixed { MixedFormat::Refuse } else { MixedFormat::Allow });
+    let rep = pres.replace_all(pattern, replacement, &o).expect("replace_all");
+    let output = pres.to_bytes().expect("save");
+    let mut input = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
+    let replaced: Vec<Value> = rep.replaced.iter().map(|m| location(&mut input, m)).collect();
+    let refused: Vec<Value> = rep
+        .skipped
+        .iter()
+        .map(|(m, e)| {
+            let mut v = location(&mut input, m);
+            v["error"] = json!(format!("{e:?}"));
+            v
+        })
+        .collect();
+    let spec = json!({"pattern": pattern, "replacement": replacement, "refuse_mixed": refuse_mixed, "replaced": replaced, "refused": refused});
+    Case { name, fixture: fixture.to_owned(), edits: Vec::new(), refused: Vec::new(), output, replaces: vec![spec] }
+}
+
+/// Per fixture: a frequent letter replaced by text with a line break
+/// (rules 2–5, `FieldInMatch`, `LinkSplitByBreak`), a deletion, and a
+/// cross-run phrase; plus two `MixedFormat::Refuse` cases.
+pub fn replace_cases() -> Vec<Case> {
+    let mut out = Vec::new();
+    for f in FIXTURES {
+        let tag = f.replace(['/', '.'], "-");
+        out.push(replace_case(format!("replace-e-{tag}"), f, "e", "\u{1E8C}\u{b}Q", false));
+        out.push(replace_case(format!("replace-the-{tag}"), f, "the", "", false));
+        let mut pres = Presentation::from_bytes(read_fixture(f)).expect(f);
+        if let Some(whole) = whole_run_text(&mut pres) {
+            // deletes a whole run of a multi-run paragraph (rule 4)
+            out.push(replace_case(format!("replace-whole-run-{tag}"), f, &whole, "", false));
+        }
+        if let Some(phrase) = cross_run_phrase(&mut pres) {
+            out.push(replace_case(format!("replace-cross-{tag}"), f, &phrase, "置換", false));
+            if matches!(*f, "poi/with_japanese.pptx" | "poi/shapes.pptx") {
+                out.push(replace_case(format!("replace-cross-refuse-{tag}"), f, &phrase, "置換\u{b}X", true));
+            }
+        }
+    }
+    out
+}
+

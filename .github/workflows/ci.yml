@@ -31,7 +31,8 @@ jobs:
   pptx-readback:
     # ADR-0005 §7 T3, independent half: python-pptx (pinned) reads every
     # edited output and its input; check.py compares with the expected
-    # model and with ooxml-pptx's own read. Separate job so the Rust job is
+    # model and with ooxml-pptx's own read.
+    # Also ADR-0008 §7 O5: deck-wide find/replace cases, redone by check.py. Separate job so the Rust job is
     # not slowed down; it builds one example in release mode.
     name: pptx T3 read-back (python-pptx 1.0.2)
     runs-on: ubuntu-latest
