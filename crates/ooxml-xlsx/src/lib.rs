@@ -61,6 +61,7 @@ mod escape;
 mod formula;
 mod graph;
 mod index;
+mod layout;
 mod protect;
 mod range;
 mod reference;
@@ -73,6 +74,7 @@ pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 pub use workbook::ApplyStep;
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
+pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
 pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, Protection, WorkbookProtection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it

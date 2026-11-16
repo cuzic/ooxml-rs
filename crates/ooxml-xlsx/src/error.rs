@@ -294,6 +294,38 @@ pub enum Error {
     #[error("spin count {0} exceeds 10,000,000")]
     InvalidSpinCount(u32),
 
+    /// `freeze_panes(0, 0)`: nothing to freeze.
+    #[error("freeze_panes(0, 0) freezes nothing")]
+    NothingToFreeze,
+
+    /// The sheet view is `view="pageLayout"`, which cannot hold a frozen pane.
+    #[error("the sheet view is in page layout mode, which cannot hold a frozen pane")]
+    PageLayoutView,
+
+    /// The sheet has more than one `cols` element, overlapping `col`
+    /// ranges, or a `col` attribute this crate cannot copy when splitting.
+    #[error("the sheet's column definitions are ambiguous: {0}")]
+    AmbiguousColumns(String),
+
+    /// An outline level outside 0–7.
+    #[error("outline level {0} is outside 0–7")]
+    InvalidOutlineLevel(u8),
+
+    /// A header or footer string Excel cannot hold (over 255 characters, an
+    /// unknown `&` code, an image code `&G`).
+    #[error("invalid header/footer text: {0}")]
+    InvalidHeaderFooter(String),
+
+    /// A setting outside its allowed range (zoom 10–400, column width
+    /// 0–255, scale 10–400, a margin below 0, …).
+    #[error("{what}: {reason}")]
+    InvalidSetting {
+        /// The setting.
+        what: String,
+        /// Why it is refused.
+        reason: String,
+    },
+
     /// The operating system's random number generator failed (salt for a
     /// password hash).
     #[error("could not obtain random bytes for the salt: {0}")]
