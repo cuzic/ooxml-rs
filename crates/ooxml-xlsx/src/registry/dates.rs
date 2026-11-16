@@ -45,11 +45,12 @@ impl ExcelDateTime {
     pub fn year(&self) -> Option<u16> {
         (self.year != 0).then_some(self.year)
     }
-    /// The month (1–12; 12 for a time-only value, whose date part is the epoch).
+    /// The month (1–12). For a time-only value ([`Self::year`] is `None`)
+    /// the date part is the 1900 epoch, 1899-12-31: month 12.
     pub fn month(&self) -> u8 {
         self.month
     }
-    /// The day of the month.
+    /// The day of the month (31 for a time-only value; see [`Self::month`]).
     pub fn day(&self) -> u8 {
         self.day
     }
@@ -103,7 +104,10 @@ impl ExcelDateTime {
     /// The date for a serial. `None` for negative or too-large serials, and
     /// for serial 60 in the 1900 system (the nonexistent 1900-02-29).
     pub fn from_serial(serial: f64, date1904: bool) -> Option<Self> {
-        if !serial.is_finite() || serial < 0.0 {
+        // beyond 9999-12-31 in either system (2,958,465 / 2,957,003): refused
+        // before the integer arithmetic, which would overflow for huge
+        // serials (PR #50 review round 2, m1)
+        if !serial.is_finite() || !(0.0..3_000_000.0).contains(&serial) {
             return None;
         }
         let mut days = serial.floor() as i64;
@@ -212,6 +216,11 @@ mod tests {
         assert!(ExcelDateTime::from_ymd_hms(2026, 2, 1, 0, 0, f64::NAN).is_none());
         assert!(ExcelDateTime::from_ymd_hms(2026, 2, 1, 0, 0, 60.0).is_none());
         assert!(ExcelDateTime::from_ymd(10_000, 1, 1).is_none_or(|d| d.serial(false).is_none()));
+        for huge in [3.0e6, 9.3e18, 1e19, 1e300, f64::MAX] {
+            assert_eq!(ExcelDateTime::from_serial(huge, false), None, "{huge}");
+            assert_eq!(ExcelDateTime::from_serial(huge, true), None, "{huge}");
+        }
+        assert!(ExcelDateTime::from_serial(2_958_465.5, false).is_some(), "9999-12-31 12:00");
         let t = ExcelDateTime::from_hms(1, 2, 3.5).unwrap();
         assert_eq!((t.year(), t.hour(), t.minute(), t.second()), (None, 1, 2, 3.5));
     }
