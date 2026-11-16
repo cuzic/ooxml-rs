@@ -38,6 +38,15 @@ names = [
     "w:CT_OnOff/w:keepLines",
     "w:CT_String/w:pStyle",
     "w:CT_String253/w:rStyle",
+    # Word Phase2 (ADR-0011 §4, §6, §9.1): hyperlinks, section breaks,
+    # inserted paragraphs.
+    "w:CT_Hyperlink/w:hyperlink",
+    "w:CT_SectPr/w:sectPr",
+    "w:CT_SectType/w:type",
+    "w:CT_HdrFtrRef/w:headerReference",
+    "w:CT_HdrFtrRef/w:footerReference",
+    "w:CT_PageNumber/w:pgNumType",
+    "w:CT_LineNumber/w:lnNumType",
 ]
 
 # Word Phase0 read-only: navigation to runs (document, tables, hyperlinks),
@@ -46,10 +55,8 @@ names = [
 [read]
 names = [
     "w:CT_Document/w:document",
-    "w:CT_SectPr/w:sectPr",
     "w:CT_PPr/w:pPr",
     "w:CT_RPr/w:rPr",
-    "w:CT_Hyperlink/w:hyperlink",
     "w:CT_Tbl/w:tbl",
     "w:CT_Row/w:tr",
     "w:CT_Tc/w:tc",
@@ -84,4 +91,14 @@ names = [
     "w:CT_Styles/w:styles",
     "w:CT_Style/w:style",
     "w:CT_StyleName/w:name",
+]
+
+# Word Phase2 (ADR-0011 §11): copied by detach_as. pPr is copied without
+# sectPr and pPrChange (skipped); a paragraph mark holding revision elements
+# (w:id) is refused before copying. sectPr is copied without its header and
+# footer references (r:id), which are written again with typed setters.
+[detach]
+names = [
+    "w:CT_PPr/w:pPr",
+    "w:CT_SectPr/w:sectPr",
 ]

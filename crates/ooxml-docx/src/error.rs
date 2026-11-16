@@ -220,6 +220,35 @@ pub enum Error {
         name: &'static str,
     },
 
+    /// The paragraph already ends a section (`w:pPr/w:sectPr`; ADR-0011 §6).
+    #[error("the paragraph already ends a section")]
+    AlreadySectionEnd,
+
+    /// No `w:sectPr` ends the section that holds the paragraph.
+    #[error("the section has no w:sectPr")]
+    NoSectionProperties,
+
+    /// A relationship id ooxml-docx would write is already used by an `r:`
+    /// attribute of the part without being one of its relationships
+    /// (ADR-0011 §1 item 4, review N4), or a reference to copy names an id
+    /// the part does not have.
+    #[error("relationship id {id:?} is referenced but not defined")]
+    RelIdReferenced {
+        /// The id.
+        id: String,
+    },
+
+    /// No bookmark of the document has that name (ignoring case).
+    #[error("no bookmark named {name:?}")]
+    UnknownBookmark {
+        /// The name asked for.
+        name: String,
+    },
+
+    /// A hyperlink would be inserted inside an existing `w:hyperlink`.
+    #[error("hyperlinks cannot be nested")]
+    NestedHyperlink,
+
     /// No paragraph with that index.
     #[error("no paragraph {0}")]
     NoSuchParagraph(usize),

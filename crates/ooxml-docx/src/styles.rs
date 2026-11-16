@@ -108,7 +108,7 @@ impl Document {
 
     /// Finds the style a setter refers to: exactly one `w:style` with this
     /// id (case-insensitive duplicates refuse), of the right type.
-    fn resolve_style(&self, id: &str, expected: StyleKind) -> Result<()> {
+    pub(crate) fn resolve_style(&self, id: &str, expected: StyleKind) -> Result<()> {
         let folded = fold(id);
         let same: Vec<StyleInfo<'_>> = self.styles().filter(|s| fold(s.id) == folded).collect();
         if same.len() > 1 {

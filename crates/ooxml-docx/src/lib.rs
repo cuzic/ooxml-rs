@@ -65,6 +65,7 @@ mod format;
 mod names;
 mod replace;
 mod story;
+mod structure;
 mod styles;
 mod text;
 
@@ -75,6 +76,7 @@ pub use format::{
     Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,
     Underline, VertAlign,
 };
+pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
 pub use styles::{StyleInfo, StyleKind};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
