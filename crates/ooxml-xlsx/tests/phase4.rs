@@ -58,6 +58,34 @@ fn merge_clearing_checks_every_cell_first() {
     wb.worksheet().unwrap().merge_clearing("A1:B1").unwrap(); // not poisoned
 }
 
+/// Round 1 m1: with a duplicated `mergeCell`, `unmerge` removes one
+/// element and the range stays merged (session and tree agree).
+#[test]
+fn unmerge_of_a_duplicated_ref_keeps_the_other() {
+    let input = sheet_with(r#"<mergeCells count="2"><mergeCell ref="A1:B2"/><mergeCell ref="A1:B2"/></mergeCells>"#, "");
+    let (mut wb, r) = try_on(&input, 0, |ws| ws.unmerge("A1:B2"));
+    r.unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert_eq!(ws.merged_ranges().len(), 1);
+    assert_matches!(ws.cell_mut(1, 1).unwrap().set_number(1.0), Err(Error::MergedCell { .. }));
+    ws.unmerge("A1:B2").unwrap();
+    ws.cell_mut(1, 1).unwrap().set_number(1.0).unwrap();
+}
+
+/// Round 1 m4, m5: the password never shows in `Debug`; an empty password
+/// writes no hash.
+#[test]
+fn protection_debug_and_empty_password() {
+    let p = Protection::new().password("hunter2");
+    let d = format!("{p:?}");
+    assert!(!d.contains("hunter2") && d.contains("<redacted>"), "{d}");
+    let input = sheet_with("", "");
+    let (wb, r) = try_on(&input, 0, |ws| ws.protect_sheet(&Protection::new().password("")));
+    r.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains("<sheetProtection ") && !xml.contains("hashValue"), "{xml}");
+}
+
 /// Round 1 M1: pivot parts are read only by `merge`; a part without a
 /// location (or one that does not parse) never stops the workbook opening,
 /// and a merge on that sheet is refused as overlapping.
