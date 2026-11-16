@@ -12,9 +12,48 @@ repository root, passing data directories as arguments.
 Reproducing the ADR's numbers (files are not committed; Apache-2.0):
 
 ```sh
-# fetch POI test-data/spreadsheet at the pinned commit (see spikes/xlsx/README.md)
+# fetch the full POI test-data/spreadsheet directory at 47dcff769bb395034dddfd59c4609659b6dbc6a4
 python3 -I spikes/xlsx-phase4/range_survey.py --summary /tmp/poi-xlsx | grep '^#'
 ```
 
-Measured on 2026-11-16 (Python 3.15): 350 POI files, 327 readable Transitional packages (the
-rest are Strict, encrypted, fuzzing cases or not zip).
+**Corpus (revision 2, review m11).** The numbers in ADR-0014 revision 2 come from the **full**
+`test-data/spreadsheet` directory of Apache POI at `47dcff769bb395034dddfd59c4609659b6dbc6a4`
+(367 files, fetched 2026-11-16). 342 of them are readable Transitional packages: the rest are
+Strict, encrypted, fuzzing cases or not zip, and 4 packages with a DTD in some part are skipped
+(`r2:dtd_part`).
+
+Revision 1 quoted "350 files, 327 readable", measured on a partial local copy. That table did
+not reproduce at the pinned commit and has been replaced.
+
+**Revision 2 counters** (prefix `r2:`), added for the review findings:
+
+- `_FilterDatabase` scope and duplicates, and whether the sheet still has an `autoFilter`;
+- sheet-level `sortState` and the one inside `autoFilter`, `sheetPr/@filterMode`, and hidden
+  rows under an active filter;
+- legacy and SHA protection on one element;
+- `cfvo` formulas; 2007 CF formulas that refer to another sheet (`cf_formula_other_sheet`)
+  vs. dead `#REF!` (`cf_formula_ref_error`); `stopIfTrue`; pivot CF blocks;
+- x14 DV sources by kind; hyperlink targets by kind (scheme, `mailto:`, relative, drive, UNC);
+- `cols` anomalies; frozen panes without `selection`; page-layout views; `dxfs` with
+  `mc:AlternateContent`.
+
+Results (files / occurrences):
+
+| Counter | Result |
+|---|---|
+| `_FilterDatabase` names that are sheet-local on a sheet without `autoFilter` | 3 / 4 |
+| `_FilterDatabase` names with `#REF!` text | 1 / 2 |
+| `_FilterDatabase` names with workbook scope | 1 / 1 |
+| sheet-level `sortState` on a sheet without `autoFilter` | 5 / 7 |
+| `sortState` inside `autoFilter` | 1 / 1 |
+| `cf_formula_ref_error` | 3 / 5 |
+| `cf_formula_other_sheet` | 0 |
+| `cf_stopIfTrue` | 4 / 16 |
+| `cfvo_formula` | 1 / 1 |
+| x14 DV sources: other sheet | 1 / 5 |
+| x14 DV sources: `#REF!` | 2 / 2 |
+| hyperlink targets: with a scheme / `mailto:` / relative | 9 / 55, 5 / 11, 2 / 4 |
+| legacy sheet `password` | 2 / 5 |
+| frozen panes without `selection` | 2 / 3 |
+| `dxfs` with `mc:AlternateContent` | 1 / 1 |
+| `filterMode`, hidden rows under an active filter, `cols` anomalies, `col` without `width` | 0 |

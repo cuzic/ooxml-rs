@@ -79,6 +79,15 @@
   rather than the `attrs: Vec<(String, String)>` raw pairs sketched in
   Layer 2 above. Serialization is unaffected: untouched spans are still
   emitted verbatim, and re-rendered tags use the original prefix.
+- **Post-acceptance note (2026-11-16, merged-cell anchors; effective
+  when ADR-0014 is implemented):** Phase0's refusal of "writing into a
+  cell inside a merged range" (Scope boundary below) is relaxed for the
+  range's **anchor** (top-left cell). Writing to the anchor is what Excel
+  does and what ADR-0014's merge and hyperlink features need. A write to a
+  **non-anchor** cell of a merged range stays refused, so ooxml-rs never
+  creates a value that readers hide. ADR-0003's guard row "Write into any
+  cell of a merged range (top-left included)" changes accordingly.
+  Existing hidden non-anchor values (one corpus file) are left untouched.
 
 ## Context
 

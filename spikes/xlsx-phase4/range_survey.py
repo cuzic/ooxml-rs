@@ -7,6 +7,14 @@ and prints one JSON line per package plus a summary table on stderr-free
 stdout with `--summary`. Run with `python3 -I` from the repository root:
 
     python3 -I spikes/xlsx-phase4/range_survey.py --summary DIR...
+
+Revision 2 (ADR-0014 review round 1) adds the counters prefixed `r2:`: `_xlnm._FilterDatabase`
+scopes and duplicates and whether the sheet still has an `autoFilter`; sheet-level `sortState`
+apart from the one inside `autoFilter`; `sheetPr/@filterMode`; hidden rows under an active
+filter; legacy sheet passwords; `cfvo` formulas; cross-sheet 2007 CF formulas; `stopIfTrue`;
+pivot CF blocks; x14 DV sources by kind; hyperlink targets by kind; `cols` anomalies; frozen
+panes without `selection`; page-layout views; `dxfs` with `mc:AlternateContent`. Parts with a
+DTD are skipped (counted as `r2:dtd_part`).
 """
 import json
 import os
@@ -56,22 +64,55 @@ def sheets_of(z):
     return wb, out
 
 
+def other_sheet_ref(text):
+    """True if a formula mentions another sheet: a `!` outside string literals, or a
+    bare #REF! (a deleted sheet)."""
+    t = re.sub(r'"(?:[^"]|"")*"', '""', text or "")
+    return "!" in t
+
+
 def survey(path):
     z = zipfile.ZipFile(path)
     names = set(z.namelist())
-    wb, sheets = sheets_of(z)
     f = {"file": os.path.basename(path)}
     c = lambda k, n=1: f.__setitem__(k, f.get(k, 0) + n)
+    for n in names:
+        if n.endswith((".xml", ".rels")) and b"<!DOCTYPE" in z.read(n)[:4096]:
+            c("r2:dtd_part")
+            return f
+    wb, sheets = sheets_of(z)
     dn = wb.find(S + "definedNames")
+    fdb = {}
     if dn is not None:
         for d in dn.findall(S + "definedName"):
             n = d.get("name", "")
             if n.startswith("_xlnm."):
                 c("name:" + n)
+            if n.lower() == "_xlnm._filterdatabase":
+                scope = d.get("localSheetId")
+                fdb[scope] = fdb.get(scope, 0) + 1
+                if scope is None:
+                    c("r2:fdb_workbook_scope")
+                if "#REF!" in (d.text or ""):
+                    c("r2:fdb_text_ref_error")
+                if d.get("hidden") not in ("1", "true"):
+                    c("r2:fdb_not_hidden")
+    for scope, k in fdb.items():
+        if k > 1:
+            c("r2:fdb_duplicate_in_scope")
+    st = "xl/styles.xml"
+    if st in names:
+        try:
+            sx = ET.fromstring(z.read(st))
+            dx = sx.find(S + "dxfs")
+            if dx is not None and any(e.tag.endswith("}AlternateContent") for e in dx):
+                c("r2:dxfs_alternate_content")
+        except ET.ParseError:
+            pass
     if wb.find(S + "workbookProtection") is not None:
         wp = wb.find(S + "workbookProtection")
         c("wbprot:" + ("sha" if wp.get("workbookAlgorithmName") else "legacy" if wp.get("workbookPassword") else "flags"))
-    for sname, part in sheets:
+    for pos, (sname, part) in enumerate(sheets):
         if part not in names:
             continue
         try:
@@ -109,7 +150,38 @@ def survey(path):
                 for (row, col) in values:
                     if r[0] <= row <= r[2] and r[1] <= col <= r[3] and (row, col) != (r[0], r[1]):
                         c("merge_nonanchor_value")
+        if str(pos) in fdb and ws.find(S + "autoFilter") is None:
+            c("r2:fdb_local_without_autofilter")
+        spr = ws.find(S + "sheetPr")
+        if spr is not None and spr.get("filterMode") in ("1", "true"):
+            c("r2:sheetPr_filterMode")
+        if ws.find(S + "sortState") is not None:
+            c("r2:sortState_sheet_level")
+            if ws.find(S + "autoFilter") is None:
+                c("r2:sortState_sheet_level_without_autofilter")
+        af = ws.find(S + "autoFilter")
+        if af is not None and af.find(S + "sortState") is not None:
+            c("r2:sortState_in_autofilter")
+        if af is not None and af.find(S + "filterColumn") is not None and sd is not None:
+            if any(r.get("hidden") in ("1", "true") for r in sd.findall(S + "row")):
+                c("r2:hidden_rows_under_active_filter")
+        rels_part = part.rsplit("/", 1)[0] + "/_rels/" + part.rsplit("/", 1)[1] + ".rels"
+        targets = {}
+        if rels_part in names:
+            for r in ET.fromstring(z.read(rels_part)).findall(PR + "Relationship"):
+                if (r.get("Type") or "").endswith("/hyperlink"):
+                    targets[r.get("Id")] = r.get("Target") or ""
         hl = ws.find(S + "hyperlinks")
+        if hl is not None:
+            for h in hl.findall(S + "hyperlink"):
+                t = targets.get(h.get(R + "id"))
+                if t is None:
+                    continue
+                kind = ("mailto" if t.lower().startswith("mailto:") else
+                        "scheme" if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", t) and not re.match(r"^[A-Za-z]:[\\/]", t) else
+                        "drive_path" if re.match(r"^[A-Za-z]:[\\/]", t) else
+                        "unc" if t.startswith("\\\\") else "relative")
+                c("r2:hyperlink_target:" + kind)
         if hl is not None:
             for h in hl.findall(S + "hyperlink"):
                 c("hyperlink:external" if h.get(R + "id") else "hyperlink:internal" if h.get("location") is not None else "hyperlink:other")
@@ -122,14 +194,30 @@ def survey(path):
                 f1 = d.find(S + "formula1")
                 if f1 is not None and f1.text and "!" in f1.text:
                     c("dv:list_other_sheet")
+                if f1 is not None and f1.text and f1.text.startswith('"') and '""' in f1.text[1:-1]:
+                    c("r2:dv_inline_list_with_quote")
                 if f1 is not None and f1.text and f1.text.startswith('"') and len(f1.text) > 257:
                     c("dv:inline_over_255")
         cf_prios = []
         cf_ids = set()
         for cf in ws.findall(S + "conditionalFormatting"):
             c("cf")
+            if cf.get("pivot") in ("1", "true"):
+                c("r2:cf_pivot_block")
             for rule in cf.findall(S + "cfRule"):
                 c("cf:" + (rule.get("type") or "?"))
+                if rule.get("stopIfTrue") in ("1", "true"):
+                    c("r2:cf_stopIfTrue")
+                for fo in rule.findall(S + "formula"):
+                    if "#REF!" in (fo.text or ""):
+                        c("r2:cf_formula_ref_error")
+                    elif other_sheet_ref(fo.text):
+                        c("r2:cf_formula_other_sheet")
+                for cv in rule.iter(S + "cfvo"):
+                    if cv.get("type") == "formula":
+                        c("r2:cfvo_formula")
+                        if other_sheet_ref(cv.get("val")):
+                            c("r2:cfvo_formula_other_sheet")
                 if rule.get("priority"):
                     cf_prios.append(int(rule.get("priority")))
                 if rule.get("dxfId") is not None:
@@ -155,6 +243,9 @@ def survey(path):
                     t = "".join(fx.itertext())
                     if "!" in t:
                         c("x14:dv_other_sheet")
+                    c("r2:x14_dv_source:" + ("ref_error" if "#REF!" in t else
+                                              "other_sheet" if "!" in t else
+                                              "inline_list" if t.startswith('"') else "same_sheet_or_name"))
         if cf_ids:
             c("cf:x14_linked")
             if not cf_ids <= x14_ids:
@@ -174,6 +265,20 @@ def survey(path):
                 p = v.find(S + "pane")
                 if p is not None:
                     c("pane:" + (p.get("state") or "split"))
+                    if p.get("state") == "frozen" and v.find(S + "selection") is None:
+                        c("r2:frozen_pane_without_selection")
+                    if v.get("view") == "pageLayout":
+                        c("r2:pane_in_pageLayout_view")
+        all_cols = ws.findall(S + "cols")
+        if len(all_cols) > 1:
+            c("r2:cols_elements>1")
+        spans = sorted((int(x.get("min", 0)), int(x.get("max", 0))) for cc in all_cols for x in cc.findall(S + "col"))
+        if any(b[0] <= a[1] for a, b in zip(spans, spans[1:])):
+            c("r2:cols_overlapping_ranges")
+        for cc in all_cols:
+            for x in cc.findall(S + "col"):
+                if x.get("width") is None:
+                    c("r2:col_without_width")
         cols = ws.find(S + "cols")
         if cols is not None:
             for col in cols.findall(S + "col"):
@@ -190,6 +295,8 @@ def survey(path):
         sp = ws.find(S + "sheetProtection")
         if sp is not None:
             c("sheetprot:" + ("sha" if sp.get("algorithmName") else "legacy" if sp.get("password") else "flags"))
+            if sp.get("password") and sp.get("algorithmName"):
+                c("r2:sheetprot_legacy_and_sha_on_one_element")
             if sp.get("algorithmName"):
                 c("sheetprot_alg:" + sp.get("algorithmName"))
         for el in ws:
