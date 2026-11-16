@@ -1,6 +1,6 @@
 # ADR-0003: xlsx Phase1 — formula-aware edits and calculation state
 
-- Status: **Proposed** (revision 3)
+- Status: **Proposed** (revision 4)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md),
   [ADR-0002](0002-schema-driven-code-generation.md)
@@ -74,6 +74,30 @@
     hand-written token expectations plus a parse check over the committed fixtures' formula
     texts and an optional local corpus sweep; the POI-wide differential corpus is deferred
     (Deviations, below).
+
+- **Revision 4** (after `0003-opus-review-round3.md`, the review of revision 3 and of its
+  implementation, and after the PR #14 core reviews):
+  - **R3-M1 (resolution holes):** three more "ambiguous ⇒ `Everything`" rules in §2.4:
+    (a) an unqualified reference or name **inside any defined name**, local or global, depends
+    on everything (Excel reads it on the using sheet, LibreOffice relative to the calculating
+    sheet); (b) two masters sharing one `si` on a sheet make the whole group `Everything` and
+    its hand-off an `Err` (§1, §4.2); (c) sheet names and defined names that **fold alike**
+    (a broad Unicode fold, e.g. the Kelvin sign and `k`) are ambiguous and resolve to nothing.
+  - **R3-M2 (oracle):** the allowed-diff oracle of §7 is byte-exact: the output must equal the
+    input with exactly the allowed edits applied (§7, first paragraph). The reviewer's two
+    mutants (strip also removes `s`; strip sets `row/@ht`) now fail.
+  - **Minors:** sheet-qualified name/reference collisions fail translation (R3-m1); stored
+    formula text never starts with `=` (R3-m2); the workbook is poisoned *before* apply and
+    cleared on success, so a panic in apply also poisons, and `package()` is documented as not
+    a save path (R3-m3); the cost claim is corrected and the closure of `Everything` formulas is
+    cached, with the worst case measured (R3-m4); O3 file names, workflow and volatile exclusion
+    match the implementation (R3-m5); regression tests for each probe (R3-m6).
+  - **Core API:** §4.3 matches the `remove_part(name, allowed_rel_types)` contract after the PR
+    #14 round-1 and round-2 reviews (relationship-type allowlist, any-attribute rule, OPC
+    part-name equivalence), so the ADR-0001 interim note's pointer to §4.3 holds.
+  - **O3 workflow** is split into its own PR (`ci/o3-libreoffice`, LibreOffice pinned to an exact
+    archived release) so that it exists on the default branch; the data is generated with it
+    before Phase1 merges.
 
 ## Context
 
@@ -160,7 +184,9 @@ scan builds a `FormulaIndex`:
 - **Formula cells**: elements whose QName is SML main + `f` (ADR-0001 note). For each: sheet,
   cell ref, kind (`normal`/`shared`/`array`/`dataTable`), `si`, `ref`, `ca`, `bx`, the `c/@cm`
   and `c/@vm` of its cell, its cached value (`c/@t` + `v`), and the formula text. For shared
-  members, the text is resolved through the master (§4.2).
+  members, the text is resolved through the master (§4.2): the **first** master of the `si` on
+  the sheet, as LibreOffice does. A sheet with two or more masters for one `si` marks that whole
+  group ambiguous: its cells depend on everything and it cannot be handed off (R3-M1 b).
 - **Result ranges**: for `array` and `dataTable` anchors, the whole `ref`; every cell in it is a
   *result cell*.
 - **`cm` anchors** (review m8): a cell is a dynamic-array anchor only when all of these hold:
@@ -307,9 +333,12 @@ member fails, that member gives `Everything`.
 
 #### 2.4 Name and sheet resolution (R2-M1 4)
 
-- **Sheet names** are matched against `<sheets>` **case-insensitively** (Unicode lowercase on
-  both sides), as Excel does. Excel forbids two sheet names that differ only in case, so the
-  match is unambiguous.
+- **Sheet names** are matched against `<sheets>` **case-insensitively**, as Excel does, with a
+  deliberately broad fold (upper case, then lower case). Excel never writes two sheet names that
+  differ only in case, but an input can: when two sheet names fold alike (`Data`/`DATA`, the
+  Kelvin sign U+212A and `k`), a reference to either is **ambiguous and gives `Everything`**
+  (review R3-M1 c). A broader fold than Excel's can only add `Everything`, never a wrong precise
+  set. `worksheet_by_name` prefers an exact match and refuses an ambiguous folded one.
 - **Unknown sheet names** (not in `<sheets>`, e.g. a misspelling, a sheet deleted by another
   tool) and **unknown 3-D endpoints** give `Everything`, never "no precedents".
 - **3-D spans** cover every sheet between the two endpoints in workbook order, inclusive,
@@ -317,7 +346,13 @@ member fails, that member gives `Everything`.
   span hold no cells and are ignored.
 - **Unqualified names** (`Rate`) resolve, case-insensitively, to the local name of the
   formula's own sheet (`localSheetId` = that sheet's 0-based position in `<sheets>`), else to
-  the global name. No match gives `Everything`.
+  the global name. No match gives `Everything`; two names in the same scope that fold alike
+  (`Rate`/`RATE`) are ambiguous and give `Everything` (R3-M1 c).
+- **Inside a defined name** (local or global), an unqualified reference (`$A$1`) or an
+  unqualified name gives `Everything`: Excel evaluates it on the sheet of the **using** cell,
+  LibreOffice relative to the calculating sheet, and neither is the name's own scope sheet
+  (R3-M1 a). Excel itself always writes sheet-qualified references in names, so Excel files
+  lose no precision.
 - **Sheet-qualified names** (`Defines!NR_To_A1`, POI `56737.xlsx`) resolve **only** to the local
   name of that sheet. No local match gives `Everything` (whether Excel falls back to a global
   name is unverified, so the safe side is taken).
@@ -328,7 +363,7 @@ member fails, that member gives `Everything`.
 - **Name/reference collisions**: a token that is a valid A1 reference and also equals a defined
   name (case-insensitive; `TAX2024` is column `TAX` ≤ `XFD`) gives `Everything`. Excel 2007+
   does not let users create such names, but converters and third-party writers can. Translating
-  such a token fails (§4.2).
+  such a token fails (§4.2), with or without a sheet prefix (`Sheet1!TAX2024`, R3-m1).
 - **Assigning formulas** (`f/@bx="1"`, ECMA §18.3.1.40: the formula assigns a value to a name;
   XLM): if any formula cell in the workbook has `bx` true, every formula that uses a defined
   name gives `Everything`.
@@ -370,24 +405,33 @@ in a fixed order.** No part is cloned except `workbook.xml`.
 Every step of apply has been shown to succeed by the plan, so an `Err` from apply is a bug. It
 is still handled: the error is returned as `Err(Poisoned)`, and the `Workbook` is **poisoned**:
 every later edit and every `save`/`to_bytes` returns `Err(Poisoned)`, so a partial edit can
-never reach a file. Tests inject a failure before each apply step (cargo feature
-`fault-injection`) and check that behaviour (§7.3).
+never reach a file. The workbook is marked poisoned *before* apply starts and cleared only when
+it succeeds, so a panic inside apply that a caller catches also leaves it poisoned (R3-m3).
+`Workbook::package()` is for inspection; its documentation says not to save through it while
+poisoned. Tests inject a failure before each apply step (cargo feature `fault-injection`) for
+value edits, a shared-master hand-off, a workbook without calcChain and `KeepStaleCaches`
+(§7.3).
 
 **Cost (measured, `examples/phase1_bench.rs`, release build, this sandbox):** one worksheet of
 20,000 rows; column A holds values and B–K hold the chains `B=A+1`, `C=B+1`, … (200,000
-formulas, 9.7 MB of XML).
+formulas, 9.7 MB of XML). "Worst case" (`WORST=1`): `B1` caches `#SPILL!`, so it depends on
+everything and seeds its potential spill area, i.e. the whole sheet below and right of it, and
+every edit's dependent set contains every formula (review R3-m4).
 
-| Step | Time |
-|---|---|
-| Staged clone of the sheet tree (revision 2's design), per edit | 293 ms |
-| `open` (census of all sheets + Layer 2 parse of the first sheet) | 680 ms |
-| First edit (builds the dependency graph, strips 10 dependents) | 116 ms |
-| Each of 1,000 edits on new rows (10 dependents stripped each) | 2.2 ms |
-| An edit whose dependents are already stripped | 1.5 ms |
-| `save` | 176 ms |
+| Step | Typical | Worst case |
+|---|---|---|
+| Staged clone of the sheet tree (revision 2's design), per edit | 289 ms | 280 ms |
+| `open` (census of all sheets + Layer 2 parse of the first sheet) | 677 ms | 670 ms |
+| First edit (builds the graph; typical: strips 10 dependents, worst: 200,000) | 121 ms | 476 ms |
+| Each of 1,000 edits on new rows | 2.0 ms | 6.7 ms |
+| An edit whose dependents are already stripped | 1.3 ms | 5.3 ms |
+| `save` | 176 ms | 175 ms |
 
-The graph is built once and cached; the census remembers which cells already lost their
-cached value, so a later edit only visits cells that still have one. A batch API is therefore
+The cost of an edit is proportional to the size of its dependent set, **including dependents
+that already lost their cached values** (they are visited, not rewritten), plus one pass over the
+rows of each sheet that still has a cached dependent. The closure of the `Everything` formulas
+is the same for every edit, so it is computed once per graph and reused (it is reset when a
+formula is added); without that cache the worst case cost about 90 ms per edit. A batch API is therefore
 not needed for Phase1; Phase6 (large sheets) may still add one.
 
 #### 3.2 Dependents
@@ -468,7 +512,8 @@ It is never the default.
   `v`, `t` and `is` are replaced; `s` is kept).
   - The cell becomes a formula cell. Its dependents are invalidated as in §3, and
     `fullCalcOnLoad` is handled as in §3.3.
-  - Text is stored as given; one leading `=` is dropped for convenience.
+  - Text is stored as given; one leading `=` is dropped for convenience. Stored formula text
+    never starts with `=`, so `"==A1"` is `Err(InvalidFormula)` (R3-m2).
   - The text must lex (§2.1); otherwise `Err(InvalidFormula)` and nothing changes. Excel would
     repair a file with an unparsable formula, and Phase1 cannot check more than lexing.
   - Functions that need `_xlfn.` are the caller's responsibility in Phase1.
@@ -495,7 +540,8 @@ behaviour) when:
 
 - the text does not lex; or
 - any shifted component leaves the sheet: row < 1 or > 1,048,576, column < A or > XFD; or
-- a reference token collides with a defined name (§2.4).
+- a reference token collides with a defined name (§2.4), with or without a sheet prefix; or
+- the group has two masters for its `si` on the sheet (§1, R3-M1 b).
 
 `INDIRECT` and other `Everything` constructs are not a failure: their text is copied unchanged
 (their string arguments are not references), and their precedents stay `Everything`.
@@ -541,10 +587,15 @@ This needs `Package::remove_part(name)` and `Package::check_remove_part(name)` i
 ADR-0001 Layer 3's "registries are append-only" invariant. On acceptance of this ADR, ADR-0001
 gets a post-acceptance note with this text:
 
-> A registry entry may be removed only together with the part it registers, and only if no part
-> in the package references the entry's id (a relationship id is referenced by `r:id`-style
-> attributes in the source part; `calcChain`'s is referenced nowhere). No remaining entry is ever
+> A registry entry may be removed only together with the part it registers; only if the caller
+> explicitly allows the type of every relationship to that part (a part found by relationship
+> type is referenced implicitly); and only if no attribute of a removed relationship's source
+> part, in any namespace and after XML unescaping, equals the removed `Id`. Part names follow
+> OPC equivalence (ASCII case-insensitive, percent-decoded targets). No remaining entry is ever
 > renumbered.
+
+Until this ADR is accepted, ADR-0001 carries an interim note with these same conditions (PR #14);
+on acceptance this text replaces it.
 
 `remove_part(name, allowed_rel_types)` contract (as revised by the PR #14 round-1 review):
 
@@ -624,14 +675,22 @@ All tests below sit on top of the Phase0 suite (roadmap §7). Every one checks T
 parts, L1 on the rest, and "`Err` ⇒ nothing changed".
 
 **Where Phase1 intentionally touches more bytes than Phase0**, the tests assert exactly this
-allowed set, and nothing else:
+allowed set, and nothing else, **byte for byte** (review R3-M2): the expected output is built
+from the input by applying only these edits, and compared with the actual output.
 
-- the edited cell's `c` span (and a new `row`/`c`, `dimension`, as Phase0);
-- the whole `c` span of every dependent that had a cached value (§3.3);
-- for a master hand-off, the new master's `c` span;
-- in `workbook.xml`, the `calcPr` element (or the inserted one);
+- the edited cell's `c` span (and a new `row`/`c`, `dimension`, as Phase0's T2 region);
+- each dependent that had a cached value: its `c` span with exactly the `t` attribute and the
+  `v`/`is` children removed (every other attribute, the `f` element, the row tag and the bytes
+  between cells unchanged; a re-rendered start tag that lost its last child self-closes,
+  ADR-0002 §4.2);
+- for a master hand-off, the new master's `c` span (its exact text is asserted separately);
+- in `workbook.xml`, exactly `fullCalcOnLoad="1"` added to `calcPr` (or one inserted
+  `<calcPr fullCalcOnLoad="1"/>`);
 - for a calcChain removal: the part is gone, and `[Content_Types].xml` and the workbook `.rels`
-  each lose one element plus its preceding whitespace text.
+  each equal the input minus one element and the whitespace text right before it.
+
+The synthetic O1 workbooks give every formula cell a style (`s`) and every row `spans`/`ht`, so
+that a corrupting edit to those would be caught.
 
 #### 7.1 Oracles that do not consult the implementation (reviews B2, R2-M2)
 
@@ -672,17 +731,24 @@ allowed set, and nothing else:
   - `examples/o3_inputs.rs` writes, deterministically, every input and output to a directory;
     `spikes/xlsx/o3_recalc.py` recalculates each with LibreOffice headless and hard recalc
     (`OOXMLRecalcMode` = always, set in a throw-away profile), re-saves, reads every formula
-    cell's value with `zipfile` + `xml.etree`, and writes `reference/fixtures/xlsx/o3/expected.json`
-    with the LibreOffice version and the input file hashes. A `workflow_dispatch` GitHub Actions
-    job runs the same script and uploads the JSON. LibreOffice is not needed at test time.
-  - The test (`tests/o3.rs`) regenerates the outputs in process and checks: **every formula
+    cell's value with `zipfile` + `xml.etree`, and writes `reference/fixtures/xlsx/o3/expected.tsv`
+    with the LibreOffice version and each file's FNV-1a hash. The `workflow_dispatch` GitHub
+    Actions job `.github/workflows/o3-recalc.yml` (its own PR, so that it exists on the default
+    branch) installs an **exact LibreOffice release** from the Document Foundation archive (input,
+    default 25.2.7.2), runs the same script against the dispatched branch, checks it, and uploads
+    the TSV. The owner reviews and commits it. LibreOffice is not needed at test time. The data is
+    to be generated **before Phase1 merges** (review R3, owner question 2).
+  - The test (`tests/phase1_o3.rs`) regenerates the outputs in process and checks: **every formula
     cell that kept its `v` in an output, and whose input cached value agreed with LibreOffice's
     recalculation of the input (baseline), holds LibreOffice's recalculated value of the
     output.** Cells that disagree already in the input (LibreOffice ≠ Excel, POI-written values,
-    manual mode) are thereby excluded automatically; formula cells using a volatile function, and
-    their transitive dependents, are excluded too.
+    manual mode) are thereby excluded automatically. Workbooks with any volatile formula (a
+    volatile function in any formula text, shared masters included, or `ca="1"`) are skipped
+    entirely, which excludes every transitive dependent of a volatile cell without using the
+    dependency code under test (R3-m5).
   - Until the data is committed, the test is `#[ignore]` with the reason "needs
-    reference/fixtures/xlsx/o3/expected.json (run spikes/xlsx/o3_recalc.py with LibreOffice)".
+    reference/fixtures/xlsx/o3/expected.tsv (run the o3_inputs example, then
+    spikes/xlsx/o3_recalc.py with LibreOffice)".
     Run with `--ignored` and no data, it fails with that message.
   - Licence: the expected values are facts computed from the Apache-2.0 POI fixtures and from
     synthetic workbooks; LibreOffice's (MPL-2.0) output is not covered by the MPL. They sit
@@ -811,8 +877,8 @@ returns `Err(Poisoned)`, and every later edit, `save` and `to_bytes` return `Err
     blanks), never correctness.
   - Three oracles, independent of the implementation, check the one failure that matters (a
     missed dependent); O3 compares with a real engine on synthetic workbooks too.
-  - Edits cost time proportional to the cells that still lose a cached value, not to the size of
-    the sheet (§3.1).
+  - Edits cost time proportional to the dependent set (already-stripped dependents are visited
+    but not rewritten), not to the size of the sheet; the worst case is measured in §3.1.
 - Positive: the tokenizer, translation and dependency graph are reusable by Phase3 (sheet rename
   rewrites), Phase7 (row/column insertion) and any future evaluator.
 - Negative: dependents lose their cached values until a calculating application recalculates.
