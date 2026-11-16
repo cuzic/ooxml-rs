@@ -65,13 +65,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  re-read {a1} = {v:?}");
     }
 
-    // 3. Refusals: typed errors, and nothing is changed.
+    // 3. Formula workbooks (Phase1): the edit is allowed, and every dependent
+    //    formula loses its cached value so Excel recalculates on open.
     let formulas = format!("{REFERENCE}/fixtures/xlsx/poi/shared_formulas.xlsx");
     let mut wb = Workbook::open(&formulas)?;
-    match wb.worksheet()?.cell_mut(0, 0)?.set_number(1.0) {
-        Err(e @ Error::FormulaPresent { .. }) => println!("refused (formulas present): {e}"),
-        other => println!("unexpected: {other:?}"),
+    match wb.edit_refusal() {
+        Some(why) => println!("not editable: {why}"),
+        None => {
+            wb.worksheet()?.cell_mut(0, 0)?.set_number(1.0)?;
+            println!("edited a formula workbook: dependents' cached values dropped, fullCalcOnLoad set");
+        }
     }
+    // Refusals are typed errors, and nothing is changed.
     let strict = format!("{REFERENCE}/fixtures/xlsx/poi/SimpleStrict.xlsx");
     match Workbook::open(&strict) {
         Err(Error::Core(e)) => println!("refused at open (ooxml-core): {e}"),
