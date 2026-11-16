@@ -420,6 +420,102 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         self.insert_at_slot::<C>(slot, before)
     }
 
+    /// Inserts a new `C` child at child item index `index` (an index into
+    /// [`RawNode::children`], `0..=len`), for callers that already know the
+    /// position among same-slot siblings (e.g. from their own row index).
+    /// For a slot **without limits** the checks look only at the nearest
+    /// listed neighbours (plus any unlisted children between them), so the
+    /// cost is O(1) apart from the `Vec` insertion — where [`Self::insert_by`]
+    /// scans every child. A slot with limits is counted over all children,
+    /// as `insert_by` does.
+    ///
+    /// Schema order is checked **locally**: every slot the nearest listed
+    /// element before `index` could belong to must not come after `C`'s, every
+    /// slot of the nearest listed element after it must not come before
+    /// `C`'s (so an ambiguous neighbour such as a name listed in two slots is
+    /// refused unless every reading is in order: use `insert_by` or
+    /// `insert_in_slot` there), and neither may be an `mc:AlternateContent`
+    /// ([`Error::UnresolvedSibling`]). Disorder elsewhere in the parent is not
+    /// examined (where `insert_by` refuses the whole parent). Slot limits are
+    /// enforced exactly as by `insert_by` ([`Error::AlreadyPresent`]; an
+    /// `mc:AlternateContent` anywhere then refuses). Unlisted
+    /// children are skipped, as in `insert_by`. The caller owns the order
+    /// within the slot. Dirty duties, depth limit and prefix choice are those
+    /// of `insert_by`. [`Self::check_insert_at`] runs the same checks without
+    /// changing anything.
+    pub fn insert_at<C: ChildOf<E>>(&mut self, index: usize) -> Result<LensMut<'_, C>> {
+        self.check_insert_at::<C>(index)?;
+        let prefix = choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
+        let name = XName::new(C::QNAME.ns.into(), C::QNAME.local, prefix.as_deref());
+        let parent = self.node_mut();
+        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
+            parent.own_dirty = true; // self-closing parent gains its first child
+        }
+        parent.children.insert(index, RawItem::Element(RawNode::new_created(name)));
+        self.mark_path();
+        Ok(self.descend(index))
+    }
+
+    /// Every check of [`Self::insert_at`] (index range, depth limit, slot,
+    /// local schema order, slot limits, namespace prefix), without changing
+    /// anything: if it returns `Ok`, `insert_at::<C>(index)` succeeds on the
+    /// unchanged tree. Lets a caller validate a multi-step edit first.
+    pub fn check_insert_at<C: ChildOf<E>>(&self, index: usize) -> Result<()> {
+        let len = self.node().children.len();
+        if index > len {
+            return Err(Error::InsertIndexOutOfRange { index, len });
+        }
+        if self.path.len() + 2 > self.max_depth {
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+        }
+        let slots = self.slots()?;
+        let slot = match Self::slot_of(slots, C::QNAME)[..] {
+            [s] => s,
+            [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
+            _ => return Err(Error::AmbiguousSlot(C::QNAME)),
+        };
+        let children = &self.node().children;
+        let listed = |n: &RawNode| -> Result<Option<Vec<usize>>> {
+            if n.is(MC_ALTERNATE_CONTENT) {
+                return Err(Error::UnresolvedSibling(E::QNAME));
+            }
+            let c = Self::candidates(slots, &n.name);
+            Ok((!c.is_empty()).then_some(c))
+        };
+        for item in children[..index].iter().rev() {
+            if let Some(n) = item.as_element()
+                && let Some(c) = listed(n)?
+            {
+                // every candidate: an ambiguous neighbour's actual slot depends
+                // on the greedy assignment of the children before it (review F1)
+                if !c.iter().all(|&r| r <= slot) {
+                    return Err(Error::UnresolvedSibling(E::QNAME));
+                }
+                break;
+            }
+        }
+        for item in &children[index..] {
+            if let Some(n) = item.as_element()
+                && let Some(c) = listed(n)?
+            {
+                if !c.iter().all(|&r| r >= slot) {
+                    return Err(Error::UnresolvedSibling(E::QNAME));
+                }
+                break;
+            }
+        }
+        // A slot with limits is counted exactly as `insert_by` counts it: the
+        // full greedy assignment, which also refuses an `mc:AlternateContent`
+        // anywhere in the parent (reviews F2, F3). O(children); unlimited
+        // slots (rows, cells) never take this path.
+        let s = slots[slot];
+        if s.max_each.is_some() || s.max_total.is_some() {
+            self.place(slots, slot, C::QNAME, |_, _| false)?;
+        }
+        choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
+        Ok(())
+    }
+
     /// `insert_by` that never returns `true`: append at the end of the slot.
     pub fn insert<C: ChildOf<E>>(&mut self) -> Result<LensMut<'_, C>> {
         self.insert_by::<C>(|_, _| false)
