@@ -504,6 +504,8 @@ span or insertion point plus `dimension`.
 | P0-R1 | `shared_formulas.xlsx` (40 shared, `calcChain`) | any `set_*` on any cell | `Err(FormulaPresent)`; detected at open, cached |
 | P0-R2 | `70005-countifs.xlsx` (LibreOffice, formulas, **no** `calcChain`) | any `set_*` | `Err(FormulaPresent)` (ADR-0001 R3-M1: absence of calcChain is not safety) |
 | P0-R3 | `MatrixFormulaEvalTestData.xlsx` (array formulas), `xlookup.xlsx` (dynamic array, `cm`), `NewStyleConditionalFormattings.xlsx` | any `set_*` | `Err(FormulaPresent)` |
+
+(P0-R1–R3 are superseded by Phase1, ADR-0003: these workbooks are now editable; `FormulaPresent` no longer exists. The Phase0 tests were adapted, see `tests/refusals.rs`.)
 | P0-R4 | `59746_NoRowNums.xlsx` (no `r` on rows/cells; part `xl/worksheets/sheet.xml`) | `cell(0,0)` and `set_number` | both `Err(MissingReference)` — reads too (ADR-0002 R3-m4) |
 | P0-R5 | `InlineString.xlsx` (one row and cell without `r`) | `cell(0,0)` | `Err(MissingReference)` |
 | P0-R6 | `61605.xlsx` | `set_number` on `C1` (inside `B1:E1`, not anchor) | `Err(MergedCell)` |
