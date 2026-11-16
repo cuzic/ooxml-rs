@@ -7,6 +7,7 @@
 //! ```
 
 use std::fmt::Write as _;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use ooxml_docx::{Document, Paragraph, Run, RunContext};
@@ -144,7 +145,63 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
         "Footnotes and endnotes and their reference marks are unchanged.",
         &|d| set_first(d, |_, _| true, "EDITED text near notes"),
     )?;
+    curly_quotes(out)?;
+    cases.push(Case {
+        file: CURLY_FILE,
+        fixture: "",
+        done: "Not edited: ooxml-docx refuses it (W2). Three DOCPROPERTY/INFO fields with straight and typographic quotes, each \
+               with the cached result 0"
+            .into(),
+        check: "Typographic quotes question: select all (Ctrl+A) and update fields (F9). Note for each line whether the \
+                field now shows the word count, an error (\"Error! Unknown document property name.\"), or stays 0. If the \
+                lines with “Words” and “NumWords” show the word count, Word reads typographic quotes as quotes (ADR-0004 \
+                rev 4, m9; ooxml-docx already treats them so).",
+    });
     Ok(cases)
+}
+
+const CURLY_FILE: &str = "11-curly-quoted-docproperty.docx";
+
+/// Writes a minimal package with `DOCPROPERTY "Words"`, `DOCPROPERTY “Words”`
+/// and `INFO “NumWords”` (review round 3, m9), and checks that ooxml-docx
+/// refuses it.
+fn curly_quotes(out: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    let field = |label: &str, code: &str| {
+        format!(
+            r#"<w:p><w:r><w:t xml:space="preserve">{label}: </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> {code} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>0</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#
+        )
+    };
+    let body = [
+        "<w:p><w:r><w:t>One two three four five six seven eight nine ten.</w:t></w:r></w:p>".to_owned(),
+        field("Straight quotes", "DOCPROPERTY \"Words\""),
+        field("Typographic quotes", "DOCPROPERTY \u{201C}Words\u{201D}"),
+        field("INFO, typographic quotes", "INFO \u{201C}NumWords\u{201D}"),
+    ]
+    .concat();
+    let parts = [
+        (
+            "[Content_Types].xml",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#.to_owned(),
+        ),
+        (
+            "_rels/.rels",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#.to_owned(),
+        ),
+        (
+            "word/document.xml",
+            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}<w:sectPr/></w:body></w:document>"#),
+        ),
+    ];
+    let mut z = zip::ZipWriter::new(std::fs::File::create(out.join(CURLY_FILE))?);
+    for (name, content) in parts {
+        z.start_file(name, zip::write::SimpleFileOptions::default())?;
+        z.write_all(content.as_bytes())?;
+    }
+    z.finish()?;
+    let doc = Document::open(out.join(CURLY_FILE))?;
+    assert!(doc.write_gate().is_err(), "W2 refuses statistics fields, typographic quotes included");
+    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -160,7 +217,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(md, "- [ ] Optional: save in Word, reopen: still no dialog.\n")?;
     for c in &cases {
         writeln!(md, "## `{}`\n", c.file)?;
-        writeln!(md, "- Source: `reference/fixtures/docx/{}.docx`", c.fixture)?;
+        if c.fixture.is_empty() {
+            writeln!(md, "- Source: synthetic, written by this example")?;
+        } else {
+            writeln!(md, "- Source: `reference/fixtures/docx/{}.docx`", c.fixture)?;
+        }
         writeln!(md, "- Edit: {}", c.done)?;
         writeln!(md, "- [ ] No repair dialog")?;
         writeln!(md, "- [ ] {}\n", c.check)?;
@@ -168,9 +229,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(md, "## Questions to answer\n")?;
     writeln!(md, "1. **w14:textId** (`04`): is keeping the old textId on an edited paragraph harmless (no dialog, comment intact)? If Word rewrites it on save, note that.")?;
     writeln!(md, "2. **lastRenderedPageBreak** (`03`): any visible effect of dropping it from the edited run?")?;
+    writeln!(md, "3. **Typographic quotes** (`11`): after F9, do the fields written with “…” show the word count (Word reads them as quotes) or an error?")?;
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     for c in &cases {
-        println!("{}  ({})", out.join(c.file).display(), c.fixture);
+        println!("{}  ({})", out.join(c.file).display(), if c.fixture.is_empty() { "synthetic" } else { c.fixture });
     }
     println!("{}", out.join("CHECKLIST.md").display());
     Ok(())
