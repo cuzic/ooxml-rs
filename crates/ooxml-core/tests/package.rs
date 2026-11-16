@@ -483,3 +483,100 @@ impl ooxml_core::ElementSpec for Rel {
     const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
 }
 impl ooxml_core::ChildOf<Rels> for Rel {}
+
+fn wb_rels_to(target: &str, extra: &str) -> String {
+    format!(r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="{CALC_CHAIN}" Target="{target}"{extra}/></Relationships>"#)
+}
+
+/// Round 2 N1: OPC part-name equivalence. A `_RELS` folder in another case
+/// is a relationships folder; targets match after percent-decoding and ASCII
+/// case folding. No relationship to the removed part survives an `Ok`.
+#[test]
+fn remove_part_uses_opc_part_name_equivalence() {
+    for (rels, entry, target) in [
+        ("xl/_rels/workbook.xml.rels", "xl/calcChain.xml", "calc%43hain.xml"),
+        ("xl/_rels/workbook.xml.rels", "xl/calc%E7%94%BB.xml", "calc画.xml"),
+        ("xl/_rels/workbook.xml.rels", "xl/calc画.xml", "calc%E7%94%BB.xml"),
+        ("xl/_rels/workbook.xml.rels", "xl/calcChain.xml", "CALCCHAIN.xml"),
+        ("xl/_RELS/workbook.xml.rels", "xl/calcChain.xml", "calcChain.xml"),
+    ] {
+        let r = wb_rels_to(target, "");
+        let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), (rels, &r), (entry, "<c/>")]);
+        let mut pkg = Package::from_bytes(b).unwrap();
+        let removed = pkg.remove_part(entry, &[CALC_CHAIN]).unwrap();
+        assert_eq!(removed.relationships, vec![(rels.to_owned(), "rId2".to_owned())], "{rels} {entry} {target}");
+        let out = pkg.to_bytes().unwrap();
+        assert!(!String::from_utf8(decompressed(&out, rels)).unwrap().contains("rId2"), "{entry} {target}");
+    }
+}
+
+/// Round 2 N1/N4: an external relationship with the same target text is
+/// never removed (mutant J).
+#[test]
+fn remove_part_keeps_external_relationships_with_the_same_target() {
+    let r = format!(
+        r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="{CALC_CHAIN}" Target="calcChain.xml"/><Relationship Id="rId3" Type="urn:ext" Target="calcChain.xml" TargetMode="External"/></Relationships>"#
+    );
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/calcChain.xml", "<c/>")]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    let removed = pkg.remove_part("xl/calcChain.xml", &[CALC_CHAIN]).unwrap();
+    assert_eq!(removed.relationships.len(), 1);
+    let out = String::from_utf8(decompressed(&pkg.to_bytes().unwrap(), "xl/_rels/workbook.xml.rels")).unwrap();
+    assert!(out.contains("rId3") && !out.contains("rId2"), "{out}");
+}
+
+/// Round 2 N4: a Replaced `.rels` that still holds a relationship to the
+/// part is refused (mutant I: without the guard the part would go and the
+/// relationship would stay); a source with a DTD is not scannable (mutant H).
+#[test]
+fn remove_part_guards_replaced_rels_and_dtd_sources() {
+    let r = wb_rels_to("calcChain.xml", "");
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/calcChain.xml", "<c/>")]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    pkg.set_part("xl/_rels/workbook.xml.rels", r.clone()).unwrap();
+    let replaced = pkg.to_bytes().unwrap();
+    assert_refused(&mut pkg, &replaced, "xl/calcChain.xml", &[CALC_CHAIN], |x| {
+        matches!(x, RemoveRefusal::RegistryNotEditable { part, .. } if part == "xl/_rels/workbook.xml.rels")
+    });
+    let b = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<!DOCTYPE w><w/>"),
+        ("xl/_rels/workbook.xml.rels", &r),
+        ("xl/calcChain.xml", "<c/>"),
+    ]);
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/calcChain.xml", &[CALC_CHAIN], |x| matches!(x, RemoveRefusal::SourceNotScannable { .. }));
+}
+
+/// Round 2 N2: only the root `_rels/.rels` holds package relationships; a
+/// nested `foo/_rels/.rels` must not touch the package-relationships cache.
+#[test]
+fn remove_part_nested_dot_rels_is_not_the_package() {
+    let b = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        ("docProps/core.xml", "<c/>"),
+        ("foo/_rels/.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="urn:x" Target="/x.xml"/></Relationships>"#),
+        ("x.xml", "<x/>"),
+    ]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    pkg.remove_part("x.xml", &["urn:x"]).unwrap();
+    assert_eq!(pkg.main_document_part().as_deref(), Some("xl/workbook.xml"));
+    assert_eq!(pkg.package_relationships().iter().count(), 2);
+    let out = pkg.to_bytes().unwrap();
+    assert!(!String::from_utf8(decompressed(&out, "foo/_rels/.rels")).unwrap().contains("rId1"));
+}
+
+/// Round 2 N5: Strict and Transitional calcChain types are distinct strings.
+#[test]
+fn calc_chain_relationship_types() {
+    use ooxml_core::opc::{REL_CALC_CHAIN, REL_CALC_CHAIN_STRICT};
+    assert_eq!(REL_CALC_CHAIN, CALC_CHAIN);
+    let rs = format!(r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="{REL_CALC_CHAIN_STRICT}" Target="calcChain.xml"/></Relationships>"#);
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &rs), ("xl/calcChain.xml", "<c/>")]);
+    let pkg = Package::from_bytes(b).unwrap();
+    assert_matches!(pkg.check_remove_part("xl/calcChain.xml", &[REL_CALC_CHAIN]), Err(Error::RemovePartRefused { reason: RemoveRefusal::RelationshipTypeNotAllowed { .. }, .. }));
+    pkg.check_remove_part("xl/calcChain.xml", &[REL_CALC_CHAIN, REL_CALC_CHAIN_STRICT]).unwrap();
+}

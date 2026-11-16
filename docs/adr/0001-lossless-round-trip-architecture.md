@@ -88,9 +88,11 @@
   part it registers; only if the caller explicitly allows each removed
   relationship's type (parts found by relationship type are referenced
   implicitly); and only if no attribute of the relationship's source part
-  carries the removed `Id`. No remaining entry is ever renumbered. If
-  ADR-0003 is accepted, its §4.3 text replaces this note; if it is
-  rejected, `remove_part` is removed again.
+  carries the removed `Id` (any attribute, any namespace, after XML
+  unescaping). No remaining entry is ever renumbered. If ADR-0003 is
+  accepted and its §4.3 contains at least these conditions (the
+  relationship-type allowlist and the any-attribute rule), it replaces
+  this note; if it is rejected, `remove_part` is removed again.
 
 ## Context
 
