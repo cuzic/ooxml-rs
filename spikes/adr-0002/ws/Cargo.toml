@@ -1,0 +1,6 @@
+[workspace]
+resolver = "3"
+members = ["core", "schema", "xlsx"]
+[workspace.package]
+edition = "2024"
+rust-version = "1.99"

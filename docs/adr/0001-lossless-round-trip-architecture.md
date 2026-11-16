@@ -40,6 +40,22 @@
   (1.93) and `<integer>::format_into` (1.98) render dirty tags and
   numeric attributes without intermediate allocation; `cfg_select!`
   (1.95) gates per-namespace generated code.
+- **Post-acceptance note (2026-11-16):** the dedicated `ooxmlsdk`
+  evaluation that Alternative 5 deferred was carried out for ADR-0002
+  (see its Alternatives); outcome: not adopted as the Layer 2
+  foundation, kept as a reference and test oracle.
+- **Post-acceptance note (2026-11-16, scope clarification):** ADR-0002
+  §5 parses `workbook.xml` and `sharedStrings.xml` read-only (to locate
+  the first sheet and resolve shared strings), in addition to the
+  worksheet. Edits stay confined to the worksheet part; the extra parts
+  remain dirty-free `Parsed` and are raw-copied per the M2 rule above.
+  "sheet1" means the first sheet in workbook order.
+- **Post-acceptance note (2026-11-16, `RawNode` names):** per ADR-0002
+  §3, `RawNode.name` and each attribute name are stored as the resolved
+  `QName` (namespace URI, local name) together with the original prefix,
+  rather than the `attrs: Vec<(String, String)>` raw pairs sketched in
+  Layer 2 above. Serialization is unaffected: untouched spans are still
+  emitted verbatim, and re-rendered tags use the original prefix.
 
 ## Context
 

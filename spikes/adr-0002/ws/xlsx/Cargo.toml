@@ -1,0 +1,8 @@
+[package]
+name = "xlsx-spike"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+[dependencies]
+core-spike = { path = "../core" }
+schema-spike = { path = "../schema" }
