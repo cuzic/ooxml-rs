@@ -105,6 +105,7 @@ pub(crate) fn normalize_part_name(s: &str) -> String {
     while i < b.len() {
         if b[i] == b'%'
             && let Some(h) = b.get(i + 1..i + 3)
+            && h.iter().all(u8::is_ascii_hexdigit)
             && let Ok(v) = u8::from_str_radix(std::str::from_utf8(h).unwrap_or("zz"), 16)
         {
             out.push(v);

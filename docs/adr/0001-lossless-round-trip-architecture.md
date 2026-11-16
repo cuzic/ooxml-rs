@@ -79,6 +79,15 @@
   rather than the `attrs: Vec<(String, String)>` raw pairs sketched in
   Layer 2 above. Serialization is unaffected: untouched spans are still
   emitted verbatim, and re-rendered tags use the original prefix.
+- **Post-acceptance note (2026-11-16, Layer 1 — duplicate part names):**
+  `Package::open`/`from_bytes` refuse a zip whose entries name the same
+  OPC part twice (`Error::Package("duplicate part name …")`): equal after
+  ASCII case folding (as before) and, since PR #14, after percent-decoding
+  (an IRI entry name and its `%`-encoded UTF-8 form are one part name).
+  Such a package is invalid OPC, so this is one more "fail honestly at
+  open" case beside encrypted and Strict packages; nothing valid is
+  rejected (0 of 4,102 corpus files). The check is linear in the number of
+  entries.
 - **Post-acceptance note (2026-11-16, interim — registry removal):** Layer
   3's "may never remove or renumber an existing one" gets one narrow,
   interim exception so that `ooxml-core` can provide

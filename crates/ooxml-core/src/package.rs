@@ -95,10 +95,11 @@ pub enum RemoveRefusal {
         /// Why.
         reason: String,
     },
-    /// A relationships part mentions the part's file name, but none of its
-    /// relationships resolves to the part: a spelling this code does not
-    /// resolve might still point at it (safety net; refusing is the safe
-    /// side).
+    /// A relationship's target has the part's file name as its last segment
+    /// (unescaped, percent-decoded, `\` counted as a separator) but resolves
+    /// to no existing part, or an unreadable relationships part mentions the
+    /// file name: a spelling this code does not resolve might still point at
+    /// the part (safety net; refusing is the safe side).
     UnresolvedMention {
         /// The relationships part.
         rels: String,
@@ -190,7 +191,10 @@ impl Package {
     /// Opens a package file. The whole file is read into memory first.
     ///
     /// Errors: [`Error::EncryptedPackage`] for an OLE/CFB file,
-    /// [`Error::StrictNotSupported`] for ECMA-376 Strict packages.
+    /// [`Error::StrictNotSupported`] for ECMA-376 Strict packages,
+    /// [`Error::Package`] `"duplicate part name …"` when two zip entries
+    /// name the same OPC part (equal after ASCII case folding and
+    /// percent-decoding; an invalid package, ADR-0001 Layer 1 note).
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         Self::from_bytes(fs::read(path)?)
     }
@@ -221,12 +225,14 @@ impl Package {
         }
         let mut archive = ZipArchive::new(Cursor::new(data))?;
         let mut parts = Vec::with_capacity(archive.len());
+        // OPC part-name equivalence (ASCII case-insensitive, an IRI entry
+        // name equals its percent-encoded form; review N8): each name is
+        // normalized once, so the check is linear (review N11).
+        let mut seen = std::collections::HashSet::with_capacity(archive.len());
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index)?;
             let name = file.name()?.into_owned();
-            // OPC part-name equivalence: ASCII case-insensitive, and an
-            // IRI entry name equals its percent-encoded form (review N8).
-            if parts.iter().any(|p: &Part| same_part_name(&p.name, &name)) {
+            if !seen.insert(normalize_part_name(&name)) {
                 return Err(Error::Package(format!("duplicate part name {name:?}")));
             }
             parts.push(Part { name, index, compression: file.compression(), state: PartState::Raw });
@@ -399,8 +405,9 @@ impl Package {
     ///   wholesale or cannot be parsed (a relationships part that cannot be
     ///   parsed and does not mention the part's file name is ignored).
     ///
-    /// - `UnresolvedMention`: a relationships part mentions the part's file
-    ///   name in a spelling that does not resolve to it (safety net).
+    /// - `UnresolvedMention`: a relationship's target has the part's file
+    ///   name as its last segment but resolves to no existing part (safety
+    ///   net).
     ///
     /// Part names follow OPC equivalence: ASCII case-insensitive and
     /// percent-decoded, for the part, source parts, `_rels` folders, its own
@@ -439,7 +446,7 @@ impl Package {
         let idx = self.find_ci(name).ok_or_else(|| Error::PartNotFound(name.into()))?;
         let name = self.parts[idx].name.clone();
         let refuse = |reason: RemoveRefusal| Error::RemovePartRefused { part: name.clone(), reason };
-        if name.eq_ignore_ascii_case(CONTENT_TYPES_PART) || is_rels_part(&name) {
+        if name.eq_ignore_ascii_case(CONTENT_TYPES_PART) || is_rels_part(&normalize_part_name(&name)) {
             return Err(refuse(RemoveRefusal::RegistryPart));
         }
         if let Some(i) = self.find_ci(&rels_part_name(Some(&name))) {
@@ -451,19 +458,22 @@ impl Package {
         let mut edits = Vec::new();
         let mut relationships = Vec::new();
         let mut package_ids = Vec::new();
-        for (pi, p) in self.parts.iter().enumerate().filter(|(_, p)| is_rels_part(&p.name)) {
+        for (pi, p) in self.parts.iter().enumerate().filter(|(_, p)| is_rels_part(&normalize_part_name(&p.name))) {
             let rels_name = p.name.clone();
-            let Some(source) = source_of_rels_part(&rels_name) else { continue };
+            // Recognised on the normalized name, so `%5Frels`/`.rel%73`
+            // spellings are relationships parts too (review N14).
+            let Some(source) = source_of_rels_part(&normalize_part_name(&rels_name)) else { continue };
             let not_editable = |reason: String| refuse(RemoveRefusal::RegistryNotEditable { part: rels_name.clone(), reason });
-            // Whether a relationships part mentions the part's file name in
-            // its raw text (percent-decoded, case-folded): an unreadable one
-            // might refer to the part, and a readable one in which no
-            // relationship resolved to it spells it in a form this code does
-            // not resolve (safety net, review N7).
+            // Whether an *unreadable* relationships part mentions the part's
+            // file name in its raw text (percent-decoded, case-folded): it
+            // might refer to the part. Readable ones are checked per
+            // relationship below.
             let mentions = || {
-                self.read_part(&rels_name)
-                    .map(|b| normalize_part_name(&String::from_utf8_lossy(&b)).contains(&file_name))
-                    .unwrap_or(true)
+                !file_name.is_empty()
+                    && self
+                        .read_part(&rels_name)
+                        .map(|b| normalize_part_name(&String::from_utf8_lossy(&b)).contains(&file_name))
+                        .unwrap_or(true)
             };
             let mut fresh: Option<XmlDocument> = None;
             let replaced_doc;
@@ -499,7 +509,20 @@ impl Package {
                     continue;
                 }
                 let Some(target) = get("Target") else { continue };
-                if !same_part_name(&crate::opc::resolve_target(source.base().as_deref(), target), &name) {
+                let resolved = crate::opc::resolve_target(source.base().as_deref(), target);
+                if !same_part_name(&resolved, &name) {
+                    // Safety net (reviews N7, N12, N13): a target whose last
+                    // segment (unescaped, trimmed, percent-decoded, case-
+                    // folded, `\` counted as a separator) is the part's file
+                    // name but that resolves to no existing part is a
+                    // spelling this code does not resolve; it might mean the
+                    // part. A target resolving to another existing part with
+                    // the same file name is a real, different reference.
+                    let seg = normalize_part_name(target);
+                    let seg = seg.rsplit(['/', '\\']).next().unwrap_or_default();
+                    if !file_name.is_empty() && seg == file_name && self.find_ci(&resolved).is_none() {
+                        return Err(refuse(RemoveRefusal::UnresolvedMention { rels: rels_name.clone() }));
+                    }
                     continue;
                 }
                 let id = get("Id").unwrap_or_default().to_owned();
@@ -515,9 +538,6 @@ impl Package {
                 ids.push(id);
             }
             if indices.is_empty() {
-                if mentions() {
-                    return Err(refuse(RemoveRefusal::UnresolvedMention { rels: rels_name.clone() }));
-                }
                 continue;
             }
             if matches!(p.state, PartState::Replaced(_)) {
