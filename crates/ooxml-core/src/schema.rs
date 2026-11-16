@@ -196,16 +196,44 @@ pub trait SameType<S: ElementSpec>: ElementSpec {}
 /// The element may be copied with [`Lens::detach_as`](crate::Lens::detach_as)
 /// (ADR-0002 post-acceptance note "detach/insert"). Generated only for the
 /// entries a format crate lists in the `[detach]` section of its allowlist
-/// file, after review that their subtrees carry no value that must be
-/// unique in the document (shape ids, `p:ph@idx`, `w14:paraId`, …) and no
-/// reference to such an id: copying such a subtree would duplicate it.
+/// file, after review of what their subtrees can hold: no shape ids,
+/// `p:ph@idx`, `w14:paraId` or references to such ids, and every remaining
+/// attribute that must be unique in the document listed in
+/// [`Self::UNIQUE_ATTRS`] (refused when set to a non-default value).
 /// Phase 0.1 opts in DrawingML formatting only (`a:rPr`, `a:endParaRPr`,
-/// `a:pPr`).
+/// `a:pPr`; unique: `smtId`, ECMA-376 Part 1 §21.1.2.3.9).
+///
+/// Sealed: the supertrait lives in a `#[doc(hidden)]` module for generated
+/// code (and tests). The guarantee covers the generated impls only; a
+/// hand-written impl is its author's responsibility.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not detachable",
     note = "list it in the `[detach]` section of its `codegen/allowlist/*.toml` (only for subtrees without ids or id references)"
 )]
-pub trait Detachable: ElementSpec {}
+pub trait Detachable: ElementSpec + __private::Sealed {
+    /// Attributes, on any element of a copied subtree, whose value must be
+    /// unique in the document; `detach_as` refuses a copy where one has a
+    /// value other than its default.
+    const UNIQUE_ATTRS: &'static [UniqueAttr] = &[];
+}
+
+/// An attribute that holds a document-unique value (an id), on elements
+/// named `element` (see [`Detachable::UNIQUE_ATTRS`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UniqueAttr {
+    /// Element name.
+    pub element: QName,
+    /// Attribute name.
+    pub attr: QName,
+    /// XSD default; a present value equal to it is not an id.
+    pub default: Option<&'static str>,
+}
+
+#[doc(hidden)]
+pub mod __private {
+    /// Seal of [`super::Detachable`]; implemented by generated code only.
+    pub trait Sealed {}
+}
 
 impl<S: ElementSpec> SameType<S> for S {}
 

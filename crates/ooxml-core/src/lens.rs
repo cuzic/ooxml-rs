@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use crate::error::{DetachRefusal, Error, Result};
 use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, RELATIONSHIP_ATTRIBUTES, XML_NS, XML_SPACE, XMLNS_NS, XName};
-use crate::schema::{ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot};
+use crate::schema::{ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot, UniqueAttr};
 use crate::value::{first_invalid_xml_char, has_edge_ws};
 
 /// Refuses a value that XML 1.0 cannot represent (ADR-0002 post-acceptance
@@ -198,48 +198,91 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
         E: Detachable,
         C: SameType<E> + Detachable,
     {
-        let ctx = self.ancestor_context();
-        if ctx.preserve && self.node.xml_space_preserve().is_none() && has_text(self.node) {
+        let ctx = ancestor_context(self.root, &self.path[..self.path.len().saturating_sub(1)], !self.path.is_empty());
+        let text_inherits_space = self.node.xml_space_preserve().is_none() && has_text(self.node);
+        if ctx.preserve && text_inherits_space {
             return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &self.node.name));
         }
-        let mut root = detach_node(self.node, skip, &ctx.ignorable)?;
+        let unique: Vec<UniqueAttr> = E::UNIQUE_ATTRS.iter().chain(C::UNIQUE_ATTRS).copied().collect();
+        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique)?;
         root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
-        Ok(Detached { root, _c: PhantomData })
+        Ok(Detached { root, text_inherits_space, _c: PhantomData })
     }
+}
 
-    /// What the ancestors of this node contribute: namespaces their
-    /// `mc:Ignorable` lists (resolved with the declarations in effect on
-    /// each), and whether `xml:space="preserve"` is inherited.
-    fn ancestor_context(&self) -> AncestorContext {
-        let mut decls: Vec<(Option<&str>, &str)> = Vec::new();
-        let mut ctx = AncestorContext { ignorable: Vec::new(), preserve: false };
-        let mut n = self.root;
-        let mut rest = self.path.iter();
-        loop {
-            if std::ptr::eq(n, self.node) {
-                break;
-            }
-            decls.extend(n.attrs.iter().filter(|a| a.name.ns() == XMLNS_NS).map(|a| (a.name.declared_prefix(), a.value.as_str())));
-            if let Some(v) = n.attr(MC_IGNORABLE) {
-                for p in v.split_ascii_whitespace() {
-                    if let Some((_, u)) = decls.iter().rev().find(|(q, _)| *q == Some(p)) {
-                        ctx.ignorable.push((*u).to_owned());
-                    }
+/// What the elements on `path` from `root` (and `root` itself when
+/// `include_root`; an empty path with `include_root = false` means "no
+/// ancestors") contribute to a node below them: the namespaces their
+/// `mc:Ignorable` lists, each resolved with the declarations in effect on
+/// that element (innermost first), and the `xml:space` in effect. The path
+/// must point at elements (callers validate it).
+fn ancestor_context(root: &RawNode, path: &[usize], include_root: bool) -> AncestorContext {
+    let mut decls: Vec<(Option<&str>, &str)> = Vec::new();
+    let mut ctx = AncestorContext { ignorable: Vec::new(), preserve: false };
+    if !include_root {
+        return ctx;
+    }
+    let mut n = root;
+    let mut rest = path.iter();
+    loop {
+        decls.extend(n.attrs.iter().filter(|a| a.name.ns() == XMLNS_NS).map(|a| (a.name.declared_prefix(), a.value.as_str())));
+        if let Some(v) = n.attr(MC_IGNORABLE) {
+            for p in v.split_ascii_whitespace() {
+                if let Some((_, u)) = decls.iter().rev().find(|(q, _)| *q == Some(p)) {
+                    ctx.ignorable.push((*u).to_owned());
                 }
             }
-            if let Some(p) = n.xml_space_preserve() {
-                ctx.preserve = p;
-            }
-            let Some(&i) = rest.next() else { break };
-            n = n.children[i].as_element().expect("path points at an element");
         }
-        ctx
+        if let Some(p) = n.xml_space_preserve() {
+            ctx.preserve = p;
+        }
+        let Some(&i) = rest.next() else { break };
+        n = n.children[i].as_element().expect("validated path");
     }
+    ctx
 }
 
 struct AncestorContext {
     ignorable: Vec<String>,
     preserve: bool,
+}
+
+/// The element at `path`, or `Err(WrongElement)` (no panic) if the path
+/// leaves the tree or ends on a non-element item.
+fn element_at<'r>(root: &'r RawNode, path: &[usize], expected: QName) -> Result<&'r RawNode> {
+    let mut node = root;
+    for &i in path {
+        node = node.children.get(i).and_then(RawItem::as_element).ok_or_else(|| Error::WrongElement {
+            expected,
+            found_ns: String::new(),
+            found_local: "(no element at this path)".into(),
+        })?;
+    }
+    Ok(node)
+}
+
+/// Destination conditions of an insertion under the element at
+/// `parent_path` (validated): namespaces made ignorable by the parent or
+/// its ancestors, and inherited `xml:space`, must not change the copy's
+/// meaning (the source side is checked by `detach_as`).
+fn check_destination(copy: &RawNode, text_inherits_space: bool, root: &RawNode, parent_path: &[usize]) -> Result<()> {
+    let ctx = ancestor_context(root, parent_path, true);
+    if ctx.preserve && text_inherits_space {
+        return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &copy.name));
+    }
+    fn uses<'n>(n: &'n RawNode, ignorable: &[String]) -> Option<&'n XName> {
+        if ignorable.iter().any(|u| u == n.name.ns()) {
+            return Some(&n.name);
+        }
+        if let Some(a) = n.attrs.iter().find(|a| ignorable.iter().any(|u| u == a.name.ns())) {
+            return Some(&a.name);
+        }
+        n.elements().find_map(|c| uses(c, ignorable))
+    }
+    match uses(copy, &ctx.ignorable) {
+        Some(name) => Err(not_detachable(DetachRefusal::IgnorableNamespace, name)),
+        None => Ok(()),
+    }
 }
 
 const MC_IGNORABLE: QName = QName::new(MC_NS, "Ignorable");
@@ -258,14 +301,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
     /// Unlike [`Self::root`] on the inner node, the lens knows the node's
     /// ancestors (namespace declarations, `mc:Ignorable`, `xml:space`).
     pub fn at(root: &'a RawNode, path: &[usize]) -> Result<Self> {
-        let mut node = root;
-        for &i in path {
-            node = node.children.get(i).and_then(RawItem::as_element).ok_or_else(|| Error::WrongElement {
-                expected: E::QNAME,
-                found_ns: String::new(),
-                found_local: "(no element at this path)".into(),
-            })?;
-        }
+        let node = element_at(root, path, E::QNAME)?;
         check_root::<E>(node)?;
         Ok(Lens { root, node, path: path.to_vec(), _e: PhantomData })
     }
@@ -278,12 +314,16 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
 /// advance, without changing anything, whether the prefixes will resolve.
 pub struct Detached<C: ElementSpec> {
     root: RawNode,
+    /// The copy has text whose whitespace handling comes from inherited
+    /// `xml:space` (default at the source): the destination must not be
+    /// `preserve`.
+    text_inherits_space: bool,
     _c: PhantomData<fn() -> C>,
 }
 
 impl<C: ElementSpec> Clone for Detached<C> {
     fn clone(&self) -> Self {
-        Detached { root: self.root.clone(), _c: PhantomData }
+        Detached { root: self.root.clone(), text_inherits_space: self.text_inherits_space, _c: PhantomData }
     }
 }
 
@@ -308,28 +348,35 @@ impl<C: ElementSpec> Detached<C> {
         h(&self.root)
     }
 
-    /// Would [`LensMut::insert_detached`] succeed, as far as namespaces and
-    /// depth go, when the copy is inserted below the element at
-    /// `parent_path` of `doc`, with `created` new elements in between (0 =
-    /// directly under it; created elements declare no namespaces)? Changes
-    /// nothing. `Err(NamespaceNotInScope)` or `Err(TooDeep)` exactly when
-    /// the insertion would fail for that reason; slot rules are not checked.
+    /// Would [`LensMut::insert_detached`] succeed, as far as depth,
+    /// namespaces and the destination's `mc:Ignorable` / `xml:space` go,
+    /// when the copy is inserted below the element at `parent_path` of
+    /// `doc`, with `created` new elements in between (0 = directly under
+    /// it; created elements declare nothing)? Changes nothing. Returns the
+    /// error the insertion would return for those reasons (`TooDeep`,
+    /// `NamespaceNotInScope`, `NotDetachable`), or `WrongElement` for a path
+    /// that does not lead to an element; slot rules are not checked. It
+    /// agrees with inserts through [`crate::XmlDocument::lens_mut`] (which
+    /// carries `doc`'s depth limit; `LensMut::root` uses the default).
     /// A format crate calls it for every copy of a multi-insert edit before
     /// the edit's first change.
     pub fn check_insert_under(&self, doc: &crate::XmlDocument, parent_path: &[usize], created: usize) -> Result<()> {
         let root = doc.root();
+        let parent = element_at(root, parent_path, C::QNAME)?;
         // parent depth = path len + 1; the copy's deepest element:
         if parent_path.len() + 1 + created + self.height() > doc.max_depth() {
-            return Err(Error::TooDeep { limit: doc.max_depth(), position: node_at(root, parent_path).span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span.map_or(0, |s| s.start) });
         }
+        check_destination(&self.root, self.text_inherits_space, root, parent_path)?;
         let decls = declarations(root, parent_path);
-        with_prefixes(self.root.clone(), &decls, node_at(root, parent_path).name.prefix()).map(|_| ())
+        with_prefixes(self.root.clone(), &decls, parent.name.prefix()).map(|_| ())
     }
 }
 
 fn not_detachable(reason: DetachRefusal, name: &XName) -> Error {
     core::hint::cold_path();
-    Error::NotDetachable { reason, name: format!("{{{}}}{}", name.ns(), name.local()) }
+    let name = if name.ns().is_empty() { name.local().to_owned() } else { format!("{{{}}}{}", name.ns(), name.local()) };
+    Error::NotDetachable { reason, name }
 }
 
 fn holds_relationship_id(name: &XName) -> bool {
@@ -338,10 +385,21 @@ fn holds_relationship_id(name: &XName) -> bool {
 
 /// Copies `n` (whose direct children named in `skip` are left out) with
 /// prefixes and spans cleared, refusing what [`Lens::detach_as`] refuses.
-fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String]) -> Result<RawNode> {
+fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr]) -> Result<RawNode> {
     if n.name.ns() == MC_NS {
         let reason = if n.is(MC_ALTERNATE_CONTENT) { DetachRefusal::AlternateContent } else { DetachRefusal::MarkupCompatibility };
         return Err(not_detachable(reason, &n.name));
+    }
+    if n.name.local() == "extLst" {
+        return Err(not_detachable(DetachRefusal::ExtensionList, &n.name));
+    }
+    for u in unique.iter().filter(|u| n.is(u.element)) {
+        if let Some(v) = n.attr(u.attr)
+            && Some(v) != u.default
+        {
+            let a = n.attrs.iter().find(|a| a.name.is(u.attr)).expect("present");
+            return Err(not_detachable(DetachRefusal::UniqueAttribute, &a.name));
+        }
     }
     if ignorable.iter().any(|u| u == n.name.ns()) {
         return Err(not_detachable(DetachRefusal::IgnorableNamespace, &n.name));
@@ -364,7 +422,7 @@ fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String]) -> Result<RawN
     for c in &n.children {
         children.push(match c {
             RawItem::Element(e) if skip.iter().any(|q| e.is(*q)) => continue,
-            RawItem::Element(e) => RawItem::Element(detach_node(e, &[], ignorable)?),
+            RawItem::Element(e) => RawItem::Element(detach_node(e, &[], ignorable, unique)?),
             RawItem::Text(t) => RawItem::Text(RawText { value: t.value.clone(), span: None, cdata: t.cdata }),
             RawItem::Markup(m) => RawItem::Markup(m.clone()),
         });
@@ -678,6 +736,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
         }
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
+        check_destination(&d.root, d.text_inherits_space, self.root, &self.path)?;
         let decls = declarations(self.root, &self.path);
         let parent_prefix = self.node().name.prefix();
         let node = with_prefixes(d.root.clone(), &decls, parent_prefix)?;

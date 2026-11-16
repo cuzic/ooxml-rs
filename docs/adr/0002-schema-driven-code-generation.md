@@ -119,7 +119,24 @@
   `a:stCxn/@id`, `w14:paraId`, …): copying such a subtree would duplicate
   an id. **Id-bearing subtrees (shapes, groups, shape trees, text bodies)
   are not detachable in Phase 0.1**; today only `a:rPr`, `a:endParaRPr`
-  and `a:pPr` (`dml.toml`). `SameType<S>` ("a renamed copy of an `S` is
+  and `a:pPr` (`dml.toml`). Attributes of a reviewed type that still hold
+  a document-unique value are listed in `[detach] unique_attrs`
+  (`"<complex type>@<attribute>"`); the generator turns each into a
+  `UniqueAttr { element, attr, default }` for **every** SDK element of that
+  type (`Detachable::UNIQUE_ATTRS`), and `detach_as` refuses a subtree in
+  which one is present with a non-default value (`UniqueAttribute`).
+  Today: `a:CT_TextCharacterProperties@smtId` — ECMA-376 Part 1
+  §21.1.2.3.9 (`rPr`), §21.1.2.2.3 (`endParaRPr`), §21.1.2.3.2 (`defRPr`,
+  which also occurs below `a:pPr`): "smtId (SmartTag ID) … This ID is
+  unique throughout the presentation" (PR #18 review round 2, R2-1);
+  elements `a:rPr`, `a:endParaRPr`, `a:defRPr`, `cs:defRPr`. Reviewed and
+  not unique: `bmk` (a bookmark target name, a reference). The review
+  covers schema-known content only: an extension list (`extLst`, any
+  namespace) is open content and is refused unless skipped
+  (`ExtensionList`; 0 of 6,036 formatting elements with children in the
+  83-file corpus have one). `Detachable` is sealed through a
+  `#[doc(hidden)]` supertrait implemented by generated code; a
+  hand-written impl is its author's responsibility. `SameType<S>` ("a renamed copy of an `S` is
   schema-valid as `Self`") is reflexive by a blanket impl and generated
   only between detachable entries with the same SDK complex type (the part
   of the SDK Name before `/`) whose resolved attributes, completeness,
@@ -141,7 +158,9 @@
   **ancestor's** `mc:Ignorable` lists (`IgnorableNamespace`: the copy would
   change its ignorability); or text while `xml:space="preserve"` is
   inherited from an ancestor (`InheritedXmlSpace`; carrying the attribute
-  could add one the schema type does not declare). Ancestors are visible
+  could add one the schema type does not declare); an attribute listed in
+  `UNIQUE_ATTRS` with a non-default value (`UniqueAttribute`); an
+  extension list (`ExtensionList`). Ancestors are visible
   through lenses from `XmlDocument::lens` or the new `Lens::at(root,
   path)`; `Lens::root` on an inner node sees none.
   (3) `LensMut::insert_detached[_by]::<C: ChildOf<E>>(&d[, before])`
@@ -150,11 +169,16 @@
   **every** element and attribute prefix at the destination with the §3
   prefix rules — the copy declares nothing, so the parent's bindings hold
   for all of it — before the tree changes (`NamespaceNotInScope` leaves it
-  untouched). The whole copy obeys the parser depth limit (note "parser
+  untouched). The destination is checked symmetrically to the source: a
+  namespace of the copy that the destination's ancestors make ignorable
+  (`IgnorableNamespace`), or text that relied on the default `xml:space`
+  going under an inherited `preserve` (`InheritedXmlSpace`), is refused.
+  The whole copy obeys the parser depth limit (note "parser
   depth limit"): its deepest element counts, `TooDeep` before any change.
   Inserted nodes are created nodes (`own_dirty`, re-rendered).
   `Detached::check_insert_under(doc, parent_path, created)` answers the
-  `NamespaceNotInScope` and `TooDeep` questions without changing anything,
+  `TooDeep`, destination and `NamespaceNotInScope` questions without
+  changing anything (an invalid path is `WrongElement`, never a panic),
   for a copy placed `created` new elements below that element, so a format
   crate can check a multi-insert edit before its first change.
   Tests: `crates/ooxml-core/tests/detach.rs` (pure-insertion locality,

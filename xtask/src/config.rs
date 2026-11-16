@@ -36,7 +36,21 @@ pub struct AllowlistFile {
     #[serde(default)]
     pub read: Section,
     #[serde(default)]
-    pub detach: Section,
+    pub detach: DetachSection,
+}
+
+/// `[detach]`: `names` as in the other sections, plus `unique_attrs`:
+/// `"<SDK complex type>@<attribute>"` entries naming attributes whose value
+/// must be unique in the document (an id). `detach_as` refuses a subtree
+/// with such an attribute set to a value other than its default, on every
+/// element of that complex type.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DetachSection {
+    #[serde(default)]
+    pub names: Vec<String>,
+    #[serde(default)]
+    pub unique_attrs: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -60,9 +74,16 @@ pub struct Allowed {
     pub detach: bool,
 }
 
-/// SDK Name → (group, access).
-pub fn load_allowlists(dir: &Path) -> Res<BTreeMap<String, Allowed>> {
+/// The allowlists: SDK Name → (group, access, detach), and every
+/// `[detach] unique_attrs` entry (all groups).
+pub struct Allowlists {
+    pub entries: BTreeMap<String, Allowed>,
+    pub unique_attrs: Vec<String>,
+}
+
+pub fn load_allowlists(dir: &Path) -> Res<Allowlists> {
     let mut out = BTreeMap::new();
+    let mut unique_attrs = Vec::new();
     for &g in GROUPS {
         let p = dir.join(format!("{g}.toml"));
         let f: AllowlistFile = toml::from_str(&std::fs::read_to_string(&p)?).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -82,8 +103,9 @@ pub fn load_allowlists(dir: &Path) -> Res<BTreeMap<String, Allowed>> {
                 _ => return Err(format!("{}: [detach] entry {n:?} must also be in [write] or [read] of this file", p.display()).into()),
             }
         }
+        unique_attrs.extend(f.detach.unique_attrs.iter().cloned());
     }
-    Ok(out)
+    Ok(Allowlists { entries: out, unique_attrs })
 }
 
 /// One `[[override]]` entry. Every entry needs `reason` and `evidence`.

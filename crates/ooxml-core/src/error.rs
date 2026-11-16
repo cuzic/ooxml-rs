@@ -125,7 +125,8 @@ pub enum Error {
     NotDetachable {
         /// Why.
         reason: DetachRefusal,
-        /// The offending element or attribute, in Clark notation.
+        /// The offending element or attribute, in Clark notation (`{ns}local`;
+        /// just `local` without a namespace).
         name: String,
     },
     /// A typed read found an invalid lexical value.
@@ -153,12 +154,21 @@ pub enum DetachRefusal {
     /// A namespace declaration on an element of the subtree.
     NamespaceDeclaration,
     /// An element or attribute in a namespace that an ancestor's
-    /// `mc:Ignorable` lists: the copy would lose (or, at the destination,
-    /// gain) ignorability.
+    /// `mc:Ignorable` lists, at the source (`detach_as`) or at the
+    /// destination (`insert_detached`): the copy would lose or gain
+    /// ignorability.
     IgnorableNamespace,
-    /// `xml:space="preserve"` is inherited from an ancestor and the subtree
-    /// has text: the copy would lose it at a destination without it.
+    /// `xml:space` in effect differs between source and destination
+    /// (inherited from ancestors) and the subtree has text: whitespace would
+    /// change meaning.
     InheritedXmlSpace,
+    /// An attribute listed in [`crate::Detachable::UNIQUE_ATTRS`] (a
+    /// document-unique id such as DrawingML `smtId`) has a non-default
+    /// value: a copy would duplicate it.
+    UniqueAttribute,
+    /// An extension list (`extLst`, any namespace) in the kept subtree: its
+    /// content is open, so ids or references inside cannot be reviewed.
+    ExtensionList,
 }
 
 impl std::fmt::Display for DetachRefusal {
@@ -169,7 +179,9 @@ impl std::fmt::Display for DetachRefusal {
             DetachRefusal::RelationshipAttribute => "relationship (r:) attribute in the subtree",
             DetachRefusal::NamespaceDeclaration => "namespace declaration in the subtree",
             DetachRefusal::IgnorableNamespace => "namespace made ignorable by an ancestor's mc:Ignorable",
-            DetachRefusal::InheritedXmlSpace => "text under an inherited xml:space=\"preserve\"",
+            DetachRefusal::InheritedXmlSpace => "text under a different inherited xml:space",
+            DetachRefusal::UniqueAttribute => "a document-unique id attribute with a non-default value",
+            DetachRefusal::ExtensionList => "an extension list (extLst) in the subtree",
         })
     }
 }

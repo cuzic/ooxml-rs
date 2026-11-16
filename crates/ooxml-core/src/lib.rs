@@ -28,5 +28,5 @@ pub use error::{DetachRefusal, Error, Result};
 pub use lens::{Detached, Lens, LensMut};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind};
-pub use schema::{AttrError, AttrSpec, ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, SameType, SimpleType, Slot, Wildcard};
+pub use schema::{AttrError, AttrSpec, ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, SameType, SimpleType, Slot, UniqueAttr, Wildcard};
 pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
