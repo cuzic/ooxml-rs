@@ -466,6 +466,18 @@ fn main() -> R {
                 "If possible also on macOS, the web and iOS (ADR-0013 Q1).",
             ],
         });
+        // Q2: does PowerPoint re-fit cached sizes after a longer text?
+        let mut p = Presentation::open(fixture("poi/SmartArt.pptx"))?;
+        p.smart_art_mut(0, 4)?.set_text(NODE, "A much longer text than the box was laid out for, to see whether the sizes are re-fitted")?;
+        items.push(Item {
+            file: save(&out, "SA4-smartart-long-text", &p)?,
+            source: "poi/SmartArt.pptx, slide 1",
+            edit: "set_text on the first node with a long text (data and cache)".into(),
+            observe: vec![
+                "Right after opening: does the first box shrink its font to fit (re-fit), or does the text overflow until you click into it?",
+                "Do the sibling boxes change font size to match (ADR-0013 Q2)?",
+            ],
+        });
         let mut p = Presentation::open(fixture("poi/SmartArt.pptx"))?;
         {
             let mut sa = p.smart_art_mut(0, 4)?;

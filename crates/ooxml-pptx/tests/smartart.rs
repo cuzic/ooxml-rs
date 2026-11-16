@@ -345,3 +345,159 @@ fn text_into_an_empty_data_run_goes_after_the_preceding_run() {
     // the new cache run copies the cache's own run format
     assert_eq!(sp.matches("<a:rPr lang=\"ru-RU\" sz=\"6500\" kern=\"1200\"/>").count(), 2, "{sp}");
 }
+
+// ------------------------------------------------------------------ review #63 round 1
+
+/// `NODE`'s data paragraph is "A" followed by `extra` (raw runs); the cache
+/// shows "A" (with `cache_rpr` as its run's a:rPr).
+fn a_then(extra: &str, cache_rpr: Option<&str>) -> Vec<u8> {
+    let (r, out) = edit(&src(), |sa| sa.set_text(NODE, "A"));
+    r.unwrap();
+    let b = patch(&out, DATA, |d| {
+        let pt = point_xml(&d, NODE);
+        d.replace(&pt, &pt.replacen("</a:r>", &format!("</a:r>{extra}"), 1))
+    });
+    match cache_rpr {
+        None => b,
+        Some(rpr) => patch(&b, DRAWING, |d| {
+            let sp = shape_xml(&d, SHAPE);
+            let i = sp.find("<a:rPr").unwrap();
+            let j = i + sp[i..].find("/>").unwrap() + 2;
+            d.replace(&sp, &format!("{}{rpr}{}", &sp[..i], &sp[j..]))
+        }),
+    }
+}
+
+const LINK_RPR: &str = "<a:rPr lang=\"en-US\"><a:hlinkClick xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rId1\"/></a:rPr>";
+
+#[test]
+fn writing_into_an_empty_linked_data_run_is_refused() {
+    // review M1: the data run written is checked, also when it is empty
+    let b = a_then(&format!("<a:r>{LINK_RPR}<a:t></a:t></a:r>"), None);
+    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 1, "LINK"));
+    assert_matches!(r, Err(Error::FormatNotCopyable("a:rPr")), "{r:?}");
+    assert_eq!(out, unchanged(&b));
+}
+
+#[test]
+fn copying_the_format_of_a_linked_cache_run_is_refused() {
+    // review X1: a new cache run would copy a linked cache run's format
+    let b = a_then("<a:r><a:rPr lang=\"en-US\"/><a:t></a:t></a:r>", Some(&LINK_RPR.replace("lang=\"en-US\"", "lang=\"ru-RU\" sz=\"6500\" kern=\"1200\"")));
+    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 1, "B"));
+    assert_matches!(r, Err(Error::FormatNotCopyable("a:rPr")), "{r:?}");
+    assert_eq!(out, unchanged(&b));
+}
+
+#[test]
+fn an_edit_that_would_unpair_the_cache_is_refused() {
+    // review M2: the empty data run has its own format (b="1") that the
+    // copied cache format lacks; the edit would leave the node inconsistent
+    let b = a_then("<a:r><a:rPr lang=\"en-US\" b=\"1\"/><a:t></a:t></a:r>", None);
+    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 1, "B"));
+    assert_matches!(r, Err(Error::SmartArtCacheInconsistent(_)), "{r:?}");
+    assert_eq!(out, unchanged(&b));
+}
+
+#[test]
+fn a_node_shown_twice_in_one_shape_is_refused() {
+    // review m1: a second presOf from NODE to SHAPE (destOrd 1)
+    let base = {
+        let (r, out) = edit(&src(), |sa| sa.set_text(NODE, "alpha"));
+        r.unwrap();
+        out
+    };
+    let b = patch(&base, DATA, |d| {
+        d.replace("</dgm:cxnLst>", &format!("<dgm:cxn modelId=\"{{99999999-0000-0000-0000-000000000000}}\" type=\"presOf\" srcId=\"{NODE}\" destId=\"{SHAPE}\" srcOrd=\"0\" destOrd=\"1\"/></dgm:cxnLst>"))
+    });
+    let b = patch(&b, DRAWING, |d| {
+        let sp = shape_xml(&d, SHAPE);
+        let i = sp.find("<a:p>").unwrap();
+        let j = sp.find("</a:p>").unwrap() + 6;
+        let para = sp[i..j].to_owned();
+        d.replace(&sp, &sp.replacen(&para, &format!("{para}{para}"), 1))
+    });
+    let (r, out) = edit(&b, |sa| sa.set_text(NODE, "x"));
+    assert_matches!(r, Err(Error::SmartArtCacheInconsistent(_)), "{r:?}");
+    assert_eq!(out, unchanged(&b));
+}
+
+#[test]
+fn relationships_of_the_wrong_type_are_not_followed() {
+    // review m2: dataModelExt naming a relationship that is not diagramDrawing
+    let b = patch(&src(), DATA, |d| d.replace("relId=\"rId6\"", "relId=\"rId1\"")); // rId1 = slideLayout
+    let (r, out) = edit(&b, |sa| sa.set_text(NODE, "x"));
+    assert_matches!(r, Err(Error::SmartArtCacheUnresolved));
+    assert_eq!(out, unchanged(&b));
+    // r:dm naming a relationship that is not diagramData
+    let b = patch(&src(), "ppt/slides/slide1.xml", |s| s.replace("r:dm=\"rId2\"", "r:dm=\"rId3\""));
+    let mut p = Presentation::from_bytes(b).unwrap();
+    assert_matches!(p.smart_art_mut(0, 4), Err(Error::NotSmartArt));
+}
+
+#[test]
+fn placeholders_keep_phldr_for_empty_text() {
+    // review X5 / ADR m8: empty text does not touch phldr
+    let (r, out) = edit(&src(), |sa| sa.set_text(NODE, ""));
+    r.unwrap();
+    assert!(point_xml(&part(&out, DATA), NODE).contains("phldr=\"1\""));
+}
+
+#[test]
+fn text_into_an_empty_first_data_run_copies_the_first_cache_run() {
+    // review X7: at the paragraph start the new cache run copies the first cache run's format
+    let (r, out) = edit(&src(), |sa| sa.set_text(NODE, "A"));
+    r.unwrap();
+    let b = patch(&out, DATA, |d| {
+        let pt = point_xml(&d, NODE);
+        d.replace(&pt, &pt.replacen("<a:r>", "<a:r><a:rPr lang=\"en-US\"/><a:t></a:t></a:r><a:r>", 1))
+    });
+    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 0, "B"));
+    r.unwrap();
+    let sp = shape_xml(&part(&out, DRAWING), SHAPE);
+    assert_eq!(texts(&sp), ["B", "A"]);
+    assert_eq!(sp.matches("<a:rPr lang=\"ru-RU\" sz=\"6500\" kern=\"1200\"/>").count(), 2, "{sp}");
+}
+
+#[test]
+fn a_middle_node_of_an_aggregate_keeps_its_place() {
+    // review X6: three sources in SHAPE; the middle one gets two lines
+    const SECOND: &str = "{4BB3DAE8-0D35-4C26-B00F-2F5FBE800636}";
+    const THIRD: &str = "{45312779-31C8-4B7E-86E5-0623F1579DAF}";
+    let base = with_alpha();
+    let redirect = |d: String, id: &str, ord: u32| {
+        let i = d.find(&format!("type=\"presOf\" srcId=\"{id}\"")).unwrap();
+        let s = d[..i].rfind("<dgm:cxn ").unwrap();
+        let e = i + d[i..].find("/>").unwrap() + 2;
+        let cxn = d[s..e].to_owned();
+        let dest = cxn.split("destId=\"").nth(1).unwrap().split('"').next().unwrap().to_owned();
+        d.replace(&cxn, &cxn.replace(&dest, SHAPE).replace("destOrd=\"0\"", &format!("destOrd=\"{ord}\"")))
+    };
+    let b = patch(&base, DATA, |d| redirect(redirect(d, SECOND, 1), THIRD, 2));
+    let b = patch(&b, DRAWING, |d| {
+        let sp = shape_xml(&d, SHAPE);
+        d.replace(&sp, &sp.replacen("</a:p>", "</a:p><a:p><a:endParaRPr lang=\"en-US\"/></a:p><a:p><a:endParaRPr lang=\"en-US\"/></a:p>", 1))
+    });
+    let (r, out) = edit(&b, |sa| sa.set_text(THIRD, "gamma"));
+    r.unwrap();
+    let (r, out) = edit(&out, |sa| sa.set_text(SECOND, "beta one\nbeta two"));
+    r.unwrap();
+    assert_eq!(texts(&shape_xml(&part(&out, DRAWING), SHAPE)), ["alpha", "beta one", "beta two", "gamma"]);
+}
+
+#[test]
+fn drop_keeps_other_extensions_and_removes_drawing_only_parts() {
+    // review X2, X3: an image only the drawing uses goes with it; another
+    // dgm:extLst extension stays
+    let b = patch(&src(), DATA, |d| {
+        d.replace("</dgm:extLst>", "<a:ext uri=\"{OTHER}\"><x:keep xmlns:x=\"urn:x\"/></a:ext></dgm:extLst>")
+    });
+    let b = patch(&b, "ppt/diagrams/_rels/drawing1.xml.rels", |_| {
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/only.jpeg\"/></Relationships>".into()
+    });
+    let b = patch(&b, "ppt/media/only.jpeg", |_| "jpeg".into());
+    let (r, out) = edit(&b, |sa| sa.drop_drawing_cache());
+    r.unwrap();
+    assert!(!has(&out, "ppt/media/only.jpeg"), "a part only the drawing referenced goes with it");
+    let d = part(&out, DATA);
+    assert!(d.contains("<dgm:extLst><a:ext uri=\"{OTHER}\">") && !d.contains("dataModelExt"), "{}", &d[d.find("<dgm:extLst").unwrap()..]);
+}

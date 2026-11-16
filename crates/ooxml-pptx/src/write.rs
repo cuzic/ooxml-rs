@@ -45,15 +45,15 @@ enum Cursor<'d> {
     PBody(LensMut<'d, pml::TextBody>),
     ABody(LensMut<'d, dml::TextBody>),
     // SmartArt data model (ADR-0013 §4): dgm:dataModel / ptLst / pt / t
-    DModel(LensMut<'d, dml::DataModelRoot>),
-    PtLst(LensMut<'d, dml::PointList>),
-    Pt(LensMut<'d, dml::Point>),
+    DModel(LensMut<'d, dml::DgmDataModelRoot>),
+    PtLst(LensMut<'d, dml::DgmPointList>),
+    Pt(LensMut<'d, dml::DgmPoint>),
     DgmBody(LensMut<'d, dml::DgmTextBody>),
     // SmartArt drawing cache: dsp:drawing / spTree / grpSp* / sp / txBody
-    Drawing(LensMut<'d, dml::Drawing>),
-    DspTree(LensMut<'d, dml::ShapeTree>),
-    DspGrp(LensMut<'d, dml::GroupShape>),
-    DspSp(LensMut<'d, dml::Shape>),
+    Drawing(LensMut<'d, dml::DspDrawing>),
+    DspTree(LensMut<'d, dml::DspShapeTree>),
+    DspGrp(LensMut<'d, dml::DspGroupShape>),
+    DspSp(LensMut<'d, dml::DspShape>),
     DspBody(LensMut<'d, dml::DspTextBody>),
 }
 
@@ -84,10 +84,10 @@ impl<'d> Cursor<'d> {
             Cursor::Tbl(l) => l.into_child_at::<TableRow>(i).map(Cursor::Tr),
             Cursor::Tr(l) => l.into_child_at::<TableCell>(i).map(Cursor::Tc),
             Cursor::Tc(l) => l.into_child_at::<dml::TextBody>(i).map(Cursor::ABody),
-            Cursor::DModel(l) => l.into_child_at::<dml::PointList>(i).map(Cursor::PtLst),
-            Cursor::PtLst(l) => l.into_child_at::<dml::Point>(i).map(Cursor::Pt),
+            Cursor::DModel(l) => l.into_child_at::<dml::DgmPointList>(i).map(Cursor::PtLst),
+            Cursor::PtLst(l) => l.into_child_at::<dml::DgmPoint>(i).map(Cursor::Pt),
             Cursor::Pt(l) => l.into_child_at::<dml::DgmTextBody>(i).map(Cursor::DgmBody),
-            Cursor::Drawing(l) => l.into_child_at::<dml::ShapeTree>(i).map(Cursor::DspTree),
+            Cursor::Drawing(l) => l.into_child_at::<dml::DspShapeTree>(i).map(Cursor::DspTree),
             Cursor::DspTree(l) => dsp_step(l, i),
             Cursor::DspGrp(l) => dsp_step(l, i),
             Cursor::DspSp(l) => l.into_child_at::<dml::DspTextBody>(i).map(Cursor::DspBody),
@@ -99,13 +99,13 @@ impl<'d> Cursor<'d> {
 /// A step below a `dsp:spTree` or `dsp:grpSp`.
 fn dsp_step<'d, P: ElementSpec>(l: LensMut<'d, P>, i: usize) -> Option<Cursor<'d>>
 where
-    dml::GroupShape: ChildOf<P>,
-    dml::Shape: ChildOf<P>,
+    dml::DspGroupShape: ChildOf<P>,
+    dml::DspShape: ChildOf<P>,
 {
-    if child_is(l.node(), i, dml::GroupShape::QNAME) {
-        l.into_child_at::<dml::GroupShape>(i).map(Cursor::DspGrp)
+    if child_is(l.node(), i, dml::DspGroupShape::QNAME) {
+        l.into_child_at::<dml::DspGroupShape>(i).map(Cursor::DspGrp)
     } else {
-        l.into_child_at::<dml::Shape>(i).map(Cursor::DspSp)
+        l.into_child_at::<dml::DspShape>(i).map(Cursor::DspSp)
     }
 }
 
@@ -133,10 +133,10 @@ macro_rules! with_body {
 /// SmartArt data model or a SmartArt drawing.
 fn root_cursor(doc: &mut XmlDocument) -> Result<Cursor<'_>> {
     let root = doc.root();
-    if root.is(dml::DataModelRoot::QNAME) {
-        Ok(Cursor::DModel(doc.lens_mut::<dml::DataModelRoot>()?))
-    } else if root.is(dml::Drawing::QNAME) {
-        Ok(Cursor::Drawing(doc.lens_mut::<dml::Drawing>()?))
+    if root.is(dml::DgmDataModelRoot::QNAME) {
+        Ok(Cursor::DModel(doc.lens_mut::<dml::DgmDataModelRoot>()?))
+    } else if root.is(dml::DspDrawing::QNAME) {
+        Ok(Cursor::Drawing(doc.lens_mut::<dml::DspDrawing>()?))
     } else {
         Ok(Cursor::Sld(doc.lens_mut::<pml::Slide>()?))
     }

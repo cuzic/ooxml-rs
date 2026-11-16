@@ -28,6 +28,7 @@ const DGM: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 const DSP: &str = "http://schemas.microsoft.com/office/drawing/2008/diagram";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// Relationship type of the drawing cache.
+const REL_DIAGRAM_DATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData";
 pub(crate) const REL_DIAGRAM_DRAWING: &str = "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing";
 /// Proofing attributes that may differ between a data run and its cache run.
 const PROOFING: [&str; 5] = ["lang", "altLang", "dirty", "err", "smtClean"];
@@ -156,6 +157,19 @@ fn data_model_ext(root: &RawNode) -> Option<(usize, usize, String)> {
     })
 }
 
+/// What an edit writes, for the hyperlink check (ADR-0013 §4 P4b).
+#[derive(Clone, Copy)]
+enum Which {
+    /// Every run of the node.
+    Node,
+    /// Every run of paragraph `p`.
+    Paragraph(usize),
+    /// Data run `r` (an `a:r` index) of paragraph `p`; `k` = the number of
+    /// runs with text before it (its cache pair, or where a new cache run
+    /// goes); `was_text` = it has text.
+    Run { p: usize, r: usize, k: usize, was_text: bool },
+}
+
 /// One drawing shape showing a node, and the node's slice in it.
 struct Slice {
     body: Vec<usize>,
@@ -218,7 +232,12 @@ impl crate::Presentation {
             .map(str::to_owned)
             .ok_or(Error::NotSmartArt)?;
         let rels = self.pkg.relationships(&part)?;
-        let data = rels.by_id(&dm).and_then(|r| rels.resolve(r)).filter(|p| self.pkg.contains(p)).ok_or(Error::NotSmartArt)?;
+        let data = rels
+            .by_id(&dm)
+            .filter(|r| r.rel_type == REL_DIAGRAM_DATA)
+            .and_then(|r| rels.resolve(r))
+            .filter(|p| self.pkg.contains(p))
+            .ok_or(Error::NotSmartArt)?;
         let data_doc = self.pkg.xml_part(&data)?;
         if !data_doc.root().is(q(DGM, "dataModel")) {
             return Err(Error::NotSmartArt);
@@ -226,7 +245,19 @@ impl crate::Presentation {
         // the cache is named from the **slide's** relationships
         let drawing = match data_model_ext(data_doc.root()) {
             None => Ok(None),
-            Some((_, _, rid)) => rels.by_id(&rid).and_then(|r| rels.resolve(r)).filter(|p| self.pkg.contains(p)).map(Some).ok_or(()),
+            // the relationship must be a diagramDrawing one to a dsp:drawing
+            // part (review #63 m2), else the reference is unresolved
+            Some((_, _, rid)) => rels
+                .by_id(&rid)
+                .filter(|r| r.rel_type == REL_DIAGRAM_DRAWING)
+                .and_then(|r| rels.resolve(r))
+                .filter(|p| self.pkg.contains(p))
+                .map(Some)
+                .ok_or(()),
+        };
+        let drawing = match drawing {
+            Ok(Some(d)) if !self.pkg.xml_part(&d)?.root().is(q(DSP, "drawing")) => Err(()),
+            other => other,
         };
         let guard = Guard {
             shape_id: frame_id,
@@ -285,7 +316,7 @@ impl SmartArtMut<'_> {
     /// Replaces the node's whole text (lines become paragraphs, as
     /// [`TextBodyMut::set_text`]) in the data and in its cache slices.
     pub fn set_text(&mut self, model_id: &str, text: &str) -> Result<()> {
-        self.edit(model_id, None, !text.is_empty(), |body, slice| match slice {
+        self.edit(model_id, Which::Node, !text.is_empty(), |body, slice| match slice {
             None => body.set_text(text),
             Some((start, len)) => body.set_text_range(start, len, text),
         })
@@ -294,7 +325,7 @@ impl SmartArtMut<'_> {
     /// Replaces the text of paragraph `p` of the node (as
     /// [`crate::ParagraphMut::set_text`]).
     pub fn set_paragraph_text(&mut self, model_id: &str, p: usize, text: &str) -> Result<()> {
-        self.edit(model_id, Some((p, None)), !text.is_empty(), |body, slice| {
+        self.edit(model_id, Which::Paragraph(p), !text.is_empty(), |body, slice| {
             let start = slice.map_or(0, |s| s.0);
             body.paragraph_mut(start + p)?.set_text(text)
         })
@@ -318,7 +349,7 @@ impl SmartArtMut<'_> {
         let run = runs.get(r).ok_or(Error::RunNotFound(r))?;
         let was_text = !run_text(run).is_empty();
         let k = runs[..r].iter().filter(|x| !run_text(x).is_empty()).count();
-        self.edit(model_id, Some((p, Some(k))), !text.is_empty(), |body, slice| match slice {
+        self.edit(model_id, Which::Run { p, r, k, was_text }, !text.is_empty(), |body, slice| match slice {
             None => body.paragraph_mut(p)?.run_mut(r)?.set_text(text),
             Some((start, _)) => {
                 let mut para = body.paragraph_mut(start + p)?;
@@ -343,7 +374,7 @@ impl SmartArtMut<'_> {
     fn edit(
         &mut self,
         model_id: &str,
-        which: Option<(usize, Option<usize>)>,
+        which: Which,
         nonempty: bool,
         f: impl Fn(&mut TextBodyMut<'_>, Option<(usize, usize)>) -> Result<()>,
     ) -> Result<()> {
@@ -379,6 +410,21 @@ impl SmartArtMut<'_> {
                 f(&mut tb, Some((s.start, s.len)))?;
             }
         }
+        // the edit must not leave any node's slices inconsistent that were
+        // consistent before (review #63 M2, m1: e.g. an empty data run whose
+        // own format the copied cache format lacks, or a node shown twice
+        // in one shape)
+        if let Some(c) = &cache {
+            let data0 = self.pres.pkg.xml_part(&self.data)?.clone();
+            let cache0 = self.pres.pkg.xml_part(drawing.as_ref().expect("cache"))?.clone();
+            let before = self.consistency(&data0, &cache0)?;
+            let after = self.consistency(&data, c)?;
+            for (id, ok) in before {
+                if ok && !after.iter().any(|(j, ok2)| *j == id && *ok2) {
+                    return Err(Error::SmartArtCacheInconsistent(format!("the edit would leave node {id}'s cache text out of step")));
+                }
+            }
+        }
         let mut plan = RegistryPlan::new(&self.pres.pkg);
         plan.stage_part(&self.pres.pkg, &self.data, PartContent::Xml(data))?;
         if let (Some(d), Some(c)) = (&drawing, cache)
@@ -388,6 +434,15 @@ impl SmartArtMut<'_> {
         }
         self.pres.pkg.apply(plan)?;
         Ok(())
+    }
+
+    /// Per node: do its cache slices pair with the data?
+    fn consistency(&self, data: &XmlDocument, cache: &XmlDocument) -> Result<Vec<(String, bool)>> {
+        let (_, nodes) = data_nodes(data.root())?;
+        Ok(nodes
+            .iter()
+            .map(|n| (n.model_id.clone(), !matches!(self.slices(data, &nodes, n, cache.root()), Err(Error::SmartArtCacheInconsistent(_)))))
+            .collect())
     }
 
     /// The node's slices in the drawing cache, after checking the
@@ -525,39 +580,43 @@ fn para_runs_with_text(p: &crate::ParagraphMut<'_>) -> Result<Vec<usize>> {
 }
 
 /// Refuses an edit that would write to (or copy the format of) a run whose
-/// `a:rPr` holds a relationship id, in the data or in the cache.
-fn check_links(
-    data: &XmlDocument,
-    pt: &[usize],
-    body: Option<usize>,
-    cache: Option<&XmlDocument>,
-    slices: &[Slice],
-    which: Option<(usize, Option<usize>)>,
-) -> Result<()> {
+/// `a:rPr` holds a relationship id, in the data or in the cache (ADR-0013
+/// §4 P4b; review #63 M1: the data run written is checked by its own index,
+/// also when it is empty).
+fn check_links(data: &XmlDocument, pt: &[usize], body: Option<usize>, cache: Option<&XmlDocument>, slices: &[Slice], which: Which) -> Result<()> {
     let refuse = || Err(Error::FormatNotCopyable("a:rPr"));
+    fn all_runs(p: &RawNode) -> Vec<&RawNode> {
+        p.elements().filter(|e| e.is(q(A, "r"))).collect()
+    }
     let point = node_at(data.root(), pt).expect("point");
     let dps = paragraphs(body.and_then(|b| node_at(point, &[b])));
-    let pick = |ps: &[&RawNode], offset: usize| -> bool {
-        match which {
-            None => ps.iter().skip(offset).flat_map(|p| p.elements().filter(|e| e.is(q(A, "r")))).any(has_link),
-            Some((p, None)) => ps.get(offset + p).is_some_and(|p| p.elements().filter(|e| e.is(q(A, "r"))).any(has_link)),
-            Some((p, Some(k))) => ps.get(offset + p).is_some_and(|p| {
-                let runs = text_runs(p);
-                // the run written, and the one whose format a new run copies
-                runs.get(k).is_some_and(|(_, r)| has_link(r)) || k.checked_sub(1).and_then(|i| runs.get(i)).is_some_and(|(_, r)| has_link(r))
-            }),
-        }
+    let data_bad = match which {
+        Which::Node => dps.iter().flat_map(|p| all_runs(p)).any(has_link),
+        Which::Paragraph(p) => dps.get(p).is_some_and(|p| all_runs(p).into_iter().any(has_link)),
+        Which::Run { p, r, .. } => dps.get(p).is_some_and(|p| all_runs(p).get(r).is_some_and(|x| has_link(x))),
     };
-    if pick(&dps, 0) {
+    if data_bad {
         return refuse();
     }
-    if let Some(c) = cache {
-        for s in slices {
-            let cps = paragraphs(node_at(c.root(), &s.body));
-            let cps: Vec<&RawNode> = cps.into_iter().skip(s.start).take(s.len).collect();
-            if pick(&cps, 0) {
-                return refuse();
-            }
+    let Some(c) = cache else { return Ok(()) };
+    for s in slices {
+        let cps: Vec<&RawNode> = paragraphs(node_at(c.root(), &s.body)).into_iter().skip(s.start).take(s.len).collect();
+        let cache_bad = match which {
+            Which::Node => cps.iter().flat_map(|p| all_runs(p)).any(has_link),
+            Which::Paragraph(p) => cps.get(p).is_some_and(|p| all_runs(p).into_iter().any(has_link)),
+            Which::Run { p, k, was_text, .. } => cps.get(p).is_some_and(|p| {
+                let runs = text_runs(p);
+                if was_text {
+                    runs.get(k).is_some_and(|(_, x)| has_link(x))
+                } else {
+                    // the run whose format a new cache run copies
+                    let src = k.checked_sub(1).and_then(|i| runs.get(i)).or_else(|| runs.first());
+                    src.is_some_and(|(_, x)| has_link(x))
+                }
+            }),
+        };
+        if cache_bad {
+            return refuse();
         }
     }
     Ok(())
@@ -565,9 +624,9 @@ fn check_links(
 
 /// Creates `dgm:t` (empty `a:bodyPr`, `a:lstStyle`, one `a:p`) in a point.
 fn create_body(data: &mut XmlDocument, pl: usize, pt: usize) -> Result<usize> {
-    let root = data.lens_mut::<dml::DataModelRoot>()?;
-    let lst = root.into_child_at::<dml::PointList>(pl).ok_or(Error::NotSmartArt)?;
-    let mut p = lst.into_child_at::<dml::Point>(pt).ok_or(Error::NotSmartArt)?;
+    let root = data.lens_mut::<dml::DgmDataModelRoot>()?;
+    let lst = root.into_child_at::<dml::DgmPointList>(pl).ok_or(Error::NotSmartArt)?;
+    let mut p = lst.into_child_at::<dml::DgmPoint>(pt).ok_or(Error::NotSmartArt)?;
     {
         let mut t = p.insert::<dml::DgmTextBody>()?;
         t.insert::<dml::BodyProperties>()?;
@@ -585,10 +644,10 @@ fn clear_placeholder(data: &mut XmlDocument, pl: usize, pt: usize) -> Result<()>
     if !matches!(ps.attr(QName::new("", "phldr")), Some("1" | "true")) {
         return Ok(());
     }
-    let root = data.lens_mut::<dml::DataModelRoot>()?;
-    let lst = root.into_child_at::<dml::PointList>(pl).ok_or(Error::NotSmartArt)?;
-    let p = lst.into_child_at::<dml::Point>(pt).ok_or(Error::NotSmartArt)?;
-    let mut set = p.into_child_at::<dml::PropertySet>(si).ok_or(Error::NotSmartArt)?;
+    let root = data.lens_mut::<dml::DgmDataModelRoot>()?;
+    let lst = root.into_child_at::<dml::DgmPointList>(pl).ok_or(Error::NotSmartArt)?;
+    let p = lst.into_child_at::<dml::DgmPoint>(pt).ok_or(Error::NotSmartArt)?;
+    let mut set = p.into_child_at::<dml::DgmPropertySet>(si).ok_or(Error::NotSmartArt)?;
     set.remove_attr(QName::new("", "phldr"))?;
     Ok(())
 }
@@ -596,11 +655,11 @@ fn clear_placeholder(data: &mut XmlDocument, pl: usize, pt: usize) -> Result<()>
 fn remove_data_model_ext(data: &mut XmlDocument) -> Result<()> {
     let Some((li, ei, _)) = data_model_ext(data.root()) else { return Ok(()) };
     let only = node_at(data.root(), &[li]).expect("extLst").elements().count() == 1;
-    let mut root = data.lens_mut::<dml::DataModelRoot>()?;
+    let mut root = data.lens_mut::<dml::DgmDataModelRoot>()?;
     if only {
         root.remove_at(li);
     } else {
-        let mut lst = root.into_child_at::<dml::DataModelExtensionList>(li).ok_or(Error::NotSmartArt)?;
+        let mut lst = root.into_child_at::<dml::DgmDataModelExtensionList>(li).ok_or(Error::NotSmartArt)?;
         lst.remove_at(ei);
     }
     Ok(())

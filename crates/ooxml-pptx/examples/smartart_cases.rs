@@ -34,14 +34,35 @@ fn main() {
             for id in ids {
                 let mut probe = Presentation::from_bytes(src.clone()).unwrap();
                 let Ok(mut sa) = probe.smart_art_mut(si, id) else { continue };
-                for n in sa.nodes().unwrap() {
-                    let mut p = Presentation::from_bytes(src.clone()).unwrap();
-                    if p.smart_art_mut(si, id).unwrap().set_text(&n.model_id, TEXT).is_err() {
-                        continue;
+                let nodes = sa.nodes().unwrap();
+                for (k, n) in nodes.iter().enumerate() {
+                    // every setter, on every node (review #63 m4)
+                    for op in ["set_text", "set_paragraph_text", "set_run_text"] {
+                        let mut p = Presentation::from_bytes(src.clone()).unwrap();
+                        let mut sa = p.smart_art_mut(si, id).unwrap();
+                        // run edits need a run: give the node one first
+                        if op == "set_run_text" && sa.set_text(&n.model_id, "seed").is_err() {
+                            continue;
+                        }
+                        let text = if op == "set_text" { TEXT.to_owned() } else { format!("Oracle {op} {k}") };
+                        let r = match op {
+                            "set_text" => sa.set_text(&n.model_id, &text),
+                            "set_paragraph_text" => sa.set_paragraph_text(&n.model_id, 0, &text),
+                            _ => sa.set_run_text(&n.model_id, 0, 0, &text),
+                        };
+                        if r.is_err() {
+                            continue;
+                        }
+                        let out = format!("{:04}.pptx", cases.len());
+                        p.save(Path::new(&dir).join(&out)).unwrap();
+                        cases.push(json!({"input": f, "output": out, "slide": si, "frame": id, "node": n.model_id, "op": op, "text": text}));
                     }
+                }
+                let mut p = Presentation::from_bytes(src.clone()).unwrap();
+                if p.smart_art_mut(si, id).unwrap().drop_drawing_cache().is_ok() {
                     let out = format!("{:04}.pptx", cases.len());
                     p.save(Path::new(&dir).join(&out)).unwrap();
-                    cases.push(json!({"input": f, "output": out, "slide": si, "frame": id, "node": n.model_id, "text": TEXT}));
+                    cases.push(json!({"input": f, "output": out, "slide": si, "frame": id, "op": "drop_drawing_cache"}));
                 }
             }
         }

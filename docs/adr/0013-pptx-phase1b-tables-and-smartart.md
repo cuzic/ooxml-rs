@@ -92,6 +92,22 @@
     class names collide with `a:txBody`'s `TextBody`, so the generator now
     keeps the plain name for the group's own namespace (`a:` in `dml`)
     and prefixes the others (`DgmTextBody`, `DspTextBody`).
+  - API differences from §4 (review #63 m6): there is no read-side
+    `ShapeRef::smart_art()` tree (`doc` point, `parOf` children by
+    `srcOrd`) and no `SmartArtMut::node_mut(model_id)` text-body handle.
+    `SmartArtMut::nodes()` lists the text nodes in **document order**,
+    and the edits are three node-level setters, so every edit is checked
+    and mirrored as one transaction. A tree view and finer setters can be
+    added later without changing the rules.
+  - Review #63 round 1: after the edits, every node whose slices paired
+    before must still pair on the edited copies, else the edit is
+    refused (`SmartArtCacheInconsistent`) — this closes the blind spot of
+    P3's "copy the preceding run's format" (an empty data run with a
+    format of its own) and refuses a node shown twice in one shape. The
+    hyperlink check uses the data run actually written, also when it is
+    empty. `dgm:relIds@r:dm` must be a `diagramData` relationship and
+    `dsp:dataModelExt@relId` a `diagramDrawing` one to a `dsp:drawing`
+    part (else `NotSmartArt` / `SmartArtCacheUnresolved`).
   - Corpus (633 decks): 103 SmartArts, 600 nodes, 408 shown in a cache,
     396 consistent, **431 paired runs** — the review's 431/431 with
     empty runs ignored on both sides; 587 node edits succeed and leave the

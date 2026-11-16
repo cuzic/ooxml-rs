@@ -401,14 +401,17 @@
       the destination scope then counts them, so a detached copy whose URIs
       are unbound at the destination can be inserted with declarations instead
       of being refused.
-- **Post-acceptance note (2026-11-16, type names on a class-name
-  collision — no change to the decisions):** when two allowlisted entries
-  of one feature group share an SDK class name, the entry in the group's
-  own namespace keeps the plain Rust name (`a:` in `dml`, `p:` in `pml`,
-  `w:` in `wml`, `x:` in `sml`) and only the others get their prefix
-  (`dgm:t` → `DgmTextBody`, `dsp:txBody` → `DspTextBody`, while `a:txBody`
-  stays `dml::TextBody`). Previously every colliding entry was prefixed,
-  so adding an entry could rename an existing type (ADR-0013 §4).
+- **Post-acceptance note (2026-11-16, type names outside a group's own
+  namespace — no change to the decisions):** an allowlisted entry whose
+  element is not in its feature group's own namespace (`a:` in `dml`,
+  `p:` in `pml`, `w:` in `wml`, `x:` in `sml`) always gets its prefix in
+  the Rust name (`dsp:sp` → `DspShape`, `dgm:t` → `DgmTextBody`); the
+  group's own namespace keeps plain names (`a:txBody` stays
+  `dml::TextBody`). So adding an entry never renames an existing type
+  (ADR-0013 §4; review #63 m3). On `main` at the time of writing no
+  existing name changes; entries that open PRs add outside their group's
+  namespace (`p14:`/`ap:` in `pml`, `a16:` in `dml`) get prefixed names
+  when those PRs merge this rule.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

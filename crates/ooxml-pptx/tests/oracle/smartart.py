@@ -96,36 +96,98 @@ def model(z, data):
     return nodes, pres_of
 
 
+PROOFING = {"lang", "altLang", "dirty", "err", "smtClean"}
+
+
+def text_runs(p):
+    return [r for r in p.findall("a:r", NS) if "".join(t.text or "" for t in r.findall("a:t", NS))]
+
+
+def pairs_ok(dp, cp):
+    """Runs with text pair one to one; data a:rPr attributes (proofing
+    aside) are on the cache run (ADR-0013 §4 invariant 3)."""
+    dr, cr = text_runs(dp), text_runs(cp)
+    if len(dr) != len(cr):
+        return False
+    for x, y in zip(dr, cr):
+        xa = x.find("a:rPr", NS)
+        ya = y.find("a:rPr", NS)
+        for k, v in (xa.attrib.items() if xa is not None else []):
+            if k in PROOFING:
+                continue
+            if ya is None or ya.get(k) != v:
+                return False
+    return True
+
+
+def points(z, data):
+    root = ET.fromstring(z.read(data))
+    return {pt.get("modelId"): pt for pt in root.findall("dgm:ptLst/dgm:pt", NS)}
+
+
 def main():
     cases_dir, fixtures = sys.argv[1], sys.argv[2]
     cases = json.load(open(os.path.join(cases_dir, "cases.json")))
     for c in cases:
-        label = f"{c['input']} slide {c['slide']} frame {c['frame']} node {c['node']}"
+        op = c.get("op", "set_text")
+        label = f"{c['input']} slide {c['slide']} frame {c['frame']} {op} {c.get('node', '')}"
         inp = os.path.join(fixtures, c["input"])
         out = os.path.join(cases_dir, c["output"])
         Presentation(out)  # opens
         zin, zout = zipfile.ZipFile(inp), zipfile.ZipFile(out)
-        data, drawing = parts_of(zout, c["slide"], c["frame"])
+        data, drawing_in = parts_of(zin, c["slide"], c["frame"])
+        _, drawing = parts_of(zout, c["slide"], c["frame"])
+        names_in, names_out = set(zin.namelist()), set(zout.namelist())
+        if op == "drop_drawing_cache":
+            assert drawing is None, f"{label}: the cache reference is still there"
+            assert drawing_in not in names_out, f"{label}: the drawing part is still there"
+            gone = names_in - names_out
+            assert all(g == drawing_in or g.startswith("ppt/diagrams/_rels/") or g.startswith("ppt/media/") for g in gone), f"{label}: removed {gone}"
+            assert names_out <= names_in, f"{label}: added {names_out - names_in}"
+            before, _ = model(zin, data)
+            after, _ = model(zout, data)
+            assert before == after, f"{label}: node texts changed"
+            continue
+        # no part added or removed (review m4)
+        assert names_in == names_out, f"{label}: parts {names_in ^ names_out}"
         before, _ = model(zin, data)
         after, pres_of = model(zout, data)
-        want = c["text"].split("\n")
-        assert after[c["node"]] == want, f"{label}: data {after[c['node']]}"
+        if op == "set_text":
+            want = c["text"].split("\n")
+            assert after[c["node"]] == want, f"{label}: data {after[c['node']]}"
+        else:
+            assert after[c["node"]][0].startswith(c["text"]) or after[c["node"]][0] == c["text"], f"{label}: data {after[c['node']]}"
         for k, v in before.items():
             if k != c["node"]:
                 assert after[k] == v, f"{label}: node {k} changed"
+        pt = points(zout, data)[c["node"]]
+        ps = pt.find("dgm:prSet", NS)
+        if ps is not None and any(after[c["node"]]):
+            assert ps.get("phldr") not in ("1", "true"), f"{label}: phldr kept on a node with text"
         if drawing:
+            din = ET.fromstring(zin.read(drawing))
             dr = ET.fromstring(zout.read(drawing))
+            sps_in = {sp.get("modelId"): sp for sp in din.iter("{%s}sp" % NS["dsp"])}
+            dpts = points(zout, data)
             for sp in dr.iter("{%s}sp" % NS["dsp"]):
                 mid = sp.get("modelId")
                 srcs = sorted((d, s, src) for dest, d, s, src in pres_of if dest == mid)
                 if not any(src == c["node"] for _, _, src in srcs):
+                    # shapes not showing the node are untouched (review m4)
+                    assert ET.tostring(sp) == ET.tostring(sps_in[mid]), f"{label}: shape {mid} changed"
                     continue
                 shown = [para_text(p) for p in sp.findall("dsp:txBody/a:p", NS)]
                 concat = [t for _, _, src in srcs for t in after.get(src, [""])]
                 assert shown == concat, f"{label}: shape {mid} shows {shown}, sources {concat}"
+                # run pairing and formats hold after the edit
+                cps = sp.findall("dsp:txBody/a:p", NS)
+                dps = [p for _, _, src in srcs for p in (dpts[src].findall("dgm:t/a:p", NS) if src in dpts and dpts[src].find("dgm:t", NS) is not None else [None])]
+                for dp, cp in zip(dps, cps):
+                    if dp is not None:
+                        assert pairs_ok(dp, cp), f"{label}: shape {mid}: runs do not pair"
         for info in zin.infolist():
             n = info.filename
-            if n in (data, drawing) or n not in zout.namelist():
+            if n in (data, drawing):
                 continue
             assert zin.read(n) == zout.read(n), f"{label}: {n} changed"
     print(f"smartart oracle: {len(cases)} cases ok")

@@ -158,16 +158,13 @@ impl<'m, 'a> Ctx<'m, 'a> {
         let mut enum_names = BTreeMap::new();
         for &g in GROUPS {
             let in_group: Vec<&Entry> = entries.values().filter(|(a, _)| a.group == g).map(|(_, e)| e).collect();
-            let mut count: BTreeMap<&str, usize> = BTreeMap::new();
-            for e in &in_group {
-                *count.entry(e.class_name.as_str()).or_default() += 1;
-            }
             let mut taken = BTreeSet::new();
             for e in &in_group {
                 let base = pascal(&e.class_name);
-                // On a collision the entry in the group's own namespace keeps
-                // the plain name (adding `dgm:t`/`dsp:txBody` must not rename
-                // `a:txBody`'s `dml::TextBody`); the others get their prefix.
+                // Entries outside the group's own namespace always carry their
+                // prefix (`dsp:sp` → `DspShape`), so adding an entry never
+                // renames an existing type (review #63 m3); the group's own
+                // namespace keeps plain names.
                 let home = match g {
                     "dml" => "a",
                     "pml" => "p",
@@ -175,7 +172,7 @@ impl<'m, 'a> Ctx<'m, 'a> {
                     "sml" => "x",
                     _ => "",
                 };
-                let name = if count[e.class_name.as_str()] > 1 && e.prefix != home { format!("{}{base}", pascal(&e.prefix)) } else { base };
+                let name = if e.prefix != home { format!("{}{base}", pascal(&e.prefix)) } else { base };
                 if !taken.insert(name.clone()) {
                     return Err(format!("type name collision {name} in group {g}").into());
                 }
