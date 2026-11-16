@@ -102,8 +102,8 @@
   accepted and its §4.3 contains at least these conditions (the
   relationship-type allowlist and the any-attribute rule), it replaces
   this note; if it is rejected, `remove_part` is removed again.
-- **Post-acceptance note (2026-11-16, merged-cell anchors; effective
-  when ADR-0014 is implemented):** Phase0's refusal of "writing into a
+- **Post-acceptance note (2026-11-16, merged-cell anchors; in effect
+  since ADR-0014's implementation, Phase4 part 1):** Phase0's refusal of "writing into a
   cell inside a merged range" (Scope boundary below) is relaxed for the
   range's **anchor** (top-left cell). Writing to the anchor is what Excel
   does and what ADR-0014's merge and hyperlink features need. A **value or

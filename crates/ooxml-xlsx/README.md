@@ -73,6 +73,22 @@ wb.save("new.xlsx")?;
 | Atomicity | Every edit is planned and validated without changing anything (only `workbook.xml` is cloned), then applied in place; a failure while applying (a bug) poisons the workbook (`Err(Poisoned)` for every later edit and save). |
 | Cost | Proportional to the dependent set: 2.0 ms per edit on a 200,000-formula, 9.7 MB sheet; 6.7 ms in the worst case where every formula is a dependent (`examples/phase1_bench.rs`, `WORST=1`). |
 
+## Phase4 part 1: range features (ADR-0014 §3, §7, §11)
+
+Each call checks everything first (an `Err` changes nothing), then edits in place; a failure
+while applying poisons the workbook (ADR-0003 §3.1).
+
+| Call | Behaviour |
+|---|---|
+| `merge(range)` | Adds a `mergeCell` (container + `count`). Refuses a single cell (`MergeSingleCell`), overlap with a merge (`MergeOverlap`), table (`TableOverlap`), PivotTable (`PivotOverlap`), a sheet with a query table (`QueryTableOverlap`), array/data-table/spill ranges (`ArrayAnchor`, `ArrayResultCell`), `vm` cells (`RichValueCell`), and **values or formulas in non-anchor cells** (`MergeWouldHideValues { cells }`). |
+| `merge_clearing(range)` | Clears the non-anchor cells first (Phase1 removals: dependents lose caches, `fullCalcOnLoad`, calcChain), all checked before the first; a shared-formula master among them is refused. |
+| `unmerge(range)`, `merged_ranges()` | `NoSuchMerge` unless a merge equals the range; an emptied `mergeCells` is removed. Values the merge hid become visible. |
+| merged anchors | The anchor (top-left cell) accepts value and formula writes; other cells of the range refuse them (`MergedCell`). The guard follows this session's merges. |
+| `set_autofilter(range)` | New `autoFilter`, or a plain one's `ref` (`AutoFilterExists` with criteria or a sort); the sheet-local `_xlnm._FilterDatabase` is reused (text, `hidden="1"`) or created; refuses `TableOverlap`, `DuplicateBuiltInName`, `NameInUse` (a formula or defined name uses it). |
+| `remove_autofilter()` | `Ok(false)` without one; `FilterActive` with criteria; clears `sheetPr/@filterMode`; keeps the name and the sheet-level `sortState`. |
+| `protect_sheet(&Protection)` | `sheetProtection` with `sheet="1"` and the `Allow` flags (written inverted, omitted at the schema default); with a password, SHA-512 (`algorithmName`, base64 `hashValue`/`saltValue`, `spinCount` ≤ 10,000,000: `InvalidSpinCount`). The salt comes from the OS random generator unless `with_salt`. Replacing removes every hash and flag attribute first (no legacy `password` next to a SHA hash); unknown attributes stay. |
+| `unprotect_sheet()` | Removes `sheetProtection`; `Ok(false)` without one. Protection is an Excel UI setting and does not stop edits through this crate. |
+
 ## Usage example
 
 `examples/edit_cells.rs` is a runnable walk-through on a committed fixture. It:
@@ -123,7 +139,7 @@ before anything is touched; only then is the plan applied, by steps that cannot 
 | `InvalidFormula` | `set_formula` text that does not lex or has characters XML cannot carry. |
 | `NoSuchSheet`, `NotAWorksheet` | `worksheet_by_name`/`by_index` miss, or name a chartsheet/macro/dialog sheet. |
 | `Poisoned` | An earlier edit failed while applying. |
-| `MergedCell` | The cell is in a merged range, top-left cell included. |
+| `MergedCell` | A value or formula write to a non-anchor cell of a merged range (the anchor, the top-left cell, is writable: ADR-0014 §3). |
 | `TableHeaderCell` | The cell is in a table's header row (`headerRowCount` rows from the top of `ref`). |
 | `RichValueCell` | The cell has a `vm` attribute (image in cell, data type), or a dependent has one. |
 | `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. |

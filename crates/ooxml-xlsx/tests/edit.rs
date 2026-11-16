@@ -12,7 +12,8 @@ use ooxml_xlsx::{CellValue, Error, Workbook};
 
 fn merged_expect(input: &[u8]) -> impl Fn(ooxml_xlsx::CellIndex) -> Expect {
     let m = merged(input);
-    move |at| if m.iter().any(|r| r.contains(at)) { Expect::Merged } else { Expect::Ok }
+    // ADR-0014 §3: the anchor (top-left) of a merged range is writable.
+    move |at| if m.iter().any(|r| r.contains(at) && r.first != at) { Expect::Merged } else { Expect::Ok }
 }
 
 /// P0-E1: ADR-0001's sweep on the hand-made fixture (A1, A2 shared strings,
@@ -42,7 +43,9 @@ fn e2_61605_sweep_and_new_row() {
     let cells = existing_cells(&input);
     assert_eq!(cells.len(), 46);
     let (ok, refused) = sweep(name, &cells, merged_expect(&input));
-    assert!(ok > 0 && refused == 6 * 4 * 2, "ok {ok}, refused {refused}");
+    // 6 merges of 4 cells, 2 writes each; the anchors are writable since
+    // ADR-0014 §3, so 3 refused cells per merge
+    assert!(ok > 0 && refused == 6 * 3 * 2, "ok {ok}, refused {refused}");
     let out = check_edit(name, &input, a1("B2"), &W::Num(2.0));
     assert!(sheet_xml(&out).contains(r#"<c r="B2" s="1"><v>2</v></c>"#));
     let out = check_edit(name, &input, a1("A20"), &W::Str("new".into()));

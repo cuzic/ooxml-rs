@@ -229,6 +229,64 @@ const P1_CASES: &[P1Case] = &[
     },
 ];
 
+/// Phase4 part 1 (ADR-0014 §3, §7, §11, Test oracles 7).
+const P4_CASES: &[P1Case] = &[
+    P1Case {
+        out: "22-merge.xlsx",
+        input: "fixtures/xlsx/poi/61605.xlsx",
+        edits: "Лист1!G1:H2 merged; its anchor G1 = \"MERGED\" (ADR-0014 §3: the anchor is writable)",
+        look_for: "G1:H2 is one merged cell showing MERGED; the six existing merges unchanged. No repair dialog.",
+        edit: |wb| {
+            let mut ws = wb.worksheet()?;
+            ws.merge("G1:H2")?;
+            ws.cell_mut(0, 6)?.set_string("MERGED")
+        },
+    },
+    P1Case {
+        out: "23-merge-clearing.xlsx",
+        input: "fixtures/xlsx/synthetic/o1_precise.xlsx",
+        edits: "Sheet1!A1:B1 merged with merge_clearing (B1's formula is cleared; its dependents lose their caches; fullCalcOnLoad set)",
+        look_for: "A1:B1 is one merged cell showing A1's value; formulas that read B1 recalculate with B1 empty. No repair dialog.",
+        edit: |wb| wb.worksheet()?.merge_clearing("A1:B1"),
+    },
+    P1Case {
+        out: "24-unmerge.xlsx",
+        input: "fixtures/xlsx/poi/61605.xlsx",
+        edits: "the first merged range of Лист1 is unmerged",
+        look_for: "That range shows separate cells; the other five merges unchanged. No repair dialog.",
+        edit: |wb| {
+            let mut ws = wb.worksheet()?;
+            let m = ws.merged_ranges()[0];
+            ws.unmerge(&m.to_string())
+        },
+    },
+    P1Case {
+        out: "25-autofilter.xlsx",
+        input: "fixtures/xlsx/poi/bug66827.xlsx",
+        edits: "Main!A1:B20 autofilter; the leftover hidden _xlnm._FilterDatabase name is reused (ADR-0014 §7, B1)",
+        look_for: "Filter arrows on A1 and B1; filtering works; Formulas > Name Manager shows no duplicate name error. No repair dialog.",
+        edit: |wb| wb.worksheet()?.set_autofilter("A1:B20"),
+    },
+    P1Case {
+        out: "26-autofilter-removed.xlsx",
+        input: "fixtures/xlsx/poi/bug66827.xlsx",
+        edits: "Main!A1:B20 autofilter set, then removed (the sheet's sortState and the name are kept)",
+        look_for: "No filter arrows. Data > Sort still remembers the last sort (if Excel shows it). No repair dialog.",
+        edit: |wb| {
+            let mut ws = wb.worksheet()?;
+            ws.set_autofilter("A1:B20")?;
+            ws.remove_autofilter().map(drop)
+        },
+    },
+    P1Case {
+        out: "27-protected-sha512.xlsx",
+        input: "fixtures/xlsx/poi/61605.xlsx",
+        edits: "Лист1 protected with password `pwd` (SHA-512, random salt, spin count 100,000; ADR-0014 §11)",
+        look_for: "Typing into a cell is refused (sheet protected). Review > Unprotect Sheet asks for a password; `pwd` unprotects, `x` does not. No repair dialog.",
+        edit: |wb| wb.worksheet()?.protect_sheet(&ooxml_xlsx::Protection::new().password("pwd")),
+    },
+];
+
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(std::env::args().nth(1).ok_or("usage: manual_check <outdir>")?);
     let originals = out_dir.join("originals");
@@ -264,12 +322,21 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         wb.save(out_dir.join(case.out))?;
         writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
     }
+    md.push_str(CHECKLIST_P4_HEAD);
+    for case in P4_CASES {
+        let path = Path::new(ROOT).join(case.input);
+        std::fs::copy(&path, originals.join(case.out))?;
+        let mut wb = Workbook::open(&path)?;
+        (case.edit)(&mut wb)?;
+        wb.save(out_dir.join(case.out))?;
+        writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
+    }
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
     // ooxml-xlsx and every worksheet reads with calamine (an independent
     // reader), so the owner's Excel check starts from files known to parse.
-    let outs: Vec<&str> = CASES.iter().map(|c| c.out).chain(P1_CASES.iter().map(|c| c.out)).collect();
+    let outs: Vec<&str> = CASES.iter().map(|c| c.out).chain(P1_CASES.iter().map(|c| c.out)).chain(P4_CASES.iter().map(|c| c.out)).collect();
     for out in &outs {
         let path = out_dir.join(out);
         Workbook::open(&path).map_err(|e| format!("{out}: ooxml-xlsx cannot re-open it: {e}"))?;
@@ -316,6 +383,13 @@ on the edited cell and set `fullCalcOnLoad` (except 17, manual mode). Excel must
 on open** and show the values below, with **no repair dialog**. Excel will ask to save on close
 (it recalculated): answer No. Files 17–21 are synthetic workbooks made by this project
 (`reference/fixtures/xlsx/synthetic/`); their originals have no styles beyond the default.
+
+| Pass | Output | Input | Edits | Look for | Notes |
+|---|---|---|---|---|---|
+";
+
+const CHECKLIST_P4_HEAD: &str = "
+## Phase4 part 1 (ADR-0014 Test oracles 7): merges, autofilter, protection
 
 | Pass | Output | Input | Edits | Look for | Notes |
 |---|---|---|---|---|---|

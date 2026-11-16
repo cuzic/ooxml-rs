@@ -5,8 +5,8 @@ the shapes that the hand-made `reference/round_trip_corpus/fixture_minimal.xlsx`
 "Scope boundary", R2-M1). Each one was chosen for a specific purpose. The Phase0 acceptance tests
 that use them are specified in `docs/roadmap/xlsx.md` §7.
 
-- 25 files, 290,781 bytes in total.
-- `poi/`: 23 files from Apache POI, Apache License 2.0. `poi/LICENSE` and `poi/NOTICE` are POI's
+- 29 files, 381,534 bytes in total.
+- `poi/`: 27 files from Apache POI, Apache License 2.0. `poi/LICENSE` and `poi/NOTICE` are POI's
   `legal/LICENSE` and `legal/NOTICE` at the same commit.
 - `calamine/`: 2 files from calamine, MIT. `calamine/LICENSE-MIT.md` is calamine's licence file.
 - `o3/`: LibreOffice-recalculated values for the O3 test (generated data, not third-party files; `o3/README.md`).
@@ -75,6 +75,15 @@ produced by `spikes/xlsx/phase0_facts.py` and `spikes/xlsx/survey.py`.
 | `poi/xlmmacro.xlsm` | Excel 16.0300 | The **first sheet in workbook order is an XLM macro sheet** (`xl/macrosheets/sheet1.xml`), not a worksheet (roadmap Q2: skipped, so Phase0 edits `Sheet1`). |
 | `poi/SimpleStrict.xlsx` | not recorded | **Strict OOXML** namespaces; Phase0 `Err`. Contains a `t="d"` ISO date cell. |
 | `poi/protected_passtika.xlsx` | – | **Password-encrypted** (CFB container, magic `D0 CF 11 E0`), not a zip: `Err(EncryptedPackage)`. |
+
+### Range features (Phase4, ADR-0014)
+
+| File | Producer | Exercises |
+|---|---|---|
+| `poi/bug66827.xlsx` | Excel 12.0000 | A sheet-local **`_xlnm._FilterDatabase` left behind** without an `autoFilter`, and a sheet-level **`sortState`** (ADR-0014 §7: the name is reused, the sort state kept). |
+| `poi/57523.xlsx` | Excel 14.0300 | Two leftover `_FilterDatabase` names (one per sheet, `localSheetId` 0 and 1) and a sheet name that needs quoting (`'Attribute Master'`); sheet-level `sortState` on both sheets. |
+| `poi/absolute-anchor-over-empty-sheet.xlsx` | Excel 16.0300 | A sheet-local **and a workbook-scope** `_FilterDatabase`, both `#REF!` (the workbook-scope one is never touched). |
+| `poi/workbookProtection-sheet_password-2013.xlsx` | Excel 15.0300 | **SHA-512 sheet protection** (`algorithmName`, `hashValue`, `saltValue`, `spinCount="100000"`); the password is `pwd` (POI `TestXSSFSheet.java` L1357–1358). Hash vector of ADR-0014 §11. |
 
 ## Coverage against ADR-0001's "not covered" list
 
