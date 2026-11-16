@@ -472,15 +472,21 @@ impl Workbook {
         let rid = plan.add_relationship(&self.pkg, Some(&wb_part), REL_WORKSHEET, Target::Part(part.clone()))?;
         {
             let doc = change.doc(&mut self.pkg, &wb_part)?;
-            let mut sheets = sml::SheetsViewMut(sheets_lens(doc)?);
+            let mut sheets = sheets_lens(doc)?;
             let mut seen = 0usize;
-            let mut s = sheets.insert_sheet_by(|_, n| {
-                let hit = n.is(sml::Sheet::QNAME) && seen == position;
-                if n.is(sml::Sheet::QNAME) {
-                    seen += 1;
-                }
-                hit
-            })?;
+            // `r:id` needs the relationships namespace in scope: declared on
+            // the new element when the workbook does not bind it (PR #45)
+            let decl = [ooxml_core::NsDecl { prefix: "r", uri: R_NS }];
+            let mut s = sml::SheetViewMut(sheets.insert_by_with_ns::<sml::Sheet>(
+                |_, n| {
+                    let hit = n.is(sml::Sheet::QNAME) && seen == position;
+                    if n.is(sml::Sheet::QNAME) {
+                        seen += 1;
+                    }
+                    hit
+                },
+                &decl,
+            )?);
             s.set_name(name)?;
             s.set_sheet_id(sheet_id)?;
             s.0.set_attr(ooxml_core::QName::new(R_NS, "id"), &rid)?;
