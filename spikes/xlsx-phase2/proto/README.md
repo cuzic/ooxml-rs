@@ -48,7 +48,13 @@ PROTO_OUT=/some/dir ./target/release/xlsx-phase2-proto FILE   # also writes the 
    - **(c)** calamine 0.38 reads A and B (and C), and B's number-format code, bold font and
      yellow fill. C's font must equal the workbook's default font. Every other cell of every
      sheet reads as before (CR).
-   - **(d)** `count` and `uniqueCount` agree with the entries and references.
+   - **(d)** `count` and `uniqueCount` agree with the entries and references. The reference
+     count for this check is computed **independently** of the writer's: it covers every part
+     whose content type is a worksheet, macro sheet or dialog sheet, and finds them without
+     relationships. With the earlier worksheets-only count, (d) was a tautology and missed
+     `64420.xlsm`, whose macro sheet holds a `t="s"` cell (ADR-0006 review round 2, n1). The
+     writer's count now also covers macro and dialog sheets; reverting that makes (d) fail
+     on `64420.xlsm`.
    - **L1 (content).** Every other part is unchanged.
 5. **Second session (M2).** It reopens the output, replays the style edit, and checks that the
    new `font`/`fill`/`border` bytes are identical to session 1's, and that `numFmt`/`xf`
@@ -104,7 +110,8 @@ All are folded into ADR-0006 revision 2.
    121 whose default is not Calibri 11 (Arial 10 ×44, Verdana 10 ×19, Arial 11 ×14,
    Calibri 12 ×11, 宋体, ＭＳ Ｐゴシック, …). A rust_xlsxwriter-default font would have looked
    different in all of them.
-6. **`count` is wrong in the input** in 18 POI files. Recomputing it after the append was exact
+6. **`count` is wrong in the input** in 17 POI files (18 before macro sheets were counted:
+   `64420.xlsm`'s `count` is correct). Recomputing it after the append was exact
    in every case. Pre-existing `t="s"` cells with an empty `<v/>` exist (`64508`, `64667`),
    which a strict range check must tolerate.
 7. **No row to append to.** `style-alternate-content.xlsx` uses row 1,048,576. That is a test

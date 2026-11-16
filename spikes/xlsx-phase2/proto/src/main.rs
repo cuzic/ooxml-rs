@@ -133,6 +133,33 @@ fn cell_facts_rows(doc: &XmlDocument) -> (CellFacts, u32, bool, std::collections
     (out, max_row, row_without_r, rows)
 }
 
+/// Sheet relationship types whose parts can hold `t="s"` cells (the parts
+/// the Phase1 census scans; ADR-0006 review round 2, n1).
+const SHEET_RELS: &[&str] = &[
+    REL_WS,
+    "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet",
+    "http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/dialogsheet",
+];
+
+/// Independent count for check (d): every part whose *content type* is a
+/// worksheet, macro sheet or dialog sheet, found without relationships.
+fn count_s_refs_by_content_type(pkg: &Package) -> Res<u32> {
+    let sheets: Vec<String> = pkg
+        .part_names()
+        .filter(|n| {
+            pkg.content_type(n).is_some_and(|ct| {
+                ct.ends_with("spreadsheetml.worksheet+xml")
+                    || ct.ends_with("ms-excel.macrosheet+xml")
+                    || ct.ends_with("ms-excel.intlmacrosheet+xml")
+                    || ct.ends_with("spreadsheetml.dialogsheet+xml")
+            })
+        })
+        .map(str::to_owned)
+        .collect();
+    count_s_refs(pkg, &sheets)
+}
+
 fn count_s_refs(pkg: &Package, sheets: &[String]) -> Res<u32> {
     let mut n = 0;
     for s in sheets {
@@ -506,7 +533,7 @@ fn run_inner(path: &Path, r: &mut Report) -> Res<()> {
     let styles_part = part_of(REL_STYLES);
     let sst_part = part_of(REL_SST);
     let all_sheets: Vec<String> =
-        rels.iter().filter(|rel| rel.rel_type == REL_WS).filter_map(|rel| rels.resolve(rel)).filter(|p| pkg.contains(p)).collect();
+        rels.iter().filter(|rel| SHEET_RELS.contains(&rel.rel_type.as_str())).filter_map(|rel| rels.resolve(rel)).filter(|p| pkg.contains(p)).collect();
     let mut candidates = Vec::new();
     {
         let doc = match pkg.xml_part(&wb) {
@@ -790,7 +817,8 @@ fn run_inner(path: &Path, r: &mut Report) -> Res<()> {
         if let Err(err) = check_locality(a, &b, &[], Some(("si", ea.len()))) {
             r.failures.push(format!("(b) sst: {err}"));
         }
-        let refs_out = count_s_refs(&outp, &all_sheets)?;
+        // independent of the writer's own count (review round 2, n1)
+        let refs_out = count_s_refs_by_content_type(&outp)?;
         if a.root().attr(COUNT).is_some_and(|c| c != refs_in.to_string()) {
             r.notes.push(format!("input sst/@count {:?} != {refs_in} refs", a.root().attr(COUNT)));
         }
