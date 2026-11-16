@@ -49,6 +49,15 @@ pub enum Kind {
     Cells,
 }
 
+/// A value an [`Allowed::only`] selector compares an attribute with.
+#[derive(Clone, Copy, Debug)]
+pub enum Val {
+    /// This exact text.
+    Is(&'static str),
+    /// The edited sheet's position in `<sheets>` (a `localSheetId`).
+    ThisSheet,
+}
+
 /// A start tag's range and its normalized text.
 type Norm = (Range<usize>, String);
 
@@ -58,14 +67,24 @@ pub struct Allowed {
     pub part: Part,
     pub path: &'static str,
     pub kind: Kind,
+    /// Only the elements at `path` whose attributes have these values (all
+    /// of them); the others must stay byte-identical. Empty: every element.
+    pub only: &'static [(&'static str, Val)],
 }
 
 pub const fn sheet(path: &'static str, kind: Kind) -> Allowed {
-    Allowed { part: Part::Sheet, path, kind }
+    Allowed { part: Part::Sheet, path, kind, only: &[] }
 }
 
 pub const fn workbook(path: &'static str, kind: Kind) -> Allowed {
-    Allowed { part: Part::Workbook, path, kind }
+    Allowed { part: Part::Workbook, path, kind, only: &[] }
+}
+
+impl Allowed {
+    /// Narrows the row to the elements with these attribute values.
+    pub const fn only(self, only: &'static [(&'static str, Val)]) -> Self {
+        Allowed { only, ..self }
+    }
 }
 
 fn at_path<'n>(root: &'n RawNode, path: &str) -> Vec<&'n RawNode> {
@@ -74,6 +93,35 @@ fn at_path<'n>(root: &'n RawNode, path: &str) -> Vec<&'n RawNode> {
         cur = cur.iter().flat_map(|n| n.elements().filter(|e| e.name().local() == seg)).collect();
     }
     cur
+}
+
+/// The elements a row covers: at its path, and matching its selector.
+fn selected<'n>(root: &'n RawNode, r: &Allowed, this_sheet: Option<&str>) -> Vec<&'n RawNode> {
+    at_path(root, r.path)
+        .into_iter()
+        .filter(|n| {
+            r.only.iter().all(|(a, v)| {
+                let got = n.attr(ooxml_core::QName::new("", a));
+                match v {
+                    Val::Is(t) => got == Some(*t),
+                    Val::ThisSheet => got.is_some() && got == this_sheet,
+                }
+            })
+        })
+        .collect()
+}
+
+/// The edited sheet's position in `<sheets>` (what `localSheetId` holds).
+fn local_sheet_id(bytes: &[u8], sheet_part: &str) -> Option<String> {
+    let rels = String::from_utf8(part(bytes, "xl/_rels/workbook.xml.rels")).ok()?;
+    let rels = XmlDocument::parse(rels.as_bytes()).ok()?;
+    let target = sheet_part.strip_prefix("xl/")?;
+    let id = rels.root().elements().find(|r| r.attr(ooxml_core::QName::new("", "Target")).is_some_and(|t| t.trim_start_matches('/').trim_start_matches("xl/") == target))?.attr(ooxml_core::QName::new("", "Id"))?.to_owned();
+    let wb = String::from_utf8(part(bytes, "xl/workbook.xml")).ok()?;
+    let wb = XmlDocument::parse(wb.as_bytes()).ok()?;
+    let r_id = ooxml_core::QName::new("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+    let pos = at_path(wb.root(), "sheets/sheet").iter().position(|s| s.attr(r_id) == Some(id.as_str()))?;
+    Some(pos.to_string())
 }
 
 fn whole(n: &RawNode) -> Range<usize> {
@@ -152,24 +200,14 @@ fn find_attr(tag: &str, name: &str) -> Option<usize> {
 
 /// The residue of one part's text under the allowed changes; also checks
 /// the Create/Remove multiset rules.
-fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String]) -> Result<(String, String), String> {
+fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String], this_sheet: Option<&str>) -> Result<(String, String), String> {
     let din = XmlDocument::parse(input.as_bytes()).map_err(|e| e.to_string())?;
     let dout = XmlDocument::parse(output.as_bytes()).map_err(|e| e.to_string())?;
     let mut cuts = (Vec::new(), Vec::new());
     let mut norms: (Vec<Norm>, Vec<Norm>) = (Vec::new(), Vec::new());
-    // attribute normalization, by path
-    let attrs_at = |path: &str| -> Vec<&'static str> {
-        rows.iter()
-            .filter(|r| r.path == path)
-            .flat_map(|r| match r.kind {
-                Kind::EditAttrs(a) => a.to_vec(),
-                _ => Vec::new(),
-            })
-            .collect()
-    };
     for (doc, src, cut, norm) in [(&din, input, &mut cuts.0, &mut norms.0), (&dout, output, &mut cuts.1, &mut norms.1)] {
         for r in rows {
-            for n in at_path(doc.root(), r.path) {
+            for n in selected(doc.root(), r, this_sheet) {
                 match r.kind {
                     Kind::EditAttrs(names) => {
                         let t = open_tag(n);
@@ -214,14 +252,20 @@ fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String]) -> Resul
         };
         let norm_text = |doc: &XmlDocument, src: &str| -> BTreeMap<String, usize> {
             let mut m = BTreeMap::new();
-            for n in at_path(doc.root(), r.path) {
+            for n in selected(doc.root(), r, this_sheet) {
                 let t = &src[whole(n)];
                 let tag = &src[open_tag(n)];
-                let content_free = rows.iter().any(|x| x.path == r.path && matches!(x.kind, Kind::Content));
+                // the rows narrowed like this one that also cover `n`
+                let peers: Vec<&Allowed> = rows.iter().filter(|x| x.path == r.path && selected(doc.root(), x, this_sheet).iter().any(|m| std::ptr::eq(*m, n))).collect();
+                let attrs: Vec<&str> = peers.iter().flat_map(|x| match x.kind {
+                    Kind::EditAttrs(a) => a.to_vec(),
+                    _ => Vec::new(),
+                }).collect();
+                let content_free = peers.iter().any(|x| matches!(x.kind, Kind::Content));
                 let key = if content_free {
-                    strip_attrs(tag, &attrs_at(r.path)) // the content may change
+                    strip_attrs(tag, &attrs) // the content may change
                 } else {
-                    t.replacen(tag, &strip_attrs(tag, &attrs_at(r.path)), 1)
+                    t.replacen(tag, &strip_attrs(tag, &attrs), 1)
                 };
                 *m.entry(key).or_insert(0) += 1;
             }
@@ -283,8 +327,9 @@ pub fn check(input: &[u8], output: &[u8], sheet_part: &str, rows: &[Allowed], ce
         if rows_here.is_empty() && !(other_cells && n.starts_with("xl/worksheets/")) {
             return Err(format!("part {n} changed, and no row allows it"));
         }
-        let rows_here = if rows_here.is_empty() { vec![Allowed { part: Part::OtherSheetCells, path: "sheetData", kind: Kind::Cells }] } else { rows_here };
-        let (ra, rb) = judge(&String::from_utf8_lossy(&a), &String::from_utf8_lossy(&b), &rows_here, cells)?;
+        let rows_here = if rows_here.is_empty() { vec![Allowed { part: Part::OtherSheetCells, path: "sheetData", kind: Kind::Cells, only: &[] }] } else { rows_here };
+        let this_sheet = local_sheet_id(output, sheet_part);
+        let (ra, rb) = judge(&String::from_utf8_lossy(&a), &String::from_utf8_lossy(&b), &rows_here, cells, this_sheet.as_deref())?;
         if ra != rb {
             let at = ra.bytes().zip(rb.bytes()).position(|(x, y)| x != y).unwrap_or(ra.len().min(rb.len()));
             let lo = at.saturating_sub(60);

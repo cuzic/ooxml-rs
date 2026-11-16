@@ -34,6 +34,81 @@ fn sheet_with(children: &str, sheet_data: &str) -> Vec<u8> {
 
 // ---- merged cells (§3) ----
 
+/// Round 1 m2: a merge over a spill (dynamic array) range is refused.
+#[test]
+fn merge_over_a_spill_is_refused() {
+    let input = read("poi/xlookup.xlsx"); // C2 spills to C2:D2
+    assert_matches!(try_on(&input, 0, |ws| ws.merge("D2:E3")).1, Err(Error::ArrayResultCell { .. }));
+    assert_matches!(try_on(&input, 0, |ws| ws.merge("C2:C3")).1, Err(Error::ArrayAnchor { .. }));
+    assert_matches!(try_on(&input, 0, |ws| ws.merge_clearing("D1:D2")).1, Err(Error::ArrayResultCell { .. }));
+}
+
+/// Round 1 m2: `merge_clearing` checks every cell before clearing the first:
+/// B1 could be cleared, C1 cannot (a dependent under iterative
+/// calculation), so nothing changes and the workbook is not poisoned.
+#[test]
+fn merge_clearing_checks_every_cell_first() {
+    let input = book(
+        &[("S", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c><c r="C1"><v>3</v></c></row><row r="5"><c r="D5"><f>C1*2</f><v>6</v></c></row>"#)],
+        "",
+        r#"<calcPr calcId="191029" iterate="1"/>"#,
+    );
+    let (mut wb, r) = try_on(&input, 0, |ws| ws.merge_clearing("A1:C1"));
+    assert_matches!(r, Err(Error::IterativeCalculation));
+    wb.worksheet().unwrap().merge_clearing("A1:B1").unwrap(); // not poisoned
+}
+
+/// Round 1 m1: with a duplicated `mergeCell`, `unmerge` removes one
+/// element and the range stays merged (session and tree agree).
+#[test]
+fn unmerge_of_a_duplicated_ref_keeps_the_other() {
+    let input = sheet_with(r#"<mergeCells count="2"><mergeCell ref="A1:B2"/><mergeCell ref="A1:B2"/></mergeCells>"#, "");
+    let (mut wb, r) = try_on(&input, 0, |ws| ws.unmerge("A1:B2"));
+    r.unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert_eq!(ws.merged_ranges().len(), 1);
+    assert_matches!(ws.cell_mut(1, 1).unwrap().set_number(1.0), Err(Error::MergedCell { .. }));
+    ws.unmerge("A1:B2").unwrap();
+    ws.cell_mut(1, 1).unwrap().set_number(1.0).unwrap();
+}
+
+/// Round 1 m4, m5: the password never shows in `Debug`; an empty password
+/// writes no hash.
+#[test]
+fn protection_debug_and_empty_password() {
+    let p = Protection::new().password("hunter2");
+    let d = format!("{p:?}");
+    assert!(!d.contains("hunter2") && d.contains("<redacted>"), "{d}");
+    let input = sheet_with("", "");
+    let (wb, r) = try_on(&input, 0, |ws| ws.protect_sheet(&Protection::new().password("")));
+    r.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains("<sheetProtection ") && !xml.contains("hashValue"), "{xml}");
+}
+
+/// Round 1 M1: pivot parts are read only by `merge`; a part without a
+/// location (or one that does not parse) never stops the workbook opening,
+/// and a merge on that sheet is refused as overlapping.
+#[test]
+fn unreadable_pivot_location_does_not_block_open() {
+    let pivot = read("poi/ExcelPivotTableSample.xlsx");
+    let p1 = String::from_utf8(part(&pivot, "xl/pivotTables/pivotTable1.xml")).unwrap();
+    let no_loc = with_part(&pivot, "xl/pivotTables/pivotTable1.xml", &p1.replace(r#"<location ref="A3:D7" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>"#, ""));
+    let broken = with_part(&pivot, "xl/pivotTables/pivotTable2.xml", "<pivotTableDefinition");
+    for input in [&no_loc, &broken] {
+        for sheet in 0..3 {
+            let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+            wb.worksheet_by_index(sheet).unwrap().cell_mut(98, 25).unwrap().set_number(1.0).unwrap();
+            wb.to_bytes().unwrap();
+        }
+    }
+    // pivotTable1 is on sheet 2, pivotTable2 on sheet 3
+    let refused = |input: &[u8]| (0..3).filter(|&s| matches!(try_on(input, s, |ws| ws.merge("X50:Y51")).1, Err(Error::PivotOverlap { .. }))).collect::<Vec<_>>();
+    assert_eq!(refused(&no_loc), [1]);
+    assert_eq!(refused(&broken), [2]);
+    assert_eq!(refused(&pivot), [0usize; 0]);
+}
+
 #[test]
 fn merge_refusals_change_nothing() {
     let m61605 = read("poi/61605.xlsx");

@@ -57,7 +57,9 @@ pub(crate) struct SheetContext {
     /// date in the same apply step as the sheet edit (ADR-0014 §3).
     pub(crate) merges: Vec<CellRange>,
     pub(crate) tables: Vec<TableHeader>,
-    /// PivotTable `location/@ref`s on the sheet (ADR-0014 §3).
+    /// The sheet's PivotTable parts; their `location/@ref` is read only
+    /// when a merge needs it (ADR-0014 §3), so a damaged pivot part never
+    /// stops a workbook from opening.
     pub(crate) pivots: Vec<String>,
     /// The target of a sheet-level query-table relationship, if any (its
     /// output range is not located, so overlapping features are refused).
@@ -265,13 +267,7 @@ impl Workbook {
             .filter_map(|t| t.id().map(str::to_owned))
             .collect();
         let tables = load_tables(&mut self.pkg, &part, &sheet_rels, &table_parts)?;
-        let mut pivots = Vec::new();
-        for rel in sheet_rels.by_type(REL_PIVOT_TABLE) {
-            let Some(p) = sheet_rels.resolve(rel).filter(|p| self.pkg.contains(p)) else { continue };
-            let doc = self.pkg.xml_part(&p)?;
-            let loc = doc.root().elements().find(|e| e.name().local() == "location").and_then(|l| l.attr(ooxml_core::QName::new("", "ref")));
-            pivots.push(loc.ok_or_else(|| Error::Malformed(format!("{p}: PivotTable without location/@ref")))?.to_owned());
-        }
+        let pivots = sheet_rels.by_type(REL_PIVOT_TABLE).filter_map(|rel| sheet_rels.resolve(rel)).filter(|p| self.pkg.contains(p)).collect();
         let query_table = sheet_rels.by_type(REL_QUERY_TABLE).next().map(|r| r.target.clone());
         self.contexts.insert(sheet, SheetContext { merges, tables, pivots, query_table });
         self.ensure_index(sheet)?;

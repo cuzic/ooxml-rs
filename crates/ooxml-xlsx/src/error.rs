@@ -255,7 +255,8 @@ pub enum Error {
     PivotOverlap {
         /// The requested range.
         range: String,
-        /// The PivotTable's `location/@ref`.
+        /// The PivotTable's `location/@ref`, or its part name when the
+        /// location cannot be read (treated as overlapping).
         location: String,
     },
 

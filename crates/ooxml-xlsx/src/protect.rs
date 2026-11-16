@@ -22,13 +22,25 @@ pub const MAX_SPIN_COUNT: u32 = 10_000_000;
 /// Defaults follow Excel's "Protect Sheet" dialog: selecting locked and
 /// unlocked cells is allowed, everything else is not. Sheet protection is an
 /// Excel UI setting; it does not stop edits through this crate.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Protection {
     password: Option<String>,
     salt: Option<[u8; 16]>,
     spin_count: u32,
     allow: Allow,
     legacy: bool,
+}
+
+/// The password is redacted (PR #58 round 1 m4).
+impl std::fmt::Debug for Protection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Protection")
+            .field("password", &self.password.as_ref().map(|_| "<redacted>"))
+            .field("salt", &self.salt)
+            .field("spin_count", &self.spin_count)
+            .field("allow", &self.allow)
+            .finish()
+    }
 }
 
 /// The actions a protected sheet still allows (`allow_*` = `true`).
@@ -103,9 +115,10 @@ impl Protection {
     }
 
     /// Protects with a password (written as its SHA-512 hash; the password
-    /// itself is never stored).
+    /// itself is never stored). An empty password means no password, as in
+    /// Excel's dialog: no hash is written.
     pub fn password(mut self, password: &str) -> Self {
-        self.password = Some(password.to_owned());
+        self.password = (!password.is_empty()).then(|| password.to_owned());
         self
     }
 
@@ -117,7 +130,8 @@ impl Protection {
         self
     }
 
-    /// The hash's spin count (default 100,000; at most 10,000,000).
+    /// The hash's spin count (default 100,000; at most 10,000,000). Unused,
+    /// and not checked, without a password.
     pub fn with_spin_count(mut self, spin_count: u32) -> Self {
         self.spin_count = spin_count;
         self
