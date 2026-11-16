@@ -13,7 +13,7 @@
 mod common;
 
 use common::p1::{book, with_part};
-use common::p4::{Allowed, Kind, Part, check, sheet, workbook};
+use common::p4::{Allowed, Kind, Part, Val, check, sheet, workbook};
 use common::{part, read, rebuild};
 use ooxml_xlsx::{Protection, Workbook};
 
@@ -23,19 +23,22 @@ const MERGE_CLEARING: &[Allowed] = &[
     sheet("mergeCells/mergeCell", Kind::Create),
     // composed with ADR-0003 §7's allowed diff for each cleared cell
     sheet("sheetData", Kind::Cells),
-    Allowed { part: Part::OtherSheetCells, path: "sheetData", kind: Kind::Cells },
-    workbook("calcPr", Kind::Container),
+    Allowed { part: Part::OtherSheetCells, path: "sheetData", kind: Kind::Cells, only: &[] },
+    // ADR-0003 §7: calcPr is created, or gains fullCalcOnLoad; nothing else
+    workbook("calcPr", Kind::Create),
     workbook("calcPr", Kind::EditAttrs(&["fullCalcOnLoad"])),
-    Allowed { part: Part::CalcChainRemoval, path: "", kind: Kind::Subtree },
+    Allowed { part: Part::CalcChainRemoval, path: "", kind: Kind::Subtree, only: &[] },
 ];
 const UNMERGE: &[Allowed] = &[sheet("mergeCells", Kind::Container), sheet("mergeCells/mergeCell", Kind::Remove)];
+const FILTER_DB: &[(&str, Val)] = &[("name", Val::Is("_xlnm._FilterDatabase")), ("localSheetId", Val::ThisSheet)];
 const SET_AUTOFILTER: &[Allowed] = &[
     sheet("autoFilter", Kind::EditAttrs(&["ref"])),
     sheet("autoFilter", Kind::Create),
     workbook("definedNames", Kind::Container),
-    workbook("definedNames/definedName", Kind::Create),
-    workbook("definedNames/definedName", Kind::EditAttrs(&["hidden"])),
-    workbook("definedNames/definedName", Kind::Content),
+    // only this sheet's _xlnm._FilterDatabase
+    workbook("definedNames/definedName", Kind::Create).only(FILTER_DB),
+    workbook("definedNames/definedName", Kind::EditAttrs(&["hidden"])).only(FILTER_DB),
+    workbook("definedNames/definedName", Kind::Content).only(FILTER_DB),
 ];
 const REMOVE_AUTOFILTER: &[Allowed] = &[sheet("autoFilter", Kind::Remove), sheet("sheetPr", Kind::EditAttrs(&["filterMode"]))];
 const PROTECT_SHEET: &[Allowed] = &[
@@ -128,6 +131,14 @@ fn template() -> Vec<u8> {
 
 const SML: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
+fn neighbours() -> Vec<u8> {
+    book(
+        &[("S", ""), ("T", "")],
+        r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">S!$A$1:$A$2</definedName><definedName name="_xlnm.Print_Area" localSheetId="1">T!$A$1:$C$9</definedName><definedName name="Other">S!$B$2</definedName>"#,
+        r#"<calcPr calcId="191029"/>"#,
+    )
+}
+
 fn cases() -> Vec<Case> {
     let mut out = Vec::new();
     // merge: from scratch, and an Excel file that already has merges
@@ -150,6 +161,9 @@ fn cases() -> Vec<Case> {
     out.push(run("bug66827", "`set_autofilter`", read("poi/bug66827.xlsx"), 0, |ws| ws.set_autofilter("A1:B20").unwrap()));
     out.push(run("57523", "`set_autofilter`", read("poi/57523.xlsx"), 1, |ws| ws.set_autofilter("A1:C5").unwrap()));
     out.push(run("absolute-anchor", "`set_autofilter`", read("poi/absolute-anchor-over-empty-sheet.xlsx"), 0, |ws| ws.set_autofilter("A1:B2").unwrap()));
+    // set_autofilter next to other names: a print area, a workbook name
+    // and another sheet's _FilterDatabase stay byte-identical
+    out.push(run("neighbours", "`set_autofilter`", neighbours(), 1, |ws| ws.set_autofilter("A1:B4").unwrap()));
     // remove_autofilter: a plain autoFilter with sheetPr/@filterMode
     let b = book(&[("S", r#"<row r="1"><c r="A1"><v>1</v></c></row>"#)], "", "");
     let b = with_part(&b, "xl/worksheets/sheet1.xml", &format!(r#"<worksheet xmlns="{SML}"><sheetPr filterMode="1" codeName="X"/><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData><autoFilter ref="A1:A3"/></worksheet>"#));
@@ -190,6 +204,37 @@ fn a_sibling_change_fails_the_oracle() {
         };
         let mutated = rebuild(&c.output, &[(c.sheet_part.as_str(), bad.into_bytes())]);
         assert!(check(&c.input, &mutated, &c.sheet_part, rows(c.call), &c.cells).is_err(), "{} {}: the mutant passed", c.call, c.name);
+    }
+}
+
+/// Round 1 M2: changes inside an allowed path that the row does not allow
+/// fail the oracle: other names' text or attributes, other calcPr
+/// attributes, an existing mergeCell, an unknown sheetProtection attribute.
+/// (A *created* element's own content is not judged by the oracle; the
+/// behaviour tests pin it.)
+#[test]
+fn a_disallowed_change_inside_an_allowed_path_fails_the_oracle() {
+    let all = cases();
+    let find = |call: &str, name: &str| all.iter().find(|c| c.call == call && c.name == name).unwrap_or_else(|| panic!("{call} {name}"));
+    // (case, part, from, to)
+    let mutants: &[(&Case, &str, &str, &str)] = &[
+        (find("`set_autofilter`", "neighbours"), "xl/workbook.xml", "T!$A$1:$C$9", "T!$Z$9"),
+        (find("`set_autofilter`", "neighbours"), "xl/workbook.xml", r#"<definedName name="Other">"#, r#"<definedName name="Other" hidden="1">"#),
+        (find("`set_autofilter`", "neighbours"), "xl/workbook.xml", "S!$A$1:$A$2", "S!$A$1:$A$3"),
+        (find("`set_autofilter`", "neighbours"), "xl/workbook.xml", r#"localSheetId="0" hidden="1""#, r#"localSheetId="0""#),
+        (find("`set_autofilter`", "neighbours"), "xl/workbook.xml", r#"<definedName name="Other">S!$B$2</definedName>"#, ""),
+        (find("`merge_clearing`", "formulas"), "xl/workbook.xml", "<calcPr ", r#"<calcPr calcMode="manual" "#),
+        (find("`merge_clearing`", "formulas"), "xl/workbook.xml", r#"calcId="191029""#, r#"calcId="1""#),
+        (find("`merge`", "61605"), "xl/worksheets/sheet1.xml", "<mergeCell ref=\"", "<mergeCell ref=\"Z"),
+        (find("`unmerge`", "61605"), "xl/worksheets/sheet1.xml", "<mergeCell ref=\"", "<mergeCell ref=\"Z"),
+        (find("`protect_sheet`/`unprotect_sheet`", "legacy"), "xl/worksheets/sheet1.xml", r#" futureFlag="x""#, ""),
+    ];
+    for (c, p, from, to) in mutants {
+        let xml = String::from_utf8(part(&c.output, p)).unwrap();
+        assert!(xml.contains(from), "{} {}: {from:?} not in {p}", c.call, c.name);
+        let mutated = rebuild(&c.output, &[(*p, xml.replacen(from, to, 1).into_bytes())]);
+        check(&c.input, &c.output, &c.sheet_part, rows(c.call), &c.cells).unwrap();
+        assert!(check(&c.input, &mutated, &c.sheet_part, rows(c.call), &c.cells).is_err(), "{} {}: {from:?} -> {to:?} passed", c.call, c.name);
     }
 }
 
