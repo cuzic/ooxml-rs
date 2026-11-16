@@ -189,3 +189,15 @@ fn xxe_probe_part_is_refused() {
     assert_eq!(pkg.state("word/document.xml"), Some(PartStateKind::Raw));
     assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(&input));
 }
+
+#[test]
+fn parsed_part_reads_without_parsing() {
+    let mut pkg = Package::open(FIXTURE).unwrap();
+    assert!(pkg.parsed_part(SHEET1).is_none(), "raw parts are not parsed by the accessor");
+    assert!(pkg.parsed_part("no/such/part.xml").is_none());
+    let root_name = pkg.xml_part(SHEET1).unwrap().root().name().local().to_owned();
+    assert_eq!(pkg.parsed_part(SHEET1).map(|d| d.root().name().local()), Some(root_name.as_str()));
+    assert_eq!(pkg.state(SHEET1), Some(PartStateKind::Parsed { dirty: false }));
+    pkg.set_part(SHEET1, b"<x/>".to_vec()).unwrap();
+    assert!(pkg.parsed_part(SHEET1).is_none(), "replaced parts have no tree");
+}
