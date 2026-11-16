@@ -46,6 +46,7 @@
 mod core_props;
 mod error;
 mod escape;
+mod formula;
 mod reference;
 mod scan;
 mod workbook;
