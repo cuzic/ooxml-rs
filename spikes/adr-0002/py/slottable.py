@@ -19,7 +19,8 @@ def optional(x):
     return False
 def mul(a, b): return None if a is None or b is None else a * b
 def lower(x, top=True, outer=False):
-    """outer: an enclosing particle that collapses into the same slot repeats."""
+    """outer: an enclosing particle (up to the slot boundary) repeats WITHOUT bound.
+    Finite outer bounds (e.g. {0..2}) do not make a choice free (ADR-0002 §4.1, R4-m1)."""
     """-> list of slots; slot = dict qname->max_each (None=unbounded). Repetition multiplies."""
     k = x.get('Kind', 'Element')
     if k == 'Element': return [{x['Name'].split('/')[-1]: maxocc(x)}]
@@ -33,10 +34,10 @@ def lower(x, top=True, outer=False):
     if k in ('Sequence', 'Group'):
         r = maxocc(x)
         out = []
-        for i in items: out += lower(i, False, outer or r != 1)
+        for i in items: out += lower(i, False, outer or r is None)
         if len(out) > 1 and (outer or r != 1):
             # (a? b? ...)* == (a | b | ...)*: a repeated sequence of optional parts is a free slot
-            if all(optional(i) for i in items):
+            if (outer or r is None) and r in (None, 1) and all(optional(i) for i in items):
                 u = {}
                 for sl in out: u.update({q: None for q in sl})
                 return [u]
@@ -47,7 +48,7 @@ def lower(x, top=True, outer=False):
     if k == 'Choice':
         s = {}; rep = maxocc(x)
         for i in items:
-            b = lower(i, False, outer or rep != 1)
+            b = lower(i, False, outer or rep is None)
             if len(b) > 1: raise NS('multi-slot alternative')
             s.update(b[0])
         if rep == 1 and not outer and len(s) > 1 and any(v is None or v > 1 for v in s.values()):

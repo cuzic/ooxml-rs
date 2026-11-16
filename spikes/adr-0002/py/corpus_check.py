@@ -18,10 +18,14 @@ TARGETS = {  # parent element (clark) -> SDK entry
  'p:sld': 'p:CT_Slide/p:sld', 'p:cSld': 'p:CT_CommonSlideData/p:cSld', 'p:spTree': 'p:CT_GroupShape/p:spTree',
  'p:sp': 'p:CT_Shape/p:sp', 'p:pic': 'p:CT_Picture/p:pic', 'p:txBody': 'a:CT_TextBody/p:txBody',
  'a:p': 'a:CT_TextParagraph/a:p', 'a:r': 'a:CT_RegularTextRun/a:r', 'p:presentation': 'p:CT_Presentation/p:presentation'}
-rank = {}
+rank = {}   # parent -> {child: sorted list of slot indices}; greedy left-to-right for names in 2 slots
 for k, n in TARGETS.items():
     sl = lower(T[n]['Particle'])
-    rank[clark(k)] = {clark(q): i for i, s in enumerate(sl) for q in s if q != '*ANY*' and ':' in q}
+    m = collections.defaultdict(list)
+    for i, s in enumerate(sl):
+        for q in s:
+            if q != '*ANY*' and ':' in q: m[clark(q)].append(i)
+    rank[clark(k)] = m
 MC = '{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent'
 ac_parent = collections.Counter(); ac_files = collections.defaultdict(set)
 viol = collections.Counter(); viol_ex = {}; unlisted = collections.Counter(); seen = collections.Counter()
@@ -46,9 +50,10 @@ for fn in sorted(os.listdir(fdir)):
                 for c in ch:
                     if c.tag == MC: continue
                     if c.tag not in r: unlisted[(el.tag, c.tag)] += 1; continue
-                    if r[c.tag] < last:
+                    ok = [i for i in r[c.tag] if i >= last]   # greedy: smallest slot not before current
+                    if not ok:
                         viol[el.tag] += 1; viol_ex.setdefault(el.tag, (fn, pn, c.tag)); break
-                    last = r[c.tag]
+                    last = ok[0]
             if el.tag == clark('w:p'):
                 runs_per_p.append(sum(1 for c in ch if c.tag == clark('w:r') and c.find(clark('w:t')) is not None))
             if el.tag == clark('w:t'):

@@ -1,6 +1,6 @@
 # ADR-0002: Schema-driven code generation for the typed lens
 
-- Status: **Accepted** (revision 5; round-3 review `0002-opus-review-round3.md` approved acceptance at revision 4; revision 5 corrects the slot rules after the Word/PowerPoint check and settles the XSD licence, and was itself reviewed in `0002-opus-review-round4.md`)
+- Status: **Accepted** (revision 5; `0002-opus-review-round3.md` approved acceptance at revision 4. Revision 5 corrects the slot rules after the Word/PowerPoint check and settles the XSD licence. `0002-opus-review-round4.md` reviewed that delta, found Minor issues only and approved keeping it Accepted; its fixes are folded in.)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md)
 
@@ -49,6 +49,13 @@
   12. Slot lowering was checked against 197 real .docx/.pptx files (0
   order violations). The Ecma licence question (former open question 3)
   is settled, and overrides on abstract base entries are inherited.
+  Round-4 Minor fixes: the free-slot rules apply only to unbounded
+  repetition (R4-m1); existing siblings with a QName in two slots are
+  assigned greedily (R4-m2); leftover wording (R4-m3); the real-file
+  claim is narrowed to what was checked (R4-m4); licence premise,
+  `.gitattributes` for unmodified XSDs, full notice in
+  `THIRD-PARTY-NOTICES` (R4-m5); override inheritance keyed on the
+  complex-type part, 191 entries, precedence (R4-m6).
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
@@ -143,14 +150,19 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
    `ooxmlsdk`'s copy, on which the counts above were measured, is
    identical except for CRLF line endings, so the counts stand. This
    edition carries no copyright page, and the XSDs carry no header.
-   Ecma's text copyright policy (version 3, December 2025) states that its
-   default notice applies in practice to standards predating it. That
-   notice permits copying and distribution with the notice attached, and
+   The policy that governs it is Ecma's text copyright policy (version 3,
+   December 2025). Its FAQ says the default notice has been included in
+   every new standard since 2009, and that the same principle applies in
+   practice where a notice was not inserted. This 2016 edition is such a
+   case. That notice permits copying and distribution with the notice attached, and
    permits implementing the specification in conformant products,
-   including by copy and paste. It forbids modifying the document itself.
-   The XSDs are therefore vendored **unmodified** (line endings
-   included), with Ecma's default notice in full and the provenance
-   above. Corrections live only in `overrides.toml`. The same notice goes
+   including by copy and paste. It forbids modifying the document itself,
+   and the FAQ asks that republications be unchanged and up to date. The
+   XSDs are therefore vendored **unmodified**, with Ecma's default notice
+   in full and the provenance above. Line endings are kept by a
+   `.gitattributes` rule (`reference/ecma-376-transitional-xsd/** -text`),
+   and checksums are verified by `--check`. Updating to a newer Ecma
+   edition is a reviewed input bump like any other. Corrections live only in `overrides.toml`. The same notice goes
    into `ooxml-schema`'s `THIRD-PARTY-NOTICES` (§2). Ecma's BSD software
    licence is not relied on, since this edition's copyright page does not
    carry it. Extension-namespace
@@ -178,12 +190,17 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
    `xr:uid`, `xr:revisionPtr`, `SheetStateValues::show`, MCE-wrapped
    `legacyDrawing`/`controls`), which is why the set is fixed now. An
    override on an abstract base entry (`Name` ending in `/`) is inherited
-   by every entry derived from it. Example: one `set_default` of `val`
-   to `true` on `w:CT_OnOff/` gives WordprocessingML's on/off semantics
-   (`<w:b/>` means on, which the XSD leaves to prose) to all 186
-   entries using it. If
-   an override's content is taken from there, its licence (MIT OR
-   Apache-2.0) is honoured in the notices (§2).
+   by every entry whose `Name` has the same complex-type part, across
+   schema files. It is keyed on that type part (`w:CT_OnOff`), not on
+   the .NET `BaseClass` name: `OnOffType` is shared by the unrelated `w`,
+   `m` and `w14` bases. An override on the derived entry itself takes
+   precedence over the inherited one. Example: one `set_default` of
+   `val` to `true` on `w:CT_OnOff/` gives WordprocessingML's on/off
+   semantics (`<w:b/>` means on, which the XSD leaves to prose) to all
+   191 `w:CT_OnOff/…` entries. The `m:` (30) and `w14:` (4) on/off types
+   need their own entries. If an override's content is taken from
+   `ooxmlsdk`'s overrides, their licence (MIT OR Apache-2.0) is honoured
+   in the notices (§2).
 
 Inputs 1 and 2 are vendored under `reference/openxml-sdk-data/` and
 `reference/ecma-376-transitional-xsd/`, each with upstream's licence
@@ -215,8 +232,8 @@ time.
   formatting is done inside the generator with a pinned `prettyplease`
   (no dependency on the host's `rustfmt`).
 - `ooxml-schema`'s package ships a `THIRD-PARTY-NOTICES` file (in the
-  crate's `include`) with the .NET Foundation MIT notice, the Ecma
-  provenance note, and — if any override was taken from `ooxmlsdk` —
+  crate's `include`) with the .NET Foundation MIT notice, Ecma's
+  default copyright notice in full with the provenance of §1.2, and — if any override was taken from `ooxmlsdk` —
   its MIT/Apache-2.0 notice. Generated code embeds names and summaries
   from these sources. A `LICENSE` file under `reference/` alone would not
   reach crates.io.
@@ -355,7 +372,8 @@ attributes are never re-rendered (ADR-0001 Layer 2).
 `const {}` in a function body, which is only guaranteed to run when
 reached). They check: every `impl ChildOf<P> for C` has `C::QNAME` in
 `P::CONTENT` (searching `Slots` and, for unlowerable models, the
-`Unsupported` name list); no QName appears twice in one `CONTENT`; every default is
+`Unsupported` name list); no QName appears twice within one slot (a
+QName in two different slots is allowed, §4.1); every default is
 valid for its type. Stable const evaluation can do this with
 hand-written byte loops (`&str == &str` is not const; `const_trait_impl`
 is unstable as of 1.99) and `u32::from_str_radix` (const since 1.82)
@@ -403,16 +421,22 @@ and `max_total` (the whole slot). Insertion checks both.
   representable as a slot, so the model is **unsupported**
   (`p188:CT_Comment`, `x:CT_SortState`, …). *Non-repeating* means
   **effectively** non-repeating: a choice nested, up to the slot
-  boundary, inside any particle whose `maxOccurs ≠ 1` is a repeating
-  choice. (WordprocessingML nests `Group* > Choice > Group* > Choice …`
-  throughout `w:p`/`w:body`/`w:tc`.)
-- A repeated sequence or group whose parts are **all optional** is one
-  free slot holding all its names: `(a? b? …)*` and `(a | b | …)*`
-  accept the same child lists. Examples are SDK-inserted `w14`
+  boundary, inside a particle whose `maxOccurs` is **unbounded** is a
+  repeating choice. (WordprocessingML nests `Group* > Choice > Group* >
+  Choice …` throughout `w:p`/`w:body`/`w:tc`.) A finite enclosing bound
+  (e.g. `{0..2}`) does not count, because `(a* | b*){0..2}` is not
+  `(a | b)*`. Such models stay unsupported. None occurs in the current
+  data.
+- A sequence or group repeated **without bound** whose parts are **all
+  optional** is one free slot holding all its names: `(a? b? …)*` and
+  `(a | b | …)*` accept the same child lists. With a finite bound the
+  two differ, so the model is unsupported. Examples are SDK-inserted `w14`
   extension pairs inside paragraph content and the top-level
   `x:CT_RPrElt/x:rPr`, whose ECMA definition is an unbounded choice
   anyway.
-- A nested `Sequence`/`Group` with `maxOccurs ≤ 1` is spliced in place.
+- A nested `Sequence`/`Group` with `maxOccurs ≤ 1` that is not inside
+  an unbounded repetition is spliced in place. Inside one, the
+  free-slot rule above applies instead.
 - **Repetition multiplies.** When a particle with upper bound `r` lowers
   to a single slot (a repeating choice, or a repeating group/sequence
   around one slot), each `max_each` and `max_total` inside it is
@@ -420,7 +444,8 @@ and `max_total` (the whole slot). Insertion checks both.
   `a:duotone` (`Group{2..2}[color choice]`) allows exactly 2 colours,
   and `w:sectPr` allows up to 6 header/footer references. A repeating
   particle that lowers to **more than one** slot is unsupported, at any
-  depth including the top level.
+  depth including the top level, unless the free-slot rule above
+  applies.
 - `All` becomes one slot with `max_each = 1` and `max_total` unbounded.
 - `Any` becomes a wildcard slot. The SDK data gives a `Namespace` for
   only 6 of 142 `Any` particles; a missing one is read as `##any`. Even
@@ -438,6 +463,15 @@ QName is ambiguous: plain `insert`/`insert_by` for it returns
 `Err(AmbiguousSlot)`, and `insert_in_slot(slot_index, before)` picks the
 slot explicitly. All other children, `w:tr` included, insert normally.
 The compile-time duplicate check (§3) applies within a slot only.
+
+To position anything, each **existing** child with such a QName is
+first assigned a slot **greedily, left to right**: the lowest of its
+candidate slots that is not before the slot of the preceding listed
+sibling. A leading `bookmarkStart` in `w:tbl` is therefore in slot 0,
+before `tblPr`. Inserting `tblGrid` then lands after `tblPr`, not in
+front of the marker. A child list that admits no such assignment
+violates the schema, and insertion into that parent returns
+`Err(UnresolvedSibling)`.
 
 **Cross-check against ECMA order.** The SDK data is not always the
 ECMA particle. For example, `x:CT_Filters` is `Choice[x14:filter*,
@@ -462,12 +496,17 @@ alternatives), before the 8 ECMA-order disagreements above. By format
 group, WordprocessingML and PresentationML base namespaces have 0
 unsupported.
 
-**Checked against real files** *(spike: `corpus_check.py`)*: for 197
-.docx/.pptx files from Apache POI's test data, the children of 171,537
+**Checked against real files** *(spike: `corpus_check.py`)*: 197
+.docx/.pptx files from Apache POI's test data were scanned. In 171,537
 instances of 18 key parents (`w:body`, `w:p`, `w:r`, `w:tbl`, `w:tr`,
 `w:tc`, `w:pPr`, `w:rPr`, `w:sectPr`, `p:sld`, `p:cSld`, `p:spTree`,
-`p:sp`, `p:pic`, `p:txBody`, `a:p`, `a:r`, `p:presentation`) appear in
-an order the lowered slots accept, with 0 violations. Where particle `Occurs` differ by Office
+`p:sp`, `p:pic`, `p:txBody`, `a:p`, `a:r`, `p:presentation`), the
+*listed* children always appear in slot order under the greedy
+assignment above: 0 violations. What this does **not** check: unlisted
+children and `mc:AlternateContent` are skipped, and counts against
+`max_each`/`max_total` are not tested. `w:rPr` is checked as `CT_RPr`
+everywhere; a review re-check against the context-correct type
+(`CT_ParaRPr` under `w:pPr`) also found 0. Where particle `Occurs` differ by Office
 version (3 entries, none in Phase0), the most permissive one is used.
 
 All Phase0 entries are flat sequences or leaves (verified against the
@@ -675,9 +714,11 @@ differ; it is identified by relationship type.)
   core primitives, and ADR-0001's row/column ordering has an explicit
   hook (`insert_by`).
 - Positive: slot lowering supports insertion for 2,110 of 2,122 content
-  models (minus the 8 ECMA-order disagreements until overridden),
-  including every WordprocessingML and PresentationML base-namespace
-  model, and its ordering agrees with 171,537 real-file instances.
+  models (minus the 8 ECMA-order disagreements until overridden, 6 of
+  which are WordprocessingML border/margin and SDT/mail-merge types). No
+  WordprocessingML or PresentationML base-namespace model is
+  unsupported by lowering, and the listed-child order agrees with
+  171,537 real-file instances.
 - Negative: two upstream data sets plus overrides to keep pinned,
   attributed and in sync. A future SDK bump can change both structure
   and the default join, so the generated diff must be read, not skimmed.
@@ -726,4 +767,4 @@ differ; it is identified by relationship type.)
 - Ecma text copyright policy version 3:
   https://ecma-international.org/wp-content/uploads/Ecma_text_copyright_policy_version_3.pdf
 - Reviews: `docs/adr/0002-opus-review-round1.md`, `docs/adr/0002-opus-review-round2.md`,
-  `docs/adr/0002-opus-review-round3.md`
+  `docs/adr/0002-opus-review-round3.md`, `docs/adr/0002-opus-review-round4.md`
