@@ -2,7 +2,8 @@
 resolver = "3"
 members = [
     "crates/ooxml-core",
-    "crates/ooxml-xlsx",
+    "crates/ooxml-schema",
+    "xtask",
 ]
 
 [workspace.package]
@@ -15,6 +16,7 @@ authors = ["Tomoya Kawanishi"]
 
 [workspace.dependencies]
 ooxml-core = { path = "crates/ooxml-core", version = "0.1.0" }
+ooxml-schema = { path = "crates/ooxml-schema", version = "0.1.0", default-features = false }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
 thiserror = "2"
