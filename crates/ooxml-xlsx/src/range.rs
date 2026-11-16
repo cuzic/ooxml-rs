@@ -130,8 +130,8 @@ impl Workbook {
     fn check_array_overlap(&self, sheet: usize, r: &CellRange) -> Result<()> {
         for (_, c) in self.census.alive().filter(|(_, c)| c.sheet == sheet) {
             let area = match c.kind {
+                // a spill (dynamic array) is an `Array` with `cm` (census)
                 FKind::Array | FKind::DataTable => c.range,
-                _ if c.dynamic => c.range,
                 _ => continue,
             }
             .unwrap_or(CellRange { first: c.at, last: c.at });
@@ -253,8 +253,11 @@ impl Workbook {
                 mc.remove_at(item);
                 mc.set_attr(COUNT, &remaining.to_string())?;
             }
+            // one element left the tree: one entry leaves the list (a
+            // duplicated ref stays merged, as in the tree)
             let merges = &mut wb.contexts.get_mut(&sheet).expect("context").merges;
-            merges.retain(|m| *m != r);
+            let at = merges.iter().position(|m| *m == r).expect("checked above");
+            merges.remove(at);
             Ok(())
         })
     }

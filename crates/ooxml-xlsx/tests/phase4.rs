@@ -34,6 +34,30 @@ fn sheet_with(children: &str, sheet_data: &str) -> Vec<u8> {
 
 // ---- merged cells (§3) ----
 
+/// Round 1 m2: a merge over a spill (dynamic array) range is refused.
+#[test]
+fn merge_over_a_spill_is_refused() {
+    let input = read("poi/xlookup.xlsx"); // C2 spills to C2:D2
+    assert_matches!(try_on(&input, 0, |ws| ws.merge("D2:E3")).1, Err(Error::ArrayResultCell { .. }));
+    assert_matches!(try_on(&input, 0, |ws| ws.merge("C2:C3")).1, Err(Error::ArrayAnchor { .. }));
+    assert_matches!(try_on(&input, 0, |ws| ws.merge_clearing("D1:D2")).1, Err(Error::ArrayResultCell { .. }));
+}
+
+/// Round 1 m2: `merge_clearing` checks every cell before clearing the first:
+/// B1 could be cleared, C1 cannot (a dependent under iterative
+/// calculation), so nothing changes and the workbook is not poisoned.
+#[test]
+fn merge_clearing_checks_every_cell_first() {
+    let input = book(
+        &[("S", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c><c r="C1"><v>3</v></c></row><row r="5"><c r="D5"><f>C1*2</f><v>6</v></c></row>"#)],
+        "",
+        r#"<calcPr calcId="191029" iterate="1"/>"#,
+    );
+    let (mut wb, r) = try_on(&input, 0, |ws| ws.merge_clearing("A1:C1"));
+    assert_matches!(r, Err(Error::IterativeCalculation { .. }));
+    wb.worksheet().unwrap().merge_clearing("A1:B1").unwrap(); // not poisoned
+}
+
 /// Round 1 M1: pivot parts are read only by `merge`; a part without a
 /// location (or one that does not parse) never stops the workbook opening,
 /// and a merge on that sheet is refused as overlapping.
