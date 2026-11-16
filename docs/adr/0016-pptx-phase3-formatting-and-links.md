@@ -1,6 +1,6 @@
 # ADR-0016: PowerPoint Phase 3 — formatting writes and links
 
-- Status: **Proposed** (revision 3)
+- Status: **Proposed** (revision 4)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (Layer 3
   append-only registries), [ADR-0002](0002-schema-driven-code-generation.md)
@@ -60,6 +60,19 @@
   | N6 provenance details | outer zip hash, full hashes in `PROVENANCE.md`, edition dates, `THIRD-PARTY-NOTICES`, root element `presetShapeDefinitons` | §6 |
   | N7 `tableStyles.xml` detection, link replacement order | by relationship, `Exact` name, `NameInUse` → `Core`; add → edit → stage → remove | §7, §9 |
   | nits | ADR-0012 linked; `ahyp` declared on `ahyp:hlinkClr` itself; 12 (slides) / 14 (with layouts and masters) | header, §7 |
+
+- **Revision 4** (alignment with the core PR #49 `core/detach-same-part`,
+  head `f8b2998`; no change of rule). #49's review round 1 (P49-m1) was
+  made on `276879f`, a prefix-re-choosing variant of #18's detach that
+  kept declarations only inside allowed extensions; #49 has since been
+  rewritten as the span-preserving clone this ADR's §3 describes
+  (`cff3623`: declarations anywhere in the copy travel with its bytes), so
+  §3 stands. Changes: §3 names #49's API
+  (`Lens::detach_same_part_as`, `SamePartOptions::keep_extension`,
+  `lens::ext_uri::HYPERLINK_COLOR`, `LensMut::insert_same_part_by`, the
+  check twin `SamePartDetached::check_insert_under`, `WrongDocument`), and
+  records P49-m2: inside a transaction the copy and its check are taken
+  from the **staged clone**, not from the package's parsed tree.
 
 ## Context
 
@@ -212,7 +225,10 @@ of the old value survives to mix with an inherited one.
   `RangeSplitsField`.
 - **Copying `a:rPr` into the split-off run** needs a **same-part copy**,
   a core requirement of this ADR (reviews M2, round 2 N1), implemented by
-  the core PR `core/detach-same-part`. It is **not** a variant of
+  the core PR #49 (`core/detach-same-part`: `Lens::detach_same_part_as`
+  with `SamePartOptions::keep_extension(uri)`, inserted by
+  `LensMut::insert_same_part_by`, check twin
+  `SamePartDetached::check_insert_under`). It is **not** a variant of
   Phase 0.1's `Lens::detach_as` (PR #18), which drops prefixes and
   re-chooses them at the destination and therefore refuses relationship
   ids, `a:extLst` and namespace declarations. It is a **span-preserving
@@ -251,7 +267,12 @@ of the old value survives to mix with an inherited one.
   `ValueOutOfRange`). "Already has every value" (principle 4) compares
   the run's **own** `a:rPr`, not resolved values: a run bold by
   inheritance still gets a direct `b="1"`, so ADR-0008 then reports it
-  as `Source::Direct`, as principle 1 promises.
+  as `Source::Direct`, as principle 1 promises. The copies and their
+  check are taken from the **staged clone** of the slide (principle 6),
+  not from the package's parsed tree: #49 binds a copy to the document it
+  was taken from, and a clone is another document, so a copy from the
+  parsed tree inserted into the clone is `Error::WrongDocument` (#49
+  review P49-m2; a false refusal, never a wrong write).
 - **`a:endParaRPr`** gets the same setters (`ParagraphMut::end_format`):
   it decides the formatting of text typed at the end and the height of an
   empty line (ADR-0005 R2-5).
