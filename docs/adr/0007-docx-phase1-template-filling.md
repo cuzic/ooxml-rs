@@ -1,6 +1,6 @@
 # ADR-0007: Word Phase1: template filling
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, oracles, fail
   honestly), [ADR-0002](0002-schema-driven-code-generation.md) (generated views, slots,
@@ -12,6 +12,52 @@
   five corpora: the 26 fixtures, Apache POI (129), Open XML SDK non-Strict (444), docx4j (12)
   and, new, the Word-authored test templates of two template engines (212). Library behaviour
   is from source at pinned revisions (§Sources).
+- Core dependencies:
+  - PR #26 (`LensMut::insert_at` / `check_insert_at`), for the child-local edits of §1.2;
+  - PR #18 (`detach_as` / `insert_detached`), for §3.2;
+  - the additive core and generator changes of §7 and §8.2.
+
+## Revision history
+
+- **Revision 1**: initial draft.
+- **Revision 2** (after `0007-opus-review-round1.md`: 4 Major, 10 Minor; spike re-run):
+  - **M1:** `Match` carries the matched text and the document's edit generation.
+    `replace_at` with a stale match is `Err(StaleMatch)` (§7, §10).
+  - **M2:** "nothing fails after the checks" is now true by construction. Every insertion a
+    call will make is dry-run against the unchanged tree first, with `check_insert_at`
+    (PR #26) or a proposed additive `check_insert` (§7).
+    - Producers' out-of-order children are refused before any write: 9 `w:pPr` and 1
+      paragraph-mark `w:rPr` in the template corpus, and `settings.xml` in 18 template files
+      and 1 SDK file.
+    - Duplicate property elements are refused too (§4, §6.3; new spike `slot_order.py`).
+  - **M3:** a replace edits only the content children that hold matched characters
+    (§1.2). Content outside the match is byte-identical: `w:noBreakHyphen`, `w:softHyphen`,
+    `w:cr`, `w:lastRenderedPageBreak` and the start tags of untouched `w:t`. A new oracle
+    T7 (iv) checks this.
+    - Revision 1's whole-run rewrite would have changed accepted cross-run needles in
+      POI 4 / SDK 8 cases (soft or non-breaking hyphens) and POI 39 / SDK 128 cases
+      (`lastRenderedPageBreak`).
+  - **M4:** the **style** column of the per-operation W2 table is dropped. `SEQ \s` depends
+    on heading levels, and the column rescued 1 file (reviewer's Q3). The other columns were
+    audited switch by switch (§6.1).
+  - **m1:** a `w:hint` difference is ignored only when every matched character in that run
+    is ASCII or CJK. `w:lang/@w:val` is described as proofing and hyphenation.
+  - **m2:** T7's reference classifier must be written independently, and spike counts are
+    reference values only. The spike was aligned with the ADR: deleted text excluded, `w:rPr`
+    child order significant, ruby bases descended, Phase1 run rule used in the `xml:space`
+    count. Numbers were re-run (SDK default cross-run rate 58.2% → 57.5%; templates 85.4% →
+    85.2%; placeholders unchanged at 511/517).
+  - **m3:** inherited superseding attributes (§4), and the attribute name `w:cstheme`.
+  - **m4:** `w:fitText` refuses the mark copy.
+  - **m5:** §8.2's comparison rule reworded; slot counts explained.
+  - **m6:** `set_paragraph_text` specified completely.
+  - **m7:** row numbering in `CellRef`.
+  - **m8:** `Story::sections()` reports whether a header is displayed.
+  - **m9:** `updateFields` round trip.
+  - **m10:** one scope argument, case folding, `AmbiguousStyle`, the POI citation.
+  - The reviewer's answers to Q1–Q10 are recorded as **proposed defaults**, pending the
+    owner's confirmation (§Open questions). Two change the scope: the `IF` rule is deferred
+    (Q4) and the style column is dropped (Q3).
 
 ## Context
 
@@ -41,22 +87,32 @@ parts**.
 
 ### 0. Shape of every Phase1 write
 
-Every text write in this ADR is a **composition of ADR-0004's `set_run_text`** (§3.2 there)
-on runs that pass R1–R4, plus at most one new `w:r` in a paragraph that has none (§3.2
-below). The other writes are attribute or element writes inside `w:rPr` or `w:pPr` (§4, §5),
-or one element in `settings.xml` (§6). Hence:
+Every text write in this ADR edits, inside runs that pass R1–R4, **only the content children
+that hold the characters being replaced** (§1.2), plus at most one new `w:r` in a paragraph
+that has none (§3.2). Phase0's `set_run_text` keeps its whole-run meaning: there, the caller
+supplies the run's entire text. The other writes are attribute or element writes inside
+`w:rPr` or `w:pPr` (§4, §5), or one element in `settings.xml` (§6). Hence:
 
-- the text mapping (`\t` → `w:tab`, `\n` → `w:br`), the `xml:space` rules, the no-op rule
-  and `T1 InvalidXmlChar` are ADR-0004's, unchanged;
-- each run's diff stays inside its own span, its start tag and `w:rPr` byte-identical (T2);
-- no element is moved or deleted: emptied runs stay in place without content, and range
-  markers (bookmarks, comment ranges, permissions) never move;
+- the text mapping (`\t` → `w:tab`, `\n` → `w:br`), the `xml:space` rules and
+  `T1 InvalidXmlChar` are ADR-0004's, applied to the written pieces only;
+- each run's diff stays inside its own span, its start tag and `w:rPr` byte-identical. Within
+  the run, content children that hold no replaced character are byte-identical (T2, T7 (iv));
+- no element is moved. Emptied runs stay in place without content, and range markers
+  (bookmarks, comment ranges, permissions) never move;
 - Phase1 creates no `w:id`, `w14:paraId`, `w14:textId`, rsid, relationship, content type or
   part. It writes `settings.xml` only through the opt-in of §6.3.
 
-Each call checks the document gates, then every target, then mutates (ADR-0004 §3.3 order).
-A call that touches several runs or paragraphs is **atomic**: either every target passes and
-all are written, or nothing changes.
+**Atomicity (revision 2, review M2).** Each call runs in this order:
+
+1. the document gates;
+2. the checks on every target;
+3. a dry run of **every insertion** the call will make, against the unchanged tree (§7);
+4. only then the mutations.
+
+A call that touches several runs or paragraphs is atomic: either everything passes and all of
+it is written, or nothing changes and the first failure is returned. This includes the
+placement failures of core's `insert` (`UnresolvedSibling`, `AlreadyPresent`), which revision 1
+did not check in advance.
 
 ### 1. Cross-run find and replace
 
@@ -89,43 +145,73 @@ Collapsed bookmarks are transparent because they mark a point, not a range. Word
 the template corpus are collapsed. Leaving one where it is puts it after the replacement
 text, a valid point. Without this rule 6 template placeholders were refused.
 
-#### 1.2 Applying an accepted match
+#### 1.2 Applying an accepted match (revision 2: child-local edits, review M3)
 
-Let the match cover characters `s..e` of the paragraph text, and let runs `r₀ … rₖ` be the
-runs that hold them (`r₀` holds `s`).
+Revision 1 rewrote every touched run as a whole with `set_run_text`. That re-encodes content
+the caller did not touch:
 
-1. `r₀`'s new text is its text before `s`, then the replacement, then (if `k = 0`) its text
-   after `e`.
-2. For `0 < i ≤ k`, `rᵢ`'s new text is its text with the matched characters removed (a
-   prefix; for `rₖ` the rest stays).
-3. Every changed run is written with ADR-0004's `set_run_text` algorithm. A run left with
-   empty text keeps its element and `w:rPr` and has no content children (`<w:r …><w:rPr>…
-   </w:rPr></w:r>`; `CT_R` content is all optional). Run indices therefore stay valid for the
-   lifetime of the `Document`, as in Phase0.
-4. When several matches fall in one paragraph, the per-run texts are computed for all of them
-   first and each run is written once.
+- `w:noBreakHyphen` and `w:softHyphen` become literal U+2011 and U+00AD in `w:t`;
+- `w:cr` becomes `w:br`;
+- `w:lastRenderedPageBreak` is dropped.
+
+On the accepted cross-run needles of the spike (`M3_outside_match_content`), this happens in
+POI 4 and SDK 8 cases with a soft or non-breaking hyphen outside the match, and in POI 39 and
+SDK 128 cases with a `w:lastRenderedPageBreak`.
+
+Revision 2 edits **only the content children that hold matched characters**. Each content
+child of a run holds a fixed slice of the run's text, by ADR-0004 §3.1's mapping:
+
+- `w:t`: its text;
+- `w:tab`, `w:br`, `w:cr`, `w:noBreakHyphen`, `w:softHyphen`: one character each;
+- `w:lastRenderedPageBreak`: none.
+
+Let the match cover characters `s..e` and let `r₀ … rₖ` be the runs holding them, with `r₀`
+holding `s`.
+
+1. A content child is **affected** if its slice intersects `s..e`. A zero-length child
+   (`w:lastRenderedPageBreak`) is affected only when it lies strictly inside the match: it
+   marked a page break inside text that no longer exists. At the match's edges it is kept.
+2. **In `r₀`**, the affected children are replaced by a sequence:
+   - the part of the first affected child before `s` (only a `w:t` can have one);
+   - the replacement;
+   - if `k = 0`, the part of the last affected child after `e`.
+
+   This sequence is mapped to pieces (`w:t`, `w:tab`, `w:br`) with ADR-0004 §3.2's table.
+   - If the first affected child is a `w:t` and the first piece is text, that `w:t` is kept:
+     `set_text`, start tag verbatim, `xml:space` as in ADR-0004 §3.2 step 6.
+   - The other pieces are created with `insert_at` (PR #26) directly after it.
+   - The remaining affected children are removed (`remove_at`).
+3. **In `rᵢ`, `0 < i ≤ k`**, the affected children are removed. The exception is `rₖ`'s last
+   affected child: if it is a `w:t` that holds text after `e`, it is kept and `set_text` to
+   that suffix.
+4. Unaffected children, `w:rPr` and the run's start tag are not touched.
+5. A run left with no content child keeps its element (`<w:r …><w:rPr>…</w:rPr></w:r>`;
+   `CT_R` content is all optional). Run indices stay valid for the lifetime of the
+   `Document`, as in Phase0.
+6. **Several matches in one paragraph** are planned together and applied from the last to the
+   first, so earlier child indices stay valid. Each child is written at most once.
+7. **No-op:** a match whose replacement equals the matched text changes nothing.
 
 The replacement takes **`r₀`'s formatting**: the run that holds the first matched character.
 That is what both template engines do with the run holding the start delimiter (docxtemplater
-`parser.js:145-157`, docxtpl `template.py:91-111`), and it is predictable from the template:
+`parser.js:145-157`, docxtpl `template.py:91-111`). It is also predictable from the template:
 format the first character of the placeholder.
 
 Markers at the match edges stay outside or inside the replacement as they were outside or
-inside the placeholder: a bookmark that starts exactly at `s` stays before the replacement,
-one that ends exactly at `e` stays after it. A bookmark that wraps exactly a placeholder
+inside the placeholder. A bookmark that starts exactly at `s` stays before the replacement,
+and one that ends exactly at `e` stays after it. A bookmark that wraps exactly a placeholder
 therefore wraps its value, which is how bookmark-based templates are read back.
 
-**`xml:space`.** Step 3 adds `xml:space="preserve"` where ADR-0004 §3.2 step 6 requires it
-(edge or double spaces), and never removes one. One case is refused instead. A changed run
-whose `w:t` has leading or trailing whitespace **without** `preserve` would get the attribute
-when it is rewritten. If that whitespace lies outside the match, a space Word does not show
-*(u)* would become visible, a change the caller did not ask for. This is
-`Err(UnpreservedWhitespace)`. It affects 3 of 517 template placeholders. ADR-0004's open
-question on how Word reads such text decides whether the refusal can be lifted (§Open
-questions 2).
+**`xml:space`.** Only `w:t` elements that are written (kept with `set_text`, or created) get
+`xml:space="preserve"`, where ADR-0004 §3.2 step 6 requires it (edge or double spaces). An
+existing one is never removed.
 
-`w:lastRenderedPageBreak` in a changed run is dropped, as in Phase0 (owner decision of
-2026-11-16).
+One case is refused. A **kept** `w:t` can have leading or trailing whitespace **without**
+`preserve`, outside the match. Writing it would add the attribute, and a space Word does not
+show *(u)* would become visible: a change the caller did not ask for. This is
+`Err(UnpreservedWhitespace)`. It affects 3 of 517 template placeholders. ADR-0004's open
+question on how Word reads such text decides whether the refusal can be lifted (proposed
+default Q2).
 
 #### 1.3 Formatting rule
 
@@ -136,31 +222,40 @@ prefixes, attribute order and whitespace-only text. A missing `w:rPr` equals an 
 | `RunFormatting` | Accepts | Refuses |
 |---|---|---|
 | `Identical` | all canonically equal | any difference → `MixedFormatting` |
-| **`IgnoreInvisible`** (default) | equal after dropping `w:noProof`, `w:lang/@w:val` and `w:rFonts/@w:hint` | any other difference, including `w:lang/@w:eastAsia` and `@w:bidi`, which can change glyph selection *(u)* |
+| **`IgnoreInvisible`** (default) | equal after dropping `w:noProof` and `w:lang/@w:val`; and `w:rFonts/@w:hint`, but **only** when every matched character of the run whose hint differs is ASCII or CJK (revision 2, review m1) | any other difference, including `w:lang/@w:eastAsia` and `@w:bidi`, which can change glyph selection *(u)* |
 | `FirstRun` | everything | — |
 
 Why the default ignores exactly these:
 
-- `w:noProof` and `w:lang/@w:val` choose the proofing language of Latin text. They do not
-  change what is drawn.
+- `w:noProof` and `w:lang/@w:val` choose the proofing language of Latin text, and with
+  `settings/w:autoHyphenation` on, the hyphenation dictionary *(u)*. They do not change the
+  glyphs drawn. They can change where a line is hyphenated, as any edit can.
 - `w:rFonts/@w:hint` tells Word which font slot to use for characters that belong to two
-  ranges (quotes, some punctuation). Word sets it per run in East Asian documents: 27.4% of
-  SDK run pairs differ only there.
-- The replacement is new text. It gets `r₀`'s value of each property anyway, so the only
-  question is whether the *needle* looked uniform to the template author, and these three
-  properties are invisible.
+  ranges: quotes, ellipsis, dashes, U+00A0, some punctuation. For ASCII and for CJK
+  ideographs, kana, hangul, CJK punctuation and fullwidth forms the slot is fixed whatever
+  the hint, so for those characters the hint is invisible.
+  - The reviewer's probe found 95 SDK needles where it was not invisible: `can’t`, `IC – L`,
+    and U+00A0 in 3 template needles. These are now `MixedFormatting`.
+  - Word sets the hint per run in East Asian documents: 27.4% of SDK run pairs differ only
+    there.
+- The replacement is new text and gets `r₀`'s value of each property anyway. So the only
+  question is whether the *needle* looked uniform to the template author.
 
-| Measured (`replace_sim.py`) | fixtures | POI | SDK | templates |
+| Measured (`replace_sim.py`, revision 2) | fixtures | POI | SDK | templates |
 |---|---|---|---|---|
 | adjacent text runs with identical `rPr` | 77.8% | 75.6% | 45.8% | 91.2% |
-| … differing only invisibly | 0.2% | 3.7% | 27.9% | 2.4% |
-| cross-run needles accepted: `Identical` / **default** / `FirstRun` | 58.7 / **58.9** / 76.2% | 63.3 / **66.5** / 85.3% | 36.1 / **58.2** / 82.7% | 83.1 / **85.4** / 93.0% |
+| … differing only in `noProof`/`lang/@val`/`hint` | 0.2% | 3.7% | 27.9% | 2.4% |
+| cross-run needles accepted: `Identical` / **default** / `FirstRun` | 58.7 / **58.9** / 76.2% | 63.3 / **66.5** / 85.3% | 36.1 / **57.5** / 82.7% | 83.1 / **85.2** / 93.0% |
 | template placeholders accepted (default) | — | — | — | **511 / 517 (98.8%)** |
 
-"Cross-run needles" are the ≤6-character spans centred on every run boundary: the hardest
-case, since an arbitrary substring is far more likely to straddle a formatting change than a
-placeholder. Of the 6 refused placeholders, 3 are in or across content controls, 1 crosses a
-hyperlink, 1 is a field result, and 1 is a real formatting mix.
+"Cross-run needles" are the ≤6-character spans centred on every run boundary. They are the
+hardest case, since an arbitrary substring is far more likely to straddle a formatting change
+than a placeholder is. Of the 6 refused placeholders:
+
+- 3 are in or across content controls;
+- 1 crosses a hyperlink;
+- 1 is a field result;
+- 1 is a real formatting mix.
 
 #### 1.4 Refusals
 
@@ -178,6 +273,9 @@ Skipping is never silent: it is opt-in and reported.
 | `MarkerInsideMatch { marker, id }` | an anchor lies strictly inside the match |
 | `MixedFormatting` | §1.3 |
 | `UnpreservedWhitespace` | §1.2 |
+| `Core(UnresolvedSibling)`, `Core(AlreadyPresent)` | the dry run of an insertion the match needs fails (§0, §7): an out-of-order or `mc:AlternateContent`-holding run |
+
+`replace_at` with a match from before the last edit is the call error `StaleMatch` (§7).
 
 The document gates W1, W3 and W2 come first, as in Phase0. W2 is evaluated per operation
 (§6).
@@ -249,9 +347,15 @@ to compute.
 
 A header or footer part applies to every section that references it, and, by inheritance,
 to later sections that have no reference of that type *(ECMA-376 Part 1 §17.10.5, u)*.
-Editing the part changes all of them. `Story::sections()` reports, read-only, which sections
-(by index in document order) and which types (`default`/`first`/`even`) use the part after
-inheritance, so a caller can tell. In the corpora no part is referenced by two `w:sectPr`
+Editing the part changes all of them. `Story::sections()` reports this read-only, as
+`SectionUse { section, kind, displayed }`, so a caller can tell:
+
+- `section` is the section's index in document order;
+- `kind` is the reference type (`default`/`first`/`even`) through which the section uses the
+  part after inheritance;
+- `displayed` (revision 2, review m8) is false for a `first` header in a section without
+  `w:titlePg`, and for an `even` header when `settings/w:evenAndOddHeaders` is off. Word keeps
+  such parts but does not show them *(u)*. In the corpora no part is referenced by two `w:sectPr`
 references; 1 POI part and 12 template parts are referenced by none, which makes them
 invisible. They are still stories and can be edited.
 
@@ -281,16 +385,20 @@ is a boundary for matches. Revisit when Phase4 needs untyped descent for other r
 
 #### 3.1 `set_paragraph_text`
 
-`set_paragraph_text(p, text)` makes the paragraph's text equal `text`:
+`set_paragraph_text(p, text, &TextOptions { formatting })` makes the paragraph's text equal
+`text`. `formatting` is §1.3's `RunFormatting`, default `IgnoreInvisible`; `set_cell_text`
+takes the same options (revision 2, review m6).
 
-- **Paragraph with runs:** it is §1 applied to the whole text `0..len`, with
-  `on_refused: Refuse`. The same groups, boundaries, anchors and formatting rule apply, so the
-  first run's formatting carries the new text. A paragraph whose runs have no text puts it into
-  its first settable run.
-- **Paragraph without runs:** see §3.2.
-
-Anything in the paragraph that is not a text run or a transparent or anchor element refuses:
-`ParagraphNotSimple`, carrying the boundary.
+- **Paragraph with at least one `w:r` anywhere in its flow** (directly or in a wrapper): this is
+  §1 applied to the whole text `0..len`, with `on_refused: Refuse`, and §1.2's child-local
+  edit. The same groups, boundaries, anchors and formatting rule apply, so the first run's
+  formatting carries the new text. If the runs hold no text, the text goes into the first
+  settable run. Any element outside the matched range that is neither a text run nor
+  transparent nor an anchor refuses with `ParagraphNotSimple { boundary }`.
+- **Paragraph with no `w:r` at all** (only `w:pPr` and transparent or anchor elements): §3.2.
+  - `""` is a no-op: no empty run is created.
+  - Any other child refuses with `ParagraphNotSimple`: a `w:hyperlink` or `w:fldSimple`
+    without runs, `m:oMath`, a content control, `mc:AlternateContent`.
 
 #### 3.2 A run in an empty paragraph
 
@@ -318,15 +426,31 @@ The copy is refused, and nothing is written, when the mark's `w:rPr` has:
 |---|---|---|
 | `InsideRevision` | `w:ins`, `w:del`, `w:moveFrom`, `w:moveTo`, `w14:conflict*` or `w:rPrChange` (a tracked paragraph mark) | SDK 1 |
 | `MarkHidden` | `w:vanish`, `w:specVanish` or `w:webHidden` on: the new text would be hidden | POI 5, SDK 2, fixtures 2 |
-| `UnsupportedMarkProperties` | `w:eastAsianLayout` (its `w:id` groups runs; a copy would join the group), or any child outside the `w` namespace | 0 |
+| `UnsupportedMarkProperties` | `w:eastAsianLayout` or `w:fitText` (revision 2, review m4). Both carry a `w:id` that groups runs, so a copy would join the group. Also any child outside the `w` namespace | 0 |
+| `Core(UnresolvedSibling)`, `DuplicateProperty` | the mark's children are out of slot order, or a property occurs twice: a copy would carry the defect into the run (`slot_order.py`) | templates: 1 out of order, 56 duplicates in 15 files (`w:sz` twice) |
 | `Core(NotDetachable { .. })` | any PR #18 refusal (relationship attribute, MC, ignorable namespace, …) | 0 |
+
+Everything else on the mark is copied, including formatting meant only for the mark. An
+example is a spacer cell whose mark has `w:sz w:val="2"` (1 pt): text written into it is 1 pt.
+That is Word's own behaviour *(u)*, and it is listed in Consequences.
 
 #### 3.3 `set_cell_text`
 
 Tables are listed per story in document order, nested tables included. A cell is addressed as
-`CellRef { story, table, row, cell }`, where `row` is the index among the table's `w:tr`
-children and `cell` the index among that row's `w:tc` children. `Cell` also reports its grid
-column (with `w:gridBefore`), `gridSpan` and merge state, read-only.
+`CellRef { story, table, row, cell }` (revision 2, review m7):
+
+- `row` counts **every** `w:tr` of the table in document order, including rows inside
+  row-level `w:sdt`/`w:customXml`, so it matches the visual row. Those wrapped rows are then
+  refused.
+- `cell` counts the row's `w:tc` in order, including cells inside cell-level wrappers, which
+  are refused.
+
+`Cell` also reports, read-only:
+
+- its grid column, counting `w:gridBefore` (read from the raw `w:trPr`, which is not
+  allowlisted);
+- its `gridSpan`;
+- its merge state.
 
 `set_cell_text(cell, text)` is `set_paragraph_text` on the cell's paragraph when:
 
@@ -366,7 +490,7 @@ default), `Set(T)` or `Clear` (remove the element: the value is inherited again)
 | `size`, `size_cs` | `w:CT_HpsMeasure/w:sz`, `…/w:szCs` | half-points as an integer, 1..=3276 *(u: Word's 1638 pt limit)* | — |
 | `highlight` | `w:CT_Highlight/w:highlight` | `ST_HighlightColor` (17 values) | — |
 | `vert_align` | `w:CT_VerticalAlignRun/w:vertAlign` | `baseline`, `superscript`, `subscript` | — |
-| `font(slot, name)` | `w:CT_Fonts/w:rFonts` | one of `w:ascii`, `w:hAnsi`, `w:eastAsia`, `w:cs` | the same slot's theme attribute (`w:asciiTheme`, …; it supersedes the name, *ECMA §17.3.2.26, u*; SDK 714 `asciiTheme`, 792 `eastAsiaTheme`). `w:hint` is kept |
+| `font(slot, name)` | `w:CT_Fonts/w:rFonts` | one of `w:ascii`, `w:hAnsi`, `w:eastAsia`, `w:cs` | the same slot's theme attribute on the same element: `w:asciiTheme`, `w:hAnsiTheme`, `w:eastAsiaTheme` or **`w:cstheme`** (lower-case `t`, as in the SDK's `CT_Fonts`). It supersedes the name *(ECMA §17.3.2.26, u)*; SDK 714 `asciiTheme`, 792 `eastAsiaTheme`. `w:hint` is kept |
 | `run_style` | `w:CT_String253/w:rStyle` | §5 | — |
 
 **Paragraph properties (`w:pPr`):**
@@ -374,15 +498,31 @@ default), `Set(T)` or `Clear` (remove the element: the value is inherited again)
 | Setter | Element | Written form | Also removed when set |
 |---|---|---|---|
 | `alignment` | `w:CT_Jc/w:jc` | `left`, `center`, `right`, `both`, `distribute`. Reading also accepts `start`/`end` and the others in `ST_Jc` | — |
-| `space_before`, `space_after` | `w:CT_Spacing/w:spacing` | `w:before`/`w:after` in twips | `w:beforeLines`/`w:beforeAutospacing` (resp. after), which supersede twips *(u)*: SDK 35 `*Lines`, 309 `*Autospacing` |
+| `space_before`, `space_after` | `w:CT_Spacing/w:spacing` | `w:before`/`w:after` in twips | `w:beforeLines`/`w:beforeAutospacing` (resp. after), which supersede twips *(u)*: SDK 35 `*Lines`, 309 `*Autospacing`; inherited ones are cancelled (rule below) |
 | `line_spacing` | `w:CT_Spacing/w:spacing` | `w:line` + `w:lineRule` (`auto` in 240ths, `exact`, `atLeast`) | — |
-| `indent_left`, `indent_right` | `w:CT_Ind/w:ind` | `w:left`/`w:right` in twips | `w:start`/`w:end` and `w:leftChars`/`w:startChars` (resp. right), which supersede *(u)*: SDK 315 `leftChars` |
-| `first_line`, `hanging` | `w:CT_Ind/w:ind` | `w:firstLine` or `w:hanging` | the other one, and `w:firstLineChars`/`w:hangingChars` |
+| `indent_left`, `indent_right` | `w:CT_Ind/w:ind` | `w:left`/`w:right` in twips | `w:start`/`w:end` and `w:leftChars`/`w:startChars` (resp. right), which supersede *(u)*: SDK 315 `leftChars`; inherited ones are cancelled (rule below) |
+| `first_line`, `hanging` | `w:CT_Ind/w:ind` | `w:firstLine` or `w:hanging` | the other one, and `w:firstLineChars`/`w:hangingChars`; inherited ones are cancelled (rule below) |
 | `keep_next`, `keep_lines` | `w:CT_OnOff/w:keepNext`, `…/w:keepLines` | as `b` | — |
 | `paragraph_style` | `w:CT_String/w:pStyle` | §5 | — |
 
 Rules:
 
+- **Inherited superseding attributes (revision 2, review m3).** The removals in the tables act
+  on the element being written. A superseding attribute can also be **inherited** from the
+  paragraph's style chain (`w:pStyle` → `w:basedOn`… → the default paragraph style →
+  `w:docDefaults/w:pPrDefault`).
+  - **Indents and spacing.** When the chain has a non-zero `*Chars`/`*Lines` for the value
+    being set, or `*Autospacing` on, the setter also writes that attribute with `0` (or the
+    on/off off form) on the direct element. That is Word's own form for cancelling an inherited
+    value: SDK has 90 direct `w:firstLineChars="0"`, and 4 paragraphs where the style has
+    `*Chars` and the direct `ind` only twips (`formatting_styles.py`, "inherited").
+  - **Fonts and colours.** Inherited theme attributes need no cancelling. Direct `w:ascii`
+    without `w:asciiTheme` below a `docDefaults` `asciiTheme` is how Word itself writes a
+    direct font: POI 7,193, SDK 1,249, templates 186 runs.
+  - The chain walk is read-only, follows `w:basedOn` with a cycle check, and stops at 32
+    levels *(fail closed: `StyleChainTooDeep`)*. It is not the Phase3 resolver: it only
+    looks for the presence of these attributes.
+  - `manual_check` gains an output with a style-level `firstLineChars` plus `first_line`.
 - **Independent complex-script twins.** `bold` writes `w:b` only and `bold_cs` writes `w:bCs`
   (same for `i`, `sz`). Producers do not pair them: `b` without `bCs` in 1,973 of 3,578 SDK
   runs, `sz` without `szCs` in 12,615 of 16,480. python-docx also separates them
@@ -398,11 +538,20 @@ Rules:
   places both by the generated slots (`w:rPr` 51 slots, `w:pPr` 36), so the order is
   schema-correct by construction (T6). Attribute writes and removals are core's
   `set_attr`/`remove_attr`. Nothing outside the target `w:rPr`/`w:pPr` changes.
-- **Producer order and duplicates.** Transitional `CT_RPr` allows its children in any order
-  and repeated. An existing `w:rPr` whose children do not fit the SDK slots makes the insert
-  `Core(UnresolvedSibling)` (ADR-0002 §4.1). ADR-0002's corpus check found 0 such `w:rPr` or
-  `w:pPr` in POI. A property element that occurs twice in one `w:rPr`/`w:pPr` refuses with
-  `DuplicateProperty`: which copy wins is not specified *(fail closed)*.
+- **Producer order and duplicates, checked before writing (revision 2, review M2).**
+  Transitional `CT_RPr` allows its children in any order and repeated. Core's `insert`
+  refuses a parent whose existing children do not fit the slots, or that has an
+  `mc:AlternateContent` child (`UnresolvedSibling`).
+  - Revision 1 relied on ADR-0002's POI-only count of 0. The corpora have such parents
+    (`slot_order.py`, writable files):
+    - templates: 9 `w:pPr` in 5 files, all docxtemplater outputs
+      (`[sectPr, pStyle, bidi, jc, rPr]`), and 1 paragraph-mark `w:rPr`;
+    - POI, SDK, docx4j and the fixtures: 0 `w:rPr`/`w:pPr` out of order (about 76,000 checked).
+  - Every insertion of a call is therefore dry-run first (§7). A refused parent fails the
+    whole call before its first change, with `Core(UnresolvedSibling)`.
+  - A property element that occurs twice in one `w:rPr`/`w:pPr` refuses with
+    `DuplicateProperty`: which copy wins is not specified *(fail closed)*. Templates have 56
+    duplicated mark properties in 15 files.
 - **Targets.** A run passes R1, R2 and R3 and has no `w:rPrChange`. R4 is not required:
   formatting a run that holds a tab or a page break is harmless. A paragraph is targetable
   when its `w:pPr` has no `w:pPrChange`, its mark is not a revision, it is not inside a
@@ -420,7 +569,9 @@ it stays dirty-free and is copied raw. It never writes it.
 - `Document::styles()` lists `StyleInfo { id, kind, name, is_default, linked }` from
   `w:style`.
 - `style_ids_by_name(name)` matches `w:name/@w:val` **case-insensitively** and returns
-  every match. The lookup by name is the portable one. Localized Word derives `w:styleId`
+  every match. Case-insensitive means equal after Unicode default lower-casing of each `char`
+  (Rust `char::to_lowercase`), not only ASCII folding. Built-in names are ASCII (`heading 1`),
+  and custom names may be localized (revision 2, review m10). The lookup by name is the portable one. Localized Word derives `w:styleId`
   from the UI name (`Rubrik`, `Standardowy`, `Tlotextu`), but `w:name` keeps the built-in
   English name (`Title`, `Normal Table`) for built-in styles. Measured: id and name are
   unrelated, beyond case and spaces, for 2,937 POI, 1,104 SDK and 1,915 template styles.
@@ -438,7 +589,8 @@ it stays dirty-free and is copied raw. It never writes it.
 
 Existing references to undefined ids are left as they are (22 `pStyle` in one POI file),
 never repaired. Duplicate ids, exact or case-insensitive, occur 0 times, so exact matching
-is unambiguous in the corpora; a duplicate refuses with `UnknownStyle` *(fail closed)*.
+is unambiguous in the corpora. A duplicate id refuses with `AmbiguousStyle { id }`
+*(fail closed; revision 2, review m10)*.
 Applying a style does not clear direct formatting. POI and docx-rs write any id unchecked
 (`XWPFParagraph.java:1438-1442`, `paragraph.rs:254-257`).
 
@@ -447,60 +599,101 @@ Applying a style does not clear direct formatting. POI and docx-rs write any id 
 #### 6.1 Per-operation table
 
 ADR-0004's W2 refuses every write when any story has a field outside `fields::SAFE`.
-Revision 3 recorded the reviewer's recommendation: a table of which codes each operation
-cannot make stale. Phase1 adopts it. `fields.rs` gets one column per operation class. A code
-is allowed for an operation if it is in `SAFE` or in that column; every nested field must be
-allowed too.
+ADR-0004 revision 3 recorded the reviewer's recommendation: a table of which codes each
+operation cannot make stale. Phase1 adopts it **for three columns**. `fields.rs` gets one
+column per operation class. A code is allowed for an operation if it is in `SAFE` or in that
+column, and every nested field must be allowed too.
 
 | Operation class | Additional allowed codes | Why their cached results cannot change |
 |---|---|---|
-| **text**: `set_run_text`, `replace`, `set_paragraph_text`, `set_cell_text` | `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM`, `AUTONUM`, `AUTONUMLGL`, `AUTONUMOUT` | they depend on the number and order of fields or paragraphs, on their own instruction, or on note numbering. Text edits change none of these: `\n` becomes `w:br`, never a paragraph |
-| **append**: `append_paragraph` (Phase0) | the same | as ADR-0004 rev 3. Appending adds a paragraph after every field, so earlier `AUTONUM`/`LISTNUM` counts are unchanged |
-| **format**: §4 setters | the same, plus `NUMWORDS`, `NUMCHARS`, `INFO NUMWORDS`/`NUMCHARS`, `DOCPROPERTY Words`/`Characters`/`CharactersWithSpaces`, and `=` | formatting changes no characters and no numbers. `REF` is not added: its result copies the source's formatting *(u)*. `Lines`/`Pages` statistics are not added: they depend on layout |
-| **style**: §5 setters | `SEQ`, `TC`, `XE`, `NOTEREF` | a style can change outline level and numbering (`TOC`, `STYLEREF`, `AUTONUM*`, `LISTNUM`, `REF \n`) and hidden text (counts) |
+| **text**: `set_run_text`, `replace`, `set_paragraph_text`, `set_cell_text` | `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM`, `AUTONUM`, `AUTONUMLGL`, `AUTONUMOUT` | they depend on the number and order of fields or paragraphs, on their own instruction, on note numbering, or on outline levels. Text edits change none of these: `\n` becomes `w:br`, never a paragraph, and no style or outline level is written |
+| **append**: `append_paragraph` (Phase0) | the same | as ADR-0004 rev 3. Appending adds a paragraph after every field, so nothing that precedes it is renumbered |
+| **format**: §4 setters | the same, plus `NUMWORDS`, `NUMCHARS`, `INFO NUMWORDS`/`NUMCHARS`, `DOCPROPERTY Words`/`Characters`/`CharactersWithSpaces`, and `=` | formatting changes no characters and no numbers, and §4's subset writes no outline level, style or hidden text. `REF` is not added: its result copies the source's formatting *(u)*. `Lines`/`Pages` statistics are not added: they depend on layout |
 
-`TOC`, `REF`, `PAGEREF`, `STYLEREF`, `IF` (except under §6.2), `INDEX`, `TOA`, `CITATION`,
-`BIBLIOGRAPHY` and unknown codes stay refused for every operation. Tests enumerate the whole
-table, with one unit document per (code, operation) cell.
+**The style column is dropped (revision 2, review M4; proposed default Q3).** Revision 1
+allowed `SEQ` under `set_paragraph_style`/`set_run_style`. But `SEQ id \s n` restarts the
+sequence after each heading of level *n*
+([MS-OI29500 §17.16.5.56](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/a591c060-2800-4699-b1f4-dbb0c4374557):
+"the \s switch resets the sequence following a heading of the specified level"). Applying or
+removing a heading style therefore changes its results. SDK `complex2005_12rtm.docx` has 20
+`SEQ Figure \* ARABIC \s 1`. The column rescued 1 file, so the style setters (§5) are gated
+by the document-wide W2 of ADR-0004, as in Phase0.
+
+**Switch audit of the three columns (revision 2).** Every allowed code was re-checked for
+arguments and switches that make it depend on what the operation changes.
+
+| Code / switch | text | append | format | Reason |
+|---|---|---|---|---|
+| `SEQ` (plain, `\c`, `\r n`, `\h`, `\n`, `\*`, `\#`) | yes | yes | yes | order and count of `SEQ` fields only |
+| `SEQ … \s n` | yes | yes | yes | depends on headings. No allowed operation writes a style or outline level, and an appended paragraph follows every field, so it can reset nothing |
+| `SEQ id bookmark` | yes | yes | yes | the `SEQ` nearest before the bookmark. Bookmarks never move in Phase1 (§0) |
+| `LISTNUM` (`\l`, `\s`) | yes | yes | yes | its own list of fields; no paragraph is added before it |
+| `AUTONUM`, `AUTONUMLGL`, `AUTONUMOUT` | yes | yes | yes | paragraph count and outline levels before the field: unchanged |
+| `TC`, `XE` | yes | yes | yes | instruction text only (their consumers, `TOC`/`INDEX`, stay refused) |
+| `NOTEREF` (`\f`, `\h`, `\p`) | yes | yes | yes | note number and relative position: no note is added or moved |
+| `NUMWORDS`, `NUMCHARS`, word/character `DOCPROPERTY` | — | — | yes | formatting changes no characters |
+| `=` (incl. bookmark operands, `\#`) | — | — | yes | values unchanged by formatting |
+
+Everything else stays refused for every operation: `TOC`, `REF`, `PAGEREF`, `STYLEREF`,
+`IF` (§6.2), `INDEX`, `TOA`, `CITATION`, `BIBLIOGRAPHY`, and unknown codes. Tests enumerate
+the whole table, with one unit document per (code or switch, operation) cell.
 
 **Measured yield is small** (`fields_perop.py`). Of the 33 StaleFieldRisk files (POI 1,
-SDK 30, docx4j 2; templates 0), the table lifts W2 for text edits in **1** (SDK `table.docx`,
-`SEQ` only), for formatting in 6 and for style edits in 1. The 19 files with `TOC` +
-`PAGEREF` (18 SDK, 1 docx4j) stay refused under every operation. The table is kept because it is small and
-fully enumerable. Whether it is worth shipping before `updateFields` is §Open question 3.
+SDK 30, docx4j 2; templates 0), the table lifts W2 for text edits in **1** (SDK
+`table.docx`, `SEQ` only) and for formatting in 6. The 19 files with `TOC` + `PAGEREF`
+(18 SDK, 1 docx4j) stay refused under every operation. The table is kept because it is small
+and fully enumerable (proposed default Q3).
 
-#### 6.2 `IF`
+#### 6.2 `IF`: deferred (revision 2; proposed default Q4)
 
-`IF` is allowed for text, append and format (not style) when:
+`IF` stays refused in Phase1. Revision 1 allowed `IF` when every nested field was allowed and
+neither side of its comparison was a bare word, a bookmark reference that an edit could
+change. That needed a tokenizer over the instruction recognizing:
 
-- (a) every nested field is allowed for that operation, and
-- (b) its comparison is `operand op operand` where neither operand is a **bare word**.
-
-A bare word is a bookmark reference whose text the edit could change. For (b), a tokenizer
-over the instruction recognizes:
-
-- quoted strings (straight and typographic quotes, as ADR-0004 rev 4);
+- quoted strings (straight and typographic);
 - numbers;
 - the operators `= <> < > <= >=`;
-- switches (`\* …`, `\@ …`, `\# …`);
-- a placeholder for each nested field;
+- switches;
+- a placeholder per nested field;
 - bare words.
 
-An operator must be the second token. The mail-merge pattern `{ IF { MERGEFIELD Gender } =
-"F" "Ms." "Mr." }` passes. `{ IF Total > 100 … }` (bookmark `Total`) and anything the
-tokenizer cannot read are refused. The 5 `IF` fields in the corpora (all SDK) are all
-refused: four `IF DATE \@ "yyyy" = "1998" …` (a bare word) and one with an unbalanced quote.
-So the rule is tested by unit documents only. Mail-merge main documents
-(`settings/w:mailMerge`: 1 POI, 1 SDK) re-evaluate `IF`/`MERGEFIELD` on every merge *(u)*.
+An operator had to be the second token. The design is kept here for the phase that adopts it.
+The reviewer recommends deferring it:
+
+- no `IF` in the corpora passes the rule. The 5 SDK fields are four
+  `IF DATE \@ "yyyy" = "1998" …`, with a bare word, and one with an unbalanced quote;
+- a new tokenizer is attack surface and maintenance cost.
+
+The mail-merge case `{ IF { MERGEFIELD Gender } = "F" "Ms." "Mr." }` is handled by the
+`updateFields` opt-in until real mail-merge templates (Q6) justify the rule. Mail-merge main
+documents (`settings/w:mailMerge`: 1 POI, 1 SDK) re-evaluate `IF`/`MERGEFIELD` on every
+merge *(u)*.
 
 #### 6.3 `enable_update_fields_on_open`
 
 `Document::enable_update_fields_on_open()` is the explicit opt-in that lifts W2 for every
 operation of this `Document` from then on. It writes `<w:updateFields w:val="true"/>` into
-`settings.xml` (POI's `enforceUpdateFields` writes `w:val="on"`, `XWPFSettings.java:372-376`).
-Word then offers to update all fields when it opens the file *(u: owner to confirm the prompt,
-and whether headers, footers and `PAGEREF` in a `TOC` are updated)*. Readers other than Word
-keep showing the stale results; the API documentation says so (ADR-0004 Alternatives 4).
+`settings.xml`.
+
+POI's `XWPFSettings.setUpdateFields` writes `w:val="on"` (`setVal(STOnOff1.ON)`, POI
+`47dcff76` `XWPFSettings.java:372-376`, re-checked in revision 2). Its Javadoc states two
+things *(secondary source, u)*:
+
+- Word asks "This document contains fields that may refer to other files. Do you want to
+  update the fields in this document?" if "Update automatic links at open" is enabled;
+- the flag is removed after saving with changes in Word.
+
+[MS-OI29500 §17.15.1.90](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/d8bc14c0-5eeb-49c1-9ba7-8edf4c33976f)
+also says "Word does not roundtrip the updateFields element in all circumstances" (revision
+2, review m9). The owner's check (Q5) covers:
+
+- the prompt;
+- whether headers, footers and the `PAGEREF`s inside a `TOC` are updated;
+- whether the element survives an update-and-save;
+- Word for Mac and Word Online.
+
+Readers other than Word keep showing the stale results, and the API documentation says so
+(ADR-0004 Alternatives 4).
 
 - **Checks:** W1 and W3 (it is a write), not W2. Exactly one settings part must exist:
   - none → `NoSettingsPart` (creating a part is Phase2);
@@ -508,8 +701,12 @@ keep showing the stale results; the API documentation says so (ADR-0004 Alternat
     both);
   - two `w:updateFields` elements → `DuplicateSetting`.
 - **Write:** `get_or_insert::<UpdateFieldsOnOpen>()` under `w:settings`, placed by the
-  generated 103-slot order. An `mc:AlternateContent` child of `w:settings` makes this
-  `Core(UnresolvedSibling)`.
+  generated 103-slot order and dry-run first (§0, §7). `settings.xml` is refused with
+  `Core(UnresolvedSibling)`, before any write, in these cases:
+  - its children are out of slot order. That is 18 template files (LibreOffice-written:
+    `w:hyphenationZone` after `w:compat`, …) and 1 SDK file (`m:mathPr` after `w:rsids`)
+    (`slot_order.py`);
+  - it has an `mc:AlternateContent` child.
   - An element that already reads as on (absent `val`, `true`, `1`, `on`) is left
     byte-identical: the call only records the opt-in. 2 template files already have it.
   - Any other value is set to `true`.
@@ -545,13 +742,16 @@ impl Document {
     pub fn story(&self, id: &StoryId) -> Option<Story<'_>>;
 
     // §1
-    pub fn find(&self, needle: &str, scope: Scope) -> Result<Vec<Match>>;  // Err only for EmptyNeedle/InvalidXmlChar
+    // find uses opts.scope and opts.formatting, so each Match's status is what replace would
+    // do with the same options (revision 2, review m10: one scope argument, not two).
+    pub fn find(&self, needle: &str, opts: &ReplaceOptions) -> Result<Vec<Match>>;  // Err only for EmptyNeedle/InvalidXmlChar
     pub fn replace(&mut self, needle: &str, replacement: &str, opts: &ReplaceOptions) -> Result<ReplaceReport>;
-    pub fn replace_at(&mut self, m: &Match, replacement: &str, opts: &ReplaceOptions) -> Result<()>;
+    pub fn replace_at(&mut self, m: &Match, replacement: &str, opts: &ReplaceOptions) -> Result<()>;  // StaleMatch
+    pub fn generation(&self) -> u64;     // +1 after every successful write (revision 2, review M1)
     // §0, §3
     pub fn set_run_text_at(&mut self, run: RunRef, text: &str) -> Result<()>;
-    pub fn set_paragraph_text(&mut self, p: ParaRef, text: &str) -> Result<()>;
-    pub fn set_cell_text(&mut self, cell: CellRef, text: &str) -> Result<()>;
+    pub fn set_paragraph_text(&mut self, p: ParaRef, text: &str, opts: &TextOptions) -> Result<()>;
+    pub fn set_cell_text(&mut self, cell: CellRef, text: &str, opts: &TextOptions) -> Result<()>;
     // §4
     pub fn format_run(&mut self, run: RunRef, f: &RunFormat) -> Result<()>;
     pub fn format_paragraph_runs(&mut self, p: ParaRef, f: &RunFormat) -> Result<()>;
@@ -578,7 +778,10 @@ impl Paragraph<'_> {                     // additions to ADR-0004 §3
 }
 
 pub struct Match { pub para: ParaRef, pub range: Range<usize>,      // byte range in Paragraph::text()
+                   pub text: String,                                 // the matched text
+                   pub generation: u64,                              // Document::generation() at find time
                    pub status: Result<(), Refusal> }
+pub struct TextOptions { pub formatting: RunFormatting }            // default IgnoreInvisible
 pub struct ReplaceOptions { pub scope: Scope,                       // All | Story(StoryId) | Paragraph(ParaRef)
                             pub formatting: RunFormatting,           // Identical | IgnoreInvisible (default) | FirstRun
                             pub on_refused: OnRefused }              // Refuse (default) | Skip
@@ -610,10 +813,44 @@ pub struct ParagraphFormat { pub alignment: Prop<Alignment>, pub space_before: P
   `get_or_insert::<ParagraphProperties>()`, then the generated `*ViewMut` of the property.
 - **The mark copy (§3.2)** is `detach_as` + `insert_detached`.
 - **Settings** (§6.3) is `lens_mut::<Settings>()` then `get_or_insert::<UpdateFieldsOnOpen>()`.
-- **Atomicity** (§0) needs no transaction support: every check runs over the read model
-  first, and the writes cannot fail afterwards except on core invariants (`TooDeep`,
-  `NamespaceNotInScope`). Those are pre-checked with `Detached::check_insert_under` and the
-  depth of the target path.
+- **Stale matches (revision 2, review M1).** `replace_at(m)` refuses with
+  `Err(StaleMatch)` unless both of these hold:
+  - `m.generation == self.generation()`;
+  - `Paragraph::text()[m.range] == m.text`.
+
+  Every successful write, of any kind, increments the generation, and a refused call does
+  not. A caller that replaces several matches of one `find` therefore calls `replace` with
+  `Scope::Paragraph`, or calls `find` again after each `replace_at`.
+- **Atomicity (revision 2, review M2).** Every call plans all its writes over the read model,
+  then **dry-runs every insertion** against the unchanged tree, then writes. The writes that
+  can fail in core, and how each is checked in advance:
+  - **Positional inserts** (the content children of §1.2): `check_insert_at::<C>(index)`
+    (PR #26). It covers the index range, the depth limit, the local slot order against the
+    nearest listed neighbours, `mc:AlternateContent` neighbours, the slot limits and the
+    prefix.
+  - **Slot-placed inserts** (`insert` and `get_or_insert` of `w:rPr`, `w:pPr`, properties,
+    `w:updateFields`, the new run of §3.2): a new additive core method
+    `LensMut::check_insert::<C>()`. It is a dry run of `insert_by`'s placement and returns
+    exactly the error `insert` would: `UnresolvedSibling` for producer order or an AC child,
+    `AlreadyPresent`, `AmbiguousSlot`, `NamespaceNotInScope`, `TooDeep`.
+    `check_get_or_insert` is `Ok` when the child exists, else `check_insert`. It is proposed
+    as a one-function addition next to PR #26's `check_insert_at`. Until it lands, the domain
+    computes the same index from the generated slot table and uses `check_insert_at` +
+    `insert_at`.
+  - **Copies** (§3.2): `Detached::check_insert_under` (PR #18).
+  - **Several inserts into one parent** in one call, such as `keep_next` and `keep_lines`
+    into one `w:pPr`, are each checked on the **unchanged** parent. That is sufficient
+    because:
+    - the parents written here lower to single-QName slots only (`w:rPr` 51, `w:pPr` 36,
+      `w:settings` 103, run content one free slot), and a call inserts each QName at most
+      once per parent;
+    - an insertion into its own slot keeps an existing valid greedy assignment valid, and
+      `max_each` is counted per QName;
+    - inserts into a node created by the same call cannot fail except by `NotAllowed`, which
+      the types rule out.
+
+  After a successful dry run the mutation itself cannot fail. The set-text, set-attribute and
+  remove primitives have no failure modes left once `InvalidXmlChar` and the depth are checked.
 
 ### 8. Allowlist and overrides
 
@@ -652,16 +889,25 @@ skip = ["w:ins", "w:del", "w:moveFrom", "w:moveTo", "w14:conflictIns", "w14:conf
         "w:oMath", "w:rPrChange"]
 ```
 
-- **Generation.** The generator emits `SameType<From> for To` with
-  `const REQUIRED_SKIP: &[QName]` only if the two lowerings are equal once the `skip` QNames
-  are removed from `from`: same slots in the same order, same attributes, same
-  completeness. `w:rPrChange` is listed because its type differs between the two. Otherwise
-  it reports `SameTypeMismatch`, as today.
+- **Generation (wording corrected in revision 2, review m5).** The generator removes the
+  `skip` QNames from **both** lowerings and compares what remains: same slots in the same
+  order, same attributes, same completeness. If they match, it emits `SameType<From> for To`
+  with `const REQUIRED_SKIP: &[QName]` = `skip`; otherwise it reports `SameTypeMismatch`, as
+  today.
+  - `w:rPrChange` occurs on **both** sides, with the same QName but different types
+    (`CT_ParaRPrChange` vs `CT_RPrChange`). It is in `skip`, so it is removed from both for the
+    comparison, and since `detach_as` must skip it, it never appears in the copy.
+  - The other seven skipped QNames exist only in `CT_ParaRPr`. `w:oMath` is in the SDK's
+    `CT_ParaRPr` only.
+  - Counts: `CT_ParaRPr` has 58 child Names in 57 slots, because `w14:conflictIns` and
+    `w14:conflictDel` share one choice slot (`max_total` 1). `CT_RPr` has 51 Names in 51
+    slots. With the skips removed, both sides have the same 50 slots in the same order.
 - **Runtime.** `detach_as` refuses with `NotDetachable { reason: RequiredSkipMissing }` when
   its `skip` argument does not cover `REQUIRED_SKIP`. The reflexive impl has an empty list,
   so PR #18's callers are unaffected.
-- **No IDs are copied.** No id-bearing element survives the skips. `w:eastAsianLayout`
-  (`w:id`) is refused by the domain before copying (§3.2).
+- **No IDs are copied.** The skipped elements are the revision ones. Two kept elements carry a
+  `w:id` that groups runs: `w:eastAsianLayout` and `w:fitText` (revision 2, review m4). The
+  domain refuses both before copying (§3.2), so no id-bearing element is copied.
 
 #### 8.3 Overrides
 
@@ -689,8 +935,9 @@ green on the main story. Phase1 extends them:
   - *Runs:* every settable run in every story of every writable fixture gets the Phase0
     double edit.
   - *Replace:* each accepted `replace` in the T7 sweep must change the story part only inside
-    the original spans of `r₀ … rₖ`, each run's start tag and `w:rPr` byte-identical, every
-    other part byte-identical.
+    the original spans of `r₀ … rₖ`. Each run's start tag and `w:rPr` are byte-identical,
+    each **unaffected content child** of those runs is byte-identical (T7 (iv)), and every
+    other part is byte-identical.
   - *Formatting:* each setter, for each `Set`/`Clear` on each targetable run or paragraph of
     the fixtures, changes bytes only inside that run's or paragraph's span. A `Set` of the
     value already there is byte-identical.
@@ -700,8 +947,14 @@ green on the main story. Phase1 extends them:
 - **T3 (Layer 1):** after any Phase1 edit, exactly the touched parts differ. `styles.xml` is
   never among them; `settings.xml` only after the opt-in.
 - **T4 (refusals):** every error of §10 has a fixture or a unit document. A refused call
-  leaves `to_bytes()` identical to the input. That includes a `replace` with one refused
-  match among many accepted ones (atomicity).
+  leaves `to_bytes()` identical to the input. That includes:
+  - a `replace` with one refused match among many accepted ones (atomicity);
+  - `find` → another write → `replace_at` (`StaleMatch`);
+  - two `replace_at` on one paragraph without a new `find` (`StaleMatch`);
+  - `format_paragraph` setting two properties on a `w:pPr` whose existing children are out
+    of order, built from the template corpus's `[sectPr, pStyle, bidi, jc, rPr]`. It must
+    fail before the first property is written (revision 2, review M2);
+  - `enable_update_fields_on_open` on an out-of-order `settings.xml`.
 - **T5 (docx-rs read-back), extended.** docx-rs 0.4.22 exposes the main story, the header and
   footer parts that the **body-level** `w:sectPr` references (`header`/`firstHeader`/
   `evenHeader`, same for footers), and comments. It has **no footnote/endnote reader**.
@@ -731,8 +984,11 @@ green on the main story. Phase1 extends them:
   boundary (2,511 needles in the fixtures), every `\w{2,}` word, and every placeholder-shaped
   token. Each needle is classified by:
   - (a) the production code, `find` over the RawNode model;
-  - (b) a **reference classifier in the test**, written over `roxmltree` straight from §1.1's
-    tables (about 200 lines, a port of `replace_sim.py`'s `Stream`).
+  - (b) a **reference classifier in the test**, written over `roxmltree` from §1.1–§1.3's
+    tables and rules only, about 200 lines. Revision 2 (review m2): it is written by a
+    different author or agent than the production code. It is **not** a port of
+    `replace_sim.py`, so the production code, the reference and the spike are three
+    independent readings of the ADR.
 
   Both must give the same outcome for every needle. Each accepted match is then applied in a
   fresh document and must satisfy:
@@ -740,21 +996,32 @@ green on the main story. Phase1 extends them:
     oracle);
   - (ii) per character, the canonical `rPr` after = before outside the match, and `r₀`'s
     inside the replacement;
-  - (iii) T2's locality.
+  - (iii) T2's locality;
+  - (iv) **byte identity outside the match** (revision 2, review M3). Every content child of
+    `r₀ … rₖ` that holds no matched character serializes to the same bytes as before.
+    This covers `w:noBreakHyphen`, `w:softHyphen`, `w:cr`, `w:lastRenderedPageBreak` at
+    the edges, and untouched `w:t`.
 
-  Per-fixture outcome counts must equal `replace_sim.py`'s, as ADR-0004's `fixtures.rs` does
-  for Phase0's spike. The Python prototype of (i)–(ii) held for every match it checked: all
-  accepted boundary needles and placeholders and the accepted cross-run words, 18,652 matches
-  in the five corpora (spike E: fixtures 1,483, POI 4,643, SDK 10,793, docx4j 14, templates
-  1,719).
+    (i) and (ii) compare characters and cannot see a re-encoding such as `w:noBreakHyphen`
+    → U+2011; (iv) can.
+
+  `replace_sim.py`'s per-fixture counts are **reference values**, reported next to the test
+  results; a difference is investigated but does not fail the test (revision 2, review m2).
+  The Python prototype of (i)–(ii) held for every match it checked: all accepted boundary
+  needles and placeholders and the accepted cross-run words. That is 18,554 matches in the five
+  corpora after the revision 2 re-run (fixtures 1,483, POI 4,643, SDK 10,698, docx4j 14,
+  templates 1,716).
 - **T8 (cells and styles):** `set_cell_text` on every cell of the fixtures gives §3.3's
   outcome distribution (fixtures: 635 of 667 settable). Every `w:style` of every fixture can
   be applied by id to a paragraph or run of matching type and is read back by docx-rs. Every
   wrong-type and unknown id refuses.
-- **T9 (fields):** the per-operation table is enumerated in unit documents, one per (code,
-  operation). `IF` is tested with the mail-merge form, a bookmark operand, a nested refused
-  field and an unbalanced quote. After the opt-in, W2 fixtures (`sdk-TOC2`,
-  `sdk-complex2010`) accept every operation, and `settings.xml` has the element once.
+- **T9 (fields):**
+  - the per-operation table is enumerated in unit documents, one per (code or switch,
+    operation) cell of §6.1's audit, including `SEQ … \s 1`;
+  - the style setters are gated by the document-wide W2;
+  - `IF` is refused under every operation (§6.2);
+  - after the opt-in, the W2 fixtures (`sdk-TOC2`, `sdk-complex2010`) accept every operation,
+    and `settings.xml` has the element once.
 - **Corpus cross-check** (throwaway, as ADR-0004 §7): run `replace` on every boundary needle,
   `set_cell_text` on every cell and one formatting set per run over POI, SDK, docx4j and the
   templates. Save, reopen, compare with the spike, no panic.
@@ -766,7 +1033,11 @@ green on the main story. Phase1 extends them:
   - each formatting setter;
   - a style by id in a localized document (`Rubrik`);
   - the `updateFields` prompt on `sdk-TOC2`;
-  - a run with unpreserved edge whitespace edited by `set_run_text`, for open question 2.
+  - a run with unpreserved edge whitespace edited by `set_run_text`, for open question 2;
+  - a style-level `firstLineChars` plus `first_line` (§4, review m3);
+  - `updateFields`: whether the element survives Word's update-and-save, on Word for Mac and
+    Word Online too (§6.3, review m9);
+  - a replace next to a `w:noBreakHyphen`, which must keep it as an element (§1.2).
 
 **Fixtures.** The current 26 have no template placeholders. The template corpus is not
 vendored: docxtpl is LGPL-2.1 and docxtemplater's licence is unasserted by GitHub
@@ -785,7 +1056,10 @@ mark formatting.
 | `MarkHidden`, `UnsupportedMarkProperties { child }` | §3.2 | `poi`/fixture paragraphs with `w:vanish` on the mark; unit |
 | `MergedContinuation`, `CellNotSimple { paragraphs, tables }` | §3.3 | `poi-table-alignment`, fixtures; unit |
 | `UnsupportedContext { ancestor: SeparatorNote }` | §2.2 | `sdk-ftEdNote` |
-| `UnknownStyle { id, latent_only }`, `StyleTypeMismatch { expected, found, linked }` | §5 | fixtures; `poi-55733` (no styles part) |
+| `UnknownStyle { id, latent_only }`, `StyleTypeMismatch { expected, found, linked }`, `AmbiguousStyle { id }` | §5 | fixtures; `poi-55733` (no styles part); unit (duplicate id) |
+| `StaleMatch` | §7 | unit (T4) |
+| `StyleChainTooDeep` | §4 | unit (`basedOn` cycle, 33 levels) |
+| `Core(UnresolvedSibling)`, `Core(AlreadyPresent)` (from the dry run) | §0, §4, §6.3, §7 | template-pattern unit documents; out-of-order `settings.xml` |
 | `NoSettingsPart`, `AmbiguousSettings`, `DuplicateSetting` | §6.3 | units |
 | `DuplicateProperty { name }` | §4 | unit |
 | `NoSuchStory`, `NoSuchTable`, `NoSuchCell` | §7 | units |
@@ -806,7 +1080,7 @@ mark formatting.
    API.
 4. **Replacement in the formatting of the run holding most of the match**, or refuse every
    mix. The majority rule is not predictable from the template. Refusing every mix of
-   invisible properties would lose 22 points of cross-run needles in SDK (58.2% → 36.1%).
+   invisible properties would lose 21 points of cross-run needles in SDK (57.5% → 36.1%).
    Chosen: first run, with invisible differences ignored by default.
 5. **Text inside smart tags via an `add_child` override.** Impossible as specified (no SDK
    entry, §2.5). An untyped QName-checked descent in core is deferred until Phase4 needs one.
@@ -828,8 +1102,19 @@ mark formatting.
 10. **`Document::new()`, a protection opt-in, moving the last `sectPr` on append** (listed
     under Phase1 by ADR-0004's revisions). Not template filling. `new()` needs its own
     decisions (template source, page size, East Asian defaults) and goes to a separate ADR.
-    The protection opt-in and the `sectPr` move stay open; the corpora have 4 protected POI
-    files and no A2 case.
+    The protection opt-in and the `sectPr` move go to the Phase2 structure ADR (ADR-0011;
+    proposed default Q10). The corpora have 4 protected POI files and no A2 case.
+11. **Refuse runs with special content outside the match** (review M3's option (b)): a
+    touched run holding `w:cr`, `w:noBreakHyphen` or `w:softHyphen` outside the match would
+    be `UnsupportedRunContent`. It is smaller to implement, but it refuses matches that the
+    child-local edit handles exactly (POI 4, SDK 8 needles), and it does not cover
+    `w:lastRenderedPageBreak` (POI 39, SDK 128) unless that is refused too. Rejected for
+    §1.2's child-local edit, which depends on PR #26's `insert_at`. If PR #26 is not
+    accepted, (b) is the fallback.
+12. **`replace_at` without a staleness check, or no `replace_at`** (review M1). Without the
+    check, an old `Match` silently replaces a different range. Dropping `replace_at` loses
+    "replace this occurrence after showing it to a user". Chosen: the generation counter plus
+    the matched text (§7).
 
 ## Consequences
 
@@ -847,56 +1132,80 @@ mark formatting.
   (`oxml/text/font.py:39-46`), so an existing `asciiTheme` keeps overriding it (inferred from
   that source).
 - **Negative:**
+  - Producers' out-of-order `w:pPr`/`settings.xml` refuse formatting and the `updateFields`
+    opt-in (templates: 9 paragraphs; `settings.xml` in 18 files; SDK 1 file). The refusal
+    comes before any write.
+  - A copied mark can carry mark-only formatting into the text: a 1 pt spacer cell's text
+    is 1 pt (§3.2).
   - Content controls stay closed (Phase3): about 7.6% of SDK cross-run needles and 410 SDK
     cells.
   - Smart tags stay closed: 1.4% of SDK text runs.
   - Multi-paragraph cells are refused (POI 395, SDK 584).
 - **Negative:** documents with a `TOC` remain refused unless the caller opts into
   `updateFields`. That is 18 of 444 SDK files, and probably more among real reports. The
-  per-operation table rescues 1 to 6 files per operation class.
+  per-operation table rescues 1 file for text edits and 6 for formatting.
 - **Negative:** the `IgnoreInvisible` default puts the first run's `w:hint` and proofing
   language on the whole replacement. That can change the font slot of ambiguous characters
-  (quotes) in the replacement text *(u)*.
-- **Negative:** one generator rule and one core refusal reason are added (§8.2), and
-  `roxmltree` becomes a dev-dependency.
+  (quotes) in the replacement text itself *(u)*. The *needle's* ambiguous characters no longer
+  pass the rule (m1).
+- **Negative:** the following additions are needed, and `roxmltree` becomes a
+  dev-dependency:
+  - one generator rule and one core refusal reason (§8.2);
+  - one core dry-run method (`check_insert`, §7);
+  - a dependency on PR #26.
 
 ## Open questions for the project owner
 
-1. **Default formatting rule.** Is `IgnoreInvisible` (ignore `noProof`, `w:lang/@w:val`,
-   `w:rFonts/@w:hint`) acceptable as the default? Or should the default be `Identical`, with
-   the invisible rule opt-in? It decides 22 points of SDK cross-run needles and 7 template
-   placeholders.
-2. **Unpreserved edge whitespace.** Does Word show `<w:t> a</w:t>` (no `xml:space`) with the
-   leading space? The `manual_check` output answers this and ADR-0004's open question 1
-   together. If Word shows it, `UnpreservedWhitespace` is dropped.
-3. **Per-operation W2.** Ship §6.1's table in Phase1 (small, enumerable, rescues 1–6 files
-   per class in the corpora), or ship only `updateFields` and drop the table?
-4. **`IF` rule.** Keep it with unit documents only (no corpus case passes), or defer it
-   until a real mail-merge template is available?
-5. **`updateFields` in Word.** Please confirm in current Word:
-   - the prompt text;
-   - that `TOC` page numbers and fields in headers/footers are updated;
-   - whether `fldChar/@w:dirty` alone triggers an update.
+Revision 2 records the round-1 reviewer's recommendations as **proposed defaults**. They are
+what this revision specifies, pending the owner's confirmation.
 
-   That decides Alternatives 7.
-6. **Template fixtures.** May a few docxtemplater `examples/*.docx` be vendored? Their licence
-   is unasserted on GitHub and needs checking. docxtpl's are LGPL-2.1, so probably not. Or
-   could the owner provide 3–5 Word 365 templates (Japanese included) with split
-   placeholders, a letterhead, a filled table and footnotes? This also answers ADR-0004's open
-   question 4.
-7. **`roxmltree` as a dev-dependency** for T5b and T7's reference classifier.
-8. **§8.2's generator rule** (`SameType` modulo required skips) as an ADR-0002
-   post-acceptance note, implemented with Phase1.
-9. **`jc` written as `left`/`right`** rather than `start`/`end`.
-10. **Out of this ADR:** `Document::new()` (its own ADR?), the enforced-protection opt-in,
-    and lifting A2. Where should they go?
+1. **Default formatting rule.** *Proposed default:* `IgnoreInvisible`, with revision 2's
+   ASCII/CJK restriction on `w:hint`. It decides 21 points of SDK cross-run needles and 7
+   template placeholders. `Identical` as the default would lose them without making
+   placeholders safer.
+2. **Unpreserved edge whitespace.** *Proposed default:* keep `UnpreservedWhitespace` (3 of 517
+   placeholders) until the `manual_check` output shows how Word reads `<w:t> a</w:t>`. That
+   answers ADR-0004's open question 1 too. If Word shows the space, the refusal is dropped.
+3. **Per-operation W2.** *Proposed default:* ship the text, append and format columns (small,
+   enumerable, testable) and drop the style column. That is done in §6.1.
+4. **`IF` rule.** *Proposed default:* defer it until real mail-merge templates exist (Q6).
+   That is done in §6.2.
+5. **`updateFields` in Word.** *Proposed default:* keep the opt-in design, explicit even when
+   the element is already on. The owner's check covers:
+   - the prompt text;
+   - updates of `TOC` page numbers and of fields in headers and footers;
+   - whether `fldChar/@w:dirty` alone triggers an update (Alternatives 7);
+   - whether the element survives Word's update-and-save;
+   - Word for Mac and Word Online (review m9).
+6. **Template fixtures.** *Proposed default:* vendor none from docxtpl (LGPL-2.1) or
+   docxtemplater (licence unasserted). The owner would provide 3–5 Word 365 templates:
+   Japanese, with a header, a table, footnotes, a split `{{…}}` and a `_GoBack`. Until then,
+   hand-built unit documents stand in. This also answers ADR-0004's open question 4.
+7. **`roxmltree` as a dev-dependency** for T5b and T7's reference classifier. *Proposed
+   default:* yes, pinned to an exact version like docx-rs. T7's independence comes from who
+   writes the reference (m2), not from the crate.
+8. **§8.2's generator rule** as an ADR-0002 post-acceptance note, implemented with Phase1.
+   *Proposed default:* yes, with revision 2's wording (m5) and the `w:fitText` refusal (m4).
+   **New in revision 2:** the one-method core addition `check_insert` (§7) goes in the same
+   note or next to PR #26.
+9. **`jc` written as `left`/`right`.** *Proposed default:* yes. It is compatible with the
+   first edition's `ST_Jc` and the commoner form in the corpora.
+10. **Out of this ADR.** *Proposed default:*
+    - `Document::new()` gets its own ADR;
+    - the enforced-protection opt-in and lifting A2 go to the Phase2 structure ADR
+      (ADR-0011, PR #31, which already lifts A2).
 
 ## Sources
 
 - Spike and every number: `spikes/docx-phase1/README.md` (scripts `replace_sim.py`,
   `stories_cells.py`, `formatting_styles.py`, `fields_perop.py`, `readback/` +
-  `readback_stories.py`, `wml-phase1.toml` + `allowlist_dryrun.sh`, `summarize.py`), run
-  2026-11-16 on Python 3.15 and rustc 1.99.1.
+  `readback_stories.py`, `wml-phase1.toml` + `allowlist_dryrun.sh`, `summarize.py`, and since
+  revision 2 `slot_order.py`), run 2026-11-16 on Python 3.15 and rustc 1.99.1; re-run for
+  revision 2.
+- Review: `docs/adr/0007-opus-review-round1.md`.
+- Microsoft [MS-OI29500]: §17.16.5.56 `SEQ` (the `\s` switch); §17.15.1.90 `updateFields`
+  (round trip). Links are in §6.1 and §6.3.
+- Core: PR #26 `core/insert-at` (`LensMut::insert_at`, `check_insert_at`).
 - Corpora:
   - Apache POI `47dcff769bb395034dddfd59c4609659b6dbc6a4` `test-data/document/`;
   - Open XML SDK `431ab05cf160248cc3885a4a766026d4f8243792` test assets;

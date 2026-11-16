@@ -110,6 +110,35 @@ def main(argv):
                 if ind is not None:
                     for at in ind.attrib:
                         forms['ind attr', local(at)] += 1
+        # ------------------------------------------------------------ inherited superseding attributes
+        # (ADR-0007 rev 2, review m3): direct values written below an inherited theme font
+        # or character-unit indent
+        sp = pkg.part('styles')
+        if sp is not None:
+            sr = pkg.xml(sp)
+            dd = sr.find(w('docDefaults'))
+            drf = dd.find('.//' + w('rFonts')) if dd is not None else None
+            if drf is not None and drf.get(w('asciiTheme')):
+                forms['inherited', 'files: docDefaults rFonts with asciiTheme'] += 1
+                for kind, part, root in stories:
+                    for rf in root.iter(w('rFonts')):
+                        if rf.get(w('ascii')) and not rf.get(w('asciiTheme')):
+                            forms['inherited', 'direct rFonts/@ascii without asciiTheme under a docDefaults asciiTheme'] += 1
+            chars_styles = {st.get(w('styleId')) for st in sr.findall(w('style'))
+                            if any(st.find('.//' + w('ind')) is not None and st.find('.//' + w('ind')).get(w(a)) not in (None, '0')
+                                   for a in ('firstLineChars', 'leftChars', 'hangingChars'))}
+            for kind, part, root in stories:
+                for p_ in root.iter(w('p')):
+                    ppr = p_.find(w('pPr'))
+                    ind = ppr.find(w('ind')) if ppr is not None else None
+                    if ind is None:
+                        continue
+                    for a in ('firstLineChars', 'leftChars', 'hangingChars'):
+                        if ind.get(w(a)) == '0':
+                            forms['inherited', 'direct ind/@%s="0" (cancels an inherited value)' % a] += 1
+                    ps = ppr.find(w('pStyle'))
+                    if ps is not None and ps.get(w('val')) in chars_styles and not any(ind.get(w(a)) for a in ('firstLineChars', 'leftChars', 'hangingChars')):
+                        forms['inherited', 'paragraph: style has *Chars, direct ind has twips only'] += 1
         # ------------------------------------------------------------ styles
         sp = pkg.part('styles')
         if sp is None:

@@ -379,7 +379,7 @@ class RunInfo:
 
     def refusal(self, phase1=False):
         """None if settable, else the Phase0 refusal (R1..R4). phase1=True also accepts
-        runs whose only non-hyperlink wrapper is w:smartTag (ADR-0007 §1.6)."""
+        runs whose only non-hyperlink wrapper is w:smartTag (measured only; ADR-0007 §2.5 keeps them refused)."""
         if self.in_field or self.has_fldchar() or any(x.tag == w('fldSimple') for x in self.wrappers):
             return 'R1 InsideField'
         if any(x.tag in REVISION_WRAPPERS for x in self.wrappers):
@@ -394,6 +394,22 @@ class RunInfo:
         if rp is not None and rp.find(w('rPrChange')) is not None:
             return 'R2 InsideRevision:rPrChange'
         return None
+
+
+def run_text_child(k):
+    """Text one content child of a run contributes (the run_text mapping)."""
+    t = k.tag
+    if t in (w('t'), w('delText')):
+        return k.text or ''
+    if t == w('tab'):
+        return '\t'
+    if t in (w('br'), w('cr')):
+        return '\n'
+    if t == w('noBreakHyphen'):
+        return '\u2011'
+    if t == w('softHyphen'):
+        return '\u00ad'
+    return ''
 
 
 def run_text(r):
@@ -478,7 +494,15 @@ class StoryWalk:
                             self.depth = max(0, self.depth - 1)
                 ri.in_field = ri.in_field or self.depth > 0
                 para.tokens.append(('run', ri))
-                # ruby base runs are a context of their own (R3); not modelled here
+                # ADR-0004 §3.1: w:r/w:ruby/w:rubyBase is descended after the enclosing run;
+                # its runs have context Ruby (R3). w:rt is not read.
+                for k in c:
+                    if k.tag == w('ruby'):
+                        rb = k.find(w('rubyBase'))
+                        if rb is not None:
+                            para.tokens.append(('enter', w('ruby'), k))
+                            self._inline(rb, wrappers + [k], para)
+                            para.tokens.append(('exit', w('ruby'), k))
             elif t in RUN_WRAPPERS:
                 para.tokens.append(('enter', t, c))
                 self._inline(c, wrappers + [c] if t != w('sdtContent') else wrappers, para)
@@ -542,8 +566,7 @@ def _rpr_norm(el, drop_children, drop_attrs):
         if not a and not sub and any(k.tag == t for t, _ in drop_attrs) and k.attrib:
             continue  # the element carried only dropped attributes
         kids.append((k.tag, a, sub, (k.text or '').strip()))
-    kids.sort()
-    return tuple(kids)
+    return tuple(kids)  # child order is significant (ADR-0007 rev 2, review m2)
 
 
 INVISIBLE_ATTRS = {(w('lang'), w('val')), (w('rFonts'), w('hint'))}

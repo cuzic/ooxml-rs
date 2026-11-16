@@ -152,7 +152,7 @@ All numbers come from `spikes/docx/design_facts.py` and `phase0_gate.py`. "POI" 
   - Cost to the user: Word asks "This document contains fields that may refer to other files. Update?" on open *(u: Word behaviour, owner to confirm)*.
   - Non-Word readers still see stale results, so the API documents this.
 - Evaluating fields ourselves (TOC generation, PAGEREF) needs layout and is XH, out of the plan.
-- **Phase1 design: ADR-0007 §6.** It adds the per-operation table and the `IF` operand rule. The opt-in is `enable_update_fields_on_open()`. It is required even when the file already has `updateFields` on, so the caller accepts the stale-for-other-readers cost explicitly.
+- **Phase1 design: ADR-0007 §6 (revision 2).** It adds the per-operation table with text, append and format columns; the style column was dropped because `SEQ \s` depends on headings. The `IF` rule is deferred. The opt-in is `enable_update_fields_on_open()`. It is required even when the file already has `updateFields` on, so the caller accepts the stale-for-other-readers cost explicitly.
 
 ### Q3. Edits inside `w:ins` / `w:del`
 
@@ -292,7 +292,7 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 ### Phase1: template filling
 
-Designed in ADR-0007 (`docs/adr/0007-docx-phase1-template-filling.md`, Proposed), with the
+Designed in ADR-0007 (`docs/adr/0007-docx-phase1-template-filling.md`, Proposed, revision 2 after the round-1 review), with the
 evidence in `spikes/docx-phase1/`. This section supersedes the earlier Phase1 list, including
 the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions are given below.
 
@@ -304,7 +304,9 @@ the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions 
   - the replacement takes the first matched run's formatting;
   - by default runs that differ only in `w:noProof`, `w:lang/@w:val` or `w:rFonts/@w:hint` count as equal;
   - anchors strictly inside a match, wrapper edges, and runs that fail R1–R4 refuse;
-  - calls are atomic, with an opt-in `Skip` that reports.
+  - only the content children that hold matched characters are edited, so everything outside the match stays byte-identical (revision 2);
+  - calls are atomic: every insertion is dry-run before the first write (revision 2), with an opt-in `Skip` that reports;
+  - a stale `Match` is refused (`StaleMatch`).
 
   Measured: 511 of 517 placeholders in 212 Word-authored templates (docxtpl, docxtemplater test suites) are accepted, 204 of them cross-run.
 - **All stories** (§2): headers, footers, footnotes, endnotes and comments, found by relationship.
@@ -318,8 +320,8 @@ the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions 
   - writing a value removes the attributes that would override it (theme colour and font, `*Chars`, `*Lines`, `*Autospacing`).
 - **Existing styles by id** (§5): `pStyle`/`rStyle`, with name lookup on `w:name` because localized Word derives ids from UI names. Unknown, latent-only and wrong-type ids are refused, and `styles.xml` is never written.
 - **Fields** (§6):
-  - the per-operation W2 table: text, append, format and style columns, adding `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM` and `AUTONUM*` as the planned direction said;
-  - the `IF` operand rule;
+  - the per-operation W2 table with text, append and format columns, adding `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM` and `AUTONUM*` as the planned direction said. Every switch was audited. The style column was dropped in revision 2 because `SEQ \s` depends on headings;
+  - the `IF` operand rule is deferred (revision 2), as no corpus `IF` passes it;
   - `enable_update_fields_on_open()` as the explicit opt-in that lifts W2.
   - Measured yield of the table: 1 of 33 refused files for text edits; `TOC`+`PAGEREF` (19 files) need the opt-in.
 - **Out of Phase1** (dispositions of ADR-0004's additions):

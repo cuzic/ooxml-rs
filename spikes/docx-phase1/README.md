@@ -30,6 +30,7 @@ of ADR-0004 §6 that reproduces its file-level outcomes (POI 101 + 1 depth-refus
 | `formatting_styles.py` | Lexical forms of the proposed direct-formatting subset, pairing of `b`/`bCs`, `i`/`iCs`, `sz`/`szCs`, theme and `*Chars`/`*Lines` attributes; styles: id vs name, undefined or wrong-type references, duplicates, latent-only styles | §4, §5 |
 | `fields_perop.py` | For StaleFieldRisk files: which per-operation table entries and the `IF` rule would lift W2; `mailMerge`, `updateFields`, `fldChar/@dirty` presence | §6 |
 | `readback/` (Rust, standalone workspace) + `readback_stories.py` | What docx-rs 0.4.22 reads outside `document.children`, compared with ElementTree per story part | §9 (T5) |
+| `slot_order.py` (revision 2) | Parents Phase1 inserts into (`w:rPr`, paragraph-mark `w:rPr`, `w:pPr`, `w:settings`) whose existing children are out of SDK slot order, duplicated, or include `mc:AlternateContent` (review M2) | §4, §6.3, §7 |
 | `wml-phase1.toml` + `allowlist_dryrun.sh` | The proposed allowlist run through the real generator on a scratch copy of the tree; prints each wml entry's lowering and diagnostics, then `cargo check -p ooxml-schema --features wml` | §8 |
 | `summarize.py` | Percentages quoted in ADR-0007 from the JSON outputs | — |
 
@@ -46,7 +47,18 @@ $S/allowlist_dryrun.sh <impl/docx-phase0 checkout> $R/dry --no-detach
 $S/allowlist_dryrun.sh <core/detach-insert checkout> $R/dry-detach
 ```
 
-## Results (2026-11-16, Python 3.15, rustc 1.99.1)
+## Results (2026-11-16, Python 3.15, rustc 1.99.1; re-run for ADR-0007 revision 2)
+
+Revision 2 aligned the spike with the ADR (review round 1, m2):
+
+- deleted (`w:del`/`w:moveFrom`) text is no longer in the stream;
+- `w:rPr` child order is significant in the comparison;
+- ruby base runs are descended (context `Ruby`, refused);
+- the `xml:space` count uses the Phase1 run rule;
+- the `w:hint` difference counts as invisible only for ASCII/CJK matched characters (m1).
+
+Section A is unchanged by these. B–E were re-run, and the tables below are the revision 2
+numbers.
 
 ### A. Adjacent text runs (separated only by nothing, `proofErr` or range markers; all stories)
 
@@ -66,9 +78,9 @@ The denominator differs from roadmap Q1 (direct sibling runs of `document.xml` o
 
 | | fx | POI | SDK | tpl |
 |---|---|---|---|---|
-| boundary needles | 2,511 | 6,679 | 13,895 | 1,358 |
+| boundary needles | 2,511 | 6,678 | 13,893 | 1,358 |
 | accepted, identical `rPr` only | 58.7% | 63.3% | 36.1% | 83.1% |
-| accepted, **default rule** (identical + proofing + hint) | 58.9% | 66.5% | 58.2% | 85.4% |
+| accepted, **default rule** (identical + proofing + hint on ASCII/CJK only) | 58.9% | 66.5% | 57.5% | 85.2% |
 | accepted with `FirstRunFormatting` opt-in | 76.2% | 85.3% | 82.7% | 93.0% |
 | words accepted (mostly single-run) | 99.6% | 99.7% | 98.4% | 99.5% |
 | **template placeholders accepted** | — | — | — | **511 / 517 (98.8%)**, 204 of them cross-run, 0 visible-format mixes except 1 |
@@ -80,8 +92,19 @@ Boundary needles refused for other reasons (POI / SDK): `MatchCrossesBoundary` 1
 controls), `InsideField` 3.0% / 0.8%, `MarkerInsideMatch` 0.2% / 1.9% (mostly
 `commentRangeStart`). Collapsed bookmarks (start immediately followed by its end; 92 of 95
 `_GoBack` in tpl) are treated as transparent points; without that rule 6 tpl placeholders were
-`MarkerInsideMatch:bookmarkStart`. **E:** the per-character oracle held for every accepted
-match (fx 1,483; POI 4,643; SDK 10,793; tpl 1,719).
+`MarkerInsideMatch:bookmarkStart`. **E:** the per-character oracle held for every match it
+checked (revision 2: fx 1,483; POI 4,643; SDK 10,698; d4j 14; tpl 1,716).
+
+**Content outside the match (revision 2, review M3; `M3_outside_match_content`).** Revision 1's
+whole-run rewrite would have touched content outside the match in these accepted
+boundary-needle runs:
+
+- `w:softHyphen`: POI 4, SDK 2;
+- `w:noBreakHyphen`: SDK 6;
+- `w:lastRenderedPageBreak`: fx 14, POI 39, SDK 128;
+- templates and docx4j: 0.
+
+Revision 2's child-local edit keeps all of them byte-identical.
 
 `w:t` with edge whitespace and no `xml:space="preserve"` in settable runs: POI 132, SDK 15,
 tpl 21; 3 tpl placeholder matches touch such a run.
@@ -138,12 +161,39 @@ in POI 5, SDK 2, fx 2; a revision in SDK 1.
   Latent styles without a definition: 19,173 / 61,571 / 35,784 (`lsdException` entries).
   Packages without a styles part: POI 4.
 
+### Slot order of the parents Phase1 inserts into (revision 2, `slot_order.py`)
+
+Writable files; parents with children out of SDK slot order (`order`), a listed QName twice
+(`dup`) or an `mc:AlternateContent` child (`ac`):
+
+| | fx | POI | SDK | d4j | tpl |
+|---|---|---|---|---|---|
+| run `w:rPr` checked / bad | 3,147 / 0 | 21,803 / 0 | 23,223 / 0 | 120 / 0 | 2,654 / 0 |
+| paragraph-mark `w:rPr` checked / order / dup | 899 / 0 / 0 | 19,738 / 0 / 0 | 10,819 / 0 / 0 | 76 / 0 / 0 | 1,743 / 1 / 56 (15 files) |
+| `w:pPr` checked / order | 1,075 / 0 | 20,552 / 0 | 17,648 / 0 | 178 / 0 | 2,381 / **9** (5 files) |
+| `w:settings` checked / order / dup | 19 / 0 / 0 | 99 / 0 / 1* | 404 / 1 / 0 | 10 / 0 / 0 | 212 / **18** / 2 |
+
+\* `w:activeWritingStyle`, which is repeatable: not a defect. The template `w:pPr` cases are
+docxtemplater outputs (`[sectPr, pStyle, bidi, jc, rPr]`). The `w:settings` ones are
+LibreOffice-written (`w:hyphenationZone` after `w:compat`) plus one SDK `m:mathPr` after
+`w:rsids`.
+
+### Inherited superseding attributes (revision 2, review m3; `formatting_styles.py`, "inherited")
+
+| | POI | SDK | tpl |
+|---|---|---|---|
+| files whose `docDefaults` `rFonts` has `asciiTheme` | 72 | 392 | 82 |
+| direct `rFonts/@ascii` without `asciiTheme` in those files | 7,193 | 1,249 | 186 |
+| direct `ind/@firstLineChars="0"` (cancels an inherited value) | 0 | 90 | 0 |
+| paragraph whose style has `*Chars` and whose direct `ind` has twips only | 0 | 4 | 0 |
+
 ### Fields (§6)
 
 StaleFieldRisk files: POI 1, SDK 30, d4j 2, tpl 0. Under the proposed per-operation table
 the following become writable: text edits 1 (SDK `table.docx`, `SEQ` only), formatting 6,
-style edits 1, append 1. The 18 files with `TOC` + `PAGEREF` stay refused under every
-operation. `IF`: 5 occurrences (SDK), none passes the operand rule
+append 1. The style column (1 file) was dropped in ADR-0007 revision 2 because `SEQ \s`
+depends on headings. `fields_perop.py` still reports it. The 18 files with `TOC` + `PAGEREF` stay refused under every
+operation. `IF`: 5 occurrences (SDK), none passes the operand rule (deferred in revision 2)
 (`IF DATE \@ "yyyy" = "1998" …`: a bare word as an operand; one unbalanced quote).
 `settings/w:mailMerge`: POI 1, SDK 1. `w:updateFields`: 0 in POI/SDK, 2 in tpl (`true`).
 `fldChar/@w:dirty`: 0 everywhere.

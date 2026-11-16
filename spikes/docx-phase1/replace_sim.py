@@ -41,6 +41,7 @@ class Stream:
         self.runs = para.runs()
         self.ref = []        # per run: refusal or None
         self.group = []      # per run: group id or None
+        self.vis = []        # per run: the text it contributes to Paragraph::text()
         gid, cur_parent, last_settable = -1, None, False
         pending = []         # separators since the last run
         ri = 0
@@ -76,7 +77,11 @@ class Stream:
                 pos = len(self.text)
                 self.cuts[pos].extend(pending)
                 pending = [] if ref is None else []
-                for i, ch in enumerate(r.text):
+                # Paragraph::text() excludes w:del / w:moveFrom runs (ADR-0004 §3.1); they are
+                # still a boundary (their refusal marks both sides)
+                deleted = any(x.tag in (w('del'), w('moveFrom')) for x in r.wrappers)
+                self.vis.append('' if deleted else r.text)
+                for i, ch in enumerate('' if deleted else r.text):
                     self.chars.append((ri, i)); self.text.append(ch)
                 if ref is not None:
                     # a refused run is a separator on both sides
@@ -121,6 +126,13 @@ class Stream:
         order = ['identical', 'proofing', 'hint', 'different']
         for r in runs[1:]:
             c = C.rpr_class(first, self.runs[r])
+            if c == 'hint':
+                # ADR-0007 rev 2 (review m1): a w:hint difference is ignored only when every
+                # matched character of that run is ASCII or CJK, whose font slot w:hint does
+                # not change
+                chars = [self.text[i] for i in range(s, e) if self.chars[i][0] == r]
+                if not all(hint_neutral(ch) for ch in chars):
+                    c = 'different'
             if order.index(c) > order.index(worst):
                 worst = c
         if worst == 'different':
@@ -133,11 +145,20 @@ class Stream:
         runs = sorted({self.chars[i][0] for i in range(s, e)})
         new = {}
         for r in runs:
-            t = self.runs[r].text
+            t = self.vis[r]
             idx = [i for i in range(s, e) if self.chars[i][0] == r]
             a, b = self.chars[idx[0]][1], self.chars[idx[-1]][1] + 1
             new[r] = t[:a] + (repl if r == runs[0] else '') + t[b:]
         return new
+
+
+def hint_neutral(ch):
+    """ASCII, or a CJK character always drawn with the East Asian font (ideographs, kana,
+    hangul, CJK symbols and punctuation, fullwidth/halfwidth forms). ADR-0007 §1.3."""
+    o = ord(ch)
+    return (o < 0x80 or 0x3000 <= o <= 0x303F or 0x3040 <= o <= 0x30FF or 0x3100 <= o <= 0x312F
+            or 0x3400 <= o <= 0x4DBF or 0x4E00 <= o <= 0x9FFF or 0xAC00 <= o <= 0xD7AF
+            or 0xF900 <= o <= 0xFAFF or 0xFF01 <= o <= 0xFFEF)
 
 
 def unpreserved_edge(run):
@@ -146,6 +167,27 @@ def unpreserved_edge(run):
         if tx and (tx[0].isspace() or tx[-1].isspace()) and t.get('{%s}space' % C.XML_NS) != 'preserve':
             return True
     return False
+
+
+SPECIAL = {w('cr'): 'cr', w('noBreakHyphen'): 'noBreakHyphen', w('softHyphen'): 'softHyphen',
+           w('lastRenderedPageBreak'): 'lastRenderedPageBreak'}
+
+
+def outside_specials(stream, s, e):
+    """Content children of the touched runs that are not w:t/w:tab/w:br and lie outside the
+    match: rev 1 (whole-run set_run_text) would have normalized or dropped them; rev 2's
+    child-local edit (ADR-0007 §1.2) keeps them byte-identical. Returns the set of kinds."""
+    out = set()
+    for r in sorted({stream.chars[i][0] for i in range(s, e)}):
+        idx = [i for i in range(s, e) if stream.chars[i][0] == r]
+        a, b = stream.chars[idx[0]][1], stream.chars[idx[-1]][1] + 1
+        off = 0
+        for k in stream.runs[r].el:
+            n = len(C.run_text_child(k))
+            if k.tag in SPECIAL and not (a <= off < b or (n == 0 and a < off < b)):
+                out.add(SPECIAL[k.tag])
+            off += n
+    return out
 
 
 def oracle(stream, s, e, repl):
@@ -159,7 +201,7 @@ def oracle(stream, s, e, repl):
     expect = before[:s] + [(ch, first) for ch in repl] + before[e:]
     after = []
     for r, run in enumerate(stream.runs):
-        t = new.get(r, run.text)
+        t = new.get(r, stream.vis[r])
         after.extend((ch, r) for ch in t)
     # formatting identity = run identity here; the Rust oracle compares canonical rPr
     if after != expect:
@@ -196,6 +238,7 @@ def main(argv):
     ph = collections.Counter(); ph_files = set(); ph_story = collections.Counter()
     ws_unpreserved = collections.Counter()
     oracle_res = collections.Counter()
+    m3 = collections.Counter()
     examples = collections.defaultdict(list)
     gated = collections.Counter()
     for f in files:
@@ -234,6 +277,8 @@ def main(argv):
                     bnd[o] += 1; bnd_story[sw.kind, o.split(' (')[0].split(':')[0]] += 1
                     if o.startswith('Ok'):
                         oracle_res['boundary', oracle(st, s, e, 'X\tY') or 'ok'] += 1
+                        for kind in outside_specials(st, s, e):
+                            m3['boundary needles touching a run with %s outside the match' % kind] += 1
                     if nex and len(examples[o]) < nex:
                         examples[o].append('%s %s %r' % (pkg.name, sw.part, st.text[s:e]))
                 for m in WORD.finditer(st.text):
@@ -248,6 +293,8 @@ def main(argv):
                         examples['PH ' + o].append('%s %s %r' % (pkg.name, sw.part, m.group()))
                     if o.startswith('Ok'):
                         oracle_res['placeholder', oracle(st, m.start(), m.end(), '') or 'ok'] += 1
+                        for kind in outside_specials(st, m.start(), m.end()):
+                            m3['placeholders touching a run with %s outside the match' % kind] += 1
                         touched = sorted({st.chars[i][0] for i in range(m.start(), m.end())})
                         if any(unpreserved_edge(st.runs[r]) for r in touched):
                             ws_unpreserved['placeholder matches touching a run with unpreserved edge whitespace'] += 1
@@ -258,7 +305,7 @@ def main(argv):
                         tx = t.text or ''
                         if tx and (tx[0].isspace() or tx[-1].isspace()) and t.get('{%s}space' % C.XML_NS) != 'preserve':
                             ws_unpreserved['w:t edge whitespace without preserve'] += 1
-                            if r.refusal(True) is None:
+                            if r.refusal(False) is None:
                                 ws_unpreserved['... in settable runs'] += 1
                         if '  ' in tx and t.get('{%s}space' % C.XML_NS) != 'preserve':
                             ws_unpreserved['w:t inner double space without preserve'] += 1
@@ -276,6 +323,7 @@ def main(argv):
         'D_placeholders_by_story': dict(ph_story),
         'E_oracle': {'%s/%s' % k: v for k, v in sorted(oracle_res.items())},
         'xml_space': dict(ws_unpreserved),
+        'M3_outside_match_content': dict(m3),
     }
     if nex:
         rep['examples'] = examples
