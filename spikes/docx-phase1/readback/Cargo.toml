@@ -1,0 +1,12 @@
+[package]
+name = "docx-phase1-readback-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+# Standalone: not a member of the root workspace (ADR-0007 §9, oracle T5 analogue).
+[workspace]
+
+[dependencies]
+docx-rs = { version = "=0.4.22", default-features = false }
