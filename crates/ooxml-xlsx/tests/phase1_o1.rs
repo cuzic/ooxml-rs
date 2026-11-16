@@ -123,3 +123,24 @@ fn o1_workbook_wide_refusals() {
     assert_matches!(w.worksheet_by_index(2), Err(Error::NoSuchSheet(_)));
     assert!(w.worksheet_by_index(0).is_ok());
 }
+
+/// Review R4-M1: a dependent with duplicate caches (schema-invalid) loses
+/// every `<v>`/`<is>`, as the target write removes every one: plain,
+/// CSE result cell, `t="str"` and inline-string dependents.
+#[test]
+fn o1_duplicate_caches_are_all_stripped() {
+    let wb = synthetic("o1_duplicate_caches.xlsx");
+    value_edit(&wb, "Sheet1", "A1", 5.0, &["Sheet1!B1", "Sheet1!C1", "Sheet1!C2", "Sheet1!D1", "Sheet1!E1"]);
+    let mut w = Workbook::from_bytes(wb).unwrap();
+    w.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number(5.0).unwrap();
+    let xml = sheet_xml(&w.to_bytes().unwrap());
+    for stripped in [
+        r#"<c r="B1" s="0"><f>A1*2</f></c>"#,
+        r#"<c r="C2"></c>"#,
+        r#"<c r="D1" s="0"><f>A1&amp;"x"</f></c>"#,
+        r#"<c r="E1" s="0"><f>A1&amp;"y"</f></c>"#,
+    ] {
+        assert!(xml.contains(stripped), "{stripped} expected: {xml}");
+    }
+    assert!(xml.contains(r#"<c r="F1" s="0"><f>A2*2</f><v>4</v></c>"#), "F1 (not a dependent) keeps its cache");
+}

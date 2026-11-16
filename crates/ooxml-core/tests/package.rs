@@ -729,14 +729,16 @@ fn safety_net_does_not_over_refuse() {
     pkg.remove_part("xl/", &[]).unwrap();
 }
 
-/// Round 4 N14: `%5Frels` / `.rel%73` spellings are relationships parts too
-/// (their relationships are scanned), consistently with `HasOwnRelationships`.
+/// Round 4 N14 / round 5 N17: `%5Frels` / `.rel%73` spellings (invalid OPC
+/// names) are relationships parts after decoding; their source cannot be
+/// attributed reliably, so one that mentions the part refuses the removal,
+/// consistently with `HasOwnRelationships`.
 #[test]
 fn percent_encoded_rels_names_are_scanned() {
     for rels in ["xl/%5Frels/sheet.xml.rels", "xl/_rels/sheet.xml.rel%73"] {
         let b = sheet_with_image("xl/sheet.xml", rels, "media/i.png", "rId1");
         let mut pkg = Package::from_bytes(b.clone()).unwrap();
-        assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| matches!(r, RemoveRefusal::StillReferenced { .. }));
+        assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| matches!(r, RemoveRefusal::RegistryNotEditable { .. }));
         assert_refused(&mut pkg, &b, "xl/sheet.xml", &[], |r| matches!(r, RemoveRefusal::HasOwnRelationships { .. }));
     }
 }
@@ -789,4 +791,63 @@ fn open_duplicate_check_is_linear_50k() {
     let d = open_many(50_000);
     println!("open with 50,000 entries: {d:?}");
     assert!(d < std::time::Duration::from_secs(2), "{d:?}");
+}
+
+
+/// Round 5 N17: the source part and the base folder come from the raw
+/// `.rels` name: `%25` (an encoded `%`) is decoded once, not twice.
+#[test]
+fn source_and_base_are_derived_from_the_raw_name() {
+    // source xl/a%2541.xml (the character name `a%41.xml`) still refers to rId1
+    let b = sheet_with_image("xl/a%2541.xml", "xl/_rels/a%2541.xml.rels", "media/i.png", "rId1");
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| {
+        matches!(r, RemoveRefusal::StillReferenced { source, id } if source == "xl/a%2541.xml" && id == "rId1")
+    });
+    // a folder x%2541/: the relative target resolves inside it and is removed
+    let rels = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="urn:x" Target="media/i.png"/></Relationships>"#;
+    let b = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        ("x%2541/s.xml", "<s/>"),
+        ("x%2541/_rels/s.xml.rels", rels),
+        ("x%2541/media/i.png", "P"),
+    ]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    let removed = pkg.remove_part("x%2541/media/i.png", &["urn:x"]).unwrap();
+    assert_eq!(removed.relationships, vec![("x%2541/_rels/s.xml.rels".to_owned(), "rId1".to_owned())]);
+}
+
+/// Round 5 N18: a `.rels` whose source name contains `%2F` is still a
+/// relationships part (recognised on the raw name) and its relationships are
+/// scanned.
+#[test]
+fn rels_of_a_source_with_percent_2f_are_scanned() {
+    let b = sheet_with_image("xl/a%2Fb.xml", "xl/_rels/a%2Fb.xml.rels", "media/i.png", "rId1");
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| matches!(r, RemoveRefusal::StillReferenced { .. }));
+}
+
+/// Round 5 N19: the remaining mutant gaps (AH, AM, AP, AQ, AT).
+#[test]
+fn round5_gaps() {
+    // AH: an unreadable .rels mentioning the part percent-encoded refuses
+    let b = calc_chain_pkg(&rels_of(""), &[("zz/_rels/z.xml.rels", "<broken calc%43hain.xml")]);
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/calcChain.xml", &[CALC_CHAIN], |x| matches!(x, RemoveRefusal::RegistryNotEditable { .. }));
+    // AM: `%+1` is not an escape, so these two names are distinct parts
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("x/a%+1.xml", "<a/>"), ("x/a%01.xml", "<a/>")]);
+    Package::from_bytes(b).unwrap();
+    // AP: a directory entry is not refused by a target ending in `/`
+    let r = rels_of(r#"<Relationship Id="rId9" Type="urn:x" Target="other/"/>"#);
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/sub/", "")]);
+    Package::from_bytes(b).unwrap().remove_part("xl/sub/", &[]).unwrap();
+    // AQ: nor by an unreadable .rels
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("zz/_rels/z.xml.rels", "<broken"), ("xl/sub/", "")]);
+    Package::from_bytes(b).unwrap().remove_part("xl/sub/", &[]).unwrap();
+    // AT: a `%5Frels` relationships part is itself a registry part
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/%5Frels/x.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>")]);
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/%5Frels/x.xml.rels", &[], |x| *x == RemoveRefusal::RegistryPart);
 }

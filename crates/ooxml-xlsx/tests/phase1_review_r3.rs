@@ -137,3 +137,23 @@ fn fault_injection_on_more_edit_kinds() {
         }
     }
 }
+
+/// Review R4-m6: a **panic** inside apply (a bug by construction) leaves the
+/// workbook poisoned: it was poisoned before apply and is cleared only on
+/// success, so after `catch_unwind` every save and edit is refused.
+#[cfg(feature = "fault-injection")]
+#[test]
+fn a_panic_during_apply_poisons_the_workbook() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use ooxml_xlsx::ApplyStep;
+    let input = synthetic("o1_shared.xlsx");
+    for step in [ApplyStep::RemoveCalcChain, ApplyStep::CalcPr, ApplyStep::Strip, ApplyStep::HandOff, ApplyStep::Target, ApplyStep::Index] {
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        wb.inject_apply_panic(step);
+        let r = catch_unwind(AssertUnwindSafe(|| wb.worksheet_by_name("Sheet2").unwrap().cell_mut(1, 3).unwrap().set_number(9.0)));
+        assert!(r.is_err(), "{step:?}: the injected panic fired");
+        assert_matches!(wb.to_bytes(), Err(Error::Poisoned(_)), "{step:?}");
+        assert_matches!(wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number(1.0), Err(Error::Poisoned(_)), "{step:?}");
+    }
+}
