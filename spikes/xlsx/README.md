@@ -9,6 +9,7 @@ repository root, passing the data directories as arguments.
 |---|---|
 | `survey.py DIR…` | One JSON line per package: producer, zip data descriptors, formula kinds, cells/rows without `r`, inline/rich strings, `spans`, empty `sheetData`, merges, `mc:Ignorable`, `mc:AlternateContent`, `xml:space`, parts present (tables, pivots, charts, comments, VBA, rich data, …). Roadmap §5. |
 | `formula_stats.py DIR…` | Formula census by QName per package, `calcChain`/`calcPr`, shared/array, and the features that defeat syntactic dependency analysis (names, structured refs, `INDIRECT`/`OFFSET`, external, cross-sheet). ADR-0003 Context. |
+| `o3_recalc.py DIR OUT.tsv` | ADR-0003 O3 data: recalculates every `*.xlsx` in DIR with LibreOffice headless (hard recalc in a throw-away profile) and writes every cell value of the re-saved files. Owner/CI only (needs LibreOffice); inputs come from `cargo run -p ooxml-xlsx --example o3_inputs -- DIR`. |
 | `phase0_facts.py DIR…` | Facts the Phase0 acceptance tests rely on (first sheet in workbook order, cell types, self-closing shapes, merges, `dimension`, QName vs byte-prefix formula counts) and the verdict ADR-0001/0002 predict. Roadmap §7. |
 
 Reproducing the corpus numbers (files are not committed; Apache-2.0 / MIT):

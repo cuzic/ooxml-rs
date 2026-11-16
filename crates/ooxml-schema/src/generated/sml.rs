@@ -85,6 +85,51 @@ impl ooxml_core::EnumType for SheetStateValues {
         self as usize
     }
 }
+/// `x:ST_CalcMode` — Calculation Mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CalculateModeValues {
+    /// `manual`
+    Manual,
+    /// `auto`
+    Auto,
+    /// `autoNoTable`
+    AutoNoTable,
+}
+impl ooxml_core::EnumType for CalculateModeValues {
+    const VALUES: &'static [&'static str] = &["manual", "auto", "autoNoTable"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Manual),
+            1 => Some(Self::Auto),
+            2 => Some(Self::AutoNoTable),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_RefMode` — Reference Mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ReferenceModeValues {
+    /// `A1`
+    A1,
+    /// `R1C1`
+    R1C1,
+}
+impl ooxml_core::EnumType for ReferenceModeValues {
+    const VALUES: &'static [&'static str] = &["A1", "R1C1"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::A1),
+            1 => Some(Self::R1C1),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_CellType` — Cell Type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CellValues {
@@ -169,6 +214,442 @@ impl ooxml_core::EnumType for SpaceProcessingModeValues {
     }
     fn index(self) -> usize {
         self as usize
+    }
+}
+/// `x:CT_CalcPr/x:calcPr` — Defines the CalculationProperties Class.
+#[derive(Debug)]
+pub enum CalculationProperties {}
+impl CalculationProperties {
+    /// `calcId`
+    pub const ATTR_CALC_ID: ooxml_core::QName = ooxml_core::QName::new("", "calcId");
+    /// `calcMode`
+    pub const ATTR_CALC_MODE: ooxml_core::QName = ooxml_core::QName::new("", "calcMode");
+    /// `fullCalcOnLoad`
+    pub const ATTR_FULL_CALC_ON_LOAD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fullCalcOnLoad",
+    );
+    /// `refMode`
+    pub const ATTR_REF_MODE: ooxml_core::QName = ooxml_core::QName::new("", "refMode");
+    /// `iterate`
+    pub const ATTR_ITERATE: ooxml_core::QName = ooxml_core::QName::new("", "iterate");
+    /// `iterateCount`
+    pub const ATTR_ITERATE_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "iterateCount",
+    );
+    /// `iterateDelta`
+    pub const ATTR_ITERATE_DELTA: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "iterateDelta",
+    );
+    /// `fullPrecision`
+    pub const ATTR_FULL_PRECISION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fullPrecision",
+    );
+    /// `calcCompleted`
+    pub const ATTR_CALC_COMPLETED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "calcCompleted",
+    );
+    /// `calcOnSave`
+    pub const ATTR_CALC_ON_SAVE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "calcOnSave",
+    );
+    /// `concurrentCalc`
+    pub const ATTR_CONCURRENT_CALC: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "concurrentCalc",
+    );
+    /// `concurrentManualCount`
+    pub const ATTR_CONCURRENT_MANUAL_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "concurrentManualCount",
+    );
+    /// `forceFullCalc`
+    pub const ATTR_FORCE_FULL_CALC: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "forceFullCalc",
+    );
+}
+impl ooxml_core::ElementSpec for CalculationProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "calcPr");
+    const SDK_NAME: &'static str = "x:CT_CalcPr/x:calcPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_CALC_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_CALC_MODE,
+            ty: ooxml_core::SimpleType::Enum(
+                <CalculateModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("auto"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_FULL_CALC_ON_LOAD,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_REF_MODE,
+            ty: ooxml_core::SimpleType::Enum(
+                <ReferenceModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("A1"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_ITERATE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_ITERATE_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("100"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_ITERATE_DELTA,
+            ty: ooxml_core::SimpleType::Double,
+            default: Some("0.001"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_FULL_PRECISION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_CALC_COMPLETED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_CALC_ON_SAVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_CONCURRENT_CALC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_CONCURRENT_MANUAL_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CalculationProperties::ATTR_FORCE_FULL_CALC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CalculationProperties`].
+#[derive(Clone, Debug)]
+pub struct CalculationPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, CalculationProperties>,
+);
+impl<'a> CalculationPropertiesView<'a> {
+    /// `calcId` — Calculation Id
+    pub fn calculation_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CalculationProperties::ATTR_CALC_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `calcMode` — Calculation Mode (default `auto`)
+    pub fn calculation_mode(&self) -> ooxml_core::EnumValue<'a, CalculateModeValues> {
+        self.0.attr_enum_or(CalculationProperties::ATTR_CALC_MODE, "auto")
+    }
+    /// `fullCalcOnLoad` — Full Calculation On Load (default `false`)
+    pub fn full_calculation_on_load(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_FULL_CALC_ON_LOAD,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `refMode` — Reference Mode (default `A1`)
+    pub fn reference_mode(&self) -> ooxml_core::EnumValue<'a, ReferenceModeValues> {
+        self.0.attr_enum_or(CalculationProperties::ATTR_REF_MODE, "A1")
+    }
+    /// `iterate` — Calculation Iteration (default `false`)
+    pub fn iterate(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_ITERATE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `iterateCount` — Iteration Count (default `100`)
+    pub fn iterate_count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_ITERATE_COUNT,
+                "100",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `iterateDelta` — Iterative Calculation Delta (default `0.001`)
+    pub fn iterate_delta(&self) -> Result<f64, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_ITERATE_DELTA,
+                "0.001",
+                ooxml_core::value::parse_f64,
+            )
+    }
+    /// `fullPrecision` — Full Precision Calculation (default `true`)
+    pub fn full_precision(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_FULL_PRECISION,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `calcCompleted` — Calc Completed (default `true`)
+    pub fn calculation_completed(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_CALC_COMPLETED,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `calcOnSave` — Calculate On Save (default `true`)
+    pub fn calculation_on_save(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_CALC_ON_SAVE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `concurrentCalc` — Concurrent Calculations (default `true`)
+    pub fn concurrent_calculation(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculationProperties::ATTR_CONCURRENT_CALC,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `concurrentManualCount` — Concurrent Thread Manual Count
+    pub fn concurrent_manual_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CalculationProperties::ATTR_CONCURRENT_MANUAL_COUNT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `forceFullCalc` — Force Full Calculation
+    pub fn force_full_calculation(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CalculationProperties::ATTR_FORCE_FULL_CALC,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CalculationProperties`]. Reads go through [`CalculationPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct CalculationPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, CalculationProperties>,
+);
+impl<'a> CalculationPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CalculationPropertiesView<'_> {
+        CalculationPropertiesView(self.0.as_lens())
+    }
+    /// Sets `calcId` — Calculation Id
+    pub fn set_calculation_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(CalculationProperties::ATTR_CALC_ID, s),
+        )
+    }
+    /// Removes `calcId`.
+    pub fn remove_calculation_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_CALC_ID)
+    }
+    /// Sets `calcMode` — Calculation Mode (default `auto`)
+    pub fn set_calculation_mode(
+        &mut self,
+        v: CalculateModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_CALC_MODE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `calcMode`.
+    pub fn remove_calculation_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_CALC_MODE)
+    }
+    /// Sets `fullCalcOnLoad` — Full Calculation On Load (default `false`)
+    pub fn set_full_calculation_on_load(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_FULL_CALC_ON_LOAD,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `fullCalcOnLoad`.
+    pub fn remove_full_calculation_on_load(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_FULL_CALC_ON_LOAD)
+    }
+    /// Sets `refMode` — Reference Mode (default `A1`)
+    pub fn set_reference_mode(
+        &mut self,
+        v: ReferenceModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_REF_MODE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `refMode`.
+    pub fn remove_reference_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_REF_MODE)
+    }
+    /// Sets `iterate` — Calculation Iteration (default `false`)
+    pub fn set_iterate(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_ITERATE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `iterate`.
+    pub fn remove_iterate(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_ITERATE)
+    }
+    /// Sets `iterateCount` — Iteration Count (default `100`)
+    pub fn set_iterate_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(CalculationProperties::ATTR_ITERATE_COUNT, s),
+        )
+    }
+    /// Removes `iterateCount`.
+    pub fn remove_iterate_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_ITERATE_COUNT)
+    }
+    /// Sets `iterateDelta` — Iterative Calculation Delta (default `0.001`)
+    pub fn set_iterate_delta(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_ITERATE_DELTA,
+                &ooxml_core::value::format_f64(v),
+            )
+    }
+    /// Removes `iterateDelta`.
+    pub fn remove_iterate_delta(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_ITERATE_DELTA)
+    }
+    /// Sets `fullPrecision` — Full Precision Calculation (default `true`)
+    pub fn set_full_precision(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_FULL_PRECISION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `fullPrecision`.
+    pub fn remove_full_precision(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_FULL_PRECISION)
+    }
+    /// Sets `calcCompleted` — Calc Completed (default `true`)
+    pub fn set_calculation_completed(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_CALC_COMPLETED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `calcCompleted`.
+    pub fn remove_calculation_completed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_CALC_COMPLETED)
+    }
+    /// Sets `calcOnSave` — Calculate On Save (default `true`)
+    pub fn set_calculation_on_save(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_CALC_ON_SAVE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `calcOnSave`.
+    pub fn remove_calculation_on_save(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_CALC_ON_SAVE)
+    }
+    /// Sets `concurrentCalc` — Concurrent Calculations (default `true`)
+    pub fn set_concurrent_calculation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_CONCURRENT_CALC,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `concurrentCalc`.
+    pub fn remove_concurrent_calculation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_CONCURRENT_CALC)
+    }
+    /// Sets `concurrentManualCount` — Concurrent Thread Manual Count
+    pub fn set_concurrent_manual_count(
+        &mut self,
+        v: u32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(CalculationProperties::ATTR_CONCURRENT_MANUAL_COUNT, s),
+        )
+    }
+    /// Removes `concurrentManualCount`.
+    pub fn remove_concurrent_manual_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_CONCURRENT_MANUAL_COUNT)
+    }
+    /// Sets `forceFullCalc` — Force Full Calculation
+    pub fn set_force_full_calculation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CalculationProperties::ATTR_FORCE_FULL_CALC,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `forceFullCalc`.
+    pub fn remove_force_full_calculation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CalculationProperties::ATTR_FORCE_FULL_CALC)
     }
 }
 /// `x:CT_Cell/x:c` — Cell.
@@ -357,6 +838,20 @@ impl<'a> CellViewMut<'a> {
     /// Removes `ph`.
     pub fn remove_show_phonetic(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Cell::ATTR_PH)
+    }
+    /// First `x:f` child, mutably.
+    pub fn cell_formula_mut(&mut self) -> Option<CellFormulaViewMut<'_>> {
+        self.0.child_mut::<CellFormula>().map(CellFormulaViewMut)
+    }
+    /// Existing `x:f` child, or a new one in schema position.
+    pub fn get_or_insert_cell_formula(
+        &mut self,
+    ) -> Result<CellFormulaViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CellFormula>().map(CellFormulaViewMut)
+    }
+    /// Removes the first `x:f` child.
+    pub fn remove_cell_formula(&mut self) -> bool {
+        self.0.remove::<CellFormula>()
     }
     /// First `x:is` child, mutably.
     pub fn inline_string_mut(&mut self) -> Option<InlineStringViewMut<'_>> {
@@ -585,6 +1080,418 @@ impl<'a> CellFormulaView<'a> {
     /// Text content.
     pub fn text(&self) -> std::borrow::Cow<'a, str> {
         self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CellFormula`]. Reads go through [`CellFormulaViewMut::as_view`].
+#[derive(Debug)]
+pub struct CellFormulaViewMut<'a>(pub ooxml_core::LensMut<'a, CellFormula>);
+impl<'a> CellFormulaViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CellFormulaView<'_> {
+        CellFormulaView(self.0.as_lens())
+    }
+    /// Sets `t` — Formula Type (default `normal`)
+    pub fn set_formula_type(
+        &mut self,
+        v: CellFormulaValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_T, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `t`.
+    pub fn remove_formula_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_T)
+    }
+    /// Sets `aca` — Always Calculate Array (default `false`)
+    pub fn set_always_calculate_array(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_ACA, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `aca`.
+    pub fn remove_always_calculate_array(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_ACA)
+    }
+    /// Sets `ref` — Range of Cells
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_REF)
+    }
+    /// Sets `dt2D` — Data Table 2-D (default `false`)
+    pub fn set_data_table2_d(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_DT2_D, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `dt2D`.
+    pub fn remove_data_table2_d(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_DT2_D)
+    }
+    /// Sets `dtr` — Data Table Row (default `false`)
+    pub fn set_data_table_row(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_DTR, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `dtr`.
+    pub fn remove_data_table_row(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_DTR)
+    }
+    /// Sets `del1` — Input 1 Deleted (default `false`)
+    pub fn set_input1_deleted(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_DEL1, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `del1`.
+    pub fn remove_input1_deleted(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_DEL1)
+    }
+    /// Sets `del2` — Input 2 Deleted (default `false`)
+    pub fn set_input2_deleted(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_DEL2, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `del2`.
+    pub fn remove_input2_deleted(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_DEL2)
+    }
+    /// Sets `r1` — Data Table Cell 1
+    pub fn set_r1(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_R1, v)
+    }
+    /// Removes `r1`.
+    pub fn remove_r1(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_R1)
+    }
+    /// Sets `r2` — Input Cell 2
+    pub fn set_r2(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_R2, v)
+    }
+    /// Removes `r2`.
+    pub fn remove_r2(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_R2)
+    }
+    /// Sets `ca` — Calculate Cell (default `false`)
+    pub fn set_calculate_cell(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_CA, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `ca`.
+    pub fn remove_calculate_cell(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_CA)
+    }
+    /// Sets `si` — Shared Group Index
+    pub fn set_shared_index(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(CellFormula::ATTR_SI, s))
+    }
+    /// Removes `si`.
+    pub fn remove_shared_index(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_SI)
+    }
+    /// Sets `bx` — Assigns Value to Name (default `false`)
+    pub fn set_bx(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_BX, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `bx`.
+    pub fn remove_bx(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_BX)
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CellFormula::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CellFormula::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_DefinedName/x:definedName` — Defined Name.
+#[derive(Debug)]
+pub enum DefinedName {}
+impl DefinedName {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `comment`
+    pub const ATTR_COMMENT: ooxml_core::QName = ooxml_core::QName::new("", "comment");
+    /// `customMenu`
+    pub const ATTR_CUSTOM_MENU: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "customMenu",
+    );
+    /// `description`
+    pub const ATTR_DESCRIPTION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "description",
+    );
+    /// `help`
+    pub const ATTR_HELP: ooxml_core::QName = ooxml_core::QName::new("", "help");
+    /// `statusBar`
+    pub const ATTR_STATUS_BAR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "statusBar",
+    );
+    /// `localSheetId`
+    pub const ATTR_LOCAL_SHEET_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "localSheetId",
+    );
+    /// `hidden`
+    pub const ATTR_HIDDEN: ooxml_core::QName = ooxml_core::QName::new("", "hidden");
+    /// `function`
+    pub const ATTR_FUNCTION: ooxml_core::QName = ooxml_core::QName::new("", "function");
+    /// `vbProcedure`
+    pub const ATTR_VB_PROCEDURE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "vbProcedure",
+    );
+    /// `xlm`
+    pub const ATTR_XLM: ooxml_core::QName = ooxml_core::QName::new("", "xlm");
+    /// `functionGroupId`
+    pub const ATTR_FUNCTION_GROUP_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "functionGroupId",
+    );
+    /// `shortcutKey`
+    pub const ATTR_SHORTCUT_KEY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "shortcutKey",
+    );
+    /// `publishToServer`
+    pub const ATTR_PUBLISH_TO_SERVER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "publishToServer",
+    );
+    /// `workbookParameter`
+    pub const ATTR_WORKBOOK_PARAMETER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookParameter",
+    );
+}
+impl ooxml_core::ElementSpec for DefinedName {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "definedName");
+    const SDK_NAME: &'static str = "x:CT_DefinedName/x:definedName";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_COMMENT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_CUSTOM_MENU,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_DESCRIPTION,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_HELP,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_STATUS_BAR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_LOCAL_SHEET_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_HIDDEN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_FUNCTION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_VB_PROCEDURE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_XLM,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_FUNCTION_GROUP_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_SHORTCUT_KEY,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_PUBLISH_TO_SERVER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefinedName::ATTR_WORKBOOK_PARAMETER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`DefinedName`].
+#[derive(Clone, Debug)]
+pub struct DefinedNameView<'a>(pub ooxml_core::Lens<'a, DefinedName>);
+impl<'a> DefinedNameView<'a> {
+    /// `name` — Defined Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_NAME)
+    }
+    /// `comment` — Comment
+    pub fn comment(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_COMMENT)
+    }
+    /// `customMenu` — Custom Menu Text
+    pub fn custom_menu(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_CUSTOM_MENU)
+    }
+    /// `description` — Description
+    pub fn description(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_DESCRIPTION)
+    }
+    /// `help` — Help
+    pub fn help(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_HELP)
+    }
+    /// `statusBar` — Status Bar
+    pub fn status_bar(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_STATUS_BAR)
+    }
+    /// `localSheetId` — Local Name Sheet Id
+    pub fn local_sheet_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(DefinedName::ATTR_LOCAL_SHEET_ID, ooxml_core::value::parse_u32)
+    }
+    /// `hidden` — Hidden Name (default `false`)
+    pub fn hidden(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefinedName::ATTR_HIDDEN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `function` — Function (default `false`)
+    pub fn function(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefinedName::ATTR_FUNCTION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `vbProcedure` — Procedure (default `false`)
+    pub fn vb_procedure(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefinedName::ATTR_VB_PROCEDURE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xlm` — External Function (default `false`)
+    pub fn xlm(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefinedName::ATTR_XLM,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `functionGroupId` — Function Group Id
+    pub fn function_group_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefinedName::ATTR_FUNCTION_GROUP_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `shortcutKey` — Shortcut Key
+    pub fn shortcut_key(&self) -> Option<&'a str> {
+        self.0.attr(DefinedName::ATTR_SHORTCUT_KEY)
+    }
+    /// `publishToServer` — Publish To Server (default `false`)
+    pub fn publish_to_server(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefinedName::ATTR_PUBLISH_TO_SERVER,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `workbookParameter` — Workbook Parameter (Server) (default `false`)
+    pub fn workbook_parameter(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefinedName::ATTR_WORKBOOK_PARAMETER,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_DefinedNames/x:definedNames` — Defines the DefinedNames Class.
+#[derive(Debug)]
+pub enum DefinedNames {}
+impl ooxml_core::ElementSpec for DefinedNames {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "definedNames");
+    const SDK_NAME: &'static str = "x:CT_DefinedNames/x:definedNames";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "definedName")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DefinedNames> for DefinedName {}
+/// Read-only view of [`DefinedNames`].
+#[derive(Clone, Debug)]
+pub struct DefinedNamesView<'a>(pub ooxml_core::Lens<'a, DefinedNames>);
+impl<'a> DefinedNamesView<'a> {
+    /// `x:definedName` children in document order.
+    pub fn defined_name_iter(&self) -> impl Iterator<Item = DefinedNameView<'a>> {
+        self.0.children::<DefinedName>().map(DefinedNameView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2075,6 +2982,8 @@ impl ooxml_core::ElementSpec for Workbook {
         ],
     );
 }
+impl ooxml_core::ChildOf<Workbook> for CalculationProperties {}
+impl ooxml_core::ChildOf<Workbook> for DefinedNames {}
 impl ooxml_core::ChildOf<Workbook> for Sheets {}
 /// Read-only view of [`Workbook`].
 #[derive(Clone, Debug)]
@@ -2083,6 +2992,14 @@ impl<'a> WorkbookView<'a> {
     /// `conformance` — conformance
     pub fn conformance(&self) -> Option<ooxml_core::EnumValue<'a, ConformanceClass>> {
         self.0.attr_enum(Workbook::ATTR_CONFORMANCE)
+    }
+    /// First `x:calcPr` child.
+    pub fn calculation_properties(&self) -> Option<CalculationPropertiesView<'a>> {
+        self.0.child::<CalculationProperties>().map(CalculationPropertiesView)
+    }
+    /// First `x:definedNames` child.
+    pub fn defined_names(&self) -> Option<DefinedNamesView<'a>> {
+        self.0.child::<DefinedNames>().map(DefinedNamesView)
     }
     /// First `x:sheets` child.
     pub fn sheets(&self) -> Option<SheetsView<'a>> {
@@ -2533,11 +3450,15 @@ impl<'a> CellValueViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
 const _: () = ooxml_core::schema::assert_child::<Cell, InlineString>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellValue>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormula>();
+const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
+const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
+const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
@@ -2564,6 +3485,8 @@ const _: () = ooxml_core::schema::assert_spec::<TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<TableParts>();
 const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<Workbook>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, CalculationProperties>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, Sheets>();
 const _: () = ooxml_core::schema::assert_spec::<Worksheet>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, MergeCells>();

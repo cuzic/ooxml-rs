@@ -1,0 +1,59 @@
+# Proposed codegen/allowlist/wml.toml after Word Phase1 (ADR-0007 §8). Spike input only:
+# `allowlist_dryrun.sh` runs the real generator with it on a scratch copy of the tree and
+# prints the lowering of every wml entry. Phase0 entries (ADR-0004 §4) are kept; Phase1
+# additions are marked "P1". Entries are SDK `Name`s ((complex type, element) pairs).
+
+[write]
+names = [
+    # Phase0
+    "w:CT_Body/w:body", "w:CT_P/w:p", "w:CT_R/w:r",
+    "w:CT_Text/w:t", "w:CT_Empty/w:tab", "w:CT_Br/w:br",
+    # P1: property containers become writable (get_or_insert of the subset below)
+    "w:CT_RPr/w:rPr", "w:CT_PPr/w:pPr",
+    # P1 §4: direct run properties (the subset)
+    "w:CT_OnOff/w:b", "w:CT_OnOff/w:bCs", "w:CT_OnOff/w:i", "w:CT_OnOff/w:iCs",
+    "w:CT_OnOff/w:strike", "w:CT_Underline/w:u", "w:CT_Color/w:color",
+    "w:CT_HpsMeasure/w:sz", "w:CT_HpsMeasure/w:szCs", "w:CT_Highlight/w:highlight",
+    "w:CT_VerticalAlignRun/w:vertAlign", "w:CT_Fonts/w:rFonts",
+    # P1 §4: direct paragraph properties (the subset)
+    "w:CT_Jc/w:jc", "w:CT_Spacing/w:spacing", "w:CT_Ind/w:ind",
+    "w:CT_OnOff/w:keepNext", "w:CT_OnOff/w:keepLines",
+    # P1 §5: style references
+    "w:CT_String/w:pStyle", "w:CT_String253/w:rStyle",
+    # P1 §6: updateFields opt-in
+    "w:CT_Settings/w:settings", "w:CT_OnOff/w:updateFields",
+]
+
+[read]
+names = [
+    # Phase0 (w:CT_RPr/w:rPr, w:CT_PPr/w:pPr, w:CT_Settings/w:settings and
+    # w:CT_OnOff/w:updateFields moved to [write])
+    "w:CT_Document/w:document", "w:CT_SectPr/w:sectPr",
+    "w:CT_Hyperlink/w:hyperlink", "w:CT_Tbl/w:tbl", "w:CT_Row/w:tr", "w:CT_Tc/w:tc",
+    "w:CT_Empty/w:cr", "w:CT_Empty/w:noBreakHyphen", "w:CT_Empty/w:softHyphen",
+    "w:CT_Empty/w:lastRenderedPageBreak",
+    "w:CT_FldChar/w:fldChar", "w:CT_Text/w:instrText", "w:CT_Text/w:delInstrText",
+    "w:CT_SimpleField/w:fldSimple",
+    "w:CT_RunTrackChange/w:ins", "w:CT_RunTrackChange/w:del",
+    "w:CT_RunTrackChange/w:moveFrom", "w:CT_RunTrackChange/w:moveTo",
+    "w:CT_Text/w:delText",
+    "w:CT_OnOff/w:trackRevisions", "w:CT_DocProtect/w:documentProtection",
+    # P1 §2: story roots and containers (write paths descend through them)
+    "w:CT_HdrFtr/w:hdr", "w:CT_HdrFtr/w:ftr",
+    "w:CT_Footnotes/w:footnotes", "w:CT_FtnEdn/w:footnote",
+    "w:CT_Endnotes/w:endnotes", "w:CT_FtnEdn/w:endnote",
+    "w:CT_Comments/w:comments", "w:CT_Comment/w:comment",
+    # P1 §3: cell properties read by set_cell_text (merge state)
+    "w:CT_TcPr/w:tcPr", "w:CT_VMerge/w:vMerge", "w:CT_HMerge/w:hMerge",
+    "w:CT_DecimalNumber/w:gridSpan",
+    # P1 §3: paragraph mark run properties (copied into a run created in an empty paragraph)
+    "w:CT_ParaRPr/w:rPr",
+    # P1 §5: style lookup
+    "w:CT_Styles/w:styles", "w:CT_Style/w:style", "w:CT_StyleName/w:name",
+]
+
+# P1 §3 (needs the additive codegen rule of §8.2): the mark run properties are copied as a
+# run's w:rPr. CT_ParaRPr is CT_RPr plus ins/del/moveFrom/moveTo and a different rPrChange
+# type, so `SameType` needs those QNames skipped.
+[detach]
+names = ["w:CT_ParaRPr/w:rPr", "w:CT_RPr/w:rPr"]

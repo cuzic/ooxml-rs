@@ -5,6 +5,7 @@
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md) (Phase0 definition),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md) (typed lens, allowlist)
 - Proposes: [ADR-0003](../adr/0003-xlsx-phase1-formula-and-calc-state.md) (Phase1),
+  [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (Phase2),
   [ADR-0009](../adr/0009-xlsx-phase3-sheet-operations.md) (Phase3)
 - Fixtures: [`reference/fixtures/xlsx/`](../../reference/fixtures/xlsx/README.md);
   scripts: [`spikes/xlsx/`](../../spikes/xlsx/README.md)
@@ -25,6 +26,11 @@
   37%（126 件）が数式を含んでいた。Phase0 はこれらを一切編集できない。このため
   Phase1 は「数式と再計算状態の扱い」（ADR-0003）とし、共有文字列・スタイルの登録簿は Phase2
   とした（§6）。
+- Phase2（共有文字列とスタイルの登録簿）の設計を ADR-0006（Proposed）にまとめた。既存の
+  エントリは中身を解釈せずそのまま残し、新しく足すエントリどうしだけで重複をまとめる（新規作成
+  のときはテンプレートの既存エントリとも重複をまとめる）。POI の 342 パッケージを調べると、値で
+  比べると同じに見えるが XML が違う既存スタイルが 75 パッケージにあり、既存エントリとの照合は
+  黙って別のスタイルに付け替える危険があることが分かった（`spikes/xlsx-phase2/`）。
 - フィクスチャは POI（Apache-2.0）23 件と calamine（MIT）2 件の計 25 件、約 290 KB。ADR-0001 が
   「手作りフィクスチャでは確かめられていない」と書いた形（共有数式、配列数式、`mc:Ignorable`、
   `xml:space="preserve"`、データディスクリプタ付きの zip エントリ、`spans`、空の `sheetData`、
@@ -317,57 +323,92 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 - **Acceptance:** §7 below, every row green; clippy clean; CK clean.
 - **Exit gate:** XL check by the owner on the outputs listed in §7.4.
 
-### Phase1 — formula-aware edits and calculation state (ADR-0003, Proposed)
+### Phase1 — formula-aware edits and calculation state (ADR-0003, Accepted, revision 5)
 
 - **Goal:** value edits are allowed in workbooks that contain formulas, without ever leaving a
-  cached value that may be wrong; formulas can be written and removed.
-- **Scope:**
-  1. Read and edit any worksheet by name or index (ADR-0002 §6 lookup generalised).
-  2. Formula census at open by QName (§5 finding 1), plus array/spill/data-table output ranges.
-  3. A reference-only formula tokenizer (A1 refs, ranges, whole rows/cols, sheet-qualified and
-     3-D refs, names, structured refs, external `[n]`, function names); unknown → conservative.
-  4. Dependency-based cache invalidation: remove `v` (and the result `t`) from every formula
-     cell and array output cell that may transitively depend on an edited cell; set
-     `calcPr/@fullCalcOnLoad="1"`.
-  5. `set_formula` (plain, no cached value), formula → value overwrite, shared-formula master
-     promotion (as POI), guards for partial array/spill/data-table writes.
+  cell-formula cached value that may be wrong; formulas can be written and removed.
+- **Scope** (ADR-0003 is the specification; this is a summary):
+  1. Read and edit any worksheet by name (case-insensitive) or index (`<sheets>` order).
+  2. Formula census at open by QName, plus array/spill/data-table result ranges and XLDAPR
+     dynamic arrays; an incomplete census refuses every edit.
+  3. A reference-aware tokenizer and parser (A1 refs, ranges, whole rows/cols, quoted and 3-D
+     sheet prefixes, names, structured and external refs, function names); precedents are
+     **sound by default**: only allowlisted constructs (with evidence per function) give precise
+     sets, anything else depends on everything (ADR-0003 §2).
+  4. Dependency-based cache invalidation: remove `v`/`t`/`is` from every formula cell and result
+     cell that may transitively depend on an edited cell (a dependent dynamic array seeds its
+     potential spill area); set `calcPr/@fullCalcOnLoad="1"` (not in manual mode).
+  5. `set_formula` (plain, no cached value), `remove_formula`, formula → value overwrite,
+     shared-formula master hand-off to the first remaining member (not POI's rule when the
+     remaining members are not a row-major fill), guards for array/spill/data-table writes,
+     macro-sheet dependents and iterative calculation.
   6. `calcChain.xml`: untouched when the set of formula cells is unchanged; removed (part,
-     workbook relationship, content-type override) when it changes.
+     workbook relationship, content-type override; `Package::remove_part` in core) when it
+     changes.
   7. Table header guard (writes into a table's header row → `Err` until P5 syncs names).
-- **Acceptance:**
-  - On every fixture with formulas (`shared_formulas`, `MatrixFormulaEvalTestData`, `xlookup`,
-    `70005-countifs`, `NewStyleConditionalFormattings`): a value edit to a non-formula cell
-    succeeds; T2 holds with the allowed diff extended to (a) the dependents' `v`/`t`, (b)
-    `calcPr`; every formula cell that is *not* a dependent keeps its span byte-identical.
+  8. Validate-then-apply in place; an apply failure poisons the workbook.
+- **Acceptance** (ADR-0003 §7):
+  - T1/T1b/T2 extended: exactly the edited cell, the dependents' `c` spans, a hand-off master's
+    `c`, `calcPr`, and for a calcChain removal one element (plus preceding whitespace) in each
+    registry; L1 for everything else.
   - CR: dependents read as empty (no stale value); non-dependents read their original cached
-    value; `worksheet_formula` text is unchanged for every formula cell, and calamine's shared
-    formula expansion agrees before/after.
-  - Tokenizer: on all 126 formula-bearing POI packages (fetched, not committed), every `f`
-    text is tokenized without panic; results are "refs" or "conservative"; a differential test
-    against openpyxl's `Tokenizer` (dev-only, offline-generated expected tokens) agrees on
-    reference tokens.
+    value; formula text is unchanged for every formula cell (calamine's view, where calamine
+    expands correctly; hand-written expectations where it does not).
+  - Tokenizer: hand-written token expectations; every formula text in the committed fixtures
+    parses; an optional local sweep over the POI corpus (2,157 distinct texts, 2,154 parse; the
+    3 others are `file:///` external references and are refused, i.e. depend on everything).
+    The openpyxl differential test of revision 2 is deferred (ADR-0003 "Deviations").
   - `calcChain` removal: L1 for all other parts; `[Content_Types].xml` and workbook rels lose
-    exactly one entry each (T2-style diff confined to those elements).
-  - XL on: edited `shared_formulas.xlsx`, `xlookup.xlsx`, a workbook after formula removal.
-- **Oracles:** L1, T1/T1b/T2 (extended allowed-diff set), CR, XL.
+    exactly one entry each.
+  - XL on the `manual_check` Phase1 outputs (12–21): recalculated values on open, no repair
+    dialog.
+- **Oracles:** L1, T1/T1b/T2 (extended allowed-diff set), CR, XL, and ADR-0003's three oracles
+  that do not consult the implementation: **O1** hand-written dependent sets on synthetic
+  workbooks (`reference/fixtures/xlsx/synthetic/`), **O2** a perturbation test with a test-only
+  evaluator, **O3** LibreOffice hard recalculation of synthetic, O2-sampled and fixture edits
+  (data generated by the owner or a manual CI job; the test is ignored until then).
 
-### Phase2 — shared-string and style registries ("two seed modes")
+### Phase2 — shared-string and style registries ("two seed modes"; ADR-0006, Accepted)
 
 - **Goal:** rust_xlsxwriter-level cell formatting for from-scratch files and for new cells in
   existing files; dates.
-- **Scope:** append-only shared-string registry (dedup by value for new strings; existing
-  `si` frozen and opaque, including rich and phonetic ones); style registry (`fonts`, `fills`,
-  `borders`, `numFmts`, `cellXfs`) with value-typed `Format`; dedup only among *new* entries in
-  edit mode, full dedup from scratch; existing entries never renumbered; vendor extensions in
-  `styles.xml` (e.g. Hancom `mc:AlternateContent`) treated as opaque; `write_datetime` +
-  1900/1904 handling; `set_bool`, `set_error`. ADR-0004 to be written (records the two seed modes).
-- **Acceptance:** from-scratch: rust_xlsxwriter's own approach of comparing against
-  Excel-authored files where available (`compare_xlsx_files`-style XML comparison, ignoring
-  timestamps) for a format matrix; edit: on `61605.xlsx` and `style-alternate-content.xlsx`,
-  adding a new format appends exactly one `xf` (and at most one font/fill/border/numFmt) and
-  leaves every existing entry's span byte-identical (T2 on `styles.xml`); `count` attributes
-  updated; CR of formats via calamine 0.38 `worksheet_style`.
-- **Oracles:** T1/T1b/T2 on `styles.xml` and `sharedStrings.xml`, CR (values + styles), XL.
+- **Design:** [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (revision 3, Accepted).
+  Measurements: [`spikes/xlsx-phase2/`](../../spikes/xlsx-phase2/README.md) (342 POI packages +
+  24 fixtures). A throwaway prototype on branch `spike/xlsx-phase2-proto` ran the edit-mode
+  registry on all of them (330 POI packages pass every check, 0 failures).
+- **Scope:**
+  - append-only shared-string registry: `t="s"` when the workbook has an sst, inline fallback
+    otherwise (28% of the corpus has none); rich strings; existing `si` opaque, except
+    byte-exact reuse (proposed default for Q1);
+  - style registry over `numFmts`, `fonts`, `fills`, `borders` and `cellXfs` (and the `dxfs`
+    shape for Phase4), with a value-typed `Format` (raw theme/tint/indexed colours);
+  - from-scratch mode dedups against the template's entries. Edit mode dedups among new entries,
+    and against existing ones only by exact form: the whole bottom-up chain must be
+    byte-identical to what would be appended, so repeated runs stop growing the tables
+    (revision 2, review M2). Matching by value is rejected: 75/340 packages have distinct
+    existing `xf`s that a `Format` projection would merge;
+  - unset `Format` groups inherit the workbook's default style by index, not Calibri 11 (40% of
+    files use another default font; review M1); Excel's table limits are guarded;
+  - number formats: built-in ids only when the file does not redefine them (32 packages
+    redefine ids < 164); new custom ids above every `numFmtId` used anywhere in the package
+    (dxf, pivot, extLst; review M3); `numFmts` inserted when absent (234/340);
+  - `sst/@count` recomputed from Phase1's census, `uniqueCount` set (7% of files have a wrong
+    `count`);
+  - applying an existing style by index or by unique named style; `set_datetime` (1900/1904,
+    false 1900-02-29), `set_bool`, `set_error`; reading `format()` / `is_date()`;
+  - vendor extensions (`x14ac:knownFonts`, `extLst`, `indexedColors`) untouched; a table with an
+    `mc:AlternateContent` child cannot grow (`Err(UnresolvedSibling)`).
+- **Acceptance (ADR-0006 "Test oracles"):** T2-append on `styles.xml`/`sharedStrings.xml`
+  (existing entries byte-identical, diff confined to appended entries and `count`s); index
+  stability for every `s` and `t="s"`; CR of values *and* styles with calamine 0.38
+  (`worksheet_style`, dates as `DateTime`); from-scratch format matrix compared with
+  rust_xlsxwriter 0.102 output (calamine + normalised `styles.xml`); growth bound on
+  `61605`, `style-alternate-content`, `52348`, `ExcelPivotTableSample`, `fixture_minimal`;
+  collision regressions from the spike; mutation testing.
+- **Oracles:** L1, T2-append, CR (values + styles), RX (rust_xlsxwriter comparison), XL.
+- **Depends on Phase1** for plan → validate → apply with staged clones and for the census
+  (`t="s"` counting); value writes with a format invalidate dependents like any value write,
+  style-only writes invalidate formulas that call `CELL`/`INFO`.
 
 ### Phase3 — package structure edits (ADR-0009, Proposed, revision 2)
 
@@ -412,6 +453,20 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
   - mutation testing and XL.
 
 ### Phase4 — range-based worksheet features (write and edit)
+
+Design: [ADR-0014](../adr/0014-xlsx-phase4-range-features.md) (Accepted, revision 3; owner decisions on Q1–Q4 2026-11-16). It narrows
+the scope below:
+
+- x14-only forms are preserved but not created. Cross-sheet DV and CF references are refused
+  until an Excel check; defined names are the workaround.
+- Filter criteria and header/footer images are out of scope.
+- Protection writes the SHA-512 form and replaces every hash attribute when re-protecting.
+
+Revision 2 also:
+
+- relaxes Phase0's merged-cell guard for anchors (an ADR-0001 note);
+- reuses Excel's leftover `_xlnm._FilterDatabase`;
+- rebuilds the Phase3 dependency on ADR-0009 rev 2 and the core `RegistryPlan` (PR #38).
 
 - **Scope:** merged cells (write; anchor rule), hyperlinks (with sheet rels), data validation
   (incl. x14 via typed `extLst` lens), conditional formatting (2007 + x14 with id linking), dxf
@@ -519,6 +574,9 @@ span or insertion point plus `dimension`.
 
 ### 7.5 Expected refusals (no output written; input file unchanged)
 
+P0-R1–R3 are superseded by Phase1 (ADR-0003): these workbooks are now editable and
+`FormulaPresent` no longer exists; the Phase0 tests were adapted (`tests/refusals.rs`).
+
 | ID | Fixture | Call | Expected |
 |---|---|---|---|
 | P0-R1 | `shared_formulas.xlsx` (40 shared, `calcChain`) | any `set_*` on any cell | `Err(FormulaPresent)`; detected at open, cached |
@@ -534,7 +592,7 @@ span or insertion point plus `dimension`.
 ### 7.6 What Phase0 does not claim even when all of this passes
 
 - That Excel opens the outputs without a repair dialog: owner's XL check. `cargo run -p
-  ooxml-xlsx --example manual_check -- <outdir>` writes the outputs of P0-E1, E2, E3, E4, E11,
+  ooxml-xlsx --example xlsx_manual_check -- <outdir>` writes the outputs of P0-E1, E2, E3, E4, E11,
   E12, E13, E14, E15 plus the `x:`-prefixed (Hancom) and hidden-first-sheet cases, the unedited
   originals, and `CHECKLIST.md` (what to look for, how to report).
 - Correct `spans` hints after edits outside a span (left as is; XL check covers it).
@@ -616,4 +674,6 @@ The original questions, for the record:
   (inline strings), `worksheet/_reader.py` (extLst warnings, shared formula translation),
   `xml/constants.py` (`EXT_TYPES`), `reader/drawings.py` (shapes lost), `writer/excel.py`
   (`keep_vba` part list, blank `app.xml`), `workbook/properties.py` (`fullCalcOnLoad`).
-- Survey scripts and outputs: `spikes/xlsx/` (README lists commands).
+- Survey scripts and outputs: `spikes/xlsx/` (README lists commands); Phase2 registry facts:
+  `spikes/xlsx-phase2/` (ADR-0006 lists its own sources: rust_xlsxwriter @ `d850973d`,
+  openpyxl 3.1.5 sdist, calamine 0.38, [MS-XLSB] `BrtKnownFonts`).
