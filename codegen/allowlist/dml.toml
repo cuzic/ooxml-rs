@@ -27,3 +27,14 @@ names = [
     "a:CT_TextCharacterProperties/a:endParaRPr",
     "a:CT_TextParagraphProperties/a:pPr",
 ]
+
+# Detachable (ADR-0002 note "detach/insert", ADR-0005 §9): copied by
+# Lens::detach_as for new runs/paragraphs. Formatting only: these subtrees
+# hold no shape id, placeholder index or id reference. Never list shapes,
+# groups, text bodies or anything that can contain a cNvPr.
+[detach]
+names = [
+    "a:CT_TextCharacterProperties/a:rPr",
+    "a:CT_TextCharacterProperties/a:endParaRPr",
+    "a:CT_TextParagraphProperties/a:pPr",
+]

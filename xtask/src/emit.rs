@@ -199,13 +199,6 @@ impl<'m, 'a> Ctx<'m, 'a> {
         format!("ooxml_core::QName::new({}, {})", Self::ns_const(prefix), lit(local))
     }
 
-    /// What must agree for two entries to be `SameType`: resolved
-    /// attributes (name, type, default), content model and children.
-    fn shape(e: &Entry) -> String {
-        let attrs: Vec<_> = e.attrs.iter().map(|a| (&a.ns, &a.local, &a.ty, &a.default)).collect();
-        format!("{attrs:?} {} {:?} {:?}", e.attrs_incomplete, e.content, e.child_names)
-    }
-
     fn type_path(&self, from_group: &str, sdk_name: &str) -> String {
         let (a, _) = &self.entries[sdk_name];
         let n = &self.type_names[sdk_name];
@@ -432,23 +425,19 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 );
             }
 
-            // ---- SameType (ADR-0002 post-acceptance note "detach/insert") ----
-            // Another allowlisted entry with the same SDK complex type (the
-            // part of the SDK Name before `/`) and the same resolved
-            // attributes, content and children: a copy of its subtree is a
-            // valid `ty`. The reflexive case is a blanket impl in core.
-            let ct = e.name.split_once('/').map_or(e.name.as_str(), |(t, _)| t);
-            for (other, (oa, oe)) in &self.entries {
-                if *other == e.name || other.split_once('/').map(|(t, _)| t) != Some(ct) {
-                    continue;
+            // ---- Detachable / SameType (ADR-0002 note "detach/insert") ----
+            // Only entries opted in with `[detach]`; SameType only between
+            // them (the reflexive case is a blanket impl in core).
+            if allowed.detach {
+                let _ = writeln!(body, "impl ooxml_core::Detachable for {ty} {{}}");
+                let others = self.entries.iter().filter(|(_, (a, _))| a.detach).map(|(n, (a, oe))| (n.as_str(), a.group, oe));
+                let (partners, mismatches) = same_type_partners(e, others);
+                diags.lines.extend(mismatches);
+                for (other, ogroup) in partners {
+                    let cfg = if ogroup == group { String::new() } else { format!("#[cfg(all(feature = \"{group}\", feature = \"{ogroup}\"))]") };
+                    let op = self.type_path(group, other);
+                    let _ = writeln!(body, "{cfg} impl ooxml_core::SameType<{op}> for {ty} {{}}");
                 }
-                if Self::shape(e) != Self::shape(oe) {
-                    diags.push(format!("SameTypeMismatch {} {other}: same complex type, different resolved shape; no SameType", e.name));
-                    continue;
-                }
-                let cfg = if oa.group == group { String::new() } else { format!("#[cfg(all(feature = \"{group}\", feature = \"{}\"))]", oa.group) };
-                let op = self.type_path(group, other);
-                let _ = writeln!(body, "{cfg} impl ooxml_core::SameType<{op}> for {ty} {{}}");
             }
 
             // ---- views ----
@@ -675,4 +664,77 @@ pub fn format_rust(src: &str) -> Res<String> {
         format!("generated code does not parse: {e} (source written to {})", dump.display())
     })?;
     Ok(format!("{HEADER}{}", prettyplease::unparse(&file)))
+}
+
+/// What must agree for two entries to be `SameType`: resolved attributes
+/// (name, type, default), attribute completeness, content model and children.
+fn shape(e: &Entry) -> String {
+    let attrs: Vec<_> = e.attrs.iter().map(|a| (&a.ns, &a.local, &a.ty, &a.default)).collect();
+    format!("{attrs:?} {} {:?} {:?}", e.attrs_incomplete, e.content, e.child_names)
+}
+
+/// The `SameType` partners of `e` among `others` (SDK Name, group, entry):
+/// a different entry with the same SDK complex type (the part of the SDK
+/// Name before `/`) and the same [`shape`]. Same type but different shape
+/// gives a `SameTypeMismatch` diagnostic and no impl.
+fn same_type_partners<'o>(
+    e: &Entry,
+    others: impl Iterator<Item = (&'o str, &'static str, &'o Entry)>,
+) -> (Vec<(&'o str, &'static str)>, Vec<String>) {
+    let ct = e.name.split_once('/').map_or(e.name.as_str(), |(t, _)| t);
+    let (mut partners, mut diags) = (Vec::new(), Vec::new());
+    for (other, group, oe) in others {
+        if other == e.name || other.split_once('/').map(|(t, _)| t) != Some(ct) {
+            continue;
+        }
+        if shape(e) == shape(oe) {
+            partners.push((other, group));
+        } else {
+            diags.push(format!("SameTypeMismatch {} {other}: same complex type, different resolved shape; no SameType", e.name));
+        }
+    }
+    (partners, diags)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Attr;
+
+    fn entry(name: &str, attr: &str) -> Entry {
+        Entry {
+            name: name.into(),
+            file: 0,
+            class_name: "C".into(),
+            summary: None,
+            prefix: "a".into(),
+            local: name.rsplit(':').next().unwrap().into(),
+            attrs: vec![Attr {
+                ns: String::new(),
+                local: attr.into(),
+                prefix: String::new(),
+                ty: Ty::Simple("String"),
+                default: None,
+                property: None,
+                comment: None,
+            }],
+            attrs_incomplete: false,
+            content: ContentModel::Empty,
+            child_names: Default::default(),
+            child_props: Default::default(),
+        }
+    }
+
+    #[test]
+    fn same_type_needs_same_complex_type_and_same_shape() {
+        let rpr = entry("a:CT_T/a:rPr", "lang");
+        let end = entry("a:CT_T/a:endParaRPr", "lang");
+        let odd = entry("a:CT_T/a:defRPr", "other"); // same CT, different resolved attributes
+        let ppr = entry("a:CT_P/a:pPr", "lang"); // same shape, other CT
+        let all = [&rpr, &end, &odd, &ppr];
+        let (partners, diags) = same_type_partners(&rpr, all.iter().map(|e| (e.name.as_str(), "dml", *e)));
+        assert_eq!(partners, [("a:CT_T/a:endParaRPr", "dml")]);
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].starts_with("SameTypeMismatch a:CT_T/a:rPr a:CT_T/a:defRPr"), "{diags:?}");
+    }
 }
