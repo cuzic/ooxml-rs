@@ -27,7 +27,7 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::error::{Error, Result};
 use crate::name::{CONTENT_TYPES_NS, PACKAGE_RELATIONSHIPS_NS, QName, STRICT_NS_PREFIX};
-use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relationships, rels_part_name};
+use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relationships, normalize_part_name, rels_part_name, same_part_name, xml_trim};
 use crate::xml::XmlDocument;
 
 /// OLE/CFB compound file signature (encrypted or legacy binary Office files).
@@ -90,6 +90,14 @@ pub enum RemoveRefusal {
         /// Why.
         reason: String,
     },
+    /// A relationships part mentions the part's file name, but none of its
+    /// relationships resolves to the part: a spelling this code does not
+    /// resolve might still point at it (safety net; refusing is the safe
+    /// side).
+    UnresolvedMention {
+        /// The relationships part.
+        rels: String,
+    },
     /// A registry part that must change cannot be edited in place.
     RegistryNotEditable {
         /// The registry part.
@@ -111,6 +119,9 @@ impl std::fmt::Display for RemoveRefusal {
             }
             RemoveRefusal::StillReferenced { source, id } => write!(f, "{source} still refers to relationship {id}"),
             RemoveRefusal::SourceNotScannable { source, reason } => write!(f, "cannot scan {source} for references: {reason}"),
+            RemoveRefusal::UnresolvedMention { rels } => {
+                write!(f, "{rels} mentions the part's file name but no relationship there resolves to it")
+            }
             RemoveRefusal::RegistryNotEditable { part, reason } => write!(f, "{part} cannot be edited in place: {reason}"),
         }
     }
@@ -189,7 +200,9 @@ impl Package {
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index)?;
             let name = file.name()?.into_owned();
-            if parts.iter().any(|p: &Part| p.name.eq_ignore_ascii_case(&name)) {
+            // OPC part-name equivalence: ASCII case-insensitive, and an
+            // IRI entry name equals its percent-encoded form (review N8).
+            if parts.iter().any(|p: &Part| same_part_name(&p.name, &name)) {
                 return Err(Error::Package(format!("duplicate part name {name:?}")));
             }
             parts.push(Part { name, index, compression: file.compression(), state: PartState::Raw });
@@ -352,11 +365,15 @@ impl Package {
     ///   wholesale or cannot be parsed (a relationships part that cannot be
     ///   parsed and does not mention the part's file name is ignored).
     ///
-    /// Part names follow OPC equivalence: ASCII case-insensitive (the part,
-    /// `_rels` folders, its own `.rels`), and relationship targets match
-    /// after percent-decoding. Only the root `_rels/.rels` holds package
-    /// relationships. After a successful validation the removal itself
-    /// cannot fail.
+    /// - `UnresolvedMention`: a relationships part mentions the part's file
+    ///   name in a spelling that does not resolve to it (safety net).
+    ///
+    /// Part names follow OPC equivalence: ASCII case-insensitive and
+    /// percent-decoded, for the part, source parts, `_rels` folders, its own
+    /// `.rels`, targets and `Override`s; XML whitespace around `Target` and
+    /// `Id` is collapsed (`xsd:anyURI`, `xsd:ID`). Only the root
+    /// `_rels/.rels` holds package relationships. After a successful
+    /// validation the removal itself cannot fail.
     pub fn remove_part(&mut self, name: &str, allowed_rel_types: &[&str]) -> Result<RemovedPart> {
         let plan = self.plan_removal(name, allowed_rel_types)?;
         Ok(self.apply_removal(plan))
@@ -371,9 +388,10 @@ impl Package {
         self.plan_removal(name, allowed_rel_types).map(drop)
     }
 
+    /// The part equivalent to `name` under OPC part-name equivalence
+    /// (ASCII case-insensitive, percent-decoded).
     fn find_ci(&self, name: &str) -> Option<usize> {
-        let name = name.trim_start_matches('/');
-        self.parts.iter().position(|p| p.name.eq_ignore_ascii_case(name))
+        self.parts.iter().position(|p| same_part_name(&p.name, name))
     }
 
     /// Parses a `Raw` registry part for planning (the tree is installed by
@@ -393,7 +411,8 @@ impl Package {
         if let Some(i) = self.find_ci(&rels_part_name(Some(&name))) {
             return Err(refuse(RemoveRefusal::HasOwnRelationships { rels: self.parts[i].name.clone() }));
         }
-        let file_name = name.rsplit('/').next().unwrap_or(&name).to_ascii_lowercase();
+        let norm = normalize_part_name(&name);
+        let file_name = norm.rsplit('/').next().unwrap_or(&norm).to_owned();
         let rel_q = QName::new(PACKAGE_RELATIONSHIPS_NS, "Relationship");
         let mut edits = Vec::new();
         let mut relationships = Vec::new();
@@ -402,10 +421,14 @@ impl Package {
             let rels_name = p.name.clone();
             let Some(source) = source_of_rels_part(&rels_name) else { continue };
             let not_editable = |reason: String| refuse(RemoveRefusal::RegistryNotEditable { part: rels_name.clone(), reason });
-            // Whether an unreadable relationships part might refer to the part.
+            // Whether a relationships part mentions the part's file name in
+            // its raw text (percent-decoded, case-folded): an unreadable one
+            // might refer to the part, and a readable one in which no
+            // relationship resolved to it spells it in a form this code does
+            // not resolve (safety net, review N7).
             let mentions = || {
                 self.read_part(&rels_name)
-                    .map(|b| String::from_utf8_lossy(&b).to_ascii_lowercase().contains(&file_name))
+                    .map(|b| normalize_part_name(&String::from_utf8_lossy(&b)).contains(&file_name))
                     .unwrap_or(true)
             };
             let mut fresh: Option<XmlDocument> = None;
@@ -436,7 +459,8 @@ impl Package {
             let mut indices = Vec::new();
             let mut ids = Vec::new();
             for (i, e) in root.indexed_elements().filter(|(_, e)| e.is(rel_q)) {
-                let get = |a: &'static str| e.attr(QName::new("", a));
+                // anyURI / ID / token values: XML whitespace collapses (N7 b, c).
+                let get = |a: &'static str| e.attr(QName::new("", a)).map(xml_trim);
                 if get("TargetMode") == Some("External") {
                     continue;
                 }
@@ -457,6 +481,9 @@ impl Package {
                 ids.push(id);
             }
             if indices.is_empty() {
+                if mentions() {
+                    return Err(refuse(RemoveRefusal::UnresolvedMention { rels: rels_name.clone() }));
+                }
                 continue;
             }
             if matches!(p.state, PartState::Replaced(_)) {
@@ -693,32 +720,6 @@ fn source_of_rels_part(rels: &str) -> Option<RelsSource> {
     })
 }
 
-/// OPC part-name equivalence for matching a relationship target to a part:
-/// percent-decoded (so an IRI target and a `%`-encoded zip entry name, or
-/// the reverse, are the same part), then ASCII case-insensitive.
-fn same_part_name(a: &str, b: &str) -> bool {
-    fn norm(s: &str) -> String {
-        let s = s.trim_start_matches('/');
-        let b = s.as_bytes();
-        let mut out = Vec::with_capacity(b.len());
-        let mut i = 0;
-        while i < b.len() {
-            if b[i] == b'%'
-                && let Some(h) = b.get(i + 1..i + 3)
-                && let Ok(v) = u8::from_str_radix(std::str::from_utf8(h).unwrap_or("zz"), 16)
-            {
-                out.push(v);
-                i += 3;
-                continue;
-            }
-            out.push(b[i]);
-            i += 1;
-        }
-        String::from_utf8_lossy(&out).to_ascii_lowercase()
-    }
-    norm(a) == norm(b)
-}
-
 /// Does any attribute, in any namespace (`r:id`, VML `o:relid`, Strict
 /// relationships namespace, …), carry `id` after XML unescaping and
 /// character-reference decoding? Over-matching only ever refuses a removal.
@@ -732,7 +733,7 @@ fn refers_to_rel_id(xml: &[u8], id: &str) -> std::result::Result<bool, String> {
                 for a in e.attributes().with_checks(true) {
                     let a = a.map_err(|e| e.to_string())?;
                     let v = a.normalized_value(XmlVersion::Implicit1_0).map_err(|e| e.to_string())?;
-                    if v == id {
+                    if xml_trim(&v) == xml_trim(id) {
                         return Ok(true);
                     }
                 }
@@ -782,6 +783,7 @@ mod tests {
 
     #[test]
     fn part_name_equivalence() {
+        use crate::opc::same_part_name;
         assert!(same_part_name("xl/calc%E7%94%BB.xml", "xl/calc画.xml"));
         assert!(same_part_name("/XL/CalcChain.xml", "xl/calcchain.xml"));
         assert!(same_part_name("xl/calc%43hain.xml", "xl/calcChain.xml"));
