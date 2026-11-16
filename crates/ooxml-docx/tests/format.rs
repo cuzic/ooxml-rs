@@ -275,6 +275,10 @@ fn update_fields_opt_in() {
     let mut doc = open_with("<w:p/>", None, Some(r#"<w:compat/><w:hyphenationZone w:val="357"/>"#));
     assert_matches!(refused(&mut doc, |d| d.enable_update_fields_on_open()), Error::Core(CoreError::UnresolvedSibling(_)));
     assert!(!doc.update_fields_opted_in());
+    // n4: settings.xml binding WML only as the default namespace refuses before inserting
+    let settings = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><settings xmlns="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><zoom/></settings>"#;
+    let mut doc = Document::from_bytes(package(&document_xml("<w:p/>"), &[("settings", "settings.xml", settings)])).unwrap();
+    assert_matches!(refused(&mut doc, |d| d.enable_update_fields_on_open()), Error::Core(CoreError::NamespaceNotInScope(_)));
     let mut doc = open_with("<w:p/>", None, Some(r#"<w:trackRevisions/>"#));
     assert_matches!(refused(&mut doc, |d| d.enable_update_fields_on_open()), Error::TrackRevisionsOn);
     let two = package(

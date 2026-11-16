@@ -40,6 +40,10 @@
 //! / [`Document::replace_at`] / [`Document::replace_matches`] with
 //! child-local edits and typed refusals ([`RefusalReason`]), and the
 //! per-operation `StaleFieldRisk` gate ([`Document::write_gate_for`]).
+//! Part 2: direct formatting ([`Document::format_run`],
+//! [`Document::format_paragraph`]), existing styles by id
+//! ([`Document::set_paragraph_style`], [`Document::style_ids_by_name`]) and
+//! the `updateFields` opt-in ([`Document::enable_update_fields_on_open`]).
 //!
 //! ```no_run
 //! use ooxml_docx::{Document, ReplaceOptions};
