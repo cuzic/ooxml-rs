@@ -24,6 +24,8 @@
     add, delete or rename its `TitlesOfParts`/`HeadingPairs` are stale. That is the state
     §11 already accepts for an unrecognized `app.xml`; Excel rebuilds the part on save and no
     reader uses it to list sheets. Each operation's rustdoc says so.
+    **Update (PR #55):** §11 is implemented; each operation keeps a recognized `app.xml`
+    consistent.
   - The closed-world scan (§6) matches a location by namespace and path, as the rewriter
     reaches it (PR #53 review B1): `f` only as a cell formula (`sheetData/row/c/f`) or a
     chart's `c:f`/`c15:f`. The table's other formula rows (DV, CF, x14 `xm:f`, table

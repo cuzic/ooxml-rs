@@ -484,9 +484,8 @@ impl Workbook {
     /// formulas with 3-D references, `SHEET`/`SHEETS` and every
     /// `Everything` formula lose their cached values.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn add_sheet(&mut self, name: &str, position: usize) -> Result<()> {
         self.structural_guard()?;
         self.check_new_name(name, None)?;
@@ -616,9 +615,8 @@ impl Workbook {
     /// ([`Error::ReversesThreeDReference`]). `firstSheet` (the first tab
     /// shown in the tab strip) stays, clamped to the active tab.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn move_sheet(&mut self, from: usize, to: usize) -> Result<()> {
         self.structural_guard()?;
         let n = self.sheets.len();
@@ -702,9 +700,8 @@ impl Workbook {
     /// the active tab to the next visible sheet; a hidden sheet is never
     /// `tabSelected`.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn set_sheet_state(&mut self, sheet: &str, state: SheetState) -> Result<()> {
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
@@ -783,9 +780,8 @@ impl Workbook {
     /// reference, as does a consolidation `rangeSet`/`dataRef` naming the
     /// sheet. Returns what was rewritten.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn rename_sheet(&mut self, sheet: &str, new_name: &str) -> Result<Vec<RewrittenLocation>> {
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
@@ -1130,9 +1126,8 @@ impl Workbook {
     /// cascade table, and references this version cannot rewrite. Names
     /// local to the sheet go with it and are not reported as rewritten.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn delete_sheet(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
         self.delete(sheet, false)
     }
