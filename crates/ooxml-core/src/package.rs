@@ -224,8 +224,10 @@ impl Package {
         if data.starts_with(&CFB_MAGIC) {
             return Err(Error::EncryptedPackage);
         }
+        let len = data.len() as u64;
         let mut archive = ZipArchive::new(Cursor::new(data))?;
         let mut parts = Vec::with_capacity(archive.len());
+        let mut declared: u64 = 0;
         // OPC part-name equivalence (ASCII case-insensitive, an IRI entry
         // name equals its percent-encoded form; review N8): each name is
         // normalized once, so the check is linear (review N11).
@@ -233,10 +235,21 @@ impl Package {
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index)?;
             let name = file.name()?.into_owned();
+            // Raw copy writes `compressed_size` bytes from `data_start`: data
+            // that is not all inside the archive would come out different
+            // (fuzz finding F-2), so such an entry is refused here.
+            let end = file.data_start().map_or(u64::MAX, |start| start.saturating_add(file.compressed_size()));
+            if end > len {
+                return Err(Error::TruncatedEntry { part: name, end, len });
+            }
+            declared = declared.saturating_add(file.size());
             if !seen.insert(normalize_part_name(&name)) {
                 return Err(Error::Package(format!("duplicate part name {name:?}")));
             }
             parts.push(Part { name, index, compression: file.compression(), state: PartState::Raw });
+        }
+        if declared > options.max_package_bytes {
+            return Err(Error::PackageTooLarge { size: declared, limit: options.max_package_bytes });
         }
         let mut pkg = Package {
             archive,
@@ -288,11 +301,26 @@ impl Package {
         })
     }
 
-    fn read_original(&self, index: usize) -> Result<Vec<u8>> {
+    /// Decompresses a part's original bytes, within
+    /// [`ParseOptions::max_part_bytes`]. The declared size only decides the
+    /// refusal, never the allocation (fuzz finding F-6: a 10-byte entry can
+    /// declare 4 GB); the buffer grows with the data actually read.
+    fn read_original(&self, part: &Part) -> Result<Vec<u8>> {
+        /// First allocation; `read_to_end` grows the buffer from there.
+        const INITIAL: u64 = 64 * 1024;
+        let limit = self.parse_options.max_part_bytes;
+        let too_large = || Error::PartTooLarge { part: part.name.clone(), limit };
         let mut archive = self.archive.clone();
-        let mut file = archive.by_index(index)?;
-        let mut buf = Vec::with_capacity(file.size() as usize);
-        file.read_to_end(&mut buf)?;
+        let file = archive.by_index(part.index)?;
+        let declared = file.size();
+        if declared > limit {
+            return Err(too_large());
+        }
+        let mut buf = Vec::with_capacity(declared.min(INITIAL) as usize);
+        file.take(limit.saturating_add(1)).read_to_end(&mut buf)?;
+        if buf.len() as u64 > limit {
+            return Err(too_large());
+        }
         Ok(buf)
     }
 
@@ -301,8 +329,8 @@ impl Package {
     pub fn read_part(&self, name: &str) -> Result<Vec<u8>> {
         let part = self.get(name)?;
         match &part.state {
-            PartState::Raw => self.read_original(part.index),
-            PartState::Parsed(d) if !d.is_dirty() => self.read_original(part.index),
+            PartState::Raw => self.read_original(part),
+            PartState::Parsed(d) if !d.is_dirty() => self.read_original(part),
             PartState::Parsed(d) => Ok(d.serialize().into_bytes()),
             PartState::Replaced(b) => Ok(b.clone()),
         }
@@ -317,7 +345,7 @@ impl Package {
                 if is_opc_metadata(name) {
                     options.max_depth = options.max_depth.max(crate::xml::DEFAULT_MAX_DEPTH);
                 }
-                let doc = XmlDocument::parse_with(&self.read_original(self.parts[i].index)?, &options)?;
+                let doc = XmlDocument::parse_with(&self.read_original(&self.parts[i])?, &options)?;
                 self.parts[i].state = PartState::Parsed(doc);
             }
             PartState::Replaced(_) => {
@@ -439,7 +467,7 @@ impl Package {
     /// Parses a `Raw` registry part for planning (the tree is installed by
     /// apply, so parsing never changes a part's state on refusal).
     fn parse_raw(&self, i: usize) -> std::result::Result<XmlDocument, String> {
-        let bytes = self.read_original(self.parts[i].index).map_err(|e| e.to_string())?;
+        let bytes = self.read_original(&self.parts[i]).map_err(|e| e.to_string())?;
         XmlDocument::parse(&bytes).map_err(|e| e.to_string())
     }
 

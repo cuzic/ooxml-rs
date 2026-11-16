@@ -21,3 +21,10 @@ thiserror = { workspace = true }
 [dev-dependencies]
 serde_json = "1"
 zip = { workspace = true }
+
+[[example]]
+# Unique across the workspace: three crates have a manual check and cargo warns
+# about (and may later refuse) same-named example targets. The source file keeps
+# its name so open PRs that edit it do not conflict.
+name = "pptx_manual_check"
+path = "examples/manual_check.rs"
