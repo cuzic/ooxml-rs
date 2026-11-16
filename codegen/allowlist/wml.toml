@@ -1,52 +1,8 @@
-# WordprocessingML allowlist (feature `wml`), ADR-0002 §5, ADR-0004 §4.
-# Entries are SDK `Name`s ((complex type, element) pairs).
-#
-# [write]: `*View` + `*ViewMut` (typed setters, insert/remove helpers).
-# [read]:  `*View` only. `ChildOf` impls exist between any two allowlisted
-#          entries, so `ooxml-docx` descends with the generic `LensMut`
-#          primitives through read entries (document, tbl, tr, tc, hyperlink).
-#          `ChildOf` is therefore not a compile-time "write allowed" proof; the
-#          domain layer decides what it writes (ADR-0004 rev 2, §4).
+# wml allowlist (feature `wml`), ADR-0002 §5. Empty until the format plan
+# adds entries; see sml.toml for the format.
 
-# Word Phase0 write path: append a paragraph to the body; replace run content.
 [write]
-names = [
-    "w:CT_Body/w:body",
-    "w:CT_P/w:p",
-    "w:CT_R/w:r",
-    "w:CT_Text/w:t",
-    "w:CT_Empty/w:tab",
-    "w:CT_Br/w:br",
-]
+names = []
 
-# Word Phase0 read-only: navigation to runs (document, tables, hyperlinks),
-# run content classification, field markers, revisions, and the settings
-# flags behind the document-level write gates.
 [read]
-names = [
-    "w:CT_Document/w:document",
-    "w:CT_SectPr/w:sectPr",
-    "w:CT_PPr/w:pPr",
-    "w:CT_RPr/w:rPr",
-    "w:CT_Hyperlink/w:hyperlink",
-    "w:CT_Tbl/w:tbl",
-    "w:CT_Row/w:tr",
-    "w:CT_Tc/w:tc",
-    "w:CT_Empty/w:cr",
-    "w:CT_Empty/w:noBreakHyphen",
-    "w:CT_Empty/w:softHyphen",
-    "w:CT_Empty/w:lastRenderedPageBreak",
-    "w:CT_FldChar/w:fldChar",
-    "w:CT_Text/w:instrText",
-    "w:CT_Text/w:delInstrText",
-    "w:CT_SimpleField/w:fldSimple",
-    "w:CT_RunTrackChange/w:ins",
-    "w:CT_RunTrackChange/w:del",
-    "w:CT_RunTrackChange/w:moveFrom",
-    "w:CT_RunTrackChange/w:moveTo",
-    "w:CT_Text/w:delText",
-    "w:CT_Settings/w:settings",
-    "w:CT_OnOff/w:trackRevisions",
-    "w:CT_OnOff/w:updateFields",
-    "w:CT_DocProtect/w:documentProtection",
-]
+names = []

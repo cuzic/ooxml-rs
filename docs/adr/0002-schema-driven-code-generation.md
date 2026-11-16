@@ -193,6 +193,58 @@
   renaming, prefix rules per copied element, every refusal, slot rules,
   `check_insert_under`), `xtask` unit test of `SameTypeMismatch`,
   `ooxml-schema` doc tests (`compile_fail` for `p:sp` and `p:grpSp`).
+- **Post-acceptance note (2026-11-16, same-part copy — additive, no change
+  to the decisions; requested by ADR-0016 revision 2, review M2, and by
+  ADR-0013):** a second mode of the note "detach/insert" for copies that
+  stay **in the part they come from** (splitting a run, duplicating a
+  paragraph's formatting).
+  (1) `Lens::detach_same_part_as::<C>(skip, &SamePartOptions)` has the same
+  bounds as `detach_as` (`E: Detachable, C: SameType<E> + Detachable`) and
+  every refusal of `detach_as` **except two**: attributes holding a
+  relationship id (`RELATIONSHIP_ATTRIBUTES`: Transitional and Strict `r:`,
+  VML `o:relid`) are **kept with their values** — they stay valid because
+  the part's `.rels` is the same — and an `extLst` is kept **only when the
+  caller allows each of its extensions by URI**
+  (`SamePartOptions::keep_extension(uri)`, ASCII case-insensitive): every
+  element child must be an `ext` of the list's namespace with an allowed
+  `uri`. An extension's content is open, so the caller asserts per
+  extension that it holds nothing document-unique; the content still
+  passes every other check (Markup Compatibility, unique attributes,
+  ignorable namespaces) and may keep same-part relationship ids. Namespace
+  declarations **inside an allowed extension** are kept as written and
+  honoured by the destination's prefix choice (extension content declares
+  its namespace locally, e.g. `ahyp:hlinkClr`); elsewhere they are still
+  refused. Reviewed so far: `ext_uri::HYPERLINK_COLOR`
+  (`{A12FA001-AC4F-418D-AE19-62706E023703}`, `ahyp:hlinkClr`, a
+  boolean-like colour choice). Without options, `extLst` is refused as
+  before. Still refused: document-unique attributes (`UNIQUE_ATTRS`:
+  a non-zero `smtId`, effect container names), Markup Compatibility,
+  namespace declarations outside extensions, ignorable namespaces,
+  inherited `xml:space`.
+  (2) *One document only.* Every `XmlDocument` has a process-unique
+  identity; **a clone gets a new one** (it may become another part, whose
+  relationships differ). Lenses from `XmlDocument::lens`/`lens_mut` and the
+  new `lens_at`/`lens_mut_at(path)` carry it; `Lens::root`, `Lens::at` and
+  `LensMut::root` do not. The copy has its own type, `SamePartDetached<C>`,
+  which `insert_detached` does not accept (`compile_fail` doc test); only
+  `LensMut::insert_same_part[_by]` does, and it returns
+  `Error::WrongDocument` (nothing changed) unless the lens is on the
+  document the copy was taken from. Taking a same-part copy through a lens
+  that knows no document is also `WrongDocument`. Otherwise placement,
+  prefixes, destination checks and depth are `insert_detached_by`'s.
+  `SamePartDetached::check_insert_under(doc, parent_path, created)` is the
+  check twin: `WrongDocument` first, then `Detached::check_insert_under`.
+  The document check does not see the package: removing the relationship
+  between taking and inserting the copy is the caller's concern (PR #38's
+  removal rules refuse removing a relationship an attribute still names).
+  (3) Two elements then name the same relationship; removal of a
+  relationship already requires that no attribute names it (PR #14/#38).
+  Tests: `crates/ooxml-core/tests/detach_same_part.rs`,
+  `crates/ooxml-schema/tests/detach_dml.rs` (real `a:rPr` with
+  `a:hlinkClick` and `ahyp:hlinkClr`; an ignored corpus run copies all 83
+  slide `a:rPr` that hold a relationship id in the 619-presentation
+  ADR-0008 corpus — 12 with the extension — into a new run of their
+  paragraph: all re-parse and equal their source); 19 mutants, all killed.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

@@ -8,14 +8,10 @@
 //! `crates/ooxml-core/src/generated/parts.rs`, `codegen/report.txt`.
 //! `--check` regenerates in memory, verifies the vendored checksums, and
 //! fails on any difference.
-//!
-//! `cargo xtask manual-check <outdir>` runs the three formats' manual-check
-//! examples and writes one bundle for the owner (see `manual_check.rs`).
 
 mod config;
 mod emit;
 mod lower;
-mod manual_check;
 mod model;
 mod sdk;
 mod stats;
@@ -168,14 +164,13 @@ fn run() -> Res<bool> {
             }
             Ok(ok)
         }
-        ["manual-check", out] => manual_check::run(&root, Path::new(out)),
         ["stats"] => {
             let out = generate(&root)?;
             print!("{}", out[REPORT_FILE]);
             Ok(true)
         }
         _ => {
-            eprintln!("usage: cargo xtask codegen [--check] | cargo xtask stats | cargo xtask manual-check <outdir>");
+            eprintln!("usage: cargo xtask codegen [--check] | cargo xtask stats");
             Ok(false)
         }
     }

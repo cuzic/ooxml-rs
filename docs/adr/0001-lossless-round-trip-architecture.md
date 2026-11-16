@@ -79,29 +79,6 @@
   rather than the `attrs: Vec<(String, String)>` raw pairs sketched in
   Layer 2 above. Serialization is unaffected: untouched spans are still
   emitted verbatim, and re-rendered tags use the original prefix.
-- **Post-acceptance note (2026-11-16, Layer 1 — duplicate part names):**
-  `Package::open`/`from_bytes` refuse a zip whose entries name the same
-  OPC part twice (`Error::Package("duplicate part name …")`): equal after
-  ASCII case folding (as before) and, since PR #14, after percent-decoding
-  (an IRI entry name and its `%`-encoded UTF-8 form are one part name).
-  Such a package is invalid OPC, so this is one more "fail honestly at
-  open" case beside encrypted and Strict packages; nothing valid is
-  rejected (0 of 4,102 corpus files). The check is linear in the number of
-  entries.
-- **Post-acceptance note (2026-11-16, interim — registry removal):** Layer
-  3's "may never remove or renumber an existing one" gets one narrow,
-  interim exception so that `ooxml-core` can provide
-  `Package::remove_part` (PR #14) ahead of ADR-0003 (xlsx Phase1,
-  **Proposed**). The only intended caller is xlsx Phase1 removing a stale
-  `calcChain.xml`. A registry entry may be removed only together with the
-  part it registers; only if the caller explicitly allows each removed
-  relationship's type (parts found by relationship type are referenced
-  implicitly); and only if no attribute of the relationship's source part
-  carries the removed `Id` (any attribute, any namespace, after XML
-  unescaping). No remaining entry is ever renumbered. If ADR-0003 is
-  accepted and its §4.3 contains at least these conditions (the
-  relationship-type allowlist and the any-attribute rule), it replaces
-  this note; if it is rejected, `remove_part` is removed again.
 
 ## Context
 

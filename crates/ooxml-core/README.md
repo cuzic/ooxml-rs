@@ -24,13 +24,12 @@ pkg.save("book.xlsx")?;                              // temp file + rename; same
 
 | Item | Notes |
 | --- | --- |
-| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`; `Error::Package("duplicate part name …")` when two zip entries name the same OPC part (equal after ASCII case folding and percent-decoding; checked in linear time); `Error::TruncatedEntry` when an entry's stored data does not lie inside the archive (it could not be copied through unchanged); `Error::PackageTooLarge` when the declared decompressed sizes add up to more than `ParseOptions::max_package_bytes` (default 4 GiB). |
+| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`. |
 | `part_names()`, `contains(name)`, `state(name) -> PartStateKind` | Part names are zip entry names, no leading `/`. Original order is kept. |
-| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). At most `ParseOptions::max_part_bytes` (default 1 GiB, `Error::PartTooLarge`); the declared size decides the refusal, never the allocation. |
+| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). |
 | `xml_part(name)` / `xml_part_mut(name)` | Parse once into an `XmlDocument`. A part parsed but not edited is still raw-copied on save. |
 | `parsed_part(name)` | `&self` access to a tree already parsed (`None` while `Raw` or `Replaced`); never parses. |
 | `set_part(name, bytes)` | Replace an existing part wholesale (`Replaced`). New parts: `Error::NewPartUnsupported` (Phase0). |
-| `remove_part(name, allowed_rel_types) -> RemovedPart`, `check_remove_part(&self, name, allowed_rel_types)` | Removes a part, every internal relationship resolving to it and every `Override` for it (never a `Default`); each removed registry element goes with the whitespace-only text right before it, nothing else in those parts changes. Refused with a typed `RemoveRefusal` (nothing changed, no part state changes) for registry parts, parts with their own `.rels`, a relationship type the caller did not allow (implicit references by type), any attribute of the source part equal to a removed `Id` after unescaping (`r:id`, VML `o:relid`, …), an unscannable source, or a registry that must change but was replaced or cannot be parsed. Part names follow OPC equivalence (ASCII case-insensitive and percent-decoded, for the part, sources, `_rels` folders, targets and `Override`s; XML whitespace around `Target`/`Id` is collapsed; percent-equivalent duplicate entries are refused at open); the safety net refuses when a relationship's target has the part's file name as its last segment (unescaped, percent-decoded, `\` counted as a separator) but resolves to no existing part (`UnresolvedMention`); only the root `_rels/.rels` holds package relationships. Both run one validation; after it, the removal cannot fail. The narrow interim exception to Layer 3's append-only rule (ADR-0001 note, ADR-0003 §4.3). |
 | `content_types()`, `content_type(name)` | `[Content_Types].xml` (overrides, then extension defaults; ASCII case-insensitive). |
 | `package_relationships()`, `relationships(part)`, `main_document_part()` | `opc::Relationships` with `by_id`, `by_type`, `resolve` (relative targets, `..`, absolute `/`). |
 | `write_to(w)`, `to_bytes()`, `save(path)` | `Raw` and dirty-free `Parsed` parts go through `ZipWriter::raw_copy_file`: (name, method, CRC-32, compressed bytes) unchanged. |
@@ -45,12 +44,7 @@ as attributes in `XMLNS_NS`), child items (`RawItem::{Element, Text, Markup}`),
 its `ElementSpan` in the source, and `own_dirty` / `subtree_dirty`.
 `serialize()` emits untouched subtrees verbatim (T1: no edits ⇒ identical
 bytes). Any `<!DOCTYPE>` is refused (`Error::DtdNotAllowed`): no entity
-expansion, no XXE. Constructs quick-xml would let through but that are not
-well-formed, or would make a span inexact, are refused with
-`Error::NotWellFormed { position, reason: WellFormedness }`: a second byte
-order mark, an XML declaration not at the start, an empty element/attribute
-name or prefix, U+0000, `xmlns:p=""`, and any reader position that does not
-match the source.
+expansion, no XXE.
 
 Element nesting is limited. An element deeper than `ParseOptions::max_depth` makes the parse
 fail with `Error::TooDeep { limit, position }` before the element is built. The default is
@@ -104,7 +98,6 @@ Write primitives (ADR-0002 §4.2):
 | --- | --- |
 | `insert_by::<C>(before)` | Into `C`'s slot; `before(index_in_slot, existing)` picks the position inside the slot (callers own row/column order). Else before the first higher-ranked child, else immediately before the close tag. No whitespace is added. |
 | `insert::<C>()` | Append at the end of the slot. |
-| `insert_at::<C>(index)`, `check_insert_at::<C>(index)` | Insert at a child item index the caller computed (e.g. from its own row index): for a slot without limits, O(1) placement instead of `insert_by`'s scan of every child. Schema order is checked against the nearest listed neighbours only, every slot an ambiguous neighbour could take must be in order; slot limits are counted over all children exactly as `insert_by` does (and refuse next to any `mc:AlternateContent`); depth and prefix as `insert_by`; `check_insert_at` runs the same checks without changing anything, for validate-then-apply callers. `InsertIndexOutOfRange` for an index past the children. |
 | `insert_in_slot::<C>(slot, before)` | For a QName that is in two slots (otherwise `AmbiguousSlot`). |
 | `get_or_insert::<C>()` | First existing `C`, or insert. |
 | `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
@@ -112,14 +105,14 @@ Write primitives (ADR-0002 §4.2):
 | `set_text(value)` | `Content::Text` elements only; sets `xml:space="preserve"` for edge whitespace when the spec declares `xml:space`; never removes it. |
 | `Lens::detach_as::<C>(skip)` → `Detached<C>` | Only for `Detachable` types (opted in by an allowlist `[detach]` section; never id-bearing subtrees). Owned, span-less, prefix-less copy, renamed to `C::QNAME`; `C: SameType<E> + Detachable`. Direct children named in `skip` are left out. Refuses (`NotDetachable { reason, name }`) MC content, relationship-id attributes (`name::RELATIONSHIP_ATTRIBUTES`), namespace declarations, namespaces an ancestor's `mc:Ignorable` lists, text under an inherited `xml:space="preserve"`, document-unique attributes with a non-default value (`Detachable::UNIQUE_ATTRS`, e.g. `smtId`), and extension lists (`extLst`) unless skipped. Use a lens that knows the ancestors (`XmlDocument::lens`, `Lens::at`). |
 | `insert_detached[_by]::<C>(&d[, before])` | Places the copy like `insert_by::<C>`; every element/attribute prefix is chosen at the destination **before** the tree changes; created nodes are re-rendered. Same refusals as `insert_by` (incl. `TooDeep`, counted at the copy's deepest element), plus `NamespaceNotInScope` and the destination's `mc:Ignorable` / `xml:space`. `Detached::check_insert_under(doc, path, created)` checks those without changing anything (`WrongElement` for a bad path). |
+| `Lens::detach_same_part_as::<C>(skip, &SamePartOptions)` → `SamePartDetached<C>` | A copy that stays in its part (ADR-0002 note "same-part copy"): as `detach_as`, but relationship-id attributes are **kept** (same `.rels`), and an `extLst` is kept when every `ext/@uri` is allowed with `SamePartOptions::keep_extension(uri)` (e.g. `lens::ext_uri::HYPERLINK_COLOR`); declarations inside an allowed extension are kept. Unique attributes, MC, other declarations, ignorable namespaces and inherited `xml:space` still refuse. The lens must know its document (`XmlDocument::lens`, `lens_at`), else `WrongDocument`. |
+| `insert_same_part[_by]::<C>(&d[, before])` | As `insert_detached_by`, only into the document the copy came from (a clone is another document): else `Error::WrongDocument`, nothing changed. `SamePartDetached` is not accepted by `insert_detached`. `SamePartDetached::check_insert_under` is the check twin. `XmlDocument::lens_at` / `lens_mut_at(path)` give document-aware lenses at a path. |
 
 Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
 out of schema order), `UnsupportedContentModel`, `NotAllowed`, `NotText`,
 `IncompleteSpec` (spec with an unresolved SDK base), `NamespaceNotInScope`
-(no usable prefix; Phase0 never declares namespaces), `NamespaceDeclaration`
-(`set_attr`/`remove_attr` on `xmlns`/`xmlns:*`: declarations are managed by
-core only), `InvalidXmlChar`
+(no usable prefix; Phase0 never declares namespaces), `InvalidXmlChar`
 (`set_text`/`set_attr` value with a character outside XML 1.0 `Char`, e.g.
 U+000B; checked before anything changes, so no primitive can write a part
 that is not well-formed).
@@ -149,9 +142,8 @@ Namespace constants the core acts on: `name::{MC_NS, R_NS, XML_NS, XMLNS_NS}`.
 
 ## Not yet (by design or later)
 
-- Adding parts / adding `[Content_Types].xml` entries or relationships
-  (the append-only rule applies when writes arrive). The only registry write
-  so far is the removal done by `remove_part`.
+- Adding parts / writing `[Content_Types].xml` or relationships (Layer 3 is
+  read-only; the append-only rule applies when writes arrive).
 - The `mc:AlternateContent` rank rule (ADR-0002 §4.3 "later rule").
 - Copies across parts that carry relationships (`r:` attributes are
   refused by `detach_as`; copying them needs Layer 3 writes).

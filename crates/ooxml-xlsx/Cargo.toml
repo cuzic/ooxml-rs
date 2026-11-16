@@ -19,10 +19,3 @@ thiserror = { workspace = true }
 [dev-dependencies]
 calamine = "0.38"
 zip = { workspace = true }
-
-[[example]]
-# Unique across the workspace: three crates have a manual check and cargo warns
-# about (and may later refuse) same-named example targets. The source file keeps
-# its name so open PRs that edit it do not conflict.
-name = "xlsx_manual_check"
-path = "examples/manual_check.rs"
