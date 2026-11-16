@@ -30,6 +30,11 @@ use crate::name::STRICT_NS_PREFIX;
 use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relationships, rels_part_name};
 use crate::xml::{ParseOptions, XmlDocument};
 
+/// `[Content_Types].xml` or a relationships part.
+fn is_opc_metadata(name: &str) -> bool {
+    name == CONTENT_TYPES_PART || name.ends_with(".rels")
+}
+
 /// OLE/CFB compound file signature (encrypted or legacy binary Office files).
 const CFB_MAGIC: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
@@ -98,8 +103,13 @@ impl Package {
 
     /// [`Self::from_bytes`] with explicit XML [`ParseOptions`], used for
     /// the parts parsed through [`Self::xml_part`] / [`Self::xml_part_mut`].
-    /// OPC metadata (`[Content_Types].xml`, relationship parts) always uses
-    /// [`ParseOptions::default`]; it is flat by definition.
+    ///
+    /// OPC metadata (`[Content_Types].xml` and `.rels` parts) is never
+    /// parsed with a limit below [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH):
+    /// the open-time readers and [`Self::relationships`] use
+    /// [`ParseOptions::default`], and `xml_part` on a metadata part uses
+    /// the larger of the default and `options.max_depth`. A lowered limit
+    /// therefore never turns valid package metadata into an error.
     pub fn from_bytes_with(data: impl Into<Arc<[u8]>>, options: ParseOptions) -> Result<Self> {
         let data: Arc<[u8]> = data.into();
         if data.starts_with(&CFB_MAGIC) {
@@ -190,7 +200,11 @@ impl Package {
         match self.parts[i].state {
             PartState::Parsed(_) => {}
             PartState::Raw => {
-                let doc = XmlDocument::parse_with(&self.read_original(self.parts[i].index)?, &self.parse_options)?;
+                let mut options = self.parse_options;
+                if is_opc_metadata(name) {
+                    options.max_depth = options.max_depth.max(crate::xml::DEFAULT_MAX_DEPTH);
+                }
+                let doc = XmlDocument::parse_with(&self.read_original(self.parts[i].index)?, &options)?;
                 self.parts[i].state = PartState::Parsed(doc);
             }
             PartState::Replaced(_) => {

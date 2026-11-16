@@ -176,6 +176,8 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
 pub struct LensMut<'a, E: ElementSpec> {
     root: &'a mut RawNode,
     path: Vec<usize>,
+    /// Depth limit for inserted elements (the root is depth 1).
+    max_depth: usize,
     _e: PhantomData<fn() -> E>,
 }
 
@@ -192,9 +194,16 @@ struct Placement {
 
 impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// A mutable lens on `root`, which must be the element `E::QNAME`.
+    /// Inserts are limited to [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH);
+    /// [`XmlDocument::lens_mut`](crate::XmlDocument::lens_mut) uses the
+    /// limit the document was parsed with instead.
     pub fn root(root: &'a mut RawNode) -> Result<Self> {
+        Self::root_with_limit(root, crate::xml::DEFAULT_MAX_DEPTH)
+    }
+
+    pub(crate) fn root_with_limit(root: &'a mut RawNode, max_depth: usize) -> Result<Self> {
         check_root::<E>(root)?;
-        Ok(LensMut { root, path: Vec::new(), _e: PhantomData })
+        Ok(LensMut { root, path: Vec::new(), max_depth, _e: PhantomData })
     }
 
     /// The raw node (read-only; mutation goes through the primitives).
@@ -230,7 +239,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     fn descend<C: ElementSpec>(&mut self, index: usize) -> LensMut<'_, C> {
         let mut path = self.path.clone();
         path.push(index);
-        LensMut { root: &mut *self.root, path, _e: PhantomData }
+        LensMut { root: &mut *self.root, path, max_depth: self.max_depth, _e: PhantomData }
     }
 
     /// Mutable lens on the first child named `C::QNAME`.
@@ -260,7 +269,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return None;
         }
         self.path.push(index);
-        Some(LensMut { root: self.root, path: self.path, _e: PhantomData })
+        Some(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
     }
 
     /// Consuming variant of [`Self::child_mut_by`].
@@ -278,7 +287,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 found_local: E::QNAME.local.into(),
             });
         }
-        Ok(LensMut { root: self.root, path: self.path, _e: PhantomData })
+        Ok(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
     }
 
     // ---- insertion ----
@@ -372,6 +381,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         slot: usize,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<LensMut<'_, C>> {
+        // The new element's depth is this node's (path length + 1) plus one.
+        // Refused like the parser would refuse it, so an edited tree can
+        // always be parsed again and recursive walks stay bounded.
+        if self.path.len() + 2 > self.max_depth {
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+        }
         let slots = self.slots()?;
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         let prefix = choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;

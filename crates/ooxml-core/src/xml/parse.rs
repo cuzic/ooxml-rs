@@ -58,7 +58,7 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
         .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?
         .into();
     let root = Parser::new(&source, options.max_depth).run()?;
-    Ok(XmlDocument { source, root })
+    Ok(XmlDocument { source, root, max_depth: options.max_depth })
 }
 
 struct Parser<'s> {

@@ -49,17 +49,21 @@ pub enum Error {
         /// Byte offset of the declaration.
         position: usize,
     },
-    /// Elements are nested deeper than the parser's limit
+    /// Elements are nested deeper than the limit
     /// ([`ParseOptions::max_depth`](crate::xml::ParseOptions::max_depth),
     /// default [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH)).
     /// Refused while parsing, before the tree grows, so a few kilobytes of
-    /// hostile input cannot make later recursive code (serialization,
-    /// `Drop`, format-crate walks) exhaust memory or the stack.
+    /// hostile input cannot make later recursive code (`Clone`, `Drop`,
+    /// `Debug`, serialization, format-crate walks) exhaust memory or the
+    /// stack. A lens insert that would exceed the document's limit is
+    /// refused the same way.
     #[error("element nesting at byte {position} exceeds the depth limit of {limit}")]
     TooDeep {
         /// The limit in force.
         limit: usize,
-        /// Byte offset of the start tag that would exceed it.
+        /// Byte offset of the start tag that would exceed it (parse), or of
+        /// the parent's start tag in the original source for a refused
+        /// insert (0 if the parent was itself inserted).
         position: usize,
     },
     /// The part is not UTF-8 encoded.

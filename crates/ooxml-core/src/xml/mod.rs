@@ -283,13 +283,19 @@ pub(crate) fn node_at_mut<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut 
 
 /// Default for [`ParseOptions::max_depth`].
 ///
-/// The deepest element nesting in the corpora we test against (Apache POI
-/// and Open XML SDK test files, 556 parts measured) is 33, the median 9;
-/// 1024 leaves a 30x margin while keeping every recursive walk over the
-/// tree (serialization, `Drop`, structural comparison, format-crate walks)
-/// far from the 2 MiB default thread stack, and bounds path-based lens
-/// addressing to O(1024) per node.
-pub const DEFAULT_MAX_DEPTH: usize = 1024;
+/// The deepest element nesting in the parts we test against (Apache POI,
+/// Open XML SDK, calamine, LibreOffice and python-pptx test files: 1,641
+/// parts) is 33, the median 9. 256 leaves a 7x margin (a docx table nests
+/// three elements per level, so 256 still allows about 80 nested tables).
+///
+/// The limit is what keeps the recursive operations on a tree (`Clone`,
+/// `Drop`, `Debug`, dirty serialization, [`RawNode::structurally_eq`],
+/// format-crate walks) inside a thread's stack. At depth 1024 a debug-build
+/// `clone()` needs about 1.7 MiB, most of the 2 MiB default thread stack;
+/// at 256 every one of them runs on a 1 MiB stack in a debug build
+/// (`tests/depth_limit.rs`), and path-based lens addressing costs at most
+/// 256 steps.
+pub const DEFAULT_MAX_DEPTH: usize = 256;
 
 /// Options for [`XmlDocument::parse_with`] and
 /// [`Package::from_bytes_with`](crate::Package::from_bytes_with).
@@ -298,7 +304,14 @@ pub const DEFAULT_MAX_DEPTH: usize = 1024;
 pub struct ParseOptions {
     /// Maximum element nesting depth; the root element is depth 1. A deeper
     /// element makes the parse fail with
-    /// [`Error::TooDeep`](crate::Error::TooDeep).
+    /// [`Error::TooDeep`](crate::Error::TooDeep). The tree remembers it, and
+    /// [`XmlDocument::lens_mut`] refuses inserts that would exceed it.
+    ///
+    /// **Raising it** raises the stack use of every recursive operation on
+    /// the tree in proportion (a debug-build `clone()` needs about 1.7 KiB
+    /// per level). Above the default, run those operations on a thread with
+    /// a correspondingly larger stack, or an untrusted file can abort the
+    /// process with a stack overflow.
     pub max_depth: usize,
 }
 
@@ -309,7 +322,7 @@ impl Default for ParseOptions {
 }
 
 impl ParseOptions {
-    /// Sets [`Self::max_depth`].
+    /// Sets [`Self::max_depth`]. See the warning there before raising it.
     pub fn with_max_depth(mut self, max_depth: usize) -> Self {
         self.max_depth = max_depth;
         self
@@ -321,6 +334,8 @@ impl ParseOptions {
 pub struct XmlDocument {
     source: Box<str>,
     root: RawNode,
+    /// The depth limit the document was parsed with.
+    max_depth: usize,
 }
 
 impl XmlDocument {
@@ -364,9 +379,12 @@ impl XmlDocument {
         Lens::root(&self.root)
     }
 
-    /// A mutable typed lens on the root element.
+    /// A mutable typed lens on the root element. Inserts that would nest
+    /// an element deeper than the limit the document was parsed with return
+    /// [`Error::TooDeep`](crate::Error::TooDeep), so an edited tree always
+    /// parses again with the same options.
     pub fn lens_mut<E: ElementSpec>(&mut self) -> Result<LensMut<'_, E>> {
-        LensMut::root(&mut self.root)
+        LensMut::root_with_limit(&mut self.root, self.max_depth)
     }
 
     /// Marks every node `own_dirty` + `subtree_dirty` and forgets text spans,
