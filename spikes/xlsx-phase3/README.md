@@ -14,6 +14,12 @@ References are found with a regex over the XML text: sheet-name prefixes `'…'!
 `A:B!`, with string literals masked first and counted separately. It is a survey, not a
 tokenizer.
 
+**Limits** (ADR-0009 review m12): the survey does not scan chartEx, `c15:` chart extensions,
+ctrlProps, VML form controls, table parts (`calculatedColumnFormula`) or `connections.xml`.
+The review's probe found real references in the last three, so the "referenced by name" counts
+below are a **lower bound**. ADR-0009 revision 2's closed-world scan and residual-mention
+oracle cover every XML part regardless.
+
 Reproducing: fetch POI `test-data/spreadsheet` @ `47dcff769bb395034dddfd59c4609659b6dbc6a4`
 as described in [`../xlsx/README.md`](../xlsx/README.md), then:
 

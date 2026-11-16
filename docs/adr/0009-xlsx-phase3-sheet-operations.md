@@ -1,16 +1,56 @@
 # ADR-0009: xlsx Phase3 — sheet operations on existing files
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 3 append-only invariant, and the
-    interim note on `remove_part` in PR #14;
+    draft post-acceptance note "registry writes" in PR #38, which generalises PR #14's interim
+    note;
+  - **PR #38** (`ooxml-core` registry transaction, `RegistryPlan`): the single source of truth
+    for adding and removing parts, relationships and content types;
   - [ADR-0002](0002-schema-driven-code-generation.md): lens, allowlist, §4.3 insertion;
   - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md): census, tokenizer, `Everything`,
     plan → validate → apply, calcChain policy (PR #20);
   - [ADR-0006](0006-xlsx-phase2-shared-strings-and-styles.md): registries (PR #22).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.2 (A4–A7), §6 Phase3
 - Evidence: [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md)
+- Review: [round 1](0009-opus-review-round1.md)
+
+## Revision history
+
+- **Revision 1**: initial draft.
+- **Revision 2** (after `0009-opus-review-round1.md`: 3 Blocker, 8 Major, 12 Minor):
+  - **B1, B2:** package-structure edits use PR #38's transaction. The `workbook.xml` edit
+    (`stage_part`), the closed-set removal of a sheet with everything it owns (`remove_parts`,
+    each part with its own `.rels`) and any additions are validated together against the
+    virtual view, then applied infallibly (§2, §5).
+  - **B3:** rename uses a table of every known location with its syntax (§6). A
+    **closed-world scan** refuses the rename when the old name appears, in sheet-prefix form,
+    anywhere outside those locations. The table adds `connections.xml` parameters, table
+    column formulas, `c:pivotSource/c:name`, 2007 `cfvo/@val`, `c15:` and chartEx formulas,
+    `textlink`, form controls (ctrlProps, VML), `dataRef`/`rangeSet/@sheet` and the
+    `app.xml` Named Ranges titles. Binary ActiveX parts refuse the rename.
+  - **M1:** a deleted sheet's references become a bare `#REF!` (the whole reference token), as
+    in every corpus file.
+  - **M2:** the syntax rules per location are stated: formula vs raw name vs `[file]Sheet!Name`,
+    3-D spans quoted as a whole, external `[n]` references never rewritten, ST_Xstring
+    decoding and encoding, and a conservative quoting rule.
+  - **M3:** every structural operation seeds Phase1 with all `Everything` formulas. A
+    formula that names an unknown sheet, which a new or renamed sheet would resolve, is
+    invalidated. A move that reverses a 3-D reference's endpoints is refused.
+  - **M4:** deleting a sheet whose tables are used elsewhere is refused.
+  - **M5:** state keyed by `sheetId` (`customWorkbookView/@activeSheetId`) is handled.
+    Shared workbooks (`revisions`) are refused. The limit of the cross-session `sheetId`
+    high-water is stated.
+  - **M6:** a left-over `.rels` makes a part name taken (PR #38).
+  - **M7:** there is an independent residual-mention oracle and a synthetic fixture with one
+    reference per location.
+  - **M8:** VBA signature parts are found by relationship type (legacy, Agile, V3), `.xlam`
+    and templates are covered, and `ExtensionMismatch` only fires after a content-type change
+    in the session.
+  - **m1–m12** are folded in where they apply.
+  - The reviewer's recommendations for Q1–Q6 are recorded as proposed defaults pending the
+    owner's confirmation.
 
 ## Context
 
@@ -22,10 +62,11 @@ Phase3 is the first xlsx phase that **adds and removes parts** in an existing pa
 - keep `docProps/app.xml` (`HeadingPairs`/`TitlesOfParts`) consistent.
 
 ADR-0001 kept all of this out of Phase0, because it touches `[Content_Types].xml`, `.rels`,
-`workbook.xml` and `app.xml` together. The core primitive for *removal* exists as PR #14
-(`Package::remove_part(name, allowed_rel_types)`, plus `check_remove_part`). Its ADR-0001
-interim note limits it to `calcChain.xml`. Nothing in `ooxml-core` can *add* a part or a
-relationship yet.
+`workbook.xml` and `app.xml` together. PR #14's `remove_part` removes one part that has no
+relationships of its own, and only `calcChain.xml` is meant to use it. PR #38 adds the
+transaction this ADR builds on: `RegistryPlan` stages part and relationship additions and
+removals, content-type changes and new content for existing parts, validates the whole batch,
+and applies it infallibly.
 
 A sheet operation is not local:
 
@@ -131,6 +172,10 @@ fixtures. The full table is in the spike README.
    - `hyperlink/@location`: 3;
    - 3-D references: 3 packages;
    - sheet names inside string literals (e.g. `INDIRECT("Sheet1!A1")`): 0.
+
+   These counts are a **lower bound** (review m12). The survey does not scan chartEx, `c15:`
+   chart extensions, ctrlProps, VML, table parts or `connections.xml`, and the review's
+   independent probe found real references in the last three (fact 10).
 8. **Delete impact.** The relationship types in worksheets' own `.rels`, by number of packages:
    - `printerSettings` 110, `drawing` 61, `vmlDrawing` 37;
    - `table` 29, `comments` 27, `hyperlink` 14, `tableSingleCells` 14;
@@ -138,6 +183,23 @@ fixtures. The full table is in the spike README.
      `control` 2, `package` 2.
 9. **VBA.** A VBA project in 9 packages, none signed. A workbook `codeName` in 35, sheet
    `codeName`s in 32. `calcChain.xml` in 117, external links in 10.
+10. **Locations outside rev 1's table** (review B3, independent probe over the POI corpus):
+    - `connections.xml` `parameter/@cell` (`dataValidationTableRange.xlsx`,
+      `cell="'County Ranking'!$B$5"` ×12, written by Excel);
+    - table `calculatedColumnFormula` (`StructuredRefs-lots-with-lookups.xlsx`);
+    - chart `c:pivotSource/c:name` (`WithChartSheet.xlsx`, `[CVT23.tmp]Sheet2!PivotTable2`).
+
+    The schema allows more that the corpus does not show: 2007 `cfvo/@val`, `c15:f`/`c15:*`
+    ranges, chartEx `cx:f`, `xdr:sp/@textlink`, form controls (ctrlProps `@fmlaLink` and
+    relatives, VML `x:Fmla*`, `controlPr/@linkedCell`/`@listFillRange`),
+    `dataRef/@sheet`, `rangeSet/@sheet`, and ActiveX `LinkedCell` inside `activeX*.bin`
+    (binary).
+11. **`#REF!` forms** (review M1): the corpus has 328 cell formulas and 212 defined names with
+    `#REF!`. In every one, the whole reference token became a bare `#REF!`. `#REF!A1` occurs
+    0 times, and Phase1's lexer would not accept it.
+12. **State keyed by `sheetId`** (review M5): `customWorkbookView/@activeSheetId`
+    (`61495-test.xlsm`). Shared-workbook revision logs (`xl/revisions/`, `header/sheetIdMap`)
+    occur in 6 corpus places.
 
 ## Decision
 
@@ -148,11 +210,12 @@ In scope:
 - `Workbook::add_worksheet(name, position)` on an opened file.
 - `delete_sheet`, `rename_sheet`, `move_sheet`, and `set_sheet_state` (visible, hidden,
   veryHidden), for worksheets. Chart sheets, macro sheets and dialog sheets are covered by
-  rename, reorder and hide. Adding them is out of scope; deleting them is covered by the same
-  cascade rules as worksheets (§5).
+  rename, reorder and hide. Adding them is out of scope. Deleting a chart sheet follows §5.
+  Deleting a macro sheet or dialog sheet is refused, because XLM `Auto_Open` and names with
+  `function`/`xlm` attributes point into it (review m6).
 - Defined names: `add_name`, `set_name_formula`, `rename_name`, `delete_name`, workbook-wide or
   sheet-local. `_xlnm.Print_Area`/`_xlnm.Print_Titles` are set through dedicated setters.
-- VBA: `set_vba_project(bin, signature)`, `remove_vba_project()`.
+- VBA: `set_vba_project(bin)`, `remove_vba_project()`.
 - `docProps/app.xml` maintenance (§11).
 - The `ooxml-core` Layer 3 write primitives these need (§2).
 
@@ -164,44 +227,62 @@ Out of scope:
 - Creating chart sheets: Phase5.
 - Editing VBA source, signing.
 - External-link maintenance: other workbooks that refer to this one are not ours to change.
+- **Shared workbooks** (a `revisions` relationship): every Phase3 operation refuses with
+  `Err(SharedWorkbook)`. The revision log keeps a `sheetIdMap` that Phase3 cannot maintain
+  (review M5).
 
-### 2. Core primitives (`ooxml-core`, separate PR)
+### 2. Core: one transaction per operation (PR #38)
 
-All of these keep ADR-0001's invariant that existing ids are never renumbered.
+Each Phase3 operation builds **one** `RegistryPlan` (PR #38) and applies it once. The plan:
 
-- **`Package::add_part(name, content_type, bytes)`**.
-  - Refused if a part with an OPC-equivalent name exists (case-insensitive, percent-decoded,
-    the same equivalence as `remove_part`, PR #14 round 2).
-  - Adds an `Override` unless an existing `Default` for the extension already gives exactly
-    that content type. It never adds or changes a `Default`.
-  - The new part is `Replaced` (Layer 1's third state).
-- **`Package::add_relationship(source, rel_type, target, mode) -> Id`**.
-  - The new id is `rId{n}`, with `n` = 1 + the largest numeric suffix among the source's `rIdN`
-    ids. It is checked to be free; non-`rIdN` ids (4 corpus packages) are kept.
-  - The new `Relationship` is appended to the `.rels` part, which is created if absent.
-- **`Package::set_content_type(part, ct)`** changes an `Override`, or adds one that shadows a
-  `Default`. Used for the workbook part (xlsx ↔ xlsm) only.
-- **`Package::remove_part`** (PR #14), used with explicit relationship-type allowlists per
-  caller (§5).
-- Every primitive has a `check_*` twin that validates without changing anything. Phase3's plan
-  step calls those (ADR-0003 §3.1).
+- **stages** the edited `workbook.xml`, the `app.xml` update, and every part whose formula
+  text is rewritten (`stage_part`). Each is a clone of the parsed tree, edited through the
+  lens;
+- **adds** parts and relationships (`add_part` with `Numbered`, `add_relationship`);
+- **removes** a closed set of parts with their own `.rels` (`remove_parts`), where
+  references inside the set do not block;
+- changes content types (`set_content_type`) and removes single relationships
+  (`remove_relationship`).
 
-Each needs an ADR-0001 post-acceptance note. It widens the PR #14 interim note:
+Each step is validated against the package plus the earlier steps (the virtual view). Reference
+scans read the **staged** content: the sheet part's relationship is removable because the
+staged `workbook.xml` no longer names its `r:id`. If any step refuses, the plan is dropped and
+nothing changes. `Package::apply` cannot fail except `StalePlan`. That is ADR-0003 §3.1's
+plan → validate → apply for multi-part edits (review B2).
 
-- parts may be **added** by these operations;
-- parts may be **removed** as part of a sheet delete or VBA removal, under §5's cascade rules.
+The registry rules are those of PR #38's single rules table, and are not restated here:
 
-Remaining entries are never renumbered. This is an owner decision (Q1).
+- part names `max + 1` per template;
+- `rId` `max + 1` per source, with a session high-water;
+- `Override` unless an exact `Default`;
+- left-over `.rels` and `Override`s make a name taken;
+- the closed-set removal conditions.
+
+The ADR-0001 wording is PR #38's draft note "registry writes" (Q1).
+
+**Staging cost** (review m9). A rename or delete may touch every sheet that refers to the
+sheet. The plan first computes the positions and replacement texts from the census (no clone).
+It then clones only the parts that change and stages them. ADR-0003 measured a 200k-formula
+sheet clone at 289 ms. A Phase3 rename of a sheet referenced from N large sheets costs N such
+clones, which is acceptable for a structural operation. An in-place apply path is a later
+optimisation.
 
 ### 3. Ids and names for new things
 
-- **`sheetId`:** 1 + the maximum of every `sheetId` in `workbook.xml` and every id deleted in
-  this session. Ids are never reused: `calcChain c/@i` and some add-ins key on them. This
-  matches POI and Excel's evident behaviour (the 56 gap files). openpyxl and umya renumber.
-- **Part name:** `xl/worksheets/sheet{N}.xml`, with N starting at the new `sheetId` and bumped
-  until no OPC-equivalent part name exists (POI's Bug 57165 rule). The folder of the existing
-  sheets is used if they share one, otherwise `xl/worksheets/`.
-- **Relationship id:** §2.
+- **`sheetId`:** 1 + the maximum of every `sheetId` in `workbook.xml`, every
+  `customWorkbookView/@activeSheetId`, every `calcChain c/@i`, and every id deleted in this
+  session. Ids are never reused within what the file and the session show:
+  - `calcChain c/@i` and some add-ins key on them;
+  - this matches POI and Excel's evident behaviour (the 56 gap files);
+  - openpyxl and umya renumber instead.
+
+  **Limit** (review M5): a sheet deleted in an *earlier* session, by any tool, leaves no trace.
+  Its id can come back as max + 1 if it was the largest. Nothing in the file can prevent this.
+  The id-keyed places this crate knows are scanned above.
+- **Part name:** PR #38's `Numbered("{dir}/sheet{}.xml")`, where `{dir}` is the folder of the
+  existing worksheets if they share one, otherwise `xl/worksheets`. That is max + 1 over every
+  name in use. The part number need not equal the `sheetId` (it does not in 23% of the corpus).
+- **Relationship id:** PR #38.
 - **Sheet name validation:**
   - 1–31 UTF-16 code units;
   - none of `: \ / ? * [ ]`, U+0000 or U+0003;
@@ -229,9 +310,15 @@ Plan:
    - every `definedName/@localSheetId` ≥ position: +1;
    - `workbookView/@activeTab` and `@firstSheet` ≥ position: +1.
 4. Update `app.xml` (§11).
-5. **Phase1** (§12): formulas with 3-D references whose span now includes the new sheet, and
-   formulas calling `SHEETS()` or `SHEET(…)`, are dependents (cache removed,
-   `fullCalcOnLoad`). `calcChain.xml` is untouched: no formula cell is created.
+5. **Phase1** (§12): the seeds are:
+   - formulas with 3-D references whose span now includes the new sheet;
+   - formulas calling `SHEETS()` or `SHEET(…)`;
+   - **every `Everything` formula** (review M3);
+   - every formula that names a sheet that did not exist and now does. ADR-0003 §2.4 gives
+     an unknown sheet `Everything`, and the new sheet makes it resolve.
+
+   Seeded dependents lose their cache and `fullCalcOnLoad` is set. `calcChain.xml` is
+   untouched: no formula cell is created.
 6. **VBA workbooks:**
    - The new sheet gets no `codeName`. Excel is expected to create the document module on the
      next open (inference; XL item).
@@ -242,40 +329,68 @@ Plan:
 Refused when:
 
 - it is the last sheet, or the last visible sheet (`Err(LastVisibleSheet)`);
-- any pivot cache sources it (`worksheetSource/@sheet` or a name that resolves to it);
-- it holds a pivot table, slicer, timeline, query table, external data connection or ActiveX
-  or OLE object: `Err(SheetHasUnsupportedParts { rel_types })`. The corpus has pivot tables
-  on sheets in 7 packages, OLE objects in 5 and controls in 2.
+- the workbook is shared (`Err(SharedWorkbook)`, §1);
+- it is a macro sheet or dialog sheet (§1);
+- any pivot cache sources it (`worksheetSource/@sheet`, or `@name` resolving to a name or table
+  on it);
+- **a table on it is used elsewhere** (review M4): its name (case-insensitive) appears in a
+  structured reference in any formula location of §6, in a pivot `worksheetSource/@name`, or in
+  `x15:tableSlicerCache/@tableId`. This gives `Err(TableInUse { table })`. Rewriting such
+  references to `#REF!` waits until the XL check shows Excel's form;
+- a `customWorkbookView/@activeSheetId` names it (`Err(CustomViewReferencesSheet)`). Moving
+  the view to another sheet is an XL item first;
+- it holds a pivot table, slicer, timeline, query table, external data connection, ActiveX or
+  OLE object, SmartArt (`diagram*`), chartEx, an embedded workbook in a chart
+  (`c:externalData` → `package`), or any relationship type outside the cascade table:
+  `Err(SheetHasUnsupportedParts { rel_types })`. The corpus has pivot tables on sheets in 7
+  packages, OLE objects in 5 and controls in 2.
 
-**Cascade.** The sheet's own relationships, recursively, are removed when the target part is
-**exclusively** reachable from the sheet. A part that any other remaining relationship
-targets (e.g. a shared image) stays. The allowed cascade, from the spike's type census:
+**One transaction** (B1, B2). The plan:
 
-| Relationship type (from the sheet, or recursively) | Action |
+1. stages `workbook.xml` without the `<sheet>`, with renumbered `localSheetId`s and adjusted
+   `bookViews`;
+2. stages every part whose references to the sheet are rewritten (below);
+3. removes **the closed set**: the sheet, every part reachable from it through the cascade
+   types below that no part outside the set reaches, and all their `.rels`
+   (`remove_parts`). The set is computed with `incoming_relationships`: a part with an
+   incoming relationship from outside the set (a shared image) stays;
+4. stages `app.xml` (§11).
+
+The staged `workbook.xml` no longer names the sheet's `r:id`. The set's internal references
+(`r:embed`, `r:id`, `o:relid`) do not block. Every other refusal comes from the plan, and
+nothing changes.
+
+| Relationship type (from the sheet, or recursively) | In the closed set |
 |---|---|
-| `printerSettings`, `comments`, `vmlDrawing` (+ its `image`s), `threadedComment`, `table`, `tableSingleCells`, `customProperty`, `image` (background) | removed with the sheet |
-| `drawing` → `image`, `chart` → (`chartStyle`, `chartColorStyle`, `chartUserShapes` → `drawing`), external `hyperlink` | removed with the sheet |
-| `hyperlink` (external, no part) | dropped with the `.rels` |
-| `pivotTable`, `slicer`, `timeline`, `queryTable`, `control`/`ctrlProp`, `oleObject`, `package`, `activeXControl` | refused (above) |
-| any other type | refused (`SheetHasUnsupportedParts`) |
+| `printerSettings`, `comments`, `vmlDrawing` (+ its `image`s), `threadedComment`, `table`, `tableSingleCells`, `customProperty`, `image` (background) | yes, unless also reached from outside |
+| `drawing` → `image`, `chart` → (`chartStyle`, `chartColorStyle`, `chartUserShapes` → `drawing` → `image`) | yes, unless also reached from outside |
+| `hyperlink` (external, no part) | goes with the `.rels` |
+| everything else | refused (above) |
 
-`remove_part` is called leaf-first with the allowlist of the edge being cut. Its refusals
-(`StillReferenced`, `HasOwnRelationships`, …) then mean the plan was wrong, and they abort the
-whole operation before anything changes (plan → validate → apply).
+Workbook-level parts stay: `persons.xml` (threaded-comment authors), `customXml`,
+`xmlMaps.xml`, and every `Default` (review m5).
 
-References to the deleted sheet are rewritten as Excel does, tokenized by Phase1's tokenizer.
-Each rewrite is an XL-check item:
+**References to the deleted sheet are rewritten as Excel writes them** (review M1). Each
+rewritten location is returned (`Vec<RewrittenLocation>`) so the caller can audit it.
 
-- a single-sheet reference `Sheet2!A1` becomes `#REF!A1`, in cell formulas, defined names,
-  chart `c:f`, DV/CF formulas and `xm:f`;
-- a 3-D endpoint moves inward (deleting `Sheet1` in `Sheet1:Sheet3!A1` gives
-  `Sheet2:Sheet3!A1`);
-- a 3-D range that becomes empty gives `#REF!`;
-- a `hyperlink/@location` or `#Sheet!` target is left as is: it is a navigation target, not a
-  formula, and Excel shows it as broken;
-- text the tokenizer cannot lex that mentions the sheet name (case-folded substring) refuses
-  the delete with `Err(UnrewritableReference { part, location })`. A silent miss is worse
-  than a refusal.
+- **A sheet-prefixed reference token**, range included, becomes a bare `#REF!`:
+  - `Sheet2!A1:B2` → `#REF!`;
+  - `SUM(Sheet2!A1)` → `SUM(#REF!)`.
+
+  This applies in every formula location of §6's table: cell formulas, names, `c:f`/`c15:f`,
+  DV/CF, `cfvo/@val`, `xm:f`, table column formulas, connection parameters, form-control
+  links. **Invariant:** every rewritten text lexes with Phase1's lexer (tested).
+- **A 3-D endpoint** moves inward to the next *worksheet* in the span. Chart sheets in between
+  are skipped (review m8). Deleting `Sheet1` in `Sheet1:Sheet3!A1` gives `Sheet2:Sheet3!A1`;
+  a span that shrinks to one sheet is written `Sheet3!A1`; an empty span gives `#REF!`. These
+  are XL items.
+- **Raw-name locations** (`worksheetSource/@sheet` is refused above; `dataRef/@sheet`,
+  `rangeSet/@sheet`, `c:pivotSource/c:name`) refuse the delete with
+  `Err(UnrewritableReference)`.
+- A `hyperlink/@location` or `#Sheet!` target is left as is. It is a navigation target, not a
+  formula, and Excel shows it as broken. It is the one listed exception in the residual oracle.
+- **Closed world:** a mention of the deleted sheet in sheet-prefix form outside the known
+  locations (the scan of §6) refuses the delete with `Err(UnrewritableReference)`.
 
 Position-based state:
 
@@ -283,11 +398,16 @@ Position-based state:
 - later `localSheetId`s are decremented;
 - `activeTab`/`firstSheet` are adjusted as POI does, and the next visible sheet becomes
   active if the deleted one was;
-- the new active sheet gets `sheetView/@tabSelected="1"`.
+- `tabSelected` is set on the new active sheet and cleared on every other sheet, ending any
+  group selection (review m11).
 
-**Phase1:** every formula that referred to the sheet (directly, through a name, 3-D) and every
-`Everything` formula is a dependent. `calcChain.xml` is removed, because the set of formula
-cells changed (the deleted sheet's) — ADR-0003's calcChain policy, as POI does.
+**Phase1:** the dependents are:
+- every formula that referred to the sheet (directly, through a name, or 3-D);
+- every `Everything` formula;
+- `SHEET()`/`SHEETS()` callers.
+
+`calcChain.xml` is removed (in the same plan), because the set of formula cells changed. That
+is ADR-0003's calcChain policy, and POI does the same.
 
 **Phase2:** `sst/@count` is recomputed without the deleted sheet's references (ADR-0006 §4.5).
 No style or string entry is removed (Layer 3).
@@ -295,36 +415,78 @@ No style or string entry is removed (Layer 3).
 ### 6. Rename a sheet
 
 Validation as in §3. The new name must not fold-equal another sheet or a defined name that
-formulas could confuse with it (ADR-0003 §2.4 c).
+formulas could confuse with it (ADR-0003 §2.4 c). Refused for shared workbooks, and for
+workbooks with ActiveX binaries (`activeX*.bin`), whose `LinkedCell`/`ListFillRange` this
+crate can neither read nor rewrite (`Err(BinaryReferencesPossible)`; review B3-3).
 
-**Rewritten** (tokenized, so only real sheet prefixes change; quoting is recomputed: quotes
-when the name is not a plain identifier, looks like a cell or R1C1 reference, or contains
-spaces or punctuation; `'` doubled):
+**Known locations and their syntax** (review B3, M2). Every location is rewritten by the
+function for its syntax. The corpus count is the number of packages (a lower bound, fact 7).
 
-| Location | Corpus packages |
-|---|---|
-| cell formulas on every sheet (normal, shared masters, array, data-table anchors), 3-D endpoints | 17 (3-D: 3) |
-| defined names (all scopes) | 46 |
-| chart `c:f` in every chart part, not only the renamed sheet's (POI's gap) | 25 |
-| pivot cache `worksheetSource/@sheet` | 5 |
-| DV/CF formulas (2007) and x14 `xm:f` (DV, CF, sparklines) | 3 |
-| `hyperlink/@location` and `#Sheet!…` relationship targets in sheet and drawing `.rels` | 3 |
-| `app.xml` titles (§11) | 294 with titles |
+| Location | Syntax | Corpus |
+|---|---|---|
+| cell formulas on every sheet part (normal, shared masters, array, data-table anchors) | formula | 17 (3-D: 3) |
+| `definedName` text (all scopes) | formula | 46 |
+| chart `c:f`, `c15:f`, `c15:sqref`, `c15:fullRef`/`formulaRef`, `c15:datalabelsRange`, `c15:filteredSeriesTitle`/`…CategoryTitle` in every chart part | formula | 25 |
+| chartEx `cx:f` | formula | 0 |
+| `c:pivotSource/c:name` | `[file]Sheet!PivotName` (sheet part raw, quoting not verified: refused if the new name needs quotes) | 1 |
+| pivot cache `worksheetSource/@sheet`; `consolidation/rangeSets/rangeSet/@sheet`; `dataConsolidate/dataRefs/dataRef/@sheet` | raw name | 5 / 0 / 0 |
+| DV `formula1`/`formula2`, CF `cfRule/formula`, 2007 `cfvo/@val` (`type="formula"`) | formula | (in 3 with x14) |
+| x14 `xm:f` (DV, CF incl. `x14:cfvo`, sparklines) | formula | 3 |
+| table `calculatedColumnFormula`, `totalsRowFormula` | formula | 1 |
+| `connections.xml` `parameter/@cell` | formula (reference) | 1 |
+| form controls: ctrlProps `@fmlaLink`/`@fmlaRange`/`@fmlaTxbx`/`@fmlaGroup`; VML `x:FmlaLink`/`x:FmlaRange`/`x:FmlaTxbx`/`x:FmlaPict`; `controlPr/@linkedCell`/`@listFillRange` | formula (reference) | 0 |
+| `xdr:sp/@textlink`, `cdr:sp/@textlink` | formula (reference) | 0 non-empty |
+| `hyperlink/@location`; `#Sheet!…` targets in sheet and drawing `.rels` | location (`Sheet!A1` / `'S h'!A1`) | 3 |
+| `app.xml` worksheet titles | raw name (`vt:lpstr`, ST_Xstring) | 294 with titles |
+| `app.xml` "Named Ranges" titles (`'1'!Print_Area`) | location | 32 |
+| `docProps/custom.xml` `linkTarget` | defined-name name (unchanged by a sheet rename) | 9 |
 
-**Not rewritten**, because Excel itself does not rewrite these and they are not formulas:
+**Syntax rules** (review M2):
 
-- sheet names inside string literals (`INDIRECT("Sheet1!A1")`, `HYPERLINK("#Sheet1!A1")`; 0 in
-  the corpus);
-- VBA source (which uses `codeName`, unaffected);
-- other workbooks' external links.
+- **Formula:**
+  - Only sheet-prefix tokens change. The token spans come from Phase1's lexer, so every other
+    byte stays.
+  - A 3-D span is quoted **as a whole** (`'Jan:Q1 2024'!A1`), never per endpoint.
+  - External references (`[1]Sheet1!A1`, `'[1]Sheet 1'!A1`) are never rewritten, even when
+    the name matches: they are another workbook's sheets.
+- **Quoting:**
+  - The name is left unquoted only if it matches `^[A-Za-z_][A-Za-z0-9_.]*$` and is not an A1
+    or R1C1 reference, `R`/`C` alone (any case), `TRUE` or `FALSE`. Otherwise it is quoted,
+    with `'` doubled.
+  - This is conservative: quoting is always valid, and Excel normalises it on save.
+- **Raw name:** written as is, never quoted (`'Q1 2024'` would be a different name).
+- **ST_Xstring** (`sheet/@name`, `<f>`, `vt:lpstr`): matching happens after `_xHHHH_`
+  decoding. Writing escapes control characters and protects a literal `_xHHHH_` with
+  `_x005F_` (the corpus has a sheet name with `_x000a_`).
 
-**Refused:** any location that holds formula text the tokenizer cannot lex and that mentions
-the old name (case-folded), `Err(UnrewritableReference)`.
+**Closed-world scan** (review B3). Before planning, every XML part of the package is scanned,
+whatever its content type. The scan covers every text node and every attribute value, after
+XML unescaping and ST_Xstring decoding, ASCII case-folded.
+- It looks for the old name in sheet-prefix form: `'…'!`, `Name!`, or a 3-D `A:B!` with the
+  old name as an endpoint.
+- Every hit must lie inside a known location, or inside a known non-reference: a cell value
+  of `t="s"`/`t="str"`/`inlineStr`, `sharedStrings.xml`, a string literal inside a formula,
+  an external `[n]` reference, or a comment text.
+- Any other hit refuses the rename with `Err(UnrewritableReference { part, location })`. A
+  silent miss is worse than a refusal.
 
-**Phase1:** a rename changes no value, except `CELL("filename", …)` results and `INFO` (the
-ADR-0006 §7.3 function list, plus `CELL` with any argument). Formulas calling them become
-dependents. Nothing else is invalidated. `calcChain.xml` is unaffected, because it keys on
-`sheetId`.
+**Not rewritten**, and documented (Excel does not rewrite these either, or they are not ours):
+- sheet names inside formula string literals (`INDIRECT("Sheet1!A1")`,
+  `HYPERLINK("#Sheet1!A1")`; 0 in the corpus);
+- VBA source. It refers to sheets by `codeName` (unaffected) **or by name**
+  (`Worksheets("Sheet1")`), and the by-name references break (review m7);
+- other workbooks' external links;
+- `connections.xml` `dbPr/@command` text (`SELECT … FROM [Sheet1$]`), the Power Query mashup
+  and the Power Pivot model (review m10).
+
+**Phase1:** the seeds are:
+- callers of `CELL` (any argument) and `INFO`;
+- **every `Everything` formula**. That includes `INDIRECT("Old!A1")`, `SHEET("Old")` and
+  `GET.WORKBOOK` in names (review M3);
+- every formula naming an unknown sheet whose name equals the new name, which would resolve
+  now.
+
+`calcChain.xml` is unaffected: it keys on `sheetId`.
 
 ### 7. Reorder (`move_sheet(from, to)`)
 
@@ -332,15 +494,21 @@ dependents. Nothing else is invalidated. `calcChain.xml` is unaffected, because 
   same raw node, so its bytes are unchanged.
 - `localSheetId`s, `activeTab` and `firstSheet` are remapped by the permutation.
 - `app.xml` order follows.
-- **Phase1:** formulas with 3-D references whose span changes membership, and formulas
-  calling `SHEET()`/`SHEETS()`, are dependents.
+- **Phase1:** the seeds are formulas with 3-D references whose span changes membership,
+  `SHEET()`/`SHEETS()` callers, and every `Everything` formula (review M3).
+- **3-D endpoint reversal** (review M3). Microsoft documents that "if you reverse the end
+  points, the 3-D reference changes the endpoint worksheet". Excel's exact rewrite is not
+  verified, so a move that makes any 3-D reference's first endpoint come after its last is
+  refused with `Err(ReversesThreeDReference { location })`. This is an XL item; adopting
+  Excel's rewrite comes once it is known.
 
 ### 8. Hide and unhide
 
 - `set_sheet_state(sheet, Visible | Hidden | VeryHidden)` sets or removes `sheet/@state`.
 - Hiding the last visible sheet is `Err(LastVisibleSheet)`.
 - Hiding the active sheet moves `activeTab` to the next visible sheet and sets `tabSelected`
-  there.
+  there. Hiding any sheet clears its `tabSelected`, so a group selection never includes a
+  hidden sheet (review m11).
 - `app.xml`: `veryHidden` sheets are not listed (corpus fact 5), so going to or from
   `veryHidden` removes or adds the title.
 
@@ -352,7 +520,9 @@ dependents. Nothing else is invalidated. `calcChain.xml` is unaffected, because 
   - 1–255 characters;
   - starts with a letter, `_` or `\`;
   - then letters, digits, `.`, `_`, `\`, `?`;
-  - not a cell reference in A1 or R1C1 form, and not `R`/`C` alone;
+  - not a cell reference in A1 or R1C1 form (`R1`, `C2`, `RC`, `R[1]C`, any case), and not
+    `R`/`C` alone in any case (review m3);
+  - no reserved prefix: `_xlnm.`, `_xlfn.`, `_xlpm.`, `_xlws.`, `_xludf.`;
   - unique per scope under the ADR-0003 fold.
   - Violations give `Err(InvalidName)`.
 - `_xlnm.*` names are reachable only through `set_print_area`/`set_print_titles`. Writing
@@ -363,36 +533,49 @@ dependents. Nothing else is invalidated. `calcChain.xml` is unaffected, because 
 - **Edit or delete:**
   - Every formula whose precedents go through the name, and every `Everything` formula, is a
     dependent (Phase1).
-  - Deleting a name that formulas still use is `Err(NameInUse { count })`, unless
+  - Deleting a name that is still used is `Err(NameInUse { count })`, unless
     `delete_name_force`. Then dependents are invalidated and the formulas keep the name text,
     which Excel evaluates to `#NAME?`.
-- **`app.xml`:** names listed in the "Named Ranges" block are updated if the block exists
-  (§11).
+  - Uses are counted in every formula location of §6, in other names, and in
+    `docProps/custom.xml` `linkTarget` (9 corpus packages; review m4).
+  - A use the scan cannot classify (a binary part, an unknown part) refuses unless forced.
+- **`rename_name`** rewrites the name in all of those locations, `linkTarget` included.
+- **`app.xml`:** the "Named Ranges" block is updated if it exists (§11). Excel evidently lists
+  printable names (`Print_Area`, `Print_Titles`) and visible user names, but not hidden names
+  or `_FilterDatabase` (inferred, review m1; XL item 9(g)).
 
 ### 10. VBA project
 
-- **`set_vba_project(bin, signature: Option<bin>)`**:
+- **`set_vba_project(bin)`** (one transaction; review M8):
   - adds `xl/vbaProject.bin` with an **`Override`** of `application/vnd.ms-office.vbaProject`.
     A `bin` Default is often the printer-settings type (110 corpus packages), so the
     rust_xlsxwriter Default approach is wrong here;
   - adds the workbook relationship (`…/office/2006/relationships/vbaProject`);
-  - sets the workbook content type to `…sheet.macroEnabled.main+xml` (`.xlsx`→`.xlsm`), or
-    `…template.macroEnabled.main+xml` for templates;
-  - adds the signature (`vbaProjectSignature.bin` via `xl/_rels/vbaProject.bin.rels`) when
-    given;
+  - sets the workbook content type:
+    - `.xlsx` → `…sheet.macroEnabled.main+xml`;
+    - `.xltx` → `…template.macroEnabled.main+xml`;
+    - `.xlsm`/`.xltm`/`.xlam` keep theirs;
   - sets `workbookPr/@codeName` (default `ThisWorkbook`) and each sheet's `codeName` (default
     `Sheet{n}`, skipping names in use) **only where absent**, as rust_xlsxwriter does for new
     files.
-- **Replacing an existing project:** the old project and every signature part
-  (`vbaProjectSignature*.bin`) are removed first. A changed project invalidates the signature.
-  Existing `codeName`s are kept.
-- **`remove_vba_project()`:** removes the parts and restores the non-macro workbook content
-  type. `codeName`s stay (harmless).
+- **Signatures** are not produced. Signing is out of scope, so the API takes no signature.
+- **Replacing an existing project** removes the old one in the same plan, as a closed set.
+  The set holds `vbaProject.bin`, its `.rels`, and every part its `.rels` reaches through
+  the signature relationship types `…/vbaProjectSignature`, `…/vbaProjectSignatureAgile` and
+  `…/vbaProjectSignatureV3` (found by type, not by file name). A changed project invalidates
+  every signature. Existing `codeName`s are kept.
+- **`remove_vba_project()`:** the same closed-set removal, plus the non-macro content type
+  (`.xlsm` → `.xlsx`, `.xltm` → `.xltx`).
+  - It is refused for `.xlam`: an add-in without macros is not a workbook type
+    (`Err(AddinNeedsVba)`).
+  - Macro bindings that dangle afterwards are not removed: VML `x:FmlaMacro` (57 corpus
+    places) and shape `@macro`. The docs say so (review m7).
 - The binary is not inspected (CFB). Matching module names to `codeName`s is the caller's
   responsibility, and the docs say so.
-- **`save` to a path whose extension does not match the workbook content type** (`.xlsx` with
-  macros, `.xlsm` without) is `Err(ExtensionMismatch)`. Excel refuses such files (XL item to
-  confirm the exact behaviour).
+- **`ExtensionMismatch`** (review M8) applies only to `save(path)`, and only when **this
+  session changed** the workbook content type and the path's extension does not match the new
+  one. An unchanged round trip of an already mismatched file still saves, as in Phase0, and
+  `to_bytes` never checks.
 
 ### 11. `docProps/app.xml`
 
@@ -412,8 +595,12 @@ invents structure.
   - the `vt:vector/@size` attributes.
 
   Labels are never changed or translated, and blocks are never created or removed. If an
-  operation would need a block that does not exist (e.g. the first chart sheet), `app.xml` is
-  left untouched for that operation.
+  operation would need a block that does not exist (e.g. the first chart sheet), **all of**
+  `app.xml` is left untouched for that operation, so a partial update never leaves the counts
+  inconsistent.
+  - Rename rewrites sheet-prefixed titles in "Named Ranges" (`'Old'!Print_Area`).
+  - Whether Excel omits `veryHidden` sheets rests on one corpus package, so it is XL item 9(g)
+    (review m1).
 - **Unrecognized, stale or absent** `app.xml` (48 of 342 packages lack the elements or the
   part; 4 are stale) is left untouched (L1).
 - This is a Layer 2 edit of `app.xml` with an allowlist entry for `ep:HeadingPairs`,
@@ -421,19 +608,20 @@ invents structure.
 
 ### 12. Interaction with Phase1 and Phase2 (summary)
 
+"`Everything`" means every formula ADR-0003 cannot give a precise precedent set. Its closure is
+cached, so seeding it is cheap (review M3).
+
 | Operation | Phase1 seeds (dependents lose `v`, `fullCalcOnLoad`) | `calcChain.xml` | Phase2 |
 |---|---|---|---|
-| add sheet | 3-D refs whose span gains it; `SHEET()`/`SHEETS()` | untouched | new cells use registries |
-| delete sheet | everything that referred to it (direct, name, 3-D); `Everything` formulas; `SHEET()`/`SHEETS()` | removed (formula set changed) | `sst/@count` recomputed |
-| rename sheet | `CELL`, `INFO` callers | untouched | — |
-| reorder | 3-D refs whose membership changes; `SHEET()`/`SHEETS()` | untouched | — |
+| add sheet | 3-D refs whose span gains it; `SHEET()`/`SHEETS()`; `Everything`; formulas naming an unknown sheet with the new name | untouched | new cells use registries |
+| delete sheet | everything that referred to it (direct, name, 3-D); `Everything`; `SHEET()`/`SHEETS()` | removed (formula set changed) | `sst/@count` recomputed |
+| rename sheet | `CELL`, `INFO`; `Everything`; formulas naming an unknown sheet with the new name | untouched | — |
+| reorder | 3-D refs whose membership changes; `SHEET()`/`SHEETS()`; `Everything` | untouched | — |
 | hide/unhide | none | untouched | — |
-| name add/edit/delete | formulas through the name; `Everything` formulas | untouched | — |
+| name add/edit/delete | formulas through the name; `Everything` | untouched | — |
 | VBA | none | untouched | — |
 
-All operations run plan → validate → apply (ADR-0003 §3.1), with staged clones of every
-touched Layer 2 part and the core `check_*` twins for added and removed parts. An `Err` leaves
-the package unchanged.
+All operations run as one PR #38 transaction (§2). An `Err` leaves the package unchanged.
 
 ### 13. Errors
 
@@ -448,7 +636,13 @@ the package unchanged.
 - `InvalidNameFormula`
 - `NameInUse { count }`
 - `ExtensionMismatch`
-- core `RemovePartRefused` / `AddPartRefused`
+- `SharedWorkbook`
+- `TableInUse { table }`
+- `CustomViewReferencesSheet`
+- `ReversesThreeDReference { location }`
+- `BinaryReferencesPossible`
+- `AddinNeedsVba`
+- core `RegistryRefused` (PR #38)
 
 All are refusals in ADR-0001's sense: nothing changes.
 
@@ -462,7 +656,8 @@ All are refusals in ADR-0001's sense: nothing changes.
    - relationship ids are unique per `.rels`;
    - no two part names are OPC-equivalent;
    - `sheetId`s are unique;
-   - every `localSheetId` < sheet count.
+   - every `localSheetId` < sheet count;
+   - a new part has only the relationships the operation added (review M6).
 2. **L1** for every part the operation does not touch.
 3. **T2** on `workbook.xml`, `[Content_Types].xml`, `.rels` and `app.xml`: the diff is
    confined to the inserted, removed or moved elements and the renumbered attributes listed
@@ -475,6 +670,23 @@ All are refusals in ADR-0001's sense: nothing changes.
      tokenizer output**, generated offline and committed, as ADR-0003's differential test
      does.
    - A mutation that misses one location class must fail this oracle.
+   - Every rewritten formula text lexes with Phase1's lexer (review M1).
+4a. **Residual-mention oracle** (review M7). This oracle is independent of the implementation's
+    location table. A regex scan, written separately from the implementation (the review's
+    probe style), runs over **every** output part:
+    - XML parts: all text and attribute values, decoded;
+    - binary parts: their UTF-8 and UTF-16LE bytes.
+
+    It asserts:
+    - after a rename, the old name appears in sheet-prefix form only in the allowed
+      non-reference places;
+    - the new name's count equals the old name's count in the input plus the new name's count
+      in the input;
+    - after a delete, the deleted name appears nowhere except `hyperlink/@location`/`#…`
+      targets.
+
+    A **synthetic fixture** holds one reference in each row of §6's table. The locations
+    openpyxl cannot produce are written as hand XML.
 5. **CR (calamine 0.38):**
    - `sheet_names()` order and names;
    - `sheets_metadata()` visibility;
@@ -514,7 +726,12 @@ All are refusals in ADR-0001's sense: nothing changes.
    - (b) `#REF!` forms after delete;
    - (c) a new sheet in an `.xlsm` with VBA (does Excel add the document module silently?);
    - (d) `set_vba_project` on an `.xlsx` with `printerSettings`;
-   - (e) `ExtensionMismatch` behaviour.
+   - (e) `ExtensionMismatch` behaviour;
+   - (f) 3-D endpoint forms after delete (inward move, single sheet, empty) and after a
+     reversing move;
+   - (g) `app.xml` after hiding a sheet as `veryHidden`, and which names "Named Ranges" lists;
+   - (h) a deleted sheet's table referenced elsewhere (Excel's `#REF!` form, before
+     `TableInUse` is relaxed).
 
 ## Alternatives considered
 
@@ -532,41 +749,72 @@ All are refusals in ADR-0001's sense: nothing changes.
   are shared and carry copies of the source data, and slicers and timelines hang off them.
   Refusing is honest until Phase5 models pivots.
 - **A `bin` Default for VBA (rust_xlsxwriter).** This is rejected for edit mode (corpus fact 4).
+- **Per-call `check_*` twins (revision 1).** These are rejected (review B2): they cannot
+  validate dependent steps, such as removing a sheet part only after `workbook.xml` stops
+  naming it. PR #38's transaction replaces them.
+- **Leaf-first `remove_part` cascades (revision 1).** These are rejected (review B1): every
+  first step is refused (`HasOwnRelationships`, `StillReferenced`). A closed-set removal
+  replaces them.
+- **`#REF!A1` after delete (revision 1).** This is rejected (review M1): Excel writes a bare
+  `#REF!`, and the other form does not lex.
 
 ## Consequences
 
-- `ooxml-core` gains part and relationship addition and a content-type setter. ADR-0001 gains
-  a post-acceptance note widening PR #14's interim exception (Q1).
+- `ooxml-core` gains PR #38's registry transaction, and ADR-0001 gains its note "registry
+  writes" (Q1).
 - The Phase1 tokenizer becomes a rewriter. Its token spans must round-trip byte-exactly, so
   that only sheet-prefix tokens change.
 - Census coverage grows. Phase1 scans worksheet `f`, names and calcChain. Phase3 also needs
   chart `c:f`, pivot cache sources, DV/CF formulas, `xm:f` and hyperlink locations. These
   are cheap scans (`spikes/xlsx-phase3/` does them in Python over the whole corpus in
   seconds).
-- Sheet operations on workbooks with pivot tables, slicers, OLE objects or controls are
-  refused in Phase3 (at most 16 of 342 corpus packages, under 5%).
+- These are refused in Phase3: sheet deletes involving pivot tables, slicers, OLE objects,
+  controls, SmartArt, chartEx or embedded chart workbooks; renames in workbooks with ActiveX
+  binaries; everything in shared workbooks. That is at most 16 of 342 corpus packages, under
+  5% (review m5).
 
 ## Open questions for the project owner
 
-- **Q1 (ADR-0001).** May Phase3 add parts and relationships, and remove sheet-owned parts under
-  §5's cascade, as a widening of PR #14's interim note? The proposed wording is in §2.
-- **Q2 (delete rewrites).** Should delete rewrite references to `#REF!` as Excel does (proposed),
-  or refuse deleting any sheet that is referenced?
-- **Q3 (new sheet in VBA workbooks).** Leave `codeName` absent (proposed; Excel is expected to
-  add the module), or always assign one?
-- **Q4 (`app.xml` blocks).** Should Phase3 create a missing block (e.g. "Charts") with an
-  English label, or keep "never invent structure" (proposed)?
-- **Q5 (names in use).** `delete_name` refuses when formulas use the name (proposed), with
-  `delete_name_force` as the escape hatch. Is that the right default?
-- **Q6 (pivot-bearing sheets).** Are refusals for sheets with pivot tables, slicers, OLE
-  objects or controls acceptable until Phase5?
+Each question carries the reviewer's recommendation (round 1) as the **proposed default**,
+pending the owner's confirmation.
+
+- **Q1 (ADR-0001).** *Proposed: yes, as PR #38's note "registry writes".*
+  - Additions are append-only: a left-over `.rels` makes a name taken, and `rId`s keep a
+    session high-water.
+  - Removal is a closed-set primitive with transaction-wide validation, which replaces PR #14's
+    interim note rather than widening it.
+- **Q2 (delete rewrites).** *Proposed: rewrite as Excel does*, with conditions:
+  - bare `#REF!` (M1);
+  - refuse when the sheet's tables are used elsewhere (M4);
+  - the residual-mention oracle is mandatory (M7);
+  - the rewritten locations are returned to the caller.
+
+  A strict mode, `delete_sheet_strict`, refuses any referenced sheet.
+- **Q3 (new sheet in VBA workbooks).** *Proposed: no `codeName`*, confirmed by XL 9(c). If
+  Excel repairs or loses VBA, the next revision assigns a free `Sheet{n}`.
+- **Q4 (`app.xml` blocks).** *Proposed: never invent structure.* When a needed block is
+  missing, the whole of `app.xml` stays untouched for that operation.
+- **Q5 (names in use).** *Proposed: refuse by default*, counting every location of §6, other
+  names, `linkTarget` and connection parameters. Unclassifiable mentions refuse unless forced.
+- **Q6 (refusals until Phase5).** *Proposed: yes.* That covers pivots, slicers, OLE objects,
+  controls, tables used elsewhere, shared workbooks, ActiveX for rename, and
+  chartEx/SmartArt for delete. Rename is allowed on sheets with pivots, because
+  `worksheetSource/@sheet` and `c:pivotSource/c:name` are rewritten.
 
 ## Sources
 
 - ADR-0001 (Layer 3; PR #14 interim note), ADR-0002 §4.3, ADR-0003 (§1 census, §2.4 folding and
   3-D endpoints, §3.1 plan → validate → apply, calcChain policy), ADR-0006 §4.5, §7.3.
-- PR #14 (`Package::remove_part`, `check_remove_part`, OPC part-name equivalence); PR #21 (O3
-  LibreOffice recalculation workflow).
+- PR #14 (`Package::remove_part`, OPC part-name equivalence); **PR #38** (`RegistryPlan`:
+  staged transaction, closed-set removal, rules table, ADR-0001 note "registry writes"); PR #21
+  (O3 LibreOffice recalculation workflow); Phase1 lexer
+  (`impl/xlsx-phase1`, `crates/ooxml-xlsx/src/formula/lexer.rs`, error literal and
+  `Sheet!#REF!`).
+- Microsoft Support, "Create a reference to the same cell range on multiple worksheets" (3-D
+  references: insert, delete, move, move or reverse an endpoint):
+  <https://support.microsoft.com/office/create-a-reference-to-the-same-cell-range-on-multiple-worksheets-c906f8b4-c648-4aa0-8063-65d38d03370f>.
+- Review round 1 probe: `scratchpad/review-pr27/probe/locs.py` (all text nodes and attributes
+  of every XML part, sheet-prefix mentions).
 - ECMA-376 Part 1:
   - §18.2 (`workbook`, `sheets`, `definedNames`, `bookViews`, `workbookPr/@codeName`);
   - §18.3.1 (`sheetPr/@codeName`, `hyperlink/@location`);
