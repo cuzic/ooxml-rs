@@ -30,6 +30,38 @@ doc.save("letter-filled.docx")?;
 # Ok::<(), ooxml_docx::Error>(())
 ```
 
+## Usage example
+
+`examples/fill_runs.rs` is a runnable walk-through on committed fixtures. It:
+
+- lists runs with their `RunContext` and whether each can be set;
+- replaces one run's text;
+- appends a paragraph;
+- saves to `OUT_DIR/fill_runs.docx` and re-reads it;
+- shows the gates (track changes on; TOC/PAGEREF fields) and a run inside a field.
+
+```sh
+cargo run -p ooxml-docx --example fill_runs -- [OUT_DIR]   # default: <temp dir>/ooxml-rs-examples
+```
+
+```rust,no_run
+use ooxml_docx::{Document, Error};
+
+let mut doc = Document::open("letter.docx")?;
+match doc.write_gate() {
+    Err(e @ (Error::TrackRevisionsOn | Error::DocumentProtected { .. } | Error::StaleFieldRisk { .. })) => {
+        eprintln!("read-only here: {e}");
+    }
+    other => {
+        other?;
+        doc.set_run_text(0, 0, "Filled in")?; // R1–R4 refusals come back as Err, nothing changed
+        doc.append_paragraph("Appended paragraph")?;
+        doc.save("letter-filled.docx")?;
+    }
+}
+# Ok::<(), Error>(())
+```
+
 ## Refusals (ADR-0004 §6)
 
 | When | Error |
@@ -59,5 +91,8 @@ T2 over all 3,423 settable runs, T3, T4, T5 read-back with `docx-rs` 0.4.22, T6)
 manual check in Microsoft 365 Word:
 
 ```sh
-cargo run -p ooxml-docx --example manual_check -- <outdir>   # ten outputs + CHECKLIST.md
+cargo run -p ooxml-docx --example docx_manual_check -- <outdir>   # eleven outputs + CHECKLIST.md
 ```
+
+`cargo xtask manual-check <outdir>` runs the Excel, PowerPoint and Word checks together and
+writes one bundle (per-format folders, an index `CHECKLIST.md`, `manual-check.zip`).

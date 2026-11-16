@@ -1,6 +1,8 @@
 //! Read side: slides, shapes, text (ADR-0005 §3). Reading never changes a
 //! part's state. Only **direct** values are returned (ADR-0005 §4).
 
+use std::sync::Arc;
+
 use std::borrow::Cow;
 
 use ooxml_core::{ElementSpec, EnumValue, Lens, QName, RawNode, XmlDocument};
@@ -75,9 +77,46 @@ pub enum ShapeKind {
 #[derive(Clone, Debug)]
 pub struct ShapeRef<'a> {
     pub(crate) node: &'a RawNode,
-    pub(crate) path: ShapePath,
+    pub(crate) path: PathRef,
     pub(crate) kind: ShapeKind,
     pub(crate) depth: usize,
+}
+
+/// The path of a shape, stored once per walk: every entry of a
+/// [`Slide::shapes`] list shares one arena of `(parent entry, child index)`
+/// steps, so a list costs O(shapes) memory however deep the groups nest
+/// (PR #16 round-2 review n2: one full path per shape was O(shapes × depth),
+/// ~459 MB for a 19 KB file at depth 256). The full [`ShapePath`] is built
+/// on request.
+#[derive(Clone, Debug)]
+pub(crate) struct PathRef {
+    arena: Arc<PathArena>,
+    entry: u32,
+}
+
+/// `steps[i]` = (parent entry or `NONE`, child index); the walk's prefix
+/// (`p:cSld`, `p:spTree`) is `base`.
+#[derive(Debug)]
+struct PathArena {
+    base: [usize; 2],
+    steps: Vec<(u32, u32)>,
+}
+
+const NONE: u32 = u32::MAX;
+
+impl PathRef {
+    fn to_path(&self) -> ShapePath {
+        let mut rev = Vec::new();
+        let mut e = self.entry;
+        while e != NONE {
+            let (parent, i) = self.arena.steps[e as usize];
+            rev.push(i as usize);
+            e = parent;
+        }
+        let mut v = self.arena.base.to_vec();
+        v.extend(rev.into_iter().rev());
+        ShapePath(v)
+    }
 }
 
 fn first_element(n: &RawNode, pred: impl Fn(&RawNode) -> bool) -> Option<&RawNode> {
@@ -157,9 +196,10 @@ pub(crate) fn kind_of(n: &RawNode) -> Option<ShapeKind> {
 }
 
 impl<'a> ShapeRef<'a> {
-    /// Path from the slide root, for [`crate::SlideMut::shape_mut`].
-    pub fn path(&self) -> &ShapePath {
-        &self.path
+    /// Path from the slide root, for [`crate::SlideMut::shape_mut`]
+    /// (built on request; the list of shapes shares one path arena).
+    pub fn path(&self) -> ShapePath {
+        self.path.to_path()
     }
 
     /// Kind of shape.
@@ -418,31 +458,36 @@ pub struct Slide<'a> {
     pub(crate) info: SlideInfo,
 }
 
-pub(crate) fn walk<'a>(n: &'a RawNode, path: &mut Vec<usize>, depth: usize, out: &mut Vec<ShapeRef<'a>>) {
+/// Depth-first walk of a shape tree: fills `steps` (one per shape) and
+/// `found` (node, step index, kind, depth). No per-shape path is cloned.
+fn walk<'a>(n: &'a RawNode, parent: u32, depth: usize, steps: &mut Vec<(u32, u32)>, found: &mut Vec<(&'a RawNode, u32, ShapeKind, usize)>) {
     for (i, c) in n.indexed_elements() {
         let Some(kind) = kind_of(c) else { continue };
-        path.push(i);
+        let entry = u32::try_from(steps.len()).expect("fewer than 2^32 shapes");
+        steps.push((parent, u32::try_from(i).expect("child index fits u32")));
         let is_group = kind == ShapeKind::Group;
-        out.push(ShapeRef { node: c, path: ShapePath(path.clone()), kind, depth });
+        found.push((c, entry, kind, depth));
         if is_group {
-            walk(c, path, depth + 1, out);
+            walk(c, entry, depth + 1, steps, found);
         }
-        path.pop();
     }
 }
 
 pub(crate) fn shapes_of(doc: &XmlDocument) -> Vec<ShapeRef<'_>> {
     let root = doc.root();
-    let mut out = Vec::new();
     let Some((ci, csld)) = root.indexed_elements().find(|(_, c)| c.is(pml::CommonSlideData::QNAME)) else {
-        return out;
+        return Vec::new();
     };
     let Some((ti, tree)) = csld.indexed_elements().find(|(_, c)| c.is(ShapeTree::QNAME)) else {
-        return out;
+        return Vec::new();
     };
-    let mut path = vec![ci, ti];
-    walk(tree, &mut path, 0, &mut out);
-    out
+    let (mut steps, mut found) = (Vec::new(), Vec::new());
+    walk(tree, NONE, 0, &mut steps, &mut found);
+    let arena = Arc::new(PathArena { base: [ci, ti], steps });
+    found
+        .into_iter()
+        .map(|(node, entry, kind, depth)| ShapeRef { node, path: PathRef { arena: Arc::clone(&arena), entry }, kind, depth })
+        .collect()
 }
 
 /// Every id a shape entry contributes to the duplicate check.
