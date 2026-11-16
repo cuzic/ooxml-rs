@@ -89,7 +89,15 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
   - xlsx Phase1（#20、ADR-0003）では、値を編集すると他のシートにある依存セルのキャッシュも消える。
     - あわせて `workbook.xml` の `calcPr` が書き換わる。
     - 数式セルの集合が変わると、`calcChain.xml` も削除される。
-    - そこで、編集後の L1 検査の除外対象を次のように広げた: 全シート（content type で判定）、workbook、`[Content_Types].xml`、`.rels`、それに消えてもよい `calcChain.xml`。
+    - 当初は、編集後の L1 検査の除外対象を広げて対応した。対象は全シート（content type で判定）、workbook、`[Content_Types].xml`、`.rels`、それに消えてもよい `calcChain.xml` だった。
+      round 3 のレビュー（M2）で、これでは Phase1 の契約外の書き込みを見逃すと指摘された。7 つの変異のうち 5 つが生き残っていた。
+      そこで、`src/phase1_oracle.rs` の厳しい oracle に置き換えた。書き込みのたびに直前の `Workbook::dependents` と「数式セルの集合が変わるか」を記録し、変わった part ごとに次だけを許す。
+      - 依存セルを持つシート: 依存セルの `v`・`is`・`@t` だけ
+      - workbook: `calcPr/@fullCalcOnLoad="1"` だけ（依存があったか集合が変わったときに限る）
+      - `[Content_Types].xml` と workbook の `.rels`: calcChain の `Override`・`Relationship` がなくなることだけ（calcChain を消したときに限る）
+      - calcChain（workbook の relationship から解決する）: 集合が変わったときに限って消える
+      - それ以外: L1 一致
+      calcPr に `iterate` を書く変異、calcChain を残す変異・常に消す変異、依存セルの `f` まで消す変異は、どれもこの oracle で検出されることを確認した。
 - 9 件の `#[ignore]` を外し、`known.rs` を削除した。
 - ZIP64 の子プロセスには `--include-ignored` を渡す。親は子の出力に `1 passed` があることを検査する。これで、テストが 0 件しか実行されなかった場合に空振りで pass することがなくなる（M1'）。
 - ワークフロー:
