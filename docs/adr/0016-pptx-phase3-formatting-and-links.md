@@ -1,6 +1,6 @@
 # ADR-0016: PowerPoint Phase 3 — formatting writes and links
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (Layer 3
   append-only registries), [ADR-0002](0002-schema-driven-code-generation.md)
@@ -8,16 +8,42 @@
   "detach/insert", "parser depth limit"),
   [ADR-0005](0005-pptx-phase0.md) (Phase 0/0.1 text edits, locks, format
   sources), ADR-0008 (PR #28, Proposed: inheritance chain with
-  provenance, `Resolved`/`Source`, read APIs for links and notes),
-  ADR-0011 §1 (PR #31, Proposed: the core part-adding transaction
-  `Package::plan()` → `PartPlan` → `commit`, branch `core/add-part` to
-  come), ADR-0012 (PR #30, Proposed: id and part-name rules, embedded
-  template), ADR-0013 (PR #33, Proposed: table structure and cell
-  properties).
+  provenance, `Resolved`/`Source`, read APIs for links and notes), the
+  core registry transaction of PR #38 (branch `core/add-part`:
+  `RegistryPlan`, `stage_part`, `Package::apply`; ADR-0001 note "registry
+  writes"), ADR-0012 (PR #30, Accepted rev 3: transaction shape §2, id and
+  part-name rules, embedded template, `ensure_notes_slide`), ADR-0013
+  (PR #33, Proposed: table structure and cell properties).
 - Evidence: [`spikes/pptx-phase3/`](../../spikes/pptx-phase3/README.md)
   (`formatting.py`; 619 distinct presentations, 1,269 slides; output in
   `results/`); python-pptx 1.0.2, Apache POI `47dcff76` and LibreOffice
   `2e885d0b` source, cited in §12.
+- Review: [round 1](0016-opus-review-round1.md) (not converged: M1, M2,
+  m1–m14)
+
+## Revision history
+
+- **Revision 1:** initial draft.
+- **Revision 2** (after `0016-opus-review-round1.md`):
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | M1 stale transaction model (`PartPlan`, ADR-0012 C3–C5) | every write is ADR-0012 §2's transaction: clones edited through the lens, one `RegistryPlan` (`stage_part` + additions/removals), one `apply`; Q1 removed (core: max + 1) | §1, §7–§10, header |
+  | M2 run split cannot use Phase 0.1's `detach_as` (refuses `r:` ids, `a:extLst`) | a **same-part copy mode** is a core requirement (follow-up core PR to #18's API); formatting validated before splitting (a `RunFormat` value, not a closure); no split when nothing changes; `smtId` refused | §3, Consequences |
+  | m1 notes master detection | by the presentation → `notesMaster` relationship; list added when missing; refused when notes slides exist without a master | §8 |
+  | m2 4:3 decks | the template's notes master has a 4:3 variant; other ratios fit `sldImg` into the box | §8 |
+  | m3, m4 `app.xml` `Notes`, single notes API | `ensure_notes_slide` (ADR-0012) extended; `Notes` counted | §8 |
+  | m5 graphicFrame, connectors | `p:graphicFrame/p:xfrm` position only; connector routes not recomputed | §6, Consequences |
+  | m6 group box | manual check; identity `xfrm` for groups without one | §6, §13 |
+  | m7 geometry | `custGeom` refused; old `avLst` removed; `hf`/`vf` documented | §6 |
+  | m8 definitions provenance | Part 1 download, own directory, SHA-256, `codegen --check`, only a name/default table generated | §6 |
+  | m9 table styles | `@def` default `{5C22544A-…}`, uppercase GUIDs, "Layer 3" claim dropped | §9 |
+  | m10 `hlinkMkLst` | link removal/replacement follows ADR-0005's lock; new slide jumps block deleting their target | §7, Consequences |
+  | m11 bullet semantics | per group (`buClr`, `buSz*`, `buFont`): `None` = remove; picture bullet relationships | §4 |
+  | m12 underline line/fill | `a:uLn`/`a:uLnTx`/`a:uFill`/`a:uFillTx` | §3 |
+  | m13 schemes | `vbscript:` and `data:` refused too | §7 |
+  | m14 `themeOverride` | stated | §10 |
+  | Q1–Q4 | the review's recommendations recorded | Open questions |
 
 ## Context
 
@@ -97,11 +123,20 @@ theme/table-style calls).
    ADR-0005 §6 text locks (character animations, comment anchors) do
    **not** apply to formatting writes; range formatting that **splits
    runs** keeps every character offset and paragraph index, so it is
-   allowed under those locks too. The `mc:AlternateContent` rule applies.
-6. **Atomicity.** Every setter and every package addition runs plan →
-   validate → apply: all checks (values, schema placement, core
-   `PartPlan` validation, depth) before the first change; a refusal leaves
-   the package byte-identical.
+   allowed under those locks too (`p:txEl` uses `p:charRg`/`p:pRg`
+   offsets, `oac:txMk` uses `cp`/`len`, and `oac:context@hash` hashes
+   plain text only — MS-ODRAWXML `CT_TextCharRangeContext`; no reference
+   names a run). Link removal and replacement are **not** formatting for
+   this rule (§7). The `mc:AlternateContent` rule applies.
+6. **Atomicity.** Every write is one transaction in ADR-0012 §2's shape:
+   (1) clone the parsed trees that change and edit the clones through the
+   lens (new parts built as `XmlDocument`s); (2) run every refusal and
+   record every step in one core `RegistryPlan` — `stage_part` for each
+   edited clone, `add_part(Numbered)`/`add_relationship`/
+   `remove_relationship` for registry changes; (3) `Package::apply`. A
+   setter that touches only one part's tree and no registry is the
+   degenerate case (validate, then edit in place). A refusal, ours or the
+   core's, leaves the package byte-identical.
 
 ### 2. Colours and fonts
 
@@ -139,17 +174,47 @@ ST_TextFontSize)`, `bold`, `italic`, `underline(ST_TextUnderlineType, 18
 values incl. none)`, `strike(noStrike|sngStrike|dblStrike)`,
 `baseline(percent)`, `caps(none|small|all)`, `spacing(pt ×100)`,
 `kerning`, `lang`/`alt_lang`, `color(ColorSpec)` / `no_fill()`,
-`highlight(ColorSpec)`, `font(FontRef, script)`.
+`highlight(ColorSpec)`, `font(FontRef, script)`, and underline
+appearance `underline_line(LineSpec | FollowText)` /
+`underline_fill(ColorSpec | FollowText)` — the `a:uLnTx`/`a:uLn` and
+`a:uFillTx`/`a:uFill` choices (review m12; `a:uFillTx` occurs 93 times).
+`underline(...)` changes only `@u`; `clear_underline()` removes `@u`
+**and** the four underline appearance children, so no underline colour
+of the old value survives to mix with an inherited one.
 
-- **Character ranges.** `ParagraphMut::format_range(start, end, f)`
-  splits the runs at the range boundaries (the split-off parts copy the
-  run's `a:rPr` through the Phase 0.1 copy primitive, so links are kept
-  on both sides — the copy here does **not** skip `a:hlinkClick`, because
-  it is the same run's text, and the relationship is shared by both
-  halves, which is valid OPC) and applies `f` to every run inside.
+- **Character ranges.** `ParagraphMut::format_range(start, end, &RunFormat)`
+  takes the formatting as a **value** (`RunFormat`: the setters above as
+  optional fields, plus explicit clears), not a closure, so that it is
+  validated completely (ranges, enums, colours) **before** any run is
+  split; a `ValueOutOfRange` never leaves a split behind (review M2).
+  Then it splits the runs at the range boundaries and writes the values
+  to every run inside. A run whose properties already have every value
+  of the `RunFormat` is not split (principle 4); adjacent runs are never
+  merged (that would keep the characters but change unrelated bytes).
   Ranges count characters as Phase 0 text does (`\v` for `a:br`, field
   text); a range that starts or ends inside a field is
   `RangeSplitsField`.
+- **Copying `a:rPr` into the split-off run** needs a **same-part copy
+  mode**, a core requirement of this ADR (review M2). Phase 0.1's
+  `Lens::detach_as` (PR #18) refuses any relationship id (`r:`, Strict
+  `r:`, `o:relid`) and any `a:extLst` in the copied subtree, because a
+  copy into another part would carry dangling ids — which is why Phase
+  0.1 skips links. In the corpus, the 84 `a:rPr` that `detach_as`
+  refuses are all links (`a:hlinkClick`/`a:hlinkMouseOver` with `r:id`;
+  the 12 `ahyp:hlinkClr` sit in `a:hlinkClick/a:extLst`). The requested
+  mode — e.g. `detach_as_within(skip, Keep::SamePart)` on #18's API, in a
+  follow-up core PR with its own ADR-0002 note line — is allowed only
+  when the copy is inserted into the **same part**; it then keeps
+  relationship ids unchanged (they stay valid: same `.rels`) and keeps
+  `a:extLst` (an extension of the same element, staying in the same
+  part; the only one in the corpus is `ahyp:hlinkClr`); it still refuses
+  a non-zero `smtId` (`FormatNotCopyable`: "unique throughout the
+  presentation", ECMA-376 §21.1.2.3.9; 0 in the corpus) and the other
+  `DetachRefusal`s. Two runs then share one hyperlink relationship,
+  which §7's removal rule already handles (the relationship is removed
+  only when no attribute names it). Until that mode exists,
+  `format_range` on a run with a link or an `a:extLst` is
+  `FormatNotCopyable`.
 - **`a:endParaRPr`** gets the same setters (`ParagraphMut::end_format`):
   it decides the formatting of text typed at the end and the height of an
   empty line (ADR-0005 R2-5).
@@ -163,9 +228,19 @@ values incl. none)`, `strike(noStrike|sngStrike|dblStrike)`,
 `Bullet::None` (`a:buNone`), `Char { char, font: Option<FontRef>,
 size: Option<BulletSize>, color: Option<ColorSpec> }`, `AutoNumber {
 scheme, start_at }`, and `Bullet::Inherit` (removes every `bu*` child).
-Picture bullets (`a:buBlip`, 30) need an image relationship:
-`UnsupportedBullet` in Phase 3. Tab stops (`a:tabLst`) are written as a
-whole list.
+The bullet **type** group (`buNone`/`buAutoNum`/`buChar`/`buBlip`) is
+always replaced. For each of the three appearance groups — colour
+(`buClrTx`/`buClr`), size (`buSzTx`/`buSzPct`/`buSzPts`) and font
+(`buFontTx`/`buFont`) — `Some(v)` writes that choice and `None`
+**removes** the group's direct child, so the value is inherited again
+(review m11); keeping an old explicit value would mix the new bullet
+with the old one's appearance. Picture bullets (`a:buBlip`, 30) need an
+image relationship: creating one is `UnsupportedBullet` in Phase 3.
+Replacing an existing `a:buBlip` removes the element; its image
+relationship is then removed only when no attribute of the part still
+carries its `Id`, as in §7, and the image part stays (removing parts is
+not a Phase 3 operation; an unreferenced media part is harmless, as in
+Phase 0.1). Tab stops (`a:tabLst`) are written as a whole list.
 
 ### 5. Autofit
 
@@ -184,8 +259,11 @@ size or spacing:
 
 ### 6. Shape properties
 
-- **Position and size** (EMU) are written to the shape's `a:xfrm` **in
-  its parent's coordinate space** (the slide, or the enclosing group's
+- **Position and size** (EMU) are written to the shape's `a:xfrm` (for
+  a `p:graphicFrame` — tables, charts, SmartArt, 328 in the corpus — its
+  `p:xfrm`, which has no `p:spPr`; review m5: `set_rect` and rotation
+  only, fill/line/geometry are `UnsupportedContent` there) **in its
+  parent's coordinate space** (the slide, or the enclosing group's
   child space `a:chOff`/`a:chExt`). `ShapeMut::set_rect(Rect)` takes that
   space; `ShapeMut::set_slide_rect(Rect)` converts slide coordinates
   through the enclosing groups' scaling and offsets (the inverse of
@@ -195,10 +273,16 @@ size or spacing:
   `recalculate_extents` sets a group's `chOff`/`chExt` equal to its new
   `off`/`ext`; on the 216 corpus groups with a scaled or offset child
   space this visibly moves every other member. A member may therefore lie
-  outside its group's box after a move (PowerPoint recomputes the box on
-  the next interaction); `GroupMut::fit_to_children()` is the explicit
+  outside its group's box after a move (we expect PowerPoint to
+  recompute the box on the next interaction; **unverified**, a manual
+  check item, review m6); `GroupMut::fit_to_children()` is the explicit
   call, which changes `off`/`ext` **and** `chOff`/`chExt` together so that
-  members keep their slide positions.
+  members keep their slide positions. A group without `a:xfrm` (6 in the
+  corpus) gets one first as the identity transform (`off = chOff`,
+  `ext = chExt`, from the members' box).
+- **Connectors** attached to a shape (`a:stCxn`/`a:endCxn`, 50) keep
+  their stored route when the shape moves: Phase 3 does not reroute
+  (like `spAutoFit` sizes, the route is a cache PowerPoint recomputes).
 - **Placeholders without `a:xfrm`** (825 `p:spPr`) inherit their position;
   writing a position creates `a:xfrm` with both `a:off` and `a:ext`
   (filled from the resolved inherited values, ADR-0008) and ends the
@@ -211,14 +295,35 @@ size or spacing:
   compound type; arrow heads (`headEnd`/`tailEnd`) type/width/length;
   `Inherit`.
 - **Geometry:** `set_preset(ShapeType)` (the 187 presets of ECMA-376's
-  `presetShapeDefinitions.xml`), `set_adjustment(name, value)` validated
-  against that preset's `a:avLst` guide names (123 presets have
-  adjustments; 205 corpus shapes set some); written as `a:gd name="adj1"
-  fmla="val N"`. The definitions file ships in the ECMA-376 Part 1
-  download (`OfficeOpenXML-DrawingMLGeometries.zip`); Phase 3 vendors it
-  next to the XSDs under the same licence terms (ADR-0002 §1) and
-  generates the name table with codegen. `custGeom` (1,626) is preserved,
-  not edited (`UnsupportedGeometry`).
+  `presetShapeDefinitions.xml`, exactly the 187 values of `ST_ShapeType`
+  in `dml-main.xsd`), `set_adjustment(name, value)` validated against
+  that preset's `a:avLst` guide names (123 presets have adjustments; 205
+  corpus shapes set some; all 467 corpus `prstGeom/a:avLst/a:gd@name`
+  values are names of their preset, so validation rejects no existing
+  file); written as `a:gd name="adj1" fmla="val N"`. Some presets
+  (`hexagon`, `star5`, `pentagon`, …) list `hf`/`vf` among their
+  adjustments: these are aspect-ratio corrections PowerPoint writes
+  itself, accepted like any adjustment and documented as such (review
+  m7). Changing the preset **removes the old `a:avLst` entries** (their
+  names belong to the old preset). `set_preset` on a shape with
+  `a:custGeom` (1,626) is `UnsupportedGeometry` (custom geometry is
+  preserved, never replaced implicitly).
+- **Preset definitions provenance** (review m8). The file is not in the
+  Part 4 download the vendored XSDs come from: it is in ECMA-376 **Part
+  1**, 5th edition (October 2016),
+  `ECMA-376-1_5th_edition_december_2016.zip` →
+  `OfficeOpenXML-DrawingMLGeometries.zip` (SHA-256 `a8517838…02abf6`) →
+  `presetShapeDefinitions.xml` (SHA-256 `2f7c868d…7b6939`). It is
+  vendored unmodified in its own directory,
+  `reference/ecma-376-drawingml-geometries/`, with a `PROVENANCE.md`
+  (edition, URL, both hashes) and `COPYRIGHT-NOTICE.txt`. The Part 1
+  edition has no copyright page either (page 2 of the PDF is blank, the
+  zip has no notice file; checked 2026-11-16), so, as for Part 4, Ecma's
+  default copyright notice applies (text copyright policy v3), whose
+  derivative (iv) permits implementations of the standard. Codegen
+  generates only a table of preset names, adjustment names and default
+  values from it (`codegen --check` verifies the hash); the XML is not
+  embedded in any crate.
 
 ### 7. Hyperlinks and actions
 
@@ -235,64 +340,106 @@ pub enum LinkTarget {
 pub struct LinkSpec { pub target: LinkTarget, pub tooltip: Option<String>, pub highlight_click: bool, pub text_color: bool }
 ```
 
-- **Relationships** are added through the core transaction (ADR-0011
-  §1: `PartPlan::add_relationship`, `rId{max+1}`, no gap reuse; ADR-0012
+- **Relationships** are added through the core transaction
+  (`RegistryPlan::add_relationship`, `rId{max+1}`, no gap reuse; ADR-0012
   §3) from the part that holds the link (slide, layout, master or notes
-  slide). A new link always gets its own relationship (no implicit
-  sharing, ADR-0011 §1.2), even to an existing target.
+  slide), with the part's edited clone staged (`stage_part`) in the same
+  plan (principle 6). A new link always gets its own relationship (no
+  implicit sharing), even to an existing target.
 - **Url** must be an absolute IRI or a relative reference with no
   control characters or spaces (encoded as `%20`); schemes are not
   restricted (PowerPoint stores `file:`, `mailto:`, custom schemes), but
-  `javascript:` is `UnsafeLinkScheme`. The relationship `Target` is
-  written escaped (ADR-0011 §1.2 target rules).
+  `javascript:`, `vbscript:` and `data:` (case-insensitive, after
+  trimming) are `UnsafeLinkScheme` (review m13): PowerPoint asks before
+  following them, but a library should not produce them. The
+  relationship `Target` is written escaped (the core's target rules).
 - **Slide** targets must be a slide of the same presentation;
-  `SlideRef` is a `sldId` (stable across moves, ADR-0012 §3).
+  `SlideRef` is a `sldId` (stable across moves, ADR-0012 §3). The new
+  `slide` relationship makes the target undeletable under ADR-0012 §4.2
+  (`SlideIsReferenced`), whether the link is on a slide, layout, master
+  or notes slide (review m10).
 - **Removing or replacing** a link removes the element; its relationship
   is removed **only when no attribute of the part still carries that
-  `Id`** (any attribute, any namespace — the PR #14 / ADR-0012 C4 rule; a
-  run split by §3 shares a relationship between two runs). POI's
-  `linkToExternal` removes it unconditionally; python-pptx's `drop_rel`
-  counts only `r:id` attributes.
+  `Id`**: `RegistryPlan::remove_relationship` on the staged clone, which
+  the core refuses while any attribute (any namespace) still names it, so
+  Phase 3 only asks when its own count is zero (a run split by §3 shares
+  a relationship between two runs). POI's `linkToExternal` removes it
+  unconditionally; python-pptx's `drop_rel` counts only `r:id`
+  attributes.
+- **Comment anchors on links** (review m10). A modern comment can anchor
+  to a hyperlink (`oac:hlinkMkLst`), which ADR-0005 §6 locks as "any
+  other anchor". Removing or replacing a link is not a formatting write
+  for principle 5: on a shape or text body with such an anchor it is
+  refused with ADR-0005's lock error. Adding a link where none was is
+  allowed (no anchor can name it yet).
 - **Text colour of a text link** (`text_color: true`) writes the
   Office 2019 extension `a:extLst/a:ext[@uri="{A12FA001-AC4F-418D-AE19-62706E023703}"]/ahyp:hlinkClr@val="tx"`
   (12 in the corpus): the run keeps its own colour instead of the theme's
   `hlink`. The `ahyp:` namespace is declared on the created `a:ext`
-  (ADR-0011 §1.3 `declare_namespace` on created nodes). Without it,
-  readers colour link text with `hlink` (ADR-0008 resolves which).
+  (namespace declaration on created nodes: the core PR
+  `core/insert-with-ns`). Without it, readers colour link text with
+  `hlink` (ADR-0008 resolves which).
 - `ppaction://media`, `macro`, `hlinkfile`, `ole`, `program` actions are
   preserved on read and not created (`UnsupportedAction`).
 
 ### 8. Notes slides
 
-`Presentation::notes_mut_or_create(slide)` creates a notes slide when the
-slide has none (ADR-0008 §2 refuses `NoNotesSlide`; ADR-0012 §4.6 refused
-when there is no notes master — this ADR supersedes that refusal, and
-ADR-0012's revision 2 is to point here):
+There is **one** notes-creation API (review m4, ADR-0012 review N9):
+ADR-0012 §4.6's `Presentation::ensure_notes_slide(slide)`, which Phase 3
+extends so that it also creates the notes master when the presentation
+has none (ADR-0012's `NoNotesMaster` refusal is superseded). Text is
+read and written through ADR-0008's `notes_mut` / `NotesMut`;
+`notes_mut_or_create(slide)` is only a convenience that calls
+`ensure_notes_slide` and then `notes_mut`. Everything below is one
+transaction (principle 6).
 
-1. **Notes master.** If the presentation has none (460 of 616 files with
-   slides): add the notes master and its theme from the embedded template
-   of ADR-0012 §8 (parts `notesMaster{N}.xml`, `theme{N}.xml`, their
-   relationships, `Override`s), a presentation relationship, and
-   `p:notesMasterIdLst/p:notesMasterId@r:id` in `p:presentation` (schema
-   position after `p:sldMasterIdLst`). python-pptx creates the part and
-   relationship but never writes `p:notesMasterIdLst`; PowerPoint
-   requires the list to find the master (manual check Q2).
-2. **Notes slide.** Part `notesSlide{N}.xml` (ADR-0012 C5 naming),
-   relationships notes → notes master and notes → slide, slide → notes
-   (C3), `Override`; shape tree with the notes master's `sldImg`, `body`
-   and `sldNum` placeholders cloned as in ADR-0012 §4.1 (python-pptx's
-   set), ids from 2.
-3. The returned `NotesMut` is ADR-0008's API.
-
-All parts and registry entries go into one `PartPlan`; the tree edits of
-`presentation.xml` are checked with it before `commit`.
+1. **Is there a notes master?** Decided by the presentation → `notesMaster`
+   **relationship**, not by `p:notesMasterIdLst` (review m1): python-pptx
+   writes the relationship and part but no list, and the schema allows
+   at most one `p:notesMasterId` (`CT_NotesMasterIdList`, `pml.xsd`).
+   - Relationship and list present: use it.
+   - Relationship present, list missing (python-pptx output): stage
+     `presentation.xml` with a `p:notesMasterIdLst/p:notesMasterId`
+     naming the **existing** relationship; nothing else is added.
+   - No relationship, but notes slides exist (their own `notesMaster`
+     relationships point somewhere or nowhere; `sc027-031.pptx`,
+     ShapeCrawler output, has 45 notes slides and no master): refused
+     (`NotesWithoutMaster`), because a new master would not be the one
+     the existing notes use.
+   - Neither (460 of 616 files with slides): add the notes master and its
+     theme from the embedded template of ADR-0012 §8 (`add_part`
+     `Numbered` for `notesMaster{}.xml` and `theme{}.xml`, their
+     relationships, `Override`s), a presentation → `notesMaster`
+     relationship, and stage `presentation.xml` with
+     `p:notesMasterIdLst/p:notesMasterId@r:id` (schema position after
+     `p:sldMasterIdLst`). The list is always written (Q2).
+2. **Slide aspect ratio** (review m2). The template's notes master is
+   authored for 16:9 slides; the corpus has 4:3 `p:sldSz` in 216 files,
+   16:9 in 358, other ratios in 31. The template therefore carries a
+   **4:3 variant** of the notes master, chosen when `p:sldSz` is 4:3;
+   for any other ratio the `sldImg` placeholder's `a:xfrm` is computed:
+   the largest box of the slide's ratio inside the 16:9 variant's
+   `sldImg` box, centred in it (our rule: PowerPoint also fits the
+   image to the deck's ratio, but its exact placement for unusual ratios
+   is not specified; the manual check looks at one 16:10 deck).
+3. **Notes slide.** Part `notesSlide{}.xml` (`add_part` `Numbered`, max +
+   1), relationships notes → notes master and notes → slide, slide →
+   notes, `Override`; shape tree with the notes master's `sldImg`,
+   `body` and `sldNum` placeholders cloned as in ADR-0012 §4.6
+   (python-pptx's set), ids from 2.
+4. **`docProps/app.xml`**: `Notes` is incremented, as for every
+   notes-creation path (ADR-0012 §7, review m3).
 
 ### 9. Table style definitions
 
 - `Presentation::add_table_style(TableStyleDef) -> StyleId` appends an
-  `a:tblStyle` to `ppt/tableStyles.xml` (created with its presentation
-  relationship and `Override` when absent; its `@def` is then the new
-  style's id). `TableStyleDef { name, parts }` with the parts the corpus
+  `a:tblStyle` to `ppt/tableStyles.xml` (edited on a clone and staged,
+  principle 6). When `tableStyles.xml` is absent (50 of 606 files), it is
+  created (`add_part`, presentation relationship, `Override`) with `@def`
+  set to `{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}` (Medium Style 2 –
+  Accent 1, the `@def` of 538 corpus files) — **not** the new style's
+  id, which would change the default of PowerPoint's "Insert Table" for
+  the whole deck (review m9). `TableStyleDef { name, parts }` with the parts the corpus
   uses — `wholeTbl`, `band1H`, `band2H`, `band1V`, `band2V`, `firstRow`,
   `lastRow`, `firstCol`, `lastCol` (corner cells and `tblBg` are
   preserved, not created) — each with `tcTxStyle` (bold, italic, font
@@ -302,14 +449,19 @@ All parts and registry entries go into one `PartPlan`; the tree edits of
   version 8 from SHA-256 of the style name and the existing ids in the
   file, so a rerun produces the same file) that differs from every id in
   `tableStyles.xml` and from the 74 built-in ids PowerPoint knows (the
-  list LibreOffice ships in `predefined-table-styles.cxx`).
+  list LibreOffice ships in `predefined-table-styles.cxx`; 74 counted
+  again at LibreOffice master). It is written in `ST_Guid`'s form,
+  `\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}`
+  (`shared-commonSimpleTypes.xsd`): braces and **uppercase** hex (UUID
+  libraries format lowercase by default).
 - **Built-in styles by id.** ADR-0013's `set_style` accepts, with an
   explicit `TableStyle::BuiltIn(guid)`, a GUID from that 74-entry list
   without adding a definition (8 corpus tables do this; PowerPoint and
   LibreOffice render them, POI does not); other undefined ids stay
   `TableStyleNotDefined`.
-- Existing definitions are never modified (append-only, ADR-0001 Layer 3:
-  other tables may use them).
+- Existing definitions are never modified: other tables may use them.
+  This is this ADR's own rule; `tableStyles.xml` is a format part, not one
+  of ADR-0001's Layer 3 registries (review m9).
 
 ### 10. Theme edits (minimal)
 
@@ -322,7 +474,11 @@ is); ADR-0008 reads show it with `Source::Theme`. A theme part referenced
 by more than one master or by a master and a notes master is edited only
 with `allow_shared: true` (`SharedTheme`; 0 shared between masters in the
 corpus). No theme part is created or renamed; style matrices
-(`fmtScheme`) are not edited.
+(`fmtScheme`) are not edited. The edited theme is a clone staged in one
+transaction (principle 6). A slide, layout, notes slide or chart with a
+`themeOverride` keeps its override: theme edits do not reach colours or
+fonts the override replaces (review m14), and ADR-0008 reports those
+with the override as source.
 
 ### 11. Errors
 
@@ -335,10 +491,13 @@ corpus). No theme part is created or renamed; style matrices
 | `TransformedGroup` | `set_slide_rect` through a rotated/flipped group |
 | `UnsafeLinkScheme`, `InvalidLinkTarget`, `UnsupportedAction` | §7 |
 | `SlideNotFound` (by `sldId`) | link or notes target |
+| `NotesWithoutMaster` | §8: notes slides exist but no presentation → `notesMaster` relationship |
+| `FormatNotCopyable` (Phase 0.1) | §3: a split run whose `a:rPr` the same-part copy refuses (non-zero `smtId`; links and `a:extLst` until the same-part mode exists) |
+| ADR-0005 lock errors | §7: removing/replacing a link anchored by a modern comment (`oac:hlinkMkLst`) |
 | `SharedTheme` | §10 |
 | `TableStyleNotDefined` (ADR-0013) | an undefined, non-built-in id |
 | Phase 0 refusals | `InsideAlternateContent`, `UnsupportedContent`, … |
-| `Core(…)` | `PartPlan` validation, name/relationship conflicts, `TooDeep`, `NamespaceNotInScope` — all before the first change |
+| `Core(…)` | `RegistryPlan` validation (name/relationship conflicts, a remaining reference), `TooDeep`, `NamespaceNotInScope` — all before `apply` |
 
 ### 12. Reference implementations (source-verified)
 
@@ -350,7 +509,7 @@ corpus). No theme part is created or renamed; style matrices
 | group extents | `recalculate_extents` sets `chOff=off`, `chExt=ext` (`oxml/shapes/groupshape.py`) | `setAnchor` / `setInteriorAnchor` separately (`XSLFGroupShape`) | never implicit; explicit `fit_to_children` keeping member positions |
 | external link | new external relationship; old one dropped if referenced < 2 times by `r:id` (`text/text.py` `_Hyperlink.address`, `opc/package.py` `drop_rel`) | `linkToExternal` removes the old relationship unconditionally; tooltip = URL (`XSLFHyperlink`) | remove only when no attribute references it |
 | slide jump | `ActionSetting.target_slide`: relationship to the slide + `ppaction://hlinksldjump` (`action.py`) | `linkToSlide` (same); `linkToNextSlide` etc. → `ppaction://hlinkshowjump?jump=…` | same actions; slide by `sldId` |
-| notes master | `NotesMasterPart.create_default` + presentation relationship, **no** `p:notesMasterIdLst` (`parts/presentation.py`, `parts/slide.py`) | `createNotesMaster` from its template (`XMLSlideShow`) | template part + relationship + `p:notesMasterId` |
+| notes master | `NotesMasterPart.create_default` + presentation relationship, **no** `p:notesMasterIdLst` (`parts/presentation.py`, `parts/slide.py`) | `createNotesMaster` from its template (`XMLSlideShow`) | detected by relationship; template part (16:9 or 4:3) + relationship + `p:notesMasterId` |
 | autofit | `auto_size`; `fit_text` computes a size from a font file | — | settings only; no computation |
 | table styles, theme | none | read-only (`XSLFTableStyles`, `XSLFTheme`) | append definitions; minimal theme setters |
 | built-in table style ids | — | — | LibreOffice's 74 ids (`oox/source/drawingml/table/predefined-table-styles.cxx`) |
@@ -374,9 +533,13 @@ corpus). No theme part is created or renamed; style matrices
 - **LibreOffice (pinned O3 workflow):** the edited deck converts to PDF;
   link URIs and slide jumps appear as PDF link annotations; notes appear
   in the notes export.
-- **T4 refusals:** every row of §11, byte-identical.
+- **T4 refusals:** every row of §11, byte-identical; including a
+  `format_range` with an invalid value on a multi-run range (no split
+  left behind) and a refusal by the core after the edits were staged.
 - **Manual (owner):** PowerPoint opens a deck with each kind of write
-  without repair; Q1–Q4.
+  without repair (this covers Q2: a deck whose notes master we created);
+  a group whose member was moved outside its box — does PowerPoint
+  recompute the box on the next interaction (§6)? Q3–Q4.
 
 ## Consequences
 
@@ -385,10 +548,17 @@ corpus). No theme part is created or renamed; style matrices
 - Positive: links, notes and table styles reuse the Phase 2 registry and
   transaction rules; no new allocation rule is introduced.
 - Negative: no autofit computation: text may overflow until PowerPoint
-  refits; `spAutoFit` shape sizes go stale.
+  refits; `spAutoFit` shape sizes go stale; connector routes to a moved
+  shape go stale too (§6).
+- Negative: range formatting of runs with links or `a:extLst` needs the
+  same-part copy mode in core (§3); until that follow-up core PR lands it
+  is `FormatNotCopyable`.
+- Negative: a slide jump created by Phase 3 makes its target slide
+  undeletable under ADR-0012 §4.2 until the link is removed (§7).
 - Negative: the codegen allowlist grows substantially (`[write]` for
   formatting, shape, link, table-style and theme elements) and a new
-  vendored input (`presetShapeDefinitions.xml`) appears.
+  vendored input (`presetShapeDefinitions.xml`, ECMA-376 Part 1) appears,
+  with its own provenance (§6).
 - Negative: `ahyp:hlinkClr` and the built-in table-style list encode
   Microsoft product behaviour that ECMA-376 does not specify.
 
@@ -401,24 +571,35 @@ corpus). No theme part is created or renamed; style matrices
    members of scaled groups (216 in the corpus).
 3. **Compute autofit** like python-pptx's `fit_text`. Rejected for Phase 3:
    font files and a text layout engine; PowerPoint refits anyway.
-4. **Share relationships for equal link targets.** Rejected: ADR-0011
-   "no implicit sharing"; removal would then need reference counting
-   across links the caller did not touch.
+4. **Share relationships for equal link targets.** Rejected: no implicit
+   sharing; removal would then need reference counting across links the
+   caller did not touch.
 5. **Copy PowerPoint's built-in table style definitions into
    `tableStyles.xml`.** Rejected: their content is Microsoft's and not in
    ECMA-376; referencing the id is what PowerPoint itself does.
 
 ## Open questions for the project owner
 
-- **Q1** Part naming: ADR-0011 §1.2 picks the **smallest free** index for
-  numbered names, ADR-0012 §2 C5 the **largest + 1**. One rule should be
-  chosen in the core PR (`core/add-part`); this ADR works with either.
-- **Q2** Does PowerPoint need `p:notesMasterIdLst` (python-pptx omits it)?
-  Manual check on a python-pptx-created deck and ours.
-- **Q3** `ahyp:hlinkClr` (Office 2019+): write it on request only (as
-  proposed), or never?
-- **Q4** Allowing built-in table-style GUIDs without definitions (§9):
-  acceptable, given POI ignores them?
+Each has a **proposed default** (the round-1 review's recommendation),
+used unless the owner decides otherwise. The former Q1 (smallest free
+vs. largest + 1 part number) is settled by the core ADR-0001 note
+"registry writes": largest + 1.
+
+- **Q2** `p:notesMasterIdLst` (python-pptx omits it). *Default:* always
+  written (§8): it is where the schema puts it, PowerPoint always writes
+  it (0 corpus files with a notes master part lack it), and with
+  detection by relationship a python-pptx deck gets the list added. Not
+  an acceptance gate: the general "opens without repair" manual check
+  covers it.
+- **Q3** `ahyp:hlinkClr` (Office 2019+). *Default:* written on request
+  only (`text_color: true`). Older readers ignore an `a:ext` they do not
+  know; preserving it on split runs depends on the same-part copy mode
+  (§3).
+- **Q4** Built-in table-style GUIDs without definitions (§9). *Default:*
+  allowed. PowerPoint writes them itself (8 corpus tables), LibreOffice
+  knows the 74 ids; POI not rendering them is POI's limit. The 74-id list
+  is pinned with its provenance; other undefined ids stay
+  `TableStyleNotDefined`.
 
 ## Sources
 
@@ -441,7 +622,14 @@ corpus). No theme part is created or renamed; style matrices
 - LibreOffice `2e885d0bda9bc4ee9f3bde51905c4a7820b01f06`:
   `oox/source/drawingml/table/predefined-table-styles.cxx` (74 built-in ids).
 - ECMA-376 Part 1, 5th edition: DrawingML text character and paragraph
-  properties, colour transforms (order-sensitive), `presetShapeDefinitions.xml`
-  (187 presets, 123 with adjustment guides) in
-  `OfficeOpenXML-DrawingMLGeometries.zip`; vendored Transitional XSDs
-  (`ST_TextFontSize` 100–400000, `ST_TextUnderlineType` 18 values).
+  properties, colour transforms (order-sensitive), `smtId` uniqueness
+  (§21.1.2.3.9), `presetShapeDefinitions.xml` (187 presets, 123 with
+  adjustment guides) in `OfficeOpenXML-DrawingMLGeometries.zip` of
+  `ECMA-376-1_5th_edition_december_2016.zip`; vendored Transitional XSDs
+  (`ST_TextFontSize` 100–400000, `ST_TextUnderlineType` 18 values,
+  `ST_Guid`, `CT_NotesMasterIdList`).
+- MS-ODRAWXML `CT_TextCharRangeContext` (`oac:context@hash` over plain
+  text).
+- Core: PR #38 (`core/add-part`, `RegistryPlan`, ADR-0001 note "registry
+  writes"); PR #18 (`detach_as`, ADR-0002 note "detach/insert"); the
+  namespace-declaration core PR `core/insert-with-ns`.
