@@ -36,9 +36,10 @@ struct SlideEntry {
 ///         }
 ///     }
 /// }
-/// let id = pres.slide(0)?.placeholders()[0].id()?;
-/// pres.slide_mut(0)?.shape_mut_by_id(id)?.text_body_mut()?.set_text("New title")?;
-/// pres.save("deck.pptx")?;
+/// if let Some(id) = pres.slide(0)?.placeholders().first().map(|p| p.id()).transpose()? {
+///     pres.slide_mut(0)?.shape_mut_by_id(id)?.text_body_mut()?.set_text("New title")?;
+///     pres.save("deck.pptx")?;
+/// }
 /// # Ok::<(), ooxml_pptx::Error>(())
 /// ```
 ///

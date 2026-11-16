@@ -11,11 +11,13 @@ members and table cells.
 use ooxml_pptx::Presentation;
 
 let mut pres = Presentation::open("deck.pptx")?;
-let title = pres.slide(0)?.placeholders()[0].id()?;
-let mut slide = pres.slide_mut(0)?;
-let mut shape = slide.shape_mut_by_id(title)?;
-shape.text_body_mut()?.set_text("New title")?;
-pres.save("deck.pptx")?;
+// The first placeholder of slide 0, if it has one (no panic on a slide without).
+if let Some(title) = pres.slide(0)?.placeholders().first().map(|p| p.id()).transpose()? {
+    let mut slide = pres.slide_mut(0)?;
+    let mut shape = slide.shape_mut_by_id(title)?;
+    shape.text_body_mut()?.set_text("New title")?;
+    pres.save("deck.pptx")?;
+}
 # Ok::<(), ooxml_pptx::Error>(())
 ```
 
@@ -39,7 +41,7 @@ contain characters XML 1.0 cannot hold. Only direct values are read
 `examples/replace_text.rs` is a runnable walk-through on a committed fixture. It:
 
 - lists every slide's shapes and their text;
-- replaces a whole text body, one paragraph and one run;
+- replaces a whole text body, one paragraph, and one run of a paragraph that has runs;
 - saves to `OUT_DIR/replace_text.pptx`;
 - shows two refusals: paragraphs referenced by animations, and a line break in paragraph text.
 
@@ -51,7 +53,7 @@ cargo run -p ooxml-pptx --example replace_text -- [OUT_DIR]   # default: <temp d
 use ooxml_pptx::{Error, Presentation};
 
 let mut pres = Presentation::open("deck.pptx")?;
-let id = pres.slide(0)?.placeholders()[0].id()?;
+let id = pres.slide(0)?.placeholders().first().map(|p| p.id()).transpose()?.ok_or("slide 0 has no placeholder")?;
 let mut slide = pres.slide_mut(0)?;
 let mut shape = slide.shape_mut_by_id(id)?;
 let mut body = shape.text_body_mut()?;
@@ -60,7 +62,7 @@ match body.paragraph_mut(0)?.set_text("New title") {
     other => other?,
 }
 pres.save("deck-edited.pptx")?;
-# Ok::<(), Error>(())
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 Development:
