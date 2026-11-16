@@ -24,9 +24,9 @@ pkg.save("book.xlsx")?;                              // temp file + rename; same
 
 | Item | Notes |
 | --- | --- |
-| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`. |
+| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`; `Error::TruncatedEntry` when an entry's stored data does not lie inside the archive (it could not be copied through unchanged); `Error::PackageTooLarge` when the declared decompressed sizes add up to more than `ParseOptions::max_package_bytes` (default 4 GiB). |
 | `part_names()`, `contains(name)`, `state(name) -> PartStateKind` | Part names are zip entry names, no leading `/`. Original order is kept. |
-| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). |
+| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). At most `ParseOptions::max_part_bytes` (default 1 GiB, `Error::PartTooLarge`); the declared size decides the refusal, never the allocation. |
 | `xml_part(name)` / `xml_part_mut(name)` | Parse once into an `XmlDocument`. A part parsed but not edited is still raw-copied on save. |
 | `parsed_part(name)` | `&self` access to a tree already parsed (`None` while `Raw` or `Replaced`); never parses. |
 | `set_part(name, bytes)` | Replace an existing part wholesale (`Replaced`). New parts: `Error::NewPartUnsupported` (Phase0). |
@@ -44,7 +44,12 @@ as attributes in `XMLNS_NS`), child items (`RawItem::{Element, Text, Markup}`),
 its `ElementSpan` in the source, and `own_dirty` / `subtree_dirty`.
 `serialize()` emits untouched subtrees verbatim (T1: no edits ⇒ identical
 bytes). Any `<!DOCTYPE>` is refused (`Error::DtdNotAllowed`): no entity
-expansion, no XXE.
+expansion, no XXE. Constructs quick-xml would let through but that are not
+well-formed, or would make a span inexact, are refused with
+`Error::NotWellFormed { position, reason: WellFormedness }`: a second byte
+order mark, an XML declaration not at the start, an empty element/attribute
+name or prefix, U+0000, `xmlns:p=""`, and any reader position that does not
+match the source.
 
 Element nesting is limited. An element deeper than `ParseOptions::max_depth` makes the parse
 fail with `Error::TooDeep { limit, position }` before the element is built. The default is
@@ -108,7 +113,9 @@ Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
 out of schema order), `UnsupportedContentModel`, `NotAllowed`, `NotText`,
 `IncompleteSpec` (spec with an unresolved SDK base), `NamespaceNotInScope`
-(no usable prefix; Phase0 never declares namespaces), `InvalidXmlChar`
+(no usable prefix; Phase0 never declares namespaces), `NamespaceDeclaration`
+(`set_attr`/`remove_attr` on `xmlns`/`xmlns:*`: declarations are managed by
+core only), `InvalidXmlChar`
 (`set_text`/`set_attr` value with a character outside XML 1.0 `Char`, e.g.
 U+000B; checked before anything changes, so no primitive can write a part
 that is not well-formed).
