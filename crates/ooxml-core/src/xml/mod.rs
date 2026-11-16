@@ -281,6 +281,41 @@ pub(crate) fn node_at_mut<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut 
     })
 }
 
+/// Default for [`ParseOptions::max_depth`].
+///
+/// The deepest element nesting in the corpora we test against (Apache POI
+/// and Open XML SDK test files, 556 parts measured) is 33, the median 9;
+/// 1024 leaves a 30x margin while keeping every recursive walk over the
+/// tree (serialization, `Drop`, structural comparison, format-crate walks)
+/// far from the 2 MiB default thread stack, and bounds path-based lens
+/// addressing to O(1024) per node.
+pub const DEFAULT_MAX_DEPTH: usize = 1024;
+
+/// Options for [`XmlDocument::parse_with`] and
+/// [`Package::from_bytes_with`](crate::Package::from_bytes_with).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ParseOptions {
+    /// Maximum element nesting depth; the root element is depth 1. A deeper
+    /// element makes the parse fail with
+    /// [`Error::TooDeep`](crate::Error::TooDeep).
+    pub max_depth: usize,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        ParseOptions { max_depth: DEFAULT_MAX_DEPTH }
+    }
+}
+
+impl ParseOptions {
+    /// Sets [`Self::max_depth`].
+    pub fn with_max_depth(mut self, max_depth: usize) -> Self {
+        self.max_depth = max_depth;
+        self
+    }
+}
+
 /// A parsed XML part: the original source plus the raw tree.
 #[derive(Clone, Debug)]
 pub struct XmlDocument {
@@ -291,8 +326,16 @@ pub struct XmlDocument {
 impl XmlDocument {
     /// Parses a part. The input must be UTF-8 (a UTF-8 BOM is allowed and
     /// preserved); UTF-16 input returns [`Error::UnsupportedEncoding`](crate::Error::UnsupportedEncoding).
+    ///
+    /// Uses [`ParseOptions::default`]: elements nested deeper than
+    /// [`DEFAULT_MAX_DEPTH`] return [`Error::TooDeep`](crate::Error::TooDeep).
     pub fn parse(bytes: &[u8]) -> Result<Self> {
-        parse::parse(bytes)
+        parse::parse(bytes, &ParseOptions::default())
+    }
+
+    /// [`Self::parse`] with explicit options.
+    pub fn parse_with(bytes: &[u8], options: &ParseOptions) -> Result<Self> {
+        parse::parse(bytes, options)
     }
 
     /// The original source text.

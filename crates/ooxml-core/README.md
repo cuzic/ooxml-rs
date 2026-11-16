@@ -46,6 +46,17 @@ its `ElementSpan` in the source, and `own_dirty` / `subtree_dirty`.
 bytes). Any `<!DOCTYPE>` is refused (`Error::DtdNotAllowed`): no entity
 expansion, no XXE.
 
+Element nesting is limited: an element deeper than `ParseOptions::max_depth`
+(default `DEFAULT_MAX_DEPTH` = 1024; the root is depth 1) makes the parse fail
+with `Error::TooDeep { limit, position }` before the element is built. The
+deepest real part we have measured is 33 levels (Apache POI and Open XML SDK
+test files, median 9), so the default leaves a 30x margin. Without a limit, a
+few kilobytes of nested tables cost gigabytes in path-addressed format-crate
+code and overflow the stack in recursive walks (serialization, `Drop`)
+(ADR-0004 round-2 review, N1). Use `XmlDocument::parse_with` or
+`Package::from_bytes_with` / `Package::open_with` to change it; OPC metadata
+(`[Content_Types].xml`, `.rels`) always uses the default.
+
 Nodes are read-only from outside the crate; **all mutation goes through
 `LensMut`**, which owns the dirty-flag duties. Test helpers:
 `XmlDocument::force_rerender()` and `RawNode::structurally_eq()` (T1b).

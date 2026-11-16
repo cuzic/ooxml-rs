@@ -49,6 +49,19 @@ pub enum Error {
         /// Byte offset of the declaration.
         position: usize,
     },
+    /// Elements are nested deeper than the parser's limit
+    /// ([`ParseOptions::max_depth`](crate::xml::ParseOptions::max_depth),
+    /// default [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH)).
+    /// Refused while parsing, before the tree grows, so a few kilobytes of
+    /// hostile input cannot make later recursive code (serialization,
+    /// `Drop`, format-crate walks) exhaust memory or the stack.
+    #[error("element nesting at byte {position} exceeds the depth limit of {limit}")]
+    TooDeep {
+        /// The limit in force.
+        limit: usize,
+        /// Byte offset of the start tag that would exceed it.
+        position: usize,
+    },
     /// The part is not UTF-8 encoded.
     #[error("unsupported XML encoding: {0}")]
     UnsupportedEncoding(String),
