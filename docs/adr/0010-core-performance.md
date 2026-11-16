@@ -17,16 +17,16 @@
 
 ## Context
 
-The 2026-11 baseline (shared host; see its caveats) puts ooxml-rs far from the xlsx Phase6 goal
+The 2026-11 baseline (revision 2, run 3 on a shared host; see its caveats) puts ooxml-rs far from the xlsx Phase6 goal
 ("within 2× of rust_xlsxwriter (`constant_memory`) and calamine for a 1M-cell sheet; memory
 bounded by rows touched"). Layer 1 is not the problem: raw-copied parts move at GB/s. Four core
 hotspots remain once the xlsx cell lookup is set aside:
 
 | # | Hotspot | Measured (1M-cell sheet, 33 MiB `sheet1.xml`) |
 |---|---|---|
-| 1 | The Layer 2 tree: allocation-bound, large | Parse at about 40 MB/s, 6–7× slower than a bare quick-xml pass. 5.38 allocations per element. 1.44 GiB of heap (45–50 bytes per XML byte); calamine reads the whole sheet in 77 MiB. Dropping the tree costs another 40% of the parse time. `RawNode` and `RawItem` are 144 B, `RawAttr` 72 B, `XName` 48 B. |
-| 3 | Save re-deflates the rewritten part at zip's default level | 0.99 s of the 1.09 s `to_bytes` after one edit. Serializing takes 31 ms. |
-| 4 | Open builds the full tree, then re-scans the same bytes for the formula census | Parse 3.48 s of 3.91 s (loaded host); census scan 0.27 s. |
+| 1 | The Layer 2 tree: allocation-bound, large | Parse with drop excluded takes 4.0–5.6× as long as a bare quick-xml pass. Dropping the tree adds 46–80% of the parse time. 5.29 allocations plus 0.10 reallocations per element. 1.44 GiB of heap (45–50 bytes per XML byte), against 77 MiB for calamine's whole read. `RawNode` and `RawItem` are 144 B, `RawAttr` 72 B, `XName` 48 B. |
+| 3 | Save re-deflates the rewritten part at zip's default level | `to_bytes` after one edit takes 1.06 s. Deflating that part alone takes 1.07 s at the default level and 69 ms at level 1. Serializing takes 29 ms. |
+| 4 | Open builds the full tree, then re-scans the same bytes for the formula census | `Workbook::from_bytes` takes 1.95 s with drop excluded: parse 1.25 s and census scan 0.29 s. Dropping the `Workbook` adds another 1.2 s. |
 | 5 | pptx read paths keep every parsed slide | 1,000 slides: 211 MiB retained for 11.9 MiB of XML. |
 
 ADR-0001 anticipated this: "matching rust_xlsxwriter/calamine at scale will require `sheetData`
@@ -77,12 +77,13 @@ README):
   byte for byte, is structurally identical to core's tree (names with prefixes, attributes, text,
   markup), and its full re-render is byte-identical to core's.
 - **Sheets (10k–1M cells):**
-  - allocations per element fall from 5.38 to 2.05;
+  - fresh allocations per element fall from 5.29 to 2.05, and reallocations from 0.10 to about 0;
   - heap falls from 45–50 to 8.6–9.7 bytes per XML byte (1.44 GiB to 286 MiB at 1M cells);
-  - parsing is 1.5–2.0× faster and dropping about 5× faster;
+  - with drop excluded, parsing is 1.1–1.9× faster, and dropping is 4–6.5× faster;
+  - parse plus drop of the 1M-cell sheet goes from 4.1 s to 1.7 s (2.4×);
   - unedited serialization and full re-render are unchanged.
-- **Text-heavy documents** (the largest fixture `word/document.xml`) need 2.7× less memory and
-  parse in about the same time.
+- **Text-heavy documents** (the largest fixture `word/document.xml`) need 2.7× less memory. Their
+  parse is no faster: 31 ms against 39 ms in this run, within the host's noise.
 - **Node sizes:** `RawNode`/`RawItem` go from 144 B to 72 B, `RawAttr` from 72 B to 32 B, and
   `XName` from 48 B to 8 B.
 
@@ -126,13 +127,17 @@ A general Layer 2 mechanism, of which row-based `sheetData` is the first user.
   read or written. Writes into existing rows edit materialized rows; new rows are inserted by the
   lens as today.
 - **Measured** (spike `src/rows.rs`, 1M cells, 100k rows):
-  - indexing the rows takes one scan of 164 ms at 1.5 MiB, against 1.47 GiB for today's tree;
-  - finding, materializing, editing and re-rendering 1,000 rows takes 13 ms;
-  - splicing the output takes 3.6 ms.
+  - indexing the rows takes one scan of 164–344 ms (depending on host load) and 1.5 MiB, against
+    1.47 GiB for today's tree;
+  - finding, materializing, editing and re-rendering 1,000 rows takes 13–22 ms;
+  - splicing the output takes about 4 ms.
   - The check confirms T2: every byte outside the edited rows is unchanged, and the output parses
     with core with the new values.
   - The spike's scan does not yet do the full validation described above. That is expected to
     cost a fraction of the scan, since no tree is built, and it is measured in stage 2.
+  - Order of work for Phase6, per the baseline: the xlsx row index first, then the compression
+    level (§4), then deferred rows (§2). Deferred rows are the only route to the memory goal.
+    §1 helps every part, but for worksheets most of its effect is superseded by §2.
 - **Row index.** `perf/xlsx-row-index` keeps its own row lookup in ooxml-xlsx. Over a deferred
   `sheetData`, that index is built from the row nodes' `r` attributes without materializing any
   row, so the two compose. This ADR does not change the xlsx API.
@@ -143,7 +148,7 @@ A general Layer 2 mechanism, of which row-based `sheetData` is the first user.
 content included, in the same pass. The counts are reported by `XmlDocument::census(QName) ->
 usize`. ooxml-xlsx's formula census (`f` elements) for the worksheet it parses then needs no
 second scan. Other worksheets are still scanned once each, without a tree, as today. Measured
-saving on the 1M-cell sheet: about 0.27 s of open time. This also gives other crates the general
+saving on the 1M-cell sheet: about 0.29 s of open time. This also gives other crates the general
 "does this part contain X" question for free (pptx `p:timing`, docx `w:fldChar`).
 
 ### 4. Compression level for rewritten parts
@@ -163,12 +168,12 @@ impl Package { pub fn to_bytes_with(&self, o: &SaveOptions) -> Result<Vec<u8>>; 
 
   | Level | Time | Compressed size |
   |---|---|---|
-  | 1 | 71 ms | 5.8 MiB |
-  | 3 | 202 ms | 3.3 MiB |
-  | 6 (zip default) | 983 ms | 3.2 MiB |
-  | 9 | 1,635 ms | 3.1 MiB |
+  | 1 | 72 ms | 5.8 MiB |
+  | 3 | 217 ms | 3.3 MiB |
+  | 6 (zip default) | 1,079 ms | 3.2 MiB |
+  | 9 | 1,709 ms | 3.1 MiB |
 
-- **Default:** `Balanced`, which is level 3: 4.9× faster than today, with output within 3% of
+- **Default:** `Balanced`, which is level 3: about 5× faster than today, with output within 3% of
   today's size. Users who need maximum compression ask for `Smallest`.
 - `to_bytes()`/`save()` keep their signatures and use the default. Changing the default changes
   the bytes of rewritten parts only. No oracle compares compressed payloads of rewritten parts,
@@ -250,8 +255,8 @@ all fixtures. No stage forces a change on an open PR.
    fits only the from-scratch path. ADR-0001's edit path needs random access with locality,
    which deferred rows give. A streaming from-scratch writer can still be added in ooxml-xlsx on
    top of the row index; it is independent of this ADR.
-5. **Making the zip default level 1.** It is 14× faster than today but 1.8× larger
-   (5.8 MiB against 3.2 MiB). Level 3 keeps the size within 3% at 4.9× the speed, so it is the
+5. **Making the zip default level 1.** It is about 15× faster than today but 1.8× larger
+   (5.8 MiB against 3.2 MiB). Level 3 keeps the size within 3% at about 5× the speed, so it is the
    better default, and level 1 stays available as `Fastest`.
 6. **Memory-mapped input instead of `Arc<[u8]>`/`Arc<str>`.** It saves one copy of the input. It
    is a Layer 1 change, independent of this ADR, and complicates save-to-the-same-path (ADR-0001
@@ -269,7 +274,8 @@ all fixtures. No stage forces a change on an open PR.
   (slide shape trees) can use it later with the same guarantees.
 - **Negative:**
   - `SStr` adds an atomic reference-count operation per parsed value (parse and drop). It was
-    included in the spike's measurements, which still show 1.5–2× faster parsing.
+    included in the spike's measurements, which still show 1.1–1.9× faster parsing and 4–6.5×
+    faster drops on sheets.
   - A value copied into another document keeps that part's source text alive until the copy is
     dropped. This is bounded by the source size, and acceptable for copies of formatting
     subtrees.

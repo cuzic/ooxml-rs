@@ -20,11 +20,13 @@ struct Counting;
 static CUR: AtomicUsize = AtomicUsize::new(0);
 static PEAK: AtomicUsize = AtomicUsize::new(0);
 static COUNT: AtomicUsize = AtomicUsize::new(0);
+static REALLOCS: AtomicUsize = AtomicUsize::new(0);
 
 // SAFETY: forwards to `System` unchanged; only counts.
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
         let p = unsafe { System.alloc(l) };
+        COUNT.fetch_add(1, Relaxed);
         add(l.size());
         p
     }
@@ -34,13 +36,13 @@ unsafe impl GlobalAlloc for Counting {
     }
     unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
         let q = unsafe { System.realloc(p, l, n) };
-        CUR.fetch_sub(l.size(), Relaxed);
+        REALLOCS.fetch_add(1, Relaxed);
         add(n);
+        CUR.fetch_sub(l.size(), Relaxed);
         q
     }
 }
 fn add(n: usize) {
-    COUNT.fetch_add(1, Relaxed);
     let now = CUR.fetch_add(n, Relaxed) + n;
     PEAK.fetch_max(now, Relaxed);
 }
@@ -48,12 +50,16 @@ fn add(n: usize) {
 #[global_allocator]
 static A: Counting = Counting;
 
+/// Best of `n` runs, excluding the drop of the result (dropped after the
+/// clock stops; drop is measured separately).
 fn best<T>(n: usize, mut f: impl FnMut() -> T) -> Duration {
     (0..n)
         .map(|_| {
             let t = Instant::now();
-            std::hint::black_box(f());
-            t.elapsed()
+            let v = std::hint::black_box(f());
+            let dt = t.elapsed();
+            drop(v);
+            dt
         })
         .min()
         .unwrap()
@@ -167,7 +173,7 @@ fn main() {
     let all: Vec<u8> = parts.iter().filter(|(n, _)| n.ends_with("word/document.xml")).max_by_key(|(_, v)| v.len()).unwrap().1.clone();
     inputs.push(("largest fixture word/document.xml".into(), all));
 
-    println!("| Input | XML | Tree | Parse | Allocations | Allocs/element | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |");
+    println!("| Input | XML | Tree | Parse (no drop) | Allocations (+ reallocations) | Allocs/element (+ reallocs) | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |");
     println!("|---|---|---|---|---|---|---|---|---|---|---|");
     for (label, xml) in &inputs {
         let elements = {
@@ -180,9 +186,9 @@ fn main() {
         let reps = if xml.len() > 10_000_000 { 2 } else { 5 };
         // core
         let t_parse = best(reps, || XmlDocument::parse(xml).unwrap());
-        let (c0, h0) = (COUNT.load(Relaxed), CUR.load(Relaxed));
+        let (c0, r0, h0) = (COUNT.load(Relaxed), REALLOCS.load(Relaxed), CUR.load(Relaxed));
         let d = XmlDocument::parse(xml).unwrap();
-        let (allocs, heap) = (COUNT.load(Relaxed) - c0, CUR.load(Relaxed) - h0);
+        let (allocs, reallocs, heap) = (COUNT.load(Relaxed) - c0, REALLOCS.load(Relaxed) - r0, CUR.load(Relaxed) - h0);
         let t_ser = best(reps, || d.serialize());
         let mut dd = d.clone();
         dd.force_rerender();
@@ -199,10 +205,11 @@ fn main() {
             .min()
             .unwrap();
         println!(
-            "| {label} | {} | core `XmlDocument` | {} | {allocs} | {:.2} | {} | {:.1} | {} | {} | {} |",
+            "| {label} | {} | core `XmlDocument` | {} | {allocs} (+ {reallocs}) | {:.2} (+ {:.2}) | {} | {:.1} | {} | {} | {} |",
             mib(xml.len()),
             ms(t_parse),
             allocs as f64 / elements as f64,
+            reallocs as f64 / elements as f64,
             mib(heap),
             heap as f64 / xml.len() as f64,
             ms(t_drop),
@@ -211,9 +218,9 @@ fn main() {
         );
         // compact
         let t_parse = best(reps, || compact::parse(xml, 256).unwrap());
-        let (c0, h0) = (COUNT.load(Relaxed), CUR.load(Relaxed));
+        let (c0, r0, h0) = (COUNT.load(Relaxed), REALLOCS.load(Relaxed), CUR.load(Relaxed));
         let d = compact::parse(xml, 256).unwrap();
-        let (allocs, heap) = (COUNT.load(Relaxed) - c0, CUR.load(Relaxed) - h0);
+        let (allocs, reallocs, heap) = (COUNT.load(Relaxed) - c0, REALLOCS.load(Relaxed) - r0, CUR.load(Relaxed) - h0);
         let t_ser = best(reps, || d.serialize());
         let t_rr = {
             let mut dd = compact::parse(xml, 256).unwrap();
@@ -231,9 +238,10 @@ fn main() {
             .min()
             .unwrap();
         println!(
-            "| | | compact (spike) | {} | {allocs} | {:.2} | {} | {:.1} | {} | {} | {} |",
+            "| | | compact (spike) | {} | {allocs} (+ {reallocs}) | {:.2} (+ {:.2}) | {} | {:.1} | {} | {} | {} |",
             ms(t_parse),
             allocs as f64 / elements as f64,
+            reallocs as f64 / elements as f64,
             mib(heap),
             heap as f64 / xml.len() as f64,
             ms(t_drop),
@@ -258,9 +266,9 @@ fn main() {
     // ---- lazy sheetData -----------------------------------------------------
     println!("\n## Lazy sheetData (1M cells, 100k rows)\n");
     let src = std::str::from_utf8(&inputs[2].1).unwrap();
-    let (c0, h0) = (COUNT.load(Relaxed), CUR.load(Relaxed));
+    let (c0, h0) = (COUNT.load(Relaxed) + REALLOCS.load(Relaxed), CUR.load(Relaxed));
     let (sheet, t_index) = rows::time(|| rows::LazySheet::index(src).unwrap());
-    let (allocs, heap) = (COUNT.load(Relaxed) - c0, CUR.load(Relaxed) - h0);
+    let (allocs, heap) = (COUNT.load(Relaxed) + REALLOCS.load(Relaxed) - c0, CUR.load(Relaxed) - h0);
     let t_index_best = best(3, || rows::LazySheet::index(src).unwrap().rows.len());
     println!("| Step | Time | Heap | Allocations |\n|---|---|---|---|");
     println!("| index rows (quick-xml scan, no tree) | {} (first {}) | {} | {allocs} |", ms(t_index_best), ms(t_index), mib(heap));

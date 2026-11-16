@@ -46,69 +46,69 @@ a default namespace, a BOM, CRLF, and `xmlns=""`.
 
 ## Results (2026-11-16, release, rustc 1.99.1)
 
-The host was the same shared AMD EPYC 7313P as `docs/testing/performance-baseline-2026-11.md`, with
-a 1-minute load average of 26–44 during the run. Times are best-of-N and only roughly comparable;
-allocation counts and heap sizes are exact.
+These were measured on the same shared AMD EPYC 7313P as `docs/testing/performance-baseline-2026-11.md`, with a 1-minute load average of 38–50 during the run, so times are noisy.
 
-| Input | XML | Tree | Parse | Allocations | Allocs/element | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |
+- **Parse** excludes dropping the tree. The value is dropped after the clock stops, and **Drop** is measured on its own (review of PR #24, M1).
+- Times are the best of 2–5 runs.
+- Allocation counts and heap sizes are exact. Fresh allocations and reallocations are counted separately.
+
+| Input | XML | Tree | Parse (no drop) | Allocations (+ reallocations) | Allocs/element (+ reallocs) | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 12.3 ms | 113,079 | 5.38 | 14.6 MiB | 50.3 | 4.2 ms | 0.0 ms | 1.4 ms |
-| | | compact (spike) | 8.0 ms | 43,136 | 2.05 | 2.8 MiB | 9.7 | 0.8 ms | 0.0 ms | 1.6 ms |
-| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 160.4 ms | 1,130,083 | 5.38 | 147.5 MiB | 47.5 | 69.2 ms | 0.1 ms | 16.0 ms |
-| | | compact (spike) | 84.7 ms | 430,140 | 2.05 | 28.4 MiB | 9.1 | 14.4 ms | 0.2 ms | 17.5 ms |
-| sheet1.xml, 1M cells | 33.1 MiB | core `XmlDocument` | 1,782 ms | 11,300,086 | 5.38 | 1,474.6 MiB | 44.6 | 817.8 ms | 21.0 ms | 190.4 ms |
-| | | compact (spike) | 902 ms | 4,300,143 | 2.05 | 285.6 MiB | 8.6 | 155.7 ms | 8.2 ms | 162.2 ms |
-| pptx slide (POI `bug62513`, slide12) | 12 KiB | core `XmlDocument` | 0.2 ms | 2,652 | 5.06 | 0.2 MiB | 16.8 | 0.0 ms | 0.0 ms | 0.0 ms |
-| | | compact (spike) | 0.3 ms | 1,544 | 2.95 | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.1 ms |
-| largest fixture `word/document.xml` | 1.3 MiB | core `XmlDocument` | 24.5 ms | 321,150 | 8.72 | 15.2 MiB | 11.8 | 8.8 ms | 0.1 ms | 5.4 ms |
-| | | compact (spike) | 23.3 ms | 153,991 | 4.18 | 5.6 MiB | 4.3 | 1.7 ms | 0.1 ms | 6.0 ms |
+| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 15.4 ms | 111064 (+ 2015) | 5.29 (+ 0.10) | 14.6 MiB | 50.3 | 6.4 ms | 0.0 ms | 2.7 ms |
+| | | compact (spike) | 13.7 ms | 43115 (+ 21) | 2.05 (+ 0.00) | 2.8 MiB | 9.7 | 1.5 ms | 0.0 ms | 2.5 ms |
+| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 223.0 ms | 1110064 (+ 20019) | 5.29 (+ 0.10) | 147.5 MiB | 47.5 | 95.6 ms | 0.1 ms | 27.1 ms |
+| | | compact (spike) | 133.4 ms | 430115 (+ 25) | 2.05 (+ 0.00) | 28.4 MiB | 9.1 | 19.1 ms | 0.1 ms | 30.6 ms |
+| sheet1.xml, 1000k cells | 33.1 MiB | core `XmlDocument` | 2840.8 ms | 11100064 (+ 200022) | 5.29 (+ 0.10) | 1474.6 MiB | 44.6 | 1304.3 ms | 60.4 ms | 549.1 ms |
+| | | compact (spike) | 1493.1 ms | 4300115 (+ 28) | 2.05 (+ 0.00) | 285.6 MiB | 8.6 | 200.1 ms | 12.2 ms | 363.9 ms |
+| pptx slide (ppt/slides/slide12.xml) | 0.0 MiB | core `XmlDocument` | 0.4 ms | 2564 (+ 88) | 4.89 (+ 0.17) | 0.2 MiB | 16.8 | 0.1 ms | 0.0 ms | 0.1 ms |
+| | | compact (spike) | 0.4 ms | 1493 (+ 51) | 2.85 (+ 0.10) | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.1 ms |
+| largest fixture word/document.xml | 1.3 MiB | core `XmlDocument` | 31.1 ms | 319805 (+ 1345) | 8.69 (+ 0.04) | 15.2 MiB | 11.8 | 12.8 ms | 0.1 ms | 10.1 ms |
+| | | compact (spike) | 39.2 ms | 153825 (+ 166) | 4.18 (+ 0.00) | 5.6 MiB | 4.3 | 2.6 ms | 0.1 ms | 11.1 ms |
 
-Heap retained includes the source text: core keeps a `Box<str>` copy and compact keeps an
-`Arc<str>`.
+Heap retained includes the source text: core keeps a `Box<str>` copy, compact an `Arc<str>`.
 
 Node sizes:
 
-| Type | core | compact |
+| | core | compact |
 |---|---|---|
-| element node (`RawNode` / `Node`) | 144 B | 72 B |
-| child item (`RawItem` / `Item`) | 144 B | 72 B |
-| attribute (`RawAttr` / `Attr`) | 72 B | 32 B |
-| name (`XName` / `Name`) | 48 B | 8 B |
-| value string (`SStr`, compact only) | — | 24 B |
+| Node (`RawNode` / `Node`) | 144 B | 72 B |
+| Item (`RawItem` / `Item`) | 144 B | 72 B |
+| Attribute (`RawAttr` / `Attr`) | 72 B | 32 B |
+| Name (`XName` / `Name`) | 48 B | 8 B |
+| `SStr` | — | 24 B |
 
 **Lazy `sheetData`** (1M cells, 100k rows):
 
 | Step | Time | Heap | Allocations |
 |---|---|---|---|
-| Index rows (quick-xml scan, no tree) | 163.5 ms | 1.5 MiB | 200,031 |
-| Find, build, edit and re-render 1,000 rows | 13.3 ms | — | — |
-| Splice into the source (save, before deflate) | 3.6 ms | — | — |
+| Index the rows (quick-xml scan, no tree) | 344 ms (164 ms in an earlier run at load ≈ 30) | 1.5 MiB | 200,031 |
+| Find, materialize, edit and re-render 1,000 rows | 22 ms | — | — |
+| Splice into the source (save, before deflate) | 4.1 ms | — | — |
 
-**Deflate level for a rewritten part** (the 33.1 MiB re-rendered sheet):
+**Deflate level for a rewritten part** (the re-rendered 33.1 MiB sheet):
 
 | Level | Time | Compressed size |
 |---|---|---|
-| 1 | 71.4 ms | 5.8 MiB |
-| 3 | 202.1 ms | 3.3 MiB |
-| 6 (zip default, today) | 983.3 ms | 3.2 MiB |
-| 9 | 1,635.0 ms | 3.1 MiB |
+| 1 | 72 ms | 5.8 MiB |
+| 3 | 217 ms | 3.3 MiB |
+| 6 (zip default, today) | 1,079 ms | 3.2 MiB |
+| 9 | 1,709 ms | 3.1 MiB |
 
-For comparison, the 2026-11 baseline measured the same workload end to end on today's tree: open
-1.21 s at 1.61 GiB, then 1,000 edits that cost about 22 ms each.
+For comparison, the 2026-11 baseline (run 3) measures the same workload on today's tree end to end:
+
+- Open: 3.5 s, peak heap 1.61 GiB, drop included.
+- 1,000 edits: about 20 ms each.
 
 ## Reading the numbers
 
-- **Sheets.** The compact tree uses about 5× less memory (8.6–9.7 heap bytes per XML byte instead
-  of 45–50) and 2.6× fewer allocations. It parses 1.5–2.0× faster and drops about 5× faster.
-- **Text-heavy documents** gain less memory (2.7×) and about the same parse time. Their
-  allocations are dominated by children vectors and attribute slices, which the spike still
-  allocates once per element. An arena for children, sketched in ADR-0010 as stage 4, would remove
-  most of the rest.
-- **The lazy sheet is the real step change for large sheets.** Indexing 100k rows costs 1.5 MiB
-  and one scan at about 200 MB/s, against 1.47 GiB for core's tree. An edit then only builds the
-  rows it touches.
-- **Not measured here:**
-  - Lens mutation on the compact tree. A changed value becomes an owned `SStr`, and the dirty
-    flags work as today.
+- **Sheets.**
+  - About 5× less memory: 8.6–9.7 heap bytes per XML byte instead of 45–50.
+  - 2.6× fewer fresh allocations, and essentially no reallocations.
+  - Parsing is 1.1–1.9× faster with drop excluded; drop is 4–6.5× faster.
+  - For the 1M-cell sheet, parse plus drop goes from 4.1 s to 1.7 s (2.4×).
+- **Text-heavy documents.** The largest fixture `word/document.xml` needs 2.7× less memory. Its parse is no faster in this run (31 ms core, 39 ms compact); that difference is within this host's noise. Its remaining allocations are children vectors and attribute slices, one each per element, and the arena for children sketched as ADR-0010 stage 4 would remove most of them.
+- **The lazy sheet is the real step change for large sheets.** Indexing 100k rows needs 1.5 MiB and one scan, against 1.47 GiB for core's tree, and an edit materializes only the rows it touches.
+- **Not measured here.**
+  - Lens mutation on the compact tree. A changed value becomes an owned `SStr`; the dirty flags are unchanged.
   - Atomic reference-count traffic under threads.
-  - The cost of re-validating row order while indexing (one comparison per row).
+  - The full validation (depth, entities, prefixes) that ADR-0010 requires during the lazy skip. The spike's index scan does not do it yet.
