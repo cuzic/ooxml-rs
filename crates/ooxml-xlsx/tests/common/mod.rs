@@ -372,3 +372,47 @@ pub fn sheet_xml(bytes: &[u8]) -> String {
     let wb = Workbook::from_bytes(bytes.to_vec()).unwrap();
     String::from_utf8(part(bytes, wb.worksheet_part())).unwrap()
 }
+
+/// A synthetic fixture: rebuilds the zip `input` with `edits` applied, each
+/// replacing the entry of that name (or, if there is none, appended as a new
+/// entry). Every other entry is copied as is. Used to derive minimal,
+/// documented variants of real fixtures in memory.
+pub fn rebuild(input: &[u8], edits: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    use std::io::Write;
+    let mut ar = ZipArchive::new(Cursor::new(input)).unwrap();
+    let mut zw = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let mut done = vec![false; edits.len()];
+    for i in 0..ar.len() {
+        let mut f = ar.by_index(i).unwrap();
+        let name = f.name().unwrap().into_owned();
+        let mut buf = Vec::new();
+        f.read_to_end(&mut buf).unwrap();
+        if let Some(k) = edits.iter().position(|(n, _)| *n == name) {
+            done[k] = true;
+            buf.clone_from(&edits[k].1);
+        }
+        zw.start_file(name.as_str(), opt).unwrap();
+        zw.write_all(&buf).unwrap();
+    }
+    for (k, (n, b)) in edits.iter().enumerate() {
+        if !done[k] {
+            zw.start_file(*n, opt).unwrap();
+            zw.write_all(b).unwrap();
+        }
+    }
+    zw.finish().unwrap().into_inner()
+}
+
+/// A part of `bytes` as UTF-8 text.
+pub fn text(bytes: &[u8], name: &str) -> String {
+    String::from_utf8(part(bytes, name)).unwrap()
+}
+
+/// `text(input, name)` with `from` (which must occur exactly once) replaced
+/// by `to`, ready for [`rebuild`].
+pub fn patched(input: &[u8], name: &str, from: &str, to: &str) -> Vec<u8> {
+    let t = text(input, name);
+    assert_eq!(t.matches(from).count(), 1, "{name}: {from:?} must occur once");
+    t.replacen(from, to, 1).into_bytes()
+}

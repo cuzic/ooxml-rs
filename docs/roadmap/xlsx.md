@@ -530,9 +530,11 @@ part and a wrong value; every readable cell of every openable fixture decodes to
 calamine reads; same-path `save` is exercised on 17 fixtures. P0-E3 sweeps every 26th cell
 (20 cells); P0-R1–R3 try every 5th cell plus a new one (debug-build run time).
 
-Reading choices that follow calamine (and, as far as is known, Excel): a `t` without
-`xml:space="preserve"` in effect has its outer ASCII whitespace trimmed; phonetic runs (`rPh`) are
-not part of the value; `_xHHHH_` escapes are decoded (surrogate pairs combined).
+Reading choices that follow calamine (the inherited-`xml:space` case is not yet checked in Excel): a `t` that does
+not itself carry `xml:space="preserve"` has its outer ASCII whitespace (space, tab, CR, LF) trimmed;
+an `xml:space` inherited from `si`/`is`/`r` is ignored, and other whitespace (NBSP, U+3000) is kept;
+phonetic runs (`rPh`) are not part of the value; `_xHHHH_` escapes are decoded (surrogate pairs
+combined).
 
 ## 8. Open questions for the project owner
 

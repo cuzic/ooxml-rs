@@ -16,7 +16,7 @@ use crate::formula::translate::translate;
 use crate::graph::{Graph, precedents_of};
 use crate::reference::{CellIndex, CellRange};
 use crate::workbook::{CalcPolicy, Workbook};
-use crate::worksheet::{Located, check_writable, locate, located_cell, write_cell};
+use crate::worksheet::{Located, TargetPlan, locate, located_cell, plan_target, write_cell};
 
 /// What a setter writes into the target cell.
 #[derive(Clone, Debug)]
@@ -129,15 +129,7 @@ impl Workbook {
         }
 
         // ---- the target in Layer 2 ----
-        let loc = {
-            let doc = self.pkg.xml_part(&part)?;
-            let loc = locate(doc, &part, at)?;
-            check_writable(doc, &loc)?;
-            if located_cell(doc, &loc).is_some_and(|c| c.attr(sml::Cell::ATTR_VM).is_some()) {
-                return Err(Error::RichValueCell { cell });
-            }
-            loc
-        };
+        let target_plan = plan_target(self.pkg.xml_part(&part)?, &part, at, &op)?;
         let formula_set_changes = match op {
             CellOp::Formula(_) => target.is_none(),
             _ => target.is_some(),
@@ -192,7 +184,7 @@ impl Workbook {
         }
 
         // ---- apply ----
-        let result = self.apply(sheet, &part, at, loc, &op, target, chain, staged, &strip, handoff);
+        let result = self.apply(sheet, &part, at, &target_plan, &op, target, chain, staged, &strip, handoff);
         if let Err(e) = result {
             let msg = e.to_string();
             self.poisoned = Some(msg.clone());
@@ -277,7 +269,7 @@ impl Workbook {
         sheet: usize,
         part: &str,
         at: CellIndex,
-        loc: Located,
+        target_plan: &TargetPlan,
         op: &CellOp,
         target: Option<usize>,
         chain: Option<String>,
@@ -329,7 +321,7 @@ impl Workbook {
         }
         // (v) the target cell
         self.fault_point(Step::Target)?;
-        write_cell(self.pkg.xml_part_mut(part)?, loc, at, op)?;
+        write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op)?;
         // (vi) the index
         self.fault_point(Step::Index)?;
         for &fid in &strip.fids {

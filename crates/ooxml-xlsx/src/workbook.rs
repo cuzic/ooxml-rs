@@ -474,13 +474,24 @@ fn formula_census(pkg: &Package, wb_rels: &Relationships, sheets: &[SheetEntry])
             census.block.get_or_insert(EditBlock::ScanFailed { part: part.clone(), reason });
         }
     }
-    // Orphan sheet parts (by content type), as Phase0 scanned them.
+    // Orphan sheet parts (by content type, or by workbook relationship type),
+    // as Phase0 scanned them.
     let all_cts: Vec<&str> = [CT_WORKSHEET, CT_DIALOGSHEET].into_iter().chain(CT_MACROSHEETS.iter().copied()).collect();
-    let orphans: Vec<String> = pkg
+    let all_rels: Vec<&str> = [REL_WORKSHEET, REL_DIALOGSHEET].into_iter().chain(REL_MACROSHEETS.iter().copied()).collect();
+    let mut orphans: Vec<String> = pkg
         .part_names()
         .filter(|n| !listed.contains(*n) && pkg.content_type(n).is_some_and(|ct| all_cts.contains(&ct)))
         .map(str::to_owned)
         .collect();
+    for rel in wb_rels.iter().filter(|r| all_rels.contains(&r.rel_type.as_str())) {
+        if let Some(p) = wb_rels.resolve(rel)
+            && pkg.contains(&p)
+            && !listed.contains(&p)
+            && !orphans.contains(&p)
+        {
+            orphans.push(p);
+        }
+    }
     for part in orphans {
         let mut scratch = Census::default();
         match census::scan_sheet(&pkg.read_part(&part)?, &part, usize::MAX, &dynamic, &mut scratch) {
