@@ -5063,6 +5063,60 @@ impl<'a> FontsViewMut<'a> {
         self.0.remove::<Font>()
     }
 }
+/// `x:CT_IntProperty/x:charset` — Character Set.
+#[derive(Debug)]
+pub enum RunPropertyCharSet {}
+impl RunPropertyCharSet {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RunPropertyCharSet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "charset");
+    const SDK_NAME: &'static str = "x:CT_IntProperty/x:charset";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RunPropertyCharSet::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RunPropertyCharSet`].
+#[derive(Clone, Debug)]
+pub struct RunPropertyCharSetView<'a>(pub ooxml_core::Lens<'a, RunPropertyCharSet>);
+impl<'a> RunPropertyCharSetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(RunPropertyCharSet::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunPropertyCharSet`]. Reads go through [`RunPropertyCharSetViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunPropertyCharSetViewMut<'a>(
+    pub ooxml_core::LensMut<'a, RunPropertyCharSet>,
+);
+impl<'a> RunPropertyCharSetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunPropertyCharSetView<'_> {
+        RunPropertyCharSetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(RunPropertyCharSet::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunPropertyCharSet::ATTR_VAL)
+    }
+}
 /// `x:CT_IntProperty/x:family` — Font Family.
 #[derive(Debug)]
 pub enum FontFamily {}
@@ -5591,6 +5645,7 @@ impl ooxml_core::ChildOf<RunProperties> for Color {}
 impl ooxml_core::ChildOf<RunProperties> for RunFont {}
 impl ooxml_core::ChildOf<RunProperties> for FontScheme {}
 impl ooxml_core::ChildOf<RunProperties> for FontSize {}
+impl ooxml_core::ChildOf<RunProperties> for RunPropertyCharSet {}
 impl ooxml_core::ChildOf<RunProperties> for FontFamily {}
 impl ooxml_core::ChildOf<RunProperties> for Underline {}
 impl ooxml_core::ChildOf<RunProperties> for VerticalTextAlignment {}
@@ -5633,6 +5688,12 @@ impl<'a> RunPropertiesView<'a> {
     /// `x:sz` children in document order.
     pub fn font_size_iter(&self) -> impl Iterator<Item = FontSizeView<'a>> {
         self.0.children::<FontSize>().map(FontSizeView)
+    }
+    /// `x:charset` children in document order.
+    pub fn run_property_char_set_iter(
+        &self,
+    ) -> impl Iterator<Item = RunPropertyCharSetView<'a>> {
+        self.0.children::<RunPropertyCharSet>().map(RunPropertyCharSetView)
     }
     /// `x:family` children in document order.
     pub fn font_family_iter(&self) -> impl Iterator<Item = FontFamilyView<'a>> {
@@ -5862,6 +5923,30 @@ impl<'a> RunPropertiesViewMut<'a> {
     /// Removes the first `x:sz` child.
     pub fn remove_font_size(&mut self) -> bool {
         self.0.remove::<FontSize>()
+    }
+    /// First `x:charset` child matching `pred`, mutably.
+    pub fn run_property_char_set_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunPropertyCharSetViewMut<'_>> {
+        self.0.child_mut_by::<RunPropertyCharSet>(pred).map(RunPropertyCharSetViewMut)
+    }
+    /// Inserts a `x:charset` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_property_char_set_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunPropertyCharSetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RunPropertyCharSet>(before).map(RunPropertyCharSetViewMut)
+    }
+    /// Appends a `x:charset` at the end of its slot.
+    pub fn insert_run_property_char_set(
+        &mut self,
+    ) -> Result<RunPropertyCharSetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RunPropertyCharSet>().map(RunPropertyCharSetViewMut)
+    }
+    /// Removes the first `x:charset` child.
+    pub fn remove_run_property_char_set(&mut self) -> bool {
+        self.0.remove::<RunPropertyCharSet>()
     }
     /// First `x:family` child matching `pred`, mutably.
     pub fn font_family_mut_by(
@@ -9077,6 +9162,7 @@ const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
 const _: () = ooxml_core::schema::assert_spec::<FontSize>();
 const _: () = ooxml_core::schema::assert_spec::<Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Fonts, Font>();
+const _: () = ooxml_core::schema::assert_spec::<RunPropertyCharSet>();
 const _: () = ooxml_core::schema::assert_spec::<FontFamily>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
@@ -9100,6 +9186,7 @@ const _: () = ooxml_core::schema::assert_child::<RunProperties, Color>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, RunFont>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, FontSize>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, RunPropertyCharSet>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, FontFamily>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, VerticalTextAlignment>();

@@ -62,6 +62,7 @@ names = [
     "x:CT_RPrElt/x:rPr",
     "x:CT_FontName/x:rFont",
     "x:CT_IntProperty/x:family",
+    "x:CT_IntProperty/x:charset",
     "x:CT_Dxfs/x:dxfs",
     "x:CT_Dxf/x:dxf",
 ]

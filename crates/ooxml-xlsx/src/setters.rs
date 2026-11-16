@@ -37,6 +37,45 @@ impl Workbook {
         }
     }
 
+    /// A rich-string write (ADR-0006 §4.2): shared when the workbook has a
+    /// shared-string table, else inline (`is/r`).
+    pub(crate) fn write_rich(&mut self, sheet: usize, at: CellIndex, runs: &[(&Font, &str)]) -> Result<()> {
+        use crate::registry::strings::{RichRun, SiContent};
+        let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
+        if runs.is_empty() {
+            return Err(bad("a rich string needs at least one run".into()));
+        }
+        let mut out = Vec::with_capacity(runs.len());
+        let mut decoded = String::new();
+        let mut units = 0;
+        for (i, (font, text)) in runs.iter().enumerate() {
+            // Excel refuses empty runs (rust_xlsxwriter does too)
+            if text.is_empty() {
+                return Err(bad(format!("run {i} is empty")));
+            }
+            Format::with_font((*font).clone()).validate()?;
+            units += text.encode_utf16().count();
+            let escaped = escape::encode(text).into_owned();
+            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&escaped) {
+                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+            }
+            decoded.push_str(text);
+            // rust_xlsxwriter's form: a first run in the default font has no rPr
+            let plain_first = i == 0 && **font == Font::default();
+            out.push(RichRun { font: (!plain_first).then(|| (*font).clone()), escaped });
+        }
+        if units > MAX_STRING_LEN {
+            return Err(Error::StringTooLong(units));
+        }
+        if self.shared_strings_active()? {
+            let plan = self.registries.strings.as_ref().expect("active").plan_content(SiContent::Rich(out), &decoded)?;
+            let index = plan.index;
+            self.edit_cell_ext(sheet, at, CellOp::Shared(index), Extra { string: Some(plan), style: None })
+        } else {
+            self.edit_cell_ext(sheet, at, CellOp::InlineRich(out), Extra::default())
+        }
+    }
+
     /// Is the workbook in the 1904 date system (`workbookPr/@date1904`)?
     pub fn date1904(&mut self) -> Result<bool> {
         let doc = self.pkg.xml_part(&self.workbook_part)?;
@@ -100,6 +139,22 @@ impl CellMut<'_, '_> {
             return Err(Error::InvalidValue { cell: self.at.to_string(), message: format!("{value:?} is not an error value") });
         };
         self.edit(CellOp::Error(e), None)
+    }
+
+    /// Writes a rich string: runs of text, each in its own font (ADR-0006
+    /// §4.2). With a shared-string table it is a new `si` of `r` runs (an
+    /// existing item with exactly these bytes is reused); without one an
+    /// inline `is` of runs. Each run's `rPr` is the font's canonical form
+    /// (`rFont` for the face, as Excel writes it); as in rust_xlsxwriter, a
+    /// first run in [`Font::default`] gets no `rPr`. `s` is kept.
+    ///
+    /// Errors (nothing changed): no runs or an empty run
+    /// ([`Error::InvalidValue`]), more than 32,767 UTF-16 units in total
+    /// ([`Error::StringTooLong`]), an invalid font
+    /// ([`Error::InvalidFormat`]), and those of [`Self::set_string`].
+    pub fn set_rich_string(self, runs: &[(&Font, &str)]) -> Result<()> {
+        let ws = &mut *self.ws;
+        ws.wb.write_rich(ws.sheet, self.at, runs)
     }
 
     /// Writes a boolean (`t="b"`).
@@ -182,6 +237,56 @@ impl CellMut<'_, '_> {
 }
 
 impl Workbook {
+    /// Adds a differential format to `styles.xml`'s `dxfs` and returns its
+    /// index (ADR-0006 §5.8). Append-only: a `dxf` whose bytes are exactly
+    /// the canonical form of `dxf` is reused, also one an earlier session
+    /// appended. Nothing refers to it until a Phase4 feature (conditional
+    /// formats, table styles) uses the index; an unused `dxf` is valid.
+    ///
+    /// Errors (nothing changed): [`Error::NoStylesPart`],
+    /// [`Error::InvalidFormat`], [`Error::BuiltinNumFormatRedefined`],
+    /// [`Error::NumFmtIdExhausted`], [`Error::DanglingReference`] (an
+    /// existing `dxfId` in any part already points at or past the end of
+    /// `dxfs`), and core `UnresolvedSibling` when `dxfs` has an
+    /// `mc:AlternateContent` child.
+    pub fn add_differential_format(&mut self, dxf: &crate::DxfFormat) -> Result<u32> {
+        self.styles()?;
+        let st = self.registries.styles.take().expect("activated");
+        let plan = st.plan_dxf(self, dxf);
+        self.registries.styles = Some(st);
+        let plan = plan?;
+        // install: the staged styles.xml and the registry, nothing else
+        self.poisoned = Some("an edit was interrupted while being applied".into());
+        let result = (|| -> Result<()> {
+            if let Some(doc) = plan.staged {
+                *self.pkg.xml_part_mut(&plan.next.part)? = doc;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => {
+                self.registries.styles = Some(plan.next);
+                self.poisoned = None;
+                Ok(plan.s)
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                self.poisoned = Some(msg.clone());
+                Err(Error::Poisoned(msg))
+            }
+        }
+    }
+
+    /// The `cellXfs` entry `index` read back as a [`Format`]; see
+    /// [`crate::Worksheet::format`].
+    pub fn format_of_style(&mut self, index: u32) -> Result<crate::FormatRead> {
+        let Some(part) = crate::registry::styles::styles_part(self)? else {
+            return Ok(crate::FormatRead::Expressible(Box::new(Format::new())));
+        };
+        let doc = self.pkg.xml_part(&part)?;
+        Ok(crate::registry::read::read_format(doc, index))
+    }
+
     /// Does the workbook have a shared-string table? When it has none,
     /// `set_string` writes inline strings (ADR-0006 §4.6).
     pub fn shared_strings_available(&mut self) -> Result<bool> {
@@ -205,82 +310,8 @@ impl Workbook {
         if kids.iter().any(|k| !k.is(sml::Font::QNAME)) {
             return Ok(None);
         }
-        Ok(kids.get(font_id).and_then(|f| font_from_node(f)))
+        Ok(kids.get(font_id).and_then(|f| crate::registry::read::font_from_node(f)))
     }
-}
-
-fn font_from_node(n: &ooxml_core::RawNode) -> Option<Font> {
-    use crate::registry::format::{Color, Tint, Underline};
-    if !n.attrs().is_empty() {
-        return None;
-    }
-    let mut f = Font { color: None, family: None, scheme: None, name: String::new(), ..Font::default() };
-    let val = |e: &ooxml_core::RawNode| e.attr(ooxml_core::QName::new("", "val")).map(str::to_owned);
-    let only = |e: &ooxml_core::RawNode, allowed: &[&str]| e.elements().next().is_none() && e.attrs().iter().all(|a| a.name().ns().is_empty() && allowed.contains(&a.name().local()));
-    for e in n.elements() {
-        if e.name().ns() != crate::SML_NS {
-            return None;
-        }
-        match e.name().local() {
-            "b" | "i" | "strike" | "condense" | "extend" if only(e, &["val"]) => {
-                let on = !matches!(val(e).as_deref(), Some("0" | "false"));
-                match e.name().local() {
-                    "b" => f.bold = on,
-                    "i" => f.italic = on,
-                    "condense" => f.condense = on,
-                    "extend" => f.extend = on,
-                    _ => f.strike = on,
-                }
-            }
-            "charset" if only(e, &["val"]) => f.charset = Some(val(e)?.trim().parse().ok()?),
-            "vertAlign" if only(e, &["val"]) => {
-                f.vert_align = Some(match val(e)?.trim() {
-                    "baseline" => crate::registry::format::VertAlign::Baseline,
-                    "superscript" => crate::registry::format::VertAlign::Superscript,
-                    "subscript" => crate::registry::format::VertAlign::Subscript,
-                    _ => return None,
-                })
-            }
-            "u" if only(e, &["val"]) => {
-                f.underline = match val(e).as_deref() {
-                    None | Some("single") => Some(Underline::Single),
-                    Some("double") => Some(Underline::Double),
-                    Some("singleAccounting") => Some(Underline::SingleAccounting),
-                    Some("doubleAccounting") => Some(Underline::DoubleAccounting),
-                    Some("none") => None,
-                    Some(_) => return None,
-                }
-            }
-            "sz" if only(e, &["val"]) => f.size = crate::registry::format::FontSize::new(val(e)?.trim().parse().ok()?)?,
-            "name" if only(e, &["val"]) => f.name = val(e)?,
-            "family" if only(e, &["val"]) => f.family = Some(val(e)?.trim().parse().ok()?),
-            "scheme" if only(e, &["val"]) => f.scheme = Some(val(e)?),
-            "color" if e.elements().next().is_none() => {
-                let a: Vec<(String, String)> = e.attrs().iter().map(|a| (a.name().display().to_string(), a.value().to_owned())).collect();
-                let get = |k: &str| a.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str());
-                let c = match (get("rgb"), get("theme"), get("indexed"), get("auto")) {
-                    (Some(rgb), None, None, None) if a.len() == 1 => Color::Rgb(u32::from_str_radix(rgb, 16).ok()?),
-                    (None, Some(t), None, None) => {
-                        let tint = match get("tint") {
-                            Some(t) => Tint::new(t.parse().ok()?)?,
-                            None => Tint::NONE,
-                        };
-                        if a.len() != 1 + usize::from(get("tint").is_some()) {
-                            return None;
-                        }
-                        Color::Theme { index: t.parse().ok()?, tint }
-                    }
-                    (None, None, Some(i), None) if a.len() == 1 => Color::Indexed(i.parse().ok()?),
-                    (None, None, None, Some("1" | "true")) if a.len() == 1 => Color::Auto,
-                    _ => return None,
-                };
-                f.color = Some(c);
-            }
-            _ => return None,
-        }
-    }
-    let has_size = n.elements().any(|e| e.name().local() == "sz");
-    (!f.name.is_empty() && has_size).then_some(f)
 }
 
 impl Format {
@@ -329,6 +360,17 @@ impl crate::worksheet::Worksheet<'_> {
                 .and_then(|e| e.attr(ooxml_core::QName::new("", "formatCode")).map(str::to_owned))
         });
         Ok(crate::registry::format::is_date_format(id, custom.as_deref()))
+    }
+
+    /// The cell's format read back as a [`Format`] (ADR-0006 §3
+    /// "Reading"): [`FormatRead::Expressible`], or
+    /// [`FormatRead::NotExpressible`] with the reasons when the cell's `xf`
+    /// (or its font, fill or border) has anything outside the model. `None`
+    /// for a missing cell. A read: the style registry is not activated; a
+    /// workbook without a styles part reads as `Format::new()`.
+    pub fn format(&mut self, row: u32, col: u32) -> Result<Option<crate::FormatRead>> {
+        let Some(s) = self.cell(row, col)?.map(|c| c.style_index()).transpose()? else { return Ok(None) };
+        self.wb.format_of_style(s).map(Some)
     }
 
     /// The cell's number as a date in the workbook's date system, if the

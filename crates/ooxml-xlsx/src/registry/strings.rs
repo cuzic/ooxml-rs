@@ -90,8 +90,8 @@ where
 }
 
 /// The run properties of a font (`CT_RPrElt`), in Excel's and
-/// rust_xlsxwriter's order: `b`, `i`, `strike`, `u`, `sz`, `color`,
-/// `rFont`, `family`, `scheme`.
+/// rust_xlsxwriter's order: `b`, `i`, `strike`, `condense`, `extend`, `u`,
+/// `vertAlign`, `sz`, `color`, `rFont`, `family`, `charset`, `scheme`.
 fn build_rpr(r: &mut LensMut<'_, sml::Run>, f: &Font) -> Result<()> {
     let mut p = r.insert::<sml::RunProperties>()?;
     let val = QName::new("", "val");
@@ -104,6 +104,12 @@ fn build_rpr(r: &mut LensMut<'_, sml::Run>, f: &Font) -> Result<()> {
     if f.strike {
         p.insert::<sml::Strike>()?;
     }
+    if f.condense {
+        p.insert::<sml::Condense>()?;
+    }
+    if f.extend {
+        p.insert::<sml::Extend>()?;
+    }
     if let Some(u) = f.underline {
         let mut e = p.insert::<sml::Underline>()?;
         match u {
@@ -112,6 +118,9 @@ fn build_rpr(r: &mut LensMut<'_, sml::Run>, f: &Font) -> Result<()> {
             Underline::SingleAccounting => e.set_attr(val, "singleAccounting")?,
             Underline::DoubleAccounting => e.set_attr(val, "doubleAccounting")?,
         }
+    }
+    if let Some(v) = f.vert_align {
+        p.insert::<sml::VerticalTextAlignment>()?.set_attr(val, v.as_str())?;
     }
     p.insert::<sml::FontSize>()?.set_attr(val, &f.size.to_string())?;
     if let Some(c) = &f.color {
@@ -123,6 +132,9 @@ fn build_rpr(r: &mut LensMut<'_, sml::Run>, f: &Font) -> Result<()> {
     p.insert::<sml::RunFont>()?.set_attr(val, &f.name)?;
     if let Some(fam) = f.family {
         p.insert::<sml::FontFamily>()?.set_attr(val, &fam.to_string())?;
+    }
+    if let Some(cs) = f.charset {
+        p.insert::<sml::RunPropertyCharSet>()?.set_attr(val, &cs.to_string())?;
     }
     if let Some(sc) = &f.scheme {
         p.insert::<sml::FontScheme>()?.set_attr(val, sc)?;

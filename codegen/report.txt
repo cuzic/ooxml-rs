@@ -120,6 +120,7 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [sml] Write x:CT_FontScheme/x:scheme -> FontScheme (empty, 1 attrs)
   [sml] Write x:CT_FontSize/x:sz -> FontSize (empty, 1 attrs)
   [sml] Write x:CT_Fonts/x:fonts -> Fonts (1 slots, 2 attrs)
+  [sml] Write x:CT_IntProperty/x:charset -> RunPropertyCharSet (empty, 1 attrs)
   [sml] Write x:CT_IntProperty/x:family -> FontFamily (empty, 1 attrs)
   [sml] Read x:CT_MergeCell/x:mergeCell -> MergeCell (empty, 1 attrs)
   [sml] Read x:CT_MergeCells/x:mergeCells -> MergeCells (1 slots, 1 attrs)

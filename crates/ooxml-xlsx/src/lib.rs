@@ -72,7 +72,8 @@ pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;
 pub use registry::dates::ExcelDateTime;
-pub use registry::format::{Alignment, Border, Color, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
+pub use registry::read::FormatRead;
+pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
 

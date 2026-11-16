@@ -222,7 +222,7 @@ pub(crate) struct TargetPlan {
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
         CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) => Some(t.as_str()),
-        CellOp::RemoveFormula | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -251,7 +251,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
     let ws = sml::WorksheetView(doc.lens::<sml::Worksheet>()?);
     let new_child = match op {
         CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
-        CellOp::Text(_) => Some(sml::InlineString::QNAME),
+        CellOp::Text(_) | CellOp::InlineRich(_) => Some(sml::InlineString::QNAME),
         CellOp::Formula(_) => Some(sml::CellFormula::QNAME),
         CellOp::RemoveFormula | CellOp::StyleOnly => None,
     };
@@ -310,7 +310,7 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
             let mut kids = is.elements();
             matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
         }),
-        CellOp::RemoveFormula | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     }
 }
 
@@ -385,6 +385,14 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
             CellOp::Text(text) => {
                 c.set_data_type(CellValues::InlineString)?;
                 c.get_or_insert_inline_string()?.get_or_insert_text()?.set_text(text)?;
+            }
+            CellOp::InlineRich(runs) => {
+                // a new `is` (every old one was removed above): `is/r`, valid per CT_Rst
+                c.set_data_type(CellValues::InlineString)?;
+                let mut is = c.get_or_insert_inline_string()?;
+                for r in runs {
+                    crate::registry::strings::build_run(&mut is.0, r)?;
+                }
             }
             CellOp::Formula(text) => {
                 c.remove_data_type()?;
