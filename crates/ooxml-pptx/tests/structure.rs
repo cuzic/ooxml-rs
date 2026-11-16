@@ -830,13 +830,17 @@ fn duplicate_renews_creation_id() {
 #[test]
 fn duplicate_refusals() {
     for (f, want) in [
-        ("libreoffice/modern-comments.pptx", "comments"),
+        ("libreoffice/modern-comments.pptx", "=comments"),
         ("poi/bar-chart.pptx", "relationships/chart"),
         ("poi/SmartArt.pptx", "relationships/diagram"),
     ] {
         let src = fixture(f);
         let mut p = Presentation::from_bytes(src.clone()).unwrap();
-        assert_matches!(p.duplicate_slide(0, None), Err(Error::UnsupportedSlidePart(ref t)) if t.contains(want), "{f}");
+let r = p.duplicate_slide(0, None).map(|_| ());
+        match want.strip_prefix('=') {
+            Some(exact) => assert_matches!(r, Err(Error::UnsupportedSlidePart(ref t)) if t == exact, "{f}"),
+            None => assert_matches!(r, Err(Error::UnsupportedSlidePart(ref t)) if t.contains(want), "{f}"),
+        }
         assert_eq!(p.to_bytes().unwrap(), unchanged(&src), "{f}");
     }
     // a core refusal after the pptx edits are planned: `#_ftn1` targets
@@ -946,4 +950,57 @@ fn sweep_every_fixture_slide() {
         }
     }
     assert!(ok > 80, "ok {ok}, refused {refused}");
+}
+
+#[test]
+fn delete_cascades_through_a_chart_to_its_embedding() {
+    let src = fixture("poi/bar-chart.pptx");
+    let mut p = Presentation::from_bytes(src).unwrap();
+    p.delete_slide(0).unwrap();
+    let out = p.to_bytes().unwrap();
+    for gone in ["ppt/charts/chart1.xml", "ppt/charts/_rels/chart1.xml.rels", "ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx"] {
+        assert!(!has(&out, gone), "{gone} left behind");
+    }
+    check_structure(&out);
+}
+
+#[test]
+fn picture_placeholders_get_no_text_body() {
+    let src = fixture("poi/layouts.pptx");
+    let mut p = Presentation::from_bytes(src).unwrap();
+    let l = p.layouts().unwrap().into_iter().find(|l| l.part == "ppt/slideLayouts/slideLayout9.xml").unwrap();
+    let part_name = p.add_slide(&l, None).unwrap().as_slide().info().part_name.clone();
+    let out = p.to_bytes().unwrap();
+    let xml = part(&out, &part_name);
+    let pic = xml.split("<p:sp>").find(|sp| sp.contains("type=\"pic\"")).expect("a picture placeholder");
+    assert!(!pic.contains("<p:txBody>"), "{pic}");
+    assert!(pic.contains("name=\"Picture Placeholder"));
+    let title = xml.split("<p:sp>").find(|sp| sp.contains("type=\"title\"")).unwrap();
+    assert!(title.contains("<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody>"));
+}
+
+#[test]
+fn shape_ids_stay_above_comment_monikers() {
+    let src = patch(&fixture("libreoffice/modern-comments.pptx"), "ppt/comments/modernComment_100_68C49C6.xml", |s| {
+        s.replacen("<ac:spMk id=\"2\"", "<ac:spMk id=\"5000\"", 1)
+    });
+    let mut p = Presentation::from_bytes(src).unwrap();
+    assert_eq!(p.next_shape_id(0).unwrap(), 5001);
+}
+
+#[test]
+fn hidden_slides_are_counted() {
+    let count = |b: &[u8]| -> i64 {
+        part(b, "docProps/app.xml").split("<HiddenSlides>").nth(1).unwrap().split('<').next().unwrap().parse().unwrap()
+    };
+    let src = patch(&fixture("poi/bar-chart.pptx"), "ppt/slides/slide1.xml", |s| s.replacen("<p:sld ", "<p:sld show=\"0\" ", 1));
+    let src = patch(&src, "docProps/app.xml", |s| s.replace("<HiddenSlides>0</HiddenSlides>", "<HiddenSlides>1</HiddenSlides>"));
+    let mut p = Presentation::from_bytes(src).unwrap();
+    p.delete_slide(0).unwrap();
+    assert_eq!(count(&p.to_bytes().unwrap()), 0);
+    let src = patch(&fixture("poi/sample.pptx"), "ppt/slides/slide1.xml", |s| s.replacen("<p:sld ", "<p:sld show=\"0\" ", 1));
+    let before = count(&src);
+    let mut p = Presentation::from_bytes(src).unwrap();
+    p.duplicate_slide(0, None).unwrap();
+    assert_eq!(count(&p.to_bytes().unwrap()), before + 1);
 }
