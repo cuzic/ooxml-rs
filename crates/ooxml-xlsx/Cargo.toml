@@ -8,7 +8,7 @@ repository.workspace = true
 authors.workspace = true
 description = "Lossless Excel (.xlsx) editing on top of ooxml-core: Phase0 value edits and a from-scratch skeleton"
 readme = "README.md"
-include = ["src/**/*.rs", "src/template/*.xlsx", "Cargo.toml", "README.md"]
+include = ["src/**/*.rs", "template/blank.xlsx", "Cargo.toml", "README.md"]
 
 [dependencies]
 ooxml-core = { workspace = true }

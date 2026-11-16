@@ -43,7 +43,7 @@ produced by `spikes/xlsx/phase0_facts.py` and `spikes/xlsx/survey.py`.
 | `poi/FillWithoutColor.xlsx` | Excel 16.0300 | 2 sheets. 513 self-closing styled cells. A **self-closing `<row r="2" …/>`** with `spans`, `ht`, `thickBot`, `x14ac:dyDescent` (gains its first cell: ADR-0001 R2-B2 on a `row`). 24 merges on sheet 1 (40 in total). Shared strings with `xml:space="preserve"`. 4 conditional-formatting `<formula>` elements and **no** cell formulas, so a byte scan for `<f` gives a false positive (roadmap §5). |
 | `poi/reordered_sheets.xlsx` | Excel 12.0000 | **Sheet order ≠ part order**: workbook order is `Sheet4, Sheet2, Sheet3, Sheet1`; `Sheet4` → `sheet1.xml`, `Sheet1` → `sheet4.xml`. Workbook rels are listed out of id order. The first sheet is **`<sheetData/>`** (the from-scratch template's shape). |
 | `poi/62272.xlsx` | LibreOffice 7.3.7.2 | **Zip entries with data descriptors** (9 of 9). LibreOffice's attribute-heavy `row`/`sheetView` output. Shared string with `xml:space="preserve"`. |
-| `poi/TwoSheetsOneHidden.xlsx` | Excel 12.0000 | 2 sheets; the **first sheet in workbook order is hidden** (roadmap Q2). `phoneticPr`. |
+| `poi/TwoSheetsOneHidden.xlsx` | Excel 12.0000 | 2 sheets; the **first sheet in workbook order is hidden** (roadmap Q2: skipped, so Phase0 edits `Sheet2`). `phoneticPr`. |
 | `poi/64759.xlsx` | Excel 16.0300 | **Threaded comments** + `persons` + fallback legacy note (`comments`, `vmlDrawing`) on cells of the first sheet. |
 | `poi/57362.xlsx` | Excel 15.0300 | A **chart** (`drawing` → `chart1.xml`) whose series reads the first sheet's cells; its `c:numCache` goes stale when they are edited (roadmap §4). |
 | `poi/51850.xlsx` | Excel 12.0000 | **x14 data validation** in the second sheet's `extLst` with `xm:f` formulas, which are not cell formulas. `sortState` and a `drawing` on the first sheet. |
@@ -71,7 +71,7 @@ produced by `spikes/xlsx/phase0_facts.py` and `spikes/xlsx/survey.py`.
 |---|---|---|
 | `poi/59746_NoRowNums.xlsx` | not recorded | **Rows and cells without `r`** (71 rows, 669 cells); worksheet part named `xl/worksheets/sheet.xml`. `Err(MissingReference)` for reads and writes. |
 | `poi/InlineString.xlsx` | records Excel 16.0300, content hand-edited | **`x:`-prefixed** SML with indentation whitespace text nodes; a row and a cell without `r`; inline rich text with `xml:space="preserve"` and an astral-plane character reference (`&#x1f61c;`). |
-| `poi/xlmmacro.xlsm` | Excel 16.0300 | The **first sheet in workbook order is an XLM macro sheet** (`xl/macrosheets/sheet1.xml`), not a worksheet (roadmap Q2). |
+| `poi/xlmmacro.xlsm` | Excel 16.0300 | The **first sheet in workbook order is an XLM macro sheet** (`xl/macrosheets/sheet1.xml`), not a worksheet (roadmap Q2: skipped, so Phase0 edits `Sheet1`). |
 | `poi/SimpleStrict.xlsx` | not recorded | **Strict OOXML** namespaces; Phase0 `Err`. Contains a `t="d"` ISO date cell. |
 | `poi/protected_passtika.xlsx` | – | **Password-encrypted** (CFB container, magic `D0 CF 11 E0`), not a zip: `Err(EncryptedPackage)`. |
 
