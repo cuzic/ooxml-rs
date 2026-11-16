@@ -76,6 +76,16 @@
   "Proposed" wording fixed (here and `docs/roadmap/pptx.md`). And the PR #16
   review's m4: unreadable comment parts fail closed (§6, already so in code;
   now explicit and tested).
+  After PR #16 (parser depth limit 256) merged: a comment part deeper than
+  the limit (`TooDeep`) locks the slide's text like any unparsable part
+  (T4 `too_deep_comment_part_fails_closed`); text edits check, before
+  their first change, that every element they will create (including
+  copied formats) stays within the part's limit — `Core(TooDeep)` otherwise
+  (§6; T4 `edits_that_would_pass_the_depth_limit_are_refused_before_any_change`);
+  and `Slide::shapes` stores one shared path arena instead of a full path
+  per shape (`ShapeRef::path` now returns an owned `ShapePath`), so its
+  memory is O(shapes) at any group depth (PR #16 round-2 review n2; test
+  `tests/memory.rs`: 167 B/shape at depth 250 vs 2,128 B before).
 
 ## Context
 
@@ -169,7 +179,7 @@ impl Slide<'a> {
     pub fn placeholders(&self) -> Vec<ShapeRef<'a>>;
 }
 impl ShapeRef<'a> {
-    pub fn path(&self) -> &ShapePath;  pub fn kind(&self) -> &ShapeKind;  pub fn depth(&self) -> usize;
+    pub fn path(&self) -> ShapePath;   pub fn kind(&self) -> &ShapeKind;  pub fn depth(&self) -> usize;  // path built on request (shared arena)
     pub fn id(&self) -> Result<u32>;   pub fn name(&self) -> Option<&'a str>;
     pub fn placeholder(&self) -> Option<PlaceholderRef<'a>>;   // kind() (absent → obj), idx() -> Result<u32> (absent → 0)
     pub fn text_body(&self) -> Option<TextBodyRef<'a>>;  pub fn table(&self) -> Option<TableRef<'a>>;
@@ -223,10 +233,11 @@ a:tc → a:txBody`, each step a generated `ChildOf` edge.
 - New elements take the in-scope DrawingML prefix (ADR-0002 §3); none in
   scope: `Error::Core(NamespaceNotInScope)`. Copied formats (Phase 0.1)
   get every prefix chosen at the destination by `insert_detached`; before
-  the first change the setter checks that each namespace the copies use
-  has a prefix bound at the paragraph (`Paragraph::set_text`) or body
-  (`TextBody::set_text`) and not re-bound below it, so this refusal still
-  happens before any change.
+  the first change the setter calls core's `Detached::check_insert_under`
+  for every copy at its exact destination (the paragraph that gets new
+  runs, or the body for new paragraphs, with the number of elements created
+  in between), so this refusal — and `TooDeep` — still happens before any
+  change.
 
 **Text arguments (review B2, m3).** One table for every setter, checked
 first:
@@ -421,7 +432,8 @@ elements in the SDK data). Classification:
 | `AnimatedCharacters { shape_id }` | any text edit on a character-locked shape |
 | `CommentAnchoredText { shape_id }` | any text edit on a comment-locked shape |
 | `InvalidXmlChar`, `LineBreakInRun`, `LineBreakInParagraph` | §3 Text arguments |
-| `Core(NamespaceNotInScope)` | no DrawingML prefix in scope for a new element; a copied format uses a namespace with no stable prefix at the paragraph/body (§3) |
+| `Core(NamespaceNotInScope)` | no DrawingML prefix in scope for a new element; a copied format uses a namespace with no prefix where it would be inserted (§3) |
+| `Core(TooDeep)` | an element the edit would create (new paragraph, run, text, copied format) would pass the part's depth limit (ADR-0002 note "parser depth limit"); checked before the first change |
 
 Not refused, documented (cosmetic, not data loss):
 
@@ -597,7 +609,7 @@ for allowlisted pairs sharing an SDK complex type (`a:endParaRPr` ↔
 | new paragraph's `a:endParaRPr` | last paragraph's `a:endParaRPr` if it has a format (N3-1), else its run format source | links | `FormatNotCopyable("a:endParaRPr")` or as for `a:rPr` |
 
 All copies of one edit are made during planning (before any change), and
-their namespaces are checked against the paragraph/body scope (§3), so a
+their namespaces and depth are checked at their destinations (§3), so a
 refused edit still leaves the package byte-identical.
 
 **Effect** (same fixtures and sweeps as §7):
