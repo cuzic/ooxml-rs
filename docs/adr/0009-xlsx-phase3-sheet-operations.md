@@ -1,6 +1,6 @@
 # ADR-0009: xlsx Phase3 — sheet operations on existing files
 
-- Status: **Proposed** (revision 2)
+- Status: **Proposed** (revision 3)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 3 append-only invariant, and the
@@ -9,12 +9,13 @@
   - **PR #38** (`ooxml-core` registry transaction, `RegistryPlan`): the single source of truth
     for adding and removing parts, relationships and content types;
   - [ADR-0002](0002-schema-driven-code-generation.md): lens, allowlist, §4.3 insertion;
-  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md): census, tokenizer, `Everything`,
-    plan → validate → apply, calcChain policy (PR #20);
+  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) **revision 4** (on
+    `impl/xlsx-phase1`, PR #20; §2.4 folding and unknown sheets exist only there): census,
+    tokenizer, `Everything`, plan → validate → apply, §5 guards, calcChain policy;
   - [ADR-0006](0006-xlsx-phase2-shared-strings-and-styles.md): registries (PR #22).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.2 (A4–A7), §6 Phase3
 - Evidence: [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md)
-- Review: [round 1](0009-opus-review-round1.md)
+- Review: [round 1](0009-opus-review-round1.md), [round 2](0009-opus-review-round2.md)
 
 ## Revision history
 
@@ -51,6 +52,28 @@
   - **m1–m12** are folded in where they apply.
   - The reviewer's recommendations for Q1–Q6 are recorded as proposed defaults pending the
     owner's confirmation.
+- **Revision 3** (after `0009-opus-review-round2.md`: 2 Major, 7 Minor):
+  - **R2-M1:** `#Sheet!A1` targets in sheet and drawing `.rels` are rewritten with PR #38's
+    new `set_relationship_target` (§2, §6). Option 1 of the review; Q7 records it.
+  - **R2-M2:** §2 lists **everything** one operation changes. Phase1's cache stripping and
+    `calcPr`, Phase2's `sst/@count`, and the formula rewrites go into the same staged clones
+    (one clone per part), inside the one transaction. The in-memory state (census, sheet
+    list, registries) is rebuilt after apply, under ADR-0003 §3.1's poisoning. ADR-0003 §5's
+    guards apply to Phase3 (§12, §13, Consequences).
+  - **R2-m1:** replacing a VBA project removes the old closed set and adds
+    `xl/vbaProject.bin` with `Exact` in the same plan (PR #38 now allows an `Exact` name
+    removed earlier in the plan). The content-type wording follows PR #38's rule.
+  - **R2-m2:** parts in the closed set are neither rewritten nor scanned; the orphan check
+    ignores fragment-only targets (PR #38 no longer reports them as parts).
+  - **R2-m3:** the scan's blind spots are stated: XML parts that do not parse get a byte scan
+    and refuse on a hit; non-ActiveX binaries are not scanned; raw-name locations rely on the
+    table alone.
+  - **R2-m4:** the scan folds like ADR-0003 rev 4 §2.4 (Unicode upper then lower).
+  - **R2-m5:** "sheet-prefix token" includes `Sheet2!Name`, `Sheet2!#REF!` and
+    `Sheet2!Func(`; their handling on rename and delete is stated.
+  - **R2-m6:** a move is refused only when it **changes** the relative order of a 3-D
+    reference's endpoints.
+  - **R2-m7:** the `allowed_rel_types` passed to `remove_parts` per operation are listed.
 
 ## Context
 
@@ -233,36 +256,69 @@ Out of scope:
 
 ### 2. Core: one transaction per operation (PR #38)
 
-Each Phase3 operation builds **one** `RegistryPlan` (PR #38) and applies it once. The plan:
+Each Phase3 operation builds **one** `RegistryPlan` (PR #38) and applies it once. **Everything
+the operation changes in the package is in that plan** (review R2-M2):
 
-- **stages** the edited `workbook.xml`, the `app.xml` update, and every part whose formula
-  text is rewritten (`stage_part`). Each is a clone of the parsed tree, edited through the
-  lens;
-- **adds** parts and relationships (`add_part` with `Numbered`, `add_relationship`);
-- **removes** a closed set of parts with their own `.rels` (`remove_parts`), where
-  references inside the set do not block;
-- changes content types (`set_content_type`) and removes single relationships
-  (`remove_relationship`).
+- **Staged parts** (`stage_part`), **one clone per part**, each carrying every change that part
+  gets from the operation, because staging a part again replaces the earlier content:
+  - `workbook.xml`: the `<sheets>` edit, `definedNames` (`localSheetId`, rewritten texts),
+    `bookViews`, **and** Phase1's `calcPr/@fullCalcOnLoad`;
+  - every sheet part whose formula texts are rewritten **and/or** whose dependent cells lose
+    their cached values (ADR-0003 §3.1's strip): rewrite and strip go into the same clone.
+    Strip positions are computed on the parsed tree before rewriting; rewriting changes only
+    text of `f` elements, never the children of `sheetData`, so the positions hold in the
+    clone (invariant, tested);
+  - chart, drawing, pivot-cache, table, `connections.xml`, ctrlProps and VML parts with
+    rewritten references;
+  - `sharedStrings.xml` when `sst/@count` changes (delete; ADR-0006 §4.5), if the Phase2
+    registry is active;
+  - `docProps/app.xml` (§11).
+- **Registry steps:** `add_part` (`Numbered`), `add_relationship`, `remove_parts` (closed set),
+  `remove_relationship`, `set_content_type`, and **`set_relationship_target`** for `#Sheet!A1`
+  hyperlink targets (review R2-M1; §6).
+- **Then, in memory only**, after `Package::apply`: the census is **rebuilt** from the output
+  parts (the same scan as at open; ADR-0003 §1), and the sheet list, contexts, dependency
+  graph and Phase2 registries are reloaded. A structural operation is rare, so a rebuild at
+  open cost is acceptable, and it cannot drift from a hand-maintained re-index (`c.sheet`,
+  `localSheetId`, 3-D span membership, unknown-sheet resolution all change).
 
-Each step is validated against the package plus the earlier steps (the virtual view). Reference
-scans read the **staged** content: the sheet part's relationship is removable because the
-staged `workbook.xml` no longer names its `r:id`. If any step refuses, the plan is dropped and
-nothing changes. `Package::apply` cannot fail except `StalePlan`. That is ADR-0003 §3.1's
-plan → validate → apply for multi-part edits (review B2).
+No Layer 2 edit happens outside the plan: `xml_part_mut` between planning and apply would make
+the plan stale (`StalePlan`), so Phase3 never calls it. Each registry step is validated against
+the **plan's view** (the package as the earlier steps leave it). Reference scans read the
+staged content: the sheet part's relationship is removable because the staged `workbook.xml` no
+longer names its `r:id`. If any step refuses, the plan is dropped and nothing changes.
+
+**Failure after apply.** `Package::apply` cannot fail except `StalePlan`, which cannot happen
+because nothing touches the package between planning and apply. The in-memory rebuild reads
+parts this operation just wrote. If it nevertheless fails (a bug), the workbook is **poisoned**
+exactly as ADR-0003 §3.1 does for a failed apply: every later edit and every save is refused,
+so a package and an index that disagree can never be written. That is ADR-0003 §3.1's plan →
+validate → apply for multi-part edits (review B2, R2-M2).
+
+**`allowed_rel_types` per operation** (review R2-m7). These are the types of relationships
+*into* the closed set from outside it; anything else from outside refuses:
+
+| Operation | `allowed_rel_types` |
+|---|---|
+| delete a worksheet | `…/relationships/worksheet` |
+| delete a chart sheet | `…/relationships/chartsheet` |
+| calcChain removal (delete) | `…/relationships/calcChain` (Strict twin separate, as in Phase1) |
+| replace or remove a VBA project | `…/office/2006/relationships/vbaProject` (the signature types are inside the set) |
 
 The registry rules are those of PR #38's single rules table, and are not restated here:
 
 - part names `max + 1` per template;
-- `rId` `max + 1` per source, with a session high-water;
+- `rId` `max + 1` per source, with a session high-water and no adoption of dangling `r:id`s;
 - `Override` unless an exact `Default`;
 - left-over `.rels` and `Override`s make a name taken;
-- the closed-set removal conditions.
+- the closed-set removal conditions, failing closed on unreadable `.rels`.
 
 The ADR-0001 wording is PR #38's draft note "registry writes" (Q1).
 
 **Staging cost** (review m9). A rename or delete may touch every sheet that refers to the
 sheet. The plan first computes the positions and replacement texts from the census (no clone).
-It then clones only the parts that change and stages them. ADR-0003 measured a 200k-formula
+It then clones only the parts that change and stages them. PR #38 shares staged trees between
+plan steps (`Arc`), so later steps do not copy them again. ADR-0003 measured a 200k-formula
 sheet clone at 289 ms. A Phase3 rename of a sheet referenced from N large sheets costs N such
 clones, which is acceptable for a structural operation. An in-place apply path is a later
 optimisation.
@@ -347,14 +403,20 @@ Refused when:
 
 **One transaction** (B1, B2). The plan:
 
-1. stages `workbook.xml` without the `<sheet>`, with renumbered `localSheetId`s and adjusted
-   `bookViews`;
-2. stages every part whose references to the sheet are rewritten (below);
-3. removes **the closed set**: the sheet, every part reachable from it through the cascade
-   types below that no part outside the set reaches, and all their `.rels`
-   (`remove_parts`). The set is computed with `incoming_relationships`: a part with an
-   incoming relationship from outside the set (a shared image) stays;
-4. stages `app.xml` (§11).
+1. computes **the closed set** first: the sheet, every part reachable from it through the
+   cascade types below that no part outside the set reaches. It uses PR #38's
+   `RegistryPlan::incoming_relationships` on the plan's view, which fails closed on an
+   unreadable `.rels`; a part with an incoming relationship from outside the set (a shared
+   image) stays; fragment-only targets (`#Sheet1!A1`) are not parts and are ignored
+   (review R2-m2);
+2. stages `workbook.xml` without the `<sheet>`, with renumbered `localSheetId`s, adjusted
+   `bookViews` and `calcPr` (§2);
+3. stages every part **outside the set** whose references to the sheet are rewritten or whose
+   caches are stripped (below). Parts in the set are neither rewritten nor scanned: they go
+   (review R2-m2);
+4. removes the closed set with all its `.rels` (`remove_parts`, `allowed_rel_types` per §2),
+   and `calcChain.xml`;
+5. stages `sharedStrings.xml` (`sst/@count`) and `app.xml` (§11).
 
 The staged `workbook.xml` no longer names the sheet's `r:id`. The set's internal references
 (`r:embed`, `r:id`, `o:relid`) do not block. Every other refusal comes from the plan, and
@@ -375,7 +437,12 @@ rewritten location is returned (`Vec<RewrittenLocation>`) so the caller can audi
 
 - **A sheet-prefixed reference token**, range included, becomes a bare `#REF!`:
   - `Sheet2!A1:B2` → `#REF!`;
-  - `SUM(Sheet2!A1)` → `SUM(#REF!)`.
+  - `SUM(Sheet2!A1)` → `SUM(#REF!)`;
+  - a sheet-local name use `Sheet2!LocalName` and an error reference `Sheet2!#REF!` (Phase1
+    lexer: `TokKind::Name { prefix }`, `Area::RefError`) → `#REF!` (review R2-m5);
+  - a qualified function call `Sheet2!Func(` (a macro-sheet function; Phase1 lexes it as a
+    qualified function) refuses the delete with `Err(UnrewritableReference)`: Excel's form
+    is not verified (XL item 9(b)).
 
   This applies in every formula location of §6's table: cell formulas, names, `c:f`/`c15:f`,
   DV/CF, `cfvo/@val`, `xm:f`, table column formulas, connection parameters, form-control
@@ -387,8 +454,9 @@ rewritten location is returned (`Vec<RewrittenLocation>`) so the caller can audi
 - **Raw-name locations** (`worksheetSource/@sheet` is refused above; `dataRef/@sheet`,
   `rangeSet/@sheet`, `c:pivotSource/c:name`) refuse the delete with
   `Err(UnrewritableReference)`.
-- A `hyperlink/@location` or `#Sheet!` target is left as is. It is a navigation target, not a
-  formula, and Excel shows it as broken. It is the one listed exception in the residual oracle.
+- A `hyperlink/@location` or `#Sheet!` relationship target is left as is. It is a navigation
+  target, not a formula, and Excel shows it as broken. It is the one listed exception in the
+  residual oracle.
 - **Closed world:** a mention of the deleted sheet in sheet-prefix form outside the known
   locations (the scan of §6) refuses the delete with `Err(UnrewritableReference)`.
 
@@ -409,8 +477,8 @@ Position-based state:
 `calcChain.xml` is removed (in the same plan), because the set of formula cells changed. That
 is ADR-0003's calcChain policy, and POI does the same.
 
-**Phase2:** `sst/@count` is recomputed without the deleted sheet's references (ADR-0006 §4.5).
-No style or string entry is removed (Layer 3).
+**Phase2:** `sst/@count` is recomputed without the deleted sheet's references (ADR-0006 §4.5),
+in the staged `sharedStrings.xml` (§2). No style or string entry is removed (Layer 3).
 
 ### 6. Rename a sheet
 
@@ -436,7 +504,8 @@ function for its syntax. The corpus count is the number of packages (a lower bou
 | `connections.xml` `parameter/@cell` | formula (reference) | 1 |
 | form controls: ctrlProps `@fmlaLink`/`@fmlaRange`/`@fmlaTxbx`/`@fmlaGroup`; VML `x:FmlaLink`/`x:FmlaRange`/`x:FmlaTxbx`/`x:FmlaPict`; `controlPr/@linkedCell`/`@listFillRange` | formula (reference) | 0 |
 | `xdr:sp/@textlink`, `cdr:sp/@textlink` | formula (reference) | 0 non-empty |
-| `hyperlink/@location`; `#Sheet!…` targets in sheet and drawing `.rels` | location (`Sheet!A1` / `'S h'!A1`) | 3 |
+| `hyperlink/@location` | location (`Sheet!A1` / `'S h'!A1`) | 3 |
+| `#Sheet!…` targets of Internal relationships in sheet and drawing `.rels` (shape hyperlinks) | location, written through PR #38 `set_relationship_target` (`Id`, `Type`, `TargetMode` stay; review R2-M1) | 3 (18 renames of 838 in the POI corpus) |
 | `app.xml` worksheet titles | raw name (`vt:lpstr`, ST_Xstring) | 294 with titles |
 | `app.xml` "Named Ranges" titles (`'1'!Print_Area`) | location | 32 |
 | `docProps/custom.xml` `linkTarget` | defined-name name (unchanged by a sheet rename) | 9 |
@@ -445,7 +514,10 @@ function for its syntax. The corpus count is the number of packages (a lower bou
 
 - **Formula:**
   - Only sheet-prefix tokens change. The token spans come from Phase1's lexer, so every other
-    byte stays.
+    byte stays. A sheet-prefix token is any token with a sheet prefix: a cell or area
+    reference, a 3-D span, a sheet-local name use (`Sheet2!Name`), an error reference
+    (`Sheet2!#REF!`) and a qualified function call (`Sheet2!Func(`). Rename rewrites the
+    prefix of each (review R2-m5).
   - A 3-D span is quoted **as a whole** (`'Jan:Q1 2024'!A1`), never per endpoint.
   - External references (`[1]Sheet1!A1`, `'[1]Sheet 1'!A1`) are never rewritten, even when
     the name matches: they are another workbook's sheets.
@@ -459,9 +531,11 @@ function for its syntax. The corpus count is the number of packages (a lower bou
   decoding. Writing escapes control characters and protects a literal `_xHHHH_` with
   `_x005F_` (the corpus has a sheet name with `_x000a_`).
 
-**Closed-world scan** (review B3). Before planning, every XML part of the package is scanned,
-whatever its content type. The scan covers every text node and every attribute value, after
-XML unescaping and ST_Xstring decoding, ASCII case-folded.
+**Closed-world scan** (review B3). Before planning, every XML part of the package that is not
+in the operation's closed set is scanned, whatever its content type. The scan covers every
+text node and every attribute value, after XML unescaping and ST_Xstring decoding, folded as
+ADR-0003 rev 4 §2.4 folds sheet names (Unicode upper case, then lower case; a broader fold
+only refuses more; review R2-m4).
 - It looks for the old name in sheet-prefix form: `'…'!`, `Name!`, or a 3-D `A:B!` with the
   old name as an endpoint.
 - Every hit must lie inside a known location, or inside a known non-reference: a cell value
@@ -469,6 +543,18 @@ XML unescaping and ST_Xstring decoding, ASCII case-folded.
   an external `[n]` reference, or a comment text.
 - Any other hit refuses the rename with `Err(UnrewritableReference { part, location })`. A
   silent miss is worse than a refusal.
+- **Blind spots** (review R2-m3), stated in the API docs:
+  - An XML-typed part that does not parse (Excel's legacy VML can leave `<br>` unclosed, e.g.
+    POI `BrNotClosed.xlsx`) gets a byte scan instead (UTF-8 and UTF-16LE, decoded with the
+    same fold); a hit refuses, because such a part cannot be rewritten either.
+  - Binary parts other than ActiveX (`oleObject*.bin`, `printerSettings*.bin`, images) are not
+    scanned. ActiveX refuses the rename outright (above).
+  - The scan looks for the sheet-prefix form only. **Raw-name** locations (no `!`:
+    `worksheetSource/@sheet`, `rangeSet/@sheet`, `dataRef/@sheet`, `app.xml` titles) are
+    found through the table alone; an unknown raw-name location would be missed. The POI
+    corpus has none (review round 2 measurement: the raw-name hits were the table's own
+    locations, external-link sheet names and numeric coincidences).
+- Measured on the POI corpus (review round 2): 0 refusals in 838 renames over 343 packages.
 
 **Not rewritten**, and documented (Excel does not rewrite these either, or they are not ours):
 - sheet names inside formula string literals (`INDIRECT("Sheet1!A1")`,
@@ -498,9 +584,11 @@ XML unescaping and ST_Xstring decoding, ASCII case-folded.
   `SHEET()`/`SHEETS()` callers, and every `Everything` formula (review M3).
 - **3-D endpoint reversal** (review M3). Microsoft documents that "if you reverse the end
   points, the 3-D reference changes the endpoint worksheet". Excel's exact rewrite is not
-  verified, so a move that makes any 3-D reference's first endpoint come after its last is
-  refused with `Err(ReversesThreeDReference { location })`. This is an XL item; adopting
-  Excel's rewrite comes once it is known.
+  verified, so a move that **changes the relative order** of a 3-D reference's two endpoints is
+  refused with `Err(ReversesThreeDReference { location })`. A span that is already reversed in
+  the input (ADR-0003 §2.4 treats `Sheet3:Sheet1` like `Sheet1:Sheet3`) does not by itself
+  refuse every move (review R2-m6). This is an XL item; adopting Excel's rewrite comes once it
+  is known.
 
 ### 8. Hide and unhide
 
@@ -547,9 +635,11 @@ XML unescaping and ST_Xstring decoding, ASCII case-folded.
 ### 10. VBA project
 
 - **`set_vba_project(bin)`** (one transaction; review M8):
-  - adds `xl/vbaProject.bin` with an **`Override`** of `application/vnd.ms-office.vbaProject`.
-    A `bin` Default is often the printer-settings type (110 corpus packages), so the
-    rust_xlsxwriter Default approach is wrong here;
+  - adds `xl/vbaProject.bin` of type `application/vnd.ms-office.vbaProject`, registered by PR
+    #38's rule: nothing when a `bin` Default is exactly that type, else an `Override`. A `bin`
+    Default is usually the printer-settings type (110 corpus packages), so in practice it is
+    an `Override`; the rust_xlsxwriter Default approach would retype the printer settings
+    (review R2-m1);
   - adds the workbook relationship (`…/office/2006/relationships/vbaProject`);
   - sets the workbook content type:
     - `.xlsx` → `…sheet.macroEnabled.main+xml`;
@@ -559,11 +649,18 @@ XML unescaping and ST_Xstring decoding, ASCII case-folded.
     `Sheet{n}`, skipping names in use) **only where absent**, as rust_xlsxwriter does for new
     files.
 - **Signatures** are not produced. Signing is out of scope, so the API takes no signature.
-- **Replacing an existing project** removes the old one in the same plan, as a closed set.
-  The set holds `vbaProject.bin`, its `.rels`, and every part its `.rels` reaches through
-  the signature relationship types `…/vbaProjectSignature`, `…/vbaProjectSignatureAgile` and
-  `…/vbaProjectSignatureV3` (found by type, not by file name). A changed project invalidates
-  every signature. Existing `codeName`s are kept.
+- **Replacing an existing project** removes the old one and adds the new one in the same
+  plan:
+  1. `remove_parts` of the closed set: `vbaProject.bin`, its `.rels`, and every part its
+     `.rels` reaches through the signature relationship types `…/vbaProjectSignature`,
+     `…/vbaProjectSignatureAgile` and `…/vbaProjectSignatureV3` (found by type, not by file
+     name), with `allowed_rel_types` = `vbaProject` (§2);
+  2. `add_part(Exact("xl/vbaProject.bin"))` (the old name: PR #38 lets `Exact` reuse a name
+     removed earlier in the same plan, and registers a fresh content type) and
+     `add_relationship` from the workbook.
+
+  A changed project invalidates every signature. Existing `codeName`s are kept. (Revision 2's
+  wording failed against PR #38 at the time with `NameInUse`; review R2-m1.)
 - **`remove_vba_project()`:** the same closed-set removal, plus the non-macro content type
   (`.xlsm` → `.xlsx`, `.xltm` → `.xltx`).
   - It is refused for `.xlam`: an add-in without macros is not a workbook type
@@ -621,7 +718,17 @@ cached, so seeding it is cheap (review M3).
 | name add/edit/delete | formulas through the name; `Everything` | untouched | — |
 | VBA | none | untouched | — |
 
-All operations run as one PR #38 transaction (§2). An `Err` leaves the package unchanged.
+All operations run as one PR #38 transaction (§2): the strips, `calcPr` and `sst/@count`
+are in staged clones, not applied separately. An `Err` leaves the package unchanged.
+
+**ADR-0003 §5 guards apply** to Phase3, because the seeds include every `Everything` formula
+(review R2-M2):
+- `IterativeCalculation`: a structural operation with a non-empty dependent set in a
+  workbook with `calcPr/@iterate` is refused (POI corpus: 2 packages, `47889`, `57535`);
+- `MacroSheetDependent`: a dependent on a macro or dialog sheet refuses (2 packages);
+- `RichValueCell`: a dependent `vm` cell refuses (0 packages);
+- the workbook-wide blocks of ADR-0003 §1 (unknown cell metadata, a failed census) refuse
+  every Phase3 operation, as they refuse every edit.
 
 ### 13. Errors
 
@@ -642,6 +749,9 @@ All operations run as one PR #38 transaction (§2). An `Err` leaves the package 
 - `ReversesThreeDReference { location }`
 - `BinaryReferencesPossible`
 - `AddinNeedsVba`
+- `IterativeCalculation`, `MacroSheetDependent`, `RichValueCell` and the workbook-wide
+  blocks (ADR-0003 §1, §5; §12)
+- `Poisoned` (a failed in-memory rebuild after apply; ADR-0003 §3.1)
 - core `RegistryRefused` (PR #38)
 
 All are refusals in ADR-0001's sense: nothing changes.
@@ -658,6 +768,8 @@ All are refusals in ADR-0001's sense: nothing changes.
    - `sheetId`s are unique;
    - every `localSheetId` < sheet count;
    - a new part has only the relationships the operation added (review M6).
+1a. **Index oracle** (review R2-M2): after every operation, the rebuilt census, sheet list and
+    registries equal those of `Workbook::open` on the saved output.
 2. **L1** for every part the operation does not touch.
 3. **T2** on `workbook.xml`, `[Content_Types].xml`, `.rels` and `app.xml`: the diff is
    confined to the inserted, removed or moved elements and the renumbered attributes listed
@@ -685,8 +797,10 @@ All are refusals in ADR-0001's sense: nothing changes.
     - after a delete, the deleted name appears nowhere except `hyperlink/@location`/`#…`
       targets.
 
-    A **synthetic fixture** holds one reference in each row of §6's table. The locations
-    openpyxl cannot produce are written as hand XML.
+    A **synthetic fixture** holds one reference in each row of §6's table, including a shape
+    hyperlink `.rels` target `#'Sheet 1'!A1`, a `Sheet2!LocalName`, a `Sheet2!#REF!` and a
+    VML part that does not parse. The locations openpyxl cannot produce are written as hand
+    XML.
 5. **CR (calamine 0.38):**
    - `sheet_names()` order and names;
    - `sheets_metadata()` visibility;
@@ -719,7 +833,13 @@ All are refusals in ADR-0001's sense: nothing changes.
    - `bin` Default used for VBA;
    - cascade removing a shared image;
    - calcChain kept after delete;
-   - `veryHidden` listed in `app.xml`.
+   - `veryHidden` listed in `app.xml`;
+   - a `#Sheet!` relationship target not retargeted on rename;
+   - strip and rewrite staged as two clones of one part (the later wins);
+   - census re-indexed instead of rebuilt, or not updated;
+   - a closed-set part rewritten (refused by PR #38 as `ConflictsWithPlan`);
+   - the scan folding ASCII only;
+   - a reversed input 3-D span refusing every move.
 9. **XL (owner):**
    - (a) rename/delete outputs on `51850`, `ExcelPivotTableSample` (refused delete),
      `TwoSheetsOneHidden`, `reordered_sheets`;
@@ -771,11 +891,17 @@ All are refusals in ADR-0001's sense: nothing changes.
 - These are refused in Phase3: sheet deletes involving pivot tables, slicers, OLE objects,
   controls, SmartArt, chartEx or embedded chart workbooks; renames in workbooks with ActiveX
   binaries; everything in shared workbooks. That is at most 16 of 342 corpus packages, under
-  5% (review m5).
+  5% (review m5). ADR-0003 §5's guards can refuse a structural operation in 4 more packages
+  (iterative calculation, macro-sheet dependents; review R2-M2).
+- Phase1's strip planning (`plan_strip`) must work on a tree that will be staged, not only in
+  place: Phase3 takes its positions and applies them to the clone. The Phase1 apply path
+  stays as it is for value edits.
+- PR #38 gains `set_relationship_target` (R2-M1) and lets `Exact` reuse a name removed in the
+  same plan (R2-m1).
 
 ## Open questions for the project owner
 
-Each question carries the reviewer's recommendation (round 1) as the **proposed default**,
+Each question carries the reviewer's recommendation (round 1; Q7 from round 2) as the **proposed default**,
 pending the owner's confirmation.
 
 - **Q1 (ADR-0001).** *Proposed: yes, as PR #38's note "registry writes".*
@@ -801,12 +927,19 @@ pending the owner's confirmation.
   chartEx/SmartArt for delete. Rename is allowed on sheets with pivots, because
   `worksheetSource/@sheet` and `c:pivotSource/c:name` are rewritten.
 
+- **Q7 (`#Sheet!` relationship targets on rename).** *Proposed: rewrite them* with PR #38's
+  `set_relationship_target`, the review's option 1 (18 of 838 corpus renames). The
+  alternatives were to leave them stale and report `UnrewrittenLocation`, or to refuse such
+  renames (2.1% false refusals).
+
 ## Sources
 
 - ADR-0001 (Layer 3; PR #14 interim note), ADR-0002 §4.3, ADR-0003 (§1 census, §2.4 folding and
   3-D endpoints, §3.1 plan → validate → apply, calcChain policy), ADR-0006 §4.5, §7.3.
 - PR #14 (`Package::remove_part`, OPC part-name equivalence); **PR #38** (`RegistryPlan`:
-  staged transaction, closed-set removal, rules table, ADR-0001 note "registry writes"); PR #21
+  staged transaction, closed-set removal, rules table, ADR-0001 note "registry writes";
+  `set_relationship_target`, `incoming_relationships` on the plan's view, `Exact` reuse of a
+  name removed in the plan — revision after its round-1 review); PR #21
   (O3 LibreOffice recalculation workflow); Phase1 lexer
   (`impl/xlsx-phase1`, `crates/ooxml-xlsx/src/formula/lexer.rs`, error literal and
   `Sheet!#REF!`).
@@ -814,7 +947,8 @@ pending the owner's confirmation.
   references: insert, delete, move, move or reverse an endpoint):
   <https://support.microsoft.com/office/create-a-reference-to-the-same-cell-range-on-multiple-worksheets-c906f8b4-c648-4aa0-8063-65d38d03370f>.
 - Review round 1 probe: `scratchpad/review-pr27/probe/locs.py` (all text nodes and attributes
-  of every XML part, sheet-prefix mentions).
+  of every XML part, sheet-prefix mentions). Review round 2 probes:
+  `scratchpad/review-38-27r2/adr0009/` (`cw_scan2.py`, `raw_probe.py`, `adr0009_probe.rs`).
 - ECMA-376 Part 1:
   - §18.2 (`workbook`, `sheets`, `definedNames`, `bookViews`, `workbookPr/@codeName`);
   - §18.3.1 (`sheetPr/@codeName`, `hyperlink/@location`);
