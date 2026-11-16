@@ -298,6 +298,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::wml::Footer {}
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Header {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Styles {}
 /// Read-only view of [`GraphicData`].
 #[derive(Clone, Debug)]
 pub struct GraphicDataView<'a>(pub ooxml_core::Lens<'a, GraphicData>);
@@ -367,6 +369,11 @@ impl<'a> GraphicDataView<'a> {
     /// `w:settings` children in document order.
     pub fn settings_iter(&self) -> impl Iterator<Item = super::wml::SettingsView<'a>> {
         self.0.children::<super::wml::Settings>().map(super::wml::SettingsView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:styles` children in document order.
+    pub fn styles_iter(&self) -> impl Iterator<Item = super::wml::StylesView<'a>> {
+        self.0.children::<super::wml::Styles>().map(super::wml::StylesView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2146,6 +2153,8 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Footer
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Header>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Styles>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();

@@ -57,14 +57,21 @@ mod body;
 mod document;
 mod error;
 pub mod fields;
+mod format;
 mod names;
 mod replace;
 mod story;
+mod styles;
 mod text;
 
 pub use document::{Document, Paragraph, Run};
 pub use error::{Error, Result};
 pub use fields::Operation;
+pub use format::{
+    Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,
+    Underline, VertAlign,
+};
+pub use styles::{StyleInfo, StyleKind};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
     Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,

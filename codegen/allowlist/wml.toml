@@ -17,6 +17,27 @@ names = [
     "w:CT_Text/w:t",
     "w:CT_Empty/w:tab",
     "w:CT_Br/w:br",
+    # Word Phase1 (ADR-0007 §4, §5, §6.3): property containers, the direct
+    # formatting subset, style references, the updateFields opt-in.
+    "w:CT_OnOff/w:b",
+    "w:CT_OnOff/w:bCs",
+    "w:CT_OnOff/w:i",
+    "w:CT_OnOff/w:iCs",
+    "w:CT_OnOff/w:strike",
+    "w:CT_Underline/w:u",
+    "w:CT_Color/w:color",
+    "w:CT_HpsMeasure/w:sz",
+    "w:CT_HpsMeasure/w:szCs",
+    "w:CT_Highlight/w:highlight",
+    "w:CT_VerticalAlignRun/w:vertAlign",
+    "w:CT_Fonts/w:rFonts",
+    "w:CT_Jc/w:jc",
+    "w:CT_Spacing/w:spacing",
+    "w:CT_Ind/w:ind",
+    "w:CT_OnOff/w:keepNext",
+    "w:CT_OnOff/w:keepLines",
+    "w:CT_String/w:pStyle",
+    "w:CT_String253/w:rStyle",
 ]
 
 # Word Phase0 read-only: navigation to runs (document, tables, hyperlinks),
@@ -59,4 +80,8 @@ names = [
     "w:CT_FtnEdn/w:endnote",
     "w:CT_Comments/w:comments",
     "w:CT_Comment/w:comment",
+    # Word Phase1 (ADR-0007 §5): style lookup.
+    "w:CT_Styles/w:styles",
+    "w:CT_Style/w:style",
+    "w:CT_StyleName/w:name",
 ]
