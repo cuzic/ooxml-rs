@@ -1,0 +1,337 @@
+bodyPr.anchor.from_None                                        326
+bodyPr.anchor.from_layout                                      139
+bodyPr.anchor.from_master                                      618
+bodyPr.anchor.from_slide                                       121
+chain.complete                                                 1271
+chain.no_master                                                1
+      e.g. ('crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx', 'ppt/slideLayouts/slideLayout1.xml')
+clrmap.from_layout                                             10
+clrmap.from_master                                             1258
+clrmap.from_slide                                              3
+clrmap.layout_override                                         10
+      e.g. ('ArtisticEffectSample.pptx', 'ppt/slideLayouts/slideLayout6.xml')
+      e.g. ('ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx', 'ppt/slideLayouts/slideLayout4.xml')
+      e.g. ('ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx', 'ppt/slideLayouts/slideLayout4.xml')
+clrmap.slide_has_clrMapOvr                                     1171
+clrmap.slide_without_clrMapOvr                                 100
+color.resolved                                                 5567
+color.schemeClr.direct                                         697
+color.schemeClr.mapped(bg/tx)                                  4870
+decides.fontRef.fill                                           381
+      e.g. 60810.pptx
+      e.g. 60810.pptx
+      e.g. 60810.pptx
+decides.fontRef.latin                                          51
+      e.g. aascu.org_hbcu_leadershipsummit_cooper_.pptx
+      e.g. aascu.org_hbcu_leadershipsummit_cooper_.pptx
+      e.g. au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx
+decides.paragraph_defRPr.b                                     7
+      e.g. bug65228.pptx
+      e.g. bug65228.pptx
+      e.g. tdf93868.pptx
+decides.paragraph_defRPr.fill                                  3
+      e.g. bug63290.pptx
+      e.g. bug65228.pptx
+      e.g. bug65228.pptx
+decides.paragraph_defRPr.latin                                 12
+      e.g. bug65228.pptx
+      e.g. bug65228.pptx
+      e.g. sc024-026.pptx
+decides.paragraph_defRPr.sz                                    1
+      e.g. bug63290.pptx
+dtftrnum.b.reached_txStyles                                    1
+dtftrnum.fill.reached_txStyles                                 37
+dtftrnum.latin.poi_vs_libreoffice_differ                       51
+      e.g. ('alterman_security.pptx', '+mn-lt', 'Arial')
+      e.g. ('alterman_security.pptx', '+mn-lt', 'Arial')
+      e.g. ('alterman_security.pptx', '+mn-lt', 'Arial')
+dtftrnum.latin.reached_txStyles                                84
+dtftrnum.sz.poi_vs_libreoffice_differ                          1
+      e.g. ('n778859.pptx', '1800', None)
+dtftrnum.sz.reached_txStyles                                   9
+file.no_presentation                                           2
+file.ok                                                        619
+file.unreadable                                                12
+geometry.from_None                                             2
+geometry.from_layout                                           360
+geometry.from_master                                           459
+geometry.from_slide                                            451
+lststyle.defPPr_with_formatting(master)                        16
+      e.g. bug68703.pptx
+      e.g. bug68703.pptx
+      e.g. bug68703.pptx
+lststyle.defPPr_with_formatting(presentation)                  8
+      e.g. bug65228.pptx
+      e.g. bug68703.pptx
+      e.g. placeholder-layout-color.pptx
+master                                                         655
+master.missing_bodyStyle                                       58
+      e.g. LIBRE_OFFICE-100610-0.pptx
+      e.g. LIBRE_OFFICE-100610-0.pptx
+      e.g. bug60993.pptx
+master.missing_otherStyle                                      59
+      e.g. LIBRE_OFFICE-100610-0.pptx
+      e.g. LIBRE_OFFICE-100610-0.pptx
+      e.g. bug60993.pptx
+master.missing_titleStyle                                      59
+      e.g. LIBRE_OFFICE-100610-0.pptx
+      e.g. LIBRE_OFFICE-100610-0.pptx
+      e.g. bug60993.pptx
+match.differs_from_poi[ours=family poi=none slide has idx=True type=True] 2
+      e.g. ('tdf120028.pptx', 'ppt/slides/slide1.xml', 'body/13', 'subTitle/1', None)
+      e.g. ('sc032-036.pptx', 'ppt/slides/slide1.xml', 'body/4294967295', 'subTitle/1', None)
+match.differs_from_poi[ours=idx(family) poi=none slide has idx=False type=True] 4
+      e.g. ('tdf128550.pptx', 'ppt/slides/slide1.xml', 'ctrTitle/0', 'title/0', None)
+      e.g. ('tdf128550.pptx', 'ppt/slides/slide2.xml', 'ctrTitle/0', 'title/0', None)
+      e.g. ('tdf135843_export.pptx', 'ppt/slides/slide1.xml', 'title/0', 'ctrTitle/0', None)
+match.differs_from_poi[ours=idx+family poi=none slide has idx=False type=False] 24
+      e.g. ('bullet-indent.pptx', 'ppt/slides/slide1.xml', 'obj/0', 'body/0', None)
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide4.xml', 'obj/0', 'body/0', None)
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide4.xml', 'obj/0', 'body/0', None)
+match.differs_from_poi[ours=idx+family poi=none slide has idx=False type=True] 20
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide1.xml', 'subTitle/0', 'body/0', None)
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide4.xml', 'subTitle/0', 'body/0', None)
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide4.xml', 'subTitle/0', 'body/0', None)
+match.differs_from_poi[ours=idx+type poi=none slide has idx=False type=False] 3
+      e.g. ('pres-with-notes.pptx', 'ppt/slides/slide2.xml', 'obj/0', 'obj/0', None)
+      e.g. ('tdf157740.pptx', 'ppt/slides/slide1.xml', 'obj/0', 'obj/0', None)
+      e.g. ('tdf169524.pptx', 'ppt/slides/slide1.xml', 'obj/0', 'obj/0', None)
+match.differs_from_poi[ours=type poi=none slide has idx=False type=False] 1
+      e.g. ('formatting-bullet-indent.pptx', 'ppt/slides/slide1.xml', 'obj/0', 'obj/1', None)
+match.differs_from_poi[ours=type poi=none slide has idx=True type=False] 2
+      e.g. ('sc011-013.pptx', 'ppt/slides/slide1.xml', 'obj/4294967295', 'obj/10', None)
+      e.g. ('sc081-autoshape-case014.pptx', 'ppt/slides/slide1.xml', 'obj/4294967295', 'obj/1', None)
+match.differs_from_python_pptx[ours=family ppy=none]           2
+      e.g. ('tdf120028.pptx', 'ppt/slides/slide1.xml', 'body/13', 'subTitle/1', None)
+      e.g. ('sc032-036.pptx', 'ppt/slides/slide1.xml', 'body/4294967295', 'subTitle/1', None)
+match.differs_from_python_pptx[ours=idx+family ppy=other]      44
+      e.g. ('bullet-indent.pptx', 'ppt/slides/slide1.xml', 'obj/0', 'body/0', 'title/0')
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide1.xml', 'subTitle/0', 'body/0', 'title/0')
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide4.xml', 'obj/0', 'body/0', 'title/0')
+match.differs_from_python_pptx[ours=idx+type ppy=other]        10
+      e.g. ('pres-with-notes.pptx', 'ppt/slides/slide1.xml', 'subTitle/0', 'subTitle/0', 'title/0')
+      e.g. ('pres-with-notes.pptx', 'ppt/slides/slide2.xml', 'obj/0', 'obj/0', 'title/0')
+      e.g. ('tdf143129.pptx', 'ppt/slides/slide1.xml', 'subTitle/0', 'subTitle/0', 'title/0')
+match.differs_from_python_pptx[ours=orphan ppy=other]          5
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide2.xml', 'subTitle/0', None, 'title/0')
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide2.xml', 'subTitle/0', None, 'title/0')
+      e.g. ('slide-section-test.pptx', 'ppt/slides/slide2.xml', 'subTitle/0', None, 'title/0')
+match.differs_from_python_pptx[ours=type ppy=none]             5
+      e.g. ('60810.pptx', 'ppt/slides/slide21.xml', 'sldNum/4294967295', 'sldNum/12', None)
+      e.g. ('60810.pptx', 'ppt/slides/slide24.xml', 'sldNum/4294967295', 'sldNum/12', None)
+      e.g. ('bnc584721_4.pptx', 'ppt/slides/slide2.xml', 'sldNum/4294967295', 'sldNum/12', None)
+match.differs_from_python_pptx[ours=type ppy=other]            1
+      e.g. ('formatting-bullet-indent.pptx', 'ppt/slides/slide1.xml', 'obj/0', 'obj/1', 'title/0')
+match.layout.family                                            2
+match.layout.idx                                               1076
+match.layout.idx(family)                                       58
+match.layout.idx+family                                        44
+match.layout.idx+type                                          25
+match.layout.idx_duplicate(idx=0)                              69
+      e.g. ('title', ['title', 'body'])
+      e.g. ('obj', ['title', 'body'])
+      e.g. ('title', ['title', 'subTitle'])
+match.layout.idx_type_differs:body->obj                        50
+      e.g. 45541_Footer.pptx
+      e.g. 45541_Footer.pptx
+      e.g. 45541_Footer.pptx
+match.layout.idx_type_differs:ctrTitle->title                  2
+      e.g. tdf128550.pptx
+      e.g. tdf128550.pptx
+match.layout.idx_type_differs:obj->body                        24
+      e.g. bullet-indent.pptx
+      e.g. slide-section-test.pptx
+      e.g. slide-section-test.pptx
+match.layout.idx_type_differs:obj->subTitle                    1
+      e.g. sc041-054_get_shape_xpath.pptx
+match.layout.idx_type_differs:subTitle->body                   23
+      e.g. slide-section-test.pptx
+      e.g. slide-section-test.pptx
+      e.g. slide-section-test.pptx
+match.layout.idx_type_differs:title->ctrTitle                  2
+      e.g. tdf135843_export.pptx
+      e.g. sc037-050_title-placeholder.pptx
+match.layout.implicit_idx_family_mismatch->type                6
+      e.g. ('obj', ['title'])
+      e.g. ('subTitle', ['title'])
+      e.g. ('subTitle', ['title'])
+match.layout.orphan                                            61
+match.layout.type                                              6
+match.master.by_type                                           1161
+match.master.none:body                                         74
+      e.g. bug64693.pptx
+      e.g. bug64693.pptx
+      e.g. ph-populated-placeholders.pptx
+match.master.none:ftr                                          1
+      e.g. tdf168835.pptx
+match.master.none:sldNum                                       10
+      e.g. aptia.pptx
+      e.g. aptia.pptx
+      e.g. aptia.pptx
+match.master.none:title                                        26
+      e.g. ph-populated-placeholders.pptx
+      e.g. bnc584721_1_2.pptx
+      e.g. bullet-indent.pptx
+match.master.type_duplicate                                    1
+      e.g. body
+nonph.has_fontRef                                              880
+nonph.para.algn.from_None                                      751
+nonph.para.algn.from_master.txStyles.otherStyle                1
+nonph.para.algn.from_paragraph                                 1328
+nonph.para.algn.from_presentation.defaultTextStyle             2991
+nonph.para.algn.from_shape.lstStyle                            45
+nonph.para.bullet.from_None                                    4355
+nonph.para.bullet.from_paragraph                               726
+nonph.para.bullet.from_presentation.defaultTextStyle           2
+nonph.para.bullet.from_shape.lstStyle                          33
+nonph.para.marL.from_None                                      355
+nonph.para.marL.from_master.txStyles.otherStyle                2599
+nonph.para.marL.from_paragraph                                 686
+nonph.para.marL.from_presentation.defaultTextStyle             1419
+nonph.para.marL.from_shape.lstStyle                            57
+nonph.run.b.from_None                                          7728
+nonph.run.b.from_paragraph.defRPr                              7
+nonph.run.b.from_presentation.defaultTextStyle                 11
+nonph.run.b.from_run                                           896
+nonph.run.b.from_shape.lstStyle                                5
+nonph.run.fill.from_None                                       5262
+nonph.run.fill.from_paragraph.defRPr                           3
+nonph.run.fill.from_presentation.defaultTextStyle              1335
+nonph.run.fill.from_run                                        1585
+nonph.run.fill.from_shape.lstStyle                             81
+nonph.run.fill.from_shape.style.fontRef                        381
+nonph.run.latin.from_None                                      8
+nonph.run.latin.from_paragraph.defRPr                          12
+nonph.run.latin.from_presentation.defaultTextStyle             1314
+nonph.run.latin.from_run                                       6731
+nonph.run.latin.from_shape.lstStyle                            65
+nonph.run.latin.from_shape.style.fontRef                       517
+nonph.run.sz.from_None                                         5
+nonph.run.sz.from_master.txStyles.otherStyle                   154
+nonph.run.sz.from_paragraph.defRPr                             3
+nonph.run.sz.from_presentation.defaultTextStyle                822
+nonph.run.sz.from_run                                          7635
+nonph.run.sz.from_shape.lstStyle                               28
+nonph.runs                                                     8647
+nonph.text_shape                                               4001
+notes.body_ph                                                  295
+notes.body_ph_without_master_body                              2
+      e.g. connectors.pptx
+      e.g. sc079-autoshape-case012.pptx
+notes.no_notes_master                                          45
+      e.g. sc027-031.pptx
+      e.g. sc027-031.pptx
+      e.g. sc027-031.pptx
+notes.run.sz.from_notesMaster.notesStyle                       281
+notes.run.sz.from_notesMaster.ph.lstStyle                      1
+notes.run.sz.from_run                                          113
+notes.slide                                                    351
+para.level>0                                                   517
+para.pPr_defRPr_with_formatting                                11
+      e.g. bug63290.pptx
+      e.g. bug65228.pptx
+      e.g. bug65228.pptx
+ph.para.algn.from_None                                         64
+ph.para.algn.from_layout.ph.lstStyle                           251
+ph.para.algn.from_master.ph.lstStyle                           99
+ph.para.algn.from_master.txStyles.bodyStyle                    1394
+ph.para.algn.from_master.txStyles.otherStyle                   10
+ph.para.algn.from_master.txStyles.titleStyle                   408
+ph.para.algn.from_paragraph                                    225
+ph.para.algn.from_presentation.defaultTextStyle                3
+ph.para.bullet.from_None                                       355
+ph.para.bullet.from_layout.ph.lstStyle                         233
+ph.para.bullet.from_master.txStyles.bodyStyle                  872
+ph.para.bullet.from_master.txStyles.otherStyle                 1
+ph.para.bullet.from_master.txStyles.titleStyle                 326
+ph.para.bullet.from_paragraph                                  667
+ph.para.marL.from_None                                         254
+ph.para.marL.from_layout.ph.lstStyle                           196
+ph.para.marL.from_master.txStyles.bodyStyle                    1108
+ph.para.marL.from_master.txStyles.otherStyle                   138
+ph.para.marL.from_master.txStyles.titleStyle                   3
+ph.para.marL.from_paragraph                                    428
+ph.para.marL.from_presentation.defaultTextStyle                327
+ph.run.b.from_None                                             2377
+ph.run.b.from_layout.ph.lstStyle                               495
+ph.run.b.from_master.ph.lstStyle                               2
+ph.run.b.from_master.txStyles.bodyStyle                        44
+ph.run.b.from_master.txStyles.otherStyle                       1
+ph.run.b.from_master.txStyles.titleStyle                       112
+ph.run.b.from_presentation.defaultTextStyle                    5
+ph.run.b.from_run                                              800
+ph.run.fill.from_None                                          5
+ph.run.fill.from_layout.ph.lstStyle                            608
+ph.run.fill.from_master.ph.lstStyle                            78
+ph.run.fill.from_master.txStyles.bodyStyle                     1929
+ph.run.fill.from_master.txStyles.otherStyle                    37
+ph.run.fill.from_master.txStyles.titleStyle                    538
+ph.run.fill.from_presentation.defaultTextStyle                 4
+ph.run.fill.from_run                                           636
+ph.run.fill.from_shape.lstStyle                                1
+ph.run.latin.from_None                                         3
+ph.run.latin.from_layout.ph.lstStyle                           410
+ph.run.latin.from_master.ph.lstStyle                           51
+ph.run.latin.from_master.txStyles.bodyStyle                    1975
+ph.run.latin.from_master.txStyles.otherStyle                   84
+ph.run.latin.from_master.txStyles.titleStyle                   577
+ph.run.latin.from_presentation.defaultTextStyle                3
+ph.run.latin.from_run                                          732
+ph.run.latin.from_shape.lstStyle                               1
+ph.run.sz.from_None                                            9
+ph.run.sz.from_layout.ph.lstStyle                              1023
+ph.run.sz.from_master.ph.lstStyle                              111
+ph.run.sz.from_master.txStyles.bodyStyle                       819
+ph.run.sz.from_master.txStyles.otherStyle                      9
+ph.run.sz.from_master.txStyles.titleStyle                      422
+ph.run.sz.from_presentation.defaultTextStyle                   4
+ph.run.sz.from_run                                             1439
+ph.runs                                                        3836
+ph.slide                                                       1272
+ph.slide.on_p:graphicFrame                                     29
+ph.slide.on_p:pic                                              21
+ph.slide.on_p:sp                                               1222
+q6.b.poi_vs_ecma_note_bodyStyle_differ                         40
+      e.g. ('45541_Footer.pptx', None, '1')
+      e.g. ('45541_Footer.pptx', None, '1')
+      e.g. ('45541_Footer.pptx', None, '1')
+q6.b.reached                                                   7739
+q6.fill.order_dts_vs_other_differ                              10
+      e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
+      e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
+      e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
+q6.fill.poi_vs_ecma_note_bodyStyle_differ                      11
+      e.g. ('slide-sections.pptx', 'solid:a:schemeClr:tx1', 'solid:a:schemeClr:bg1')
+      e.g. ('slide-sections.pptx', 'solid:a:schemeClr:tx1', 'solid:a:schemeClr:bg1')
+      e.g. ('slide-sections.pptx', 'solid:a:schemeClr:tx1', 'solid:a:schemeClr:bg1')
+q6.fill.reached                                                6597
+q6.latin.order_dts_vs_other_differ                             564
+      e.g. ('45541_Footer.pptx', 'Arial', '+mn-lt')
+      e.g. ('45541_Header.pptx', 'Arial', '+mn-lt')
+      e.g. ('45545_Comment.pptx', 'Arial', '+mn-lt')
+q6.latin.poi_vs_ecma_note_bodyStyle_differ                     613
+      e.g. ('45541_Footer.pptx', 'Arial', '+mn-lt')
+      e.g. ('45541_Header.pptx', 'Arial', '+mn-lt')
+      e.g. ('45545_Comment.pptx', 'Arial', '+mn-lt')
+q6.latin.reached                                               1322
+q6.sz.order_dts_vs_other_differ                                91
+      e.g. ('45541_Footer.pptx', '2400', '1800')
+      e.g. ('45541_Footer.pptx', '2400', '1800')
+      e.g. ('45541_Footer.pptx', '2400', '1800')
+q6.sz.poi_vs_ecma_note_bodyStyle_differ                        976
+      e.g. ('45541_Footer.pptx', '2400', '3200')
+      e.g. ('45541_Footer.pptx', '2400', '3200')
+      e.g. ('45541_Footer.pptx', '2400', '3200')
+q6.sz.poi_vs_libreoffice_differ                                154
+      e.g. ('alterman_security.pptx', '1800', None)
+      e.g. ('alterman_security.pptx', '1800', None)
+      e.g. ('alterman_security.pptx', '1800', None)
+q6.sz.reached                                                  981
+slide                                                          1272
+theme.font_ref                                                 4025
+theme.font_ref_unresolved                                      4
+      e.g. ('bug64693.pptx', '+mn-ea')
+      e.g. ('bug64693.pptx', '+mn-ea')
+      e.g. ('bug64693.pptx', '+mj-ea')
+txStyles.level_missing_lower_present                           1
+      e.g. sc031-035.pptx

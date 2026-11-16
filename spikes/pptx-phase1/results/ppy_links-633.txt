@@ -1,0 +1,15 @@
+notes text: agree                                340
+notes: no body placeholder, agree                11
+run link: action ppaction://hlinkfile (python-pptx reports address 'documentfoundation.org') 1
+run link: action ppaction://hlinksldjump (python-pptx reports address 'slide1.xml') 10
+run link: action ppaction://hlinksldjump (python-pptx reports address 'slide2.xml') 5
+run link: action ppaction://hlinksldjump (python-pptx reports address 'slide3.xml') 2
+run link: agree                                  46
+run link: python-pptx raised KeyError (action with empty r:id) 16
+shape link Hyperlink: agree                      17
+shape link Jump: agree                           11
+shape link Other: agree                          22
+shape link Slide: agree                          42
+shape: no link, agree                            6257
+shape: python-pptx raised TypeError              293
+skipped (unreadable by either)                   17
