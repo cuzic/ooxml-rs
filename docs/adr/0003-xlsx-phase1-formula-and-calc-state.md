@@ -546,20 +546,25 @@ gets a post-acceptance note with this text:
 > attributes in the source part; `calcChain`'s is referenced nowhere). No remaining entry is ever
 > renumbered.
 
-`remove_part` contract:
+`remove_part(name, allowed_rel_types)` contract (as revised by the PR #14 round-1 review):
 
 - **Precondition**: the part exists and is not a registry part; it has **no relationships part
-  of its own**, else `Err` (cascading deletion is out of scope); no attribute in the
-  relationships namespace in a removed relationship's source part has the removed `Id` as its
-  value (event scan by resolved namespace); every registry part to change is editable in place.
+  of its own** (case-insensitive), else `Err` (cascading deletion is out of scope); every
+  relationship to it has a type the caller allows (a part found by relationship type is
+  referenced implicitly; ooxml-xlsx allows only the calcChain type); no attribute of a removed
+  relationship's source part, in any namespace (`r:id`, VML `o:relid`, …), equals the removed
+  `Id` after XML unescaping; every registry part to change is editable in place (a broken
+  `.rels` that does not mention the part is ignored). Refusals are a typed `RemoveRefusal`.
 - **Scope**: every `.rels` part in the package is scanned. Every internal relationship that
-  resolves to the part is removed. The part's `Override` is removed; a `Default` is never
-  touched.
+  resolves to the part is removed. Every `Override` for the part is removed; a `Default` is
+  never touched.
 - **Whitespace**: the removed element **and the whitespace-only text node immediately before
   it, if any**, are removed, so indented `.rels` and content-types parts stay tidy. T2's allowed
   diff for these parts is exactly that element plus that text node.
-- **Atomicity**: all checks run before anything changes; the in-memory content-type and
-  package-relationship caches are updated with the parts (R2-M3).
+- **Atomicity**: `check_remove_part(&self, …)` and `remove_part` run one validation that changes
+  nothing (not even part states); after it the removal cannot fail. The in-memory content-type
+  and package-relationship caches are updated with the parts (R2-M3). Until this ADR is
+  accepted, ADR-0001 carries an interim note recording this exception.
 
 ### 5. Guards
 

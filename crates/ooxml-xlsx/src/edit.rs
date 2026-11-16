@@ -15,7 +15,7 @@ use crate::formula::precedents::Rect;
 use crate::formula::translate::translate;
 use crate::graph::{Graph, precedents_of};
 use crate::reference::{CellIndex, CellRange};
-use crate::workbook::{CalcPolicy, Workbook};
+use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, Workbook};
 use crate::worksheet::{Located, TargetPlan, locate, located_cell, plan_target, write_cell};
 
 /// What a setter writes into the target cell.
@@ -180,7 +180,7 @@ impl Workbook {
         // ---- calcChain ----
         let chain = if formula_set_changes { self.calc_chain.clone() } else { None };
         if let Some(p) = &chain {
-            self.pkg.check_remove_part(p)?;
+            self.pkg.check_remove_part(p, &[REL_CALC_CHAIN])?;
         }
 
         // ---- apply ----
@@ -281,7 +281,7 @@ impl Workbook {
         // (i) calcChain
         self.fault_point(Step::RemoveCalcChain)?;
         if let Some(p) = &chain {
-            self.pkg.remove_part(p)?;
+            self.pkg.remove_part(p, &[REL_CALC_CHAIN])?;
             self.calc_chain = None;
         }
         // (ii) workbook.xml
