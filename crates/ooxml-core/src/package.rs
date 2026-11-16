@@ -31,7 +31,9 @@ use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relation
 use crate::xml::{ParseOptions, XmlDocument};
 
 mod add;
-pub use add::{AddRefusal, AddedPart, PartContent};
+pub use add::{
+    IncomingRelationship, PartContent, PartNameRequest, RELATIONSHIPS_CONTENT_TYPE, RegistryPlan, RegistryRefusal, RemovedParts, Target,
+};
 
 /// `[Content_Types].xml` or a relationships part.
 fn is_opc_metadata(name: &str) -> bool {
@@ -191,6 +193,13 @@ pub struct Package {
     content_types: ContentTypes,
     package_rels: Relationships,
     parse_options: ParseOptions,
+    /// Process-unique id, so a [`RegistryPlan`] is applied only to the
+    /// package it was planned against.
+    id: u64,
+    /// Bumped by every change; a plan made before a change is stale.
+    generation: u64,
+    /// Parts removed in this session (never reused by numbered names).
+    removed_names: Vec<String>,
 }
 
 impl Package {
@@ -249,6 +258,9 @@ impl Package {
             content_types: ContentTypes::default(),
             package_rels: Relationships::empty(None),
             parse_options: options,
+            id: add::new_package_id(),
+            generation: 0,
+            removed_names: Vec::new(),
         };
         pkg.content_types = ContentTypes::parse(&pkg.read_part(CONTENT_TYPES_PART)?)?;
         let rels_name = rels_part_name(None);
@@ -357,6 +369,8 @@ impl Package {
     /// [`XmlDocument::lens_mut`].
     pub fn xml_part_mut(&mut self, name: &str) -> Result<&mut XmlDocument> {
         let i = self.ensure_parsed(name)?;
+        // The caller may edit the tree: a registry plan made before is stale.
+        self.generation += 1;
         match &mut self.parts[i].state {
             PartState::Parsed(d) => Ok(d),
             _ => unreachable!(),
@@ -369,6 +383,7 @@ impl Package {
     pub fn set_part(&mut self, name: &str, bytes: impl Into<Vec<u8>>) -> Result<()> {
         let i = self.find(name).ok_or_else(|| Error::NewPartUnsupported(name.into()))?;
         self.parts[i].state = PartState::Replaced(bytes.into());
+        self.generation += 1;
         Ok(())
     }
 
@@ -627,7 +642,9 @@ impl Package {
         if let Some(r) = plan.package_rels {
             self.package_rels = r;
         }
+        self.removed_names.push(self.parts[plan.part].name.clone());
         self.parts.remove(plan.part);
+        self.generation += 1;
         plan.removed
     }
 

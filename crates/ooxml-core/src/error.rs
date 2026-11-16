@@ -131,17 +131,17 @@ pub enum Error {
         /// Which precondition failed.
         reason: crate::package::RemoveRefusal,
     },
-    /// [`Package::add_part`](crate::Package::add_part),
-    /// [`Package::add_relationship`](crate::Package::add_relationship) or
-    /// [`Package::set_content_type`](crate::Package::set_content_type)
-    /// refused (nothing was changed).
-    #[error("cannot register {part:?}: {reason}")]
-    AddRefused {
-        /// The part being added, the relationship's source part (`""` for
-        /// the package), or the part whose content type is set.
+    /// A registry write ([`RegistryPlan`](crate::RegistryPlan) step,
+    /// [`Package::apply`](crate::Package::apply) or a one-step convenience
+    /// such as [`Package::add_part`](crate::Package::add_part)) was refused;
+    /// nothing was changed.
+    #[error("registry write refused ({part:?}): {reason}")]
+    RegistryRefused {
+        /// The part concerned (the new part, the relationship's source —
+        /// `""` for the package — or the part whose type is set).
         part: String,
         /// Which precondition failed.
-        reason: crate::package::AddRefusal,
+        reason: crate::package::RegistryRefusal,
     },
 }
 

@@ -102,6 +102,66 @@
   accepted and its §4.3 contains at least these conditions (the
   relationship-type allowlist and the any-attribute rule), it replaces
   this note; if it is rejected, `remove_part` is removed again.
+- **Post-acceptance note (2026-11-16, draft for the owner — registry
+  writes):** Layer 3 is written only through `ooxml-core`'s registry
+  transaction (`RegistryPlan` + `Package::apply`) and PR #14's
+  `remove_part`. Callers are the format phases that add or remove parts
+  (xlsx Phase3, ADR-0009; Word Phase2, ADR-0011; PowerPoint Phase2,
+  ADR-0012). The rules, which generalise the interim note above:
+  - **Allocation is append-only, without exception.**
+    - New `Default`, `Override` and `Relationship` entries are appended.
+    - A new relationship `Id` is `rId{max N + 1}` for its source and is
+      never one that existed in the package or was removed in the same
+      plan.
+    - A new numbered part name is `max N + 1` for its template, over every
+      name in use (parts, `Override`s, relationship targets including
+      dangling ones, names removed in the session).
+    - No existing entry is ever renumbered, reordered or reused.
+  - **An existing entry may change only as follows:**
+    - (a) The `ContentType` of the `Override`s of one named part may be set,
+      for example to switch a workbook to macro-enabled.
+    - (b) A registry entry may be removed together with the thing it
+      registers:
+      - an `Override` with its part;
+      - a relationship with its target part, or on its own;
+      - a part's own relationships part with the part.
+
+      This is allowed only when nothing that remains refers to it. That
+      means the relationship type is on the caller's allowlist (parts found
+      by type are referenced implicitly), and no attribute of a remaining
+      source part carries the removed `Id` (any attribute, any namespace,
+      after XML unescaping).
+    - A set of parts may be removed together. References *inside* the set
+      do not block, because the set goes as a whole.
+    - `Default`s are never removed or changed.
+  - Every operation is planned in full, against the package and the
+    earlier steps of the same plan, before anything changes. An `Err`
+    leaves the package unchanged, and applying a validated plan cannot
+    fail.
+
+  - Content edits of non-registry parts that belong to the same change
+    (`stage_part`) are validated in the same plan, and reference scans read
+    the staged content.
+
+  The rules table below is normative for every format crate. It is the same
+  table as in `crates/ooxml-core/README.md`.
+
+  | Rule | Decision | Why |
+  | --- | --- | --- |
+  | Transaction | `RegistryPlan` (owned, no borrow of the package) collects steps; each step is validated against the package **plus the earlier steps**, and a refused step leaves the plan unchanged; `Package::apply` applies all of it and cannot fail except `StalePlan`. Dropping a plan is the validate-only twin of a whole batch. | Dependent multi-part edits (part + relationship to it; content edit + removal of what it stops naming) must validate together (ADR-0009 B2, ADR-0011 B1, ADR-0012 B1). |
+  | Content of existing parts | `stage_part(name, bytes \| XmlDocument)`: staged content is the source that later reference scans read; content staged after a relationship removal may not name the removed `Id`. Edit a clone (`pkg.xml_part(name)?.clone()`) with a lens, then stage it. | A lens edit and a registry edit go in one batch without holding `&mut Package`. |
+  | Part names | `Exact(name)` or `Numbered(template)`: **max N + 1** per template (ASCII case-insensitive, percent-decoded), over existing parts, `Override`s, relationship targets (dangling ones included), names removed in the session or the plan, and names planned earlier. Gaps are never filled. | A name that existed may still be named somewhere this crate cannot see (a dangling relationship elsewhere, another tool's cache, a removed part's leftover references); max + 1 never reuses one, so a part name identifies one part across sessions. ADR-0011's "smallest free n" also avoids collisions but can resurrect such a name; the corpora have no case where max + 1 is worse than a gap. |
+  | A name is taken when | a part has an OPC-equivalent name, or one is a segment prefix of the other; an `Override` names it; a relationship target resolves to it (dangling included); **a `.rels` part for it is left over** (ADR-0009 M6); it was removed in the plan. | Each would give the new part a meaning or a type it was not given. |
+  | Relationship `Id`s | `rId{N + 1}`, N = largest number among the source's `rId<digits>` Ids (prefix ASCII case-insensitive) and the Ids planned for it; an `Id` used under ASCII case folding is skipped. Other Ids (`R44c8…`) are left alone. An Id removed in the plan is not reused. `copy_relationships` keeps the source's Ids (only into a part without relationships). | Matches Office and POI output (`rIdN` in 99% of corpus files); gaps may be relationships another tool removed while a stale `r:id` survived. |
+  | Content types | A new part gets **nothing** when a `Default` (existing or planned) gives exactly its type, or an `Override` left for the name has exactly its type; otherwise an **`Override`**. A `Default` is added only by `add_default_content_type`, and only when no existing or planned part with that extension lacks an `Override` (else its type would change). `Default`s are never changed or removed. A left-over `Override` with another type refuses the name. | Media: call `add_default_content_type(ext)` first when the extension has none (the Office convention, ADR-0011), then `add_part`; when a `Default` for the extension has another type (e.g. `bin` = printer settings), the part gets an `Override` (ADR-0009). |
+  | Changing entries | Only: the `ContentType` of one named part's `Override`s (`set_content_type`); removing a relationship nobody refers to (`remove_relationship`); removing the entries that register removed parts (`remove_parts`). | Layer 3 append-only invariant, generalised (ADR-0001 note). |
+  | Removal | `remove_parts(set, allowed_rel_types)`: a **closed set**, each part with its own `.rels`; references inside the set do not block; a relationship from a staying part must have an allowed type (parts found by type are referenced implicitly) and must not be named by its source (any attribute, any namespace, after unescaping; staged content counts); `Override`s go, `Default`s never; returns kept targets; `incoming_relationships(part)` answers "is it an orphan now". | PR #14's safety conditions, extended to sets (ADR-0009 B1, ADR-0012 §6). |
+  | Registry parts | `[Content_Types].xml` and `.rels` parts are written only by these operations; one that was replaced wholesale (`set_part`) or does not parse refuses any step that must change it. New entries are appended after a copy of the whitespace before the current last entry. | Byte locality: untouched registry parts stay raw (L1); touched ones change only at the end. |
+  | New parts in the zip | Appended after every original entry, Deflated; `[Content_Types].xml` keeps its position. | L1 for every original entry. |
+
+  If accepted, this note replaces the interim note above, and PR #14's
+  `remove_part` becomes the one-part case of `remove_parts` that refuses
+  parts with their own relationships.
 
 ## Context
 

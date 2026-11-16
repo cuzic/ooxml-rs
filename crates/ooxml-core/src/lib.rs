@@ -29,6 +29,9 @@ pub mod xml;
 pub use error::{Error, Result};
 pub use lens::{Lens, LensMut};
 pub use name::{QName, XName};
-pub use package::{AddRefusal, AddedPart, Package, PartContent, PartState, PartStateKind, RemoveRefusal, RemovedPart};
+pub use package::{
+    IncomingRelationship, Package, PartContent, PartNameRequest, PartState, PartStateKind, RegistryPlan, RegistryRefusal, RemoveRefusal,
+    RemovedPart, RemovedParts, Target,
+};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
 pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};

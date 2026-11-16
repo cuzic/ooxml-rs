@@ -72,6 +72,11 @@ impl ContentTypes {
         self.overrides.push((part.trim_start_matches('/').to_owned(), content_type.to_owned()));
     }
 
+    /// Records a new default (after a registry plan wrote it to the XML).
+    pub(crate) fn push_default(&mut self, ext: &str, content_type: &str) {
+        self.defaults.push((ext.to_owned(), content_type.to_owned()));
+    }
+
     /// Sets the content type of every override for `part`.
     pub(crate) fn set_override(&mut self, part: &str, content_type: &str) {
         for (p, t) in &mut self.overrides {
