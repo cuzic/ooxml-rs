@@ -5583,6 +5583,8 @@ impl ooxml_core::ElementSpec for RunProperties {
     );
 }
 impl ooxml_core::ChildOf<RunProperties> for Bold {}
+impl ooxml_core::ChildOf<RunProperties> for Condense {}
+impl ooxml_core::ChildOf<RunProperties> for Extend {}
 impl ooxml_core::ChildOf<RunProperties> for Italic {}
 impl ooxml_core::ChildOf<RunProperties> for Strike {}
 impl ooxml_core::ChildOf<RunProperties> for Color {}
@@ -5591,6 +5593,7 @@ impl ooxml_core::ChildOf<RunProperties> for FontScheme {}
 impl ooxml_core::ChildOf<RunProperties> for FontSize {}
 impl ooxml_core::ChildOf<RunProperties> for FontFamily {}
 impl ooxml_core::ChildOf<RunProperties> for Underline {}
+impl ooxml_core::ChildOf<RunProperties> for VerticalTextAlignment {}
 /// Read-only view of [`RunProperties`].
 #[derive(Clone, Debug)]
 pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
@@ -5598,6 +5601,14 @@ impl<'a> RunPropertiesView<'a> {
     /// `x:b` children in document order.
     pub fn bold_iter(&self) -> impl Iterator<Item = BoldView<'a>> {
         self.0.children::<Bold>().map(BoldView)
+    }
+    /// `x:condense` children in document order.
+    pub fn condense_iter(&self) -> impl Iterator<Item = CondenseView<'a>> {
+        self.0.children::<Condense>().map(CondenseView)
+    }
+    /// `x:extend` children in document order.
+    pub fn extend_iter(&self) -> impl Iterator<Item = ExtendView<'a>> {
+        self.0.children::<Extend>().map(ExtendView)
     }
     /// `x:i` children in document order.
     pub fn italic_iter(&self) -> impl Iterator<Item = ItalicView<'a>> {
@@ -5630,6 +5641,12 @@ impl<'a> RunPropertiesView<'a> {
     /// `x:u` children in document order.
     pub fn underline_iter(&self) -> impl Iterator<Item = UnderlineView<'a>> {
         self.0.children::<Underline>().map(UnderlineView)
+    }
+    /// `x:vertAlign` children in document order.
+    pub fn vertical_text_alignment_iter(
+        &self,
+    ) -> impl Iterator<Item = VerticalTextAlignmentView<'a>> {
+        self.0.children::<VerticalTextAlignment>().map(VerticalTextAlignmentView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -5665,6 +5682,50 @@ impl<'a> RunPropertiesViewMut<'a> {
     /// Removes the first `x:b` child.
     pub fn remove_bold(&mut self) -> bool {
         self.0.remove::<Bold>()
+    }
+    /// First `x:condense` child matching `pred`, mutably.
+    pub fn condense_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CondenseViewMut<'_>> {
+        self.0.child_mut_by::<Condense>(pred).map(CondenseViewMut)
+    }
+    /// Inserts a `x:condense` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_condense_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CondenseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Condense>(before).map(CondenseViewMut)
+    }
+    /// Appends a `x:condense` at the end of its slot.
+    pub fn insert_condense(&mut self) -> Result<CondenseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Condense>().map(CondenseViewMut)
+    }
+    /// Removes the first `x:condense` child.
+    pub fn remove_condense(&mut self) -> bool {
+        self.0.remove::<Condense>()
+    }
+    /// First `x:extend` child matching `pred`, mutably.
+    pub fn extend_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ExtendViewMut<'_>> {
+        self.0.child_mut_by::<Extend>(pred).map(ExtendViewMut)
+    }
+    /// Inserts a `x:extend` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_extend_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ExtendViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Extend>(before).map(ExtendViewMut)
+    }
+    /// Appends a `x:extend` at the end of its slot.
+    pub fn insert_extend(&mut self) -> Result<ExtendViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Extend>().map(ExtendViewMut)
+    }
+    /// Removes the first `x:extend` child.
+    pub fn remove_extend(&mut self) -> bool {
+        self.0.remove::<Extend>()
     }
     /// First `x:i` child matching `pred`, mutably.
     pub fn italic_mut_by(
@@ -5849,6 +5910,34 @@ impl<'a> RunPropertiesViewMut<'a> {
     /// Removes the first `x:u` child.
     pub fn remove_underline(&mut self) -> bool {
         self.0.remove::<Underline>()
+    }
+    /// First `x:vertAlign` child matching `pred`, mutably.
+    pub fn vertical_text_alignment_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<VerticalTextAlignmentViewMut<'_>> {
+        self.0
+            .child_mut_by::<VerticalTextAlignment>(pred)
+            .map(VerticalTextAlignmentViewMut)
+    }
+    /// Inserts a `x:vertAlign` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_vertical_text_alignment_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<VerticalTextAlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<VerticalTextAlignment>(before)
+            .map(VerticalTextAlignmentViewMut)
+    }
+    /// Appends a `x:vertAlign` at the end of its slot.
+    pub fn insert_vertical_text_alignment(
+        &mut self,
+    ) -> Result<VerticalTextAlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<VerticalTextAlignment>().map(VerticalTextAlignmentViewMut)
+    }
+    /// Removes the first `x:vertAlign` child.
+    pub fn remove_vertical_text_alignment(&mut self) -> bool {
+        self.0.remove::<VerticalTextAlignment>()
     }
 }
 /// `x:CT_Row/x:row` — Row.
@@ -9003,6 +9092,8 @@ const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
 const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Bold>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Condense>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Extend>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Italic>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Strike>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Color>();
@@ -9011,6 +9102,7 @@ const _: () = ooxml_core::schema::assert_child::<RunProperties, FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, FontSize>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, FontFamily>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<Row>();
 const _: () = ooxml_core::schema::assert_child::<Row, Cell>();
 const _: () = ooxml_core::schema::assert_spec::<InlineString>();
