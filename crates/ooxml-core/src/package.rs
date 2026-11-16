@@ -102,9 +102,10 @@ pub enum RemoveRefusal {
     },
     /// A relationship's target has the part's file name as its last segment
     /// (unescaped, percent-decoded, `\` counted as a separator) but resolves
-    /// to no existing part, or an unreadable relationships part mentions the
-    /// file name: a spelling this code does not resolve might still point at
-    /// the part (safety net; refusing is the safe side).
+    /// to no existing part: a spelling this code does not resolve might still
+    /// point at the part (safety net; refusing is the safe side). An
+    /// *unreadable* relationships part that mentions the file name refuses
+    /// with [`RemoveRefusal::RegistryNotEditable`] instead.
     UnresolvedMention {
         /// The relationships part.
         rels: String,
@@ -131,7 +132,7 @@ impl std::fmt::Display for RemoveRefusal {
             RemoveRefusal::StillReferenced { source, id } => write!(f, "{source} still refers to relationship {id}"),
             RemoveRefusal::SourceNotScannable { source, reason } => write!(f, "cannot scan {source} for references: {reason}"),
             RemoveRefusal::UnresolvedMention { rels } => {
-                write!(f, "{rels} mentions the part's file name but no relationship there resolves to it")
+                write!(f, "a relationship in {rels} has the part's file name but resolves to no part")
             }
             RemoveRefusal::RegistryNotEditable { part, reason } => write!(f, "{part} cannot be edited in place: {reason}"),
         }
@@ -483,11 +484,16 @@ impl Package {
         let mut edits = Vec::new();
         let mut relationships = Vec::new();
         let mut package_ids = Vec::new();
-        for (pi, p) in self.parts.iter().enumerate().filter(|(_, p)| is_rels_part(&normalize_part_name(&p.name))) {
+        for (pi, p) in self.parts.iter().enumerate() {
             let rels_name = p.name.clone();
-            // Recognised on the normalized name, so `%5Frels`/`.rel%73`
-            // spellings are relationships parts too (review N14).
-            let Some(source) = source_of_rels_part(&normalize_part_name(&rels_name)) else { continue };
+            let raw_rels = is_rels_part(&rels_name);
+            // `%5Frels`/`.rel%73` spellings (invalid OPC names: percent-encoded
+            // unreserved characters) are relationships parts only after
+            // decoding (review N14).
+            let decoded_rels = is_rels_part(&normalize_part_name(&rels_name));
+            if !raw_rels && !decoded_rels {
+                continue;
+            }
             let not_editable = |reason: String| refuse(RemoveRefusal::RegistryNotEditable { part: rels_name.clone(), reason });
             // Whether an *unreadable* relationships part mentions the part's
             // file name in its raw text (percent-decoded, case-folded): it
@@ -499,6 +505,17 @@ impl Package {
                         .read_part(&rels_name)
                         .map(|b| normalize_part_name(&String::from_utf8_lossy(&b)).contains(&file_name))
                         .unwrap_or(true)
+            };
+            // The source part and the base for relative targets come from the
+            // **raw** name: deriving them from the decoded name and then
+            // looking the source up (which decodes again) would decode twice
+            // and miss `xl/a%2541.xml` (review N17). A relationships part
+            // recognised only after decoding cannot be attributed reliably,
+            // so it refuses the removal if it mentions the part at all.
+            let source = match raw_rels.then(|| source_of_rels_part(&rels_name)).flatten() {
+                Some(s) => s,
+                None if mentions() => return Err(not_editable("an invalid relationships part name (percent-encoded `_rels`/`.rels`) that mentions the part".into())),
+                None => continue,
             };
             let mut fresh: Option<XmlDocument> = None;
             let replaced_doc;
