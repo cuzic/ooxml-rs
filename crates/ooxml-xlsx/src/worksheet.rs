@@ -233,6 +233,19 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
         let sd = ws.into_child_by::<sml::SheetData>(|_| true).expect("indexed sheetData");
         sd.check_insert_at::<sml::Row>(loc.row_insert_at)?;
     }
+    if let (Some(ri), None) = (loc.row, loc.cell) {
+        // a new cell at the indexed position (O(1), PR #29 review m3); a row
+        // whose `extLst` precedes a cell is refused as `insert_by` would
+        let rows = index.target_rows(part)?;
+        let entry = rows.binary_search_by_key(&(at.row + 1), |e| e.row).ok().map(|k| &rows[k]);
+        if entry.is_some_and(|e| e.misordered) {
+            return Err(ooxml_core::Error::UnresolvedSibling(sml::Row::QNAME).into());
+        }
+        let ws = doc.lens_mut::<sml::Worksheet>()?;
+        let sd = ws.into_child_by::<sml::SheetData>(|_| true).expect("indexed sheetData");
+        let row = sd.into_child_at::<sml::Row>(ri).expect("located row");
+        row.check_insert_at::<sml::Cell>(loc.cell_insert_at)?;
+    }
     let ws = sml::WorksheetView(doc.lens::<sml::Worksheet>()?);
     let new_child = match op {
         CellOp::Number(_) => Some(sml::CellValue::QNAME),
@@ -247,7 +260,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
             Some(ri) => {
                 let row = sd.raw().children()[ri].as_element().expect("located row");
                 match loc.cell {
-                    None => check_insertable::<sml::Row>(row.elements(), sml::Cell::QNAME)?,
+                    None => {} // checked above, at the indexed position
                     Some(ci) => {
                         let c = row.children()[ci].as_element().expect("located cell");
                         if c.attr(sml::Cell::ATTR_VM).is_some() {
@@ -310,7 +323,6 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
 pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex, op: &CellOp) -> Result<WriteEffect> {
     let loc = plan.loc;
     let row_no = at.row + 1;
-    let col = at.col;
     let mut effect = WriteEffect::default();
     {
         effect.created_sheet_data = sml::WorksheetView(doc.lens::<sml::Worksheet>()?).sheet_data().is_none();
@@ -329,11 +341,10 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
         let mut c = match loc.cell {
             Some(i) => sml::CellViewMut(row.0.into_child_at::<sml::Cell>(i).expect("located cell")),
             None => {
-                let mut c = row.insert_cell_by(|_, n| {
-                    n.attr(sml::Cell::ATTR_R).and_then(|r| CellIndex::parse(r).ok()).is_some_and(|c| c.col > col)
-                })?;
+                let item = if loc.row.is_some() { loc.cell_insert_at } else { 0 };
+                let mut c = sml::CellViewMut(row.0.insert_at::<sml::Cell>(item)?);
                 c.set_cell_reference(&at.to_string())?;
-                effect.new_cell = c.0.path().last().copied();
+                effect.new_cell = Some(item);
                 c
             }
         };
@@ -464,7 +475,7 @@ impl<'wb> Worksheet<'wb> {
         let part = self.part_name();
         let index = self.index();
         let sd = sheet_data(self.doc());
-        let rows: Vec<Result<&crate::index::RowEntry>> = match index.rows(part) {
+        let rows: Vec<Result<&crate::index::RowEntry>> = match index.target_rows(part) {
             Ok(rows) => rows.iter().map(Ok).collect(),
             Err(e) => vec![Err(e)],
         };
@@ -473,7 +484,7 @@ impl<'wb> Worksheet<'wb> {
                 Ok(e) => e,
                 Err(err) => return Box::new(std::iter::once(Err(err))),
             };
-            let cells = match index.cells(e, part) {
+            let cells = match index.target_cells(e, part) {
                 Ok(c) => c,
                 Err(err) => return Box::new(std::iter::once(Err(err))),
             };

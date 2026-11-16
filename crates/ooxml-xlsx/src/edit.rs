@@ -340,7 +340,19 @@ impl Workbook {
         }
         // (v) the target cell
         self.fault_point(Step::Target)?;
-        let effect = write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op)?;
+        let effect = match write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op) {
+            Ok(effect) => effect,
+            Err(e) => {
+                // The tree may have changed before the failure (unreachable
+                // after a successful plan): keep the index true to the tree,
+                // since reads still work on a poisoned workbook (PR #29 m4).
+                if let Ok(doc) = self.pkg.xml_part(part) {
+                    let index = SheetIndex::build(doc);
+                    self.indexes.insert(sheet, index);
+                }
+                return Err(e);
+            }
+        };
         if let Some(index) = self.indexes.get_mut(&sheet) {
             effect.update(index, at);
         }

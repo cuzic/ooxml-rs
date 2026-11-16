@@ -159,3 +159,33 @@ fn read_all_cells_bulk_100k() {
 fn read_all_cells_bulk_1m() {
     read_all_bulk(100_000, 10);
 }
+
+/// PR #29 review m3: one wide row (new cells ascending and descending) and
+/// rows inserted in descending order.
+#[test]
+#[ignore = "timing (run with --release --ignored --nocapture)"]
+fn wide_row_and_descending_rows() {
+    for desc in [false, true] {
+        let mut wb = Workbook::new().unwrap();
+        let t = Instant::now();
+        {
+            let mut ws = wb.add_worksheet().unwrap();
+            for k in 0..16_384u32 {
+                let c = if desc { 16_383 - k } else { k };
+                ws.write_number(0, c, f64::from(c)).unwrap();
+            }
+        }
+        println!("16,384 cells in one row ({}): {:?}", if desc { "descending" } else { "ascending" }, t.elapsed());
+        let mut again = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+        assert_eq!(again.worksheet().unwrap().cells().count(), 16_384);
+    }
+    let mut wb = Workbook::new().unwrap();
+    let t = Instant::now();
+    {
+        let mut ws = wb.add_worksheet().unwrap();
+        for r in (0..40_000u32).rev() {
+            ws.write_number(r, 0, f64::from(r)).unwrap();
+        }
+    }
+    println!("40k rows descending: {:?}", t.elapsed());
+}
