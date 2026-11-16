@@ -284,6 +284,18 @@ impl<'wb> Worksheet<'wb> {
             // after the removal
             refuse_alternate_content(c.raw(), sml::Cell::QNAME)?;
         }
+        // `write` grows `dimension` after the cell is set; an unusable `ref`
+        // would silently stay stale (review round 1, F7)
+        if let Some(dim) = self.view()?.sheet_dimension() {
+            let r = dim.reference();
+            if r.is_none_or(|r| CellRange::parse(r).is_err()) {
+                return Err(Error::Malformed(format!(
+                    "{}: dimension/@ref {:?} is not a cell range; it could not be kept up to date",
+                    self.ctx.sheet_part,
+                    r.unwrap_or_default()
+                )));
+            }
+        }
         Ok(loc)
     }
 
@@ -388,6 +400,7 @@ impl CellMut<'_, '_> {
     /// [`Error::FormulaScanFailed`] (workbook-wide), [`Error::MergedCell`],
     /// [`Error::TableHeaderCell`], [`Error::RichValueCell`],
     /// [`Error::MissingReference`], [`Error::OutOfOrder`],
+    /// [`Error::Malformed`] if `dimension/@ref` is not a cell range;
     /// core `UnresolvedSibling` if `sheetData`, the row or the cell has an
     /// `mc:AlternateContent` child, or if `sheetData` itself must be
     /// inserted next to one.

@@ -275,3 +275,28 @@ fn f6_alternate_content_around_rows_and_cells() {
     assert_matches!(wb.worksheet().unwrap().cell(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
 }
 
+/// F7: a `dimension` whose `ref` is missing or not a cell range refuses
+/// writes with `Malformed` (it could not be kept up to date); a parseable
+/// one is grown (lower case is normalized) or left alone if it already
+/// covers the cell.
+#[test]
+fn f7_dimension_ref() {
+    let input = read("minimal");
+    let with_dim = |dim: &str| rebuild(&input, &[(SHEET1, patched(&input, SHEET1, r#"<dimension ref="A1:D2"/>"#, dim))]);
+    for dim in [r#"<dimension ref="A1:D"/>"#, r#"<dimension ref="A1:D2:E3"/>"#, r#"<dimension ref=""/>"#, "<dimension/>"] {
+        let bytes = with_dim(dim);
+        let (wb, r) = apply(&bytes, a1("F9"), &W::Num(1.0));
+        assert_matches!(r, Err(Error::Malformed(_)), "{dim}");
+        assert_unchanged(&wb, &bytes);
+        let (wb, r) = apply(&bytes, a1("B2"), &W::Num(1.0));
+        assert_matches!(r, Err(Error::Malformed(_)), "{dim}: refused inside the range too");
+        assert_unchanged(&wb, &bytes);
+    }
+    for (dim, want) in [("a1:d2", "A1:F9"), ("A1", "A1:F9"), ("A1:XFD1048576", "A1:XFD1048576")] {
+        let bytes = with_dim(&format!(r#"<dimension ref="{dim}"/>"#));
+        let (wb, r) = apply(&bytes, a1("F9"), &W::Num(1.0));
+        r.unwrap();
+        assert!(sheet_xml(&wb.to_bytes().unwrap()).contains(&format!(r#"<dimension ref="{want}"/>"#)), "{dim}");
+    }
+}
+

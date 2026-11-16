@@ -39,7 +39,7 @@ wb.save("new.xlsx")?;
 | `set_number(f64)` | `<v>` gets the number; a stale `t` and any `<is>` are removed; `s` kept. NaN/∞ refused. |
 | `set_string(&str)` | `t="inlineStr"`, `<is><t>…</t></is>`; `xml:space="preserve"` iff outer whitespace; control characters as `_xHHHH_`, a literal `_xHHHH_` protected as `_x005F_xHHHH_`; at most 32,767 UTF-16 units. Never touches `sharedStrings.xml`. |
 | New rows/cells | Inserted in row/column order with `r`; no whitespace added; existing `spans` left as is. |
-| `dimension` | Grown to include the written cell if present; **never inserted** if absent. |
+| `dimension` | Grown to include the written cell if present (a lower-case `ref` comes out upper-case); **never inserted** if absent. A `dimension` whose `ref` is missing or not a cell range refuses the write (`Malformed`). |
 | `Workbook::new` | Opens `template/blank.xlsx` (built by `template/build.py` from `template/blank/`) through the same code path; `docProps/core.xml` is regenerated (created/modified = now) with `Package::set_part`. |
 | `add_worksheet()` | First call on a `new()` workbook returns the template's sheet; every other call, and any call on an opened file, `Err(SheetAdditionUnsupported)`. `add_worksheet_with_name` is always `Err(SheetNamingUnsupported)`. |
 
@@ -55,6 +55,7 @@ is not dirty and saves byte-identical to the input.
 | `MergedCell` | The cell is in a merged range, top-left cell included. |
 | `TableHeaderCell` | The cell is in a table's header row (`headerRowCount` rows from the top of `ref`). |
 | `RichValueCell` | The cell has a `vm` attribute (image in cell, data type). |
+| `Malformed` | `dimension` exists but its `ref` is missing or not a cell range, so it could not be kept up to date. |
 | `MissingReference` | Reads **and** writes, when any `row` in `sheetData`, or any `c` in the row concerned, lacks `r`. |
 | `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. |
 | `Core(EncryptedPackage)`, `Core(StrictNotSupported)`, `Core(DtdNotAllowed)` | From `ooxml-core` at open. |
