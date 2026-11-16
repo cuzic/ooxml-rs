@@ -138,6 +138,11 @@ fn t3_expected_model_after_edits() {
         let actual = model::dump(&mut output);
         assert!(actual == expected, "{}: model mismatch\nactual:   {actual}\nexpected: {expected}", case.name);
         total += case.edits.len();
+        // Phase 0.1: the hyperlink case must be applied, not refused (a
+        // refusal would drop the edits and hide a broken link skip)
+        if case.name == "hyperlink-cells" {
+            assert!(case.refused.is_empty(), "hyperlink-cells refused: {:?}", case.refused);
+        }
         for (_, r) in &case.refused {
             let kind = r.split([' ', '(', '{']).next().unwrap().to_owned();
             *refused.entry(kind).or_default() += 1;
