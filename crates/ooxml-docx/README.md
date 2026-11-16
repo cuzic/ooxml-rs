@@ -34,22 +34,23 @@ doc.save("letter-filled.docx")?;
 
 | When | Error |
 |---|---|
-| open | `Core(EncryptedPackage)`, `Core(DtdNotAllowed)`, `Core(StrictNotSupported)`, `MainPartMissing` |
-| any write (`write_gate()`) | `TrackRevisionsOn`, `DocumentProtected { edit }`, `StaleFieldRisk { codes }` |
+| open | `Core(EncryptedPackage)`, `Core(DtdNotAllowed)`, `Core(StrictNotSupported)`, `MainPartMissing`, `Core(TooDeep)` (nesting deeper than core's limit, 1024) |
+| any write (`write_gate()`) | `TrackRevisionsOn`, `DocumentProtected { edit }`, `StaleFieldRisk { codes }` (codes carry the argument for `INFO`/`DOCPROPERTY`; `<malformed field>` for field markup that cannot be followed) |
 | `set_run_text` (`Run::check_settable()`) | `InsideField`, `InsideRevision`, `UnsupportedContext`, `RunNotTextOnly` |
 | text | `InvalidXmlChar` |
-| `append_paragraph` | `Core(UnresolvedSibling)` (`mc:AlternateContent` in the body), `InsideField` (unterminated field), `NoBody` |
+| `append_paragraph` | `Core(UnresolvedSibling)` (`mc:AlternateContent` in the body), `SectionBreakAtEnd` (last section's `sectPr` in the last paragraph), `InsideField` (unterminated field), `NoBody` |
 
-Reads always work after a gate refusal.
+Reads always work after a gate refusal. `write_protection()` ("password to modify", "read-only
+recommended") and `is_marked_final()` are reported, not enforced.
 
 ## Not in Phase0
 
 Headers/footers/notes/comments editing, cross-run replace, formatting, new structure, and
 `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
 
-Known cost: a write descends from the part root through `ooxml-core`'s path-based lens, which is
-quadratic in nesting depth. It is negligible for real documents, but in a pathological file with
-5,000 nested tables (POI `deep-table-cell.docx`) an edit takes 3–4 s in a release build.
+Nesting depth is bounded by `ooxml-core`'s parser limit (1024 levels; real documents reach about
+30), so a hostile file of nested tables is refused at open with `Core(TooDeep)` instead of costing
+gigabytes or the stack. Below the limit the body index is linear and every walk is iterative.
 
 ## Tests
 
