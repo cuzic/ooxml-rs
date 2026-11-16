@@ -163,13 +163,23 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 *count.entry(e.class_name.as_str()).or_default() += 1;
             }
             let mut taken = BTreeSet::new();
+            let mut names: Vec<(String, String)> = Vec::new();
             for e in &in_group {
                 let base = pascal(&e.class_name);
                 let name = if count[e.class_name.as_str()] > 1 { format!("{}{base}", pascal(&e.prefix)) } else { base };
-                if !taken.insert(name.clone()) {
+                names.push((e.name.clone(), name));
+            }
+            // An element type named like another type's view struct
+            // (`x:sheetView` → `SheetView`, while `x:sheet` has the view
+            // `SheetView`) gets an `Element` suffix; existing names do not
+            // change.
+            let views: BTreeSet<String> = names.iter().flat_map(|(_, n)| [format!("{n}View"), format!("{n}ViewMut")]).collect();
+            for (key, name) in names {
+                let name = if views.contains(&name) { format!("{name}Element") } else { name };
+                if !taken.insert(name.clone()) || views.contains(&name) {
                     return Err(format!("type name collision {name} in group {g}").into());
                 }
-                type_names.insert(e.name.clone(), name);
+                type_names.insert(key, name);
             }
             // enums referenced by the group's entries
             let mut used: BTreeSet<(usize, usize)> = BTreeSet::new();
