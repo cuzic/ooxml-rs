@@ -1,6 +1,6 @@
 # ooxml-pptx
 
-PowerPoint (PresentationML) for ooxml-rs, Phase 0
+PowerPoint (PresentationML) for ooxml-rs, Phase 0 and 0.1
 ([ADR-0005](../../docs/adr/0005-pptx-phase0.md)): open and save any
 `.pptx`/`.pptm`/`.ppsx`/`.potx` losslessly (untouched parts keep their
 compressed bytes; untouched XML keeps its bytes), walk slides and shapes,
@@ -22,17 +22,46 @@ pres.save("deck.pptx")?;
 | Edit | Behaviour |
 | --- | --- |
 | `RunMut::set_text` | replaces `a:t`; `a:rPr` kept |
-| `ParagraphMut::set_text` | first run keeps its `a:rPr`; `\v` → `a:br`; other runs/breaks removed |
-| `TextBodyMut::set_text` | line *i* → paragraph *i* (formats kept); surplus removed; new ones copy the last paragraph's `a:pPr` attributes and its run format (runs and `a:endParaRPr`) |
+| `ParagraphMut::set_text` | first run keeps its `a:rPr`; `\v` → `a:br` + a run with a copy of that `a:rPr` (links stay on the first run); other runs/breaks removed |
+| `TextBodyMut::set_text` | line *i* → paragraph *i* (formats kept); surplus removed; new ones copy the last paragraph's `a:pPr` and its run format (runs and `a:endParaRPr`) as subtrees, without links |
 | `add_run`, `add_paragraph` | explicitly unformatted (inherit the list/placeholder style) |
 | `add_break`, `remove_run`, `remove_paragraph`, `remove_field` | as named |
 
 Refused with a typed `Error`, before anything changes: edits that would
 shift animated or comment-anchored text, remove a field implicitly, touch
 an `mc:AlternateContent` branch or a merged cell, write content Phase 0
-does not model, need a formatting copy with child elements (not in Phase 0), or
+does not model, need a formatting copy that holds a relationship reference or markup-compatibility content, or
 contain characters XML 1.0 cannot hold. Only direct values are read
 (placeholder inheritance is Phase 1).
+
+## Usage example
+
+`examples/replace_text.rs` is a runnable walk-through on a committed fixture. It:
+
+- lists every slide's shapes and their text;
+- replaces a whole text body, one paragraph and one run;
+- saves to `OUT_DIR/replace_text.pptx`;
+- shows two refusals: paragraphs referenced by animations, and a line break in paragraph text.
+
+```sh
+cargo run -p ooxml-pptx --example replace_text -- [OUT_DIR]   # default: <temp dir>/ooxml-rs-examples
+```
+
+```rust,no_run
+use ooxml_pptx::{Error, Presentation};
+
+let mut pres = Presentation::open("deck.pptx")?;
+let id = pres.slide(0)?.placeholders()[0].id()?;
+let mut slide = pres.slide_mut(0)?;
+let mut shape = slide.shape_mut_by_id(id)?;
+let mut body = shape.text_body_mut()?;
+match body.paragraph_mut(0)?.set_text("New title") {
+    Err(e @ Error::AnimatedParagraphs { .. }) => eprintln!("refused, nothing changed: {e}"),
+    other => other?,
+}
+pres.save("deck-edited.pptx")?;
+# Ok::<(), Error>(())
+```
 
 Development:
 

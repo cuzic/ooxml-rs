@@ -2,7 +2,7 @@
 
 Lossless Excel (`.xlsx`/`.xlsm`) editing on [`ooxml-core`](../ooxml-core): Phase0 of
 [ADR-0001](../../docs/adr/0001-lossless-round-trip-architecture.md) and Phase1 of
-[ADR-0003](../../docs/adr/0003-xlsx-phase1-formula-and-calc-state.md) (Proposed, revision 3),
+[ADR-0003](../../docs/adr/0003-xlsx-phase1-formula-and-calc-state.md) (Accepted, revision 5),
 with the typed lens of [ADR-0002](../../docs/adr/0002-schema-driven-code-generation.md). The
 Phase0 acceptance tests are specified in [`docs/roadmap/xlsx.md`](../../docs/roadmap/xlsx.md) §7,
 the Phase1 ones in ADR-0003 §7.
@@ -70,6 +70,36 @@ wb.save("new.xlsx")?;
 | `CalcPolicy::KeepStaleCaches` | Opt-in, Excel only: keep stale caches, only set `fullCalcOnLoad`. |
 | Atomicity | Every edit is planned and validated without changing anything (only `workbook.xml` is cloned), then applied in place; a failure while applying (a bug) poisons the workbook (`Err(Poisoned)` for every later edit and save). |
 | Cost | Proportional to the dependent set: 2.0 ms per edit on a 200,000-formula, 9.7 MB sheet; 6.7 ms in the worst case where every formula is a dependent (`examples/phase1_bench.rs`, `WORST=1`). |
+
+## Usage example
+
+`examples/edit_cells.rs` is a runnable walk-through on a committed fixture. It:
+
+- opens a workbook;
+- prints the first visible sheet's cells;
+- sets a number and a string;
+- saves the result to `OUT_DIR/edit_cells.xlsx` and re-reads it;
+- edits a formula workbook (dependents lose their cached values);
+- shows a refusal: a Strict package refused at open.
+
+```sh
+cargo run -p ooxml-xlsx --example edit_cells -- [OUT_DIR]   # default: <temp dir>/ooxml-rs-examples
+```
+
+```rust,no_run
+use ooxml_xlsx::{Error, Workbook};
+
+let mut wb = Workbook::open("book.xlsx")?;
+if let Some(why) = wb.edit_refusal() {
+    eprintln!("not editable: {why}"); // e.g. a poisoned workbook; nothing changed
+} else {
+    let mut ws = wb.worksheet()?;
+    ws.cell_mut(1, 1)?.set_number(42.5)?;
+    ws.cell_mut(5, 0)?.set_string("written by ooxml-rs")?;
+    wb.save("book-edited.xlsx")?;
+}
+# Ok::<(), Error>(())
+```
 
 ## Refusals (`Err`, nothing changed)
 
