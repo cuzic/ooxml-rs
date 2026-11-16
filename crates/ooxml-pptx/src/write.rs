@@ -5,7 +5,10 @@
 //! and only then calls the ADR-0002 primitives, whose own refusals are
 //! ruled out by those checks; a refused edit leaves the tree untouched.
 
-use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawItem, RawNode, XmlDocument};
+use std::collections::BTreeSet;
+
+use ooxml_core::name::XML_NS;
+use ooxml_core::{ChildOf, Detached, ElementSpec, Lens, LensMut, QName, RawItem, RawNode, SameType, XmlDocument};
 use ooxml_schema::dml::{
     self, Break, EndParagraphRunProperties, Field, Graphic, GraphicData, Paragraph, ParagraphProperties, Run,
     RunProperties, Table, TableCell, TableCellView, TableRow, Text,
@@ -187,60 +190,141 @@ fn body_paragraphs(b: &RawNode) -> Result<Vec<usize>> {
 }
 
 // ---------------------------------------------------------------------------
-// Format sources (review M1). A new run copies the attributes of the
-// paragraph's first `a:rPr` (or of `a:endParaRPr` when it has no run); a new
-// paragraph in `TextBody::set_text` copies the last paragraph's `a:pPr`
-// attributes and gets an `a:endParaRPr` copying its run format source
-// (review R2-5). Only attribute-only elements are copied; one with child
-// elements needs a subtree copy: `FormatNotCopyable`.
+// Format sources (review M1; Phase 0.1, ADR-0005 §3 "Format sources"). A
+// new run's `a:rPr` is a subtree copy of the paragraph's first `a:rPr` (or
+// of `a:endParaRPr` when it has no run) without `a:hlinkClick` /
+// `a:hlinkMouseOver`; a new paragraph in `TextBody::set_text` gets a copy
+// of the last paragraph's `a:pPr`, and an `a:endParaRPr` copied from its
+// run format source (review R2-5). Copies go through `Lens::detach_as` /
+// `LensMut::insert_detached` (ADR-0002 note "detach/insert"); what
+// `detach_as` refuses (`r:` attributes, Markup Compatibility, namespace
+// declarations) is `FormatNotCopyable`.
 
-type Fmt = Option<Vec<(QName, String)>>;
+/// Children of a run format source that new runs do not inherit: a link
+/// stays on the run that had it (ADR-0005 §3 "Hyperlinks").
+const LINKS: [QName; 2] = [a("hlinkClick"), a("hlinkMouseOver")];
 
-fn copy_attrs<D: ElementSpec>(src: Option<&RawNode>, what: &'static str) -> Result<Fmt> {
+/// Copy of `src` as a `C`; `None` when there is nothing to copy (no
+/// attributes and no child elements after `skip`).
+fn detach<S, C>(src: Option<&RawNode>, skip: &[QName], what: &'static str) -> Result<Option<Detached<C>>>
+where
+    S: ElementSpec,
+    C: SameType<S>,
+{
     let Some(src) = src else { return Ok(None) };
-    if src.elements().next().is_some() {
-        return Err(Error::FormatNotCopyable(what));
-    }
-    let mut out = Vec::new();
-    for at in src.attrs() {
-        let n = at.name();
-        let spec = D::ATTRS
-            .iter()
-            .find(|s| s.name.ns == n.ns() && s.name.local == n.local())
-            .ok_or(Error::FormatNotCopyable(what))?;
-        out.push((spec.name, at.value().to_owned()));
-    }
-    Ok((!out.is_empty()).then_some(out))
+    let d = Lens::<S>::root(src)?.detach_as::<C>(skip).map_err(|e| match e {
+        ooxml_core::Error::NotDetachable { .. } => Error::FormatNotCopyable(what),
+        e => e.into(),
+    })?;
+    let raw = d.raw();
+    Ok((!raw.attrs().is_empty() || raw.elements().next().is_some()).then_some(d))
 }
 
-fn run_format(p: &RawNode, shape: &ParaShape) -> Result<Fmt> {
+/// The run format source of a paragraph, ready to insert as a new run's
+/// `a:rPr` and as a new paragraph's `a:endParaRPr`.
+#[derive(Clone, Default)]
+struct RunFmt {
+    rpr: Option<Detached<RunProperties>>,
+    end: Option<Detached<EndParagraphRunProperties>>,
+}
+
+impl RunFmt {
+    fn raws(&self) -> impl Iterator<Item = &RawNode> {
+        self.rpr.iter().map(Detached::raw).chain(self.end.iter().map(Detached::raw))
+    }
+}
+
+fn run_format(p: &RawNode, shape: &ParaShape) -> Result<RunFmt> {
     match shape.runs.first() {
         Some(&r) => {
             let run = p.children()[r].as_element().expect("index of an element");
-            copy_attrs::<RunProperties>(run.elements().find(|c| c.is(RunProperties::QNAME)), "a:rPr")
+            let src = run.elements().find(|c| c.is(RunProperties::QNAME));
+            Ok(RunFmt {
+                rpr: detach::<RunProperties, _>(src, &LINKS, "a:rPr")?,
+                end: detach::<RunProperties, _>(src, &LINKS, "a:rPr")?,
+            })
         }
-        None => copy_attrs::<RunProperties>(
-            p.elements().find(|c| c.is(EndParagraphRunProperties::QNAME)),
-            "a:endParaRPr",
-        ),
+        None => {
+            let src = p.elements().find(|c| c.is(EndParagraphRunProperties::QNAME));
+            Ok(RunFmt {
+                rpr: detach::<EndParagraphRunProperties, _>(src, &LINKS, "a:endParaRPr")?,
+                end: detach::<EndParagraphRunProperties, _>(src, &LINKS, "a:endParaRPr")?,
+            })
+        }
     }
 }
 
-fn para_format(p: &RawNode) -> Result<Fmt> {
-    copy_attrs::<ParagraphProperties>(p.elements().find(|c| c.is(ParagraphProperties::QNAME)), "a:pPr")
+fn para_format(p: &RawNode) -> Result<Option<Detached<ParagraphProperties>>> {
+    detach::<ParagraphProperties, _>(p.elements().find(|c| c.is(ParagraphProperties::QNAME)), &[], "a:pPr")
 }
 
-fn set_attrs<E: ElementSpec>(l: &mut LensMut<'_, E>, fmt: &[(QName, String)]) -> Result<()> {
-    for (q, v) in fmt {
-        l.set_attr(*q, v)?;
+/// Every namespace used by `copies` must have a usable prefix at **every**
+/// point below the element at `path` where a copy may be inserted, so that
+/// no `insert_detached` after the first change of an edit can fail with
+/// `NamespaceNotInScope`: a prefix (non-empty for attributes) bound to it at
+/// that element and not re-bound to another URI anywhere below it.
+fn check_scope<'c>(root: &RawNode, path: &[usize], copies: impl IntoIterator<Item = &'c RawNode>) -> Result<()> {
+    type Decl<'n> = (Option<&'n str>, &'n str);
+    fn uris<'n>(n: &'n RawNode, el: &mut BTreeSet<&'n str>, at: &mut BTreeSet<&'n str>) {
+        el.insert(n.name().ns());
+        at.extend(n.attrs().iter().map(|a| a.name().ns()).filter(|u| !u.is_empty()));
+        for c in n.elements() {
+            uris(c, el, at);
+        }
+    }
+    fn decls<'n>(n: &'n RawNode, out: &mut Vec<Decl<'n>>) {
+        out.extend(n.attrs().iter().filter(|a| a.name().is_namespace_declaration()).map(|a| (a.name().declared_prefix(), a.value())));
+    }
+    fn below<'n>(n: &'n RawNode, out: &mut Vec<Decl<'n>>) {
+        for c in n.elements() {
+            decls(c, out);
+            below(c, out);
+        }
+    }
+    let (mut el, mut at) = (BTreeSet::new(), BTreeSet::new());
+    for c in copies {
+        uris(c, &mut el, &mut at);
+    }
+    el.remove(XML_NS);
+    at.remove(XML_NS);
+    if el.is_empty() && at.is_empty() {
+        return Ok(());
+    }
+    let mut bound = Vec::new();
+    let mut n = root;
+    decls(n, &mut bound);
+    for &i in path {
+        n = n.children().get(i).and_then(RawItem::as_element).expect("path checked on creation");
+        decls(n, &mut bound);
+    }
+    let mut inner = Vec::new();
+    below(n, &mut inner);
+    let effective = |p: Option<&str>| bound.iter().rev().find(|(q, _)| *q == p).map(|(_, u)| *u);
+    let stable = |p: Option<&str>, u: &str| effective(p) == Some(u) && inner.iter().all(|(q, v)| *q != p || *v == u);
+    let prefixes: BTreeSet<Option<&str>> = bound.iter().map(|(p, _)| *p).collect();
+    let missing = |u: &str| Error::Core(ooxml_core::Error::NamespaceNotInScope(u.to_owned()));
+    for u in el {
+        let ok = if u.is_empty() {
+            effective(None).is_none_or(str::is_empty) && inner.iter().all(|(q, v)| q.is_some() || v.is_empty())
+        } else {
+            prefixes.iter().any(|&p| stable(p, u))
+        };
+        if !ok {
+            return Err(missing(u));
+        }
+    }
+    for u in at {
+        if !prefixes.iter().any(|&p| p.is_some() && stable(p, u)) {
+            return Err(missing(u));
+        }
     }
     Ok(())
 }
 
-fn append_run(p: &mut LensMut<'_, Paragraph>, text: &str, fmt: &Fmt) -> Result<()> {
+fn append_run(p: &mut LensMut<'_, Paragraph>, text: &str, fmt: Option<&Detached<RunProperties>>) -> Result<()> {
     let mut r = p.insert::<Run>()?;
     if let Some(f) = fmt {
-        set_attrs(&mut r.insert::<RunProperties>()?, f)?;
+        r.insert_detached(f.clone())?;
     }
     r.insert::<Text>()?.set_text(text)?;
     Ok(())
@@ -250,7 +334,7 @@ fn append_run(p: &mut LensMut<'_, Paragraph>, text: &str, fmt: &Fmt) -> Result<(
 struct ParaPlan {
     first_run: bool,
     remove: Vec<usize>,
-    fmt: Fmt,
+    fmt: Option<Detached<RunProperties>>,
 }
 
 fn plan_paragraph(p: &RawNode, index: usize, segments: &[impl AsRef<str>]) -> Result<ParaPlan> {
@@ -260,7 +344,7 @@ fn plan_paragraph(p: &RawNode, index: usize, segments: &[impl AsRef<str>]) -> Re
     }
     let first_run = !shape.runs.is_empty();
     let needs_fmt = (!first_run && !segments[0].as_ref().is_empty()) || segments[1..].iter().any(|s| !s.as_ref().is_empty());
-    let fmt = if needs_fmt { run_format(p, &shape)? } else { None };
+    let fmt = if needs_fmt { run_format(p, &shape)?.rpr } else { None };
     let mut remove: Vec<usize> = shape.runs.iter().skip(1).chain(&shape.breaks).copied().collect();
     remove.sort_unstable();
     Ok(ParaPlan { first_run, remove, fmt })
@@ -276,40 +360,41 @@ fn apply_paragraph(p: &mut LensMut<'_, Paragraph>, plan: &ParaPlan, segments: &[
         p.remove_at(i);
     }
     if !plan.first_run && !seg0.is_empty() {
-        append_run(p, seg0, &plan.fmt)?;
+        append_run(p, seg0, plan.fmt.as_ref())?;
     }
     for seg in &segments[1..] {
         p.insert::<Break>()?;
         if !seg.as_ref().is_empty() {
-            append_run(p, seg.as_ref(), &plan.fmt)?;
+            append_run(p, seg.as_ref(), plan.fmt.as_ref())?;
         }
     }
     Ok(())
 }
 
-/// Fills a new, empty `a:p`: `a:pPr` from `ppr`, runs from `segments` with
-/// `run_fmt`, and an `a:endParaRPr` from `end` (each omitted when `None`).
+/// Fills a new, empty `a:p`: `a:pPr` from `ppr`, runs from `segments` and
+/// `a:endParaRPr` from `fmt` (each omitted when `None`).
 fn fill_new_paragraph(
     p: &mut LensMut<'_, Paragraph>,
-    ppr: &Fmt,
-    run_fmt: &Fmt,
-    end: &Fmt,
+    ppr: Option<&Detached<ParagraphProperties>>,
+    fmt: &RunFmt,
     segments: &[impl AsRef<str>],
 ) -> Result<()> {
     if let Some(f) = ppr {
-        set_attrs(&mut p.insert::<ParagraphProperties>()?, f)?;
+        p.insert_detached(f.clone())?;
     }
-    apply_paragraph(p, &ParaPlan { first_run: false, remove: Vec::new(), fmt: run_fmt.clone() }, segments)?;
-    if let Some(f) = end {
-        set_attrs(&mut p.insert::<EndParagraphRunProperties>()?, f)?;
+    apply_paragraph(p, &ParaPlan { first_run: false, remove: Vec::new(), fmt: fmt.rpr.clone() }, segments)?;
+    if let Some(f) = &fmt.end {
+        p.insert_detached(f.clone())?;
     }
     Ok(())
 }
 
-// Review R2-6: `set_attr` refuses elements whose generated attribute list
-// is incomplete (`IncompleteSpec`), and Phase 0 calls it only after an
-// insertion. Every element Phase 0 inserts or writes attributes/text on
-// must therefore have a complete list; checked at compile time.
+// Review R2-6: `set_attr` (also called by `set_text` for `xml:space`)
+// refuses elements whose generated attribute list is incomplete
+// (`IncompleteSpec`), and it would run after an insertion. No element this
+// crate inserts or writes may have an incomplete list; checked at compile
+// time (copies through `insert_detached` take attributes verbatim and do
+// not depend on the list).
 const _: () = assert!(
     !RunProperties::ATTRS_INCOMPLETE
         && !ParagraphProperties::ATTRS_INCOMPLETE
@@ -550,7 +635,7 @@ impl TextBodyMut<'_> {
         let mut body = body_lens(self.doc, &self.path)?;
         with_body!(&mut body, l => {
             let mut p = append_paragraph(l)?;
-            fill_new_paragraph(&mut p, &None, &None, &None, &segments)?;
+            fill_new_paragraph(&mut p, None, &RunFmt::default(), &segments)?;
         });
         Ok(ParagraphMut {
             doc: &mut *self.doc,
@@ -583,14 +668,16 @@ impl TextBodyMut<'_> {
     /// goes into the existing paragraph with the same index through
     /// [`ParagraphMut::set_text`] (keeping its `a:pPr` and first run's
     /// `a:rPr`); surplus paragraphs are removed; missing ones are appended
-    /// with a copy of the last paragraph's `a:pPr` attributes, and of its
-    /// run format source for their runs and their `a:endParaRPr`.
+    /// with a copy of the last paragraph's `a:pPr`, and of its run format
+    /// source (without links) for their runs and their `a:endParaRPr`.
     ///
     /// Errors: those of [`ParagraphMut::set_text`] for every line, plus
     /// [`Error::FieldInParagraph`] if any paragraph has a field (it would be
     /// rewritten or removed), [`Error::FormatNotCopyable`] for the new
-    /// paragraphs' source, and [`Error::AnimatedParagraphs`] when the number
-    /// of paragraphs changes.
+    /// paragraphs' source, [`Error::Core`]`(NamespaceNotInScope)` when a
+    /// copied format uses a namespace without a usable prefix in the body,
+    /// and [`Error::AnimatedParagraphs`] when the number of paragraphs
+    /// changes.
     pub fn set_text(&mut self, text: &str) -> Result<()> {
         let lines = text::body_lines(text)?;
         let node = self.node();
@@ -616,12 +703,14 @@ impl TextBodyMut<'_> {
         // format source for both the runs and `a:endParaRPr` (review R2-5),
         // so the source is consulted for every new paragraph.
         let (ppr, run_fmt) = if extra.is_empty() {
-            (None, None)
+            (None, RunFmt::default())
         } else {
             let last = node_at(node, &[*paras.last().expect("body_paragraphs: a:p+")]).expect("found");
             let shape = para_shape(last)?;
             (para_format(last)?, run_format(last, &shape)?)
         };
+        let copies = plans.iter().filter_map(|p| p.fmt.as_ref().map(Detached::raw)).chain(ppr.iter().map(Detached::raw)).chain(run_fmt.raws());
+        check_scope(self.doc.root(), &self.path, copies)?;
         // Apply: appends first (the only primitive that could still be
         // refused by the core, before anything else changed), then rewrite,
         // then remove surplus paragraphs from the end.
@@ -629,7 +718,7 @@ impl TextBodyMut<'_> {
         with_body!(&mut body, l => {
             for segs in extra {
                 let mut p = append_paragraph(l)?;
-                fill_new_paragraph(&mut p, &ppr, &run_fmt, &run_fmt, segs)?;
+                fill_new_paragraph(&mut p, ppr.as_ref(), &run_fmt, segs)?;
             }
         });
         for (k, plan) in plans.iter().enumerate() {
@@ -714,19 +803,24 @@ impl ParagraphMut<'_> {
     /// Replaces the paragraph's text: the first run keeps its `a:rPr` and
     /// gets the text before the first `\v`; other runs and breaks are
     /// removed; each `\v` becomes an `a:br` followed by a run with a copy
-    /// of the first run's `a:rPr` attributes. A paragraph without runs gets
-    /// a run whose `a:rPr` copies `a:endParaRPr`'s attributes (what
-    /// PowerPoint does when typing into an empty paragraph). Empty segments
-    /// make no run.
+    /// of the first run's `a:rPr` (whole subtree, without
+    /// `a:hlinkClick`/`a:hlinkMouseOver`: a link stays on its run). A
+    /// paragraph without runs gets a run whose `a:rPr` is such a copy of
+    /// `a:endParaRPr` (what PowerPoint does when typing into an empty
+    /// paragraph). Empty segments make no run.
     ///
     /// Errors: [`Error::LineBreakInParagraph`], [`Error::InvalidXmlChar`],
     /// [`Error::FieldInParagraph`], [`Error::UnsupportedContent`],
-    /// [`Error::FormatNotCopyable`] (only when a new run is needed),
+    /// [`Error::FormatNotCopyable`] and [`Error::Core`]`(NamespaceNotInScope)`
+    /// (only when a new run is needed),
     /// [`Error::AnimatedCharacters`], [`Error::CommentAnchoredText`].
     pub fn set_text(&mut self, text: &str) -> Result<()> {
         let segments = text::paragraph_segments(text)?;
         self.loc.guard.text()?;
         let plan = plan_paragraph(self.node()?, self.loc.index, &segments)?;
+        let mut scope = self.loc.body.clone();
+        scope.push(self.loc.child(self.doc)?);
+        check_scope(self.doc.root(), &scope, plan.fmt.as_ref().map(Detached::raw))?;
         let mut p = self.lens()?;
         apply_paragraph(&mut p, &plan, &segments)
     }
@@ -741,7 +835,7 @@ impl ParagraphMut<'_> {
         self.loc.guard.text()?;
         para_shape(self.node()?)?;
         let mut p = self.lens()?;
-        append_run(&mut p, text, &None)
+        append_run(&mut p, text, None)
     }
 
     /// Appends an `a:br` before `a:endParaRPr`.

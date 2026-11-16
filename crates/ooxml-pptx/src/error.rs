@@ -133,12 +133,13 @@ pub enum Error {
     /// `\n` or `\r` passed to a paragraph-level setter (`\v` becomes `a:br`).
     #[error("paragraph breaks are not allowed in paragraph text; use TextBody::set_text or add_paragraph")]
     LineBreakInParagraph,
-    /// A new run or paragraph would need the formatting of an existing
-    /// `a:rPr` / `a:endParaRPr` / `a:pPr` that has child elements (fill,
-    /// fonts, bullets, …) or attributes outside the schema: copying it needs
-    /// a subtree-copy primitive (not in Phase 0). Use `add_run` / `add_paragraph`
-    /// for explicitly unformatted text.
-    #[error("the formatting of {0} cannot be copied in Phase 0 (child elements or unknown attributes)")]
+    /// A new run or paragraph needs a copy of an existing `a:rPr` /
+    /// `a:endParaRPr` / `a:pPr` that the copy primitive refuses
+    /// (`ooxml_core::Lens::detach_as`): a relationship (`r:`) attribute
+    /// outside the skipped links (e.g. a picture fill or bullet), Markup
+    /// Compatibility content, or a namespace declaration inside it. Use
+    /// `add_run` / `add_paragraph` for explicitly unformatted text.
+    #[error("the formatting of {0} cannot be copied (relationship reference, markup compatibility or namespace declaration inside)")]
     FormatNotCopyable(&'static str),
 }
 
