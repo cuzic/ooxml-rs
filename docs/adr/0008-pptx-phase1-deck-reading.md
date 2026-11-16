@@ -75,6 +75,49 @@
   | r2-m10 hyperlink colour scope | `a:hlinkClick` only; non-URL actions in M7 | §1.6, §7 M7 |
   | Owner decision 2026-11-16 | Q1–Q5 defaults accepted (Q1 with r2-m2's corrections); Q6 synthetic until a real fixture arrives | Open questions |
 
+### Post-acceptance note (2026-11-16): implementation of §1 and §3 (PR #56)
+
+Recorded after review [#56 round 1](../reviews/pr56-round1.md). The
+decisions above are unchanged; this note lists where the implementation
+departs from the §5 sketch, and what PR #56 leaves to the stacked notes PR.
+
+- **Resolver methods live on `DeckSlide`** (`run_props(shape, body, para,
+  item)`, `para_props`, `body_props`, `geometry`, `outline`,
+  `placeholder_match`, `color_map`, `slide_rect`), not on
+  `ShapeRef`/`RunRef`. Resolution needs the slide's chain (layout, master,
+  theme, colour map); putting it on the Phase 0 refs would change Phase 0's
+  `Slide` API. The review accepted this.
+- **Enumerated values are `EnumValue<'a, E>`** of the generated simple types
+  (ADR-0002 owner decision Q2): `algn`, `u`, `strike`, `cap`, `anchor`,
+  `wrap`, `vert`, `buAutoNum@type`, transition `spd`, `presetClass`,
+  `nodeType`, `bldP@build`, p188 comment `status`.
+- **Group-winner attributes** (`rot`/`flipH`/`flipV`, `pitchFamily`/`charset`,
+  `startAt`) are `WinnerAttr<T> { value: Result<T, AttrError>, defaulted }`,
+  one flag per attribute; `Resolved::defaulted` is used only for an autofit
+  scale defaulted on the shape itself. Invalid values keep their raw text.
+- **`xsd_default`** is `RunProps::xsd_default(attr)`, `ParaProps::…`,
+  `BodyProps::…` (by attribute name) instead of a `PropertyId` enum.
+- **Q4 helper:** `RunProps::script_font_candidate(&slot)` with
+  `script_for_lang(lang)`; it returns a candidate `(script, typeface)` and
+  never turns `Unresolved(ScriptDependent)` into `Set`.
+- **`ParagraphRef::end_props`** is `run_props(…, RunItem::End)`.
+- **`Effect::click_index`** counts `clickEffect` nodes of the main sequence
+  (each starts the next click), not `clickPar` nodes: PowerPoint writes no
+  `clickPar` node type on its click groups.
+- **Values from a master placeholder report the slide placeholder's own
+  `MatchKind`** (§1.2 "every resolved value … reports the `MatchKind`");
+  `MasterFamily` is the kind of a layout placeholder's master match (§1.7).
+- **Synthetic decks (§7 O2)** are built in memory from `poi/sample.pptx`
+  with documented XML edits in `tests/resolve.rs` / `tests/deckread.rs`,
+  not by a committed `build_phase1.py` into `reference/fixtures/pptx/synthetic/`;
+  each test states the rule it isolates (expectations are by construction).
+- **Deferred to the stacked notes PR** (ADR-0008 §1.7, §2;
+  branch `impl/pptx-phase1-notes`): `Deck::layouts()`/`masters()` and the
+  notes/layout/master resolution contexts, links on notes, layouts and
+  masters, and synthetic deck S8 (notes). The POI differential (O2b) is
+  specified by `tests/oracle/poi_known_differences.md` but not wired (no
+  JVM in CI).
+
 Phase 1 builds on Phase 0.1. Wherever this ADR says "the Phase 0 rules", it
 means ADR-0005 §3 and §6 **as amended by revision 4 §9** (format sources are
 copied as whole subtrees without `a:hlinkClick`/`a:hlinkMouseOver`). If PR

@@ -72,7 +72,9 @@ value a `Lookup` (`Set` with its `Source`, `Unset`, or `Unresolved` with a
 `Reason`), and reads links/actions, comments (legacy and p188),
 transitions (MCE branch by namespace URI) and a timing summary;
 `Deck::sections()` reads p14 sections. Values are as specified, not as
-displayed (§1.6). Notes, layout and master contexts (§1.7) and notes
+displayed (§1.6); enumerated values are `EnumValue`s of the generated
+types; `slide_rect`, `ShapeRef::is_text_box`, `RunProps::xsd_default` and
+the Q4 helper `RunProps::script_font_candidate` complete §1. Notes, layout and master contexts (§1.7) and notes
 editing (§2) are not implemented yet.
 
 Development:

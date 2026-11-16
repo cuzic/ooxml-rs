@@ -247,7 +247,7 @@ fn s1_chain_steps() {
     let mut p = patched(&[(SLIDE, "<a:lstStyle/><a:p><a:pPr hangingPunct", r#"<a:lstStyle><a:lvl1pPr algn="r"><a:defRPr sz="3333"/></a:lvl1pPr></a:lstStyle><a:p><a:pPr hangingPunct"#)]);
     title_run(&mut p, |rp, pp| {
         assert_eq!((rp.size.value(), rp.size.source()), (Some(&3333), Some(&Source::ShapeListStyle { level: 0 })));
-        assert_eq!(pp.align.value(), Some(&"r"));
+        assert_eq!(pp.align.value().map(|v| v.as_str()), Some("r"));
     });
     // step 4 on a placeholder (review M2): own p:style/a:fontRef wins over the master
     let mut p = patched(&[(SLIDE, "<p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr hangingPunct", r#"<p:spPr/><p:style><a:lnRef idx="0"><a:schemeClr val="accent1"/></a:lnRef><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr hangingPunct"#)]);
@@ -276,7 +276,7 @@ fn s9_invalid_level() {
 fn s10_presence_not_defaults() {
     let mut p = patched(&[("ppt/slideMasters/slideMaster1.xml", r#"<a:defRPr sz="4400"><a:solidFill>"#, r#"<a:defRPr sz="4400" cap="all"><a:solidFill>"#)]);
     title_run(&mut p, |rp, _| {
-        assert_eq!(rp.caps.value(), Some(&"all"), "{:?}", rp.caps);
+        assert_eq!(rp.caps.value().map(|v| v.as_str()), Some("all"), "{:?}", rp.caps);
     });
 }
 
@@ -288,12 +288,16 @@ fn s7_script_dependent_fonts() {
         let pkg = Package::from_bytes(cases::read_fixture("poi/sample.pptx")).unwrap();
         String::from_utf8(pkg.read_part("ppt/theme/theme1.xml").unwrap()).unwrap()
     };
+    // the theme's minor ea is empty (sample.pptx; asserted, not branched on: #56 m6)
+    let minor = &theme[theme.find("<a:minorFont>").unwrap()..];
+    assert!(minor.starts_with(r#"<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/>"#), "{}", &minor[..120]);
+    let jpan = minor.split(r#"<a:font script="Jpan" typeface=""#).nth(1).unwrap().split('"').next().unwrap().to_owned();
     title_run(&mut p, |rp, _| {
-        if theme.contains(r#"<a:ea typeface=""/>"#) {
-            assert!(matches!(rp.east_asian, Lookup::Unresolved(Reason::ScriptDependent { .. })), "{:?}", rp.east_asian);
-        } else {
-            assert!(rp.east_asian.typeface().is_some_and(|t| !t.is_empty()));
-        }
+        let Lookup::Unresolved(Reason::ScriptDependent { reference, .. }) = &rp.east_asian else { panic!("{:?}", rp.east_asian) };
+        assert_eq!(*reference, "+mn-ea");
+        // Q4 helper: a candidate by lang, never a Set value
+        assert_eq!(rp.script_font_candidate(&rp.east_asian), Some(("Jpan", jpan.as_str())));
+        assert_eq!(rp.script_font_candidate(&rp.latin), None);
     });
 }
 
@@ -330,8 +334,10 @@ fn bullet_group_winner() {
     let mut p = patched(&[(SLIDE, r#"<a:pPr hangingPunct="1"/>"#, r#"<a:pPr hangingPunct="1"><a:buAutoNum type="arabicPeriod"/></a:pPr>"#)]);
     title_run(&mut p, |_, pp| {
         let Lookup::Set(r) = &pp.bullet else { panic!() };
-        assert_eq!(r.value.as_ref().unwrap(), &Bullet::AutoNum { scheme: "arabicPeriod", start_at: 1 });
-        assert!(r.defaulted);
+        let Bullet::AutoNum { scheme, start_at } = r.value.as_ref().unwrap() else { panic!() };
+        assert_eq!((scheme.as_str(), start_at.get(), start_at.defaulted), ("arabicPeriod", Some(1), true));
+        assert_eq!(*scheme, ooxml_core::EnumValue::Known(ooxml_schema::dml::TextAutoNumberSchemeValues::ArabicPeriod));
+        assert!(!r.defaulted);
     });
 }
 
@@ -433,4 +439,240 @@ fn table_cells_stop_at_table_style() {
         }
     }
     assert!(total > 0 && table_style > 0, "{table_style}/{total}");
+}
+
+
+// ---------------------------------------------------------------------------
+// Review #56 round 1: m1 (synthetic S2/S3/S4, survivors Y5/Y6/Y11/Y14/Y16/Y18),
+// m2 (group geometry), m3 (WinnerAttr, AttrError), M1 (new APIs).
+
+const SLIDE2: &str = "ppt/slides/slide2.xml";
+const MASTER: &str = "ppt/slideMasters/slideMaster1.xml";
+const LOREM: &str = r#"<a:p><a:pPr hangingPunct="1"/><a:r><a:rPr lang="da-DK"/><a:t>Lorem</a:t></a:r></a:p>"#;
+
+/// Resolves run 0 of every paragraph of the slide-2 shape named `name`.
+fn slide2_runs(p: &mut Presentation, name: &str, f: impl Fn(usize, ooxml_pptx::RunProps<'_>, ooxml_pptx::ParaProps<'_>)) {
+    let deck = p.deck().unwrap();
+    let s = deck.slide(1).unwrap();
+    let shapes = s.slide().shapes();
+    let sh = shapes.iter().find(|x| x.name() == Some(name)).unwrap_or_else(|| panic!("{name}"));
+    let b = sh.text_body().unwrap();
+    for (k, para) in b.paragraphs().into_iter().enumerate() {
+        let Some(item) = para.items().into_iter().find_map(|i| match i {
+            TextItem::Run(r) => Some(RunItem::Run(r)),
+            TextItem::Field(f) => Some(RunItem::Field(f)),
+            _ => None,
+        }) else {
+            continue;
+        };
+        f(k, s.run_props(sh, b, para, item).unwrap(), s.para_props(sh, b, para).unwrap());
+    }
+}
+
+/// S2: levels 0–8 read exactly their own bodyStyle level; lvl="9" is
+/// invalid; a missing level is not filled from a lower one (Q3).
+#[test]
+fn s2_levels() {
+    let paras: String = (0..=9).map(|l| format!(r#"<a:p><a:pPr lvl="{l}"/><a:r><a:rPr lang="da-DK"/><a:t>L{l}</a:t></a:r></a:p>"#)).collect();
+    let mut p = patched(&[(SLIDE2, LOREM, &paras)]);
+    let want = [3200, 2800, 2400, 2000, 2000, 2000, 2000, 2000, 2000];
+    slide2_runs(&mut p, "Rectangle 3", |k, rp, pp| {
+        if k > 9 {
+            return;
+        }
+        if k == 9 {
+            assert!(pp.level.is_err());
+            assert_eq!(rp.size, Lookup::Unresolved(Reason::InvalidLevel));
+            return;
+        }
+        assert_eq!(rp.size.value(), Some(&want[k]), "level {k}");
+        assert_eq!(rp.size.source(), Some(&Source::MasterTextStyle { part: MASTER, style: TextStyleKind::Body, level: k as u8 }), "level {k}");
+    });
+    // the bodyStyle's lvl2pPr removed: level 1 does not borrow level 0's size
+    let master = String::from_utf8(Package::from_bytes(cases::read_fixture("poi/sample.pptx")).unwrap().read_part(MASTER).unwrap()).unwrap();
+    let body = &master[master.find("<p:bodyStyle>").unwrap()..];
+    let (s2, e2) = (body.find("<a:lvl2pPr").unwrap(), body.find("</a:lvl2pPr>").unwrap() + "</a:lvl2pPr>".len());
+    let lvl2 = body[s2..e2].to_owned();
+    let mut p = patched(&[(SLIDE2, LOREM, &paras), (MASTER, &lvl2, "")]);
+    slide2_runs(&mut p, "Rectangle 3", |k, rp, _| {
+        if k == 1 {
+            assert!(!matches!(rp.size.source(), Some(Source::MasterTextStyle { style: TextStyleKind::Body, .. })), "{:?}", rp.size);
+        }
+    });
+}
+
+fn raw_id(n: &ooxml_core::RawNode) -> Option<u32> {
+    let nv = n.elements().find(|c| c.name().local().starts_with("nv"))?;
+    nv.elements().find(|c| c.name().local() == "cNvPr")?.attr(ooxml_core::QName::new("", "id"))?.parse().ok()
+}
+
+/// (kind, ambiguous, candidates, layout placeholder id, master placeholder id)
+fn slide2_match(p: &mut Presentation, name: &str) -> (MatchKind, bool, usize, Option<u32>, Option<u32>) {
+    let deck = p.deck().unwrap();
+    let s = deck.slide(1).unwrap();
+    let shapes = s.slide().shapes();
+    let sh = shapes.iter().find(|x| x.name() == Some(name)).unwrap();
+    let m = s.placeholder_match(sh).unwrap().unwrap();
+    (m.kind, m.ambiguous, m.candidates, m.layout.and_then(raw_id), m.master.and_then(raw_id))
+}
+
+const BODY_PH: &str = r#"<p:ph type="body" idx="1"/>"#;
+const TITLE_PH: &str = r#"<p:ph type="title"/>"#;
+const LAYOUT6: &str = "ppt/slideLayouts/slideLayout6.xml";
+
+/// S3: idx ties, absent idx, family, orphan, `4294967295`, and step 3's
+/// "idx 0 preferred" (survivor Y11).
+#[test]
+fn s3_placeholder_matching() {
+    // tie: layout title and body both without idx; the slide body too
+    let mut p = patched(&[(LAYOUT6, BODY_PH, r#"<p:ph type="body"/>"#), (SLIDE2, BODY_PH, r#"<p:ph type="body"/>"#)]);
+    assert_eq!(slide2_match(&mut p, "Rectangle 2").0, MatchKind::IdxTieType);
+    assert_eq!(slide2_match(&mut p, "Rectangle 3").0, MatchKind::IdxTieType);
+    // absent idx, the only idx-0 candidate of another family → step 3 by type
+    let mut p = patched(&[(SLIDE2, BODY_PH, r#"<p:ph type="body"/>"#)]);
+    assert_eq!(slide2_match(&mut p, "Rectangle 3").0, MatchKind::Type);
+    // absent idx, no such type → same family
+    let mut p = patched(&[(SLIDE2, BODY_PH, r#"<p:ph type="subTitle"/>"#)]);
+    assert_eq!(slide2_match(&mut p, "Rectangle 3").0, MatchKind::Family);
+    // orphan: the layout has no title-family placeholder → master by family
+    let mut p = patched(&[(LAYOUT6, TITLE_PH, r#"<p:ph type="pic" idx="50"/>"#)]);
+    let (kind, _, _, layout, master) = slide2_match(&mut p, "Rectangle 2");
+    assert_eq!((kind, layout), (MatchKind::Orphan, None));
+    assert!(master.is_some());
+    // idx 4294967295 (no layout placeholder has it) → type, ambiguous between idx 12 and 15
+    let num = r#"<p:sp><p:nvSpPr><p:cNvPr id="90" name="Num"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" sz="quarter" idx="4294967295"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:fld id="{5C1B3D53-6C46-4F5C-9A71-0D5A5A9C4E11}" type="slidenum"><a:rPr lang="en-US"/><a:t>2</a:t></a:fld></a:p></p:txBody></p:sp></p:spTree>"#;
+    let mut p = patched(&[(SLIDE2, "</p:spTree>", num)]);
+    let (kind, ambiguous, n, _, _) = slide2_match(&mut p, "Num");
+    assert_eq!((kind, ambiguous, n), (MatchKind::Type, true, 2));
+    // step 3 prefers idx 0: layout 7 has body idx 1 and body without idx;
+    // the slide's body has idx 99 (no idx candidate) → the idx-0 one (id 9)
+    let mut p = patched(&[
+        ("ppt/slides/_rels/slide2.xml.rels", "slideLayout6.xml", "slideLayout7.xml"),
+        ("ppt/slideLayouts/slideLayout7.xml", r#"<p:ph type="body" sz="half" idx="2"/>"#, r#"<p:ph type="body" sz="half"/>"#),
+        (SLIDE2, BODY_PH, r#"<p:ph type="body" idx="99"/>"#),
+    ]);
+    let (kind, ambiguous, n, layout, _) = slide2_match(&mut p, "Rectangle 3");
+    assert_eq!((kind, ambiguous, n, layout), (MatchKind::Type, false, 1, Some(9)));
+}
+
+/// S4: dt, ftr and sldNum take `p:otherStyle` (step 7 by the slide's family).
+#[test]
+fn s4_footer_placeholders_use_other_style() {
+    let other = r#"</p:bodyStyle><p:otherStyle><a:lvl1pPr><a:defRPr u="sng"/></a:lvl1pPr></p:otherStyle>"#;
+    let shape = |id: u32, ty: &str, idx: u32| format!(r#"<p:sp><p:nvSpPr><p:cNvPr id="{id}" name="{ty}"/><p:cNvSpPr/><p:nvPr><p:ph type="{ty}" idx="{idx}"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>x</a:t></a:r></a:p></p:txBody></p:sp>"#);
+    let shapes = format!("{}{}{}</p:spTree>", shape(90, "dt", 10), shape(91, "ftr", 11), shape(92, "sldNum", 12));
+    let mut p = patched(&[(MASTER, "</p:bodyStyle>", other), (SLIDE2, "</p:spTree>", &shapes)]);
+    for name in ["dt", "ftr", "sldNum"] {
+        slide2_runs(&mut p, name, |_, rp, _| {
+            assert_eq!(rp.underline.value().map(|u| u.as_str()), Some("sng"), "{name}");
+            assert_eq!(rp.underline.source(), Some(&Source::MasterTextStyle { part: MASTER, style: TextStyleKind::Other, level: 0 }), "{name}");
+        });
+    }
+    // the body placeholder does not see otherStyle
+    slide2_runs(&mut p, "Rectangle 3", |_, rp, _| assert_eq!(rp.underline, Lookup::Unset));
+}
+
+/// Survivors Y5/Y6: a themeOverride relationship makes theme fonts and
+/// scheme colours Unresolved(ThemeOverride).
+#[test]
+fn theme_override_is_unresolved() {
+    let rel = r#"<Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/themeOverride" Target="../theme/themeOverride1.xml"/></Relationships>"#;
+    let run = r#"<a:r><a:rPr lang="en-US"><a:latin typeface="+mj-lt"/></a:rPr><a:t>x</a:t></a:r>"#;
+    let mut p = patched(&[("ppt/slides/_rels/slide1.xml.rels", "</Relationships>", rel), (SLIDE, TITLE_RUN, run)]);
+    title_run(&mut p, |rp, _| {
+        assert_eq!(rp.latin, Lookup::Unresolved(Reason::ThemeOverride), "{:?}", rp.latin);
+        assert_eq!(rp.fill, Lookup::Unresolved(Reason::ThemeOverride), "{:?}", rp.fill);
+        assert!(rp.size.value().is_some());
+    });
+}
+
+/// Survivor Y16: `fontRef idx="major"` supplies +mj-lt / +mj-ea / +mj-cs.
+#[test]
+fn font_ref_major() {
+    let style = r#"<p:spPr/><p:style><a:lnRef idx="0"><a:schemeClr val="accent1"/></a:lnRef><a:fillRef idx="0"><a:schemeClr val="accent1"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="major"><a:schemeClr val="accent2"/></a:fontRef></p:style><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr hangingPunct"#;
+    let run = r#"<a:r><a:rPr lang="en-US"/><a:t>x</a:t></a:r>"#;
+    let mut p = patched(&[(SLIDE, "<p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr hangingPunct", style), (SLIDE, TITLE_RUN, run)]);
+    title_run(&mut p, |rp, _| {
+        assert_eq!(rp.latin.source(), Some(&Source::ShapeStyle));
+        assert_eq!(rp.latin.value().and_then(|f| f.theme_ref), Some("+mj-lt"));
+        fn r(l: &Lookup<'_, ooxml_pptx::Font<'_>>) -> Option<String> {
+            match l {
+                Lookup::Unresolved(Reason::ScriptDependent { reference, .. }) => Some((*reference).to_owned()),
+                Lookup::Set(x) => x.value.as_ref().ok().and_then(|f| f.theme_ref).map(str::to_owned),
+                _ => None,
+            }
+        }
+        assert_eq!((r(&rp.east_asian).as_deref(), r(&rp.complex_script).as_deref()), (Some("+mj-ea"), Some("+mj-cs")));
+    });
+}
+
+/// #56 m2: a group's own geometry is its p:grpSpPr/a:xfrm; slide_rect maps
+/// a member through chOff/chExt; a rotated group refuses.
+#[test]
+fn group_geometry_and_slide_rect() {
+    let group = |rot: &str| {
+        format!(
+            r#"<p:grpSp><p:nvGrpSpPr><p:cNvPr id="80" name="G"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm{rot}><a:off x="1000" y="2000"/><a:ext cx="200" cy="400"/><a:chOff x="0" y="0"/><a:chExt cx="100" cy="100"/></a:xfrm></p:grpSpPr><p:sp><p:nvSpPr><p:cNvPr id="81" name="M"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="10" y="20"/><a:ext cx="30" cy="40"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:grpSp></p:spTree>"#
+        )
+    };
+    let mut p = patched(&[(SLIDE, "</p:spTree>", &group(""))]);
+    {
+        let deck = p.deck().unwrap();
+        let s = deck.slide(0).unwrap();
+        let shapes = s.slide().shapes();
+        let g = shapes.iter().find(|x| x.name() == Some("G")).unwrap();
+        let m = shapes.iter().find(|x| x.name() == Some("M")).unwrap();
+        let gx = s.geometry(g).unwrap();
+        assert_eq!(gx.value().map(|x| (x.x, x.y, x.cx, x.cy)), Some((1000, 2000, 200, 400)));
+        assert!(m.is_text_box() && !g.is_text_box());
+        assert_eq!(s.slide_rect(m).unwrap(), Some(ooxml_pptx::Rect { x: 1020, y: 2080, cx: 60, cy: 160 }));
+        let title = shapes.iter().find(|x| x.name() == Some("Rectangle 2")).unwrap();
+        assert!(!title.is_text_box());
+    }
+    let mut p = patched(&[(SLIDE, "</p:spTree>", &group(r#" rot="5400000""#))]);
+    let deck = p.deck().unwrap();
+    let s = deck.slide(0).unwrap();
+    let shapes = s.slide().shapes();
+    let m = shapes.iter().find(|x| x.name() == Some("M")).unwrap();
+    assert!(matches!(s.slide_rect(m), Err(ooxml_pptx::Error::TransformedGroup { group_id: Some(80) })));
+}
+
+/// #56 m3: group-winner attributes carry their own `defaulted`; invalid
+/// values are AttrError with the raw text.
+#[test]
+fn winner_attributes_and_invalid_values() {
+    let mut p = patched(&[(SLIDE, "<p:spPr/><p:txBody><a:bodyPr/>", r#"<p:spPr><a:xfrm rot="abc" flipV="1"><a:off x="1" y="2"/><a:ext cx="3" cy="4"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/>"#)]);
+    title_body_props(&mut p, |_, g, _| {
+        let x = g.value().unwrap();
+        assert_eq!(x.rot.value.as_ref().unwrap_err().raw, "abc");
+        assert!(!x.rot.defaulted);
+        assert_eq!((x.flip_v.get(), x.flip_v.defaulted), (Some(true), false));
+        assert_eq!((x.flip_h.get(), x.flip_h.defaulted), (Some(false), true));
+    });
+    let mut p = patched(&[(SLIDE, TITLE_RUN, r#"<a:r><a:rPr lang="en-US"><a:latin typeface="Arial" pitchFamily="zz"/></a:rPr><a:t>x</a:t></a:r>"#)]);
+    title_run(&mut p, |rp, _| {
+        let f = rp.latin.value().unwrap();
+        assert_eq!(f.pitch_family.value.as_ref().unwrap_err().raw, "zz");
+        assert_eq!((f.charset.get(), f.charset.defaulted), (Some(1), true));
+    });
+    let mut p = patched(&[(SLIDE, r#"<a:pPr hangingPunct="1"/>"#, r#"<a:pPr hangingPunct="1"><a:lnSpc><a:spcPts val="x1"/></a:lnSpc><a:buAutoNum type="romanLcPeriod" startAt="q"/></a:pPr>"#)]);
+    title_run(&mut p, |_, pp| {
+        let Lookup::Set(r) = &pp.line_spacing else { panic!() };
+        assert_eq!(r.value.as_ref().unwrap_err().raw, "x1");
+        let Some(Bullet::AutoNum { start_at, .. }) = pp.bullet.value() else { panic!() };
+        assert_eq!(start_at.value.as_ref().unwrap_err().raw, "q");
+    });
+}
+
+/// M1: schema defaults for Unset properties.
+#[test]
+fn xsd_defaults() {
+    assert_eq!(ooxml_pptx::RunProps::xsd_default("dirty"), Some("true"));
+    assert_eq!(ooxml_pptx::RunProps::xsd_default("sz"), None);
+    assert_eq!(ooxml_pptx::BodyProps::xsd_default("upright"), Some("false"));
+    assert_eq!(ooxml_pptx::ParaProps::xsd_default("algn"), None);
+    assert_eq!(ooxml_pptx::script_for_lang("ja-JP"), Some("Jpan"));
+    assert_eq!(ooxml_pptx::script_for_lang("zh-TW"), Some("Hant"));
+    assert_eq!(ooxml_pptx::script_for_lang("zh-CN"), Some("Hans"));
+    assert_eq!(ooxml_pptx::script_for_lang("en-US"), None);
 }

@@ -166,6 +166,14 @@ pub enum Error {
     /// the link (ADR-0008 §4 rule 5).
     #[error("a line break in the replacement would split a hyperlink run")]
     LinkSplitByBreak,
+    /// `slide_rect` of a shape inside a group with `rot`, `flipH` or
+    /// `flipV`: the rectangle is not axis-aligned in slide space
+    /// (ADR-0008 §1.5).
+    #[error("an enclosing group (id {group_id:?}) is rotated or flipped")]
+    TransformedGroup {
+        /// `cNvPr@id` of that group.
+        group_id: Option<u32>,
+    },
     /// A link of the slide → layout → master → theme chain is missing or
     /// does not parse (ADR-0008 §1.1). Only resolver calls that need the
     /// link fail; Phase 0 reads and writes on that slide keep working.

@@ -77,8 +77,8 @@ fn transitions_choose_branches_by_uri() {
     let t = s.transition().unwrap();
     assert_eq!(t.branch, Branch::Choice { requires: "p15" });
     assert_eq!(t.kind.map(|k| k.1), Some("prstTrans"));
-    assert_eq!(t.kind_attributes, [("prst", "airplane")]);
-    assert_eq!((t.speed, t.duration_ms, t.advance_on_click), ("slow", Some(1250), true));
+    assert_eq!(t.kind_attributes, [(("", "prst"), "airplane")]);
+    assert_eq!((t.speed, t.duration_ms, t.advance_on_click), (ooxml_core::EnumValue::Known(ooxml_schema::pml::TransitionSpeedValues::Slow), Some(1250), true));
     assert_eq!(s.transition_branches().len(), 2);
     // SYNTHETIC: the Requires prefix bound to an unknown URI → Fallback
     let mut p = patched("libreoffice/airplane-transition.pptx", "ppt/slides/slide2.xml", "xmlns:p15=\"http://schemas.microsoft.com/office/powerpoint/2012/main\" Requires", "xmlns:p15=\"urn:unknown\" Requires");
@@ -86,6 +86,10 @@ fn transitions_choose_branches_by_uri() {
     let t = d.slide(0).unwrap().transition().unwrap();
     assert_eq!(t.branch, Branch::Fallback);
     assert_eq!(t.kind.map(|k| k.1), Some("fade"));
+    // SYNTHETIC: an empty Requires is not understood (#56 nit) → Fallback
+    let mut p = patched("libreoffice/airplane-transition.pptx", "ppt/slides/slide2.xml", "Requires=\"p15\"", "Requires=\"\"");
+    let d = p.deck().unwrap();
+    assert_eq!(d.slide(0).unwrap().transition().unwrap().branch, Branch::Fallback);
     // SYNTHETIC: p159 (morph) is understood (Q5)
     let mut p = patched(
         "libreoffice/airplane-transition.pptx",
@@ -107,7 +111,7 @@ fn timing_summary() {
     let mut p = open("poi/45545_Comment.pptx");
     let d = p.deck().unwrap();
     let t = (0..d.slide_count()).find_map(|i| d.slide(i).unwrap().timing()).expect("timing");
-    assert!(t.builds.iter().any(|b| matches!(b, Build::Paragraph { spid: 584707, build: "p", .. })), "{:?}", t.builds);
+    assert!(t.builds.iter().any(|b| matches!(b, Build::Paragraph { spid: 584707, build, .. } if build.as_str() == "p")), "{:?}", t.builds);
     assert!(t.effects.iter().any(|e| e.targets.iter().any(|x| matches!(x, Target::Paragraphs(584707, ..)))));
     assert!(t.effects.iter().all(|e| e.preset_class.is_some()));
 }
@@ -138,4 +142,86 @@ fn links() {
     assert_eq!(click.1.color_rule(), Some(LinkColor::RunColor));
     let hover = ls.iter().find(|(_, l)| l.event == LinkEvent::Hover).unwrap();
     assert_eq!((hover.1.target.clone(), hover.1.color_rule()), (LinkTarget::NoAction, None));
+}
+
+/// Survivor Y17: every click group of the main sequence gets its ordinal.
+#[test]
+fn click_index_counts_click_groups() {
+    let mut checked = 0;
+    for f in cases::FIXTURES {
+    let bytes = cases::read_fixture(f);
+    let pkg = Package::from_bytes(bytes.clone()).unwrap();
+    let mut p = Presentation::from_bytes(bytes).unwrap();
+    let d = p.deck().unwrap();
+    for i in 0..d.slide_count() {
+        let Ok(s) = d.slide(i) else { continue };
+        let Some(t) = s.timing() else { continue };
+        let xml = String::from_utf8(pkg.read_part(&s.info().part_name).unwrap()).unwrap();
+        let main = &xml[xml.find(r#"nodeType="mainSeq""#).unwrap_or(xml.len())..];
+        let clicks = main.matches(r#"nodeType="clickEffect""#).count();
+        let mut seen: Vec<usize> = t.effects.iter().filter_map(|e| e.click_index).collect();
+        seen.dedup();
+        if clicks > 0 {
+            assert_eq!(seen, (0..clicks).collect::<Vec<_>>(), "{f} slide {i}");
+            checked += 1;
+        }
+    }
+    }
+    assert!(checked > 0);
+}
+
+/// Review #56 m4: timing inside mc:AlternateContent follows the
+/// transition rule (Requires by namespace URI); an AC-wrapped shape's
+/// action is read from its representative.
+#[test]
+fn alternate_content_timing_and_shape_actions() {
+    let timing = |class: &str| format!(r#"<p:timing><p:tnLst><p:par><p:cTn id="1" presetClass="{class}" presetID="1"/></p:par></p:tnLst></p:timing>"#);
+    let ac = format!(
+        r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:zz="urn:unknown" Requires="zz">{}</mc:Choice><mc:Fallback>{}</mc:Fallback></mc:AlternateContent></p:sld>"#,
+        timing("exit"),
+        timing("entr")
+    );
+    let sp = r#"<p:sp><p:nvSpPr><p:cNvPr id="70" name="A"><a:hlinkClick r:id="" action="ppaction://hlinkshowjump?jump=nextslide"/></p:cNvPr><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/></p:sp>"#;
+    let shape_ac = format!(
+        r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" Requires="p14">{sp}</mc:Choice><mc:Fallback>{sp}</mc:Fallback></mc:AlternateContent></p:spTree>"#
+    );
+    let mut pkg = Package::from_bytes(cases::read_fixture("poi/sample.pptx")).unwrap();
+    let x = String::from_utf8(pkg.read_part("ppt/slides/slide1.xml").unwrap()).unwrap();
+    assert!(!x.contains("<p:timing"));
+    let x = x.replacen("</p:sld>", &ac, 1).replacen("</p:spTree>", &shape_ac, 1);
+    pkg.set_part("ppt/slides/slide1.xml", x.into_bytes()).unwrap();
+    let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    let d = p.deck().unwrap();
+    let s = d.slide(0).unwrap();
+    let t = s.timing().unwrap();
+    assert_eq!(t.effects.iter().map(|e| e.preset_class.map(|c| c.as_str())).collect::<Vec<_>>(), [Some("entr")]);
+    let shapes = s.slide().shapes();
+    let acs = shapes.iter().find(|x| *x.kind() == ooxml_pptx::ShapeKind::AlternateContent).unwrap();
+    let l = s.shape_action(acs, LinkEvent::Click).expect("AC shape action");
+    assert_eq!(l.target, LinkTarget::Jump(ooxml_pptx::ShowJump::Next));
+    assert!(s.links().iter().any(|(loc, _)| loc.shape == acs.path()));
+}
+
+/// Review #56 m5: reading and locking classify anchors with one function:
+/// a `pc:` anchor other than `pc:sldMkLst` without ids is not a slide anchor.
+#[test]
+fn comment_anchor_shared_classifier() {
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    let mut pkg = Package::from_bytes(cases::read_fixture("libreoffice/modern-comments.pptx")).unwrap();
+    let x = String::from_utf8(pkg.read_part(PART).unwrap()).unwrap();
+    let start = x.find("<ac:deMkLst").unwrap();
+    let end = x.find("</ac:deMkLst>").unwrap() + "</ac:deMkLst>".len();
+    let y = format!("{}<pc:sldLayoutMkLst xmlns:pc=\"http://schemas.microsoft.com/office/powerpoint/2013/main/command\"><pc:docMk/></pc:sldLayoutMkLst>{}", &x[..start], &x[end..]);
+    pkg.set_part(PART, y.into_bytes()).unwrap();
+    let bytes = pkg.to_bytes().unwrap();
+    let mut p = Presentation::from_bytes(bytes).unwrap();
+    {
+        let d = p.deck().unwrap();
+        let c = &d.slide(0).unwrap().comments().unwrap()[0];
+        assert_eq!(c.anchor, Anchor::Other("sldLayoutMkLst".into()));
+    }
+    // ... and the lock side locks every shape's text
+    let id = p.slide(0).unwrap().shapes().into_iter().find_map(|s| s.text_body().and(s.id().ok())).unwrap();
+    let e = p.slide_mut(0).unwrap().shape_mut_by_id(id).unwrap().text_body_mut().unwrap().set_text("x").unwrap_err();
+    assert!(matches!(e, ooxml_pptx::Error::CommentAnchoredText { .. }), "{e:?}");
 }

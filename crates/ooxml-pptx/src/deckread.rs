@@ -2,7 +2,8 @@
 //! and modern comments, transitions (with `mc:AlternateContent` branch
 //! selection by namespace URI) and a timing summary. All read-only.
 
-use ooxml_core::{QName, RawNode};
+use ooxml_core::{EnumValue, QName, RawNode};
+use ooxml_schema::pml::{ParagraphBuildValues, TimeNodePresetClassValues, TimeNodeValues, TransitionSpeedValues};
 
 use crate::deck::{Deck, DeckSlide, a, child, p, rel, un};
 use crate::error::{Error, Result};
@@ -239,7 +240,9 @@ impl<'a> DeckSlide<'a, '_> {
 
     /// A shape's own action (`p:cNvPr/a:hlinkClick` or `a:hlinkHover`).
     pub fn shape_action(&self, shape: &crate::ShapeRef<'a>, event: LinkEvent) -> Option<Link<'a>> {
-        let c = crate::read::c_nv_pr(shape.raw())?;
+        // an AC entry: its representative shape (as the resolver, #56 m4)
+        let node = if *shape.kind() == crate::ShapeKind::AlternateContent { crate::read::ac_representative(shape.raw())? } else { shape.raw() };
+        let c = crate::read::c_nv_pr(node)?;
         let q = match event {
             LinkEvent::Click => a("hlinkClick"),
             LinkEvent::Hover => a("hlinkHover"),
@@ -325,12 +328,10 @@ impl<'a> Deck<'a> {
     pub fn sections(&self) -> Option<Sections<'a>> {
         let ext = child(self.pres.root(), p("extLst"))?.elements().find(|e| e.is(p("ext")) && e.attr(un("uri")) == Some(SECTIONS_URI))?;
         let list = child(ext, QName::new(P14_NS, "sectionLst"))?;
-        let ids: Vec<Option<u32>> = self.slides.iter().map(|s| s.as_ref().map(|(i, _)| i.slide_id).ok()).collect();
         let all_ids: Vec<u32> = self.slides.iter().map(|s| match s {
             Ok((i, _)) => i.slide_id,
             Err(id) => *id,
         }).collect();
-        let _ = ids;
         let mut sections = Vec::new();
         let mut seen: Vec<u32> = Vec::new();
         let (mut duplicated, mut unknown) = (Vec::new(), Vec::new());
@@ -410,7 +411,7 @@ pub struct Comment<'a> {
     /// Modern: the anchor. Legacy: `Slide`.
     pub anchor: Anchor,
     /// Modern: `@status`.
-    pub status: Option<&'a str>,
+    pub status: Option<EnumValue<'a, ooxml_schema::pml::CommentStatus>>,
     /// Modern replies; legacy: empty.
     pub replies: Vec<Comment<'a>>,
     /// Legacy reply: `p15:parentCm` (`authorId`, `idx`).
@@ -427,33 +428,18 @@ fn modern_text(body: Option<&RawNode>) -> String {
     crate::TextBodyRef { node: b }.text()
 }
 
+/// The reading view of [`crate::refs::classify_anchor`] (one classifier
+/// for reading and locking, ADR-0008 §3.3, review #56 m5).
 fn classify_anchor(a_el: &RawNode) -> Anchor {
-    let mut ids = Vec::new();
-    let (mut cp, mut len, mut texty) = (None, None, false);
-    fn walk(n: &RawNode, ids: &mut Vec<u32>, cp: &mut Option<u32>, len: &mut Option<u32>, texty: &mut bool) {
-        for c in n.elements() {
-            if c.name().ns() == crate::names::AC_NS && let Some(id) = c.attr(un("id")).and_then(|v| v.parse().ok()) {
-                ids.push(id);
-            }
-            if c.name().local() == "txMk" || c.attr(un("cp")).is_some() || c.attr(un("len")).is_some() {
-                *texty = true;
-                *cp = cp.or(c.attr(un("cp")).and_then(|v| v.parse().ok()));
-                *len = len.or(c.attr(un("len")).and_then(|v| v.parse().ok()));
-            }
-            walk(c, ids, cp, len, texty);
-        }
+    let c = crate::refs::classify_anchor(a_el);
+    let num = |v: &str| v.parse::<u32>().ok();
+    if c.text {
+        return Anchor::Text { shape_id: c.ids.first().and_then(|v| num(v)), cp: c.cp.and_then(num), len: c.len.and_then(num) };
     }
-    walk(a_el, &mut ids, &mut cp, &mut len, &mut texty);
-    let local = a_el.name().local();
-    if texty {
-        return Anchor::Text { shape_id: ids.first().copied(), cp, len };
+    if c.safe {
+        return if c.ids.is_empty() { Anchor::Slide } else { Anchor::Shapes(c.ids.iter().filter_map(|v| num(v)).collect()) };
     }
-    match local {
-        "sldMkLst" | "deMkLst" if ids.is_empty() => Anchor::Slide,
-        "deMkLst" => Anchor::Shapes(ids),
-        _ if a_el.name().ns() == crate::names::PC_NS && ids.is_empty() => Anchor::Slide,
-        other => Anchor::Other(other.to_owned()),
-    }
+    Anchor::Other(a_el.name().local().to_owned())
 }
 
 impl<'a> DeckSlide<'a, '_> {
@@ -522,7 +508,7 @@ impl<'a> DeckSlide<'a, '_> {
                         pos: None,
                         text: modern_text(child(r, p188("txBody"))),
                         anchor: Anchor::Slide,
-                        status: r.attr(un("status")),
+                        status: r.attr(un("status")).map(EnumValue::from_raw),
                         replies: Vec::new(),
                         parent: None,
                     })
@@ -535,7 +521,7 @@ impl<'a> DeckSlide<'a, '_> {
                     pos: pos_of(child(cm, p188("pos"))),
                     text: modern_text(child(cm, p188("txBody"))),
                     anchor: anchor_el.map_or(Anchor::Other("(none)".into()), classify_anchor),
-                    status: cm.attr(un("status")),
+                    status: cm.attr(un("status")).map(EnumValue::from_raw),
                     replies,
                     parent: None,
                 });
@@ -569,10 +555,10 @@ pub struct Transition<'a> {
     pub branch: Branch<'a>,
     /// The kind: the child element's (namespace, local name), e.g. `p:fade`, `p159:morph`.
     pub kind: Option<(&'a str, &'a str)>,
-    /// The kind element's attributes (raw).
-    pub kind_attributes: Vec<(&'a str, &'a str)>,
+    /// The kind element's attributes: ((namespace, local name), raw value).
+    pub kind_attributes: Vec<((&'a str, &'a str), &'a str)>,
     /// `@spd` (default `fast`).
-    pub speed: &'a str,
+    pub speed: EnumValue<'a, TransitionSpeedValues>,
     /// `@p14:dur` (ms).
     pub duration_ms: Option<u32>,
     /// `@advClick` (default true, §19.3.1.50).
@@ -588,8 +574,10 @@ fn parse_transition<'a>(t: &'a RawNode, branch: Branch<'a>) -> Transition<'a> {
     Transition {
         branch,
         kind: kind_el.map(|k| (k.name().ns(), k.name().local())),
-        kind_attributes: kind_el.map(|k| k.attrs().iter().map(|x| (x.name().local(), x.value())).collect()).unwrap_or_default(),
-        speed: t.attr(un("spd")).unwrap_or("fast"),
+        kind_attributes: kind_el
+            .map(|k| k.attrs().iter().filter(|x| !x.name().is_namespace_declaration()).map(|x| ((x.name().ns(), x.name().local()), x.value())).collect())
+            .unwrap_or_default(),
+        speed: EnumValue::from_raw(t.attr(un("spd")).unwrap_or("fast")),
         duration_ms: t.attr(QName::new(P14_NS, "dur")).and_then(|v| v.parse().ok()),
         advance_on_click: t.attr(un("advClick")).and_then(ooxml_core::value::parse_bool).unwrap_or(true),
         advance_after_ms: t.attr(un("advTm")).and_then(|v| v.parse().ok()),
@@ -624,25 +612,31 @@ pub(crate) fn transition_branches(root: &RawNode) -> Vec<Transition<'_>> {
     out
 }
 
-/// The transition a reader that understands [`UNDERSTOOD_NAMESPACES`] uses:
-/// a direct one, else the first `mc:Choice` whose `Requires` prefixes all
-/// resolve (by the declarations in scope) to understood URIs, else the
-/// `mc:Fallback` (ECMA-376 Part 3).
-pub(crate) fn transition_of(root: &RawNode) -> Option<Transition<'_>> {
-    if let Some(t) = child(root, p("transition")) {
-        return Some(parse_transition(t, Branch::Direct));
+/// Does a reader that understands [`UNDERSTOOD_NAMESPACES`] process this
+/// `mc:Choice`? Every `Requires` prefix must resolve (by the declarations
+/// in scope) to an understood URI; an empty `Requires` is not understood.
+fn understood(root: &RawNode, ac: &RawNode, choice: &RawNode) -> bool {
+    let requires = choice.attr(un("Requires")).unwrap_or("");
+    requires.split_whitespace().next().is_some() && requires.split_whitespace().all(|pfx| declared(&[root, ac, choice], pfx).is_some_and(|u| UNDERSTOOD_NAMESPACES.contains(&u)))
+}
+
+/// The `name` child of a part root as such a reader sees it: a direct one,
+/// else, per `mc:AlternateContent`, the first understood `mc:Choice` that
+/// has one, else its `mc:Fallback` (ECMA-376 Part 3). Used for transitions
+/// and timing (ADR-0008 §3.4, §3.5).
+fn chosen(root: &RawNode, name: QName) -> Option<(&RawNode, Branch<'_>)> {
+    if let Some(t) = child(root, name) {
+        return Some((t, Branch::Direct));
     }
     for ac in root.elements().filter(|c| c.is(QName::new(MC_NS, "AlternateContent"))) {
         let mut fallback = None;
         for b in ac.elements() {
             if b.is(QName::new(MC_NS, "Choice")) {
-                let requires = b.attr(un("Requires")).unwrap_or("");
-                let ok = requires.split_whitespace().all(|pfx| declared(&[root, ac, b], pfx).is_some_and(|u| UNDERSTOOD_NAMESPACES.contains(&u)));
-                if ok && let Some(t) = child(b, p("transition")) {
-                    return Some(parse_transition(t, Branch::Choice { requires }));
+                if understood(root, ac, b) && let Some(t) = child(b, name) {
+                    return Some((t, Branch::Choice { requires: b.attr(un("Requires")).unwrap_or("") }));
                 }
             } else if b.is(QName::new(MC_NS, "Fallback")) {
-                fallback = child(b, p("transition")).map(|t| parse_transition(t, Branch::Fallback));
+                fallback = child(b, name).map(|t| (t, Branch::Fallback));
             }
         }
         if fallback.is_some() {
@@ -650,6 +644,12 @@ pub(crate) fn transition_of(root: &RawNode) -> Option<Transition<'_>> {
         }
     }
     None
+}
+
+/// The transition a reader that understands [`UNDERSTOOD_NAMESPACES`] uses
+/// ([`chosen`]).
+pub(crate) fn transition_of(root: &RawNode) -> Option<Transition<'_>> {
+    chosen(root, p("transition")).map(|(t, b)| parse_transition(t, b))
 }
 
 impl<'a> DeckSlide<'a, '_> {
@@ -700,14 +700,16 @@ pub struct Effect<'a> {
     /// `@id`.
     pub ctn_id: Option<u32>,
     /// `@presetClass`.
-    pub preset_class: Option<&'a str>,
+    pub preset_class: Option<EnumValue<'a, TimeNodePresetClassValues>>,
     /// `@presetID`.
     pub preset_id: Option<u32>,
     /// `@presetSubtype`.
     pub preset_subtype: Option<u32>,
     /// `@nodeType`.
-    pub node_type: Option<&'a str>,
-    /// Ordinal of the enclosing click group in the main sequence.
+    pub node_type: Option<EnumValue<'a, TimeNodeValues>>,
+    /// The 0-based click of the main sequence the effect belongs to (a
+    /// `clickEffect` starts the next click); `None` before the first click
+    /// and outside the main sequence.
     pub click_index: Option<usize>,
     /// Targets below the effect.
     pub targets: Vec<Target>,
@@ -721,7 +723,7 @@ pub enum Build<'a> {
         /// `@spid`.
         spid: u32,
         /// `@build` (default `whole`).
-        build: &'a str,
+        build: EnumValue<'a, ParagraphBuildValues>,
         /// `@grpId`.
         group: Option<u32>,
     },
@@ -774,45 +776,58 @@ fn targets_below(n: &RawNode, out: &mut Vec<Target>) {
     }
 }
 
-fn walk_effects<'a>(n: &'a RawNode, click: &mut usize, current: Option<usize>, out: &mut Vec<Effect<'a>>) {
+/// Effects in document order. `click` counts the clicks of the main
+/// sequence: an effect with `nodeType="clickEffect"` starts the next click,
+/// `withEffect`/`afterEffect` join the current one (#56 m1: PowerPoint
+/// writes no `clickPar` node type on the click groups).
+fn walk_effects<'a>(n: &'a RawNode, click: &mut usize, current: &mut Option<usize>, in_main: bool, out: &mut Vec<Effect<'a>>) {
     for c in n.elements() {
-        let mut cur = current;
         if c.is(p("cTn")) {
-            if c.attr(un("nodeType")) == Some("clickPar") {
-                *click += 1;
-                cur = Some(*click - 1);
+            let nt = c.attr(un("nodeType"));
+            match nt {
+                Some("mainSeq") => {
+                    walk_effects(c, click, current, true, out);
+                    continue;
+                }
+                Some("interactiveSeq") => {
+                    walk_effects(c, click, &mut None, false, out);
+                    continue;
+                }
+                _ => {}
             }
             if c.attr(un("presetClass")).is_some() {
+                if in_main && nt == Some("clickEffect") {
+                    *click += 1;
+                    *current = Some(*click - 1);
+                }
                 let mut targets = Vec::new();
                 targets_below(c, &mut targets);
                 let num = |k: &'static str| c.attr(un(k)).and_then(|v| v.parse().ok());
                 out.push(Effect {
                     ctn_id: num("id"),
-                    preset_class: c.attr(un("presetClass")),
+                    preset_class: c.attr(un("presetClass")).map(EnumValue::from_raw),
                     preset_id: num("presetID"),
                     preset_subtype: num("presetSubtype"),
-                    node_type: c.attr(un("nodeType")),
-                    click_index: cur,
+                    node_type: nt.map(EnumValue::from_raw),
+                    click_index: if in_main { *current } else { None },
                     targets,
                 });
                 continue;
             }
         }
-        walk_effects(c, click, cur, out);
+        walk_effects(c, click, current, in_main, out);
     }
 }
 
 impl<'a> DeckSlide<'a, '_> {
     /// The timing summary; `None` without `p:timing`. An `mc:AlternateContent`
-    /// around `p:timing` follows the transition branch rule.
+    /// around `p:timing` follows the transition branch rule (`Requires` by
+    /// namespace URI, review #56 m4).
     pub fn timing(&self) -> Option<Timing<'a>> {
-        let root = self.doc.root();
-        let tm = child(root, p("timing")).or_else(|| {
-            root.elements().filter(|c| c.is(QName::new(MC_NS, "AlternateContent"))).find_map(|ac| ac.elements().find_map(|b| child(b, p("timing"))))
-        })?;
+        let (tm, _) = chosen(self.doc.root(), p("timing"))?;
         let mut effects = Vec::new();
         if let Some(tn) = child(tm, p("tnLst")) {
-            walk_effects(tn, &mut 0, None, &mut effects);
+            walk_effects(tn, &mut 0, &mut None, false, &mut effects);
         }
         let builds = child(tm, p("bldLst"))
             .into_iter()
@@ -820,7 +835,7 @@ impl<'a> DeckSlide<'a, '_> {
             .map(|b| {
                 let spid = b.attr(un("spid")).and_then(|v| v.parse().ok()).unwrap_or(0);
                 if b.is(p("bldP")) {
-                    Build::Paragraph { spid, build: b.attr(un("build")).unwrap_or("whole"), group: b.attr(un("grpId")).and_then(|v| v.parse().ok()) }
+                    Build::Paragraph { spid, build: EnumValue::from_raw(b.attr(un("build")).unwrap_or("whole")), group: b.attr(un("grpId")).and_then(|v| v.parse().ok()) }
                 } else if b.is(p("bldGraphic")) {
                     Build::Graphic { spid }
                 } else {

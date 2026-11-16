@@ -11,6 +11,10 @@ every fixture and its
       hyperlink python-pptx cannot read, an action with an empty r:id, are
       skipped).
 
+The known differences are keyed by fixture path, so on another corpus
+they are reported as "no longer differs" (#56 m6); CI runs it on the
+fixtures only.
+
     python3 -I resolve_check.py [--site DIR] DUMP.json FIXTURES_DIR
 """
 import json
