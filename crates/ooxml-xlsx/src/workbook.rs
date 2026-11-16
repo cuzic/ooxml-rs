@@ -13,6 +13,7 @@ use crate::census::{self, Census, EditBlock, SheetEntry, SheetKind};
 use crate::error::{Error, Result};
 use crate::formula::precedents::{Env, NameDef, Scope, fold};
 use crate::graph::Graph;
+use crate::index::SheetIndex;
 use crate::reference::{CellIndex, CellRange};
 use crate::worksheet::{Worksheet, text_of};
 use crate::core_props;
@@ -109,6 +110,9 @@ pub struct Workbook {
     first_visible: usize,
     pub(crate) shared_strings: Option<Vec<String>>,
     pub(crate) contexts: HashMap<usize, SheetContext>,
+    /// Row/cell position index per worksheet (built once, kept valid by
+    /// every structural write; see `index.rs`).
+    pub(crate) indexes: HashMap<usize, SheetIndex>,
     pub(crate) census: Census,
     pub(crate) env: Env,
     pub(crate) graph: Option<Graph>,
@@ -188,6 +192,7 @@ impl Workbook {
             first_visible,
             shared_strings,
             contexts: HashMap::new(),
+            indexes: HashMap::new(),
             census,
             env,
             graph: None,
@@ -227,6 +232,17 @@ impl Workbook {
             .collect();
         let tables = load_tables(&mut self.pkg, &part, &sheet_rels, &table_parts)?;
         self.contexts.insert(sheet, SheetContext { merges, tables });
+        self.ensure_index(sheet)?;
+        Ok(())
+    }
+
+    /// Parses a worksheet (once) and builds its row/cell index (once).
+    pub(crate) fn ensure_index(&mut self, sheet: usize) -> Result<()> {
+        if !self.indexes.contains_key(&sheet) {
+            let part = self.sheets[sheet].part.clone().expect("worksheet part");
+            let index = SheetIndex::build(self.pkg.xml_part(&part)?);
+            self.indexes.insert(sheet, index);
+        }
         Ok(())
     }
 

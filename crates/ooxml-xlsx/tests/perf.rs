@@ -130,3 +130,32 @@ fn random_edits_1000_on_1m() {
         out.len()
     );
 }
+
+fn read_all_bulk(rows: u32, cols: u32) {
+    let bytes = sheet(rows, cols);
+    let mut wb = Workbook::from_bytes(bytes).unwrap();
+    let ws = wb.worksheet().unwrap();
+    let t = Instant::now();
+    let mut n = 0u64;
+    let mut sum = 0f64;
+    for c in ws.cells() {
+        if let CellValue::Number(v) = c.unwrap().value().unwrap() {
+            sum += v;
+        }
+        n += 1;
+    }
+    assert_eq!(n, u64::from(rows) * u64::from(cols));
+    println!("read bulk {rows}x{cols}: {n} cells in {:?} (checksum {sum})", t.elapsed());
+}
+
+#[test]
+#[ignore = "timing (run with --release --ignored --nocapture)"]
+fn read_all_cells_bulk_100k() {
+    read_all_bulk(10_000, 10);
+}
+
+#[test]
+#[ignore = "timing (run with --release --ignored --nocapture)"]
+fn read_all_cells_bulk_1m() {
+    read_all_bulk(100_000, 10);
+}

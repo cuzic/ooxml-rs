@@ -16,7 +16,8 @@ use crate::formula::translate::translate;
 use crate::graph::{Graph, precedents_of};
 use crate::reference::{CellIndex, CellRange};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, Workbook};
-use crate::worksheet::{Located, TargetPlan, locate, located_cell, plan_target, write_cell};
+use crate::index::{Located, SheetIndex, located_cell, sheet_data};
+use crate::worksheet::{TargetPlan, locate, plan_target, write_cell};
 
 /// What a setter writes into the target cell.
 #[derive(Clone, Debug)]
@@ -129,7 +130,9 @@ impl Workbook {
         }
 
         // ---- the target in Layer 2 ----
-        let target_plan = plan_target(self.pkg.xml_part(&part)?, &part, at, &op)?;
+        self.ensure_index(sheet)?;
+        let index = self.indexes.get(&sheet).expect("built");
+        let target_plan = plan_target(self.pkg.xml_part_mut(&part)?, index, &part, at, &op)?;
         let formula_set_changes = match op {
             CellOp::Formula(_) => target.is_none(),
             _ => target.is_some(),
@@ -137,7 +140,7 @@ impl Workbook {
 
         // ---- shared-formula hand-off (§4.2) ----
         let handoff = match target.map(|f| (f, self.census.get(f).expect("alive").clone())) {
-            Some((_, c @ FCell { kind: FKind::Shared { si, master: true }, .. })) => self.plan_handoff(&c, si, &part)?,
+            Some((_, c @ FCell { kind: FKind::Shared { si, master: true }, .. })) => self.plan_handoff(&c, si, sheet, &part)?,
             _ => None,
         };
 
@@ -202,7 +205,7 @@ impl Workbook {
         }
     }
 
-    fn plan_handoff(&mut self, m: &FCell, si: u32, part: &str) -> Result<Option<HandOff>> {
+    fn plan_handoff(&mut self, m: &FCell, si: u32, sheet: usize, part: &str) -> Result<Option<HandOff>> {
         let mut members: Vec<(usize, CellIndex)> = self
             .census
             .alive()
@@ -233,7 +236,7 @@ impl Workbook {
             range = range.union(at);
         }
         let doc = self.pkg.xml_part(part)?;
-        let loc = locate(doc, part, n)?;
+        let loc = locate(doc, self.indexes.get(&sheet).expect("built"), part, n)?;
         let found = located_cell(doc, &loc)
             .and_then(|c| c.elements().find(|e| e.is(sml::CellFormula::QNAME)))
             .is_some();
@@ -269,8 +272,9 @@ impl Workbook {
             let part = self.sheets[s].part.clone().expect("formula sheet");
             let want = cells.remove(&s).unwrap_or_default();
             let rs = rects.remove(&s).unwrap_or_default();
+            self.ensure_index(s)?;
             let doc = self.pkg.xml_part(&part)?;
-            let positions = strip_positions(doc, &part, s, &want, &rs)?;
+            let positions = strip_positions(doc, self.indexes.get(&s).expect("built"), &part, s, &want, &rs)?;
             if !positions.is_empty() {
                 plan.sheets.push((part, positions));
             }
@@ -336,7 +340,10 @@ impl Workbook {
         }
         // (v) the target cell
         self.fault_point(Step::Target)?;
-        write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op)?;
+        let effect = write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op)?;
+        if let Some(index) = self.indexes.get_mut(&sheet) {
+            effect.update(index, at);
+        }
         // (vi) the index
         self.fault_point(Step::Index)?;
         for &fid in &strip.fids {
@@ -407,49 +414,48 @@ impl Workbook {
 /// have a `v`, `t` or `is`. Every wanted formula cell must be found.
 fn strip_positions(
     doc: &XmlDocument,
+    index: &SheetIndex,
     part: &str,
     sheet: usize,
     want: &HashSet<CellIndex>,
     rects: &[Rect],
 ) -> Result<Vec<(usize, usize)>> {
-    let missing = |what: &str| Error::MissingReference { part: part.to_owned(), what: what.to_owned() };
     let mut out = Vec::new();
     let mut found = HashSet::new();
-    let sd = doc.root().elements().find(|e| e.is(sml::SheetData::QNAME));
-    let rows_wanted: HashSet<u32> = want.iter().map(|c| c.row).collect();
-    if let Some(sd) = sd {
-        let mut prev = 0u32;
-        for (ri, row) in sd.indexed_elements().filter(|(_, n)| n.is(sml::Row::QNAME)) {
-            let r = row.attr(sml::Row::ATTR_R).ok_or_else(|| missing("row"))?;
-            let r = ooxml_core::value::parse_u32(r).filter(|r| *r >= 1).ok_or_else(|| Error::InvalidReference(r.into()))?;
-            if r <= prev {
-                return Err(Error::OutOfOrder(format!("rows in {part}")));
-            }
-            prev = r;
-            let r0 = r - 1;
-            if !rows_wanted.contains(&r0) && !rects.iter().any(|x| (x.r1..=x.r2).contains(&r0)) {
+    let rows = index.rows(part)?;
+    let sd = sheet_data(doc);
+    // The rows to visit: those of wanted formula cells and those inside the
+    // result rectangles, found by binary search in the index (not a pass
+    // over every row).
+    let mut visit: Vec<usize> = Vec::new();
+    for c in want {
+        if let Ok(k) = rows.binary_search_by_key(&(c.row + 1), |e| e.row) {
+            visit.push(k);
+        }
+    }
+    for x in rects.iter().filter(|x| x.sheet == sheet) {
+        let lo = rows.partition_point(|e| e.row < x.r1 + 1);
+        let hi = rows.partition_point(|e| e.row <= x.r2 + 1);
+        visit.extend(lo..hi);
+    }
+    visit.sort_unstable();
+    visit.dedup();
+    for k in visit {
+        let e = &rows[k];
+        let r0 = e.row - 1;
+        let cells = index.cells(e, part)?;
+        let row = sd.and_then(|sd| sd.children()[e.item].as_element()).expect("indexed row");
+        for &(col, ci) in cells {
+            let idx = CellIndex { row: r0, col };
+            if !(want.contains(&idx) || rects.iter().any(|x| x.contains(sheet, idx.row, idx.col))) {
                 continue;
             }
-            let mut prev_col: Option<u32> = None;
-            for (ci, c) in row.indexed_elements().filter(|(_, n)| n.is(sml::Cell::QNAME)) {
-                let cr = c.attr(sml::Cell::ATTR_R).ok_or_else(|| missing("cell"))?;
-                let idx = CellIndex::parse(cr)?;
-                if idx.row != r0 {
-                    return Err(Error::InvalidReference(format!("{cr} in row {r}")));
-                }
-                if prev_col.is_some_and(|p| idx.col <= p) {
-                    return Err(Error::OutOfOrder(format!("cells in row {r} of {part}")));
-                }
-                prev_col = Some(idx.col);
-                if !(want.contains(&idx) || rects.iter().any(|x| x.contains(sheet, idx.row, idx.col))) {
-                    continue;
-                }
-                found.insert(idx);
-                let has = c.attr(sml::Cell::ATTR_T).is_some()
-                    || c.elements().any(|e| e.is(sml::CellValue::QNAME) || e.is(sml::InlineString::QNAME));
-                if has {
-                    out.push((ri, ci));
-                }
+            found.insert(idx);
+            let c = row.children()[ci].as_element().expect("indexed cell");
+            let has = c.attr(sml::Cell::ATTR_T).is_some()
+                || c.elements().any(|e| e.is(sml::CellValue::QNAME) || e.is(sml::InlineString::QNAME));
+            if has {
+                out.push((e.item, ci));
             }
         }
     }
