@@ -422,10 +422,10 @@ fn scan_refuses_unknown_places() {
 #[test]
 fn delete_moves_the_active_tab() {
     let views = r#"<bookViews><workbookView activeTab="2"/></bookViews>"#;
-    let base = common::p1::book(&[("A", ""), ("B", ""), ("C", "")], "", views);
+    let base = common::p1::book(&[("A", ""), ("B", ""), ("C", ""), ("D", "")], "", views);
     let selected = sheet_xml_with(r#"<sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews><sheetData/>"#);
     let plain = sheet_xml_with(r#"<sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetData/>"#);
-    let input = rebuild(&base, &[("xl/worksheets/sheet3.xml", selected), ("xl/worksheets/sheet2.xml", plain)]);
+    let input = rebuild(&base, &[("xl/worksheets/sheet3.xml", selected), ("xl/worksheets/sheet2.xml", plain.clone()), ("xl/worksheets/sheet4.xml", plain)]);
     let mut wb = Workbook::from_bytes(input.clone()).unwrap();
     wb.delete_sheet("A").unwrap();
     let out = wb.to_bytes().unwrap();
@@ -433,8 +433,8 @@ fn delete_moves_the_active_tab() {
     let mut wb = Workbook::from_bytes(input).unwrap();
     wb.delete_sheet("C").unwrap();
     let out = wb.to_bytes().unwrap();
-    assert!(text(&out, "xl/workbook.xml").contains(r#"activeTab="1""#));
-    assert!(text(&out, "xl/worksheets/sheet2.xml").contains(r#"tabSelected="1""#), "B is selected now");
+    assert!(text(&out, "xl/workbook.xml").contains(r#"activeTab="2""#), "D (now at 2) is active");
+    assert!(text(&out, "xl/worksheets/sheet4.xml").contains(r#"tabSelected="1""#), "D is selected now");
 }
 
 /// A table used elsewhere refuses the delete of its sheet.
