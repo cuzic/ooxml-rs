@@ -86,6 +86,16 @@
   per shape (`ShapeRef::path` now returns an owned `ShapePath`), so its
   memory is O(shapes) at any group depth (PR #16 round-2 review n2; test
   `tests/memory.rs`: 167 B/shape at depth 250 vs 2,128 B before).
+  Reviews #18 round 2 and #19 round 1: `smtId`, extension lists and the
+  other core refusals are `FormatNotCopyable` (§3 "Format sources", §6);
+  the run format source is consulted only when used (N3); T4 adds
+  `smart_tag_ids_and_extension_lists_are_not_copied`,
+  `ancestor_ignorable_namespaces_are_seen_through_the_slide`,
+  `end_paragraph_format_sources`, `an_unused_run_source_is_not_consulted`
+  and `depth_pre_checks_decide_alone` (N2: each depth pre-check alone
+  prevents a half-applied edit; the paragraph check counts only the levels
+  the edit creates there, so a text-only rewrite is never refused for
+  depth).
 
 ## Context
 
@@ -300,14 +310,23 @@ its `a:hlinkClick`/`a:hlinkMouseOver` children; a paragraph created by
 paragraph's own `a:endParaRPr` if that has a format, else from its run
 format source (N3-1). Copies are made with `Lens::detach_as::<C>(skip)` and inserted
 with `LensMut::insert_detached` (ADR-0002 note "detach/insert";
-`a:endParaRPr` ↔ `a:rPr` are generated `SameType`). The edit is refused
-with `FormatNotCopyable(element)` only where `detach_as` refuses: a
-relationship (`r:`) attribute in the kept subtree (e.g. `a:blipFill` or
-`a:buBlip` with `r:embed`), Markup Compatibility content, or a namespace
-declaration inside the source. A source with neither attributes nor
-child elements (after the skip) produces no element. The source is
-consulted only when a new run or paragraph is needed — for every new
-paragraph, even an empty one, since it carries `a:endParaRPr`.
+`a:endParaRPr` ↔ `a:rPr` are generated `SameType`; the three types are
+`Detachable`, the copy lens is `Lens::at`, so the source's ancestors are
+seen). The edit is refused with `FormatNotCopyable(element)` exactly where
+`detach_as` refuses (any `DetachRefusal`): a relationship id in the kept
+subtree (`r:`, Strict `r:`, VML `o:relid`; e.g. `a:blipFill` or `a:buBlip`
+with `r:embed`, or an `a:hlinkClick` inside `a:pPr/a:defRPr`, which is not
+a direct child and so not skipped); a non-zero **`smtId`** on `a:rPr`,
+`a:endParaRPr` or `a:defRPr` (ECMA-376 Part 1 §21.1.2.3.9: "unique
+throughout the presentation"; a copy would duplicate it; reviews #18 R2-1,
+#19 N1); an extension list (`a:extLst`, open content); Markup
+Compatibility content; a namespace declaration inside the source; a
+namespace that an ancestor's `mc:Ignorable` lists; or text under an
+inherited `xml:space="preserve"`. A source with neither attributes nor
+child elements (after the skip) produces no element. The run format source
+is consulted only when it is used (review #19 N3): for a new run, or for a
+new paragraph's `a:endParaRPr` when the last paragraph has no own end
+format; `a:pPr` is consulted for every new paragraph.
 (Phase 0, revision 3, copied attributes only and refused every source
 with child elements; §9 has the before/after figures.)
 
@@ -332,6 +351,8 @@ relationships stay, unreferenced, which is harmless). New runs and new
 paragraphs' `a:endParaRPr` copy the format **without** `a:hlinkClick` /
 `a:hlinkMouseOver`: a link is not spread to new text, and no `r:id` is
 duplicated (`shapes.pptx` slide 5, T4 `hyperlinks_stay_on_their_run`).
+Only direct children are skipped: a link deeper in a source (`a:pPr/a:defRPr/a:hlinkClick`)
+makes the copy `FormatNotCopyable` (relationship id), before any change.
 
 ### 4. Inheritance in Phase 0
 
@@ -427,7 +448,7 @@ elements in the SDK data). Classification:
 | `FieldInParagraph { paragraph }` | the edit would remove an `a:fld` implicitly (§3 Fields) |
 | `UnsupportedContent` | §3 Paragraph content (incl. a body without `a:p`) |
 | `LastParagraph` | removing the only `a:p` |
-| `FormatNotCopyable(element)` | §3 Format sources: the source holds an `r:` attribute outside the skipped links, Markup Compatibility content, or a namespace declaration |
+| `FormatNotCopyable(element)` | §3 Format sources: the copy primitive refuses the source (relationship id outside the skipped direct links, non-zero `smtId`, `extLst`, Markup Compatibility, namespace declaration, ancestor-ignorable namespace, text under inherited `xml:space="preserve"`) |
 | `AnimatedParagraphs { shape_id }` | `add_paragraph`, `remove_paragraph`, or `TextBody::set_text` that changes the paragraph count, on a paragraph-locked shape |
 | `AnimatedCharacters { shape_id }` | any text edit on a character-locked shape |
 | `CommentAnchoredText { shape_id }` | any text edit on a comment-locked shape |
@@ -592,13 +613,18 @@ recommended it (Q2) and sketched the API; the coordinator default "Phase 2"
 is overridden on that evidence.
 
 **Core primitive** (ADR-0002 post-acceptance note "detach/insert", core PR
-#18): `Lens::detach_as::<C: SameType<S>>(skip) -> Detached<C>` (owned,
-span-less copy carrying namespace URIs, renamed to `C`'s QName; refuses MC
-content, `r:` attributes and namespace declarations) and
-`LensMut::insert_detached[_by]` (placed like `insert_by`, every prefix
-re-chosen at the destination before any change). `SameType` is generated
-for allowlisted pairs sharing an SDK complex type (`a:endParaRPr` ↔
-`a:rPr`).
+#18): `Lens::detach_as::<C>(skip) -> Detached<C>` with
+`S: Detachable, C: SameType<S> + Detachable` — `Detachable` is generated
+only for the allowlist's `[detach]` entries (`a:rPr`, `a:endParaRPr`,
+`a:pPr`), with their document-unique attributes (`smtId`) — an owned,
+span-less copy carrying namespace URIs, renamed to `C`'s QName, refused
+for the reasons listed in §3 "Format sources"; `LensMut::insert_detached[_by]`
+(by reference; placed like `insert_by`, every prefix re-chosen at the
+destination, depth limit and destination `mc:Ignorable`/`xml:space`
+checked before any change); and `Detached::check_insert_under(doc, path,
+created)` for the same checks without a change. `SameType` is generated
+only between detachable entries sharing an SDK complex type
+(`a:endParaRPr` ↔ `a:rPr`).
 
 **Rules in `ooxml-pptx`** (§3 "Format sources", "Hyperlinks"):
 
