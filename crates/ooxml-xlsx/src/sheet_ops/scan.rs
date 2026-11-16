@@ -25,6 +25,8 @@ pub(crate) enum PartKind {
     /// A relationships part: `#Sheet!` targets are retargeted; external
     /// targets name other resources.
     Relationships,
+    /// A chart part: `c:f` text is rewritten.
+    Chart,
     /// Anything else: every hit refuses.
     Other,
 }
@@ -38,6 +40,7 @@ fn allowed(kind: PartKind, element: &str, attribute: Option<&str>) -> bool {
             ("f", None) | ("hyperlink", Some("location")) | ("v", None) | ("t", None)
         ),
         PartKind::Workbook => matches!((element, attribute), ("definedName", None)),
+        PartKind::Chart => matches!((element, attribute), ("f", None)),
         PartKind::Relationships => matches!((element, attribute), ("Relationship", Some("Target"))),
         PartKind::Other => false,
     }

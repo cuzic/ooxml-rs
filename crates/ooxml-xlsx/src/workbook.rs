@@ -93,6 +93,14 @@ pub enum ApplyStep {
     Target,
     /// Before updating the formula index.
     Index,
+    /// A structural operation (ADR-0009): before the registry plan is
+    /// applied.
+    StructuralApply,
+    /// A structural operation: after apply, before the indexes are rebuilt.
+    StructuralRebuild,
+    /// A structural operation: inside the rebuild, after the package was
+    /// re-read.
+    StructuralReindex,
 }
 
 pub(crate) type ApplyStepHook = ApplyStep;
@@ -213,6 +221,7 @@ impl Workbook {
     /// edited or saved (ADR-0003 §3.1).
     pub(crate) fn rebuild(&mut self) -> Result<()> {
         let r = Loaded::load(&mut self.pkg).and_then(|l| {
+            self.fault_point(ApplyStep::StructuralReindex)?;
             self.workbook_part = l.workbook_part;
             self.sheets = l.sheets;
             self.first_visible = l.first_visible;
@@ -425,6 +434,36 @@ impl Workbook {
             Some(p) => Err(Error::Poisoned(p.clone())),
             None => Ok(()),
         }
+    }
+
+    /// Test hook (not API): a fingerprint of every index the workbook keeps
+    /// (sheet list, formula census, defined names, calculation state), for
+    /// the ADR-0009 oracle "rebuilt state == state of the reopened output".
+    #[doc(hidden)]
+    pub fn __index_fingerprint(&self) -> String {
+        use std::fmt::Write as _;
+        let mut out = String::new();
+        let _ = writeln!(out, "workbook {} first_visible {} calc_chain {:?}", self.workbook_part, self.first_visible, self.calc_chain);
+        let _ = writeln!(out, "calc manual={} iterate={} full={}", self.calc.manual, self.calc.iterate, self.calc.full_calc_on_load);
+        for s in &self.sheets {
+            let _ = writeln!(out, "sheet {:?} {:?} {:?} visible={}", s.name, s.part, s.kind, s.visible);
+        }
+        let mut cells: Vec<String> = self
+            .census
+            .alive()
+            .map(|(_, c)| format!("{} {} {:?} {:?} {:?} cache={} {:?}", c.sheet, c.at, c.kind, c.range, c.dynamic, c.has_cache, c.text))
+            .collect();
+        cells.sort();
+        for c in cells {
+            let _ = writeln!(out, "f {c}");
+        }
+        let mut names: Vec<String> = self.env.names.iter().map(|n| format!("{} {:?} {:?}", n.name_lc, n.scope, n.expr.is_some())).collect();
+        names.sort();
+        for n in names {
+            let _ = writeln!(out, "name {n}");
+        }
+        let _ = writeln!(out, "block {:?} shared_strings {:?}", self.census.block.is_some(), self.shared_strings.as_ref().map(Vec::len));
+        out
     }
 
     /// Test hook: make the next edit fail just before `step` of its apply

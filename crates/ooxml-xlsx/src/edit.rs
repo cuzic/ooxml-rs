@@ -439,7 +439,7 @@ impl Workbook {
     }
 
     #[cfg(feature = "fault-injection")]
-    fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
         if let Some((at, panic)) = self.fault
             && at == step
         {
@@ -452,7 +452,7 @@ impl Workbook {
 
     #[cfg(not(feature = "fault-injection"))]
     #[inline(always)]
-    fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
         Ok(())
     }
 }

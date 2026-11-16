@@ -31,6 +31,8 @@ use scan::{PartKind, scan_part};
 
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 const REL_REVISIONS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/revisionHeaders";
+const CT_CHART: &str = "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
+const CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const CT_ACTIVEX: &str = "application/vnd.ms-office.activeX";
 const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
@@ -85,6 +87,9 @@ pub struct RewrittenLocation {
 #[derive(Default)]
 struct Change {
     docs: BTreeMap<String, XmlDocument>,
+    /// Parts rewritten at the byte level (charts: only the `c:f` text
+    /// changes, every other byte is kept).
+    bytes: BTreeMap<String, Vec<u8>>,
     rewritten: Vec<RewrittenLocation>,
 }
 
@@ -306,13 +311,51 @@ impl Workbook {
     /// Stages the change's clones and runs `steps`, applies, rebuilds.
     fn commit(&mut self, change: Change, steps: impl FnOnce(&mut RegistryPlan, &Package) -> Result<()>) -> Result<Vec<RewrittenLocation>> {
         let mut plan = RegistryPlan::new(&self.pkg);
+        // staged content first: the removals' reference scans read it
+        let Change { docs, bytes, rewritten } = change;
+        for (part, doc) in docs {
+            plan.stage_part(&self.pkg, &part, doc)?;
+        }
+        for (part, b) in bytes {
+            plan.stage_part(&self.pkg, &part, b)?;
+        }
+        steps(&mut plan, &self.pkg)?;
+        self.finish(plan, Change { docs: BTreeMap::new(), bytes: BTreeMap::new(), rewritten })
+    }
+
+    /// Stages the change's clones into `plan`, then applies and rebuilds
+    /// under poisoning (ADR-0009 §2 "Poisoning"): the workbook is poisoned
+    /// before apply and the poison is cleared only after the rebuild
+    /// succeeded, so a failure or a panic in between leaves it refusing
+    /// every edit and save.
+    fn finish(&mut self, mut plan: RegistryPlan, change: Change) -> Result<Vec<RewrittenLocation>> {
         for (part, doc) in change.docs {
             plan.stage_part(&self.pkg, &part, doc)?;
         }
-        steps(&mut plan, &self.pkg)?;
-        self.pkg.apply(plan)?;
-        self.rebuild()?;
-        Ok(change.rewritten)
+        for (part, b) in change.bytes {
+            plan.stage_part(&self.pkg, &part, b)?;
+        }
+        self.poisoned = Some("a structural edit was interrupted".into());
+        let r = (|| -> Result<()> {
+            self.fault_point(crate::workbook::ApplyStep::StructuralApply)?;
+            self.pkg.apply(plan)?;
+            self.fault_point(crate::workbook::ApplyStep::StructuralRebuild)?;
+            self.rebuild()
+        })();
+        match r {
+            Ok(()) => {
+                self.poisoned = None;
+                Ok(change.rewritten)
+            }
+            Err(e) => {
+                let msg = match &e {
+                    Error::Poisoned(m) => m.clone(),
+                    e => e.to_string(),
+                };
+                self.poisoned = Some(msg.clone());
+                Err(Error::Poisoned(msg))
+            }
+        }
     }
 
     /// `activeTab`/`firstSheet` of every `workbookView`, remapped; an active
@@ -442,12 +485,7 @@ impl Workbook {
             s.set_sheet_id(sheet_id)?;
             s.0.set_attr(ooxml_core::QName::new(R_NS, "id"), &rid)?;
         }
-        for (p, doc) in std::mem::take(&mut change.docs) {
-            plan.stage_part(&self.pkg, &p, doc)?;
-        }
-        self.pkg.apply(plan)?;
-        self.rebuild()?;
-        Ok(())
+        self.finish(plan, change).map(drop)
     }
 
     fn next_sheet_id(&mut self) -> Result<u32> {
@@ -682,7 +720,7 @@ impl Workbook {
         let edit = PrefixEdit::Rename { old: fold(&old), new: new_name };
         let mut change = Change::default();
         let mentions = |t: &str| names::mentions_prefix(t, &old);
-        self.rewrite_everywhere(&mut change, &edit, &mentions, &[])?;
+        self.rewrite_everywhere(&mut change, &edit, &mentions, &[], &[])?;
         // Phase1: CELL/INFO callers and Everything (ADR-0009 §6)
         let seeds = self.formulas_where(&|t| {
             lex(t).is_ok_and(|toks| toks.iter().any(|k| matches!(&k.kind, TokKind::Func(f) if f == "CELL" || f == "INFO")))
@@ -697,6 +735,16 @@ impl Workbook {
             s.set_name(&crate::escape::encode(new_name))?;
         }
         let targets = self.hyperlink_targets(&edit);
+        // a name with a control character cannot be written into a
+        // relationship Target (ADR-0009 §6, review R3-m4)
+        if let Some((src, id, _, _)) = targets.first()
+            && new_name.chars().any(char::is_control)
+        {
+            return Err(Error::UnrewritableReference {
+                part: ooxml_core::opc::rels_part_name(src.as_deref()),
+                location: format!("relationship {id} (a control character cannot be written into a Target)"),
+            });
+        }
         for (src, id, before, after) in &targets {
             change.rewritten.push(RewrittenLocation {
                 part: ooxml_core::opc::rels_part_name(src.as_deref()),
@@ -741,7 +789,7 @@ impl Workbook {
 
     /// Rewrites cell formulas (worksheets except `skip`), defined names and
     /// (renames only) `hyperlink/@location`s into the change.
-    fn rewrite_everywhere(&mut self, change: &mut Change, edit: &PrefixEdit<'_>, mentions: &dyn Fn(&str) -> bool, skip: &[usize]) -> Result<()> {
+    fn rewrite_everywhere(&mut self, change: &mut Change, edit: &PrefixEdit<'_>, mentions: &dyn Fn(&str) -> bool, skip: &[usize], skip_parts: &[String]) -> Result<()> {
         fn refuse(part: &str, location: String) -> impl FnOnce(Unrewritable) -> Error + use<> {
             let part = part.to_owned();
             move |Unrewritable(why)| Error::UnrewritableReference { part, location: format!("{location} ({why})") }
@@ -822,6 +870,56 @@ impl Workbook {
                 done.push(RewrittenLocation { part: part.clone(), location: format!("hyperlink {r}"), before, after });
             }
         }
+        // chart series formulas (`c:f`): spliced into the original bytes
+        let charts: Vec<String> = self
+            .pkg
+            .part_names()
+            .filter(|p| !skip_parts.iter().any(|s| s == p))
+            .filter(|p| self.pkg.content_type(p).is_some_and(|ct| ct.split(';').next().unwrap_or_default().trim().eq_ignore_ascii_case(CT_CHART)))
+            .map(str::to_owned)
+            .collect();
+        for part in charts {
+            let bytes = self.pkg.read_part(&part)?;
+            let Ok(doc) = XmlDocument::parse(&bytes) else { continue }; // the scan refuses on a hit
+            let src = doc.source();
+            let mut edits: Vec<(std::ops::Range<usize>, String, String)> = Vec::new();
+            let mut stack = vec![doc.root()];
+            while let Some(n) = stack.pop() {
+                stack.extend(n.elements());
+                if !(n.name().local() == "f" && n.name().ns() == CHART_NS) {
+                    continue;
+                }
+                let text = n.text().into_owned();
+                let Some(new) = rewrite_formula(&text, edit, mentions).map_err(refuse(&part, "c:f".into()))? else { continue };
+                let span = n.span().ok_or_else(|| malformed("c:f span"))?;
+                let Some((close, _)) = span.close else { return Err(malformed("c:f without text")) };
+                if n.elements().next().is_some() {
+                    return Err(Error::UnrewritableReference { part: part.clone(), location: "c:f with child elements".into() });
+                }
+                edits.push((span.open_end..close, text, new));
+            }
+            if edits.is_empty() {
+                continue;
+            }
+            edits.sort_by_key(|e| e.0.start);
+            let mut out = String::with_capacity(src.len());
+            let mut last = 0;
+            for (r, before, after) in edits {
+                out.push_str(&src[last..r.start]);
+                for c in after.chars() {
+                    match c {
+                        '&' => out.push_str("&amp;"),
+                        '<' => out.push_str("&lt;"),
+                        '>' => out.push_str("&gt;"),
+                        c => out.push(c),
+                    }
+                }
+                last = r.end;
+                done.push(RewrittenLocation { part: part.clone(), location: "c:f".into(), before, after });
+            }
+            out.push_str(&src[last..]);
+            change.bytes.insert(part, out.into_bytes());
+        }
         change.rewritten.extend(done);
         Ok(())
     }
@@ -846,6 +944,8 @@ impl Workbook {
                 PartKind::Worksheet
             } else if p == self.workbook_part {
                 PartKind::Workbook
+            } else if essence == CT_CHART {
+                PartKind::Chart
             } else if lower.ends_with(".rels") {
                 PartKind::Relationships
             } else if lower.starts_with("docprops/")
@@ -922,7 +1022,7 @@ impl Workbook {
         let mut change = Change::default();
         let ename = entry.name.clone();
         let mentions = move |t: &str| names::mentions_prefix(t, &ename);
-        self.rewrite_everywhere(&mut change, &edit, &mentions, &[d])?;
+        self.rewrite_everywhere(&mut change, &edit, &mentions, &[d], &skip)?;
         if strict && !change.rewritten.is_empty() {
             return Err(Error::SheetInUse { sheet: entry.name.clone(), count: change.rewritten.len() });
         }
