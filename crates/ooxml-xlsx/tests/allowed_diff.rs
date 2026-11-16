@@ -489,12 +489,13 @@ fn cleared_cells(input: &[u8], output: &[u8], range: &str) -> Result<Vec<String>
 #[ignore = "needs a local corpus: OOXML_XLSX_CORPUS=<dir>"]
 fn corpus_sweep() {
     use std::collections::BTreeMap;
+    use ooxml_xlsx::{Cfvo, HeaderFooter, Link, LinkOptions, Margins, Orientation, PageSetup, PrintOptions, Rule, RuleKind, Validation};
     let dir = std::env::var("OOXML_XLSX_CORPUS").expect("OOXML_XLSX_CORPUS");
     let mut files: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).filter(|p| p.extension().is_some_and(|x| x == "xlsx" || x == "xlsm")).collect();
     files.sort();
     // `None`: the call does not apply to this sheet
     type Op = fn(&mut ooxml_xlsx::Worksheet<'_>) -> Option<ooxml_xlsx::Result<String>>;
-    let ops: [(&str, &str, Op); 8] = [
+    let ops: [(&str, &str, Op); 25] = [
         ("merge", "`merge`", |ws| Some(ws.merge("XFA1048570:XFB1048571").map(|()| String::new()))),
         ("set_autofilter", "`set_autofilter`", |ws| Some(ws.set_autofilter("XFA1048570:XFB1048571").map(|()| String::new()))),
         ("protect_sheet", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&Protection::new().password("p").with_salt([3; 16]).with_spin_count(10)).map(|()| String::new()))),
@@ -516,6 +517,32 @@ fn corpus_sweep() {
             let r = used_2x2(ws)?;
             Some(ws.merge_clearing(&r).map(|()| r))
         }),
+        // part 2: far ranges, and the sheet's existing features
+        ("set_hyperlink(url)", "`set_hyperlink`", |ws| Some(ws.set_hyperlink("XFA1048570", &Link::Url("https://example.com/a b".into()), &LinkOptions::default()).map(|()| String::new()))),
+        ("set_hyperlink(location)", "`set_hyperlink`", |ws| Some(ws.set_hyperlink("XFA1048571:XFB1048572", &Link::Location("A1".into()), &LinkOptions { tooltip: Some("t".into()), ..LinkOptions::default() }).map(|()| String::new()))),
+        ("remove_hyperlink", "`remove_hyperlink`", |ws| {
+            let r = ws.hyperlinks().ok()?.first()?.range.clone();
+            Some(ws.remove_hyperlink(&r).map(|()| String::new()))
+        }),
+        ("add_validation", "`add_validation`", |ws| Some(ws.add_validation("XFA1048570:XFB1048571", &Validation::list(&["a", "b"])).map(|()| String::new()))),
+        ("add_conditional_format", "`add_conditional_format`", |ws| Some(ws.add_conditional_format("XFA1048570:XFB1048571", &Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Max, "FF638EC6".into()))).map(|()| String::new()))),
+        ("add_conditional_format_first", "`add_conditional_format_first`", |ws| Some(ws.add_conditional_format_first("XFA1048570", &Rule::new(RuleKind::Expression("XFA1048570>0".into()))).map(|()| String::new()))),
+        ("freeze_panes", "`freeze_panes`/`split_panes`/`unfreeze`", |ws| Some(ws.freeze_panes(1, 1).map(|()| String::new()))),
+        ("unfreeze", "`freeze_panes`/`split_panes`/`unfreeze`", |ws| match ws.unfreeze() {
+            Ok(false) => None,
+            r => Some(r.map(|_| String::new())),
+        }),
+        ("set_zoom", "`set_zoom`/`set_show_gridlines`/`set_right_to_left`", |ws| Some(ws.set_zoom(90).and_then(|()| ws.set_show_gridlines(false)).map(|()| String::new()))),
+        ("set_column_width", "column setters", |ws| Some(ws.set_column_width(0, 2, 17.5).map(|()| String::new()))),
+        ("set_column_outline(far)", "column setters", |ws| Some(ws.set_column_outline(16000, 16001, 1).map(|()| String::new()))),
+        ("set_row_height", "row setters", |ws| Some(ws.set_row_height(0, 22.5).map(|()| String::new()))),
+        ("set_row_hidden(far)", "row setters", |ws| Some(ws.set_row_hidden(1_048_000, true).map(|()| String::new()))),
+        ("set_page_setup", "`page_setup_mut`", |ws| Some(ws.set_page_setup(&PageSetup { orientation: Some(Orientation::Landscape), fit_to_page: Some(true), fit_to_width: Some(1), ..PageSetup::default() }).map(|()| String::new()))),
+        ("set_margins+print+hf", "`set_margins`/`set_print_options`/`set_header_footer`", |ws| {
+            Some(ws.set_margins(&Margins::default()).and_then(|()| ws.set_print_options(&PrintOptions { gridlines: true, ..PrintOptions::default() })).and_then(|()| ws.set_header_footer(&HeaderFooter { odd_footer: Some("&CPage &P of &N".into()), ..HeaderFooter::default() })).map(|()| String::new()))
+        }),
+        ("add_breaks", "`add_row_break`/`add_col_break`", |ws| Some(ws.add_row_break(1_048_000).and_then(|_| ws.add_col_break(16000)).map(|_| String::new()))),
+        ("protect_sheet(legacy)", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&Protection::new().password("password").legacy_hash()).map(|()| String::new()))),
     ];
     let (mut ok, mut opened) = (0, 0);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
@@ -545,6 +572,27 @@ fn corpus_sweep() {
                     let kind = format!("{e:?}").split(['(', ' ', '{']).next().unwrap().to_owned();
                     *refused.entry(format!("{name}: {kind}")).or_default() += 1;
                 }
+            }
+        }
+    }
+    // protect_workbook: a workbook-level call
+    for f in &files {
+        let input = std::fs::read(f).unwrap();
+        let Ok(mut wb) = Workbook::from_bytes(input.clone()) else { continue };
+        let Ok(ws) = wb.worksheet() else { continue };
+        let sheet_part = ws.part_name().to_owned();
+        *applied.entry("protect_workbook").or_default() += 1;
+        match wb.protect_workbook(&WorkbookProtection::new().password("p").with_salt([4; 16]).with_spin_count(10).lock_windows(true)) {
+            Ok(()) => {
+                let out = wb.to_bytes().unwrap();
+                Workbook::from_bytes(out.clone()).unwrap_or_else(|e| panic!("{f:?} protect_workbook: reopen: {e}"));
+                check(&input, &out, &sheet_part, PROTECT_WORKBOOK, &[]).unwrap_or_else(|e| panic!("{f:?} protect_workbook: {e}"));
+                ok += 1;
+            }
+            Err(e) => {
+                common::assert_unchanged(&wb, &input);
+                let kind = format!("{e:?}").split(['(', ' ', '{']).next().unwrap().to_owned();
+                *refused.entry(format!("protect_workbook: {kind}")).or_default() += 1;
             }
         }
     }
