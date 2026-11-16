@@ -540,11 +540,12 @@ impl Package {
 
     /// Relationships of a part (empty if it has no relationships part).
     pub fn relationships(&self, source: &str) -> Result<Relationships> {
-        let name = rels_part_name(Some(source));
-        if !self.contains(&name) {
+        // OPC equivalence, as the registry operations look it up (review of
+        // PR #38 round 2, n5: `Sheet1.xml` with `_rels/sheet1.xml.rels`)
+        let Some(i) = self.find_ci(&rels_part_name(Some(source))) else {
             return Ok(Relationships::empty(Some(source)));
-        }
-        Relationships::parse(Some(source), &self.read_part(&name)?)
+        };
+        Relationships::parse(Some(source), &self.read_part(&self.parts[i].name)?)
     }
 
     /// The main document part (target of the package's `officeDocument`
