@@ -91,5 +91,8 @@ T2 over all 3,423 settable runs, T3, T4, T5 read-back with `docx-rs` 0.4.22, T6)
 manual check in Microsoft 365 Word:
 
 ```sh
-cargo run -p ooxml-docx --example manual_check -- <outdir>   # ten outputs + CHECKLIST.md
+cargo run -p ooxml-docx --example docx_manual_check -- <outdir>   # eleven outputs + CHECKLIST.md
 ```
+
+`cargo xtask manual-check <outdir>` runs the Excel, PowerPoint and Word checks together and
+writes one bundle (per-format folders, an index `CHECKLIST.md`, `manual-check.zip`).

@@ -27,6 +27,47 @@
 //! ```
 //!
 //! Third-party notices for the generated content: `THIRD-PARTY-NOTICES`.
+#![cfg_attr(
+    all(feature = "pml", feature = "dml"),
+    doc = r##"
+## Detachable types (ADR-0002 note "detach/insert")
+
+Only entries listed in an allowlist's `[detach]` section implement
+[`Detachable`](ooxml_core::Detachable), so `detach_as` compiles for DrawingML
+formatting, renamed through a generated `SameType` pair:
+
+```
+use ooxml_core::{Lens, XmlDocument};
+use ooxml_schema::dml::{EndParagraphRunProperties, RunProperties};
+
+let doc = XmlDocument::parse(br#"<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:r><a:rPr lang="en"><a:latin typeface="X"/></a:rPr></a:r></a:p>"#).unwrap();
+let rpr = Lens::<RunProperties>::at(doc.root(), &[0, 0]).unwrap();
+let copy = rpr.detach_as::<EndParagraphRunProperties>(&[]).unwrap();
+assert_eq!(copy.raw().name().local(), "endParaRPr");
+```
+
+but not for a shape, whose subtree carries a document-unique `cNvPr@id`
+(copying it would duplicate the id):
+
+```compile_fail
+use ooxml_core::XmlDocument;
+use ooxml_schema::pml::Shape;
+
+let doc = XmlDocument::parse(br#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>"#).unwrap();
+let _ = doc.lens::<Shape>().unwrap().detach_as::<Shape>(&[]); // Shape: !Detachable
+```
+
+nor for a text body, a group or a shape tree (`p:txBody`, `p:grpSp`, `p:spTree`):
+
+```compile_fail
+use ooxml_core::XmlDocument;
+use ooxml_schema::pml::GroupShape;
+
+let doc = XmlDocument::parse(br#"<p:grpSp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>"#).unwrap();
+let _ = doc.lens::<GroupShape>().unwrap().detach_as::<GroupShape>(&[]);
+```
+"##
+)]
 
 mod generated;
 
