@@ -412,6 +412,20 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 
 ### Phase4 — range-based worksheet features (write and edit)
 
+Design: [ADR-0014](../adr/0014-xlsx-phase4-range-features.md) (Accepted, revision 3; owner decisions on Q1–Q4 2026-11-16). It narrows
+the scope below:
+
+- x14-only forms are preserved but not created. Cross-sheet DV and CF references are refused
+  until an Excel check; defined names are the workaround.
+- Filter criteria and header/footer images are out of scope.
+- Protection writes the SHA-512 form and replaces every hash attribute when re-protecting.
+
+Revision 2 also:
+
+- relaxes Phase0's merged-cell guard for anchors (an ADR-0001 note);
+- reuses Excel's leftover `_xlnm._FilterDatabase`;
+- rebuilds the Phase3 dependency on ADR-0009 rev 2 and the core `RegistryPlan` (PR #38).
+
 - **Scope:** merged cells (write; anchor rule), hyperlinks (with sheet rels), data validation
   (incl. x14 via typed `extLst` lens), conditional formatting (2007 + x14 with id linking), dxf
   registry, autofilter and sort state, panes/views, column widths/row heights/outline, page
