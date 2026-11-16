@@ -146,6 +146,26 @@ pub enum Error {
     /// explicitly unformatted text.
     #[error("the formatting of {0} cannot be copied (relationship id, unique id or name, extension list, markup compatibility, namespace declaration or scope)")]
     FormatNotCopyable(&'static str),
+    /// A find/replace pattern that is empty or contains `\n`, `\r` or `\v`
+    /// (matches never cross paragraphs or line breaks; ADR-0008 §4).
+    #[error("the search pattern is empty or contains a line break")]
+    InvalidPattern,
+    /// A match covers (part of) an `a:fld`, whose text Office computes
+    /// (ADR-0008 §4 rule 1).
+    #[error("the match covers a field (a:fld)")]
+    FieldInMatch,
+    /// A match covers an `a:br` (ADR-0008 §4 rule 1).
+    #[error("the match covers a line break (a:br)")]
+    BreakInMatch,
+    /// [`crate::MixedFormat::Refuse`]: the match covers runs whose `a:rPr`
+    /// differ beyond the proofing attributes, or in their links.
+    #[error("the match covers runs with different formatting")]
+    MixedFormatInMatch,
+    /// A replacement with `\v` for a match that ends inside a run with a
+    /// hyperlink: the rest of that run would move into a new run without
+    /// the link (ADR-0008 §4 rule 5).
+    #[error("a line break in the replacement would split a hyperlink run")]
+    LinkSplitByBreak,
     /// A link of the slide → layout → master → theme chain is missing or
     /// does not parse (ADR-0008 §1.1). Only resolver calls that need the
     /// link fail; Phase 0 reads and writes on that slide keep working.
@@ -156,6 +176,27 @@ pub enum Error {
         /// Which link.
         missing: crate::ChainLink,
     },
+}
+
+impl Error {
+    /// A fresh copy of a refusal that applies to every match of one text
+    /// body (the error itself is not `Clone`: `Core` wraps I/O errors).
+    pub(crate) fn duplicate(&self) -> Error {
+        match self {
+            Error::ShapeNotFound => Error::ShapeNotFound,
+            Error::AmbiguousShapeId { id } => Error::AmbiguousShapeId { id: *id },
+            Error::InvalidShapeId => Error::InvalidShapeId,
+            Error::InsideAlternateContent => Error::InsideAlternateContent,
+            Error::NoTextBody => Error::NoTextBody,
+            Error::NotATable => Error::NotATable,
+            Error::CellNotFound { row, col } => Error::CellNotFound { row: *row, col: *col },
+            Error::MergedCell { row, col } => Error::MergedCell { row: *row, col: *col },
+            Error::AnimatedCharacters { shape_id } => Error::AnimatedCharacters { shape_id: *shape_id },
+            Error::CommentAnchoredText { shape_id } => Error::CommentAnchoredText { shape_id: *shape_id },
+            Error::UnsupportedContent(s) => Error::UnsupportedContent(s.clone()),
+            other => Error::UnsupportedContent(other.to_string()),
+        }
+    }
 }
 
 impl From<ooxml_core::AttrError> for Error {
