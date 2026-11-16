@@ -1,15 +1,19 @@
 # ADR-0011: Word Phase2: structure (new parts, new IDs, append-only registries)
 
-- Status: **Proposed** (revision 3)
+- Status: **Accepted** (revision 4; review round 3: "Accepted after Minor only: yes")
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 3 and its append-only
     invariant;
   - [ADR-0002](0002-schema-driven-code-generation.md): slots, primitives, allowlist, and the
-    post-acceptance notes (depth limit; detach/insert, PR #18);
+    post-acceptance notes (depth limit; detach/insert, PR #18, merged; `insert_at`, PR #26,
+    merged);
   - [ADR-0004](0004-docx-phase0.md): Word Phase0, Accepted (PR #13 merged);
-  - [ADR-0007](0007-docx-phase1-template-filling.md): Word Phase1, PR #25, under review;
-  - PR #14 (`Package::remove_part`, the interim registry-removal note in ADR-0001);
+  - [ADR-0007](0007-docx-phase1-template-filling.md): Word Phase1, **Accepted** (revision 3,
+    PR #25 merged);
+  - PR #14 (`Package::remove_part`, the interim registry-removal note in ADR-0001; merged);
+  - **PR #45** (`core/insert-with-ns`): `NsDecl` and the `*_with_ns` inserts with check twins
+    (§1, "What else core needs" 1);
   - **the core registry API on `core/add-part`** (`RegistryPlan` / `Package::apply` and the
     one-step operations with `check_*` twins; **PR #38**). By the coordinator's decision of
     2026-11-16 (review B1) it is the **single source of truth** for:
@@ -19,8 +23,9 @@
     - dangling targets.
 
     This ADR states only what Word needs from it (§1).
-- Coordinates with: ADR-0006 (xlsx Phase2, PR #22), ADR-0009 (xlsx Phase3, PR #27) and
-  ADR-0012 (pptx Phase2, PR #30), which use the same core API.
+- Coordinates with: ADR-0006 (xlsx Phase2, Accepted, PR #22 merged), ADR-0009 (xlsx Phase3,
+  PR #27) and ADR-0012 (pptx Phase2, Accepted revision 3, PR #30 merged), which use the same
+  core API.
 - Evidence: `spikes/docx-phase2/`: `registries.py`, `needs.py` and a README with every
   number. Corpora: fixtures (26), Apache POI (129), Open XML SDK non-Strict (442), docx4j
   (12), template-engine test files (212). Library behaviour comes from source at pinned
@@ -72,6 +77,22 @@
   - **N9:** `titlePg` and note-numbering restarts are documented, and `NOTEREF` is removed
     from the structure column.
 
+- **Revision 4** (after `0011-opus-review-round3.md`: Minor only, "Accepted after Minor only:
+  yes"; `origin/main` merged again). Status **Accepted**.
+  - **R3-1:** §1 follows PR #45: a URI with **any** prefixed binding in scope is reused and
+    nothing is declared; `insert_by_with_ns` / `insert_with_ns` / `get_or_insert_with_ns`
+    suffice, so no positional variant is required; the check twins return the declarations
+    they would write (PR #45 is being changed to do so), used by tests only. PR #45 is cited
+    in Depends on, Consequences and Sources.
+  - **R3-2:** the dry run checks the outer `w:r` (or `w:hyperlink`) and a depth bound
+    (paragraph depth + subtree height ≤ `max_depth`; 9 for an image). Lazy registry scans
+    happen in step 1, and nothing calls `xml_part_mut` between the plan and `apply`.
+  - **R3-3:** `w:hyperlink` is inserted with `NsDecl(r)` (§4); a POI file without `r` on the
+    root joins the tests.
+  - **R3-4:** status lines updated (ADR-0007 and ADR-0012 Accepted; #14, #18, #22, #25, #26, #30
+    merged). The enforced-protection opt-in from ADR-0007 Q10 is placed out of Phase2 with a
+    destination (Q9).
+
 ## Context
 
 Phases 0 and 1 edit what exists. They create no part, no relationship, no content-type
@@ -110,7 +131,14 @@ The corpus measurements set the hard requirements:
 
 - creating header or footer parts and setting a header for one section (Q6);
 - creating whole tables, as opposed to editing existing ones;
-- creating a styles part.
+- creating a styles part;
+- **the enforced-protection opt-in** handed over by ADR-0007 (Alternatives 10, Q10; revision 4,
+  review R3-4). ADR-0004's W3 (`DocumentProtected`) stays a refusal in Phase2. An opt-in that
+  edits a document whose `w:documentProtection` is enforced is a policy decision (whose
+  restriction is being bypassed, and whether `settings.xml` is touched), not a structure
+  edit. It goes to the later document-settings ADR together with `Document::new()`'s
+  settings; proposed default Q9. ADR-0007's other hand-over, lifting A2, **is** in Phase2
+  (§6).
 
 The roadmap's earlier Phase2 list named them; they move to a later structure ADR.
 
@@ -154,12 +182,16 @@ the branch:
    - `numbering.xml` for the first list (§5a).
 
    **Order (revision 3, review N2):**
-   1. the Layer 2 dry run on the story parts (ADR-0007 §7). It may call
-      `Package::xml_part_mut`, which advances the package's generation;
+   1. the Layer 2 dry run on the story parts (ADR-0007 §7; for Phase2 inserts, the outer
+      check and the depth bound of item "What else core needs" 1). It may call
+      `Package::xml_part_mut`, which advances the package's generation. **Every lazy scan
+      happens here too**: the §2 registries' scans of other stories (`docPr` ids in headers,
+      footers, notes) and item 4's scan of `r:*` values (revision 4, review R3-2);
    2. the `RegistryPlan` for the new part and relationships. It records the package's id and
       generation; the relationship id and the part name are decided here;
-   3. `Package::apply` (cannot fail except `StalePlan`, and nothing touches the package
-      between 2 and 3);
+   3. `Package::apply` (cannot fail except `StalePlan`). **No `xml_part_mut` is called
+      between 2 and 3**: anything read there goes through `parsed_part` (`&self`) or
+      `xml_part`, which do not advance the generation (PR #38, `package.rs`);
    4. the tree edits, which write the decided `r:id` and cannot fail after step 1.
 
    Building the plan **before** the dry run would make `apply` refuse with `StalePlan`.
@@ -199,26 +231,35 @@ the branch:
    - `pic` on POI 109/113, SDK 440/442 and template 199/210;
    - `wp` on POI 6/113 and SDK 6/442.
 
-   (Reviewer's `probe2-ns.out`.) Requirement on the core PR:
-   - **`insert_by_declaring::<C>(before, decls)` / `insert_at_declaring::<C>(index, decls)`**
-     (names indicative): `decls` is a list of `(preferred prefix, URI)`. The new element
-     carries an `xmlns:<prefix>` declaration for each, and its own name and its attributes'
-     names use those bindings. The element is a created node (`own_dirty`), and no original
-     node's start tag changes.
-   - **Check twin** `check_insert_*_declaring` runs the same checks without changing anything:
-     slot, order, limits, depth, and the prefix choice. It **returns the prefixes actually
-     used**.
-   - **Prefix choice:** use the preferred prefix if it is unbound at the insertion point or
-     already bound to the same URI. In the latter case no declaration is written, and nothing
-     is redundant. If it is bound to **another** URI, use the first of `<p>1`, `<p>2`, … that
-     is free (review m11). `xml`, `xmlns` and the empty prefix are refused.
-   - Descendants created under that element find the binding through the existing
-     `choose_element_prefix` / `choose_attr_prefix`. No further API is needed.
-   - Depth and dirty rules are those of `insert_by` / `insert_at`.
+   (Reviewer's `probe2-ns.out`.) **PR #45** (`core/insert-with-ns`) provides this
+   (revision 4, review R3-1). This ADR relies on it as follows:
+   - **`NsDecl { prefix, uri }`** and the `_with_ns` inserts. ooxml-docx uses
+     **`insert_by_with_ns`, `insert_with_ns` and `get_or_insert_with_ns`**. Every Phase2
+     insert is either `insert_by` on an existing node (the outer `w:r`, §3; `w:hyperlink`,
+     §4, placed before the second half of the split by a `before` predicate) or an insert
+     under a node created in the same call. So a positional `insert_at` variant is **not
+     needed**. If one ever is, it is PR #26's `insert_at` gaining a `_with_ns` twin through
+     the same plan, which PR #45's ADR-0002 note already lists as an extension point.
+   - **Prefix choice (PR #45's rule).** If the URI already has **any** prefixed binding in
+     scope, that binding is used and nothing is declared. Otherwise the new element gets
+     `xmlns:<p>`: the requested prefix if it is unbound in scope, else the first free
+     `<p>1`, `<p>2`, …. Existing bindings are never shadowed. This writes no redundant
+     declaration, which is better than revision 3's "same prefix, same URI" rule.
+   - **Check twins** (`check_insert_by_with_ns`, …) run the same planning function as the
+     insert, so they cannot disagree. PR #45 is being changed so that they **return the
+     declarations the insert would write**. ooxml-docx uses that only in tests (T2 expects
+     exactly those bytes). Attribute prefixes are chosen by `choose_attr_prefix` and are not
+     needed in advance. Revision 3's "returns the prefixes actually used" requirement is
+     withdrawn.
+   - Descendants created under the new element find the binding through the existing
+     `choose_element_prefix` / `choose_attr_prefix`. Depth and dirty rules are those of
+     `insert_by`. The element is a created node (`own_dirty`), and no original node's start
+     tag changes.
 
-   **Where ooxml-docx declares** (§3): on **each outermost created element** whose own name,
-   or an attribute name in its created subtree, is in a namespace not bound at its insertion
-   point. That is Word's shape. For `insert_image`:
+   **Where ooxml-docx declares** (§3, §4): on **each outermost created element** whose own
+   name, or an attribute name in its created subtree, is in a namespace that has no prefixed
+   binding at its insertion point. This is Word's shape **when that namespace is not
+   already in scope**; when it is, the existing prefix is used (PR #45). For `insert_image`:
    - `wp:inline` declares `wp` (when the root lacks it) and `r` (when the root lacks it;
      `r:embed` sits below it);
    - `a:graphicFrameLocks` declares `a`;
@@ -226,8 +267,25 @@ the branch:
    - `pic:pic` declares `pic`.
    - `a:blip`, `a:stretch`, `a:xfrm`, … are created under `a:graphic`, inside the binding.
 
-   ADR-0007's dry run uses the check twin for these inserts. Only ADR-0011 needs this
-   primitive: ADR-0009 and ADR-0012 create new parts as whole byte strings.
+   For `insert_hyperlink` (§4), `w:hyperlink` is inserted with `NsDecl(r)`: `r:id` needs a
+   non-empty prefix bound to the relationships namespace (review R3-3).
+
+   **Dry run (revision 4, review R3-2).** A check twin is called on an existing node, so
+   before anything changes only the **outermost** insert can be checked:
+   - `check_insert_by::<R>` (or `check_insert_by_with_ns`) on the target paragraph for the
+     outer `w:r`, and on the paragraph for `w:hyperlink`;
+   - a **depth bound**: the paragraph's depth + the height of the created subtree ≤
+     `max_depth`. The height is 9 for an image
+     (`w:r/w:drawing/wp:inline/a:graphic/a:graphicData/pic:pic/pic:spPr/a:prstGeom/a:avLst`)
+     and, for a hyperlink, 2 (`w:hyperlink/w:r`) plus the height of the `w:rPr` it carries
+     (a copy of `r₀`'s, §4; computed from the source node before anything changes).
+
+   The inner `*_with_ns` inserts use constant `NsDecl`s, so `InvalidNamespaceDeclaration`
+   cannot occur, and with the depth bound checked they fail only with `NotAllowed`, which
+   ADR-0007 §7 already excludes for nodes created in the same call.
+
+   ADR-0013 (pptx) needs the same primitive for `a16:rowId`; ADR-0009 and ADR-0012 create
+   new parts as whole byte strings.
 2. **`SameType` modulo required skips** (ADR-0007 §8.2), reused for table rows (§7).
 
 No core change is needed for relationship attributes in copies. PR #18's `detach_as` refuses
@@ -348,6 +406,13 @@ paragraph or after a given run.
     the hyperlink is inserted between the two halves, its run carrying a copy of `r₀`'s
     `w:rPr` plus `rStyle`.
 - No runs are ever moved into a wrapper. That would need a move primitive (Alternatives 3).
+- **Namespace (revision 4, review R3-3).** `w:hyperlink` is inserted with `NsDecl(r)`
+  (`insert_by_with_ns`, §1). When `r` already has a prefixed binding in scope nothing is
+  declared; otherwise the hyperlink element carries `xmlns:r`. Measured (reviewer's
+  `probe_r.out`, Transitional only): story parts without a prefixed `r` binding on the root
+  are POI 7 (`document.xml` 6, `footer.xml` 1), SDK 6, template 2 (`footer.xml`). None has a
+  `headerReference`, so §6's section-break rewrite is not affected. Tests include a POI file
+  without `r` (`55733.docx`).
 
 ### 5. Bookmarks
 
@@ -775,7 +840,7 @@ it hands out is absent everywhere it must be. That check is what T-REG tests.
   check (T7).
 - **Negative:** this ADR depends on the core registry API (`core/add-part`, PR #38) and
   on two additive lens changes, each with its own review:
-  - insert with namespace declaration, plus its check twin (a core PR assigned separately, §1);
+  - insert with namespace declaration, plus its check twins (PR #45, §1);
   - `SameType` modulo skips (shared with ADR-0007).
 - **Negative:** these are refused in Phase2 and wait for a move primitive:
   - merging non-empty cells;
@@ -818,6 +883,9 @@ what this revision specifies, pending the owner's confirmation.
    - Issue a new `nsid`.
    - Drop `w:tmpl`, `numStyleLink`/`styleLink` and `w15:restartNumberingAfterBreak`.
    - Keep the bullet `lvlText` (U+F0B7, …) and its `rFonts` (Symbol, Wingdings, Courier New).
+9. **Enforced-protection opt-in** (ADR-0007 Q10, handed over; revision 4, review R3-4).
+   *Proposed default:* not in Phase2. W3 keeps refusing; the opt-in goes to the later
+   document-settings ADR. The corpora have 4 protected POI files.
 
 ## Sources
 
@@ -825,8 +893,10 @@ what this revision specifies, pending the owner's confirmation.
   `review1.py`; run 2026-11-16, Python 3.15.
 - Review: `docs/adr/0011-opus-review-round1.md`.
 - Core registry API: PR #38, branch `core/add-part` (`crates/ooxml-core/src/package/add.rs`).
-- Core "insert with namespace declaration" (§1): the core PR assigned on 2026-11-16 (number to
-  be added once it is open).
+- Core "insert with namespace declaration" (§1): **PR #45** (`core/insert-with-ns`,
+  `crates/ooxml-core/src/lens.rs`, `tests/insert_ns.rs`, its ADR-0002 note). That note's
+  "ADR-0011 §1.3" means §1 "What else core needs", item 1 (fixed on the PR #45 side).
+- Review: `docs/adr/0011-opus-review-round3.md` (probes `probe_r.py`, `probe_r2.py`).
 - Review: `docs/adr/0011-opus-review-round2.md`.
 - Library source (read, not executed):
   - python-docx `e45454602b53e8e572b179ccf1c91093ec9f4ed7` (`src/docx/`);
@@ -840,7 +910,7 @@ what this revision specifies, pending the owner's confirmation.
 
   Line ranges are given in §13.
 - ADR-0001 (Layer 3), ADR-0002 (§3 prefix rules, §4 slots, post-acceptance notes), ADR-0004,
-  ADR-0006 (xlsx Phase2; part creation deferred to Phase3), ADR-0007 (PR #25), PR #14
+  ADR-0006 (xlsx Phase2; part creation deferred to Phase3), ADR-0007 (Accepted, PR #25), PR #14
   (`remove_part`), PR #18 (`detach_as`/`insert_detached`), `docs/roadmap/docx.md` §5
   (registries), `docs/roadmap/xlsx.md` Phase3.
 - ECMA-376 Part 1 (`CT_NonVisualDrawingProps/@id`, `ST_DrawingElementId`; bookmarks
