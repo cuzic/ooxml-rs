@@ -326,6 +326,33 @@ pub fn named_cases() -> Vec<Case> {
                 e(0, id, Some((1, 1)), Op::BodySetText { text: "セル\n二行目".into() }),
             ]
         }),
+        // Phase 0.1: runs whose a:rPr has a:hlinkClick (shapes.pptx slide 5
+        // table): new runs/paragraphs copy the format without the link.
+        run_case("hyperlink-cells".into(), "poi/shapes.pptx", |pres| {
+            let slide = pres.slide(4).unwrap();
+            let t = slide.shapes().into_iter().find(|s| *s.kind() == ShapeKind::Table).expect("table");
+            let id = t.id().unwrap();
+            let linked: Vec<(usize, usize)> = t
+                .table()
+                .unwrap()
+                .rows()
+                .iter()
+                .enumerate()
+                .flat_map(|(r, row)| {
+                    row.iter()
+                        .enumerate()
+                        .filter(|(_, c)| c.text_body().is_some_and(|b| b.paragraphs().iter().any(|q| q.raw().elements().any(|r| r.elements().any(|p| p.elements().any(|l| l.name().local() == "hlinkClick"))))))
+                        .map(move |(c, _)| (r, c))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            assert_eq!(linked.len(), 3);
+            vec![
+                e(4, id, Some(linked[0]), Op::ParaSetText { p: 0, text: "link\u{b}plain".into() }),
+                e(4, id, Some(linked[1]), Op::BodySetText { text: "link\nplain\n".into() }),
+                e(4, id, Some(linked[2]), Op::ParaSetText { p: 0, text: "\u{b}after".into() }),
+            ]
+        }),
     ]
 }
 
