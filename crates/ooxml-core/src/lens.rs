@@ -299,13 +299,29 @@ impl<C: ElementSpec> Detached<C> {
         &self.root
     }
 
-    /// Would [`LensMut::insert_detached`] find a prefix for every namespace
-    /// of the copy when inserting it under the element at `parent_path` of
-    /// the part whose root is `root` — or under any element *created* below
-    /// that one (created elements declare no namespaces)? Changes nothing.
-    /// `Err(NamespaceNotInScope)` exactly when the insertion would fail for
-    /// that reason; slot rules are not checked here.
-    pub fn check_insert_under(&self, root: &RawNode, parent_path: &[usize]) -> Result<()> {
+    /// Number of element levels of the copy (1 for an element without
+    /// element children).
+    pub fn height(&self) -> usize {
+        fn h(n: &RawNode) -> usize {
+            1 + n.elements().map(h).max().unwrap_or(0)
+        }
+        h(&self.root)
+    }
+
+    /// Would [`LensMut::insert_detached`] succeed, as far as namespaces and
+    /// depth go, when the copy is inserted below the element at
+    /// `parent_path` of `doc`, with `created` new elements in between (0 =
+    /// directly under it; created elements declare no namespaces)? Changes
+    /// nothing. `Err(NamespaceNotInScope)` or `Err(TooDeep)` exactly when
+    /// the insertion would fail for that reason; slot rules are not checked.
+    /// A format crate calls it for every copy of a multi-insert edit before
+    /// the edit's first change.
+    pub fn check_insert_under(&self, doc: &crate::XmlDocument, parent_path: &[usize], created: usize) -> Result<()> {
+        let root = doc.root();
+        // parent depth = path len + 1; the copy's deepest element:
+        if parent_path.len() + 1 + created + self.height() > doc.max_depth() {
+            return Err(Error::TooDeep { limit: doc.max_depth(), position: node_at(root, parent_path).span.map_or(0, |s| s.start) });
+        }
         let decls = declarations(root, parent_path);
         with_prefixes(self.root.clone(), &decls, node_at(root, parent_path).name.prefix()).map(|_| ())
     }
@@ -363,6 +379,8 @@ fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String]) -> Result<RawN
 pub struct LensMut<'a, E: ElementSpec> {
     root: &'a mut RawNode,
     path: Vec<usize>,
+    /// Depth limit for inserted elements (the root is depth 1).
+    max_depth: usize,
     _e: PhantomData<fn() -> E>,
 }
 
@@ -379,9 +397,16 @@ struct Placement {
 
 impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// A mutable lens on `root`, which must be the element `E::QNAME`.
+    /// Inserts are limited to [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH);
+    /// [`XmlDocument::lens_mut`](crate::XmlDocument::lens_mut) uses the
+    /// limit the document was parsed with instead.
     pub fn root(root: &'a mut RawNode) -> Result<Self> {
+        Self::root_with_limit(root, crate::xml::DEFAULT_MAX_DEPTH)
+    }
+
+    pub(crate) fn root_with_limit(root: &'a mut RawNode, max_depth: usize) -> Result<Self> {
         check_root::<E>(root)?;
-        Ok(LensMut { root, path: Vec::new(), _e: PhantomData })
+        Ok(LensMut { root, path: Vec::new(), max_depth, _e: PhantomData })
     }
 
     /// The raw node (read-only; mutation goes through the primitives).
@@ -417,7 +442,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     fn descend<C: ElementSpec>(&mut self, index: usize) -> LensMut<'_, C> {
         let mut path = self.path.clone();
         path.push(index);
-        LensMut { root: &mut *self.root, path, _e: PhantomData }
+        LensMut { root: &mut *self.root, path, max_depth: self.max_depth, _e: PhantomData }
     }
 
     /// Mutable lens on the first child named `C::QNAME`.
@@ -447,7 +472,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return None;
         }
         self.path.push(index);
-        Some(LensMut { root: self.root, path: self.path, _e: PhantomData })
+        Some(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
     }
 
     /// Consuming variant of [`Self::child_mut_by`].
@@ -465,7 +490,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 found_local: E::QNAME.local.into(),
             });
         }
-        Ok(LensMut { root: self.root, path: self.path, _e: PhantomData })
+        Ok(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
     }
 
     // ---- insertion ----
@@ -559,6 +584,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         slot: usize,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<LensMut<'_, C>> {
+        // The new element's depth is this node's (path length + 1) plus one.
+        // Refused like the parser would refuse it, so an edited tree can
+        // always be parsed again and recursive walks stay bounded.
+        if self.path.len() + 2 > self.max_depth {
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+        }
         let slots = self.slots()?;
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         let prefix = choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
@@ -640,6 +671,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
             _ => return Err(Error::AmbiguousSlot(C::QNAME)),
         };
+        // The whole copy must fit under the depth limit (ADR-0002 note
+        // "parser depth limit"): its deepest element is at
+        // parent depth (path len + 1) + height.
+        if self.path.len() + 1 + d.height() > self.max_depth {
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+        }
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         let decls = declarations(self.root, &self.path);
         let parent_prefix = self.node().name.prefix();

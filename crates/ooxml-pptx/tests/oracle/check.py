@@ -1,15 +1,20 @@
 """ADR-0005 T3, independent half: for every case written by
 `cargo run -p ooxml-pptx --example oracle_cases -- OUTDIR`,
 
-  (a) python-pptx(output) == apply(edits, python-pptx(input))  -- expected model
-  (b) python-pptx(output) == ooxml-pptx(output)                -- read agreement
-  (c) python-pptx(input)  == ooxml-pptx(input)                 -- read agreement
+  (a) python-pptx(output) == python-pptx(edit(input))  -- expected model
+  (b) python-pptx(output) == ooxml-pptx(output)        -- read agreement
+  (c) python-pptx(input)  == ooxml-pptx(input)         -- read agreement
 
-`apply` below is written from the ADR's edit semantics, independently of
-the Rust code. Exit status 1 on any mismatch.
+`edit` (review R2-3) does not mirror the Rust oracle's model arithmetic:
+it opens the *input* with python-pptx and performs each edit on
+python-pptx's own lxml tree, following the edit rules of ADR-0005 §3
+(locate the body by shape id / cell, then move, copy and remove
+elements), and the expected model is read back from that tree with the
+same reader as (a). Exit status 1 on any mismatch.
 
     python3 -I check.py [--site DIR] OUTDIR FIXTURES_DIR
 """
+import copy
 import json
 import os
 import sys
@@ -17,77 +22,157 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import readback  # noqa: E402
 
-
-def segs(text):
-    return text.split('\v')
+A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 
 
-def build(segments, first, fmt):
-    items = []
+# ---------------------------------------------------------------------------
+# Locating the edited text body in python-pptx's tree
+
+def find_body(prs, site, e):
+    _, qn, GroupShape, _ = readback.import_pptx(site)
+    _, _, part = readback.slide_parts(prs)[e['slide']]
+
+    def walk(shapes):
+        for sh in shapes:
+            if isinstance(sh, GroupShape):
+                yield from walk(sh.shapes)
+            yield sh
+
+    hits = [sh for sh in walk(part.slide.shapes) if sh.shape_id == e['shape_id']]
+    assert len(hits) == 1, f'shape id {e["shape_id"]}: {len(hits)} shapes'
+    sh = hits[0]
+    if e['cell'] is None:
+        body = sh._element.find(qn('p:txBody'))
+    else:
+        r, c = e['cell']
+        body = sh.table.rows[r].cells[c]._tc.find(qn('a:txBody'))
+    assert body is not None
+    return body
+
+
+# ---------------------------------------------------------------------------
+# The edit rules (ADR-0005 §3) on lxml elements
+
+def kids(el, local):
+    return [c for c in el if c.tag == A + local]
+
+
+def make(parent, local):
+    return parent.makeelement(A + local, {})
+
+
+def put(p, el):
+    """Paragraph content goes before a:endParaRPr (else at the end)."""
+    end = p.find(A + 'endParaRPr')
+    if end is not None:
+        end.addprevious(el)
+    else:
+        p.append(el)
+
+
+def run_source(p):
+    """Format source of a new run: the first run's a:rPr, else a:endParaRPr."""
+    runs = kids(p, 'r')
+    return runs[0].find(A + 'rPr') if runs else p.find(A + 'endParaRPr')
+
+
+def copy_as(src, local):
+    """A copy of a format source under another name; None when there is
+    nothing to copy (a source without attributes and children)."""
+    if src is None or (not src.attrib and len(src) == 0):
+        return None
+    c = copy.deepcopy(src)
+    c.tag = A + local
+    c.tail = None
+    return c
+
+
+def new_run(p, text, src):
+    r = make(p, 'r')
+    fmt = copy_as(src, 'rPr')
+    if fmt is not None:
+        r.append(fmt)
+    t = make(r, 't')
+    t.text = text
+    r.append(t)
+    return r
+
+
+def fill(p, segments, first, src):
     if first is not None:
-        items.append(['r', segments[0], first[2]])
+        t = first.find(A + 't')
+        if t is None:
+            t = make(first, 't')
+            first.append(t)
+        t.text = segments[0]
     elif segments[0]:
-        items.append(['r', segments[0], fmt])
+        put(p, new_run(p, segments[0], src))
     for s in segments[1:]:
-        items.append(['br'])
+        put(p, make(p, 'br'))
         if s:
-            items.append(['r', s, fmt])
-    return items
+            put(p, new_run(p, s, src))
 
 
-def runs(p):
-    return [i for i in p['items'] if i[0] == 'r']
+def set_paragraph(p, text):
+    src = copy.deepcopy(run_source(p))
+    runs = kids(p, 'r')
+    for el in runs[1:] + kids(p, 'br'):
+        p.remove(el)
+    fill(p, text.split('\v'), runs[0] if runs else None, src)
 
 
-def run_fmt(p):
-    r = runs(p)
-    return r[0][2] if r else p['end']
+def new_paragraph(body, text, ppr, src):
+    p = make(body, 'p')
+    kids(body, 'p')[-1].addnext(p)
+    if ppr is not None:
+        p.append(copy.deepcopy(ppr))
+    fill(p, text.split('\v'), None, src)
+    end = copy_as(src, 'endParaRPr')
+    if end is not None:
+        p.append(end)
 
 
-def para_set(p, text):
-    r = runs(p)
-    p['items'] = build(segs(text), r[0] if r else None, run_fmt(p))
-
-
-def nth(items, kind, n):
-    return [k for k, i in enumerate(items) if i[0] == kind][n]
-
-
-def apply(model, e):
-    slide = model['slides'][e['slide']]
-    target = next(s for s in slide['shapes'] if s['shape_id'] == e['shape_id'] and s['cell'] == e['cell'])
-    paras = target['paragraphs']
-    a, op = e['args'], e['op']
+def edit(body, op, a):
+    paras = kids(body, 'p')
     if op == 'run_set_text':
-        items = paras[a['p']]['items']
-        items[nth(items, 'r', a['r'])][1] = a['text']
+        kids(paras[a['p']], 'r')[a['r']].find(A + 't').text = a['text']
     elif op == 'para_set_text':
-        para_set(paras[a['p']], a['text'])
+        set_paragraph(paras[a['p']], a['text'])
     elif op == 'add_run':
-        paras[a['p']]['items'].append(['r', a['text'], None])
+        put(paras[a['p']], new_run(paras[a['p']], a['text'], None))
     elif op == 'add_break':
-        paras[a['p']]['items'].append(['br'])
-    elif op in ('remove_run', 'remove_field'):
-        kind, n = ('r', a['r']) if op == 'remove_run' else ('fld', a['f'])
-        items = paras[a['p']]['items']
-        del items[nth(items, kind, n)]
+        put(paras[a['p']], make(paras[a['p']], 'br'))
+    elif op == 'remove_run':
+        paras[a['p']].remove(kids(paras[a['p']], 'r')[a['r']])
+    elif op == 'remove_field':
+        paras[a['p']].remove(kids(paras[a['p']], 'fld')[a['f']])
     elif op == 'add_paragraph':
-        paras.append({'ppr': None, 'end': None, 'items': build(segs(a['text']), None, None)})
+        new_paragraph(body, a['text'], None, None)
     elif op == 'remove_paragraph':
-        del paras[a['p']]
+        body.remove(paras[a['p']])
     elif op == 'body_set_text':
         lines = a['text'].replace('\r\n', '\n').replace('\r', '\n').split('\n')
-        last = json.loads(json.dumps(paras[-1]))
-        n = len(paras)
-        for i, line in enumerate(lines):
-            if i < n:
-                para_set(paras[i], line)
-            else:
-                paras.append({'ppr': last['ppr'], 'end': None, 'items': build(segs(line), None, run_fmt(last))})
-        del paras[len(lines):]
+        last = paras[-1]
+        ppr, src = copy.deepcopy(last.find(A + 'pPr')), copy.deepcopy(run_source(last))
+        for p, line in zip(paras, lines):
+            set_paragraph(p, line)
+        for line in lines[len(paras):]:
+            new_paragraph(body, line, ppr, src)
+        for p in paras[len(lines):]:
+            body.remove(p)
     else:
         raise ValueError(op)
 
+
+def expected(path, edits, site):
+    Presentation = readback.import_pptx(site)[0]
+    prs = Presentation(path)
+    for e in edits:
+        edit(find_body(prs, site, e), e['op'], e['args'])
+    return readback.dump_prs(prs, site)
+
+
+# ---------------------------------------------------------------------------
 
 def first_diff(a, b, path='$'):
     if type(a) is not type(b):
@@ -121,15 +206,14 @@ def main():
     norm = lambda m: json.loads(json.dumps(m))  # noqa: E731
     failures, edits = 0, 0
     for c in cases:
-        src = norm(readback.dump(os.path.join(fixtures, c['fixture']), site))
+        fixture = os.path.join(fixtures, c['fixture'])
+        src = norm(readback.dump(fixture, site))
         out = norm(readback.dump(os.path.join(outdir, c['output']), site))
+        want = norm(expected(fixture, c['edits'], site))
         rust_in = json.load(open(os.path.join(outdir, c['name'] + '.input.ooxml.json'), encoding='utf-8'))
         rust_out = json.load(open(os.path.join(outdir, c['name'] + '.ooxml.json'), encoding='utf-8'))
-        expected = norm(src)
-        for e in c['edits']:
-            apply(expected, e)
         edits += len(c['edits'])
-        for label, x, y in (('expected model', out, expected), ('agreement (output)', out, rust_out),
+        for label, x, y in (('expected model', out, want), ('agreement (output)', out, rust_out),
                             ('agreement (input)', src, rust_in)):
             d = first_diff(x, y)
             if d:

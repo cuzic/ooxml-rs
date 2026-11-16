@@ -23,14 +23,14 @@ pres.save("deck.pptx")?;
 | --- | --- |
 | `RunMut::set_text` | replaces `a:t`; `a:rPr` kept |
 | `ParagraphMut::set_text` | first run keeps its `a:rPr`; `\v` → `a:br`; other runs/breaks removed |
-| `TextBodyMut::set_text` | line *i* → paragraph *i* (formats kept); surplus removed; new ones copy the last paragraph's attributes |
+| `TextBodyMut::set_text` | line *i* → paragraph *i* (formats kept); surplus removed; new ones copy the last paragraph's `a:pPr` attributes and its run format (runs and `a:endParaRPr`) |
 | `add_run`, `add_paragraph` | explicitly unformatted (inherit the list/placeholder style) |
 | `add_break`, `remove_run`, `remove_paragraph`, `remove_field` | as named |
 
 Refused with a typed `Error`, before anything changes: edits that would
 shift animated or comment-anchored text, remove a field implicitly, touch
 an `mc:AlternateContent` branch or a merged cell, write content Phase 0
-does not model, need a formatting copy with child elements (Phase 2), or
+does not model, need a formatting copy with child elements (not in Phase 0), or
 contain characters XML 1.0 cannot hold. Only direct values are read
 (placeholder inheritance is Phase 1).
 

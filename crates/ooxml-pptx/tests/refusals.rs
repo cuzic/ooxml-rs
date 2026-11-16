@@ -263,8 +263,25 @@ fn format_sources() {
     let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("1\n2"));
     assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
     // The subtitle's last paragraph has an attribute-only a:pPr and no run:
-    // a third paragraph copies both (no refusal) ...
-    p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("1\n2\n3").unwrap();
+    // a third paragraph copies both (no refusal) and, review R2-5, gets an
+    // a:endParaRPr copying the run format source (here a:endParaRPr) ...
+    p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("1\n2\n3\n").unwrap();
+    {
+        let s = p.slide(0).unwrap();
+        let sh = s.shape_by_id(2050).unwrap().unwrap();
+        let paras = sh.text_body().unwrap().paragraphs();
+        assert_eq!(paras.len(), 4);
+        for q in &paras[2..] {
+            let pre: Vec<String> = q.raw().elements().map(|c| c.name().local().to_owned()).collect();
+            let end = q.raw().elements().find(|c| c.name().local() == "endParaRPr").expect("endParaRPr on a new paragraph");
+            assert_eq!(end.attr(ooxml_core::QName::new("", "lang")), Some("en-US"), "{pre:?}");
+            assert_eq!(pre.last().map(String::as_str), Some("endParaRPr"));
+        }
+    }
+    // Since the source is needed for every new paragraph, an *empty* new
+    // line is refused too when it is not copyable (the title's run has a:sym).
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("t\n"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
     // ... but once the last paragraph is the first one, whose a:pPr has an
     // a:spcAft child, a new paragraph would need a subtree copy.
     p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("only").unwrap();
@@ -401,4 +418,135 @@ fn namespace_not_in_scope() {
     assert_matches!(e, Error::Core(ooxml_core::Error::NamespaceNotInScope(_)));
     // inside an existing a:p the prefix is bound: run edits work
     p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().run_mut(0).unwrap().set_text("ok").unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// Review R2-1 / R2-7: the remaining sub-conditions of §6, each on a
+// synthetic input (one documented XML edit of a real fixture, in memory).
+
+#[test]
+fn strict_package() {
+    // SYNTHETIC: sample.pptx with the package relationship to the main part
+    // in the Strict namespace (ooxml-core refuses Strict packages)
+    let strict = patch("poi/sample.pptx", "_rels/.rels", |x| {
+        replace_once(
+            &x,
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument",
+        )
+    });
+    assert_matches!(Presentation::from_bytes(strict), Err(Error::Core(ooxml_core::Error::StrictNotSupported(_))));
+}
+
+#[test]
+fn body_without_paragraph() {
+    // SYNTHETIC: sample.pptx's subtitle body with both a:p removed
+    // (`<p:txBody><a:bodyPr/><a:lstStyle/></p:txBody>`, a schema violation:
+    // a:p is minOccurs 1). Review R2-1: this used to panic.
+    let empty = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        let at = x.find("<p:cNvPr id=\"2050\"").unwrap();
+        let a = at + x[at..].find("<a:lstStyle/>").unwrap() + "<a:lstStyle/>".len();
+        let b = at + x[at..].find("</p:txBody>").unwrap();
+        format!("{}{}", &x[..a], &x[b..])
+    });
+    let mut p = Presentation::from_bytes(empty).unwrap();
+    type Op = fn(&mut ooxml_pptx::TextBodyMut<'_>) -> Result<(), Error>;
+    let ops: [Op; 4] = [
+        |b| b.set_text("x"),
+        |b| b.set_text("x\ny\nz"),
+        |b| b.add_paragraph("y").map(|_| ()),
+        |b| b.remove_paragraph(0),
+    ];
+    for op in ops {
+        let e = refused(&mut p, |p| op(&mut p.slide_mut(0)?.shape_mut_by_id(2050)?.text_body_mut()?));
+        assert_matches!(e, Error::UnsupportedContent(ref m) if m.contains("without a:p"));
+    }
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2050)?.text_body_mut()?.paragraph_mut(0).map(|_| ()));
+    assert_matches!(e, Error::ParagraphNotFound(0));
+}
+
+#[test]
+fn content_out_of_order() {
+    // SYNTHETIC: sample.pptx's title paragraph with an a:endParaRPr moved
+    // before its run (`<a:p><a:pPr/><a:endParaRPr/><a:r>…</a:r></a:p>`)
+    let swapped = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        let x = replace_once(&x, "<a:pPr hangingPunct=\"1\"/><a:r>", "<a:pPr hangingPunct=\"1\"/><a:endParaRPr lang=\"en-US\"/><a:r>");
+        replace_once(&x, "</a:r><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp><p:sp>", "</a:r></a:p></p:txBody></p:sp><p:sp>")
+    });
+    let mut p = Presentation::from_bytes(swapped).unwrap();
+    type Op = fn(&mut ooxml_pptx::TextBodyMut<'_>) -> Result<(), Error>;
+    let ops: [Op; 5] = [
+        |b| b.paragraph_mut(0)?.run_mut(0)?.set_text("x"),
+        |b| b.paragraph_mut(0)?.set_text("x"),
+        |b| b.paragraph_mut(0)?.add_run("x"),
+        |b| b.paragraph_mut(0)?.add_break(),
+        |b| b.set_text("x"),
+    ];
+    for op in ops {
+        let e = refused(&mut p, |p| op(&mut p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?));
+        assert_matches!(e, Error::UnsupportedContent(ref m) if m.contains("out of order"));
+    }
+}
+
+#[test]
+fn group_without_id() {
+    // SYNTHETIC: shapes.pptx slide 3 with "Group 4"'s cNvPr@id removed: its
+    // members cannot be checked against references to the group.
+    let noid = patch("poi/shapes.pptx", "ppt/slides/slide3.xml", |x| {
+        replace_once(&x, "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"5\" name=\"Group 4\"/>", "<p:grpSp><p:nvGrpSpPr><p:cNvPr name=\"Group 4\"/>")
+    });
+    let mut p = Presentation::from_bytes(noid).unwrap();
+    let member = path_of(&mut p, 2, |s| s.depth() > 0 && *s.kind() == ShapeKind::Shape);
+    assert!(p.slide(2).unwrap().shapes().iter().any(|s| s.path() == &member && s.id().is_ok()), "the member's own id is valid");
+    let e = refused(&mut p, |p| p.slide_mut(2)?.shape_mut(&member).map(|_| ()));
+    assert_matches!(e, Error::InvalidShapeId);
+}
+
+#[test]
+fn animation_sub_conditions() {
+    const ID: u32 = 584_707;
+    let other = |p: &mut Presentation| {
+        let s = p.slide(0).unwrap();
+        s.shapes().into_iter().find(|x| x.text_body().is_some() && x.id().is_ok_and(|i| i != ID)).unwrap().id().unwrap()
+    };
+    // SYNTHETIC: 45545_Comment.pptx with every p:txEl/p:pRg renamed to an
+    // unknown child: offsets this crate cannot interpret lock all text edits
+    let unknown = patch("poi/45545_Comment.pptx", "ppt/slides/slide1.xml", |x| x.replace("<p:pRg ", "<p:futureRg "));
+    let mut p = Presentation::from_bytes(unknown).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(ID)?.text_body_mut()?.paragraph_mut(0)?.add_run("x"));
+    assert_matches!(e, Error::AnimatedCharacters { shape_id: ID });
+    // SYNTHETIC: the same slide with the bldP's spid not a number: every
+    // shape's paragraph structure is locked, not only shape 584707's
+    let nan = patch("poi/45545_Comment.pptx", "ppt/slides/slide1.xml", |x| {
+        replace_once(&x, "<p:bldP spid=\"584707\"", "<p:bldP spid=\"x584707\"")
+    });
+    let mut p = Presentation::from_bytes(nan).unwrap();
+    let o = other(&mut p);
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(o)?.text_body_mut()?.add_paragraph("x").map(|_| ()));
+    assert_matches!(e, Error::AnimatedParagraphs { shape_id } if shape_id == o);
+    // ... while the unmodified fixture lets that shape grow
+    let mut p = open("poi/45545_Comment.pptx");
+    p.slide_mut(0).unwrap().shape_mut_by_id(o).unwrap().text_body_mut().unwrap().add_paragraph("x").unwrap();
+}
+
+#[test]
+fn comment_sub_conditions() {
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    const RELS: &str = "ppt/slides/_rels/slide1.xml.rels";
+    // SYNTHETIC: the comment relationship points to a part that does not exist
+    let missing = patch("libreoffice/modern-comments.pptx", RELS, |x| {
+        replace_once(&x, "../comments/modernComment_100_68C49C6.xml", "../comments/missing.xml")
+    });
+    let mut p = Presentation::from_bytes(missing).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 });
+    // SYNTHETIC: the p188:cm without any anchor (its ac:deMkLst removed)
+    let anchorless = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        let a = x.find("<ac:deMkLst ").unwrap();
+        let b = x.find("</ac:deMkLst>").unwrap() + "</ac:deMkLst>".len();
+        format!("{}{}", &x[..a], &x[b..])
+    });
+    let mut p = Presentation::from_bytes(anchorless).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 });
 }
