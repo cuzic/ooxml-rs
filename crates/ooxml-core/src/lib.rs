@@ -25,7 +25,7 @@ pub mod value;
 pub mod xml;
 
 pub use error::{DetachRefusal, Error, MoveRefusal, Result, WellFormedness};
-pub use lens::{Detached, Lens, LensMut, MoveSource};
+pub use lens::{Detached, Lens, LensMut, MoveSource, NsDecl};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind, RemoveRefusal, RemovedPart};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, SameType, SimpleType, Slot, UniqueAttr, Wildcard};
