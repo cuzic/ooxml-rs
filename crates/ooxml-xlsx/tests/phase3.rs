@@ -59,39 +59,9 @@ fn assert_opc(name: &str, input: &[u8], out: &[u8]) {
     }
 }
 
-/// Sheet-prefix mentions of `sheet` in formula text: `Name!`, `'Name'!`,
-/// or a 3-D endpoint. Written independently of the implementation.
-fn mentions(text: &str, sheet: &str) -> bool {
-    let t = text.to_lowercase();
-    let n = sheet.to_lowercase();
-    let q = n.replace('\'', "''");
-    [format!("{n}!"), format!("'{q}'!"), format!("{n}:"), format!(":{n}!"), format!("'{q}:"), format!(":{q}'!")]
-        .iter()
-        .any(|p| {
-            t.match_indices(p.as_str()).any(|(i, _)| {
-                let before = t[..i].chars().next_back();
-                !before.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.') || p.starts_with(['\'', ':'])
-            })
-        })
-}
-
 /// calamine's formulas, or none when calamine cannot read the file.
 fn calamine_formulas(bytes: &[u8]) -> BTreeMap<String, BTreeMap<(u32, u32), String>> {
     std::panic::catch_unwind(|| common::p1::calamine_formulas(bytes)).unwrap_or_default()
-}
-
-/// Formula texts of every sheet (calamine) and every defined name.
-fn formula_texts(bytes: &[u8]) -> Vec<String> {
-    let mut v: Vec<String> = calamine_formulas(bytes).into_values().flat_map(|m| m.into_values()).collect();
-    if let Ok(mut wb) = Workbook::from_bytes(bytes.to_vec()) {
-        let part = wb.workbook_part().to_owned();
-        let doc = ooxml_core::XmlDocument::parse(&wb.package().read_part(&part).unwrap()).unwrap();
-        let _ = &mut wb;
-        if let Some(dn) = doc.root().elements().find(|e| e.name().local() == "definedNames") {
-            v.extend(dn.elements().map(|e| e.text().into_owned()));
-        }
-    }
-    v
 }
 
 fn reopen_matches(name: &str, wb: &Workbook, out: &[u8]) {
@@ -161,16 +131,17 @@ fn rename_every_sheet_of_every_fixture() {
             if let Some((_, out)) = run(&label, &input, "rename", &mut t, |wb| wb.rename_sheet(old, &new).map(drop)) {
                 let names: Vec<String> = Workbook::from_bytes(out.clone()).unwrap().sheet_names().map(str::to_owned).collect();
                 assert_eq!(names[i], new, "{label}");
-                // no formula still names the old sheet (unless another sheet folds alike)
+                // oracle 4a over every part: no value still names the old
+                // sheet (unless another sheet folds alike), and every value
+                // that named it (or the new name) now names the new one
+                let (vi, vo) = (residual::values(&input), residual::values(&out));
                 if !sheets.iter().enumerate().any(|(j, s)| j != i && s.to_lowercase() == old.to_lowercase()) {
-                    for f in formula_texts(&out) {
-                        assert!(!mentions(&f, old), "{label}: {f:?} still names {old:?}");
-                    }
+                    let left = residual::residual(&vo, old);
+                    assert!(left.is_empty(), "{label}: still names {old:?}: {left:#?}");
+                    let before = vi.iter().filter(|v| !v.non_reference() && (residual::mentions(&v.text, old) || residual::mentions(&v.text, &new))).count();
+                    let after = residual::residual(&vo, &new).len();
+                    assert_eq!(after, before, "{label}: {before} values named the sheet, {after} name the new one");
                 }
-                // every original formula mention of the old name became the new one
-                let before: usize = formula_texts(&input).iter().filter(|f| mentions(f, old)).count();
-                let after: usize = formula_texts(&out).iter().filter(|f| mentions(f, &new)).count();
-                assert!(after >= before, "{label}: {before} formulas named the sheet, {after} name the new one");
             }
         }
     }
@@ -188,10 +159,11 @@ fn delete_each_sheet_of_every_fixture() {
             let label = format!("{name} {old}");
             if let Some((wb2, out)) = run(&label, &input, "delete", &mut t, |wb| wb.delete_sheet(old).map(drop)) {
                 assert!(!wb2.sheet_names().any(|s| s == old), "{label}");
+                // oracle 4a: the deleted name survives only in locations
                 if !sheets.iter().any(|s| s != old && s.to_lowercase() == old.to_lowercase()) {
-                    for f in formula_texts(&out) {
-                        assert!(!mentions(&f, old), "{label}: {f:?} still names the deleted sheet");
-                    }
+                    let vo = residual::values(&out);
+                    let left: Vec<_> = residual::residual(&vo, old).into_iter().filter(|v| !v.location()).collect();
+                    assert!(left.is_empty(), "{label}: still names the deleted sheet: {left:#?}");
                 }
                 // values of the remaining sheets' constant cells are unchanged (CR)
                 let (ci, co) = (try_calamine_cells(&input), try_calamine_cells(&out));

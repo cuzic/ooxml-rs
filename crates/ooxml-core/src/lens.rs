@@ -1190,26 +1190,6 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         true
     }
 
-    /// Moves the child item at `from` so that it ends up at index `to`
-    /// (`to` counted in the children after the removal; both must be in
-    /// range). The item keeps its source span, so an untouched element is
-    /// still written byte-for-byte; the parent stays the same, so prefixes
-    /// and namespace scope do not change (a reorder of `<sheet>`s in
-    /// `<sheets>`, ADR-0009 §7). Returns `false` if out of range.
-    pub fn move_child(&mut self, from: usize, to: usize) -> bool {
-        let parent = self.node_mut();
-        let n = parent.children.len();
-        if from >= n || to >= n {
-            return false;
-        }
-        if from != to {
-            let item = parent.children.remove(from);
-            parent.children.insert(to, item);
-            self.mark_path();
-        }
-        true
-    }
-
     // ---- attributes ----
 
     /// Refusals shared by `set_attr` and `remove_attr`: an incomplete spec,

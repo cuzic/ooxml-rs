@@ -18,6 +18,19 @@
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.2 (A4–A7), §6 Phase3
 - Evidence: [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md)
 - Review: [round 1](0009-opus-review-round1.md), [round 2](0009-opus-review-round2.md), [round 3](0009-opus-review-round3.md) (converged)
+- **Implementation note (2026-11-16, PR #53 — staging, no change to the decision):**
+  - §11 (`docProps/app.xml` upkeep) ships in a follow-up PR (#55, stacked on #53). Until it
+    merges, no operation touches `docProps/app.xml`: it stays byte-identical (L1), so after an
+    add, delete or rename its `TitlesOfParts`/`HeadingPairs` are stale. That is the state
+    §11 already accepts for an unrecognized `app.xml`; Excel rebuilds the part on save and no
+    reader uses it to list sheets. Each operation's rustdoc says so.
+  - The closed-world scan (§6) matches a location by namespace and path, as the rewriter
+    reaches it (PR #53 review B1): `f` only as a cell formula (`sheetData/row/c/f`) or a
+    chart's `c:f`/`c15:f`. The table's other formula rows (DV, CF, x14 `xm:f`, table
+    formulas, `connections.xml`, form controls, `@textlink`, `c:pivotSource`) are refused
+    (`UnrewritableReference`), not rewritten, in this version.
+  - Raw-name rows (§6, review B2): a pivot cache's `worksheetSource/@sheet` is rewritten; a
+    consolidation `rangeSet/@sheet` or `dataRef/@sheet` naming the sheet refuses.
 
 ## Revision history
 
