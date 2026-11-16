@@ -4,12 +4,38 @@
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 /// `x`: `http://schemas.openxmlformats.org/spreadsheetml/2006/main`
 pub const NS_X: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+/// `x14`: `http://schemas.microsoft.com/office/spreadsheetml/2009/9/main`
+pub const NS_X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
 /// `x14ac`: `http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac`
 pub const NS_X14AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac";
 /// `x15ac`: `http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac`
 pub const NS_X15AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+/// `x:ST_SortMethod` — Sort Method.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SortMethodValues {
+    /// `stroke`
+    Stroke,
+    /// `pinYin`
+    PinYin,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for SortMethodValues {
+    const VALUES: &'static [&'static str] = &["stroke", "pinYin", "none"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Stroke),
+            1 => Some(Self::PinYin),
+            2 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_CellFormulaType` — Formula Type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CellFormulaValues {
@@ -214,6 +240,86 @@ impl ooxml_core::EnumType for SpaceProcessingModeValues {
     }
     fn index(self) -> usize {
         self as usize
+    }
+}
+/// `x:CT_AutoFilter/x:autoFilter` — AutoFilter Settings.
+#[derive(Debug)]
+pub enum AutoFilter {}
+impl AutoFilter {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+}
+impl ooxml_core::ElementSpec for AutoFilter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "autoFilter");
+    const SDK_NAME: &'static str = "x:CT_AutoFilter/x:autoFilter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AutoFilter::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "filterColumn")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "sortState")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<AutoFilter> for FilterColumn {}
+impl ooxml_core::ChildOf<AutoFilter> for SortState {}
+/// Read-only view of [`AutoFilter`].
+#[derive(Clone, Debug)]
+pub struct AutoFilterView<'a>(pub ooxml_core::Lens<'a, AutoFilter>);
+impl<'a> AutoFilterView<'a> {
+    /// `ref` — Cell or Range Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(AutoFilter::ATTR_REF)
+    }
+    /// `x:filterColumn` children in document order.
+    pub fn filter_column_iter(&self) -> impl Iterator<Item = FilterColumnView<'a>> {
+        self.0.children::<FilterColumn>().map(FilterColumnView)
+    }
+    /// First `x:sortState` child.
+    pub fn sort_state(&self) -> Option<SortStateView<'a>> {
+        self.0.child::<SortState>().map(SortStateView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AutoFilter`]. Reads go through [`AutoFilterViewMut::as_view`].
+#[derive(Debug)]
+pub struct AutoFilterViewMut<'a>(pub ooxml_core::LensMut<'a, AutoFilter>);
+impl<'a> AutoFilterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AutoFilterView<'_> {
+        AutoFilterView(self.0.as_lens())
+    }
+    /// Sets `ref` — Cell or Range Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(AutoFilter::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AutoFilter::ATTR_REF)
     }
 }
 /// `x:CT_CalcPr/x:calcPr` — Defines the CalculationProperties Class.
@@ -1466,6 +1572,154 @@ impl<'a> DefinedNameView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`DefinedName`]. Reads go through [`DefinedNameViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefinedNameViewMut<'a>(pub ooxml_core::LensMut<'a, DefinedName>);
+impl<'a> DefinedNameViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefinedNameView<'_> {
+        DefinedNameView(self.0.as_lens())
+    }
+    /// Sets `name` — Defined Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_NAME)
+    }
+    /// Sets `comment` — Comment
+    pub fn set_comment(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_COMMENT, v)
+    }
+    /// Removes `comment`.
+    pub fn remove_comment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_COMMENT)
+    }
+    /// Sets `customMenu` — Custom Menu Text
+    pub fn set_custom_menu(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_CUSTOM_MENU, v)
+    }
+    /// Removes `customMenu`.
+    pub fn remove_custom_menu(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_CUSTOM_MENU)
+    }
+    /// Sets `description` — Description
+    pub fn set_description(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_DESCRIPTION, v)
+    }
+    /// Removes `description`.
+    pub fn remove_description(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_DESCRIPTION)
+    }
+    /// Sets `help` — Help
+    pub fn set_help(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_HELP, v)
+    }
+    /// Removes `help`.
+    pub fn remove_help(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_HELP)
+    }
+    /// Sets `statusBar` — Status Bar
+    pub fn set_status_bar(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_STATUS_BAR, v)
+    }
+    /// Removes `statusBar`.
+    pub fn remove_status_bar(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_STATUS_BAR)
+    }
+    /// Sets `localSheetId` — Local Name Sheet Id
+    pub fn set_local_sheet_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefinedName::ATTR_LOCAL_SHEET_ID, s),
+        )
+    }
+    /// Removes `localSheetId`.
+    pub fn remove_local_sheet_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_LOCAL_SHEET_ID)
+    }
+    /// Sets `hidden` — Hidden Name (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_HIDDEN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_HIDDEN)
+    }
+    /// Sets `function` — Function (default `false`)
+    pub fn set_function(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_FUNCTION, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `function`.
+    pub fn remove_function(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_FUNCTION)
+    }
+    /// Sets `vbProcedure` — Procedure (default `false`)
+    pub fn set_vb_procedure(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(DefinedName::ATTR_VB_PROCEDURE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `vbProcedure`.
+    pub fn remove_vb_procedure(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_VB_PROCEDURE)
+    }
+    /// Sets `xlm` — External Function (default `false`)
+    pub fn set_xlm(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_XLM, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `xlm`.
+    pub fn remove_xlm(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_XLM)
+    }
+    /// Sets `functionGroupId` — Function Group Id
+    pub fn set_function_group_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefinedName::ATTR_FUNCTION_GROUP_ID, s),
+        )
+    }
+    /// Removes `functionGroupId`.
+    pub fn remove_function_group_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_FUNCTION_GROUP_ID)
+    }
+    /// Sets `shortcutKey` — Shortcut Key
+    pub fn set_shortcut_key(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_SHORTCUT_KEY, v)
+    }
+    /// Removes `shortcutKey`.
+    pub fn remove_shortcut_key(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_SHORTCUT_KEY)
+    }
+    /// Sets `publishToServer` — Publish To Server (default `false`)
+    pub fn set_publish_to_server(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefinedName::ATTR_PUBLISH_TO_SERVER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `publishToServer`.
+    pub fn remove_publish_to_server(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_PUBLISH_TO_SERVER)
+    }
+    /// Sets `workbookParameter` — Workbook Parameter (Server) (default `false`)
+    pub fn set_workbook_parameter(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefinedName::ATTR_WORKBOOK_PARAMETER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `workbookParameter`.
+    pub fn remove_workbook_parameter(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_WORKBOOK_PARAMETER)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
 /// `x:CT_DefinedNames/x:definedNames` — Defines the DefinedNames Class.
 #[derive(Debug)]
 pub enum DefinedNames {}
@@ -1492,6 +1746,128 @@ impl<'a> DefinedNamesView<'a> {
     /// `x:definedName` children in document order.
     pub fn defined_name_iter(&self) -> impl Iterator<Item = DefinedNameView<'a>> {
         self.0.children::<DefinedName>().map(DefinedNameView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DefinedNames`]. Reads go through [`DefinedNamesViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefinedNamesViewMut<'a>(pub ooxml_core::LensMut<'a, DefinedNames>);
+impl<'a> DefinedNamesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefinedNamesView<'_> {
+        DefinedNamesView(self.0.as_lens())
+    }
+    /// First `x:definedName` child matching `pred`, mutably.
+    pub fn defined_name_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DefinedNameViewMut<'_>> {
+        self.0.child_mut_by::<DefinedName>(pred).map(DefinedNameViewMut)
+    }
+    /// Inserts a `x:definedName` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_defined_name_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DefinedNameViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DefinedName>(before).map(DefinedNameViewMut)
+    }
+    /// Appends a `x:definedName` at the end of its slot.
+    pub fn insert_defined_name(
+        &mut self,
+    ) -> Result<DefinedNameViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DefinedName>().map(DefinedNameViewMut)
+    }
+    /// Removes the first `x:definedName` child.
+    pub fn remove_defined_name(&mut self) -> bool {
+        self.0.remove::<DefinedName>()
+    }
+}
+/// `x:CT_FilterColumn/x:filterColumn` — AutoFilter Column.
+#[derive(Debug)]
+pub enum FilterColumn {}
+impl FilterColumn {
+    /// `colId`
+    pub const ATTR_COL_ID: ooxml_core::QName = ooxml_core::QName::new("", "colId");
+    /// `hiddenButton`
+    pub const ATTR_HIDDEN_BUTTON: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hiddenButton",
+    );
+    /// `showButton`
+    pub const ATTR_SHOW_BUTTON: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showButton",
+    );
+}
+impl ooxml_core::ElementSpec for FilterColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "filterColumn");
+    const SDK_NAME: &'static str = "x:CT_FilterColumn/x:filterColumn";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FilterColumn::ATTR_COL_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FilterColumn::ATTR_HIDDEN_BUTTON,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: FilterColumn::ATTR_SHOW_BUTTON,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X, "filters"),
+                    ooxml_core::QName::new(NS_X, "top10"),
+                    ooxml_core::QName::new(NS_X14, "customFilters"),
+                    ooxml_core::QName::new(NS_X, "customFilters"),
+                    ooxml_core::QName::new(NS_X, "dynamicFilter"),
+                    ooxml_core::QName::new(NS_X, "colorFilter"),
+                    ooxml_core::QName::new(NS_X14, "iconFilter"),
+                    ooxml_core::QName::new(NS_X, "iconFilter"),
+                    ooxml_core::QName::new(NS_X, "extLst"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`FilterColumn`].
+#[derive(Clone, Debug)]
+pub struct FilterColumnView<'a>(pub ooxml_core::Lens<'a, FilterColumn>);
+impl<'a> FilterColumnView<'a> {
+    /// `colId` — Filter Column Data
+    pub fn column_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FilterColumn::ATTR_COL_ID, ooxml_core::value::parse_u32)
+    }
+    /// `hiddenButton` — Hidden AutoFilter Button (default `false`)
+    pub fn hidden_button(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                FilterColumn::ATTR_HIDDEN_BUTTON,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showButton` — Show Filter Button (default `true`)
+    pub fn show_button(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                FilterColumn::ATTR_SHOW_BUTTON,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1528,6 +1904,23 @@ impl<'a> MergeCellView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`MergeCell`]. Reads go through [`MergeCellViewMut::as_view`].
+#[derive(Debug)]
+pub struct MergeCellViewMut<'a>(pub ooxml_core::LensMut<'a, MergeCell>);
+impl<'a> MergeCellViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MergeCellView<'_> {
+        MergeCellView(self.0.as_lens())
+    }
+    /// Sets `ref` — Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(MergeCell::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(MergeCell::ATTR_REF)
     }
 }
 /// `x:CT_MergeCells/x:mergeCells` — Defines the MergeCells Class.
@@ -1574,6 +1967,47 @@ impl<'a> MergeCellsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`MergeCells`]. Reads go through [`MergeCellsViewMut::as_view`].
+#[derive(Debug)]
+pub struct MergeCellsViewMut<'a>(pub ooxml_core::LensMut<'a, MergeCells>);
+impl<'a> MergeCellsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MergeCellsView<'_> {
+        MergeCellsView(self.0.as_lens())
+    }
+    /// Sets `count` — Count
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(MergeCells::ATTR_COUNT, s))
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(MergeCells::ATTR_COUNT)
+    }
+    /// First `x:mergeCell` child matching `pred`, mutably.
+    pub fn merge_cell_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<MergeCellViewMut<'_>> {
+        self.0.child_mut_by::<MergeCell>(pred).map(MergeCellViewMut)
+    }
+    /// Inserts a `x:mergeCell` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_merge_cell_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<MergeCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<MergeCell>(before).map(MergeCellViewMut)
+    }
+    /// Appends a `x:mergeCell` at the end of its slot.
+    pub fn insert_merge_cell(
+        &mut self,
+    ) -> Result<MergeCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<MergeCell>().map(MergeCellViewMut)
+    }
+    /// Removes the first `x:mergeCell` child.
+    pub fn remove_merge_cell(&mut self) -> bool {
+        self.0.remove::<MergeCell>()
     }
 }
 /// `x:CT_RElt/x:r` — Rich Text Run.
@@ -2271,6 +2705,935 @@ impl<'a> SheetDimensionViewMut<'a> {
         self.0.remove_attr(SheetDimension::ATTR_REF)
     }
 }
+/// `x:CT_SheetPr/x:sheetPr` — Sheet Properties.
+#[derive(Debug)]
+pub enum SheetProperties {}
+impl SheetProperties {
+    /// `syncHorizontal`
+    pub const ATTR_SYNC_HORIZONTAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncHorizontal",
+    );
+    /// `syncVertical`
+    pub const ATTR_SYNC_VERTICAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncVertical",
+    );
+    /// `syncRef`
+    pub const ATTR_SYNC_REF: ooxml_core::QName = ooxml_core::QName::new("", "syncRef");
+    /// `transitionEvaluation`
+    pub const ATTR_TRANSITION_EVALUATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "transitionEvaluation",
+    );
+    /// `transitionEntry`
+    pub const ATTR_TRANSITION_ENTRY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "transitionEntry",
+    );
+    /// `published`
+    pub const ATTR_PUBLISHED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "published",
+    );
+    /// `codeName`
+    pub const ATTR_CODE_NAME: ooxml_core::QName = ooxml_core::QName::new("", "codeName");
+    /// `filterMode`
+    pub const ATTR_FILTER_MODE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "filterMode",
+    );
+    /// `enableFormatConditionsCalculation`
+    pub const ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "enableFormatConditionsCalculation",
+    );
+}
+impl ooxml_core::ElementSpec for SheetProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetPr");
+    const SDK_NAME: &'static str = "x:CT_SheetPr/x:sheetPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_HORIZONTAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_VERTICAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_TRANSITION_EVALUATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_TRANSITION_ENTRY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_PUBLISHED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_CODE_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_FILTER_MODE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tabColor")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "outlinePr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pageSetUpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`SheetProperties`].
+#[derive(Clone, Debug)]
+pub struct SheetPropertiesView<'a>(pub ooxml_core::Lens<'a, SheetProperties>);
+impl<'a> SheetPropertiesView<'a> {
+    /// `syncHorizontal` — Synch Horizontal (default `false`)
+    pub fn sync_horizontal(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_SYNC_HORIZONTAL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `syncVertical` — Synch Vertical (default `false`)
+    pub fn sync_vertical(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_SYNC_VERTICAL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `syncRef` — Synch Reference
+    pub fn sync_reference(&self) -> Option<&'a str> {
+        self.0.attr(SheetProperties::ATTR_SYNC_REF)
+    }
+    /// `transitionEvaluation` — Transition Formula Evaluation (default `false`)
+    pub fn transition_evaluation(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_TRANSITION_EVALUATION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `transitionEntry` — Transition Formula Entry (default `false`)
+    pub fn transition_entry(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_TRANSITION_ENTRY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `published` — Published (default `true`)
+    pub fn published(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_PUBLISHED,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `codeName` — Code Name
+    pub fn code_name(&self) -> Option<&'a str> {
+        self.0.attr(SheetProperties::ATTR_CODE_NAME)
+    }
+    /// `filterMode` — Filter Mode (default `false`)
+    pub fn filter_mode(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_FILTER_MODE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `enableFormatConditionsCalculation` — Enable Conditional Formatting Calculations (default `true`)
+    pub fn enable_format_conditions_calculation(
+        &self,
+    ) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetProperties`]. Reads go through [`SheetPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, SheetProperties>);
+impl<'a> SheetPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetPropertiesView<'_> {
+        SheetPropertiesView(self.0.as_lens())
+    }
+    /// Sets `syncHorizontal` — Synch Horizontal (default `false`)
+    pub fn set_sync_horizontal(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_SYNC_HORIZONTAL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `syncHorizontal`.
+    pub fn remove_sync_horizontal(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_HORIZONTAL)
+    }
+    /// Sets `syncVertical` — Synch Vertical (default `false`)
+    pub fn set_sync_vertical(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_SYNC_VERTICAL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `syncVertical`.
+    pub fn remove_sync_vertical(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_VERTICAL)
+    }
+    /// Sets `syncRef` — Synch Reference
+    pub fn set_sync_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProperties::ATTR_SYNC_REF, v)
+    }
+    /// Removes `syncRef`.
+    pub fn remove_sync_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_REF)
+    }
+    /// Sets `transitionEvaluation` — Transition Formula Evaluation (default `false`)
+    pub fn set_transition_evaluation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_TRANSITION_EVALUATION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `transitionEvaluation`.
+    pub fn remove_transition_evaluation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_TRANSITION_EVALUATION)
+    }
+    /// Sets `transitionEntry` — Transition Formula Entry (default `false`)
+    pub fn set_transition_entry(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_TRANSITION_ENTRY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `transitionEntry`.
+    pub fn remove_transition_entry(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_TRANSITION_ENTRY)
+    }
+    /// Sets `published` — Published (default `true`)
+    pub fn set_published(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(SheetProperties::ATTR_PUBLISHED, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `published`.
+    pub fn remove_published(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_PUBLISHED)
+    }
+    /// Sets `codeName` — Code Name
+    pub fn set_code_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProperties::ATTR_CODE_NAME, v)
+    }
+    /// Removes `codeName`.
+    pub fn remove_code_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_CODE_NAME)
+    }
+    /// Sets `filterMode` — Filter Mode (default `false`)
+    pub fn set_filter_mode(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_FILTER_MODE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `filterMode`.
+    pub fn remove_filter_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_FILTER_MODE)
+    }
+    /// Sets `enableFormatConditionsCalculation` — Enable Conditional Formatting Calculations (default `true`)
+    pub fn set_enable_format_conditions_calculation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `enableFormatConditionsCalculation`.
+    pub fn remove_enable_format_conditions_calculation(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION)
+    }
+}
+/// `x:CT_SheetProtection/x:sheetProtection` — Sheet Protection.
+#[derive(Debug)]
+pub enum SheetProtection {}
+impl SheetProtection {
+    /// `password`
+    pub const ATTR_PASSWORD: ooxml_core::QName = ooxml_core::QName::new("", "password");
+    /// `algorithmName`
+    pub const ATTR_ALGORITHM_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "algorithmName",
+    );
+    /// `hashValue`
+    pub const ATTR_HASH_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hashValue",
+    );
+    /// `saltValue`
+    pub const ATTR_SALT_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "saltValue",
+    );
+    /// `spinCount`
+    pub const ATTR_SPIN_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "spinCount",
+    );
+    /// `sheet`
+    pub const ATTR_SHEET: ooxml_core::QName = ooxml_core::QName::new("", "sheet");
+    /// `objects`
+    pub const ATTR_OBJECTS: ooxml_core::QName = ooxml_core::QName::new("", "objects");
+    /// `scenarios`
+    pub const ATTR_SCENARIOS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "scenarios",
+    );
+    /// `formatCells`
+    pub const ATTR_FORMAT_CELLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "formatCells",
+    );
+    /// `formatColumns`
+    pub const ATTR_FORMAT_COLUMNS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "formatColumns",
+    );
+    /// `formatRows`
+    pub const ATTR_FORMAT_ROWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "formatRows",
+    );
+    /// `insertColumns`
+    pub const ATTR_INSERT_COLUMNS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertColumns",
+    );
+    /// `insertRows`
+    pub const ATTR_INSERT_ROWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertRows",
+    );
+    /// `insertHyperlinks`
+    pub const ATTR_INSERT_HYPERLINKS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertHyperlinks",
+    );
+    /// `deleteColumns`
+    pub const ATTR_DELETE_COLUMNS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "deleteColumns",
+    );
+    /// `deleteRows`
+    pub const ATTR_DELETE_ROWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "deleteRows",
+    );
+    /// `selectLockedCells`
+    pub const ATTR_SELECT_LOCKED_CELLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "selectLockedCells",
+    );
+    /// `sort`
+    pub const ATTR_SORT: ooxml_core::QName = ooxml_core::QName::new("", "sort");
+    /// `autoFilter`
+    pub const ATTR_AUTO_FILTER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoFilter",
+    );
+    /// `pivotTables`
+    pub const ATTR_PIVOT_TABLES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pivotTables",
+    );
+    /// `selectUnlockedCells`
+    pub const ATTR_SELECT_UNLOCKED_CELLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "selectUnlockedCells",
+    );
+}
+impl ooxml_core::ElementSpec for SheetProtection {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetProtection");
+    const SDK_NAME: &'static str = "x:CT_SheetProtection/x:sheetProtection";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_PASSWORD,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_ALGORITHM_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_HASH_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SALT_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SPIN_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SHEET,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_OBJECTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SCENARIOS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_FORMAT_CELLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_FORMAT_COLUMNS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_FORMAT_ROWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_INSERT_COLUMNS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_INSERT_ROWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_INSERT_HYPERLINKS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_DELETE_COLUMNS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_DELETE_ROWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SELECT_LOCKED_CELLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SORT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_AUTO_FILTER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_PIVOT_TABLES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SELECT_UNLOCKED_CELLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SheetProtection`].
+#[derive(Clone, Debug)]
+pub struct SheetProtectionView<'a>(pub ooxml_core::Lens<'a, SheetProtection>);
+impl<'a> SheetProtectionView<'a> {
+    /// `password` — Password
+    pub fn password(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_PASSWORD)
+    }
+    /// `algorithmName` — Cryptographic Algorithm Name
+    pub fn algorithm_name(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_ALGORITHM_NAME)
+    }
+    /// `hashValue` — Password Hash Value
+    pub fn hash_value(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_HASH_VALUE)
+    }
+    /// `saltValue` — Salt Value for Password Verifier
+    pub fn salt_value(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_SALT_VALUE)
+    }
+    /// `spinCount` — Iterations to Run Hashing Algorithm
+    pub fn spin_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(SheetProtection::ATTR_SPIN_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `sheet` — Sheet Locked (default `false`)
+    pub fn sheet(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SHEET,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `objects` — Objects Locked (default `false`)
+    pub fn objects(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_OBJECTS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `scenarios` — Scenarios Locked (default `false`)
+    pub fn scenarios(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SCENARIOS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `formatCells` — Format Cells Locked (default `true`)
+    pub fn format_cells(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_FORMAT_CELLS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `formatColumns` — Format Columns Locked (default `true`)
+    pub fn format_columns(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_FORMAT_COLUMNS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `formatRows` — Format Rows Locked (default `true`)
+    pub fn format_rows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_FORMAT_ROWS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertColumns` — Insert Columns Locked (default `true`)
+    pub fn insert_columns(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_INSERT_COLUMNS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertRows` — Insert Rows Locked (default `true`)
+    pub fn insert_rows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_INSERT_ROWS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertHyperlinks` — Insert Hyperlinks Locked (default `true`)
+    pub fn insert_hyperlinks(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_INSERT_HYPERLINKS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `deleteColumns` — Delete Columns Locked (default `true`)
+    pub fn delete_columns(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_DELETE_COLUMNS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `deleteRows` — Delete Rows Locked (default `true`)
+    pub fn delete_rows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_DELETE_ROWS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `selectLockedCells` — Select Locked Cells Locked (default `false`)
+    pub fn select_locked_cells(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SELECT_LOCKED_CELLS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `sort` — Sort Locked (default `true`)
+    pub fn sort(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SORT,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `autoFilter` — AutoFilter Locked (default `true`)
+    pub fn auto_filter(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_AUTO_FILTER,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pivotTables` — Pivot Tables Locked (default `true`)
+    pub fn pivot_tables(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_PIVOT_TABLES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `selectUnlockedCells` — Select Unlocked Cells Locked (default `false`)
+    pub fn select_unlocked_cells(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SELECT_UNLOCKED_CELLS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetProtection`]. Reads go through [`SheetProtectionViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetProtectionViewMut<'a>(pub ooxml_core::LensMut<'a, SheetProtection>);
+impl<'a> SheetProtectionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetProtectionView<'_> {
+        SheetProtectionView(self.0.as_lens())
+    }
+    /// Sets `password` — Password
+    pub fn set_password(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_PASSWORD, v)
+    }
+    /// Removes `password`.
+    pub fn remove_password(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_PASSWORD)
+    }
+    /// Sets `algorithmName` — Cryptographic Algorithm Name
+    pub fn set_algorithm_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_ALGORITHM_NAME, v)
+    }
+    /// Removes `algorithmName`.
+    pub fn remove_algorithm_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_ALGORITHM_NAME)
+    }
+    /// Sets `hashValue` — Password Hash Value
+    pub fn set_hash_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_HASH_VALUE, v)
+    }
+    /// Removes `hashValue`.
+    pub fn remove_hash_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_HASH_VALUE)
+    }
+    /// Sets `saltValue` — Salt Value for Password Verifier
+    pub fn set_salt_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_SALT_VALUE, v)
+    }
+    /// Removes `saltValue`.
+    pub fn remove_salt_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SALT_VALUE)
+    }
+    /// Sets `spinCount` — Iterations to Run Hashing Algorithm
+    pub fn set_spin_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetProtection::ATTR_SPIN_COUNT, s),
+        )
+    }
+    /// Removes `spinCount`.
+    pub fn remove_spin_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SPIN_COUNT)
+    }
+    /// Sets `sheet` — Sheet Locked (default `false`)
+    pub fn set_sheet(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_SHEET, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `sheet`.
+    pub fn remove_sheet(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SHEET)
+    }
+    /// Sets `objects` — Objects Locked (default `false`)
+    pub fn set_objects(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_OBJECTS, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `objects`.
+    pub fn remove_objects(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_OBJECTS)
+    }
+    /// Sets `scenarios` — Scenarios Locked (default `false`)
+    pub fn set_scenarios(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(SheetProtection::ATTR_SCENARIOS, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `scenarios`.
+    pub fn remove_scenarios(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SCENARIOS)
+    }
+    /// Sets `formatCells` — Format Cells Locked (default `true`)
+    pub fn set_format_cells(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_FORMAT_CELLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `formatCells`.
+    pub fn remove_format_cells(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_FORMAT_CELLS)
+    }
+    /// Sets `formatColumns` — Format Columns Locked (default `true`)
+    pub fn set_format_columns(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_FORMAT_COLUMNS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `formatColumns`.
+    pub fn remove_format_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_FORMAT_COLUMNS)
+    }
+    /// Sets `formatRows` — Format Rows Locked (default `true`)
+    pub fn set_format_rows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_FORMAT_ROWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `formatRows`.
+    pub fn remove_format_rows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_FORMAT_ROWS)
+    }
+    /// Sets `insertColumns` — Insert Columns Locked (default `true`)
+    pub fn set_insert_columns(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_INSERT_COLUMNS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `insertColumns`.
+    pub fn remove_insert_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_INSERT_COLUMNS)
+    }
+    /// Sets `insertRows` — Insert Rows Locked (default `true`)
+    pub fn set_insert_rows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_INSERT_ROWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `insertRows`.
+    pub fn remove_insert_rows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_INSERT_ROWS)
+    }
+    /// Sets `insertHyperlinks` — Insert Hyperlinks Locked (default `true`)
+    pub fn set_insert_hyperlinks(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_INSERT_HYPERLINKS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `insertHyperlinks`.
+    pub fn remove_insert_hyperlinks(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_INSERT_HYPERLINKS)
+    }
+    /// Sets `deleteColumns` — Delete Columns Locked (default `true`)
+    pub fn set_delete_columns(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_DELETE_COLUMNS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `deleteColumns`.
+    pub fn remove_delete_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_DELETE_COLUMNS)
+    }
+    /// Sets `deleteRows` — Delete Rows Locked (default `true`)
+    pub fn set_delete_rows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_DELETE_ROWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `deleteRows`.
+    pub fn remove_delete_rows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_DELETE_ROWS)
+    }
+    /// Sets `selectLockedCells` — Select Locked Cells Locked (default `false`)
+    pub fn set_select_locked_cells(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_SELECT_LOCKED_CELLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `selectLockedCells`.
+    pub fn remove_select_locked_cells(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SELECT_LOCKED_CELLS)
+    }
+    /// Sets `sort` — Sort Locked (default `true`)
+    pub fn set_sort(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_SORT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `sort`.
+    pub fn remove_sort(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SORT)
+    }
+    /// Sets `autoFilter` — AutoFilter Locked (default `true`)
+    pub fn set_auto_filter(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_AUTO_FILTER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `autoFilter`.
+    pub fn remove_auto_filter(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_AUTO_FILTER)
+    }
+    /// Sets `pivotTables` — Pivot Tables Locked (default `true`)
+    pub fn set_pivot_tables(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_PIVOT_TABLES,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `pivotTables`.
+    pub fn remove_pivot_tables(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_PIVOT_TABLES)
+    }
+    /// Sets `selectUnlockedCells` — Select Unlocked Cells Locked (default `false`)
+    pub fn set_select_unlocked_cells(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_SELECT_UNLOCKED_CELLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `selectUnlockedCells`.
+    pub fn remove_select_unlocked_cells(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SELECT_UNLOCKED_CELLS)
+    }
+}
 /// `x:CT_Sheets/x:sheets` — Defines the Sheets Class.
 #[derive(Debug)]
 pub enum Sheets {}
@@ -2297,6 +3660,100 @@ impl<'a> SheetsView<'a> {
     /// `x:sheet` children in document order.
     pub fn sheet_iter(&self) -> impl Iterator<Item = SheetView<'a>> {
         self.0.children::<Sheet>().map(SheetView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_SortState/x:sortState` — Sort State for Auto Filter.
+///
+/// Content model unsupported for insertion (exclusive choice of repeating alternatives).
+#[derive(Debug)]
+pub enum SortState {}
+impl SortState {
+    /// `columnSort`
+    pub const ATTR_COLUMN_SORT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "columnSort",
+    );
+    /// `caseSensitive`
+    pub const ATTR_CASE_SENSITIVE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "caseSensitive",
+    );
+    /// `sortMethod`
+    pub const ATTR_SORT_METHOD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "sortMethod",
+    );
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+}
+impl ooxml_core::ElementSpec for SortState {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sortState");
+    const SDK_NAME: &'static str = "x:CT_SortState/x:sortState";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_COLUMN_SORT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_CASE_SENSITIVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_SORT_METHOD,
+            ty: ooxml_core::SimpleType::Enum(
+                <SortMethodValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Unsupported(
+        &[
+            ooxml_core::QName::new(NS_X14, "sortCondition"),
+            ooxml_core::QName::new(NS_X, "extLst"),
+            ooxml_core::QName::new(NS_X, "sortCondition"),
+        ],
+    );
+}
+/// Read-only view of [`SortState`].
+#[derive(Clone, Debug)]
+pub struct SortStateView<'a>(pub ooxml_core::Lens<'a, SortState>);
+impl<'a> SortStateView<'a> {
+    /// `columnSort` — Sort by Columns (default `false`)
+    pub fn column_sort(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SortState::ATTR_COLUMN_SORT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `caseSensitive` — Case Sensitive (default `false`)
+    pub fn case_sensitive(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SortState::ATTR_CASE_SENSITIVE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `sortMethod` — Sort Method (default `none`)
+    pub fn sort_method(&self) -> ooxml_core::EnumValue<'a, SortMethodValues> {
+        self.0.attr_enum_or(SortState::ATTR_SORT_METHOD, "none")
+    }
+    /// `ref` — Sort Range
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(SortState::ATTR_REF)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2630,6 +4087,8 @@ impl ooxml_core::ElementSpec for Table {
         ],
     );
 }
+impl ooxml_core::ChildOf<Table> for AutoFilter {}
+impl ooxml_core::ChildOf<Table> for SortState {}
 /// Read-only view of [`Table`].
 #[derive(Clone, Debug)]
 pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
@@ -2763,6 +4222,14 @@ impl<'a> TableView<'a> {
     /// `connectionId` — Connection ID
     pub fn connection_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
         self.0.attr_parsed(Table::ATTR_CONNECTION_ID, ooxml_core::value::parse_u32)
+    }
+    /// First `x:autoFilter` child.
+    pub fn auto_filter(&self) -> Option<AutoFilterView<'a>> {
+        self.0.child::<AutoFilter>().map(AutoFilterView)
+    }
+    /// First `x:sortState` child.
+    pub fn sort_state(&self) -> Option<SortStateView<'a>> {
+        self.0.child::<SortState>().map(SortStateView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -3250,14 +4717,22 @@ impl ooxml_core::ElementSpec for Worksheet {
         ],
     );
 }
+impl ooxml_core::ChildOf<Worksheet> for AutoFilter {}
 impl ooxml_core::ChildOf<Worksheet> for MergeCells {}
 impl ooxml_core::ChildOf<Worksheet> for SheetData {}
 impl ooxml_core::ChildOf<Worksheet> for SheetDimension {}
+impl ooxml_core::ChildOf<Worksheet> for SheetProperties {}
+impl ooxml_core::ChildOf<Worksheet> for SheetProtection {}
+impl ooxml_core::ChildOf<Worksheet> for SortState {}
 impl ooxml_core::ChildOf<Worksheet> for TableParts {}
 /// Read-only view of [`Worksheet`].
 #[derive(Clone, Debug)]
 pub struct WorksheetView<'a>(pub ooxml_core::Lens<'a, Worksheet>);
 impl<'a> WorksheetView<'a> {
+    /// First `x:autoFilter` child.
+    pub fn auto_filter(&self) -> Option<AutoFilterView<'a>> {
+        self.0.child::<AutoFilter>().map(AutoFilterView)
+    }
     /// First `x:mergeCells` child.
     pub fn merge_cells(&self) -> Option<MergeCellsView<'a>> {
         self.0.child::<MergeCells>().map(MergeCellsView)
@@ -3269,6 +4744,18 @@ impl<'a> WorksheetView<'a> {
     /// First `x:dimension` child.
     pub fn sheet_dimension(&self) -> Option<SheetDimensionView<'a>> {
         self.0.child::<SheetDimension>().map(SheetDimensionView)
+    }
+    /// First `x:sheetPr` child.
+    pub fn sheet_properties(&self) -> Option<SheetPropertiesView<'a>> {
+        self.0.child::<SheetProperties>().map(SheetPropertiesView)
+    }
+    /// First `x:sheetProtection` child.
+    pub fn sheet_protection(&self) -> Option<SheetProtectionView<'a>> {
+        self.0.child::<SheetProtection>().map(SheetProtectionView)
+    }
+    /// First `x:sortState` child.
+    pub fn sort_state(&self) -> Option<SortStateView<'a>> {
+        self.0.child::<SortState>().map(SortStateView)
     }
     /// First `x:tableParts` child.
     pub fn table_parts(&self) -> Option<TablePartsView<'a>> {
@@ -3286,6 +4773,34 @@ impl<'a> WorksheetViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> WorksheetView<'_> {
         WorksheetView(self.0.as_lens())
+    }
+    /// First `x:autoFilter` child, mutably.
+    pub fn auto_filter_mut(&mut self) -> Option<AutoFilterViewMut<'_>> {
+        self.0.child_mut::<AutoFilter>().map(AutoFilterViewMut)
+    }
+    /// Existing `x:autoFilter` child, or a new one in schema position.
+    pub fn get_or_insert_auto_filter(
+        &mut self,
+    ) -> Result<AutoFilterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<AutoFilter>().map(AutoFilterViewMut)
+    }
+    /// Removes the first `x:autoFilter` child.
+    pub fn remove_auto_filter(&mut self) -> bool {
+        self.0.remove::<AutoFilter>()
+    }
+    /// First `x:mergeCells` child, mutably.
+    pub fn merge_cells_mut(&mut self) -> Option<MergeCellsViewMut<'_>> {
+        self.0.child_mut::<MergeCells>().map(MergeCellsViewMut)
+    }
+    /// Existing `x:mergeCells` child, or a new one in schema position.
+    pub fn get_or_insert_merge_cells(
+        &mut self,
+    ) -> Result<MergeCellsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<MergeCells>().map(MergeCellsViewMut)
+    }
+    /// Removes the first `x:mergeCells` child.
+    pub fn remove_merge_cells(&mut self) -> bool {
+        self.0.remove::<MergeCells>()
     }
     /// First `x:sheetData` child, mutably.
     pub fn sheet_data_mut(&mut self) -> Option<SheetDataViewMut<'_>> {
@@ -3314,6 +4829,34 @@ impl<'a> WorksheetViewMut<'a> {
     /// Removes the first `x:dimension` child.
     pub fn remove_sheet_dimension(&mut self) -> bool {
         self.0.remove::<SheetDimension>()
+    }
+    /// First `x:sheetPr` child, mutably.
+    pub fn sheet_properties_mut(&mut self) -> Option<SheetPropertiesViewMut<'_>> {
+        self.0.child_mut::<SheetProperties>().map(SheetPropertiesViewMut)
+    }
+    /// Existing `x:sheetPr` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_properties(
+        &mut self,
+    ) -> Result<SheetPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetProperties>().map(SheetPropertiesViewMut)
+    }
+    /// Removes the first `x:sheetPr` child.
+    pub fn remove_sheet_properties(&mut self) -> bool {
+        self.0.remove::<SheetProperties>()
+    }
+    /// First `x:sheetProtection` child, mutably.
+    pub fn sheet_protection_mut(&mut self) -> Option<SheetProtectionViewMut<'_>> {
+        self.0.child_mut::<SheetProtection>().map(SheetProtectionViewMut)
+    }
+    /// Existing `x:sheetProtection` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_protection(
+        &mut self,
+    ) -> Result<SheetProtectionViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetProtection>().map(SheetProtectionViewMut)
+    }
+    /// Removes the first `x:sheetProtection` child.
+    pub fn remove_sheet_protection(&mut self) -> bool {
+        self.0.remove::<SheetProtection>()
     }
 }
 /// `x:CT_Xstring/x:t` — Text.
@@ -3450,6 +4993,9 @@ impl<'a> CellValueViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<AutoFilter>();
+const _: () = ooxml_core::schema::assert_child::<AutoFilter, FilterColumn>();
+const _: () = ooxml_core::schema::assert_child::<AutoFilter, SortState>();
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
@@ -3459,6 +5005,7 @@ const _: () = ooxml_core::schema::assert_spec::<CellFormula>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
+const _: () = ooxml_core::schema::assert_spec::<FilterColumn>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
@@ -3476,11 +5023,16 @@ const _: () = ooxml_core::schema::assert_spec::<Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SheetData>();
 const _: () = ooxml_core::schema::assert_child::<SheetData, Row>();
 const _: () = ooxml_core::schema::assert_spec::<SheetDimension>();
+const _: () = ooxml_core::schema::assert_spec::<SheetProperties>();
+const _: () = ooxml_core::schema::assert_spec::<SheetProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Sheets, Sheet>();
+const _: () = ooxml_core::schema::assert_spec::<SortState>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringTable>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringTable, SharedStringItem>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
+const _: () = ooxml_core::schema::assert_child::<Table, AutoFilter>();
+const _: () = ooxml_core::schema::assert_child::<Table, SortState>();
 const _: () = ooxml_core::schema::assert_spec::<TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<TableParts>();
 const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
@@ -3489,9 +5041,13 @@ const _: () = ooxml_core::schema::assert_child::<Workbook, CalculationProperties
 const _: () = ooxml_core::schema::assert_child::<Workbook, DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, Sheets>();
 const _: () = ooxml_core::schema::assert_spec::<Worksheet>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, AutoFilter>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetData>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetDimension>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProperties>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProtection>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SortState>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, TableParts>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
 const _: () = ooxml_core::schema::assert_spec::<CellValue>();

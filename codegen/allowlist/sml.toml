@@ -20,6 +20,15 @@ names = [
     # Phase1 (ADR-0003 §6): formula writes and calcPr/@fullCalcOnLoad.
     "x:CT_CellFormula/x:f",
     "x:CT_CalcPr/x:calcPr",
+    # Phase4 part 1 (ADR-0014 §3, §7, §11): merged cells, autofilter and its
+    # _xlnm._FilterDatabase name, sheet protection, sheetPr/@filterMode.
+    "x:CT_MergeCells/x:mergeCells",
+    "x:CT_MergeCell/x:mergeCell",
+    "x:CT_DefinedNames/x:definedNames",
+    "x:CT_DefinedName/x:definedName",
+    "x:CT_AutoFilter/x:autoFilter",
+    "x:CT_SheetProtection/x:sheetProtection",
+    "x:CT_SheetPr/x:sheetPr",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
@@ -32,13 +41,12 @@ names = [
     "x:CT_RElt/x:r",
     "x:CT_Sst/x:sst",
     "x:CT_Rst/x:si",
-    "x:CT_MergeCells/x:mergeCells",
-    "x:CT_MergeCell/x:mergeCell",
+    # Phase4 part 1 (ADR-0014 §7): an autofilter with criteria or a sort is
+    # refused, so these are only detected.
+    "x:CT_FilterColumn/x:filterColumn",
+    "x:CT_SortState/x:sortState",
     # Table header guard (roadmap Q5): tableParts -> table part -> ref/headerRowCount.
     "x:CT_TableParts/x:tableParts",
     "x:CT_TablePart/x:tablePart",
     "x:CT_Table/x:table",
-    # Phase1 (ADR-0003 §6): defined names for dependency analysis.
-    "x:CT_DefinedNames/x:definedNames",
-    "x:CT_DefinedName/x:definedName",
 ]
