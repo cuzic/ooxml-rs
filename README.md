@@ -48,7 +48,7 @@ Nothing is published to crates.io yet.
 | --- | --- | --- |
 | [`ooxml-core`](crates/ooxml-core/README.md) | implemented | **Layer 1:** OPC `Package`; untouched parts are copied with their original compressed bytes. **Layer 2:** lossless `XmlDocument`/`RawNode` tree; untouched elements are written back byte for byte; typed `Lens`/`LensMut` write primitives. **Layer 3:** content types and relationships, read-only. Refuses encrypted and Strict packages at open; refuses parsing a part that carries a DTD or nests deeper than 256 levels (unparsed parts are copied through unchanged). [ADR-0001](docs/adr/0001-lossless-round-trip-architecture.md), [ADR-0002](docs/adr/0002-schema-driven-code-generation.md) |
 | [`ooxml-schema`](crates/ooxml-schema/README.md) | implemented (generated) | `ElementSpec` markers, `ChildOf` impls, enums and typed views, generated from the Open XML SDK data and the ECMA-376 XSDs for the allowlisted elements (`codegen/allowlist/`). [ADR-0002](docs/adr/0002-schema-driven-code-generation.md) |
-| `xtask` | implemented | `cargo xtask codegen [--check]`: the schema code generator. `cargo xtask stats` reports on it. |
+| `xtask` | implemented | `cargo xtask codegen [--check]`: the schema code generator. `cargo xtask stats` reports on it. `cargo xtask manual-check <outdir>` builds the combined manual-check bundle. |
 | [`ooxml-xlsx`](crates/ooxml-xlsx/README.md) | Phase0 | Opens Transitional, unencrypted workbooks. Reads cell values (number, string, bool, …) and writes numbers and strings on the first visible sheet. Creates a workbook from an embedded template. Refuses formulas, merged ranges, table headers and similar cases with a typed error. [ADR-0001](docs/adr/0001-lossless-round-trip-architecture.md), [`docs/roadmap/xlsx.md`](docs/roadmap/xlsx.md) |
 | [`ooxml-docx`](crates/ooxml-docx/README.md) | Phase0 | Reads the body's paragraphs and runs. Replaces one run's text. Appends a paragraph. Refuses edits under track changes, protection or content-dependent fields, and edits inside fields, revisions or content controls. [ADR-0004](docs/adr/0004-docx-phase0.md) |
 | [`ooxml-pptx`](crates/ooxml-pptx/README.md) | Phase0 | Walks slides and shapes and reads text. Edits text inside existing text bodies (shapes, group members, table cells). Refuses edits that would break animation or comment references. [ADR-0005](docs/adr/0005-pptx-phase0.md) |
@@ -74,9 +74,11 @@ Designs for later phases, and core changes still in review, are open PRs; the
   checklist for the project owner:
 
   ```sh
-  cargo run -p ooxml-xlsx --example manual_check -- <outdir>
-  cargo run -p ooxml-docx --example manual_check -- <outdir>
-  cargo run -p ooxml-pptx --example manual_check -- <outdir>
+  cargo run -p ooxml-xlsx --example xlsx_manual_check -- <outdir>
+  cargo run -p ooxml-docx --example docx_manual_check -- <outdir>
+  cargo run -p ooxml-pptx --example pptx_manual_check -- <outdir>
+  # or all three at once, with a combined CHECKLIST.md index and a zip:
+  cargo xtask manual-check <outdir>
   ```
 
 - **Benchmarks:** `cargo bench -p ooxml-bench --bench baseline` (and `--bench breakdown`).
