@@ -36,11 +36,11 @@ pub fn raw_entries(bytes: &[u8]) -> zip::result::ZipResult<Vec<RawEntry>> {
 /// Asserts Layer 1 between two packages: same entry names in the same
 /// order, and every entry not in `except` byte-identical as stored.
 ///
-/// `input` entries that the raw reader cannot read make the check a no-op
-/// (the package reader got past them by another route); the output was
-/// written by us and must always be readable.
+/// Callers only compare packages that `Package` opened and saved, so both
+/// must be readable as raw zip entries: an unreadable input is a failure
+/// too (the package accepted entries it cannot copy through unchanged).
 pub fn assert_l1_except(input: &[u8], output: &[u8], except: &[&str], what: &str) {
-    let Ok(a) = raw_entries(input) else { return };
+    let a = raw_entries(input).unwrap_or_else(|e| panic!("{what}: the package opened, but its entries are not readable raw: {e}"));
     let b = raw_entries(output).unwrap_or_else(|e| panic!("{what}: written package is not a readable zip: {e}"));
     let names_a: Vec<&str> = a.iter().map(|e| e.name.as_str()).collect();
     let names_b: Vec<&str> = b.iter().map(|e| e.name.as_str()).collect();

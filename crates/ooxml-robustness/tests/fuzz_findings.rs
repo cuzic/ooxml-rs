@@ -39,7 +39,7 @@ const CT: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http:/
 
 /// A two-entry stored zip whose central-directory record for `a.bin` is
 /// patched: `field` is the offset in the record (20 = compressed size,
-/// 24 = uncompressed size).
+/// 24 = uncompressed size; 0 = no patch, the control).
 fn patched_zip(field: usize, value: u32) -> Vec<u8> {
     let mut z = build_zip([("[Content_Types].xml", CT), ("a.bin", &b"0123456789"[..])]);
     let cd = z
@@ -49,7 +49,9 @@ fn patched_zip(field: usize, value: u32) -> Vec<u8> {
         .map(|(i, _)| i)
         .find(|&i| z[i + 46..].starts_with(b"a.bin"))
         .expect("central directory record of a.bin");
-    z[cd + field..cd + field + 4].copy_from_slice(&value.to_le_bytes());
+    if field != 0 {
+        z[cd + field..cd + field + 4].copy_from_slice(&value.to_le_bytes());
+    }
     z
 }
 
@@ -76,19 +78,28 @@ fn f1_double_bom_edit_writes_well_formed_xml() {
 fn f1_double_bom_xlsx_write_saves_a_workbook_that_reopens() {
     let fx = XLSX.iter().find(|f| f.name.ends_with("51850.xlsx")).expect("fixture poi/51850.xlsx");
     let sheet = "xl/worksheets/sheet1.xml";
-    let parts: Vec<(String, Vec<u8>)> = fx
-        .parts
-        .iter()
-        .map(|(n, b)| {
-            let mut v = b.clone();
-            if n == sheet {
-                v.splice(0..0, *b"\xEF\xBB\xBF\xEF\xBB\xBF");
-            }
-            (n.clone(), v)
-        })
-        .collect();
-    let zip = build_zip(parts.iter().map(|(n, b)| (n.as_str(), b.as_slice())));
-    let Ok(mut wb) = ooxml_xlsx::Workbook::from_bytes(zip) else { return };
+    let with_prefix = |prefix: &[u8]| {
+        let parts: Vec<(String, Vec<u8>)> = fx
+            .parts
+            .iter()
+            .map(|(n, b)| {
+                let mut v = b.clone();
+                if n == sheet {
+                    v.splice(0..0, prefix.iter().copied());
+                }
+                (n.clone(), v)
+            })
+            .collect();
+        build_zip(parts.iter().map(|(n, b)| (n.as_str(), b.as_slice())))
+    };
+    // Control: the same edit without the BOMs works and reads back, so a
+    // refusal below can only come from the BOMs.
+    let mut wb = ooxml_xlsx::Workbook::from_bytes(with_prefix(b"")).expect("control opens");
+    wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number(7.0).expect("control edit");
+    let mut re = ooxml_xlsx::Workbook::from_bytes(wb.to_bytes().unwrap()).expect("control reopens");
+    assert_eq!(re.worksheet().unwrap().cell(0, 0).unwrap().unwrap().value().unwrap(), ooxml_xlsx::CellValue::Number(7.0));
+
+    let Ok(mut wb) = ooxml_xlsx::Workbook::from_bytes(with_prefix(b"\xEF\xBB\xBF\xEF\xBB\xBF")) else { return };
     assert_eq!(wb.worksheet_part(), sheet);
     if wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number(7.0).is_err() {
         return; // refusing is fine
@@ -105,6 +116,9 @@ fn f1_double_bom_xlsx_write_saves_a_workbook_that_reopens() {
 #[test]
 #[ignore = "fuzz finding F-2, see docs/testing/fuzz-findings-2026-11.md"]
 fn f2_entry_past_end_of_archive_is_refused_or_copied_unchanged() {
+    let control = patched_zip(0, 0);
+    let pkg = Package::from_bytes(control.clone()).expect("control opens");
+    assert_l1_except(&control, &pkg.to_bytes().unwrap(), &[], "F-2 control");
     let z = patched_zip(20, 0x7FFF_0000);
     let Ok(pkg) = Package::from_bytes(z.clone()) else { return };
     let Ok(out) = pkg.to_bytes() else { return };
@@ -163,13 +177,16 @@ fn f5_empty_element_name_is_refused() {
     }
 }
 
-/// F-6 (Medium): reading a part allocates its *declared* uncompressed size
+/// F-6 (High): reading a part allocates its *declared* uncompressed size
 /// up front (`Vec::with_capacity(file.size())` in `Package::read_original`).
 /// A 10-byte entry declared as ~4 GB requests ~4 GB; libFuzzer reports it
-/// as an OOM, and without overcommit (or on 32-bit) the process aborts.
+/// as an OOM. With ZIP64 the declared size is unbounded and the process
+/// aborts: see `f6_zip64_declared_size_does_not_abort`.
 #[test]
 #[ignore = "fuzz finding F-6, see docs/testing/fuzz-findings-2026-11.md"]
 fn f6_declared_size_does_not_drive_allocation() {
+    let control = Package::from_bytes(patched_zip(0, 0)).expect("control opens");
+    assert_eq!(control.read_part("a.bin").unwrap(), b"0123456789");
     let z = patched_zip(24, 0xF000_0000);
     let Ok(pkg) = Package::from_bytes(z) else { return };
     LARGEST.store(0, Ordering::Relaxed);
@@ -189,16 +206,98 @@ fn many_entries(n: usize) -> Vec<u8> {
 /// opening is quadratic in the entry count: a 6 MB zip of 65,535 empty
 /// entries took 30 s to open in a release build (the zip crate alone reads
 /// its directory in 36 ms). Measured as a ratio so the test does not depend
-/// on machine speed: 4x the entries must cost well under 16x the time.
+/// on machine speed: 4x the entries must cost well under 16x the time
+/// (best of 3 runs each, so one scheduling delay cannot decide it).
+/// Fixed by PR #14 (`core/remove-part`): remove the `#[ignore]` once it is
+/// merged.
 #[test]
-#[ignore = "fuzz finding F-7, see docs/testing/fuzz-findings-2026-11.md"]
+#[ignore = "fuzz finding F-7 (fixed by PR #14), see docs/testing/fuzz-findings-2026-11.md"]
 fn f7_open_is_not_quadratic_in_the_entry_count() {
     let time = |n: usize| {
         let z = many_entries(n);
-        let t = std::time::Instant::now();
-        Package::from_bytes(z).expect("opens");
-        t.elapsed().as_secs_f64()
+        (0..3)
+            .map(|_| {
+                let t = std::time::Instant::now();
+                Package::from_bytes(z.clone()).expect("opens");
+                t.elapsed().as_secs_f64()
+            })
+            .fold(f64::INFINITY, f64::min)
     };
     let (small, large) = (time(4_000), time(16_000));
     assert!(large < small * 8.0, "4,000 entries: {small:.3}s, 16,000 entries: {large:.3}s (quadratic)");
+}
+
+/// A two-entry stored zip whose entry `target` is ZIP64 (its sizes live in
+/// the zip64 extra field of the central directory), with the declared
+/// uncompressed size there set to `declared`.
+fn zip64_declared(target: &str, declared: u64) -> Vec<u8> {
+    use std::io::Write;
+    let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let o = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    zw.start_file("[Content_Types].xml", o.large_file(target == "[Content_Types].xml")).unwrap();
+    zw.write_all(CT).unwrap();
+    zw.start_file("a.bin", o.large_file(target == "a.bin")).unwrap();
+    zw.write_all(b"0123456789").unwrap();
+    let mut z = zw.finish().unwrap().into_inner();
+    let cd = (0..z.len() - 46)
+        .find(|&i| z[i..].starts_with(b"PK\x01\x02") && z[i + 46..].starts_with(target.as_bytes()))
+        .expect("central directory record");
+    assert_eq!(&z[cd + 24..cd + 28], &[0xFF; 4], "sizes are in the zip64 extra");
+    let name_len = usize::from(u16::from_le_bytes([z[cd + 28], z[cd + 29]]));
+    let extra_len = usize::from(u16::from_le_bytes([z[cd + 30], z[cd + 31]]));
+    let (mut p, end) = (cd + 46 + name_len, cd + 46 + name_len + extra_len);
+    while p + 4 <= end {
+        let (id, len) = (u16::from_le_bytes([z[p], z[p + 1]]), usize::from(u16::from_le_bytes([z[p + 2], z[p + 3]])));
+        if id == 1 {
+            // The uncompressed size comes first.
+            z[p + 4..p + 12].copy_from_slice(&declared.to_le_bytes());
+            return z;
+        }
+        p += 4 + len;
+    }
+    panic!("no zip64 extra field");
+}
+
+/// Env var that makes the F-6 ZIP64 test run its body (in a child process).
+const CHILD: &str = "OOXML_FUZZ_FINDINGS_CHILD";
+
+/// F-6 (High), ZIP64 form (Opus review of PR #36, M1): a 459-byte package
+/// whose entry declares 2^40 or 2^62 bytes makes `Package::from_bytes`
+/// (for `[Content_Types].xml`) or `read_part` request that much memory;
+/// the allocation failure aborts the process (`handle_alloc_error` does not
+/// unwind, so `catch_unwind` cannot stop it). The body runs in a child
+/// process so that an abort fails this test only, not the whole binary.
+#[test]
+#[ignore = "fuzz finding F-6, see docs/testing/fuzz-findings-2026-11.md"]
+fn f6_zip64_declared_size_does_not_abort() {
+    const NAME: &str = "f6_zip64_declared_size_does_not_abort";
+    if std::env::var_os(CHILD).is_some_and(|v| v == NAME) {
+        // Control: the same packages with an honest size open and read.
+        for target in ["[Content_Types].xml", "a.bin"] {
+            let pkg = Package::from_bytes(zip64_declared(target, if target == "a.bin" { 10 } else { CT.len() as u64 }))
+                .expect("control opens");
+            assert_eq!(pkg.read_part("a.bin").unwrap(), b"0123456789");
+        }
+        for declared in [1u64 << 40, 1 << 62, u64::MAX] {
+            for target in ["[Content_Types].xml", "a.bin"] {
+                let z = zip64_declared(target, declared);
+                assert_eq!(z.len(), 459);
+                if let Ok(pkg) = Package::from_bytes(z) {
+                    let _ = pkg.read_part("a.bin"); // Err is fine; aborting is not
+                }
+            }
+        }
+        return;
+    }
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", NAME, "--ignored", "--nocapture", "--test-threads=1"])
+        .env(CHILD, NAME)
+        .output()
+        .expect("spawn the test binary");
+    assert!(
+        out.status.success(),
+        "child process failed ({}):\n{}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr).lines().filter(|l| !l.trim().is_empty()).take(5).collect::<Vec<_>>().join("\n")
+    );
 }

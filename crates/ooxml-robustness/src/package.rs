@@ -1,5 +1,6 @@
 //! `Package::from_bytes` → read → save → reopen.
 
+use ooxml_core::opc::rels_part_name;
 use ooxml_core::{Package, XmlDocument};
 
 use crate::known;
@@ -19,9 +20,13 @@ pub fn check_package(data: &[u8], pick: u8) {
     if known::f2_entry_out_of_bounds(data) || known::f6_huge_declared_size(data) {
         return;
     }
-    // Metadata parts are parsed inside `from_bytes` and `relationships`.
+    // `[Content_Types].xml` and `_rels/.rels` are parsed inside `from_bytes`
+    // (F-1 would trip the parser's debug assertion there). Other parts with
+    // two BOMs only stay out of parsing; the Layer-1 checks still run.
     if known::enabled()
-        && crate::fixtures::unzip(data).is_some_and(|parts| parts.iter().any(|(_, b)| known::f1_double_bom(b)))
+        && crate::fixtures::unzip(data).is_some_and(|parts| {
+            parts.iter().any(|(n, b)| (n == "[Content_Types].xml" || n == "_rels/.rels") && known::f1_double_bom(b))
+        })
     {
         return;
     }
@@ -32,7 +37,10 @@ pub fn check_package(data: &[u8], pick: u8) {
     let mut parsed = Vec::new();
     for name in &names {
         let _ = pkg.content_type(name);
-        let _ = pkg.relationships(name);
+        let rels = rels_part_name(Some(name));
+        if !pkg.read_part(&rels).is_ok_and(|b| known::f1_double_bom(&b)) {
+            let _ = pkg.relationships(name);
+        }
         let Ok(bytes) = pkg.read_part(name) else { continue };
         if known::f1_double_bom(&bytes) {
             continue;

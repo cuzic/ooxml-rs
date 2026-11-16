@@ -63,6 +63,21 @@ fn read_slide(s: &Slide<'_>) -> (Vec<ShapePath>, Vec<(ShapePath, usize, usize)>)
     (bodies, tables)
 }
 
+/// Every text body's text on a slide (shape bodies and table cells), in
+/// document order.
+fn slide_texts(s: &Slide<'_>) -> Vec<String> {
+    let mut out = Vec::new();
+    for sh in s.shapes() {
+        if let Some(b) = sh.text_body() {
+            out.push(b.text());
+        }
+        if let Some(t) = sh.table() {
+            out.extend(t.rows().iter().flatten().filter_map(|c| c.text_body()).map(|b| b.text()));
+        }
+    }
+    out
+}
+
 /// `TextBodyMut::set_text`'s documented reading: `\r\n` and `\r` become
 /// paragraph breaks.
 fn normalize(s: &str) -> String {
@@ -152,13 +167,18 @@ pub fn check_pptx(zip: &[u8], mut ops: Input<'_>) {
             }
         }
     }
+    let mut texts = Vec::new();
+    for (si, ..) in &targets {
+        texts.push(pres.slide(*si).map(|s| slide_texts(&s)).unwrap_or_else(|e| panic!("edited slide {si} does not read: {e}")));
+    }
     let out = pres.to_bytes().unwrap_or_else(|e| panic!("save after edits failed: {e}"));
     let except: Vec<&str> = edited.iter().map(String::as_str).collect();
     assert_l1_except(&base, &out, &except, "pptx save after edits");
     let mut re = Presentation::from_bytes(out).unwrap_or_else(|e| panic!("edited presentation does not reopen: {e}"));
     assert_eq!(re.slide_count(), count);
-    for (si, ..) in &targets {
-        let s = re.slide(*si).unwrap_or_else(|e| panic!("edited slide {si} does not read: {e}"));
+    for ((si, ..), before) in targets.iter().zip(&texts) {
+        let s = re.slide(*si).unwrap_or_else(|e| panic!("edited slide {si} does not read after reopen: {e}"));
         let _ = read_slide(&s);
+        assert_eq!(&slide_texts(&s), before, "slide {si}: text changed by save and reopen");
     }
 }

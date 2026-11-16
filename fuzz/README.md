@@ -14,11 +14,14 @@ tests and the stable smoke test run exactly the same code.
 | `xlsx_edit` | `[fixture][part][ops_len][ops][payload]` | a fixture from `reference/fixtures/xlsx` with one part replaced by the payload; `Workbook` open, reads, `set_number`/`set_string`: refusals change nothing, successes read back before and after save/reopen, other parts L1-identical |
 | `pptx_edit` | same layout, `reference/fixtures/pptx` | `Presentation` open, read every slide, text edits (body/paragraph/run/table cell): refusals change nothing, `TextBodyMut::set_text` reads back, other parts L1-identical, output reopens |
 
-Running:
+Running (the toolchain and cargo-fuzz versions the findings were produced
+with, also pinned in `.github/workflows/fuzz-smoke.yml`; `fuzz/Cargo.lock` is
+committed because this directory is its own workspace):
 
 ```sh
-rustup toolchain install nightly && cargo +nightly install cargo-fuzz
+rustup toolchain install nightly-2026-11-13 && cargo +nightly-2026-11-13 install cargo-fuzz --version 0.13.2 --locked
 cargo run -p ooxml-robustness --example seed_corpus -- fuzz/corpus   # seeds from reference/fixtures (not committed)
+# optional 2nd argument: keep at most N seeds per target (the CI smoke uses 64)
 cd fuzz
 cargo +nightly fuzz run xml_t1b corpus/xml_t1b -- -max_total_time=600
 # triage on stable (one line per input: panic location + message):
@@ -29,6 +32,14 @@ Known findings are skipped by the filters in
 [`crates/ooxml-robustness/src/known.rs`](../crates/ooxml-robustness/src/known.rs)
 (`OOXML_FUZZ_ALL=1` turns them off). Findings, reproducers and regression tests:
 [`docs/testing/fuzz-findings-2026-11.md`](../docs/testing/fuzz-findings-2026-11.md).
+
+`-max_total_time` counts from the end of libFuzzer's first pass over the
+initial corpus: with the full seed set, `pptx_edit` spends minutes on that pass
+alone, so thin the seeds for short runs.
+
+The package seeds include synthetic variants the fixtures lack: every entry
+ZIP64, data descriptors, data prepended to the zip, a damaged CFB signature,
+and Strict namespaces in the parts only.
 
 The format targets read fixtures from `reference/fixtures` (override with
 `OOXML_FIXTURES=<dir>`). Note that cargo-fuzz builds with debug assertions, so

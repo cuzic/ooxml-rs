@@ -6,20 +6,25 @@
 - ooxml-xlsx: `Workbook::from_bytes`、セルの読み取り、`set_number` / `set_string`、保存と再オープン
 - ooxml-pptx: `Presentation::from_bytes`、全スライドの読み取り、テキスト編集（本文・段落・ラン・表セル）、保存と再オープン
 
+ooxml-docx（#13 で main にマージ）はこの PR の base より後なので、ここでは対象外。`docx_edit` ターゲットは
+この PR に積む別 PR（`test/fuzz-docx`）で追加する。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
+「Err なら無変更」もまだ検査していない。
+
 ハーネスは `crates/ooxml-robustness`（publish しない dev 専用 crate）、cargo-fuzz のターゲットは `fuzz/`（ワークスペース外、nightly）。
 各ターゲットの不変条件は `fuzz/README.md` の表にある。crate のソースは変更していない。修正は各 crate の担当者に任せる。
 
 ## 結論（先に）
 
-**クラッシュ（panic / abort）は crate 内では見つからなかったが、不変条件の違反が 7 件ある。** High 1・Medium 4・Low 2、ほかに Info 2。
+**不変条件の違反が 7 件ある。High 2・Medium 3・Low 2、ほかに Info 2。** panic は見つからなかったが、**abort はある**:
+F-6 の ZIP64 の形（459 バイトの zip）で `Package::from_bytes` がプロセスを abort させる（Opus レビュー round 1 の M1 で指摘、再現済み）。
 
 | ID | 重大度 | 概要 | 再現テスト |
 |---|---|---|---|
 | F-1 | **High** | 先頭に UTF-8 BOM が 2 つある part は要素の span が 3 バイトずれる。編集すると壊れた XML を書く（xlsx: `set_number` が Ok で、保存したファイルが開けない） | `f1_double_bom_edit_writes_well_formed_xml`、`f1_double_bom_xlsx_write_saves_a_workbook_that_reopens` |
 | F-2 | Medium | データがアーカイブ末尾を越える zip エントリを受け付け、無編集の保存でそのエントリを別のバイト列にして書く（Layer 1 違反、Err にならない） | `f2_entry_past_end_of_archive_is_refused_or_copied_unchanged` |
 | F-3 | Medium | `LensMut::set_attr` / `remove_attr` が `xmlns:*` 宣言を拒否しない。使用中の宣言の削除で非 well-formed、再束縛で既存の名前の名前空間が黙って変わる | `f3_lens_writes_to_namespace_declarations_keep_output_meaning` |
-| F-6 | Medium | part の読み取りが**申告された**非圧縮サイズで先にメモリを確保する（10 バイトのエントリで約 4 GB を要求。libFuzzer では OOM） | `f6_declared_size_does_not_drive_allocation` |
-| F-7 | Medium | `Package::from_bytes` の重複名検査が O(n²)。空エントリ 65,535 個・6 MB の zip で open に 30 秒（release） | `f7_open_is_not_quadratic_in_the_entry_count` |
+| F-6 | **High** | part の読み取りが**申告された**非圧縮サイズで先にメモリを確保する。ZIP64 では申告サイズに上限がなく、459 バイトの zip で **open 時にプロセスが abort する**（`catch_unwind` でも止められない）。32 ビットの申告では約 4 GB を要求し、libFuzzer では OOM になる | `f6_zip64_declared_size_does_not_abort`（子プロセスで実行）、`f6_declared_size_does_not_drive_allocation` |
+| F-7 | Medium | `Package::from_bytes` の重複名検査が O(n²)。空エントリ 65,535 個・6 MB の zip で open に 30 秒（release）。**PR #14 で修正済み**（マージ後に `#[ignore]` を外す） | `f7_open_is_not_quadratic_in_the_entry_count` |
 | F-4 | Low | ルート要素の中の XML 宣言（`<?xml …?>`）を受け付け、木から落とす。再描画で消え、前後のテキストが 2 項目に分かれる（T1b 違反） | `f4_xml_declaration_inside_content_is_refused_or_kept` |
 | F-5 | Low | 名前が空の要素（`< />`、`<\r/>`）を受け付ける。再描画で `</>` を書き、どのパーサーも読めない | `f5_empty_element_name_is_refused` |
 | I-1 | Info | パーサーがほかにも XML 1.0 / Namespaces の非 well-formed 入力を受け付ける（下記） | — |
@@ -27,7 +32,9 @@
 
 再現テストは `crates/ooxml-robustness/tests/fuzz_findings.rs` にあり、すべて
 `#[ignore = "fuzz finding F-n, see docs/testing/fuzz-findings-2026-11.md"]` 付き（CI は green のまま）。
-`cargo test -p ooxml-robustness --test fuzz_findings -- --ignored` で 8 件すべてが失敗することを Rust 1.99.1 で確認した。
+`cargo test -p ooxml-robustness --test fuzz_findings -- --ignored` で 9 件すべてが失敗することを Rust 1.99.1 で確認した
+（ZIP64 のテストは子プロセスが SIGABRT で落ちたことを報告する）。どのテストも、パッチ前の入力で同じ操作が成功する対照を先に検査するので、
+無関係な理由の拒否で黙って pass することはない。PR #40（core の修正）の上では F-7 以外の 8 件が pass する。
 修正したら `#[ignore]` を外し、`crates/ooxml-robustness/src/known.rs` の対応するフィルタを消すこと。
 フィルタは既知の形の入力だけを飛ばし、ファザーが同じ所見を何度も報告しないようにするためのもの（`OOXML_FUZZ_ALL=1` で無効）。
 
@@ -55,8 +62,23 @@ fork したジョブが起動できなかった分で、成果物は 0 件（入
 2 回目の開始直後にできた `crash-*` 2 件は 1 回目の残りプロセスが書いたもので、現在のハーネスでは再現しない（F-2 / F-4 の形）。
 F-7 はファザーの入力サイズでは届かないので、F-2 の調査中に手で測った。
 
-stable のスモーク（`tests/smoke.rs`、決定的な変異）: debug・既定値（`OOXML_SMOKE_ITERS=1`）で約 12 秒、
+stable のスモーク（`tests/smoke.rs`、決定的な変異）: debug・既定値（`OOXML_SMOKE_ITERS=1`）でテスト実行約 4 秒（32 コア、ビルド時間を除く。ファザーと並行した初回はビルド込みで約 12 秒）、
 release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
+
+### Opus レビュー round 1 の後の変更
+
+- 再現テスト: ZIP64 の F-6（子プロセスで実行）を追加した。F-1・F-2・F-6 にはパッチ前の入力で同じ操作が成功する対照を加えた。
+  F-7 は 3 回測って最小値の比で判定する。
+- フィルタを所見の形に絞った: F-4 はルート要素の開始タグより後の宣言だけを除外する。`check_package` は、BOM が 2 つある part があっても
+  `[Content_Types].xml` / `_rels/.rels` でなければ L1 検査を続け、その part を parse と再描画の対象から外すだけにした。
+- oracle を強めた: `assert_l1_except` は、Package が開けたのに raw で読めない入力を失敗として扱う（以前は検査せずに return していた）。
+  pptx は保存・再オープンの前後で全 text body の `text()` が一致することを検査する（kind 1〜8 の編集にも oracle が付く）。
+- seed: ZIP64・data descriptor・前置データ・壊れた CFB シグネチャ・part だけ Strict の変種を合成する（`package_roundtrip`）。
+- ワークフロー: `timeout-minutes`、`permissions: contents: read`、dispatch 入力は `env:` 経由で数値か検査、nightly-2026-11-13 と
+  cargo-fuzz 0.13.2 に固定、`fuzz/Cargo.lock` をコミット、seed を 1 ターゲット 64 件に間引く。
+  `-max_total_time` は初期コーパスを一巡した後から数える点を README に書いた。
+- 変更後の確認: 6 ターゲットを各 5 分（4 並列、合成 seed を追加したコーパス）回して新しい失敗はなかった（xml_t1 92 万回、xml_t1b 41 万回、lens 67 万回、
+  xlsx 4.4 万回、package 8 千回。pptx は初期コーパスの一巡で時間を使い切った）。stable スモークも通る。
 
 ## 所見の詳細
 
@@ -80,7 +102,9 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 ### F-2 [Medium] アーカイブ末尾を越えるエントリを受け付け、無編集の保存で別のバイト列にする
 
 - **再現**: stored エントリ 2 個の zip で、`a.bin` の中央ディレクトリの compressed size を `0x7FFF0000` に書き換える。
-  `Package::from_bytes` も `to_bytes` も Ok で、出力の `a.bin` の生データは 148 バイトから 286 バイトに変わる（CRC はそのまま）。
+  `Package::from_bytes` も `to_bytes` も Ok。出力の `a.bin` は、ヘッダの compressed size が `0x7FFF0000` のまま、データ領域に
+  入力の残り全部（データ 10 バイト + 中央ディレクトリ 116 バイト + EOCD 22 バイト = 148 バイト）がコピーされる。
+  （raw で読む oracle では、入力側 148 バイト・出力側 286 バイトの「データ」に見える。どちらもファイル末尾まで読むため。）
   ファザーでは、ローカルヘッダの extra 長などでデータ開始位置が末尾を越える形も見つかった（入力側の生データ 0 バイト、出力側 715 バイト）。
   検出したのは 20 件で、すべてこの 2 つの形のどちらかだった。
 - **影響**: README の「`Raw` は (name, method, CRC-32, compressed bytes) unchanged」が成り立たない。
@@ -101,16 +125,24 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 - **修正の方向**: `XMLNS_NS` の属性への `set_attr` / `remove_attr` を新しいエラー（例: `NamespaceDeclaration`）で拒否する。
   宣言の追加が必要になったら専用の API にする（README の「Phase0 never declares namespaces」と同じ考え方）。
 
-### F-6 [Medium] 申告された非圧縮サイズでメモリを確保する
+### F-6 [High] 申告された非圧縮サイズでメモリを確保する（ZIP64 では abort）
 
-- **再現**: `a.bin`（10 バイト、stored）の中央ディレクトリの uncompressed size を `0xF0000000` にする。
+- **再現（ZIP64、abort）**: `[Content_Types].xml` か `a.bin` を ZIP64 エントリとして書き、中央ディレクトリの zip64 extra の
+  uncompressed size を 2^40 / 2^62 / 2^64−1 にした 459 バイトの zip。`Package::from_bytes`（`[Content_Types].xml` の場合は open だけで）または
+  `read_part` が `memory allocation of 1099511627776 bytes failed` で **abort**（SIGABRT、exit 134）する。2^62 でも capacity overflow の
+  panic ではなく abort になる。overcommit の有無に関係しない。ファザーが届かなかったのは seed に ZIP64 のエントリがなかったため
+  （現在は `seed_corpus` が ZIP64 の変種を作る）。テスト `f6_zip64_declared_size_does_not_abort` は本体を子プロセスで動かし、
+  abort してもテストバイナリの他の結果は失われない。
+- **再現（32 ビットの申告）**: `a.bin`（10 バイト、stored）の中央ディレクトリの uncompressed size を `0xF0000000` にする。
   `read_part("a.bin")` は約 4 GB の確保を要求する（テストはグローバルアロケータで最大要求サイズを記録して確認）。
   ファザーでは deflate のエントリ（圧縮後 191 バイト、申告 3,087,008,061 バイト）で `-rss_limit_mb=2048` の OOM として検出し、2 回目でも `malloc(4278125026)` などの OOM が 2 件出た。スタックは `package.rs:181` ← `package.rs:138`（open 時の `[Content_Types].xml` 読み取り）だった。
-- **影響**: Linux の overcommit 下では触らないページは確保されないので、実害が出ないことが多い。
-  overcommit を切った環境、32 ビット環境、メモリ上限のあるコンテナでは abort（`handle_alloc_error`）になる。
-  `[Content_Types].xml` と `_rels/.rels` は open 時に読むので、**open だけで**到達する。
+- **影響**: 1 つの小さな入力でプロセスごと落ちる DoS。`handle_alloc_error` は unwind しないので、`catch_unwind` で隔離できない。
+  `[Content_Types].xml` と `_rels/.rels` は open 時に読むので、**open だけで**到達する。ooxml-xlsx / -pptx / -docx の `from_bytes` も同じ経路を通る。
+  32 ビットの申告（最大 4 GB）では、overcommit のある Linux なら触らないページは確保されないので表に出にくいが、
+  overcommit を切った環境、32 ビット環境、メモリ上限のあるコンテナでは同じく abort する。
 - **推定原因**: `package.rs:181` の `Vec::with_capacity(file.size() as usize)`。
-- **修正の方向**: 確保量を `min(file.size(), 上限)` にする（例えば compressed size の定数倍や数 MiB）。I-2 の上限と合わせて決めるとよい。
+- **修正の方向**: `size()` を信用しない。確保は `min(size, compressed_size × 定数, 上限)` にし、`take(上限 + 1)` で読んで超えたら `Err` にする
+  （I-2 と同じ上限）。PR #40 はこの方針で直している（申告サイズは拒否の判断にだけ使い、バッファは 64 KiB から伸ばす。part と package の上限は設定可能）。
 
 ### F-7 [Medium] open が entry 数に対して二乗時間
 
@@ -121,6 +153,9 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 - **推定原因**: `package.rs:123` の `parts.iter().any(|p| p.name.eq_ignore_ascii_case(&name))`。
   `find()` も線形探索なので、format crate が part ごとに `contains` / `read_part` を呼ぶ処理も同様に二乗になりうる。
 - **修正の方向**: ASCII 小文字化した名前の `HashSet` で重複検査し、`find` 用に `HashMap<String, usize>` を持つ。
+- **状況**: PR #14（`core/remove-part`）の `from_bytes_with` が `HashSet` + `normalize_part_name` で重複検査を線形にしている（review N11）。
+  二重に直さないこと。#14 のマージ後に `f7_*` の `#[ignore]` を外す。#14 の後も `find()` / `find_ci()` は線形探索なので、
+  part ごとに `contains` / `read_part` を呼ぶ処理が二乗になる点は残る（別項として追跡する）。
 
 ### F-4 [Low] 内容中の XML 宣言を受け付けて木から落とす
 
