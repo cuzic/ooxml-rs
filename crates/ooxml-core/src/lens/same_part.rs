@@ -15,19 +15,41 @@
 //! because the part — and so its `.rels` — is the same; the copy can be
 //! inserted only into the document it was taken from.
 //!
-//! The ancestor scan ([`Scope`]) computes what PR #44's move computes; the
-//! two are to be folded into one helper once both are merged.
+//! The context is read with the lens's own helpers (`declarations` /
+//! `effective` for bindings, `ancestor_context` for `mc:Ignorable` and
+//! `xml:space`) and the subtree's needs with the move's `Usage`, so a copy is
+//! checked exactly like a move: including the refusal out of and into an
+//! `mc:AlternateContent` branch, and treating whitespace-only text between
+//! child elements as indentation.
+//!
+//! Known limits (shared with the move): an ancestor's `mc:ProcessContent` and
+//! `mc:MustUnderstand` are not compared, and a QName inside an attribute
+//! value outside Markup Compatibility is not checked.
 
-use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
-use super::{Lens, LensMut, Placement, element_at, not_detachable};
+use super::move_subtree::Usage;
+use super::{Lens, LensMut, Placement, ancestor_context, declarations, effective, element_at, not_detachable, subtree_height};
 use crate::error::{DetachRefusal, Error, Result};
-use crate::name::{MC_NS, QName, XML_NS, XMLNS_NS, XName};
+use crate::name::{MC_NS, QName, XMLNS_NS, XName};
 use crate::schema::{ChildOf, Detachable, ElementSpec, SameType, UniqueAttr};
 use crate::xml::{DocToken, RawItem, RawNode};
 
-const MC_IGNORABLE: QName = QName::new(MC_NS, "Ignorable");
+/// `a == b` in a const context (the rename check below).
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
 
 /// Extension URIs reviewed for same-part copies
 /// ([`SamePartOptions::keep_extension`]).
@@ -91,9 +113,6 @@ pub struct SamePartDetached<C: ElementSpec> {
     inherits_text: bool,
     /// The inherited `xml:space` at the source (`true` = preserve).
     preserve: bool,
-    /// The root was renamed to another namespace: its prefix is chosen at
-    /// the destination.
-    root_prefix_at_destination: bool,
     _c: PhantomData<fn() -> C>,
 }
 
@@ -107,7 +126,6 @@ impl<C: ElementSpec> Clone for SamePartDetached<C> {
             uris: self.uris.clone(),
             inherits_text: self.inherits_text,
             preserve: self.preserve,
-            root_prefix_at_destination: self.root_prefix_at_destination,
             _c: PhantomData,
         }
     }
@@ -116,85 +134,6 @@ impl<C: ElementSpec> Clone for SamePartDetached<C> {
 impl<C: ElementSpec> std::fmt::Debug for SamePartDetached<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "SamePartDetached<{}>", C::SDK_NAME)
-    }
-}
-
-/// Namespace bindings, `mc:Ignorable` namespaces and the `xml:space` in
-/// effect at (and including) the element at `path` (validated).
-struct Scope<'r> {
-    decls: Vec<(Option<&'r str>, &'r str)>,
-    ignorable: Vec<&'r str>,
-    preserve: bool,
-}
-
-impl<'r> Scope<'r> {
-    fn at(root: &'r RawNode, path: &[usize]) -> Self {
-        let mut s = Scope { decls: Vec::new(), ignorable: Vec::new(), preserve: false };
-        let mut n = root;
-        let mut rest = path.iter();
-        loop {
-            s.decls.extend(n.attrs.iter().filter(|a| a.name.ns() == XMLNS_NS).map(|a| (a.name.declared_prefix(), a.value.as_str())));
-            if let Some(v) = n.attr(MC_IGNORABLE) {
-                for p in v.split_ascii_whitespace() {
-                    if let Some((_, u)) = s.decls.iter().rev().find(|(q, _)| *q == Some(p)) {
-                        s.ignorable.push(u);
-                    }
-                }
-            }
-            if let Some(p) = n.xml_space_preserve() {
-                s.preserve = p;
-            }
-            let Some(&i) = rest.next() else { break };
-            n = n.children[i].as_element().expect("validated path");
-        }
-        s
-    }
-
-    /// The URI `prefix` is bound to here; `""` for an unbound default.
-    fn binding(&self, prefix: Option<&str>) -> Option<&'r str> {
-        match self.decls.iter().rev().find(|(q, _)| *q == prefix) {
-            Some((_, u)) => Some(u),
-            None if prefix.is_none() => Some(""),
-            None => None,
-        }
-    }
-}
-
-/// What the copy uses: prefixes it does not declare itself (on the element
-/// or an ancestor within the copy), namespace URIs of its names, and
-/// whether it has text without an own `xml:space` above it.
-#[derive(Default)]
-struct Usage<'n> {
-    free: BTreeSet<Option<&'n str>>,
-    uris: BTreeSet<&'n str>,
-    inherits_text: bool,
-}
-
-fn usage<'n>(n: &'n RawNode, declared: &[Option<&'n str>], own_space: bool, u: &mut Usage<'n>) {
-    let mut declared = declared.to_vec();
-    declared.extend(n.attrs.iter().filter(|a| a.name.ns() == XMLNS_NS).map(|a| a.name.declared_prefix()));
-    let own_space = own_space || n.xml_space_preserve().is_some();
-    if n.name.ns() != XML_NS {
-        if !declared.contains(&n.name.prefix()) {
-            u.free.insert(n.name.prefix());
-        }
-        u.uris.insert(n.name.ns());
-    }
-    for a in &n.attrs {
-        if a.name.ns() == XMLNS_NS || a.name.ns() == XML_NS || a.name.ns().is_empty() {
-            continue;
-        }
-        if !declared.contains(&a.name.prefix()) {
-            u.free.insert(a.name.prefix());
-        }
-        u.uris.insert(a.name.ns());
-    }
-    for c in &n.children {
-        match c {
-            RawItem::Element(e) => usage(e, &declared, own_space, u),
-            RawItem::Text(t) if !own_space && !t.value.is_empty() => u.inherits_text = true,
-            _ => {}
-        }
     }
 }
 
@@ -238,10 +177,6 @@ fn extensions_allowed(ext_lst: &RawNode, uris: &[String]) -> bool {
         })
 }
 
-fn height(n: &RawNode) -> usize {
-    1 + n.elements().map(height).max().unwrap_or(0)
-}
-
 impl<E: ElementSpec> Lens<'_, E> {
     /// A **same-part** copy of this element's subtree, renamed to
     /// `C::QNAME` when the types differ (ADR-0002 note "same-part copy"):
@@ -266,13 +201,22 @@ impl<E: ElementSpec> Lens<'_, E> {
         E: Detachable,
         C: SameType<E> + Detachable,
     {
+        // A rename keeps the namespace (and so the prefix); `SameType` pairs
+        // across namespaces are not supported (review P49R2-m1).
+        const { assert!(str_eq(C::QNAME.ns, E::QNAME.ns), "a same-part copy cannot be renamed into another namespace") };
         let doc = self.doc.ok_or(Error::WrongDocument)?;
+        let parent = &self.path[..self.path.len().saturating_sub(1)];
+        // Out of an mc:AlternateContent branch: refused as a move is (#44),
+        // since consumers that pick another branch would see the copy appear
+        // without its branch's `Requires` (review P49R2-M1).
+        if let Some(mc) = mc_on_path(self.root, parent) {
+            return Err(not_detachable(DetachRefusal::AlternateContent, mc));
+        }
         let unique: Vec<UniqueAttr> = E::UNIQUE_ATTRS.iter().chain(C::UNIQUE_ATTRS).copied().collect();
-        let kept = || self.node.elements().filter(|c| !skip.iter().any(|q| c.is(*q)));
         if let Some(a) = self.node.attrs.iter().find(|a| a.name.ns() == MC_NS) {
             return Err(not_detachable(DetachRefusal::MarkupCompatibility, &a.name));
         }
-        // the root itself (its own attributes) and every kept child
+        // the root's own attributes, then every kept child
         for u in unique.iter().filter(|u| self.node.is(u.element)) {
             if let Some(v) = self.node.attr(u.attr)
                 && Some(v) != u.default
@@ -281,10 +225,10 @@ impl<E: ElementSpec> Lens<'_, E> {
                 return Err(not_detachable(DetachRefusal::UniqueAttribute, &a.name));
             }
         }
-        if self.node.name.local() == "extLst" && !extensions_allowed(self.node, &opts.extension_uris) {
-            return Err(not_detachable(DetachRefusal::ExtensionList, &self.node.name));
-        }
-        kept().try_for_each(|c| check_copyable(c, &unique, &opts.extension_uris))?;
+        self.node
+            .elements()
+            .filter(|c| !skip.iter().any(|q| c.is(*q)))
+            .try_for_each(|c| check_copyable(c, &unique, &opts.extension_uris))?;
 
         let mut root = self.node.clone();
         let before = root.children.len();
@@ -292,28 +236,24 @@ impl<E: ElementSpec> Lens<'_, E> {
         if root.children.len() != before {
             root.subtree_dirty = true; // children change: re-render them
         }
-        let mut root_prefix_at_destination = false;
         if !self.node.is(C::QNAME) {
-            let same_ns = C::QNAME.ns == self.node.name.ns();
-            let prefix = if same_ns { self.node.name.prefix() } else { None };
-            root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, prefix);
+            root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, self.node.name.prefix());
             root.own_dirty = true; // renamed: re-render its tags
             root.subtree_dirty = true;
-            root_prefix_at_destination = !same_ns;
         }
 
-        let parent = &self.path[..self.path.len().saturating_sub(1)];
-        let src = if self.path.is_empty() { Scope { decls: Vec::new(), ignorable: Vec::new(), preserve: false } } else { Scope::at(self.root, parent) };
-        let mut u = Usage::default();
-        usage(&root, &[], false, &mut u);
-        if root_prefix_at_destination {
-            // the renamed root's prefix is chosen at the destination
-            u.free.remove(&root.name.prefix());
-        }
-        let free = u.free.iter().map(|p| (p.map(str::to_owned), src.binding(*p).map(str::to_owned))).collect();
-        let uris = u.uris.iter().map(|x| ((*x).to_owned(), src.ignorable.contains(x))).collect();
-        let inherits_text = u.inherits_text;
-        let height = height(&root);
+        // What the copy needs, and what it meant at the source (the scope of
+        // its parent; none for a document root).
+        let usage = Usage::of(&root);
+        let (decls, ctx) = if self.path.is_empty() {
+            (Vec::new(), ancestor_context(self.root, &[], false))
+        } else {
+            (declarations(self.root, parent), ancestor_context(self.root, parent, true))
+        };
+        let free = usage.free_prefixes.iter().map(|p| (p.map(str::to_owned), binding(&decls, *p))).collect();
+        let uris = usage.uris.iter().map(|u| ((*u).to_owned(), ctx.ignorable.iter().any(|i| i == u))).collect();
+        let inherits_text = usage.inherits_text;
+        let height = subtree_height(&root);
         Ok(SamePartDetached {
             height,
             root,
@@ -321,11 +261,32 @@ impl<E: ElementSpec> Lens<'_, E> {
             free,
             uris,
             inherits_text,
-            preserve: src.preserve,
-            root_prefix_at_destination,
+            preserve: ctx.preserve,
             _c: PhantomData,
         })
     }
+}
+
+/// The binding of `prefix` in `decls`; an unbound default namespace means
+/// "no namespace" (`""`), as for a move.
+fn binding(decls: &[(usize, Option<&str>, &str)], prefix: Option<&str>) -> Option<String> {
+    effective(decls, prefix).or(prefix.is_none().then_some("")).map(str::to_owned)
+}
+
+/// The first Markup Compatibility element on the path from `root` (included)
+/// to the element at `path` (included), if any.
+fn mc_on_path<'r>(root: &'r RawNode, path: &[usize]) -> Option<&'r XName> {
+    let mut n = root;
+    if n.name.ns() == MC_NS {
+        return Some(&n.name);
+    }
+    for &i in path {
+        n = n.children[i].as_element().expect("validated path");
+        if n.name.ns() == MC_NS {
+            return Some(&n.name);
+        }
+    }
+    None
 }
 
 impl<C: ElementSpec> SamePartDetached<C> {
@@ -345,9 +306,11 @@ impl<C: ElementSpec> SamePartDetached<C> {
     /// `parent_path` of `doc`, with `created` new elements in between (they
     /// declare nothing)? Changes nothing. Returns the error the insertion
     /// would return for those reasons ([`Error::WrongDocument`] first, then
-    /// `TooDeep`, `NotDetachable { NamespaceBinding | IgnorableNamespace |
-    /// InheritedXmlSpace }`), or `WrongElement` for a path that does not lead
-    /// to an element; slot rules are not checked.
+    /// `TooDeep`, `NotDetachable { AlternateContent | NamespaceBinding |
+    /// IgnorableNamespace | InheritedXmlSpace }`), or `WrongElement` for a
+    /// path that does not lead to an element. Slot rules (`AlreadyPresent`,
+    /// `NotAllowed`, …) are **not** checked, as with
+    /// [`super::Detached::check_insert_under`].
     pub fn check_insert_under(&self, doc: &crate::XmlDocument, parent_path: &[usize], created: usize) -> Result<()> {
         if doc.token() != self.doc {
             return Err(Error::WrongDocument);
@@ -357,24 +320,25 @@ impl<C: ElementSpec> SamePartDetached<C> {
         if parent_path.len().saturating_add(1).saturating_add(created).saturating_add(self.height) > doc.max_depth() {
             return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span.map_or(0, |s| s.start) });
         }
-        self.check_destination(root, parent_path)?;
-        if self.root_prefix_at_destination {
-            super::choose_element_prefix(root, parent_path, self.root.name.ns())?;
-        }
-        Ok(())
+        self.check_destination(root, parent_path)
     }
 
     /// The copy means at the destination what it meant at the source.
     fn check_destination(&self, root: &RawNode, parent_path: &[usize]) -> Result<()> {
-        let dst = Scope::at(root, parent_path);
+        // into an mc:AlternateContent branch: refused as a move is (#44)
+        if let Some(mc) = mc_on_path(root, parent_path) {
+            return Err(not_detachable(DetachRefusal::AlternateContent, mc));
+        }
+        let decls = declarations(root, parent_path);
+        let dst = ancestor_context(root, parent_path, true);
         for (p, u) in &self.free {
-            if dst.binding(p.as_deref()) != u.as_deref() {
+            if binding(&decls, p.as_deref()) != *u {
                 let name = XName::new(XMLNS_NS.into(), p.as_deref().unwrap_or("xmlns"), None);
                 return Err(not_detachable(DetachRefusal::NamespaceBinding, &name));
             }
         }
         for (u, ignorable) in &self.uris {
-            if dst.ignorable.contains(&u.as_str()) != *ignorable {
+            if dst.ignorable.iter().any(|i| i == u) != *ignorable {
                 return Err(not_detachable(DetachRefusal::IgnorableNamespace, &XName::new(u.as_str().into(), "*", None)));
             }
         }
@@ -391,10 +355,12 @@ impl<E: ElementSpec> LensMut<'_, E> {
     /// refusals), after checking that this lens is on the document the copy
     /// was taken from ([`Error::WrongDocument`] otherwise; a lens from
     /// [`LensMut::root`] knows no document), the depth limit (`TooDeep`,
-    /// counted at the copy's deepest element), and that the copy's prefixes,
-    /// ignorable namespaces and inherited `xml:space` mean here what they
-    /// meant at the source (`NotDetachable { NamespaceBinding |
-    /// IgnorableNamespace | InheritedXmlSpace }`). All before any change.
+    /// counted at the copy's deepest element), that the destination is not
+    /// inside an `mc:AlternateContent` branch (`NotDetachable {
+    /// AlternateContent }`), and that the copy's prefixes, ignorable
+    /// namespaces and inherited `xml:space` mean here what they meant at the
+    /// source (`NotDetachable { NamespaceBinding | IgnorableNamespace |
+    /// InheritedXmlSpace }`). All before any change.
     /// The copy keeps its spans and is written byte for byte.
     pub fn insert_same_part_by<C: ChildOf<E>>(
         &mut self,
@@ -415,14 +381,15 @@ impl<E: ElementSpec> LensMut<'_, E> {
         }
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         d.check_destination(self.root, &self.path)?;
-        let mut node = d.root.clone();
-        if d.root_prefix_at_destination {
-            let prefix = super::choose_element_prefix(self.root, &self.path, node.name.ns())?;
-            node.name = XName::new(node.name.ns().into(), node.name.local(), prefix.as_deref());
-        }
+        let node = d.root.clone();
         let parent = self.node_mut();
         if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
-            parent.own_dirty = true; // self-closing parent gains its first child
+            // A self-closing parent gains its first child. The writer already
+            // re-renders such a parent from `subtree_dirty`, so the output does
+            // not depend on this flag; it is set for the dirty duties
+            // `insert_by` and the move document (`own_dirty` = the element's
+            // own tags change), which callers may inspect (review n5).
+            parent.own_dirty = true;
         }
         parent.children.insert(index, RawItem::Element(node));
         self.mark_path();
