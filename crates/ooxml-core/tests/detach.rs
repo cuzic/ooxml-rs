@@ -46,9 +46,24 @@ impl ChildOf<R> for RPr {}
 // like a:endParaRPr / a:rPr (both a:CT_TextCharacterProperties)
 impl SameType<RPr> for End {}
 impl SameType<End> for RPr {}
-impl Detachable for RPr {}
-impl Detachable for End {}
-impl Detachable for R {}
+// Hand-written opt-in (tests only; see `Detachable`'s seal). RPr lists one
+// unique attribute, like the generated a:rPr (smtId).
+const UNIQUE: &[ooxml_core::UniqueAttr] = &[
+    ooxml_core::UniqueAttr { element: q("rPr"), attr: QName::new("", "uid"), default: Some("0") },
+    ooxml_core::UniqueAttr { element: q("end"), attr: QName::new("", "uid"), default: Some("0") },
+];
+impl ooxml_core::schema::__private::Sealed for RPr {}
+impl ooxml_core::schema::__private::Sealed for End {}
+impl ooxml_core::schema::__private::Sealed for R {}
+impl Detachable for RPr {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = UNIQUE;
+}
+impl Detachable for End {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = UNIQUE;
+}
+impl Detachable for R {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = UNIQUE;
+}
 
 fn doc(s: &str) -> XmlDocument {
     XmlDocument::parse(s.as_bytes()).unwrap()
@@ -318,4 +333,98 @@ fn the_whole_copy_respects_the_depth_limit() {
     assert_matches!(copy.check_insert_under(&d, &[0], 1), Err(Error::TooDeep { .. }), "one created level in between");
     d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&copy).unwrap();
     XmlDocument::parse_with(d.serialize().as_bytes(), &ooxml_core::ParseOptions::default().with_max_depth(5)).unwrap();
+}
+
+// ---- review round 2 (R2-1 .. R2-5) ----
+
+#[test]
+fn unique_attributes_with_a_non_default_value_are_refused() {
+    // R2-1: like DrawingML smtId ("unique throughout the presentation",
+    // ECMA-376 Part 1 §21.1.2.3.9), on the root or on a descendant of a
+    // listed element type; the default value ("0") is not an id.
+    let d = doc(r#"<x:p xmlns:x="urn:t"><x:r><x:rPr uid="7"/><x:t>a</x:t></x:r><x:r><x:rPr uid="0" b="1"/><x:t>b</x:t></x:r><x:r><x:rPr><x:fill><x:rPr uid="9"/></x:fill></x:rPr><x:t>c</x:t></x:r><x:r><x:rPr><x:fill uid="5"/></x:rPr><x:t>d</x:t></x:r></x:p>"#);
+    let runs: Vec<_> = d.lens::<P>().unwrap().children::<R>().collect();
+    let rpr = |i: usize| runs[i].child::<RPr>().unwrap();
+    assert_matches!(rpr(0).detach_as::<End>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::UniqueAttribute, ref name }) if name == "uid");
+    rpr(1).detach_as::<End>(&[]).unwrap();
+    assert_matches!(rpr(2).detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::UniqueAttribute, .. }), "nested element of a listed type");
+    rpr(3).detach_as::<RPr>(&[]).unwrap(); // `uid` on an unlisted element type is not that id
+}
+
+#[test]
+fn extension_lists_are_refused_unless_skipped() {
+    // R2-2: extLst content is open; ids in any namespace cannot be reviewed.
+    let d = doc(r#"<x:p xmlns:x="urn:t" xmlns:q="urn:q"><x:r><x:rPr b="1"><x:extLst><x:ext uri="{X}"><q:tag q:id="77"/></x:ext></x:extLst></x:rPr><x:t>a</x:t></x:r></x:p>"#);
+    assert_matches!(first_rpr(&d).detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::ExtensionList, ref name }) if name == "{urn:t}extLst");
+    let c = first_rpr(&d).detach_as::<RPr>(&[q("extLst")]).unwrap();
+    assert_eq!(c.raw().elements().count(), 0);
+}
+
+#[test]
+fn destination_ignorability_and_xml_space_are_checked() {
+    // R2-3: the symmetric cases at the destination.
+    let src = doc(r#"<x:p xmlns:x="urn:t" xmlns:e="urn:ext"><x:r><x:rPr e:new="1"><x:c>  </x:c></x:rPr><x:t>a</x:t></x:r></x:p>"#);
+    let copy = first_rpr(&src).detach_as::<RPr>(&[]).unwrap();
+    // urn:ext is ignorable at the destination (and bound there)
+    let dst = r#"<x:p xmlns:x="urn:t" xmlns:f="urn:ext" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="f"><x:r><x:t>b</x:t></x:r></x:p>"#;
+    let mut d = doc(dst);
+    assert_matches!(copy.check_insert_under(&d, &[0], 0), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+    let e = d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&copy).unwrap_err();
+    assert_matches!(e, Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. });
+    assert_eq!(d.serialize(), dst);
+    // text copied from a default-space source into a preserve destination
+    let dst = r#"<x:p xmlns:x="urn:t" xmlns:e="urn:ext" xml:space="preserve"><x:r><x:t>b</x:t></x:r></x:p>"#;
+    let mut d = doc(dst);
+    assert_matches!(copy.check_insert_under(&d, &[0], 0), Err(Error::NotDetachable { reason: DetachRefusal::InheritedXmlSpace, .. }));
+    let e = d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&copy).unwrap_err();
+    assert_matches!(e, Error::NotDetachable { reason: DetachRefusal::InheritedXmlSpace, .. });
+    assert_eq!(d.serialize(), dst);
+    // without text, a preserve destination is fine
+    let plain = first_rpr(&doc(r#"<x:p xmlns:x="urn:t"><x:r><x:rPr b="1"><x:c/></x:rPr><x:t>a</x:t></x:r></x:p>"#)).detach_as::<RPr>(&[]).unwrap();
+    let mut d = doc(r#"<x:p xmlns:x="urn:t" xml:space="preserve"><x:r><x:t>b</x:t></x:r></x:p>"#);
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&plain).unwrap();
+}
+
+#[test]
+fn ignorable_prefixes_resolve_to_the_innermost_binding() {
+    // R2-4 (N7): e -> urn:A is ignorable on p; the run rebinds e -> urn:B.
+    let s = r#"<x:p xmlns:x="urn:t" xmlns:e="urn:A" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="e"><x:r xmlns:e="urn:B" xmlns:a2="urn:A"><x:rPr e:k="1"/><x:t>a</x:t></x:r><x:r xmlns:e="urn:B" xmlns:a2="urn:A"><x:rPr a2:k="1"/><x:t>a</x:t></x:r></x:p>"#;
+    let d = doc(s);
+    let runs: Vec<_> = d.lens::<P>().unwrap().children::<R>().collect();
+    runs[0].child::<RPr>().unwrap().detach_as::<RPr>(&[]).expect("urn:B is not ignorable");
+    assert_matches!(runs[1].child::<RPr>().unwrap().detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+    // the element carrying mc:Ignorable re-declares e: its own (innermost)
+    // binding urn:B is the ignorable one, not the outer urn:A
+    let d = doc(r#"<x:p xmlns:x="urn:t" xmlns:e="urn:A" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><x:r xmlns:e="urn:B" xmlns:a2="urn:A" mc:Ignorable="e"><x:rPr a2:k="1"/><x:t>a</x:t></x:r><x:r xmlns:e="urn:B" mc:Ignorable="e"><x:rPr e:k="1"/><x:t>b</x:t></x:r></x:p>"#);
+    let runs: Vec<_> = d.lens::<P>().unwrap().children::<R>().collect();
+    runs[0].child::<RPr>().unwrap().detach_as::<RPr>(&[]).expect("urn:A is not the ignorable one here");
+    assert_matches!(runs[1].child::<RPr>().unwrap().detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+    // mc:Ignorable on the parent run itself, with its own declaration
+    let d = doc(r#"<x:p xmlns:x="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><x:r xmlns:e="urn:C" mc:Ignorable="e"><x:rPr><e:z/></x:rPr><x:t>a</x:t></x:r></x:p>"#);
+    assert_matches!(first_rpr(&d).detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+}
+
+#[test]
+fn xml_space_in_effect_is_the_nearest_ancestors() {
+    // R2-4 (N6, N9, N17): preserve on an intermediate ancestor counts;
+    // xml:space="default" below a preserve resets it; the node's own
+    // xml:space is carried, so it is not "inherited".
+    let refused = |s: &str| matches!(first_rpr(&doc(s)).detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::InheritedXmlSpace, .. }));
+    assert!(refused(r#"<x:p xmlns:x="urn:t"><x:r xml:space="preserve"><x:rPr><x:c>  </x:c></x:rPr><x:t>a</x:t></x:r></x:p>"#), "intermediate ancestor");
+    assert!(!refused(r#"<x:p xmlns:x="urn:t" xml:space="preserve"><x:r xml:space="default"><x:rPr><x:c>  </x:c></x:rPr><x:t>a</x:t></x:r></x:p>"#), "reset below");
+    assert!(!refused(r#"<x:p xmlns:x="urn:t" xml:space="preserve"><x:r><x:rPr xml:space="default"><x:c>  </x:c></x:rPr><x:t>a</x:t></x:r></x:p>"#), "own xml:space");
+}
+
+#[test]
+fn lens_at_checks_the_element_and_check_insert_under_never_panics() {
+    // R2-4 (N11) and R2-5
+    let d = doc(SRC);
+    assert_matches!(Lens::<RPr>::at(d.root(), &[0]), Err(Error::WrongElement { .. }), "x:r is not x:rPr");
+    assert_matches!(Lens::<RPr>::at(d.root(), &[0, 1, 0]), Err(Error::WrongElement { .. }), "a text item");
+    assert_matches!(Lens::<RPr>::at(d.root(), &[9]), Err(Error::WrongElement { .. }), "out of range");
+    Lens::<RPr>::at(d.root(), &[0, 0]).unwrap();
+    let copy = first_rpr(&d).detach_as::<RPr>(&[q("link")]).unwrap();
+    for bad in [&[9][..], &[0, 1, 0], &[0, 0, 0, 0, 0, 0]] {
+        assert_matches!(copy.check_insert_under(&d, bad, 0), Err(Error::WrongElement { .. }), "{bad:?}");
+    }
 }
