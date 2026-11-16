@@ -5,18 +5,22 @@ the shapes that the hand-made `reference/round_trip_corpus/fixture_minimal.xlsx`
 "Scope boundary", R2-M1). Each one was chosen for a specific purpose. The Phase0 acceptance tests
 that use them are specified in `docs/roadmap/xlsx.md` §7.
 
-- 25 files, 290,781 bytes in total.
+- 25 files, 290,781 bytes in total, plus 3 Phase2 files (23,498 bytes).
 - `poi/`: 23 files from Apache POI, Apache License 2.0. `poi/LICENSE` and `poi/NOTICE` are POI's
   `legal/LICENSE` and `legal/NOTICE` at the same commit.
+- `poi-phase2/`: 3 more files from Apache POI (same commit, same licence: `poi/LICENSE`,
+  `poi/NOTICE`) for the Phase2 registry tests (ADR-0006). They are in their own directory so
+  that the Phase0/Phase1 sweeps over `poi/` keep their expectations.
 - `calamine/`: 2 files from calamine, MIT. `calamine/LICENSE-MIT.md` is calamine's licence file.
 - `o3/`: LibreOffice-recalculated values for the O3 test (generated data, not third-party files; `o3/README.md`).
-- Checksums: `poi/SHA256SUMS`, `calamine/SHA256SUMS` (`sha256sum -c` from inside each directory).
+- Checksums: `poi/SHA256SUMS`, `poi-phase2/SHA256SUMS`, `calamine/SHA256SUMS` (`sha256sum -c` from inside each directory).
 
 ## Provenance
 
 | Directory | Upstream | Commit | Path | Licence |
 |---|---|---|---|---|
 | `poi/` | <https://github.com/apache/poi> | `47dcff769bb395034dddfd59c4609659b6dbc6a4` (trunk, fetched 2026-11-16) | `test-data/spreadsheet/<same file name>` | Apache-2.0 (`poi/LICENSE`, `poi/NOTICE`) |
+| `poi-phase2/` | <https://github.com/apache/poi> | `47dcff769bb395034dddfd59c4609659b6dbc6a4` | `test-data/spreadsheet/<same file name>` | Apache-2.0 (`poi/LICENSE`, `poi/NOTICE`) |
 | `calamine/` | <https://github.com/tafia/calamine> | `93e2e6b32b87a7b1e80bd036ea63bbe6f1ca90a6` (master, fetched 2026-11-16) | `tests/<same file name>` | MIT (`calamine/LICENSE-MIT.md`, © 2016 Johann Tuffe) |
 
 The files are **unmodified** copies; the bytes match upstream (see `SHA256SUMS`). Many POI files
@@ -75,6 +79,14 @@ produced by `spikes/xlsx/phase0_facts.py` and `spikes/xlsx/survey.py`.
 | `poi/xlmmacro.xlsm` | Excel 16.0300 | The **first sheet in workbook order is an XLM macro sheet** (`xl/macrosheets/sheet1.xml`), not a worksheet (roadmap Q2: skipped, so Phase0 edits `Sheet1`). |
 | `poi/SimpleStrict.xlsx` | not recorded | **Strict OOXML** namespaces; Phase0 `Err`. Contains a `t="d"` ISO date cell. |
 | `poi/protected_passtika.xlsx` | – | **Password-encrypted** (CFB container, magic `D0 CF 11 E0`), not a zip: `Err(EncryptedPackage)`. |
+
+### Phase2 registries (ADR-0006)
+
+| File | Producer | Exercises |
+|---|---|---|
+| `poi-phase2/47889.xlsx` | not recorded | **Self-closing, empty `<styleSheet/>`** (no tables at all): every table is inserted and gets its reserved leading entries first (ADR-0006 §5.4). No `sharedStrings.xml`. |
+| `poi-phase2/64420.xlsm` | Microsoft Excel | A **macro sheet holding a `t="s"` cell**: `sst/@count` must count macro sheets too (review n1). `fonts/@x14ac:knownFonts="1"`. |
+| `poi-phase2/64450.xlsx` | not recorded | **`fills[1]` is `lightGray`**, byte-identical to a canonical `lightGray` fill: a reserved position is not a reuse target (review n4). Pivot table and cache, chart. |
 
 ## Coverage against ADR-0001's "not covered" list
 
