@@ -49,4 +49,14 @@ names = [
     "w:CT_OnOff/w:trackRevisions",
     "w:CT_OnOff/w:updateFields",
     "w:CT_DocProtect/w:documentProtection",
+    # Word Phase1 (ADR-0007 §2): story roots and note/comment containers.
+    # Write paths descend through them to paragraphs and runs.
+    "w:CT_HdrFtr/w:hdr",
+    "w:CT_HdrFtr/w:ftr",
+    "w:CT_Footnotes/w:footnotes",
+    "w:CT_FtnEdn/w:footnote",
+    "w:CT_Endnotes/w:endnotes",
+    "w:CT_FtnEdn/w:endnote",
+    "w:CT_Comments/w:comments",
+    "w:CT_Comment/w:comment",
 ]

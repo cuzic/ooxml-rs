@@ -23,6 +23,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut pres = Presentation::open(&input)?;
     println!("opened {input}: {} slides", pres.slide_count());
     let mut targets = Vec::new(); // (slide, shape id) of shapes with a text body
+    // (slide, shape id, paragraph index ≥ 1) of a paragraph that has a run, for
+    // the run-level edit (review of PR #43, m1: not every paragraph has one)
+    let mut run_target = None;
     for i in 0..pres.slide_count() {
         let slide = pres.slide(i)?;
         println!("slide {i} ({})", slide.info().part_name);
@@ -32,6 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let kind = if shape.placeholder().is_some() { "placeholder" } else { "shape" };
             println!("  {kind} {id} {:?}: {:?}", shape.name().unwrap_or(""), body.text());
             if matches!(shape.kind(), ShapeKind::Shape) {
+                if run_target.is_none() && !targets.is_empty() {
+                    let paras = body.paragraphs();
+                    run_target = (1..paras.len()).find(|&k| !paras[k].runs().is_empty()).map(|k| (i, id, k));
+                }
                 targets.push((i, id));
             }
         }
@@ -46,20 +53,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         body.set_text("Replaced title")?;
         println!("slide {slide}, shape {id}: text body set");
     }
-    if let Some(&(slide, id)) = targets.get(1) {
+    if let Some((slide, id, k)) = run_target {
         let mut s = pres.slide_mut(slide)?;
         let mut shape = s.shape_mut_by_id(id)?;
         let mut body = shape.text_body_mut()?;
         // One paragraph: the first run keeps its formatting, other runs go.
         body.paragraph_mut(0)?.set_text("First paragraph, replaced")?;
+        println!("slide {slide}, shape {id}: paragraph 0 set");
         // One run: only its `a:t` changes.
-        if body.paragraph_count() > 1 {
-            let mut p = body.paragraph_mut(1)?;
-            if p.run_count()? > 0 {
-                p.run_mut(0)?.set_text("second paragraph, first run replaced")?;
-            }
-        }
-        println!("slide {slide}, shape {id}: paragraph and run set");
+        body.paragraph_mut(k)?.run_mut(0)?.set_text("first run replaced")?;
+        println!("slide {slide}, shape {id}: paragraph {k}, run 0 set");
     }
     let saved = out.join("replace_text.pptx");
     pres.save(&saved)?;
@@ -74,8 +77,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         other => println!("unexpected: {other:?}"),
     }
     match pres.slide_mut(0)?.shape_mut_by_id(584_707)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\nb") {
-        Err(e) => println!("refused: {e}"),
-        Ok(()) => println!("unexpected success"),
+        Err(e @ Error::LineBreakInParagraph) => println!("refused (a paragraph holds no line break): {e}"),
+        other => println!("unexpected: {other:?}"),
     }
     Ok(())
 }
