@@ -4,8 +4,309 @@
 pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// `a14`: `http://schemas.microsoft.com/office/drawing/2010/main`
 pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
+/// `a16`: `http://schemas.microsoft.com/office/drawing/2014/main`
+pub const NS_A16: &str = "http://schemas.microsoft.com/office/drawing/2014/main";
 /// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
 pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
+/// `a:ST_SchemeColorVal` — Scheme Color.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SchemeColorValues {
+    /// `bg1`
+    Background1,
+    /// `tx1`
+    Text1,
+    /// `bg2`
+    Background2,
+    /// `tx2`
+    Text2,
+    /// `accent1`
+    Accent1,
+    /// `accent2`
+    Accent2,
+    /// `accent3`
+    Accent3,
+    /// `accent4`
+    Accent4,
+    /// `accent5`
+    Accent5,
+    /// `accent6`
+    Accent6,
+    /// `hlink`
+    Hyperlink,
+    /// `folHlink`
+    FollowedHyperlink,
+    /// `phClr`
+    PhColor,
+    /// `dk1`
+    Dark1,
+    /// `lt1`
+    Light1,
+    /// `dk2`
+    Dark2,
+    /// `lt2`
+    Light2,
+}
+impl ooxml_core::EnumType for SchemeColorValues {
+    const VALUES: &'static [&'static str] = &[
+        "bg1",
+        "tx1",
+        "bg2",
+        "tx2",
+        "accent1",
+        "accent2",
+        "accent3",
+        "accent4",
+        "accent5",
+        "accent6",
+        "hlink",
+        "folHlink",
+        "phClr",
+        "dk1",
+        "lt1",
+        "dk2",
+        "lt2",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Background1),
+            1 => Some(Self::Text1),
+            2 => Some(Self::Background2),
+            3 => Some(Self::Text2),
+            4 => Some(Self::Accent1),
+            5 => Some(Self::Accent2),
+            6 => Some(Self::Accent3),
+            7 => Some(Self::Accent4),
+            8 => Some(Self::Accent5),
+            9 => Some(Self::Accent6),
+            10 => Some(Self::Hyperlink),
+            11 => Some(Self::FollowedHyperlink),
+            12 => Some(Self::PhColor),
+            13 => Some(Self::Dark1),
+            14 => Some(Self::Light1),
+            15 => Some(Self::Dark2),
+            16 => Some(Self::Light2),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_LineCap` — End Line Cap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LineCapValues {
+    /// `rnd`
+    Round,
+    /// `sq`
+    Square,
+    /// `flat`
+    Flat,
+}
+impl ooxml_core::EnumType for LineCapValues {
+    const VALUES: &'static [&'static str] = &["rnd", "sq", "flat"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Round),
+            1 => Some(Self::Square),
+            2 => Some(Self::Flat),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_PenAlignment` — Alignment Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PenAlignmentValues {
+    /// `ctr`
+    Center,
+    /// `in`
+    Insert,
+}
+impl ooxml_core::EnumType for PenAlignmentValues {
+    const VALUES: &'static [&'static str] = &["ctr", "in"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Center),
+            1 => Some(Self::Insert),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_CompoundLine` — Compound Line Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CompoundLineValues {
+    /// `sng`
+    Single,
+    /// `dbl`
+    Double,
+    /// `thickThin`
+    ThickThin,
+    /// `thinThick`
+    ThinThick,
+    /// `tri`
+    Triple,
+}
+impl ooxml_core::EnumType for CompoundLineValues {
+    const VALUES: &'static [&'static str] = &[
+        "sng",
+        "dbl",
+        "thickThin",
+        "thinThick",
+        "tri",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Single),
+            1 => Some(Self::Double),
+            2 => Some(Self::ThickThin),
+            3 => Some(Self::ThinThick),
+            4 => Some(Self::Triple),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextVertOverflowType` — Text Vertical Overflow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextVerticalOverflowValues {
+    /// `overflow`
+    Overflow,
+    /// `ellipsis`
+    Ellipsis,
+    /// `clip`
+    Clip,
+}
+impl ooxml_core::EnumType for TextVerticalOverflowValues {
+    const VALUES: &'static [&'static str] = &["overflow", "ellipsis", "clip"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Overflow),
+            1 => Some(Self::Ellipsis),
+            2 => Some(Self::Clip),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextHorzOverflowType` — Text Horizontal Overflow Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextHorizontalOverflowValues {
+    /// `overflow`
+    Overflow,
+    /// `clip`
+    Clip,
+}
+impl ooxml_core::EnumType for TextHorizontalOverflowValues {
+    const VALUES: &'static [&'static str] = &["overflow", "clip"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Overflow),
+            1 => Some(Self::Clip),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextVerticalType` — Vertical Text Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextVerticalValues {
+    /// `horz`
+    Horizontal,
+    /// `vert`
+    Vertical,
+    /// `vert270`
+    Vertical270,
+    /// `wordArtVert`
+    WordArtVertical,
+    /// `eaVert`
+    EastAsianVetical,
+    /// `mongolianVert`
+    MongolianVertical,
+    /// `wordArtVertRtl`
+    WordArtLeftToRight,
+}
+impl ooxml_core::EnumType for TextVerticalValues {
+    const VALUES: &'static [&'static str] = &[
+        "horz",
+        "vert",
+        "vert270",
+        "wordArtVert",
+        "eaVert",
+        "mongolianVert",
+        "wordArtVertRtl",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Horizontal),
+            1 => Some(Self::Vertical),
+            2 => Some(Self::Vertical270),
+            3 => Some(Self::WordArtVertical),
+            4 => Some(Self::EastAsianVetical),
+            5 => Some(Self::MongolianVertical),
+            6 => Some(Self::WordArtLeftToRight),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextWrappingType` — Text Wrapping Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextWrappingValues {
+    /// `none`
+    None,
+    /// `square`
+    Square,
+}
+impl ooxml_core::EnumType for TextWrappingValues {
+    const VALUES: &'static [&'static str] = &["none", "square"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::Square),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextAnchoringType` — Text Anchoring Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextAnchoringTypeValues {
+    /// `t`
+    Top,
+    /// `ctr`
+    Center,
+    /// `b`
+    Bottom,
+}
+impl ooxml_core::EnumType for TextAnchoringTypeValues {
+    const VALUES: &'static [&'static str] = &["t", "ctr", "b"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Top),
+            1 => Some(Self::Center),
+            2 => Some(Self::Bottom),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_TextUnderlineType` — Text Underline Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextUnderlineValues {
@@ -216,6 +517,104 @@ impl ooxml_core::EnumType for TextFontAlignmentValues {
         self as usize
     }
 }
+/// `a16:CT_Identifier/a16:colId` — Defines the ColIdIdentifier Class.
+#[derive(Debug)]
+pub enum ColIdIdentifier {}
+impl ColIdIdentifier {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for ColIdIdentifier {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A16, "colId");
+    const SDK_NAME: &'static str = "a16:CT_Identifier/a16:colId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ColIdIdentifier::ATTR_VAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ColIdIdentifier`].
+#[derive(Clone, Debug)]
+pub struct ColIdIdentifierView<'a>(pub ooxml_core::Lens<'a, ColIdIdentifier>);
+impl<'a> ColIdIdentifierView<'a> {
+    /// `val` — val
+    pub fn val(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ColIdIdentifier::ATTR_VAL, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ColIdIdentifier`]. Reads go through [`ColIdIdentifierViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColIdIdentifierViewMut<'a>(pub ooxml_core::LensMut<'a, ColIdIdentifier>);
+impl<'a> ColIdIdentifierViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColIdIdentifierView<'_> {
+        ColIdIdentifierView(self.0.as_lens())
+    }
+    /// Sets `val` — val
+    pub fn set_val(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(ColIdIdentifier::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ColIdIdentifier::ATTR_VAL)
+    }
+}
+/// `a16:CT_Identifier/a16:rowId` — Defines the RowIdIdentifier Class.
+#[derive(Debug)]
+pub enum RowIdIdentifier {}
+impl RowIdIdentifier {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RowIdIdentifier {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A16, "rowId");
+    const SDK_NAME: &'static str = "a16:CT_Identifier/a16:rowId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RowIdIdentifier::ATTR_VAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RowIdIdentifier`].
+#[derive(Clone, Debug)]
+pub struct RowIdIdentifierView<'a>(pub ooxml_core::Lens<'a, RowIdIdentifier>);
+impl<'a> RowIdIdentifierView<'a> {
+    /// `val` — val
+    pub fn val(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(RowIdIdentifier::ATTR_VAL, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RowIdIdentifier`]. Reads go through [`RowIdIdentifierViewMut::as_view`].
+#[derive(Debug)]
+pub struct RowIdIdentifierViewMut<'a>(pub ooxml_core::LensMut<'a, RowIdIdentifier>);
+impl<'a> RowIdIdentifierViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RowIdIdentifierView<'_> {
+        RowIdIdentifierView(self.0.as_lens())
+    }
+    /// Sets `val` — val
+    pub fn set_val(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(RowIdIdentifier::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RowIdIdentifier::ATTR_VAL)
+    }
+}
 /// `a:CT_GraphicalObject/a:graphic` — Graphic Object.
 #[derive(Debug)]
 pub enum Graphic {}
@@ -276,6 +675,8 @@ impl ooxml_core::ElementSpec for GraphicData {
         ],
     );
 }
+impl ooxml_core::ChildOf<GraphicData> for ColIdIdentifier {}
+impl ooxml_core::ChildOf<GraphicData> for RowIdIdentifier {}
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
 #[cfg(all(feature = "dml", feature = "pml"))]
@@ -295,6 +696,18 @@ impl<'a> GraphicDataView<'a> {
     /// `uri` — Uniform Resource Identifier
     pub fn uri(&self) -> Option<&'a str> {
         self.0.attr(GraphicData::ATTR_URI)
+    }
+    /// `a16:colId` children in document order.
+    pub fn col_id_identifier_iter(
+        &self,
+    ) -> impl Iterator<Item = ColIdIdentifierView<'a>> {
+        self.0.children::<ColIdIdentifier>().map(ColIdIdentifierView)
+    }
+    /// `a16:rowId` children in document order.
+    pub fn row_id_identifier_iter(
+        &self,
+    ) -> impl Iterator<Item = RowIdIdentifierView<'a>> {
+        self.0.children::<RowIdIdentifier>().map(RowIdIdentifierView)
     }
     /// `a:graphic` children in document order.
     pub fn graphic_iter(&self) -> impl Iterator<Item = GraphicView<'a>> {
@@ -336,6 +749,1257 @@ impl<'a> GraphicDataView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `a:CT_LineProperties/a:lnB` — Bottom Border Line Properties.
+#[derive(Debug)]
+pub enum BottomBorderLineProperties {}
+impl BottomBorderLineProperties {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `cmpd`
+    pub const ATTR_CMPD: ooxml_core::QName = ooxml_core::QName::new("", "cmpd");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for BottomBorderLineProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lnB");
+    const SDK_NAME: &'static str = "a:CT_LineProperties/a:lnB";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BottomBorderLineProperties::ATTR_W,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BottomBorderLineProperties::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineCapValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BottomBorderLineProperties::ATTR_CMPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <CompoundLineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BottomBorderLineProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <PenAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "prstDash"),
+                    ooxml_core::QName::new(NS_A, "custDash"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "round"),
+                    ooxml_core::QName::new(NS_A, "bevel"),
+                    ooxml_core::QName::new(NS_A, "miter"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "headEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tailEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BottomBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<BottomBorderLineProperties> for SolidFill {}
+/// Read-only view of [`BottomBorderLineProperties`].
+#[derive(Clone, Debug)]
+pub struct BottomBorderLinePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, BottomBorderLineProperties>,
+);
+impl<'a> BottomBorderLinePropertiesView<'a> {
+    /// `w` — line width
+    pub fn width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BottomBorderLineProperties::ATTR_W,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `cap` — line cap
+    pub fn cap_type(&self) -> Option<ooxml_core::EnumValue<'a, LineCapValues>> {
+        self.0.attr_enum(BottomBorderLineProperties::ATTR_CAP)
+    }
+    /// `cmpd` — compound line type
+    pub fn compound_line_type(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, CompoundLineValues>> {
+        self.0.attr_enum(BottomBorderLineProperties::ATTR_CMPD)
+    }
+    /// `algn` — pen alignment
+    pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
+        self.0.attr_enum(BottomBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BottomBorderLineProperties`]. Reads go through [`BottomBorderLinePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct BottomBorderLinePropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, BottomBorderLineProperties>,
+);
+impl<'a> BottomBorderLinePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BottomBorderLinePropertiesView<'_> {
+        BottomBorderLinePropertiesView(self.0.as_lens())
+    }
+    /// Sets `w` — line width
+    pub fn set_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BottomBorderLineProperties::ATTR_W, s),
+        )
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BottomBorderLineProperties::ATTR_W)
+    }
+    /// Sets `cap` — line cap
+    pub fn set_cap_type(&mut self, v: LineCapValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BottomBorderLineProperties::ATTR_CAP,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cap`.
+    pub fn remove_cap_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BottomBorderLineProperties::ATTR_CAP)
+    }
+    /// Sets `cmpd` — compound line type
+    pub fn set_compound_line_type(
+        &mut self,
+        v: CompoundLineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BottomBorderLineProperties::ATTR_CMPD,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cmpd`.
+    pub fn remove_compound_line_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BottomBorderLineProperties::ATTR_CMPD)
+    }
+    /// Sets `algn` — pen alignment
+    pub fn set_alignment(
+        &mut self,
+        v: PenAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BottomBorderLineProperties::ATTR_ALGN,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BottomBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_LineProperties/a:lnL` — Left Border Line Properties.
+#[derive(Debug)]
+pub enum LeftBorderLineProperties {}
+impl LeftBorderLineProperties {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `cmpd`
+    pub const ATTR_CMPD: ooxml_core::QName = ooxml_core::QName::new("", "cmpd");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for LeftBorderLineProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lnL");
+    const SDK_NAME: &'static str = "a:CT_LineProperties/a:lnL";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LeftBorderLineProperties::ATTR_W,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LeftBorderLineProperties::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineCapValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LeftBorderLineProperties::ATTR_CMPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <CompoundLineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LeftBorderLineProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <PenAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "prstDash"),
+                    ooxml_core::QName::new(NS_A, "custDash"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "round"),
+                    ooxml_core::QName::new(NS_A, "bevel"),
+                    ooxml_core::QName::new(NS_A, "miter"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "headEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tailEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<LeftBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<LeftBorderLineProperties> for SolidFill {}
+/// Read-only view of [`LeftBorderLineProperties`].
+#[derive(Clone, Debug)]
+pub struct LeftBorderLinePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, LeftBorderLineProperties>,
+);
+impl<'a> LeftBorderLinePropertiesView<'a> {
+    /// `w` — line width
+    pub fn width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(LeftBorderLineProperties::ATTR_W, ooxml_core::value::parse_i32)
+    }
+    /// `cap` — line cap
+    pub fn cap_type(&self) -> Option<ooxml_core::EnumValue<'a, LineCapValues>> {
+        self.0.attr_enum(LeftBorderLineProperties::ATTR_CAP)
+    }
+    /// `cmpd` — compound line type
+    pub fn compound_line_type(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, CompoundLineValues>> {
+        self.0.attr_enum(LeftBorderLineProperties::ATTR_CMPD)
+    }
+    /// `algn` — pen alignment
+    pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
+        self.0.attr_enum(LeftBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LeftBorderLineProperties`]. Reads go through [`LeftBorderLinePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct LeftBorderLinePropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, LeftBorderLineProperties>,
+);
+impl<'a> LeftBorderLinePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LeftBorderLinePropertiesView<'_> {
+        LeftBorderLinePropertiesView(self.0.as_lens())
+    }
+    /// Sets `w` — line width
+    pub fn set_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(LeftBorderLineProperties::ATTR_W, s),
+        )
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LeftBorderLineProperties::ATTR_W)
+    }
+    /// Sets `cap` — line cap
+    pub fn set_cap_type(&mut self, v: LineCapValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                LeftBorderLineProperties::ATTR_CAP,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cap`.
+    pub fn remove_cap_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LeftBorderLineProperties::ATTR_CAP)
+    }
+    /// Sets `cmpd` — compound line type
+    pub fn set_compound_line_type(
+        &mut self,
+        v: CompoundLineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                LeftBorderLineProperties::ATTR_CMPD,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cmpd`.
+    pub fn remove_compound_line_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LeftBorderLineProperties::ATTR_CMPD)
+    }
+    /// Sets `algn` — pen alignment
+    pub fn set_alignment(
+        &mut self,
+        v: PenAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                LeftBorderLineProperties::ATTR_ALGN,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LeftBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_LineProperties/a:lnR` — Right Border Line Properties.
+#[derive(Debug)]
+pub enum RightBorderLineProperties {}
+impl RightBorderLineProperties {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `cmpd`
+    pub const ATTR_CMPD: ooxml_core::QName = ooxml_core::QName::new("", "cmpd");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for RightBorderLineProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lnR");
+    const SDK_NAME: &'static str = "a:CT_LineProperties/a:lnR";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RightBorderLineProperties::ATTR_W,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RightBorderLineProperties::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineCapValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RightBorderLineProperties::ATTR_CMPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <CompoundLineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RightBorderLineProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <PenAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "prstDash"),
+                    ooxml_core::QName::new(NS_A, "custDash"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "round"),
+                    ooxml_core::QName::new(NS_A, "bevel"),
+                    ooxml_core::QName::new(NS_A, "miter"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "headEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tailEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<RightBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<RightBorderLineProperties> for SolidFill {}
+/// Read-only view of [`RightBorderLineProperties`].
+#[derive(Clone, Debug)]
+pub struct RightBorderLinePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, RightBorderLineProperties>,
+);
+impl<'a> RightBorderLinePropertiesView<'a> {
+    /// `w` — line width
+    pub fn width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(RightBorderLineProperties::ATTR_W, ooxml_core::value::parse_i32)
+    }
+    /// `cap` — line cap
+    pub fn cap_type(&self) -> Option<ooxml_core::EnumValue<'a, LineCapValues>> {
+        self.0.attr_enum(RightBorderLineProperties::ATTR_CAP)
+    }
+    /// `cmpd` — compound line type
+    pub fn compound_line_type(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, CompoundLineValues>> {
+        self.0.attr_enum(RightBorderLineProperties::ATTR_CMPD)
+    }
+    /// `algn` — pen alignment
+    pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
+        self.0.attr_enum(RightBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RightBorderLineProperties`]. Reads go through [`RightBorderLinePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct RightBorderLinePropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, RightBorderLineProperties>,
+);
+impl<'a> RightBorderLinePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RightBorderLinePropertiesView<'_> {
+        RightBorderLinePropertiesView(self.0.as_lens())
+    }
+    /// Sets `w` — line width
+    pub fn set_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(RightBorderLineProperties::ATTR_W, s),
+        )
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RightBorderLineProperties::ATTR_W)
+    }
+    /// Sets `cap` — line cap
+    pub fn set_cap_type(&mut self, v: LineCapValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                RightBorderLineProperties::ATTR_CAP,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cap`.
+    pub fn remove_cap_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RightBorderLineProperties::ATTR_CAP)
+    }
+    /// Sets `cmpd` — compound line type
+    pub fn set_compound_line_type(
+        &mut self,
+        v: CompoundLineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                RightBorderLineProperties::ATTR_CMPD,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cmpd`.
+    pub fn remove_compound_line_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RightBorderLineProperties::ATTR_CMPD)
+    }
+    /// Sets `algn` — pen alignment
+    pub fn set_alignment(
+        &mut self,
+        v: PenAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                RightBorderLineProperties::ATTR_ALGN,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RightBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_LineProperties/a:lnT` — Top Border Line Properties.
+#[derive(Debug)]
+pub enum TopBorderLineProperties {}
+impl TopBorderLineProperties {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `cmpd`
+    pub const ATTR_CMPD: ooxml_core::QName = ooxml_core::QName::new("", "cmpd");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for TopBorderLineProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lnT");
+    const SDK_NAME: &'static str = "a:CT_LineProperties/a:lnT";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TopBorderLineProperties::ATTR_W,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TopBorderLineProperties::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineCapValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TopBorderLineProperties::ATTR_CMPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <CompoundLineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TopBorderLineProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <PenAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "prstDash"),
+                    ooxml_core::QName::new(NS_A, "custDash"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "round"),
+                    ooxml_core::QName::new(NS_A, "bevel"),
+                    ooxml_core::QName::new(NS_A, "miter"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "headEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tailEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TopBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<TopBorderLineProperties> for SolidFill {}
+/// Read-only view of [`TopBorderLineProperties`].
+#[derive(Clone, Debug)]
+pub struct TopBorderLinePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, TopBorderLineProperties>,
+);
+impl<'a> TopBorderLinePropertiesView<'a> {
+    /// `w` — line width
+    pub fn width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TopBorderLineProperties::ATTR_W, ooxml_core::value::parse_i32)
+    }
+    /// `cap` — line cap
+    pub fn cap_type(&self) -> Option<ooxml_core::EnumValue<'a, LineCapValues>> {
+        self.0.attr_enum(TopBorderLineProperties::ATTR_CAP)
+    }
+    /// `cmpd` — compound line type
+    pub fn compound_line_type(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, CompoundLineValues>> {
+        self.0.attr_enum(TopBorderLineProperties::ATTR_CMPD)
+    }
+    /// `algn` — pen alignment
+    pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
+        self.0.attr_enum(TopBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TopBorderLineProperties`]. Reads go through [`TopBorderLinePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct TopBorderLinePropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, TopBorderLineProperties>,
+);
+impl<'a> TopBorderLinePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TopBorderLinePropertiesView<'_> {
+        TopBorderLinePropertiesView(self.0.as_lens())
+    }
+    /// Sets `w` — line width
+    pub fn set_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(TopBorderLineProperties::ATTR_W, s),
+        )
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TopBorderLineProperties::ATTR_W)
+    }
+    /// Sets `cap` — line cap
+    pub fn set_cap_type(&mut self, v: LineCapValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TopBorderLineProperties::ATTR_CAP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cap`.
+    pub fn remove_cap_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TopBorderLineProperties::ATTR_CAP)
+    }
+    /// Sets `cmpd` — compound line type
+    pub fn set_compound_line_type(
+        &mut self,
+        v: CompoundLineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                TopBorderLineProperties::ATTR_CMPD,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cmpd`.
+    pub fn remove_compound_line_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TopBorderLineProperties::ATTR_CMPD)
+    }
+    /// Sets `algn` — pen alignment
+    pub fn set_alignment(
+        &mut self,
+        v: PenAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                TopBorderLineProperties::ATTR_ALGN,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TopBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_NoFillProperties/a:noFill` — Defines the NoFill Class.
+#[derive(Debug)]
+pub enum NoFill {}
+impl ooxml_core::ElementSpec for NoFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "noFill");
+    const SDK_NAME: &'static str = "a:CT_NoFillProperties/a:noFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NoFill`].
+#[derive(Clone, Debug)]
+pub struct NoFillView<'a>(pub ooxml_core::Lens<'a, NoFill>);
+impl<'a> NoFillView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NoFill`]. Reads go through [`NoFillViewMut::as_view`].
+#[derive(Debug)]
+pub struct NoFillViewMut<'a>(pub ooxml_core::LensMut<'a, NoFill>);
+impl<'a> NoFillViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NoFillView<'_> {
+        NoFillView(self.0.as_lens())
+    }
+}
+/// `a:CT_OfficeArtExtension/a:ext` — Extension.
+#[derive(Debug)]
+pub enum Extension {}
+impl Extension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for Extension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ext");
+    const SDK_NAME: &'static str = "a:CT_OfficeArtExtension/a:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A16, "rowId")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A16, "colId")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Extension> for ColIdIdentifier {}
+impl ooxml_core::ChildOf<Extension> for RowIdIdentifier {}
+/// Read-only view of [`Extension`].
+#[derive(Clone, Debug)]
+pub struct ExtensionView<'a>(pub ooxml_core::Lens<'a, Extension>);
+impl<'a> ExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(Extension::ATTR_URI)
+    }
+    /// First `a16:colId` child.
+    pub fn col_id_identifier(&self) -> Option<ColIdIdentifierView<'a>> {
+        self.0.child::<ColIdIdentifier>().map(ColIdIdentifierView)
+    }
+    /// First `a16:rowId` child.
+    pub fn row_id_identifier(&self) -> Option<RowIdIdentifierView<'a>> {
+        self.0.child::<RowIdIdentifier>().map(RowIdIdentifierView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Extension`]. Reads go through [`ExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct ExtensionViewMut<'a>(pub ooxml_core::LensMut<'a, Extension>);
+impl<'a> ExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ExtensionView<'_> {
+        ExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Extension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extension::ATTR_URI)
+    }
+    /// First `a16:colId` child, mutably.
+    pub fn col_id_identifier_mut(&mut self) -> Option<ColIdIdentifierViewMut<'_>> {
+        self.0.child_mut::<ColIdIdentifier>().map(ColIdIdentifierViewMut)
+    }
+    /// Existing `a16:colId` child, or a new one in schema position.
+    pub fn get_or_insert_col_id_identifier(
+        &mut self,
+    ) -> Result<ColIdIdentifierViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ColIdIdentifier>().map(ColIdIdentifierViewMut)
+    }
+    /// Removes the first `a16:colId` child.
+    pub fn remove_col_id_identifier(&mut self) -> bool {
+        self.0.remove::<ColIdIdentifier>()
+    }
+    /// First `a16:rowId` child, mutably.
+    pub fn row_id_identifier_mut(&mut self) -> Option<RowIdIdentifierViewMut<'_>> {
+        self.0.child_mut::<RowIdIdentifier>().map(RowIdIdentifierViewMut)
+    }
+    /// Existing `a16:rowId` child, or a new one in schema position.
+    pub fn get_or_insert_row_id_identifier(
+        &mut self,
+    ) -> Result<RowIdIdentifierViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RowIdIdentifier>().map(RowIdIdentifierViewMut)
+    }
+    /// Removes the first `a16:rowId` child.
+    pub fn remove_row_id_identifier(&mut self) -> bool {
+        self.0.remove::<RowIdIdentifier>()
+    }
+}
+/// `a:CT_OfficeArtExtensionList/a:extLst` — Defines the ExtensionList Class.
+#[derive(Debug)]
+pub enum ExtensionList {}
+impl ooxml_core::ElementSpec for ExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "extLst");
+    const SDK_NAME: &'static str = "a:CT_OfficeArtExtensionList/a:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ExtensionList> for Extension {}
+/// Read-only view of [`ExtensionList`].
+#[derive(Clone, Debug)]
+pub struct ExtensionListView<'a>(pub ooxml_core::Lens<'a, ExtensionList>);
+impl<'a> ExtensionListView<'a> {
+    /// `a:ext` children in document order.
+    pub fn extension_iter(&self) -> impl Iterator<Item = ExtensionView<'a>> {
+        self.0.children::<Extension>().map(ExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ExtensionList`]. Reads go through [`ExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct ExtensionListViewMut<'a>(pub ooxml_core::LensMut<'a, ExtensionList>);
+impl<'a> ExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ExtensionListView<'_> {
+        ExtensionListView(self.0.as_lens())
+    }
+    /// First `a:ext` child matching `pred`, mutably.
+    pub fn extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ExtensionViewMut<'_>> {
+        self.0.child_mut_by::<Extension>(pred).map(ExtensionViewMut)
+    }
+    /// Inserts a `a:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Extension>(before).map(ExtensionViewMut)
+    }
+    /// Appends a `a:ext` at the end of its slot.
+    pub fn insert_extension(
+        &mut self,
+    ) -> Result<ExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Extension>().map(ExtensionViewMut)
+    }
+    /// Removes the first `a:ext` child.
+    pub fn remove_extension(&mut self) -> bool {
+        self.0.remove::<Extension>()
+    }
+}
+/// `a:CT_Point2D/a:off` — Offset.
+#[derive(Debug)]
+pub enum Offset {}
+impl Offset {
+    /// `x`
+    pub const ATTR_X: ooxml_core::QName = ooxml_core::QName::new("", "x");
+    /// `y`
+    pub const ATTR_Y: ooxml_core::QName = ooxml_core::QName::new("", "y");
+}
+impl ooxml_core::ElementSpec for Offset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "off");
+    const SDK_NAME: &'static str = "a:CT_Point2D/a:off";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Offset::ATTR_X,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Offset::ATTR_Y,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Offset`].
+#[derive(Clone, Debug)]
+pub struct OffsetView<'a>(pub ooxml_core::Lens<'a, Offset>);
+impl<'a> OffsetView<'a> {
+    /// `x` — X-Axis Coordinate
+    pub fn x(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Offset::ATTR_X, ooxml_core::value::parse_i64)
+    }
+    /// `y` — Y-Axis Coordinate
+    pub fn y(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Offset::ATTR_Y, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Offset`]. Reads go through [`OffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct OffsetViewMut<'a>(pub ooxml_core::LensMut<'a, Offset>);
+impl<'a> OffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OffsetView<'_> {
+        OffsetView(self.0.as_lens())
+    }
+    /// Sets `x` — X-Axis Coordinate
+    pub fn set_x(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Offset::ATTR_X, s))
+    }
+    /// Removes `x`.
+    pub fn remove_x(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Offset::ATTR_X)
+    }
+    /// Sets `y` — Y-Axis Coordinate
+    pub fn set_y(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Offset::ATTR_Y, s))
+    }
+    /// Removes `y`.
+    pub fn remove_y(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Offset::ATTR_Y)
+    }
+}
+/// `a:CT_PositiveSize2D/a:ext` — Extents.
+#[derive(Debug)]
+pub enum Extents {}
+impl Extents {
+    /// `cx`
+    pub const ATTR_CX: ooxml_core::QName = ooxml_core::QName::new("", "cx");
+    /// `cy`
+    pub const ATTR_CY: ooxml_core::QName = ooxml_core::QName::new("", "cy");
+}
+impl ooxml_core::ElementSpec for Extents {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ext");
+    const SDK_NAME: &'static str = "a:CT_PositiveSize2D/a:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extents::ATTR_CX,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Extents::ATTR_CY,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Extents`].
+#[derive(Clone, Debug)]
+pub struct ExtentsView<'a>(pub ooxml_core::Lens<'a, Extents>);
+impl<'a> ExtentsView<'a> {
+    /// `cx` — Extent Length
+    pub fn cx(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extents::ATTR_CX, ooxml_core::value::parse_i64)
+    }
+    /// `cy` — Extent Width
+    pub fn cy(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extents::ATTR_CY, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Extents`]. Reads go through [`ExtentsViewMut::as_view`].
+#[derive(Debug)]
+pub struct ExtentsViewMut<'a>(pub ooxml_core::LensMut<'a, Extents>);
+impl<'a> ExtentsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ExtentsView<'_> {
+        ExtentsView(self.0.as_lens())
+    }
+    /// Sets `cx` — Extent Length
+    pub fn set_cx(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Extents::ATTR_CX, s))
+    }
+    /// Removes `cx`.
+    pub fn remove_cx(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extents::ATTR_CX)
+    }
+    /// Sets `cy` — Extent Width
+    pub fn set_cy(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Extents::ATTR_CY, s))
+    }
+    /// Removes `cy`.
+    pub fn remove_cy(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extents::ATTR_CY)
     }
 }
 /// `a:CT_RegularTextRun/a:r` — Text Run.
@@ -402,6 +2066,306 @@ impl<'a> RunViewMut<'a> {
         self.0.remove::<Text>()
     }
 }
+/// `a:CT_SRgbColor/a:srgbClr` — RGB Color Model - Hex Variant.
+#[derive(Debug)]
+pub enum RgbColorModelHex {}
+impl RgbColorModelHex {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+    /// `a14:legacySpreadsheetColorIndex`
+    pub const ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX: ooxml_core::QName = ooxml_core::QName::new(
+        NS_A14,
+        "legacySpreadsheetColorIndex",
+    );
+}
+impl ooxml_core::ElementSpec for RgbColorModelHex {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "srgbClr");
+    const SDK_NAME: &'static str = "a:CT_SRgbColor/a:srgbClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RgbColorModelHex::ATTR_VAL,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`RgbColorModelHex`].
+#[derive(Clone, Debug)]
+pub struct RgbColorModelHexView<'a>(pub ooxml_core::Lens<'a, RgbColorModelHex>);
+impl<'a> RgbColorModelHexView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(RgbColorModelHex::ATTR_VAL)
+    }
+    /// `a14:legacySpreadsheetColorIndex` — legacySpreadsheetColorIndex
+    pub fn legacy_spreadsheet_color_index(
+        &self,
+    ) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RgbColorModelHex`]. Reads go through [`RgbColorModelHexViewMut::as_view`].
+#[derive(Debug)]
+pub struct RgbColorModelHexViewMut<'a>(pub ooxml_core::LensMut<'a, RgbColorModelHex>);
+impl<'a> RgbColorModelHexViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RgbColorModelHexView<'_> {
+        RgbColorModelHexView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RgbColorModelHex::ATTR_VAL, v)
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RgbColorModelHex::ATTR_VAL)
+    }
+    /// Sets `a14:legacySpreadsheetColorIndex` — legacySpreadsheetColorIndex
+    pub fn set_legacy_spreadsheet_color_index(
+        &mut self,
+        v: i32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| {
+                self
+                    .0
+                    .set_attr(
+                        RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX,
+                        s,
+                    )
+            },
+        )
+    }
+    /// Removes `a14:legacySpreadsheetColorIndex`.
+    pub fn remove_legacy_spreadsheet_color_index(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX)
+    }
+}
+/// `a:CT_SchemeColor/a:schemeClr` — Scheme Color.
+#[derive(Debug)]
+pub enum SchemeColor {}
+impl SchemeColor {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for SchemeColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "schemeClr");
+    const SDK_NAME: &'static str = "a:CT_SchemeColor/a:schemeClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SchemeColor::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <SchemeColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`SchemeColor`].
+#[derive(Clone, Debug)]
+pub struct SchemeColorView<'a>(pub ooxml_core::Lens<'a, SchemeColor>);
+impl<'a> SchemeColorView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, SchemeColorValues>> {
+        self.0.attr_enum(SchemeColor::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SchemeColor`]. Reads go through [`SchemeColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct SchemeColorViewMut<'a>(pub ooxml_core::LensMut<'a, SchemeColor>);
+impl<'a> SchemeColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SchemeColorView<'_> {
+        SchemeColorView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: SchemeColorValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SchemeColor::ATTR_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SchemeColor::ATTR_VAL)
+    }
+}
+/// `a:CT_SolidColorFillProperties/a:solidFill` — Defines the SolidFill Class.
+#[derive(Debug)]
+pub enum SolidFill {}
+impl ooxml_core::ElementSpec for SolidFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "solidFill");
+    const SDK_NAME: &'static str = "a:CT_SolidColorFillProperties/a:solidFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SolidFill> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<SolidFill> for SchemeColor {}
+/// Read-only view of [`SolidFill`].
+#[derive(Clone, Debug)]
+pub struct SolidFillView<'a>(pub ooxml_core::Lens<'a, SolidFill>);
+impl<'a> SolidFillView<'a> {
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SolidFill`]. Reads go through [`SolidFillViewMut::as_view`].
+#[derive(Debug)]
+pub struct SolidFillViewMut<'a>(pub ooxml_core::LensMut<'a, SolidFill>);
+impl<'a> SolidFillViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SolidFillView<'_> {
+        SolidFillView(self.0.as_lens())
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:schemeClr` child, mutably.
+    pub fn scheme_color_mut(&mut self) -> Option<SchemeColorViewMut<'_>> {
+        self.0.child_mut::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Existing `a:schemeClr` child, or a new one in schema position.
+    pub fn get_or_insert_scheme_color(
+        &mut self,
+    ) -> Result<SchemeColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Removes the first `a:schemeClr` child.
+    pub fn remove_scheme_color(&mut self) -> bool {
+        self.0.remove::<SchemeColor>()
+    }
+}
 /// `a:CT_Table/a:tbl` — Table.
 #[derive(Debug)]
 pub enum Table {}
@@ -432,11 +2396,21 @@ impl ooxml_core::ElementSpec for Table {
         ],
     );
 }
+impl ooxml_core::ChildOf<Table> for TableGrid {}
+impl ooxml_core::ChildOf<Table> for TableProperties {}
 impl ooxml_core::ChildOf<Table> for TableRow {}
 /// Read-only view of [`Table`].
 #[derive(Clone, Debug)]
 pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
 impl<'a> TableView<'a> {
+    /// First `a:tblGrid` child.
+    pub fn table_grid(&self) -> Option<TableGridView<'a>> {
+        self.0.child::<TableGrid>().map(TableGridView)
+    }
+    /// First `a:tblPr` child.
+    pub fn table_properties(&self) -> Option<TablePropertiesView<'a>> {
+        self.0.child::<TableProperties>().map(TablePropertiesView)
+    }
     /// `a:tr` children in document order.
     pub fn table_row_iter(&self) -> impl Iterator<Item = TableRowView<'a>> {
         self.0.children::<TableRow>().map(TableRowView)
@@ -444,6 +2418,67 @@ impl<'a> TableView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Table`]. Reads go through [`TableViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableViewMut<'a>(pub ooxml_core::LensMut<'a, Table>);
+impl<'a> TableViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableView<'_> {
+        TableView(self.0.as_lens())
+    }
+    /// First `a:tblGrid` child, mutably.
+    pub fn table_grid_mut(&mut self) -> Option<TableGridViewMut<'_>> {
+        self.0.child_mut::<TableGrid>().map(TableGridViewMut)
+    }
+    /// Existing `a:tblGrid` child, or a new one in schema position.
+    pub fn get_or_insert_table_grid(
+        &mut self,
+    ) -> Result<TableGridViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableGrid>().map(TableGridViewMut)
+    }
+    /// Removes the first `a:tblGrid` child.
+    pub fn remove_table_grid(&mut self) -> bool {
+        self.0.remove::<TableGrid>()
+    }
+    /// First `a:tblPr` child, mutably.
+    pub fn table_properties_mut(&mut self) -> Option<TablePropertiesViewMut<'_>> {
+        self.0.child_mut::<TableProperties>().map(TablePropertiesViewMut)
+    }
+    /// Existing `a:tblPr` child, or a new one in schema position.
+    pub fn get_or_insert_table_properties(
+        &mut self,
+    ) -> Result<TablePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableProperties>().map(TablePropertiesViewMut)
+    }
+    /// Removes the first `a:tblPr` child.
+    pub fn remove_table_properties(&mut self) -> bool {
+        self.0.remove::<TableProperties>()
+    }
+    /// First `a:tr` child matching `pred`, mutably.
+    pub fn table_row_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableRowViewMut<'_>> {
+        self.0.child_mut_by::<TableRow>(pred).map(TableRowViewMut)
+    }
+    /// Inserts a `a:tr` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_row_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableRowViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<TableRow>(before).map(TableRowViewMut)
+    }
+    /// Appends a `a:tr` at the end of its slot.
+    pub fn insert_table_row(
+        &mut self,
+    ) -> Result<TableRowViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<TableRow>().map(TableRowViewMut)
+    }
+    /// Removes the first `a:tr` child.
+    pub fn remove_table_row(&mut self) -> bool {
+        self.0.remove::<TableRow>()
     }
 }
 /// `a:CT_TableCell/a:tc` — Table Cell.
@@ -507,6 +2542,8 @@ impl ooxml_core::ElementSpec for TableCell {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableCell> for ExtensionList {}
+impl ooxml_core::ChildOf<TableCell> for TableCellProperties {}
 impl ooxml_core::ChildOf<TableCell> for TextBody {}
 /// Read-only view of [`TableCell`].
 #[derive(Clone, Debug)]
@@ -540,6 +2577,14 @@ impl<'a> TableCellView<'a> {
                 ooxml_core::value::parse_bool,
             )
     }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:tcPr` child.
+    pub fn table_cell_properties(&self) -> Option<TableCellPropertiesView<'a>> {
+        self.0.child::<TableCellProperties>().map(TableCellPropertiesView)
+    }
     /// First `a:txBody` child.
     pub fn text_body(&self) -> Option<TextBodyView<'a>> {
         self.0.child::<TextBody>().map(TextBodyView)
@@ -547,6 +2592,1066 @@ impl<'a> TableCellView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`TableCell`]. Reads go through [`TableCellViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellViewMut<'a>(pub ooxml_core::LensMut<'a, TableCell>);
+impl<'a> TableCellViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellView<'_> {
+        TableCellView(self.0.as_lens())
+    }
+    /// Sets `rowSpan` — Row Span (default `1`)
+    pub fn set_row_span(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(TableCell::ATTR_ROW_SPAN, s))
+    }
+    /// Removes `rowSpan`.
+    pub fn remove_row_span(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCell::ATTR_ROW_SPAN)
+    }
+    /// Sets `gridSpan` — Grid Span (default `1`)
+    pub fn set_grid_span(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(TableCell::ATTR_GRID_SPAN, s))
+    }
+    /// Removes `gridSpan`.
+    pub fn remove_grid_span(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCell::ATTR_GRID_SPAN)
+    }
+    /// Sets `hMerge` — Horizontal Merge (default `false`)
+    pub fn set_horizontal_merge(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCell::ATTR_H_MERGE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `hMerge`.
+    pub fn remove_horizontal_merge(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCell::ATTR_H_MERGE)
+    }
+    /// Sets `vMerge` — Vertical Merge (default `false`)
+    pub fn set_vertical_merge(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCell::ATTR_V_MERGE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `vMerge`.
+    pub fn remove_vertical_merge(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCell::ATTR_V_MERGE)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:tcPr` child, mutably.
+    pub fn table_cell_properties_mut(
+        &mut self,
+    ) -> Option<TableCellPropertiesViewMut<'_>> {
+        self.0.child_mut::<TableCellProperties>().map(TableCellPropertiesViewMut)
+    }
+    /// Existing `a:tcPr` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_properties(
+        &mut self,
+    ) -> Result<TableCellPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellProperties>().map(TableCellPropertiesViewMut)
+    }
+    /// Removes the first `a:tcPr` child.
+    pub fn remove_table_cell_properties(&mut self) -> bool {
+        self.0.remove::<TableCellProperties>()
+    }
+    /// First `a:txBody` child, mutably.
+    pub fn text_body_mut(&mut self) -> Option<TextBodyViewMut<'_>> {
+        self.0.child_mut::<TextBody>().map(TextBodyViewMut)
+    }
+    /// Existing `a:txBody` child, or a new one in schema position.
+    pub fn get_or_insert_text_body(
+        &mut self,
+    ) -> Result<TextBodyViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TextBody>().map(TextBodyViewMut)
+    }
+    /// Removes the first `a:txBody` child.
+    pub fn remove_text_body(&mut self) -> bool {
+        self.0.remove::<TextBody>()
+    }
+}
+/// `a:CT_TableCellProperties/a:tcPr` — Table Cell Properties.
+#[derive(Debug)]
+pub enum TableCellProperties {}
+impl TableCellProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `marT`
+    pub const ATTR_MAR_T: ooxml_core::QName = ooxml_core::QName::new("", "marT");
+    /// `marB`
+    pub const ATTR_MAR_B: ooxml_core::QName = ooxml_core::QName::new("", "marB");
+    /// `vert`
+    pub const ATTR_VERT: ooxml_core::QName = ooxml_core::QName::new("", "vert");
+    /// `anchor`
+    pub const ATTR_ANCHOR: ooxml_core::QName = ooxml_core::QName::new("", "anchor");
+    /// `anchorCtr`
+    pub const ATTR_ANCHOR_CTR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "anchorCtr",
+    );
+    /// `horzOverflow`
+    pub const ATTR_HORZ_OVERFLOW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "horzOverflow",
+    );
+}
+impl ooxml_core::ElementSpec for TableCellProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tcPr");
+    const SDK_NAME: &'static str = "a:CT_TableCellProperties/a:tcPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("91440"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("91440"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_MAR_T,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("45720"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_MAR_B,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("45720"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_VERT,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextVerticalValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("horz"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_ANCHOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAnchoringTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("t"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_ANCHOR_CTR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellProperties::ATTR_HORZ_OVERFLOW,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextHorizontalOverflowValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("clip"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnL")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnR")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnT")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnB")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnTlToBr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnBlToTr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "cell3D")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableCellProperties> for BottomBorderLineProperties {}
+impl ooxml_core::ChildOf<TableCellProperties> for LeftBorderLineProperties {}
+impl ooxml_core::ChildOf<TableCellProperties> for RightBorderLineProperties {}
+impl ooxml_core::ChildOf<TableCellProperties> for TopBorderLineProperties {}
+impl ooxml_core::ChildOf<TableCellProperties> for NoFill {}
+impl ooxml_core::ChildOf<TableCellProperties> for ExtensionList {}
+impl ooxml_core::ChildOf<TableCellProperties> for SolidFill {}
+impl ooxml_core::schema::__private::Sealed for TableCellProperties {}
+impl ooxml_core::Detachable for TableCellProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`TableCellProperties`].
+#[derive(Clone, Debug)]
+pub struct TableCellPropertiesView<'a>(pub ooxml_core::Lens<'a, TableCellProperties>);
+impl<'a> TableCellPropertiesView<'a> {
+    /// `marL` — Left Margin (default `91440`)
+    pub fn left_margin(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableCellProperties::ATTR_MAR_L,
+                "91440",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin (default `91440`)
+    pub fn right_margin(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableCellProperties::ATTR_MAR_R,
+                "91440",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marT` — Top Margin (default `45720`)
+    pub fn top_margin(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableCellProperties::ATTR_MAR_T,
+                "45720",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marB` — Bottom Margin (default `45720`)
+    pub fn bottom_margin(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableCellProperties::ATTR_MAR_B,
+                "45720",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `vert` — Text Direction (default `horz`)
+    pub fn vertical(&self) -> ooxml_core::EnumValue<'a, TextVerticalValues> {
+        self.0.attr_enum_or(TableCellProperties::ATTR_VERT, "horz")
+    }
+    /// `anchor` — Anchor (default `t`)
+    pub fn anchor(&self) -> ooxml_core::EnumValue<'a, TextAnchoringTypeValues> {
+        self.0.attr_enum_or(TableCellProperties::ATTR_ANCHOR, "t")
+    }
+    /// `anchorCtr` — Anchor Center (default `false`)
+    pub fn anchor_center(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableCellProperties::ATTR_ANCHOR_CTR,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `horzOverflow` — Horizontal Overflow (default `clip`)
+    pub fn horizontal_overflow(
+        &self,
+    ) -> ooxml_core::EnumValue<'a, TextHorizontalOverflowValues> {
+        self.0.attr_enum_or(TableCellProperties::ATTR_HORZ_OVERFLOW, "clip")
+    }
+    /// First `a:lnB` child.
+    pub fn bottom_border_line_properties(
+        &self,
+    ) -> Option<BottomBorderLinePropertiesView<'a>> {
+        self.0.child::<BottomBorderLineProperties>().map(BottomBorderLinePropertiesView)
+    }
+    /// First `a:lnL` child.
+    pub fn left_border_line_properties(
+        &self,
+    ) -> Option<LeftBorderLinePropertiesView<'a>> {
+        self.0.child::<LeftBorderLineProperties>().map(LeftBorderLinePropertiesView)
+    }
+    /// First `a:lnR` child.
+    pub fn right_border_line_properties(
+        &self,
+    ) -> Option<RightBorderLinePropertiesView<'a>> {
+        self.0.child::<RightBorderLineProperties>().map(RightBorderLinePropertiesView)
+    }
+    /// First `a:lnT` child.
+    pub fn top_border_line_properties(&self) -> Option<TopBorderLinePropertiesView<'a>> {
+        self.0.child::<TopBorderLineProperties>().map(TopBorderLinePropertiesView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableCellProperties`]. Reads go through [`TableCellPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, TableCellProperties>,
+);
+impl<'a> TableCellPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellPropertiesView<'_> {
+        TableCellPropertiesView(self.0.as_lens())
+    }
+    /// Sets `marL` — Left Margin (default `91440`)
+    pub fn set_left_margin(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(TableCellProperties::ATTR_MAR_L, s),
+        )
+    }
+    /// Removes `marL`.
+    pub fn remove_left_margin(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_MAR_L)
+    }
+    /// Sets `marR` — Right Margin (default `91440`)
+    pub fn set_right_margin(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(TableCellProperties::ATTR_MAR_R, s),
+        )
+    }
+    /// Removes `marR`.
+    pub fn remove_right_margin(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_MAR_R)
+    }
+    /// Sets `marT` — Top Margin (default `45720`)
+    pub fn set_top_margin(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(TableCellProperties::ATTR_MAR_T, s),
+        )
+    }
+    /// Removes `marT`.
+    pub fn remove_top_margin(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_MAR_T)
+    }
+    /// Sets `marB` — Bottom Margin (default `45720`)
+    pub fn set_bottom_margin(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(TableCellProperties::ATTR_MAR_B, s),
+        )
+    }
+    /// Removes `marB`.
+    pub fn remove_bottom_margin(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_MAR_B)
+    }
+    /// Sets `vert` — Text Direction (default `horz`)
+    pub fn set_vertical(
+        &mut self,
+        v: TextVerticalValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCellProperties::ATTR_VERT, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `vert`.
+    pub fn remove_vertical(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_VERT)
+    }
+    /// Sets `anchor` — Anchor (default `t`)
+    pub fn set_anchor(
+        &mut self,
+        v: TextAnchoringTypeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableCellProperties::ATTR_ANCHOR, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `anchor`.
+    pub fn remove_anchor(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_ANCHOR)
+    }
+    /// Sets `anchorCtr` — Anchor Center (default `false`)
+    pub fn set_anchor_center(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                TableCellProperties::ATTR_ANCHOR_CTR,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `anchorCtr`.
+    pub fn remove_anchor_center(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_ANCHOR_CTR)
+    }
+    /// Sets `horzOverflow` — Horizontal Overflow (default `clip`)
+    pub fn set_horizontal_overflow(
+        &mut self,
+        v: TextHorizontalOverflowValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                TableCellProperties::ATTR_HORZ_OVERFLOW,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `horzOverflow`.
+    pub fn remove_horizontal_overflow(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellProperties::ATTR_HORZ_OVERFLOW)
+    }
+    /// First `a:lnB` child, mutably.
+    pub fn bottom_border_line_properties_mut(
+        &mut self,
+    ) -> Option<BottomBorderLinePropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<BottomBorderLineProperties>()
+            .map(BottomBorderLinePropertiesViewMut)
+    }
+    /// Existing `a:lnB` child, or a new one in schema position.
+    pub fn get_or_insert_bottom_border_line_properties(
+        &mut self,
+    ) -> Result<BottomBorderLinePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<BottomBorderLineProperties>()
+            .map(BottomBorderLinePropertiesViewMut)
+    }
+    /// Removes the first `a:lnB` child.
+    pub fn remove_bottom_border_line_properties(&mut self) -> bool {
+        self.0.remove::<BottomBorderLineProperties>()
+    }
+    /// First `a:lnL` child, mutably.
+    pub fn left_border_line_properties_mut(
+        &mut self,
+    ) -> Option<LeftBorderLinePropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<LeftBorderLineProperties>()
+            .map(LeftBorderLinePropertiesViewMut)
+    }
+    /// Existing `a:lnL` child, or a new one in schema position.
+    pub fn get_or_insert_left_border_line_properties(
+        &mut self,
+    ) -> Result<LeftBorderLinePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<LeftBorderLineProperties>()
+            .map(LeftBorderLinePropertiesViewMut)
+    }
+    /// Removes the first `a:lnL` child.
+    pub fn remove_left_border_line_properties(&mut self) -> bool {
+        self.0.remove::<LeftBorderLineProperties>()
+    }
+    /// First `a:lnR` child, mutably.
+    pub fn right_border_line_properties_mut(
+        &mut self,
+    ) -> Option<RightBorderLinePropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<RightBorderLineProperties>()
+            .map(RightBorderLinePropertiesViewMut)
+    }
+    /// Existing `a:lnR` child, or a new one in schema position.
+    pub fn get_or_insert_right_border_line_properties(
+        &mut self,
+    ) -> Result<RightBorderLinePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<RightBorderLineProperties>()
+            .map(RightBorderLinePropertiesViewMut)
+    }
+    /// Removes the first `a:lnR` child.
+    pub fn remove_right_border_line_properties(&mut self) -> bool {
+        self.0.remove::<RightBorderLineProperties>()
+    }
+    /// First `a:lnT` child, mutably.
+    pub fn top_border_line_properties_mut(
+        &mut self,
+    ) -> Option<TopBorderLinePropertiesViewMut<'_>> {
+        self.0.child_mut::<TopBorderLineProperties>().map(TopBorderLinePropertiesViewMut)
+    }
+    /// Existing `a:lnT` child, or a new one in schema position.
+    pub fn get_or_insert_top_border_line_properties(
+        &mut self,
+    ) -> Result<TopBorderLinePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<TopBorderLineProperties>()
+            .map(TopBorderLinePropertiesViewMut)
+    }
+    /// Removes the first `a:lnT` child.
+    pub fn remove_top_border_line_properties(&mut self) -> bool {
+        self.0.remove::<TopBorderLineProperties>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_TableCol/a:gridCol` — Table Grid Column.
+#[derive(Debug)]
+pub enum GridColumn {}
+impl GridColumn {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+}
+impl ooxml_core::ElementSpec for GridColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gridCol");
+    const SDK_NAME: &'static str = "a:CT_TableCol/a:gridCol";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GridColumn::ATTR_W,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<GridColumn> for ExtensionList {}
+/// Read-only view of [`GridColumn`].
+#[derive(Clone, Debug)]
+pub struct GridColumnView<'a>(pub ooxml_core::Lens<'a, GridColumn>);
+impl<'a> GridColumnView<'a> {
+    /// `w` — Width
+    pub fn width(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GridColumn::ATTR_W, ooxml_core::value::parse_i64)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GridColumn`]. Reads go through [`GridColumnViewMut::as_view`].
+#[derive(Debug)]
+pub struct GridColumnViewMut<'a>(pub ooxml_core::LensMut<'a, GridColumn>);
+impl<'a> GridColumnViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GridColumnView<'_> {
+        GridColumnView(self.0.as_lens())
+    }
+    /// Sets `w` — Width
+    pub fn set_width(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(GridColumn::ATTR_W, s))
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GridColumn::ATTR_W)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+}
+/// `a:CT_TableGrid/a:tblGrid` — Table Grid.
+#[derive(Debug)]
+pub enum TableGrid {}
+impl ooxml_core::ElementSpec for TableGrid {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tblGrid");
+    const SDK_NAME: &'static str = "a:CT_TableGrid/a:tblGrid";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "gridCol")],
+                wildcard: None,
+                max_each: Some(1000),
+                max_total: Some(1000),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableGrid> for GridColumn {}
+/// Read-only view of [`TableGrid`].
+#[derive(Clone, Debug)]
+pub struct TableGridView<'a>(pub ooxml_core::Lens<'a, TableGrid>);
+impl<'a> TableGridView<'a> {
+    /// `a:gridCol` children in document order.
+    pub fn grid_column_iter(&self) -> impl Iterator<Item = GridColumnView<'a>> {
+        self.0.children::<GridColumn>().map(GridColumnView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableGrid`]. Reads go through [`TableGridViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableGridViewMut<'a>(pub ooxml_core::LensMut<'a, TableGrid>);
+impl<'a> TableGridViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableGridView<'_> {
+        TableGridView(self.0.as_lens())
+    }
+    /// First `a:gridCol` child matching `pred`, mutably.
+    pub fn grid_column_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GridColumnViewMut<'_>> {
+        self.0.child_mut_by::<GridColumn>(pred).map(GridColumnViewMut)
+    }
+    /// Inserts a `a:gridCol` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_grid_column_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GridColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GridColumn>(before).map(GridColumnViewMut)
+    }
+    /// Appends a `a:gridCol` at the end of its slot.
+    pub fn insert_grid_column(
+        &mut self,
+    ) -> Result<GridColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GridColumn>().map(GridColumnViewMut)
+    }
+    /// Removes the first `a:gridCol` child.
+    pub fn remove_grid_column(&mut self) -> bool {
+        self.0.remove::<GridColumn>()
+    }
+}
+/// `a:CT_TableProperties/a:tblPr` — Table Properties.
+#[derive(Debug)]
+pub enum TableProperties {}
+impl TableProperties {
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `firstRow`
+    pub const ATTR_FIRST_ROW: ooxml_core::QName = ooxml_core::QName::new("", "firstRow");
+    /// `firstCol`
+    pub const ATTR_FIRST_COL: ooxml_core::QName = ooxml_core::QName::new("", "firstCol");
+    /// `lastRow`
+    pub const ATTR_LAST_ROW: ooxml_core::QName = ooxml_core::QName::new("", "lastRow");
+    /// `lastCol`
+    pub const ATTR_LAST_COL: ooxml_core::QName = ooxml_core::QName::new("", "lastCol");
+    /// `bandRow`
+    pub const ATTR_BAND_ROW: ooxml_core::QName = ooxml_core::QName::new("", "bandRow");
+    /// `bandCol`
+    pub const ATTR_BAND_COL: ooxml_core::QName = ooxml_core::QName::new("", "bandCol");
+}
+impl ooxml_core::ElementSpec for TableProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tblPr");
+    const SDK_NAME: &'static str = "a:CT_TableProperties/a:tblPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_FIRST_ROW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_FIRST_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_LAST_ROW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_LAST_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_BAND_ROW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableProperties::ATTR_BAND_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "effectLst"),
+                    ooxml_core::QName::new(NS_A, "effectDag"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tableStyle"),
+                    ooxml_core::QName::new(NS_A, "tableStyleId"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableProperties> for NoFill {}
+impl ooxml_core::ChildOf<TableProperties> for ExtensionList {}
+impl ooxml_core::ChildOf<TableProperties> for SolidFill {}
+impl ooxml_core::ChildOf<TableProperties> for TableStyleId {}
+/// Read-only view of [`TableProperties`].
+#[derive(Clone, Debug)]
+pub struct TablePropertiesView<'a>(pub ooxml_core::Lens<'a, TableProperties>);
+impl<'a> TablePropertiesView<'a> {
+    /// `rtl` — Right-to-Left (default `false`)
+    pub fn right_to_left(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_RTL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `firstRow` — First Row (default `false`)
+    pub fn first_row(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_FIRST_ROW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `firstCol` — First Column (default `false`)
+    pub fn first_column(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_FIRST_COL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `lastRow` — Last Row (default `false`)
+    pub fn last_row(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_LAST_ROW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `lastCol` — Last Column (default `false`)
+    pub fn last_column(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_LAST_COL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `bandRow` — Banded Rows (default `false`)
+    pub fn band_row(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_BAND_ROW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `bandCol` — Banded Columns (default `false`)
+    pub fn band_column(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TableProperties::ATTR_BAND_COL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// First `a:tableStyleId` child.
+    pub fn table_style_id(&self) -> Option<TableStyleIdView<'a>> {
+        self.0.child::<TableStyleId>().map(TableStyleIdView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableProperties`]. Reads go through [`TablePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct TablePropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, TableProperties>);
+impl<'a> TablePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TablePropertiesView<'_> {
+        TablePropertiesView(self.0.as_lens())
+    }
+    /// Sets `rtl` — Right-to-Left (default `false`)
+    pub fn set_right_to_left(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableProperties::ATTR_RTL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `rtl`.
+    pub fn remove_right_to_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_RTL)
+    }
+    /// Sets `firstRow` — First Row (default `false`)
+    pub fn set_first_row(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableProperties::ATTR_FIRST_ROW, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `firstRow`.
+    pub fn remove_first_row(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_FIRST_ROW)
+    }
+    /// Sets `firstCol` — First Column (default `false`)
+    pub fn set_first_column(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableProperties::ATTR_FIRST_COL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `firstCol`.
+    pub fn remove_first_column(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_FIRST_COL)
+    }
+    /// Sets `lastRow` — Last Row (default `false`)
+    pub fn set_last_row(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableProperties::ATTR_LAST_ROW, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `lastRow`.
+    pub fn remove_last_row(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_LAST_ROW)
+    }
+    /// Sets `lastCol` — Last Column (default `false`)
+    pub fn set_last_column(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableProperties::ATTR_LAST_COL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `lastCol`.
+    pub fn remove_last_column(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_LAST_COL)
+    }
+    /// Sets `bandRow` — Banded Rows (default `false`)
+    pub fn set_band_row(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableProperties::ATTR_BAND_ROW, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `bandRow`.
+    pub fn remove_band_row(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_BAND_ROW)
+    }
+    /// Sets `bandCol` — Banded Columns (default `false`)
+    pub fn set_band_column(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(TableProperties::ATTR_BAND_COL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `bandCol`.
+    pub fn remove_band_column(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableProperties::ATTR_BAND_COL)
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+    /// First `a:tableStyleId` child, mutably.
+    pub fn table_style_id_mut(&mut self) -> Option<TableStyleIdViewMut<'_>> {
+        self.0.child_mut::<TableStyleId>().map(TableStyleIdViewMut)
+    }
+    /// Existing `a:tableStyleId` child, or a new one in schema position.
+    pub fn get_or_insert_table_style_id(
+        &mut self,
+    ) -> Result<TableStyleIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableStyleId>().map(TableStyleIdViewMut)
+    }
+    /// Removes the first `a:tableStyleId` child.
+    pub fn remove_table_style_id(&mut self) -> bool {
+        self.0.remove::<TableStyleId>()
     }
 }
 /// `a:CT_TableRow/a:tr` — Table Row.
@@ -583,6 +3688,7 @@ impl ooxml_core::ElementSpec for TableRow {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableRow> for ExtensionList {}
 impl ooxml_core::ChildOf<TableRow> for TableCell {}
 /// Read-only view of [`TableRow`].
 #[derive(Clone, Debug)]
@@ -592,6 +3698,10 @@ impl<'a> TableRowView<'a> {
     pub fn height(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
         self.0.attr_parsed(TableRow::ATTR_H, ooxml_core::value::parse_i64)
     }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
     /// `a:tc` children in document order.
     pub fn table_cell_iter(&self) -> impl Iterator<Item = TableCellView<'a>> {
         self.0.children::<TableCell>().map(TableCellView)
@@ -599,6 +3709,61 @@ impl<'a> TableRowView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`TableRow`]. Reads go through [`TableRowViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableRowViewMut<'a>(pub ooxml_core::LensMut<'a, TableRow>);
+impl<'a> TableRowViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableRowView<'_> {
+        TableRowView(self.0.as_lens())
+    }
+    /// Sets `h` — Height
+    pub fn set_height(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(TableRow::ATTR_H, s))
+    }
+    /// Removes `h`.
+    pub fn remove_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_H)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:tc` child matching `pred`, mutably.
+    pub fn table_cell_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableCellViewMut<'_>> {
+        self.0.child_mut_by::<TableCell>(pred).map(TableCellViewMut)
+    }
+    /// Inserts a `a:tc` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_cell_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<TableCell>(before).map(TableCellViewMut)
+    }
+    /// Appends a `a:tc` at the end of its slot.
+    pub fn insert_table_cell(
+        &mut self,
+    ) -> Result<TableCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<TableCell>().map(TableCellViewMut)
+    }
+    /// Removes the first `a:tc` child.
+    pub fn remove_table_cell(&mut self) -> bool {
+        self.0.remove::<TableCell>()
     }
 }
 /// `a:CT_TextBody/a:txBody` — Shape Text Body.
@@ -631,11 +3796,21 @@ impl ooxml_core::ElementSpec for TextBody {
         ],
     );
 }
+impl ooxml_core::ChildOf<TextBody> for BodyProperties {}
+impl ooxml_core::ChildOf<TextBody> for ListStyle {}
 impl ooxml_core::ChildOf<TextBody> for Paragraph {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
 impl<'a> TextBodyView<'a> {
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<BodyPropertiesView<'a>> {
+        self.0.child::<BodyProperties>().map(BodyPropertiesView)
+    }
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<ListStyleView<'a>> {
+        self.0.child::<ListStyle>().map(ListStyleView)
+    }
     /// `a:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -652,6 +3827,34 @@ impl<'a> TextBodyViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> TextBodyView<'_> {
         TextBodyView(self.0.as_lens())
+    }
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(&mut self) -> Option<BodyPropertiesViewMut<'_>> {
+        self.0.child_mut::<BodyProperties>().map(BodyPropertiesViewMut)
+    }
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BodyProperties>().map(BodyPropertiesViewMut)
+    }
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<BodyProperties>()
+    }
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<ListStyleViewMut<'_>> {
+        self.0.child_mut::<ListStyle>().map(ListStyleViewMut)
+    }
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ListStyle>().map(ListStyleViewMut)
+    }
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<ListStyle>()
     }
     /// First `a:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
@@ -676,6 +3879,603 @@ impl<'a> TextBodyViewMut<'a> {
     /// Removes the first `a:p` child.
     pub fn remove_paragraph(&mut self) -> bool {
         self.0.remove::<Paragraph>()
+    }
+}
+/// `a:CT_TextBodyProperties/a:bodyPr` — Defines the BodyProperties Class.
+#[derive(Debug)]
+pub enum BodyProperties {}
+impl BodyProperties {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `spcFirstLastPara`
+    pub const ATTR_SPC_FIRST_LAST_PARA: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "spcFirstLastPara",
+    );
+    /// `vertOverflow`
+    pub const ATTR_VERT_OVERFLOW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "vertOverflow",
+    );
+    /// `horzOverflow`
+    pub const ATTR_HORZ_OVERFLOW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "horzOverflow",
+    );
+    /// `vert`
+    pub const ATTR_VERT: ooxml_core::QName = ooxml_core::QName::new("", "vert");
+    /// `wrap`
+    pub const ATTR_WRAP: ooxml_core::QName = ooxml_core::QName::new("", "wrap");
+    /// `lIns`
+    pub const ATTR_L_INS: ooxml_core::QName = ooxml_core::QName::new("", "lIns");
+    /// `tIns`
+    pub const ATTR_T_INS: ooxml_core::QName = ooxml_core::QName::new("", "tIns");
+    /// `rIns`
+    pub const ATTR_R_INS: ooxml_core::QName = ooxml_core::QName::new("", "rIns");
+    /// `bIns`
+    pub const ATTR_B_INS: ooxml_core::QName = ooxml_core::QName::new("", "bIns");
+    /// `numCol`
+    pub const ATTR_NUM_COL: ooxml_core::QName = ooxml_core::QName::new("", "numCol");
+    /// `spcCol`
+    pub const ATTR_SPC_COL: ooxml_core::QName = ooxml_core::QName::new("", "spcCol");
+    /// `rtlCol`
+    pub const ATTR_RTL_COL: ooxml_core::QName = ooxml_core::QName::new("", "rtlCol");
+    /// `fromWordArt`
+    pub const ATTR_FROM_WORD_ART: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fromWordArt",
+    );
+    /// `anchor`
+    pub const ATTR_ANCHOR: ooxml_core::QName = ooxml_core::QName::new("", "anchor");
+    /// `anchorCtr`
+    pub const ATTR_ANCHOR_CTR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "anchorCtr",
+    );
+    /// `forceAA`
+    pub const ATTR_FORCE_AA: ooxml_core::QName = ooxml_core::QName::new("", "forceAA");
+    /// `upright`
+    pub const ATTR_UPRIGHT: ooxml_core::QName = ooxml_core::QName::new("", "upright");
+    /// `compatLnSpc`
+    pub const ATTR_COMPAT_LN_SPC: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "compatLnSpc",
+    );
+}
+impl ooxml_core::ElementSpec for BodyProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "bodyPr");
+    const SDK_NAME: &'static str = "a:CT_TextBodyProperties/a:bodyPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_SPC_FIRST_LAST_PARA,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_VERT_OVERFLOW,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextVerticalOverflowValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_HORZ_OVERFLOW,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextHorizontalOverflowValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_VERT,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextVerticalValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_WRAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextWrappingValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_L_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_T_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_R_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_B_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_NUM_COL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_SPC_COL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_RTL_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_FROM_WORD_ART,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_ANCHOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAnchoringTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_ANCHOR_CTR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_FORCE_AA,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_UPRIGHT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_COMPAT_LN_SPC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "prstTxWarp")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noAutofit"),
+                    ooxml_core::QName::new(NS_A, "normAutofit"),
+                    ooxml_core::QName::new(NS_A, "spAutoFit"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "scene3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "sp3d"),
+                    ooxml_core::QName::new(NS_A, "flatTx"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BodyProperties> for ExtensionList {}
+impl ooxml_core::schema::__private::Sealed for BodyProperties {}
+impl ooxml_core::Detachable for BodyProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`BodyProperties`].
+#[derive(Clone, Debug)]
+pub struct BodyPropertiesView<'a>(pub ooxml_core::Lens<'a, BodyProperties>);
+impl<'a> BodyPropertiesView<'a> {
+    /// `rot` — Rotation
+    pub fn rotation(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_ROT, ooxml_core::value::parse_i32)
+    }
+    /// `spcFirstLastPara` — Paragraph Spacing
+    pub fn use_paragraph_spacing(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BodyProperties::ATTR_SPC_FIRST_LAST_PARA,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `vertOverflow` — Text Vertical Overflow
+    pub fn vertical_overflow(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextVerticalOverflowValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_VERT_OVERFLOW)
+    }
+    /// `horzOverflow` — Text Horizontal Overflow
+    pub fn horizontal_overflow(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextHorizontalOverflowValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_HORZ_OVERFLOW)
+    }
+    /// `vert` — Vertical Text
+    pub fn vertical(&self) -> Option<ooxml_core::EnumValue<'a, TextVerticalValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_VERT)
+    }
+    /// `wrap` — Text Wrapping Type
+    pub fn wrap(&self) -> Option<ooxml_core::EnumValue<'a, TextWrappingValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_WRAP)
+    }
+    /// `lIns` — Left Inset
+    pub fn left_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_L_INS, ooxml_core::value::parse_i32)
+    }
+    /// `tIns` — Top Inset
+    pub fn top_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_T_INS, ooxml_core::value::parse_i32)
+    }
+    /// `rIns` — Right Inset
+    pub fn right_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_R_INS, ooxml_core::value::parse_i32)
+    }
+    /// `bIns` — Bottom Inset
+    pub fn bottom_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_B_INS, ooxml_core::value::parse_i32)
+    }
+    /// `numCol` — Number of Columns
+    pub fn column_count(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_NUM_COL, ooxml_core::value::parse_i32)
+    }
+    /// `spcCol` — Space Between Columns
+    pub fn column_spacing(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_SPC_COL, ooxml_core::value::parse_i32)
+    }
+    /// `rtlCol` — Columns Right-To-Left
+    pub fn right_to_left_columns(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_RTL_COL, ooxml_core::value::parse_bool)
+    }
+    /// `fromWordArt` — From WordArt
+    pub fn from_word_art(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BodyProperties::ATTR_FROM_WORD_ART,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `anchor` — Anchor
+    pub fn anchor(&self) -> Option<ooxml_core::EnumValue<'a, TextAnchoringTypeValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_ANCHOR)
+    }
+    /// `anchorCtr` — Anchor Center
+    pub fn anchor_center(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(BodyProperties::ATTR_ANCHOR_CTR, ooxml_core::value::parse_bool)
+    }
+    /// `forceAA` — Force Anti-Alias
+    pub fn force_anti_alias(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_FORCE_AA, ooxml_core::value::parse_bool)
+    }
+    /// `upright` — Text Upright (default `false`)
+    pub fn up_right(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BodyProperties::ATTR_UPRIGHT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `compatLnSpc` — Compatible Line Spacing
+    pub fn compatible_line_spacing(
+        &self,
+    ) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BodyProperties::ATTR_COMPAT_LN_SPC,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BodyProperties`]. Reads go through [`BodyPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct BodyPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, BodyProperties>);
+impl<'a> BodyPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BodyPropertiesView<'_> {
+        BodyPropertiesView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(BodyProperties::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_ROT)
+    }
+    /// Sets `spcFirstLastPara` — Paragraph Spacing
+    pub fn set_use_paragraph_spacing(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BodyProperties::ATTR_SPC_FIRST_LAST_PARA,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `spcFirstLastPara`.
+    pub fn remove_use_paragraph_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_SPC_FIRST_LAST_PARA)
+    }
+    /// Sets `vertOverflow` — Text Vertical Overflow
+    pub fn set_vertical_overflow(
+        &mut self,
+        v: TextVerticalOverflowValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BodyProperties::ATTR_VERT_OVERFLOW,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `vertOverflow`.
+    pub fn remove_vertical_overflow(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_VERT_OVERFLOW)
+    }
+    /// Sets `horzOverflow` — Text Horizontal Overflow
+    pub fn set_horizontal_overflow(
+        &mut self,
+        v: TextHorizontalOverflowValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BodyProperties::ATTR_HORZ_OVERFLOW,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `horzOverflow`.
+    pub fn remove_horizontal_overflow(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_HORZ_OVERFLOW)
+    }
+    /// Sets `vert` — Vertical Text
+    pub fn set_vertical(
+        &mut self,
+        v: TextVerticalValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BodyProperties::ATTR_VERT, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `vert`.
+    pub fn remove_vertical(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_VERT)
+    }
+    /// Sets `wrap` — Text Wrapping Type
+    pub fn set_wrap(&mut self, v: TextWrappingValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BodyProperties::ATTR_WRAP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `wrap`.
+    pub fn remove_wrap(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_WRAP)
+    }
+    /// Sets `lIns` — Left Inset
+    pub fn set_left_inset(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BodyProperties::ATTR_L_INS, s),
+        )
+    }
+    /// Removes `lIns`.
+    pub fn remove_left_inset(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_L_INS)
+    }
+    /// Sets `tIns` — Top Inset
+    pub fn set_top_inset(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BodyProperties::ATTR_T_INS, s),
+        )
+    }
+    /// Removes `tIns`.
+    pub fn remove_top_inset(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_T_INS)
+    }
+    /// Sets `rIns` — Right Inset
+    pub fn set_right_inset(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BodyProperties::ATTR_R_INS, s),
+        )
+    }
+    /// Removes `rIns`.
+    pub fn remove_right_inset(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_R_INS)
+    }
+    /// Sets `bIns` — Bottom Inset
+    pub fn set_bottom_inset(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BodyProperties::ATTR_B_INS, s),
+        )
+    }
+    /// Removes `bIns`.
+    pub fn remove_bottom_inset(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_B_INS)
+    }
+    /// Sets `numCol` — Number of Columns
+    pub fn set_column_count(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BodyProperties::ATTR_NUM_COL, s),
+        )
+    }
+    /// Removes `numCol`.
+    pub fn remove_column_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_NUM_COL)
+    }
+    /// Sets `spcCol` — Space Between Columns
+    pub fn set_column_spacing(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BodyProperties::ATTR_SPC_COL, s),
+        )
+    }
+    /// Removes `spcCol`.
+    pub fn remove_column_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_SPC_COL)
+    }
+    /// Sets `rtlCol` — Columns Right-To-Left
+    pub fn set_right_to_left_columns(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BodyProperties::ATTR_RTL_COL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `rtlCol`.
+    pub fn remove_right_to_left_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_RTL_COL)
+    }
+    /// Sets `fromWordArt` — From WordArt
+    pub fn set_from_word_art(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BodyProperties::ATTR_FROM_WORD_ART,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `fromWordArt`.
+    pub fn remove_from_word_art(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_FROM_WORD_ART)
+    }
+    /// Sets `anchor` — Anchor
+    pub fn set_anchor(
+        &mut self,
+        v: TextAnchoringTypeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BodyProperties::ATTR_ANCHOR, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `anchor`.
+    pub fn remove_anchor(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_ANCHOR)
+    }
+    /// Sets `anchorCtr` — Anchor Center
+    pub fn set_anchor_center(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(BodyProperties::ATTR_ANCHOR_CTR, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `anchorCtr`.
+    pub fn remove_anchor_center(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_ANCHOR_CTR)
+    }
+    /// Sets `forceAA` — Force Anti-Alias
+    pub fn set_force_anti_alias(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BodyProperties::ATTR_FORCE_AA, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `forceAA`.
+    pub fn remove_force_anti_alias(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_FORCE_AA)
+    }
+    /// Sets `upright` — Text Upright (default `false`)
+    pub fn set_up_right(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BodyProperties::ATTR_UPRIGHT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `upright`.
+    pub fn remove_up_right(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_UPRIGHT)
+    }
+    /// Sets `compatLnSpc` — Compatible Line Spacing
+    pub fn set_compatible_line_spacing(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BodyProperties::ATTR_COMPAT_LN_SPC,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `compatLnSpc`.
+    pub fn remove_compatible_line_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BodyProperties::ATTR_COMPAT_LN_SPC)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
     }
 }
 /// `a:CT_TextCharacterProperties/a:endParaRPr` — End Paragraph Run Properties.
@@ -935,6 +4735,9 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for NoFill {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for ExtensionList {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for SolidFill {}
 impl ooxml_core::schema::__private::Sealed for EndParagraphRunProperties {}
 impl ooxml_core::Detachable for EndParagraphRunProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -1108,6 +4911,18 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     /// `bmk` — bmk
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(EndParagraphRunProperties::ATTR_BMK)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1371,6 +5186,9 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<RunProperties> for NoFill {}
+impl ooxml_core::ChildOf<RunProperties> for ExtensionList {}
+impl ooxml_core::ChildOf<RunProperties> for SolidFill {}
 impl ooxml_core::schema::__private::Sealed for RunProperties {}
 impl ooxml_core::Detachable for RunProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -1508,6 +5326,18 @@ impl<'a> RunPropertiesView<'a> {
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(RunProperties::ATTR_BMK)
     }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -1631,6 +5461,156 @@ impl<'a> BreakViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> BreakView<'_> {
         BreakView(self.0.as_lens())
+    }
+}
+/// `a:CT_TextListStyle/a:lstStyle` — Defines the ListStyle Class.
+#[derive(Debug)]
+pub enum ListStyle {}
+impl ooxml_core::ElementSpec for ListStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lstStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/a:lstStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ListStyle> for ExtensionList {}
+impl ooxml_core::schema::__private::Sealed for ListStyle {}
+impl ooxml_core::Detachable for ListStyle {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`ListStyle`].
+#[derive(Clone, Debug)]
+pub struct ListStyleView<'a>(pub ooxml_core::Lens<'a, ListStyle>);
+impl<'a> ListStyleView<'a> {
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ListStyle`]. Reads go through [`ListStyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct ListStyleViewMut<'a>(pub ooxml_core::LensMut<'a, ListStyle>);
+impl<'a> ListStyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ListStyleView<'_> {
+        ListStyleView(self.0.as_lens())
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
     }
 }
 /// `a:CT_TextParagraph/a:p` — Text Paragraphs.
@@ -1937,6 +5917,7 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<ParagraphProperties> for ExtensionList {}
 impl ooxml_core::schema::__private::Sealed for ParagraphProperties {}
 impl ooxml_core::Detachable for ParagraphProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -2041,9 +6022,50 @@ impl<'a> ParagraphPropertiesView<'a> {
                 ooxml_core::value::parse_bool,
             )
     }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `a:ST_Guid/a:tableStyleId` — Table Style ID.
+#[derive(Debug)]
+pub enum TableStyleId {}
+impl ooxml_core::ElementSpec for TableStyleId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tableStyleId");
+    const SDK_NAME: &'static str = "a:ST_Guid/a:tableStyleId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`TableStyleId`].
+#[derive(Clone, Debug)]
+pub struct TableStyleIdView<'a>(pub ooxml_core::Lens<'a, TableStyleId>);
+impl<'a> TableStyleIdView<'a> {
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableStyleId`]. Reads go through [`TableStyleIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableStyleIdViewMut<'a>(pub ooxml_core::LensMut<'a, TableStyleId>);
+impl<'a> TableStyleIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableStyleIdView<'_> {
+        TableStyleIdView(self.0.as_lens())
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
     }
 }
 /// `xsd:string/a:t` — Defines the Text Class.
@@ -2083,9 +6105,13 @@ impl<'a> TextViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<ColIdIdentifier>();
+const _: () = ooxml_core::schema::assert_spec::<RowIdIdentifier>();
 const _: () = ooxml_core::schema::assert_spec::<Graphic>();
 const _: () = ooxml_core::schema::assert_child::<Graphic, GraphicData>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicData>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, ColIdIdentifier>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, RowIdIdentifier>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
 #[cfg(all(feature = "dml", feature = "pml"))]
@@ -2101,25 +6127,102 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Slide>
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Document>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
+const _: () = ooxml_core::schema::assert_spec::<BottomBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    BottomBorderLineProperties,
+    SolidFill,
+>();
+const _: () = ooxml_core::schema::assert_spec::<LeftBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<RightBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<TopBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<NoFill>();
+const _: () = ooxml_core::schema::assert_spec::<Extension>();
+const _: () = ooxml_core::schema::assert_child::<Extension, ColIdIdentifier>();
+const _: () = ooxml_core::schema::assert_child::<Extension, RowIdIdentifier>();
+const _: () = ooxml_core::schema::assert_spec::<ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<ExtensionList, Extension>();
+const _: () = ooxml_core::schema::assert_spec::<Offset>();
+const _: () = ooxml_core::schema::assert_spec::<Extents>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
+const _: () = ooxml_core::schema::assert_spec::<RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_spec::<SchemeColor>();
+const _: () = ooxml_core::schema::assert_spec::<SolidFill>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, SchemeColor>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
+const _: () = ooxml_core::schema::assert_child::<Table, TableGrid>();
+const _: () = ooxml_core::schema::assert_child::<Table, TableProperties>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableRow>();
 const _: () = ooxml_core::schema::assert_spec::<TableCell>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, TableCellProperties>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TextBody>();
+const _: () = ooxml_core::schema::assert_spec::<TableCellProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellProperties,
+    BottomBorderLineProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellProperties,
+    LeftBorderLineProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellProperties,
+    RightBorderLineProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellProperties,
+    TopBorderLineProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<GridColumn>();
+const _: () = ooxml_core::schema::assert_child::<GridColumn, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<TableGrid>();
+const _: () = ooxml_core::schema::assert_child::<TableGrid, GridColumn>();
+const _: () = ooxml_core::schema::assert_spec::<TableProperties>();
+const _: () = ooxml_core::schema::assert_child::<TableProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<TableProperties, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<TableProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_child::<TableProperties, TableStyleId>();
 const _: () = ooxml_core::schema::assert_spec::<TableRow>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableCell>();
 const _: () = ooxml_core::schema::assert_spec::<TextBody>();
+const _: () = ooxml_core::schema::assert_child::<TextBody, BodyProperties>();
+const _: () = ooxml_core::schema::assert_child::<TextBody, ListStyle>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, Paragraph>();
+const _: () = ooxml_core::schema::assert_spec::<BodyProperties>();
+const _: () = ooxml_core::schema::assert_child::<BodyProperties, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<EndParagraphRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    ExtensionList,
+>();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<Field>();
 const _: () = ooxml_core::schema::assert_child::<Field, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Field, ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<Field, Text>();
 const _: () = ooxml_core::schema::assert_spec::<Break>();
 const _: () = ooxml_core::schema::assert_child::<Break, RunProperties>();
+const _: () = ooxml_core::schema::assert_spec::<ListStyle>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Run>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, EndParagraphRunProperties>();
@@ -2127,4 +6230,6 @@ const _: () = ooxml_core::schema::assert_child::<Paragraph, Field>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Break>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<TableStyleId>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();

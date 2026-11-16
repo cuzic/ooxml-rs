@@ -353,11 +353,25 @@ impl ooxml_core::ElementSpec for TextBody {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBody> for super::dml::BodyProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBody> for super::dml::ListStyle {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TextBody> for super::dml::Paragraph {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
 impl<'a> TextBodyView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<super::dml::BodyPropertiesView<'a>> {
+        self.0.child::<super::dml::BodyProperties>().map(super::dml::BodyPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<super::dml::ListStyleView<'a>> {
+        self.0.child::<super::dml::ListStyle>().map(super::dml::ListStyleView)
+    }
     #[cfg(feature = "dml")]
     /// `a:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = super::dml::ParagraphView<'a>> {
@@ -375,6 +389,46 @@ impl<'a> TextBodyViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> TextBodyView<'_> {
         TextBodyView(self.0.as_lens())
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(
+        &mut self,
+    ) -> Option<super::dml::BodyPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<super::dml::BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<super::dml::BodyProperties>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<super::dml::ListStyleViewMut<'_>> {
+        self.0.child_mut::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<super::dml::ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<super::dml::ListStyle>()
     }
     #[cfg(feature = "dml")]
     /// First `a:p` child matching `pred`, mutably.
@@ -407,6 +461,166 @@ impl<'a> TextBodyViewMut<'a> {
     /// Removes the first `a:p` child.
     pub fn remove_paragraph(&mut self) -> bool {
         self.0.remove::<super::dml::Paragraph>()
+    }
+}
+/// `a:CT_Transform2D/p:xfrm` — 2D Transform for Graphic Frame.
+#[derive(Debug)]
+pub enum Transform {}
+impl Transform {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `flipH`
+    pub const ATTR_FLIP_H: ooxml_core::QName = ooxml_core::QName::new("", "flipH");
+    /// `flipV`
+    pub const ATTR_FLIP_V: ooxml_core::QName = ooxml_core::QName::new("", "flipV");
+}
+impl ooxml_core::ElementSpec for Transform {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "xfrm");
+    const SDK_NAME: &'static str = "a:CT_Transform2D/p:xfrm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Transform::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform::ATTR_FLIP_H,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform::ATTR_FLIP_V,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "off")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<Transform> for super::dml::Offset {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<Transform> for super::dml::Extents {}
+/// Read-only view of [`Transform`].
+#[derive(Clone, Debug)]
+pub struct TransformView<'a>(pub ooxml_core::Lens<'a, Transform>);
+impl<'a> TransformView<'a> {
+    /// `rot` — Rotation (default `0`)
+    pub fn rotation(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Transform::ATTR_ROT, "0", ooxml_core::value::parse_i32)
+    }
+    /// `flipH` — Horizontal Flip (default `false`)
+    pub fn horizontal_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform::ATTR_FLIP_H,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `flipV` — Vertical Flip (default `false`)
+    pub fn vertical_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform::ATTR_FLIP_V,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:off` child.
+    pub fn offset(&self) -> Option<super::dml::OffsetView<'a>> {
+        self.0.child::<super::dml::Offset>().map(super::dml::OffsetView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ext` child.
+    pub fn extents(&self) -> Option<super::dml::ExtentsView<'a>> {
+        self.0.child::<super::dml::Extents>().map(super::dml::ExtentsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Transform`]. Reads go through [`TransformViewMut::as_view`].
+#[derive(Debug)]
+pub struct TransformViewMut<'a>(pub ooxml_core::LensMut<'a, Transform>);
+impl<'a> TransformViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TransformView<'_> {
+        TransformView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation (default `0`)
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Transform::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_ROT)
+    }
+    /// Sets `flipH` — Horizontal Flip (default `false`)
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform::ATTR_FLIP_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipH`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_FLIP_H)
+    }
+    /// Sets `flipV` — Vertical Flip (default `false`)
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform::ATTR_FLIP_V, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipV`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_FLIP_V)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:off` child, mutably.
+    pub fn offset_mut(&mut self) -> Option<super::dml::OffsetViewMut<'_>> {
+        self.0.child_mut::<super::dml::Offset>().map(super::dml::OffsetViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:off` child, or a new one in schema position.
+    pub fn get_or_insert_offset(
+        &mut self,
+    ) -> Result<super::dml::OffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Offset>().map(super::dml::OffsetViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:off` child.
+    pub fn remove_offset(&mut self) -> bool {
+        self.0.remove::<super::dml::Offset>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ext` child, mutably.
+    pub fn extents_mut(&mut self) -> Option<super::dml::ExtentsViewMut<'_>> {
+        self.0.child_mut::<super::dml::Extents>().map(super::dml::ExtentsViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:ext` child, or a new one in schema position.
+    pub fn get_or_insert_extents(
+        &mut self,
+    ) -> Result<super::dml::ExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Extents>().map(super::dml::ExtentsViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:ext` child.
+    pub fn remove_extents(&mut self) -> bool {
+        self.0.remove::<super::dml::Extents>()
     }
 }
 /// `p:CT_ApplicationNonVisualDrawingProps/p:nvPr` — Application Non-Visual Drawing Properties.
@@ -795,6 +1009,7 @@ impl ooxml_core::ElementSpec for GraphicFrame {
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GraphicFrame> for super::dml::Graphic {}
+impl ooxml_core::ChildOf<GraphicFrame> for Transform {}
 impl ooxml_core::ChildOf<GraphicFrame> for NonVisualGraphicFrameProperties {}
 /// Read-only view of [`GraphicFrame`].
 #[derive(Clone, Debug)]
@@ -804,6 +1019,10 @@ impl<'a> GraphicFrameView<'a> {
     /// First `a:graphic` child.
     pub fn graphic(&self) -> Option<super::dml::GraphicView<'a>> {
         self.0.child::<super::dml::Graphic>().map(super::dml::GraphicView)
+    }
+    /// First `p:xfrm` child.
+    pub fn transform(&self) -> Option<TransformView<'a>> {
+        self.0.child::<Transform>().map(TransformView)
     }
     /// First `p:nvGraphicFramePr` child.
     pub fn non_visual_graphic_frame_properties(
@@ -2015,7 +2234,16 @@ impl<'a> SlideIdView<'a> {
 const _: () = ooxml_core::schema::assert_spec::<NonVisualDrawingProperties>();
 const _: () = ooxml_core::schema::assert_spec::<TextBody>();
 #[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::BodyProperties>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::ListStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::Paragraph>();
+const _: () = ooxml_core::schema::assert_spec::<Transform>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Offset>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Extents>();
 const _: () = ooxml_core::schema::assert_spec::<ApplicationNonVisualDrawingProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     ApplicationNonVisualDrawingProperties,
@@ -2041,6 +2269,7 @@ const _: () = ooxml_core::schema::assert_spec::<ContentPart>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicFrame>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicFrame, super::dml::Graphic>();
+const _: () = ooxml_core::schema::assert_child::<GraphicFrame, Transform>();
 const _: () = ooxml_core::schema::assert_child::<
     GraphicFrame,
     NonVisualGraphicFrameProperties,

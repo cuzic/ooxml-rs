@@ -8,6 +8,31 @@ names = [
     "a:CT_RegularTextRun/a:r",
     "xsd:string/a:t",
     "a:CT_TextLineBreak/a:br",
+    # Phase 1b (ADR-0013 §2, §3): table structure, cell properties, ids.
+    "a:CT_Table/a:tbl",
+    "a:CT_TableRow/a:tr",
+    "a:CT_TableCell/a:tc",
+    "a:CT_TableGrid/a:tblGrid",
+    "a:CT_TableCol/a:gridCol",
+    "a:CT_TableProperties/a:tblPr",
+    "a:ST_Guid/a:tableStyleId",
+    "a:CT_TableCellProperties/a:tcPr",
+    "a:CT_LineProperties/a:lnL",
+    "a:CT_LineProperties/a:lnR",
+    "a:CT_LineProperties/a:lnT",
+    "a:CT_LineProperties/a:lnB",
+    "a:CT_SolidColorFillProperties/a:solidFill",
+    "a:CT_NoFillProperties/a:noFill",
+    "a:CT_SRgbColor/a:srgbClr",
+    "a:CT_SchemeColor/a:schemeClr",
+    "a:CT_TextBodyProperties/a:bodyPr",
+    "a:CT_TextListStyle/a:lstStyle",
+    "a:CT_OfficeArtExtensionList/a:extLst",
+    "a:CT_OfficeArtExtension/a:ext",
+    "a16:CT_Identifier/a16:rowId",
+    "a16:CT_Identifier/a16:colId",
+    "a:CT_Point2D/a:off",
+    "a:CT_PositiveSize2D/a:ext",
 ]
 
 # Phase0 read-only. a:rPr / a:pPr / a:endParaRPr are read entries: Phase0
@@ -19,9 +44,6 @@ names = [
 names = [
     "a:CT_GraphicalObject/a:graphic",
     "a:CT_GraphicalObjectData/a:graphicData",
-    "a:CT_Table/a:tbl",
-    "a:CT_TableRow/a:tr",
-    "a:CT_TableCell/a:tc",
     "a:CT_TextField/a:fld",
     "a:CT_TextCharacterProperties/a:rPr",
     "a:CT_TextCharacterProperties/a:endParaRPr",
@@ -51,4 +73,8 @@ names = [
     "a:CT_TextCharacterProperties/a:rPr",
     "a:CT_TextCharacterProperties/a:endParaRPr",
     "a:CT_TextParagraphProperties/a:pPr",
+    # ADR-0013 §2: new table cells copy the formatting of a neighbour cell.
+    "a:CT_TableCellProperties/a:tcPr",
+    "a:CT_TextBodyProperties/a:bodyPr",
+    "a:CT_TextListStyle/a:lstStyle",
 ]
