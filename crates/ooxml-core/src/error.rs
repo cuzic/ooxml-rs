@@ -112,7 +112,7 @@ pub enum Error {
         /// The part.
         part: String,
         /// Which precondition failed.
-        reason: String,
+        reason: crate::package::RemoveRefusal,
     },
 }
 
