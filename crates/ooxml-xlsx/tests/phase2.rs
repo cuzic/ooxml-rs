@@ -891,6 +891,18 @@ fn quote_prefix_bool_and_error() {
 }
 
 #[test]
+fn style_only_writes_are_allowed_in_merged_ranges() {
+    // no value changes, so no hidden value can appear (ADR-0014 rev 3, §3)
+    let base = Workbook::new().unwrap().to_bytes().unwrap();
+    let input = p1::with_part(&base, "xl/worksheets/sheet1.xml", r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData><mergeCells count="1"><mergeCell ref="A1:B2"/></mergeCells></worksheet>"#);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    ws.cell_mut(1, 1).unwrap().set_format(&Format::new().set_border("thin")).unwrap();
+    ws.cell_mut(0, 0).unwrap().set_num_format("0.0").unwrap();
+    assert!(matches!(ws.cell_mut(1, 1).unwrap().set_number(2.0), Err(Error::MergedCell { .. })));
+}
+
+#[test]
 fn named_style_respects_apply_flags() {
     let mut wb = Workbook::from_bytes(styled_book()).unwrap();
     {
