@@ -136,24 +136,102 @@ pub struct CompactDoc {
 /// local name) and identify the namespace by the address of its interned
 /// URI, so a lookup neither formats nor allocates.
 ///
-/// The keys are element and attribute names, i.e. **untrusted input**. The
-/// hasher must be keyed with a per-process random seed (ADR-0010 rev 3,
-/// review round 2 N1): revision 2's unkeyed FNV-1a let crafted names collide
-/// in the low bits and made parsing quadratic (18.8 MiB: 111 s). The hasher
-/// is a type parameter so the `hashdos` bench can compare candidates; `parse`
-/// uses the crate root's `NameHasher` (`foldhash::fast::RandomState`).
+/// The keys are element and attribute names, i.e. **untrusted input**
+/// (ADR-0010 §1, revision 4). Two layers:
+///
+/// - a **front cache**: 256 direct-mapped slots indexed by a cheap,
+///   unkeyed mix of the name's length, first and last bytes, prefix length
+///   and URI address. A hit is confirmed by comparing the key, so a crafted
+///   name can only cause misses;
+/// - on a miss, a `HashMap` keyed by std's `RandomState` (SipHash-1-3 with
+///   per-instance keys from the OS). Revision 2's unkeyed FNV-1a let crafted
+///   names collide and made parsing quadratic (18.8 MiB: 111 s).
+///
+/// Real parts repeat a few hundred names, so most lookups never reach
+/// SipHash (review round 3: std + front cache is as fast as core's
+/// interner, std alone ~19% slower). The hasher stays a type parameter so
+/// the `hashdos` bench can compare candidates.
 struct Interner<'s, S> {
-    map: HashMap<(Option<&'s str>, &'s str, usize), Name, S>,
+    map: HashMap<Key<'s>, Name, S>,
+    /// `None` disables the cache (the `hashdos` comparison only).
+    front: Option<Box<FrontCache<'s>>>,
+}
+
+const FRONT: usize = 256;
+
+/// The front cache's slots.
+type FrontCache<'s> = [Option<(Key<'s>, Name)>; FRONT];
+
+/// At most this many names are interned per parse. Past it, a new name is
+/// built without inserting it (lookups continue). Duplicate `Name`s are
+/// harmless, because equality falls back to content, so the cap only bounds
+/// the cost of parts made of many distinct names (stage-1 acceptance,
+/// review round 3 R3-1). Real parts use a few hundred names.
+pub const INTERN_CAP: usize = 16_384;
+
+/// Number of `Key` equality comparisons (the collision measure of the
+/// stage-1 acceptance: time-independent, review round 3 R3-1).
+pub static KEY_EQ_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The interner key: raw prefix, local name, address of the interned URI.
+#[derive(Clone, Copy, Hash)]
+struct Key<'s> {
+    prefix: Option<&'s str>,
+    local: &'s str,
+    ns: usize,
+}
+
+impl PartialEq for Key<'_> {
+    fn eq(&self, o: &Self) -> bool {
+        KEY_EQ_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.ns == o.ns && self.local == o.local && self.prefix == o.prefix
+    }
+}
+impl Eq for Key<'_> {}
+
+impl Key<'_> {
+    /// The front cache's hit check: field comparison, not counted in
+    /// `KEY_EQ_CALLS` (at most one per lookup by construction).
+    fn same(&self, o: &Self) -> bool {
+        self.ns == o.ns && self.local == o.local && self.prefix == o.prefix
+    }
+
+    /// The front-cache slot: unkeyed and cheap; correctness never depends
+    /// on it (a hit is confirmed by `==`).
+    fn slot(&self) -> usize {
+        let l = self.local.as_bytes();
+        let mix = l.len().wrapping_mul(31)
+            ^ usize::from(*l.last().unwrap_or(&0))
+            ^ (usize::from(*l.first().unwrap_or(&0)) << 3)
+            ^ self.prefix.map_or(0, |p| p.len().wrapping_mul(7))
+            ^ (self.ns >> 4);
+        mix & (FRONT - 1)
+    }
 }
 
 impl<'s, S: std::hash::BuildHasher> Interner<'s, S> {
     fn get(&mut self, ns: &Arc<str>, local: &'s str, prefix: Option<&'s str>) -> Name {
-        let key = (prefix, local, Arc::as_ptr(ns) as *const u8 as usize);
-        if let Some(n) = self.map.get(&key) {
+        let key = Key { prefix, local, ns: Arc::as_ptr(ns) as *const u8 as usize };
+        let slot = key.slot();
+        if let Some(front) = &self.front
+            && let Some((k, n)) = &front[slot]
+            && k.same(&key)
+        {
             return n.clone();
         }
-        let n = Name(Arc::new(NameData { ns: ns.clone(), local: local.into(), prefix: prefix.map(Into::into) }));
-        self.map.insert(key, n.clone());
+        let n = match self.map.get(&key) {
+            Some(n) => n.clone(),
+            None => {
+                let n = Name(Arc::new(NameData { ns: ns.clone(), local: local.into(), prefix: prefix.map(Into::into) }));
+                if self.map.len() < INTERN_CAP {
+                    self.map.insert(key, n.clone());
+                }
+                n
+            }
+        };
+        if let Some(front) = &mut self.front {
+            front[slot] = Some((key, n.clone()));
+        }
         n
     }
 }
@@ -270,14 +348,19 @@ pub fn parse(bytes: &[u8], max_depth: usize) -> Result<CompactDoc, String> {
 
 /// `parse` with the interner hasher given explicitly (the `hashdos` bench).
 pub fn parse_with<S: std::hash::BuildHasher + Default>(bytes: &[u8], max_depth: usize) -> Result<CompactDoc, String> {
+    parse_opts::<S>(bytes, max_depth, true)
+}
+
+/// As [`parse_with`], with the front cache switchable (`hashdos` only).
+pub fn parse_opts<S: std::hash::BuildHasher + Default>(bytes: &[u8], max_depth: usize, front: bool) -> Result<CompactDoc, String> {
     let s = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
     let source: Arc<str> = Arc::from(s);
     let src: &str = &source;
-    let root = parse_src::<S>(src, &source, max_depth)?;
+    let root = parse_src::<S>(src, &source, max_depth, front)?;
     Ok(CompactDoc { source: source.clone(), root })
 }
 
-fn parse_src<S: std::hash::BuildHasher + Default>(src: &str, source: &Arc<str>, max_depth: usize) -> Result<Node, String> {
+fn parse_src<S: std::hash::BuildHasher + Default>(src: &str, source: &Arc<str>, max_depth: usize, front: bool) -> Result<Node, String> {
     let base = if src.starts_with('\u{feff}') { 3 } else { 0 };
     let mut reader = Reader::from_str(&src[base..]);
     let cfg = reader.config_mut();
@@ -287,7 +370,7 @@ fn parse_src<S: std::hash::BuildHasher + Default>(src: &str, source: &Arc<str>, 
     let mut cx = Ctx {
         src,
         source: source.clone(),
-        names: Interner { map: HashMap::<_, _, S>::default() },
+        names: Interner { map: HashMap::<_, _, S>::default(), front: front.then(|| Box::new([const { None }; FRONT])) },
         uris: HashMap::new(),
         empty: Arc::from(""),
         xmlns: Arc::from(XMLNS_NS),

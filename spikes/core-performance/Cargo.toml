@@ -9,16 +9,13 @@ version = "0.0.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+default-run = "core-performance-spike"
 
 [dependencies]
 ooxml-core = { path = "../../crates/ooxml-core" }
 quick-xml = "0.42"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 rust_xlsxwriter = "0.102"
-# The interner hasher (ADR-0010 rev 3, review round 2 N1): keyed per process.
-foldhash = "0.2"
-# Only for the `hashdos` comparison bench.
-ahash = "0.8"
 
 [profile.release]
 debug = "line-tables-only"

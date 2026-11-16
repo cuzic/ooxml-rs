@@ -1,22 +1,27 @@
-//! ADR-0010 rev 3 (review round 2 N1): the interner's hasher under hostile and normal input.
+//! ADR-0010 (review round 2 N1, round 3 R3-1): the interner under hostile and normal input.
 //!
 //! `cargo run --release --bin hashdos -- dos <blocks>`: `2^blocks` distinct element names
 //! crafted so that revision 2's unkeyed FNV-1a hash of the interner key agrees in the low 22
 //! bits (the reviewer's construction: chained 4-letter blocks with a birthday collision each),
-//! and the same number of random names of the same length. Every hasher parses both.
+//! and the same number of random names of the same length. Reports time and, independent of
+//! the host's load, **key equality calls per interned name** (the stage-1 acceptance measure).
+//!
+//! `cargo run --release --bin hashdos -- distinct <n>`: `n` distinct random names (the
+//! front cache's worst case): std + front cache against core.
 //!
 //! `cargo run --release --bin hashdos -- docx`: the largest fixture `word/document.xml`
-//! (best of 15, 5 rounds), every hasher and core.
+//! (best of 15, 5 rounds): core, FNV, std alone, std + front cache (the chosen form).
 //!
-//! The interner is generic over its hasher (`compact::parse_with::<S>`), so one copy of
+//! The interner is generic over its hasher (`compact::parse_opts::<S>`), so one copy of
 //! `compact.rs` serves every candidate.
 
 use std::io::{Cursor, Read};
 use std::path::Path;
+use std::sync::atomic::Ordering::Relaxed;
 use std::time::{Duration, Instant};
 
 /// The crate-level hasher `compact::parse` uses (as in `main.rs`).
-pub type NameHasher = foldhash::fast::RandomState;
+pub type NameHasher = std::hash::RandomState;
 
 #[path = "../compact.rs"]
 #[expect(dead_code)]
@@ -39,12 +44,31 @@ impl std::hash::Hasher for Fnv {
     }
 }
 type FnvState = std::hash::BuildHasherDefault<Fnv>;
-/// std's `RandomState`: SipHash-1-3, keyed per process.
+/// std's `RandomState`: SipHash-1-3, keyed per instance.
 type SipState = std::hash::RandomState;
-/// ahash's `RandomState`: keyed per instance from a random source.
-type AhashState = ahash::RandomState;
-/// foldhash's `fast::RandomState`: keyed with a per-process random seed.
-type FoldState = foldhash::fast::RandomState;
+
+/// Key equality calls per name while parsing `d` (each name occurs once).
+fn eq_per_name<S: std::hash::BuildHasher + Default>(d: &[u8], names: usize, front: bool) -> f64 {
+    compact::KEY_EQ_CALLS.store(0, Relaxed);
+    std::hint::black_box(compact::parse_opts::<S>(d, 256, front).unwrap());
+    compact::KEY_EQ_CALLS.load(Relaxed) as f64 / names as f64
+}
+
+fn random_names(like: &[String], seed: u64) -> Vec<String> {
+    let mut x = seed;
+    like.iter()
+        .map(|n| {
+            n.bytes()
+                .map(|_| {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    (b'a' + (x % 26) as u8) as char
+                })
+                .collect()
+        })
+        .collect()
+}
 
 fn best<T>(n: usize, mut f: impl FnMut() -> T) -> Duration {
     (0..n)
@@ -145,44 +169,50 @@ fn main() {
         "dos" => {
             let blocks: usize = args.get(2).map_or(16, |a| a.parse().unwrap());
             let bad = colliding_names(blocks, 22);
-            let mut x = 0x2545_F491_4F6C_DD1Du64;
-            let good: Vec<String> = bad
-                .iter()
-                .map(|n| {
-                    n.bytes()
-                        .map(|_| {
-                            x ^= x << 13;
-                            x ^= x >> 7;
-                            x ^= x << 17;
-                            (b'a' + (x % 26) as u8) as char
-                        })
-                        .collect()
-                })
-                .collect();
+            let good = random_names(&bad, 0x2545_F491_4F6C_DD1D);
             let (bd, gd) = (doc(&bad), doc(&good));
-            println!("{} names of {} bytes; part {:.1} MiB", bad.len(), bad[0].len(), bd.len() as f64 / 1_048_576.0);
+            let n = bad.len();
+            println!("{n} names of {} bytes; part {:.1} MiB", bad[0].len(), bd.len() as f64 / 1_048_576.0);
             let reps = if blocks > 16 { 1 } else { 3 };
-            let fb = if blocks > 16 { None } else { Some(best(reps, || compact::parse_with::<FnvState>(&bd, 256).unwrap())) };
-            let fg = best(reps, || compact::parse_with::<FnvState>(&gd, 256).unwrap());
-            let (sb, sg) = (best(reps, || compact::parse_with::<SipState>(&bd, 256).unwrap()), best(reps, || compact::parse_with::<SipState>(&gd, 256).unwrap()));
-            let (ab, ag) = (best(reps, || compact::parse_with::<AhashState>(&bd, 256).unwrap()), best(reps, || compact::parse_with::<AhashState>(&gd, 256).unwrap()));
-            let (ob, og) = (best(reps, || compact::parse_with::<FoldState>(&bd, 256).unwrap()), best(reps, || compact::parse_with::<FoldState>(&gd, 256).unwrap()));
-            let (cb, cg) = (best(reps, || ooxml_core::XmlDocument::parse(&bd).unwrap()), best(reps, || ooxml_core::XmlDocument::parse(&gd).unwrap()));
+            let fb = if blocks > 16 { None } else { Some(best(reps, || compact::parse_opts::<FnvState>(&bd, 256, false).unwrap())) };
+            let fg = best(reps, || compact::parse_opts::<FnvState>(&gd, 256, false).unwrap());
+            let (sb, sg) = (best(reps, || compact::parse_opts::<SipState>(&bd, 256, false).unwrap()), best(reps, || compact::parse_opts::<SipState>(&gd, 256, false).unwrap()));
+            let (cb, cg) = (best(reps, || compact::parse_with::<SipState>(&bd, 256).unwrap()), best(reps, || compact::parse_with::<SipState>(&gd, 256).unwrap()));
+            let (kb, kg) = (best(reps, || ooxml_core::XmlDocument::parse(&bd).unwrap()), best(reps, || ooxml_core::XmlDocument::parse(&gd).unwrap()));
             println!(
-                "colliding / random: FNV {} / {fg:?} | std RandomState {sb:?} / {sg:?} | ahash {ab:?} / {ag:?} | foldhash {ob:?} / {og:?} | core {cb:?} / {cg:?}",
+                "time colliding / random: FNV {} / {fg:?} | std {sb:?} / {sg:?} | std+front {cb:?} / {cg:?} | core {kb:?} / {kg:?}",
                 fb.map_or("skipped (quadratic)".to_string(), |d| format!("{d:?}"))
             );
+            let fnv = if blocks > 16 { "skipped".to_string() } else { format!("{:.3} / {:.3}", eq_per_name::<FnvState>(&bd, n, false), eq_per_name::<FnvState>(&gd, n, false)) };
+            println!(
+                "key Eq calls per name, colliding / random: FNV {fnv} | std {:.3} / {:.3} | std+front {:.3} / {:.3}",
+                eq_per_name::<SipState>(&bd, n, false),
+                eq_per_name::<SipState>(&gd, n, false),
+                eq_per_name::<SipState>(&bd, n, true),
+                eq_per_name::<SipState>(&gd, n, true),
+            );
+        }
+        "distinct" => {
+            let n: usize = args.get(2).map_or(262_144, |a| a.parse().unwrap());
+            let like: Vec<String> = (0..n).map(|_| "x".repeat(12)).collect();
+            let names = random_names(&like, 0x9E37_79B9_7F4A_7C15);
+            let d = doc(&names);
+            for round in 0..3 {
+                let c = best(3, || ooxml_core::XmlDocument::parse(&d).unwrap());
+                let s = best(3, || compact::parse_opts::<SipState>(&d, 256, false).unwrap());
+                let f = best(3, || compact::parse_with::<SipState>(&d, 256).unwrap());
+                println!("round {round}: {n} distinct names: core {c:?} | std {s:?} | std+front {f:?} ({:.2}x core)", f.as_secs_f64() / c.as_secs_f64());
+            }
         }
         _ => {
             let v = largest_document_xml();
             println!("largest fixture word/document.xml: {:.1} MiB", v.len() as f64 / 1_048_576.0);
             for round in 0..5 {
                 let c = best(15, || ooxml_core::XmlDocument::parse(&v).unwrap());
-                let f = best(15, || compact::parse_with::<FnvState>(&v, 256).unwrap());
-                let s = best(15, || compact::parse_with::<SipState>(&v, 256).unwrap());
-                let a = best(15, || compact::parse_with::<AhashState>(&v, 256).unwrap());
-                let o = best(15, || compact::parse_with::<FoldState>(&v, 256).unwrap());
-                println!("round {round}: core {c:?} | FNV {f:?} | std RandomState {s:?} | ahash {a:?} | foldhash {o:?}");
+                let f = best(15, || compact::parse_opts::<FnvState>(&v, 256, false).unwrap());
+                let s = best(15, || compact::parse_opts::<SipState>(&v, 256, false).unwrap());
+                let sf = best(15, || compact::parse_with::<SipState>(&v, 256).unwrap());
+                println!("round {round}: core {c:?} | FNV {f:?} | std {s:?} | std+front {sf:?}");
             }
         }
     }

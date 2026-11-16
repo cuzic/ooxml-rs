@@ -1,6 +1,6 @@
 # ADR-0010: Core performance: compact Layer 2 tree, deferred subtrees, save and read paths
 
-- Status: **Proposed** (revision 3)
+- Status: **Accepted** (revision 4; review round 3: "Accepted after Minor only: yes")
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, serialization rule,
   T1/T1b/T2, "large-sheet performance is a known future redesign point"),
@@ -91,6 +91,31 @@
     - `release_part` invalidating unrelated plans is accepted and documented;
     - duplicate `XName`s for one URI are harmless.
 
+- **Revision 4** (after `0010-opus-review-round3.md`: Minor only, "Accepted after Minor only:
+  yes"; `origin/main` merged again). Status **Accepted**.
+  - **R3-1 / Open question 5:** the interner uses **std's `RandomState` behind a 256-slot front
+    cache**, with an intern cap of 16,384 names, as the reviewer recommended. There is no new
+    dependency, and it parses as fast as core's parser. foldhash is withdrawn, and its
+    description is corrected (seed source, its own HashDoS disclaimer, Zlib licence). The
+    threat model is stated. Stage 1 judges collisions by **equality-call counts**
+    (deterministic), not time ratios. The distinct-names bound is ≤ 4×. The parse target
+    allows 3% noise. The spike is changed accordingly and re-measured (§1).
+  - **R3-2:** an unexpanded `own_dirty` node renders exactly like the serializer: an empty
+    content range gives `/>`, and the close tag is rendered from the name (option (a)).
+  - **R3-3:** `with_prefixes` and every cross-document move expand deeply first. Only
+    attribute-value edits and non-declaration attribute additions or removals stay
+    unexpanded. A deferred node's source is always its own document's.
+  - **R3-4:** `child_mut(i)` and `children_slice_mut()` (length-preserving) for descending;
+    descending expands the node passed through, not the target.
+  - **R3-5:** 80 MiB is a **peak**. Parts are inflated directly into the shared `Arc<str>`,
+    and the input file is in the memory breakdown.
+  - **Nits:** the interaction rows use `remove_child`/`insert_child`/`child_mut`;
+    `with_max_depth` saturates at `u32::MAX`; the 72 B assert depends on packed flags;
+    expanded spans are absolute; `release_children` ignores the node's own `own_dirty`. The
+    reviewer's observation that prefix resolution is a linear scan of bindings (quadratic with
+    many `xmlns:pN` on one element) predates this ADR and is recorded for the fuzz harness
+    (#36), below.
+
 ## Context
 
 The 2026-11 baseline (revision 2, run 3 on a shared host; see its caveats) puts ooxml-rs far from the xlsx Phase6 goal
@@ -160,7 +185,8 @@ README):
   - unedited serialization and full re-render are unchanged.
 - **Text-heavy documents** (the largest fixture `word/document.xml`, 1.3 MiB):
   - 2.7× less memory and 2× fewer allocations;
-  - parse time equal to core's (14.6–14.8 ms against 14.8–15.5 ms);
+  - parse time equal to core's or faster (revision 4, std + front cache: 13.8 ms against
+    15.4 ms; 14.5–14.6 ms against 14.6–15.1 ms in `hashdos`);
   - drop 5× faster.
 - **The interner fix (round-1 m1).** Revision 1's spike was consistently 30–38% *slower* than
   core on that document (21.0 ms against 15.2 ms in the same session). The cause was the spike's
@@ -177,34 +203,51 @@ README):
     111 s against 0.37 s for random names.
   - core's current parser has no name hash table, so revision 2 would have **introduced** this
     denial of service.
-  - **Decision:** the interner uses a hasher **keyed with a per-process random seed**,
-    `foldhash::fast::RandomState`. foldhash has no dependencies, is MIT/Zlib licensed, and is
-    the default hasher of `hashbrown`. Hash values are never exposed, so an attacker cannot learn
-    the seed from output.
-  - **std first, weighed (CLAUDE.md).** std's `RandomState` (SipHash-1-3, keyed per process) is
-    equally safe and needs no dependency. It was rejected on measurement: on the largest
-    `word/document.xml` it parses about 19% slower than core, and stage 1's acceptance requires
-    no parse regression. If the owner prefers std anyway, the cost is that regression on
-    text-heavy parts (Open question 5).
-  - **Measured** (`spikes/core-performance/src/bin/hashdos.rs`, one session, load 11–25, best of
-    3; "colliding" = names crafted against revision 2's FNV; "random" = as many random names of
-    the same length):
+  - **Threat model (revision 4, review R3-1).** Non-interactive processing of untrusted files:
+    the attacker chooses the part's bytes but cannot observe timings while it parses. Every
+    parse builds a new table with new keys, and neither hash values nor the table's iteration
+    order leave the interner.
+  - **Decision (revision 4, adopting the round-3 reviewer's recommendation; Open question 5):**
+    **std's `RandomState`** (SipHash-1-3; each instance takes fresh keys from the OS) **behind a
+    256-slot front cache**. No new dependency, as CLAUDE.md's std-first policy asks.
+    - The front cache is a direct-mapped array of `(key, XName)` indexed by a cheap, unkeyed mix
+      of the local name's length, first and last bytes, the prefix length and the URI's
+      address. A hit is confirmed by comparing the key. An attacker who chooses names can only
+      cause misses, and a miss is an ordinary lookup in the SipHash table, so the worst case is
+      std alone: linear.
+    - Real parts repeat a few hundred names, so most lookups never reach SipHash. That removes
+      std's ~19% cost on text-heavy parts: the cache makes std **as fast as core's interner-free
+      parser or faster**.
+    - **Intern cap.** At most 16,384 names are interned per parse. Past that, a new name is
+      built without being inserted, and lookups continue. Duplicate `XName`s are harmless
+      (equality falls back to content, §1 row 1), so the cap changes no behaviour. It bounds the
+      cost of parts made of many *distinct* names, where every name is a miss.
+    - Revision 3's `foldhash::fast::RandomState` is withdrawn. Its seed is derived from ASLR
+      addresses and the clock, not from the OS's random source (`seed.rs`), and its README says
+      that "foldhash does not claim to provide HashDoS resistance against interactive
+      attackers". Its licence is Zlib only (revision 3 said MIT/Zlib). It is not in the
+      dependency tree today. It measured 1–7% slower than core, which revision 3's "no parse
+      regression" would itself have failed.
+  - **Measured** (`spikes/core-performance/src/bin/hashdos.rs`, revision 4, one session at load
+    25–32 on 32 cores, best of 3 or 15; "colliding" = names crafted against revision 2's FNV;
+    "random" = as many random names of the same length; "Eq/name" = key equality calls per
+    interned name, independent of the host's load):
 
-    | Names (part size) | FNV colliding / random | std `RandomState` | ahash | **foldhash** | core |
-    |---|---|---|---|---|---|
-    | 4,096 (0.2 MiB) | 5.1 / 1.6 ms | 1.3 / 1.3 ms | 0.93 / 0.92 ms | **0.92 / 0.90 ms** | 0.51 / 0.55 ms |
-    | 16,384 (0.9 MiB) | 66 / 7.4 ms | 5.5 / 5.5 ms | 3.9 / 3.9 ms | **3.8 / 3.7 ms** | 2.0 / 1.9 ms |
-    | 65,536 (4.2 MiB) | **1.11 s** / 49 ms | 37 / 37 ms | 30 / 30 ms | **31 / 33 ms** | 9.1 / 8.8 ms |
-    | 262,144 (18.8 MiB) | (quadratic, not run) / 268 ms | 195 / 204 ms | 162 / 166 ms | **164 / 165 ms** | 69 / 59 ms |
-    | largest `word/document.xml` (1.3 MiB), best of 15, 5 rounds | 15.1–15.3 ms | 16.5–16.7 ms | 14.6–14.9 ms | **14.1–14.6 ms** | 13.9–14.1 ms |
+    | Input | FNV (revision 2) | std alone | **std + front cache + cap** | core |
+    |---|---|---|---|---|
+    | 65,536 names (4.2 MiB), colliding / random | 285 / 47 ms; Eq/name 127.9 / 0.09 | 45.6 / 44.9 ms; 0.095 / 0.093 | **38.4 / 41.9 ms; 0.094 / 0.093** | 17.2 / 16.9 ms |
+    | 262,144 names (18.8 MiB), colliding / random | quadratic (not run) / 130 ms | 100 / 133 ms; 0.070 / 0.071 | **111 / 114 ms; 0.071 / 0.070** | 75 / 64 ms |
+    | 262,144 distinct random names | — | 74–169 ms | **1.05–1.72× core** | 47–82 ms |
+    | 65,536 distinct random names | — | 16–30 ms | **1.8–2.1× core** | 7.3–14 ms |
+    | largest `word/document.xml` (1.3 MiB), best of 15, 5 rounds | 15.8–16.4 ms | 18.6–18.8 ms | **14.5–14.6 ms** | 14.6–15.1 ms |
 
-    - With a keyed hasher, colliding names cost the same as random ones (linear).
-    - foldhash is within 1–4% of core on the docx and 2.5–3.5× faster than std on these
-      synthetic names.
-  - **Many distinct names are a cost of interning.** A part made of 262,144 *different* names
-    parses about 2.4–2.8× slower than core: every name is a table insert plus an `Arc`. Real
-    parts use a few hundred distinct names, so stage 1 bounds this case instead of optimising
-    it (acceptance below).
+    - Colliding names cost the same as random ones, in time and in equality calls. With
+      revision 2's FNV they cost 1,370× more equality calls per name (511 per name without the
+      cap; the cap also bounds that chain).
+    - The round-3 reviewer measured the same ordering: std + front cache 13.3–13.9 ms, core
+      14.3–14.9 ms, foldhash 15.3–15.6 ms, std alone 17.3–18.2 ms.
+  - **Many distinct names are a cost of interning**, now bounded by the cap: 262,144 distinct
+    names parse in 1.05–1.72× core's time (revision 3 with foldhash and no cap: 2.4–2.8×).
   - That removed the regression and made sheets 1.6–1.8× faster at 100k–1M cells (before the fix:
     1.1–1.3×).
   - Stage 1's acceptance includes "no parse regression on the largest docx/pptx fixtures" so that
@@ -293,20 +336,47 @@ switched into a mode that builds nothing.
     `splice_children`, `retain_children`, `set_children`; §1) expands first. So does every
     lens path that **descends** into a deferred node.
   - **Attribute-only writes do not expand (revision 3, review N2, option b).** The lens's
-    `set_attr`/`remove_attr`, #38's `apply` (`e.attrs.iter_mut()`, `own_dirty = true`) and
-    #18's `with_prefixes` may change a deferred node's **own** attributes and flags. They leave
-    the node unexpanded and `own_dirty`. That is a **defined state** with a defined rendering,
-    not an invariant violation. It is also what makes `row/@ht` cheap.
-- **Rendering an unexpanded, `own_dirty` deferred node** (`xml/write.rs`):
-  - with a close tag: the re-rendered open tag (new attributes), then the content
-    `source[open_end..close.0]` copied **verbatim from the node's own `Arc<str>` source**, then
-    the close tag as in the source;
-  - self-closing in the source (`close == None`, `<row r="5"/>`): rendered self-closing with the
-    new attributes. There is no content to copy.
+    `set_attr`/`remove_attr` and #38's `apply` (`e.attrs.iter_mut()`, `own_dirty = true`) may
+    change a deferred node's **own attribute values**, or add and remove its attributes other
+    than namespace declarations. They leave the node unexpanded and `own_dirty`. That is a
+    **defined state** with a defined rendering, not an invariant violation. It is also what
+    makes `row/@ht` cheap.
+  - **Everything else expands deeply first (revision 4, review R3-3).** That covers an
+    operation that changes an element's name or prefix, and any move of a subtree into
+    another document (#18's `detach_as`/`insert_detached`, whose `with_prefixes` rewrites the
+    element's own prefix and every descendant's). The node and every deferred node inside it
+    are expanded, nested deferrals included, before the operation runs: copied raw content
+    would carry the source document's prefix bindings into a document where they may be
+    unbound or bound to another URI.
+  - **Invariant:** a deferred node's `Deferred.source` is the source of the document that holds
+    it. `debug_assert!`ed when a subtree is inserted, so a cross-document deferred node cannot
+    exist.
+  - **Descending (revision 4, review R3-4).** The lens descends by `&mut` one level at a time
+    (`LensMut::node_mut`, `mark_path`; #38's `apply`, edits after #26's `insert_at`). Stage 1b
+    therefore adds `child_mut(i) -> Option<&mut RawItem>` and
+    `children_slice_mut() -> &mut [RawItem]`. Both expand the node first and cannot change the
+    number of children, so a stage-4 arena (a contiguous range) supports them. Descending
+    expands the node descended **through**, never the node it lands on. For `row/@ht`, the lens
+    takes `&mut` to a child of `sheetData`, which expands `sheetData`'s list (already built)
+    but not the `row`.
+- **Rendering an unexpanded, `own_dirty` deferred node** (`xml/write.rs`; revision 4, review
+  R3-2 option (a): the same rules as the serializer's `own_dirty` path):
+  - the re-rendered open tag (new attributes);
+  - if the content range `source[open_end..close.0]` is **empty** (`<row r="1"></row>`, or
+    self-closing in the source): `/>`, as the serializer writes an `own_dirty` node without
+    children;
+  - otherwise the content copied **verbatim from the node's own `Arc<str>` source**, then a
+    close tag **rendered from the name** (`</row>`), not copied (`</row >` in the source
+    becomes `</row>`).
 
-  This is byte-identical to expanding and rendering clean children. Every clean child, text and
+  This is byte-identical to expanding and rendering clean children. Revision 3 copied the
+  source's close tag and kept an empty `<row …></row>`. Both differ from the serializer's
+  output, and the round-3 reviewer's `fallback.rs` probe showed stage 2's property test would
+  fail on them. Every clean child, text and
   markup is emitted from its span, and together they cover `open_end..close.0` without gaps
-  (verified by the round-2 reviewer). The prefix bindings of the content do not change, because
+  (verified by the round-2 reviewer; spans of expanded content are **absolute** offsets into
+  the part's source, including inside nested deferrals, which T2 and this rendering rely on).
+  The prefix bindings of the content do not change, because
   #40's lens refuses adding or removing `xmlns` declarations (`NamespaceDeclaration`), so the
   re-rendered open tag binds the same prefixes. No `debug_assert!` fires on this path.
 - **Enforced by privacy, for real (N2).** `RawNode` is defined in the leaf module `xml/node.rs`.
@@ -340,12 +410,15 @@ expansion needs, **in a box** (revision 3, review N6): `RawNode` keeps one
 `Option<Box<Deferred>>` (8 B, `None` for every ordinary node). The alternative layout is
 `children: enum { Built(Vec<RawItem>), Deferred(Box<Deferred>) }`. Putting the payload inline
 would bring every node back to about 150 B and erase stage 1's gain. A compile-time
-`const { assert!(size_of::<RawNode>() <= 72) }` guards it. `Deferred` holds:
+`const { assert!(size_of::<RawNode>() <= 72) }` guards it. 72 B holds only with the two dirty
+flags packed into the span's word (§1); as separate `bool`s the node is 80 B (round-3 reviewer's
+`size/s.rs`), so the assert failing points there first. `Deferred` holds:
 
 - the source (`Arc<str>`, shared);
 - the parse options (`Copy`);
 - its **depth** (`u32`; revision 2's `u16` would truncate a `with_max_depth` above 65,535):
-  expansion counts the limit from there;
+  expansion counts the limit from there. `with_max_depth(usize)` **saturates** at `u32::MAX`
+  (a limit that large refuses nothing a real part has; revision 4 nit);
 - an `Arc` of the in-scope namespace bindings, shared by consecutive siblings;
 - the `OnceLock` for the expanded children.
 
@@ -368,7 +441,9 @@ Non-expanding read accessors:
 - `RawNode::content_span() -> Option<Range<usize>>`, so that a caller can scan raw content
   itself (a census, a bulk value read) without expanding;
 - `RawNode::release_children(&mut self) -> bool`, which drops a clean expansion back to deferred.
-  It returns `false`, and does nothing, if anything inside is dirty.
+  It returns `false`, and does nothing, if anything **inside** is dirty. The node's own
+  `own_dirty` (an attribute-only edit) does not prevent release: its children are clean, and
+  §2.3's rendering of an unexpanded `own_dirty` node is byte-identical (revision 4 nit).
 
 #### 2.5 sheetData and the row index (requirements on ooxml-xlsx, stage 2x)
 
@@ -540,15 +615,15 @@ on all fixtures.
 
 | Work | What it touches | Effect of this ADR |
 |---|---|---|
-| core/add-part (staged `RegistryPlan`) | `apply` uses `a.value.clone_from(ct)`, `e.attrs.iter_mut()`, `root.children.get_mut` directly | Stage 1b: a mechanical change to the accessors and `SStr`. Stage 3: `release_part` bumps the generation, so a plan made earlier is `Stale` rather than skipping an edit (M4); added parts get the save level (§4); its `parse_raw` becomes `parse_part` (§5). |
-| #14 `remove_part` | `remove_root_child_with_leading_ws` edits `root.children` | Stage 1b: through `children_mut`. |
+| core/add-part (staged `RegistryPlan`) | `apply` uses `a.value.clone_from(ct)`, `e.attrs.iter_mut()`, `root.children.get_mut` directly | Stage 1b: a mechanical change to the accessors (`child_mut` for `root.children.get_mut`, §2.3) and `SStr`. Stage 3: `release_part` bumps the generation, so a plan made earlier is `Stale` rather than skipping an edit (M4); added parts get the save level (§4); its `parse_raw` becomes `parse_part` (§5). |
+| #14 `remove_part` | `remove_root_child_with_leading_ws` edits `root.children` | Stage 1b: through `remove_child`. |
 | #18 `detach_as`/`insert_detached` | `detach_node` walks `n.children`; `Detached::height()`; builds `RawAttr { name: XName::new(..), value: a.value.clone() }` | Stage 1b: through the accessors (a deferred source subtree is expanded before copying, §2.3). `value.clone()` clones an `SStr`, whose `Arc` keeps the source part's text alive while the copy lives. |
 | #19 pptx copy formatting | uses #18 | as #18 |
-| #26 `insert_at` | `children.insert` | Stage 1b: through `children_mut`. |
+| #26 `insert_at` | `children.insert` | Stage 1b: through `insert_child` (and `child_mut`, §2.3, for edits after the insert). |
 | #29 xlsx row index | `SheetIndex::build` reads every row's children | Stage 2x requirements (§2.5): per-row lazy cell positions, sheet-level checks from row attributes only, bulk reads that do not leave every row expanded. To be agreed with the Excel owner. |
 | ooxml-pptx (ADR-0005) | `Slide<'a>` holds `&'a XmlDocument` | Stage 3: an owned `read_slide` and/or `release_slide` is added beside `slide()`; slides only, with layouts and masters still cached (§5). |
 | #40 `fix/core-fuzz-findings` | adds `ParseOptions::max_part_bytes`/`max_package_bytes`; new parser checks (BOM, NUL, `PositionMismatch`, `EmptyName`, `EmptyPrefixBinding`, XML-declaration position); the lens's `NamespaceDeclaration` refusal | `defer`/`count` are laid out beside the new limits, each with a builder (§2.1). Every new check sits on the **shared** path of the parser loop, which §2.2's "same errors by construction" relies on: the round-2 reviewer's probe found 49 of 49 malformed inputs giving the same error in both modes. The `NamespaceDeclaration` refusal is a premise of §2.3's rendering of `own_dirty` deferred nodes. |
-| #36 fuzz harness | fuzz targets and a corpus for core, xlsx and pptx | Stage 2's "identical errors" property test takes its inputs from the fuzz corpus as well as from mutated fixtures. |
+| #36 fuzz harness | fuzz targets and a corpus for core, xlsx and pptx | Stage 2's "identical errors" property test takes its inputs from the fuzz corpus as well as from mutated fixtures. Also a candidate input there (revision 4, round-3 observation, outside this ADR): many `xmlns:pN` declarations on one element used by many attributes, since prefix resolution (`Scope::lookup`) scans the bindings linearly. |
 
 ### Acceptance for each stage
 
@@ -559,12 +634,16 @@ on all fixtures.
   - the parse-equivalence test against the frozen parser (all fixtures and generated inputs);
   - **no parse-time regression** against `main` on the largest docx and pptx fixtures, and on the
     sheets (round-1 m1);
-  - **hostile names stay linear** (revision 3, N1). A part of 262,144 element names crafted to
-    collide under an unkeyed hash, like `hashdos.rs`'s FNV construction, parses within 1.25×
-    the time of the same number of random names. Quadrupling the names at most quintuples the
-    time;
-  - **many distinct names have a bounded cost**: on 262,144 distinct random names, parse time is
-    at most 3× `main`'s. Measured 2.4–2.8× with foldhash.
+  - **hostile names stay linear** (revision 3, N1; revision 4, R3-1: judged by a count, not a
+    time ratio). The test counts the interner key's equality calls, which a test-only `Eq`
+    wrapper exposes. On a part of 262,144 element names crafted to collide under an unkeyed
+    hash (`hashdos.rs`'s FNV construction), equality calls per interned name are **≤ 1** and
+    **≤ 1.5×** those on the same number of random names. Measured 0.071 against 0.070. This is
+    deterministic, so CI can check it. The time ratios (colliding within 1.25× of random;
+    4× the names at most 5× the time) are reported on a quiet host as reference values only;
+  - **many distinct names have a bounded cost**: the interner holds at most 16,384 names (a
+    unit test), and on 262,144 distinct random names parse time is at most **4×** `main`'s
+    (revision 4, R3-1; measured 1.05–1.72× with the cap).
 - **Stage 2:**
   - a property test that deferred and full parses serialize identically, with and without edits
     (attribute-only edits on deferred nodes included, §2.3);
@@ -583,15 +662,20 @@ All targets are relative to `main` in the same session, and absolute on a quiet 
     **≤ 1/2.5 for docx and pptx parts** (measured 1/2.7 on the largest `word/document.xml`,
     1/2.85 on a pptx slide);
   - drop time ≤ 1/3 of `main` (measured 1/3.5–1/6 on sheets, 1/5 on the largest `word/document.xml`);
-  - parse time no worse than `main` on any measured input, and the two hostile-input bounds of
-    the stage-1 acceptance.
+  - parse time no worse than `main` on any measured input, **within a 3% noise allowance**
+    (revision 4, R3-1), and the two hostile-input bounds of the stage-1 acceptance.
 
   The spike's sheet parse is 1.35–1.8× faster after the interner fix, but parse speed is not
   stage 1's target.
 - **Stages 2 + 2x** (1M-cell sheet, quiet host):
   - `Workbook::from_bytes` ≤ 0.6 s, **to be confirmed by a stage-2 breakdown measurement**
     before stage 2x starts (see the basis);
-  - heap ≤ 80 MiB, with the shared strings read **uncached** (below);
+  - **peak** heap ≤ 80 MiB during open, with the shared strings read **uncached** (below).
+    Peak, because the baseline (`PeakAlloc`, calamine's 77 MiB) is a peak (revision 4, review
+    R3-5). This **requires** decompressing a part directly into its shared source: an
+    `Arc::new_uninit_slice` of the declared size, filled by the inflater, UTF-8-checked, then
+    used as the `Arc<str>`. The current `parse_with(&[u8])` copies the inflated bytes, so the
+    33 MiB `Vec<u8>` and the 33 MiB `Arc<str>` would be alive at once (peak 85–95 MiB);
   - **edit 1,000 cells + save ≤ 0.5 s at level 3, open excluded** (revision 2's "open + edit +
     save ≤ 0.5 s" contradicted the 0.6 s open target).
 
@@ -611,8 +695,9 @@ All targets are relative to `main` in the same session, and absolute on a quiet 
 
     0.6 s is plausible on a quiet host but has no margin. Stage 2 measures this breakdown, and
     the target is revised then if needed.
-  - **Memory:**
-    - retained source text: 33 MiB;
+  - **Memory** (peak during open):
+    - the input file, which `Package` holds as `Arc<[u8]>`: 3.4 MiB;
+    - retained source text: 33 MiB, with no second copy (above);
     - deferred row nodes: 15–25 MiB (§2.4);
     - the expanded rows;
     - the shared strings, which are the reason for the second stage-2x requirement below. The
@@ -700,11 +785,10 @@ decision.
    an owned `read_slide(&self, i) -> SlideDoc` on `parse_part` and/or `release_slide(i)`. No
    LRU. Layouts and masters stay cached.
 4. **Stage 2x requirements on PR #29** (§2.5). To be agreed with the Excel owner before stage 2x.
-5. **The interner's hasher** (revision 3, N1). Proposed: `foldhash::fast::RandomState`, keyed
-   per process, a new small dependency of `ooxml-core`. The std-first alternative is
-   `std::hash::RandomState`: equally safe against crafted names, no dependency, but about 19%
-   slower than core on text-heavy parts (14.1–14.6 ms against 16.5–16.7 ms on the largest
-   `word/document.xml`), which fails stage 1's "no regression". Which does the owner prefer?
+5. **The interner's hasher** (revision 3, N1). **Decided in revision 4 (coordinator, adopting
+   the round-3 reviewer's recommendation):** `std::hash::RandomState` behind a 256-slot front
+   cache, with an intern cap of 16,384 names (§1). There is no new dependency, and parsing is
+   as fast as core's parser. Revision 3's `foldhash` proposal is withdrawn.
 
 ## Sources
 
@@ -714,7 +798,11 @@ decision.
 - `docs/adr/0010-opus-review-round2.md` and its probes (`probe2.rs`: the FNV collision
   construction; `probe3.rs`: the shared-strings tree size; `pr40/` + `skipprobe/`: error
   equality of the non-building mode on #40's parser).
-- foldhash 0.2 (`fast::RandomState`); ahash 0.8 (compared only).
+- `docs/adr/0010-opus-review-round3.md` and its probes (`r3.rs`: hashers, front cache and
+  equality counts; `compact_fc.rs`: the front-cache prototype; `fallback.rs`: rendering of
+  unexpanded `own_dirty` nodes; `size/s.rs`: `RawNode` layouts).
+- foldhash 0.2.0 (`seed.rs`, `fast.rs`, README; read for revision 3's proposal, withdrawn in
+  revision 4).
 - `docs/adr/0010-opus-review-round1.md` and its probe (validated skip, real-corpus compression
   sizes, PR #29 and core/add-part source references).
 - ADR-0001 "Large-sheet performance is explicitly a non-goal for Phase0 and a known future

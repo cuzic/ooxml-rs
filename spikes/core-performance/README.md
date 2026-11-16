@@ -60,34 +60,38 @@ These were measured on the same shared AMD EPYC 7313P as
   URI's address. Revision 1 formatted a key string with the namespace URI for every lookup and
   hashed it with SipHash, which made `word/document.xml` 30–38% slower than core (21.0 ms
   against 15.2 ms in one session).
-- **Keyed hasher (ADR-0010 rev 3, round-2 N1).**
+- **Keyed hasher, front cache, intern cap (ADR-0010 rev 3 N1; rev 4 R3-1).**
   - Revision 2 hashed the interner key with **unkeyed FNV-1a**. Crafted element names made the
     parse quadratic: 65,536 names took 1.11 s against 49 ms for random names, and 18.8 MiB took
     111 s in the reviewer's run.
-  - The interner is now generic over its hasher (`compact::parse_with::<S>`). `parse` uses
-    `foldhash::fast::RandomState`, keyed with a per-process random seed.
-  - `cargo run --release --bin hashdos -- dos <blocks>` compares unkeyed FNV, std
-    `RandomState`, ahash and foldhash with core on colliding and random names.
-    `cargo run --release --bin hashdos -- docx` does the same on the largest `word/document.xml`.
-    The results are in ADR-0010 §1.
-  - The table below predates the hasher change; foldhash measured within 1–4% of core on the
-    docx in the same session, so its conclusions stand.
-  - The correctness check (1,589 fixture parts: T1, same tree, re-render) passes with foldhash.
+  - Revision 4 (`compact.rs` `Interner`): std's `RandomState` (SipHash-1-3, per-instance keys)
+    behind a **256-slot direct-mapped front cache** (a hit is confirmed by comparing the key, so
+    crafted names can only cause misses), and an **intern cap** of 16,384 names (past it a new
+    name is built without inserting; duplicate names are harmless). No dependency beyond std.
+    Revision 3's foldhash is withdrawn.
+  - `KEY_EQ_CALLS` counts the interner key's equality calls, the load-independent collision
+    measure of stage 1's acceptance.
+  - `cargo run --release --bin hashdos -- dos <blocks>` compares unkeyed FNV, std alone and
+    std + front cache with core on colliding and random names (time and equality calls per
+    name); `-- distinct <n>` measures `n` distinct names; `-- docx` the largest
+    `word/document.xml`. The results are in ADR-0010 §1.
+  - The table below is revision 4's run (2026-11-16, load 26–32 on 32 cores). The correctness
+    check (1,589 fixture parts: T1, same tree, re-render) passes.
 
 | Input | XML | Tree | Parse (no drop) | Allocations (+ reallocations) | Allocs/element (+ reallocs) | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 7.1 ms | 111064 (+ 2015) | 5.29 (+ 0.10) | 14.6 MiB | 50.3 | 2.5 ms | 0.0 ms | 1.3 ms |
-| | | compact (spike) | 5.1 ms | 43089 (+ 19) | 2.05 (+ 0.00) | 2.8 MiB | 9.7 | 0.7 ms | 0.0 ms | 1.3 ms |
-| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 86.1 ms | 1110064 (+ 20019) | 5.29 (+ 0.10) | 147.5 MiB | 47.5 | 67.0 ms | 0.1 ms | 15.7 ms |
-| | | compact (spike) | 51.1 ms | 430089 (+ 23) | 2.05 (+ 0.00) | 28.4 MiB | 9.1 | 9.9 ms | 0.1 ms | 13.9 ms |
-| sheet1.xml, 1000k cells | 33.1 MiB | core `XmlDocument` | 907.7 ms | 11100064 (+ 200022) | 5.29 (+ 0.10) | 1474.6 MiB | 44.6 | 780.6 ms | 17.2 ms | 235.8 ms |
-| | | compact (spike) | 503.5 ms | 4300089 (+ 26) | 2.05 (+ 0.00) | 285.6 MiB | 8.6 | 151.9 ms | 4.3 ms | 152.5 ms |
+| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 7.0 ms | 111064 (+ 2015) | 5.29 (+ 0.10) | 14.6 MiB | 50.3 | 2.3 ms | 0.0 ms | 1.3 ms |
+| | | compact (spike) | 4.4 ms | 43090 (+ 19) | 2.05 (+ 0.00) | 2.8 MiB | 9.7 | 0.7 ms | 0.0 ms | 1.4 ms |
+| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 80.7 ms | 1110064 (+ 20019) | 5.29 (+ 0.10) | 147.5 MiB | 47.5 | 65.1 ms | 0.1 ms | 16.0 ms |
+| | | compact (spike) | 44.3 ms | 430090 (+ 23) | 2.05 (+ 0.00) | 28.4 MiB | 9.1 | 10.5 ms | 0.1 ms | 14.8 ms |
+| sheet1.xml, 1000k cells | 33.1 MiB | core `XmlDocument` | 1189.9 ms | 11100064 (+ 200022) | 5.29 (+ 0.10) | 1474.6 MiB | 44.6 | 814.9 ms | 20.5 ms | 290.8 ms |
+| | | compact (spike) | 457.8 ms | 4300090 (+ 26) | 2.05 (+ 0.00) | 285.6 MiB | 8.6 | 152.4 ms | 2.5 ms | 167.0 ms |
 | pptx slide (ppt/slides/slide12.xml) | 0.0 MiB | core `XmlDocument` | 0.2 ms | 2564 (+ 88) | 4.89 (+ 0.17) | 0.2 MiB | 16.8 | 0.0 ms | 0.0 ms | 0.0 ms |
-| | | compact (spike) | 0.2 ms | 1392 (+ 48) | 2.66 (+ 0.09) | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.0 ms |
-| largest fixture word/document.xml | 1.3 MiB | core `XmlDocument` | 15.1 ms | 319805 (+ 1345) | 8.69 (+ 0.04) | 15.2 MiB | 11.8 | 6.1 ms | 0.0 ms | 5.0 ms |
-| | | compact (spike) | 14.6 ms | 153639 (+ 162) | 4.17 (+ 0.00) | 5.6 MiB | 4.3 | 1.2 ms | 0.0 ms | 5.3 ms |
+| | | compact (spike) | 0.2 ms | 1393 (+ 48) | 2.66 (+ 0.09) | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.0 ms |
+| largest fixture word/document.xml | 1.3 MiB | core `XmlDocument` | 15.4 ms | 319805 (+ 1345) | 8.69 (+ 0.04) | 15.2 MiB | 11.8 | 7.2 ms | 0.0 ms | 5.4 ms |
+| | | compact (spike) | 13.8 ms | 153640 (+ 162) | 4.17 (+ 0.00) | 5.6 MiB | 4.3 | 1.3 ms | 0.0 ms | 5.4 ms |
 
-Ranges over the three runs (core against compact, parse without drop):
+Ranges over the three earlier runs (revisions 2–3, load 6–7; core against compact, parse without drop):
 
 | Input | core parse | compact parse | core drop | compact drop |
 |---|---|---|---|---|

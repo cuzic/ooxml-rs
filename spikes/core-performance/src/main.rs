@@ -5,8 +5,9 @@
 //! cd spikes/core-performance && cargo run --release
 //! ```
 
-/// The interner's hasher (ADR-0010 §1): keyed per process (random seed).
-pub type NameHasher = foldhash::fast::RandomState;
+/// The interner's hasher (ADR-0010 §1, revision 4): std's `RandomState`
+/// (SipHash-1-3, per-instance keys), behind a 256-slot front cache.
+pub type NameHasher = std::hash::RandomState;
 
 mod compact;
 mod rows;
