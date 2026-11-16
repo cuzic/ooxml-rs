@@ -1,6 +1,6 @@
 //! Writes a small, named set of edited presentations plus `CHECKLIST.md`
 //! for the project owner's manual check in Microsoft 365 PowerPoint
-//! (ADR-0005 §7 "Manual"; items 11–13: ADR-0008 §4 find/replace; the
+//! (ADR-0005 §7 "Manual"; items 14–16: ADR-0008 §4 find/replace; the
 //! sandbox has no PowerPoint).
 //!
 //! ```text
@@ -63,7 +63,7 @@ fn main() -> R {
             observe: vec![
                 "Opens without a repair prompt.",
                 "Title and body show the new text; body has 3 bullet paragraphs, the 2nd with a soft line break.",
-                "Fonts/sizes look like the template's; added paragraphs look like the existing ones (only existing attribute-only a:pPr/a:rPr are copied).",
+                "Fonts/sizes look like the template's; added paragraphs look like the existing ones (a:pPr / a:rPr are copied as subtrees, Phase 0.1).",
             ],
         });
     }
@@ -108,7 +108,7 @@ fn main() -> R {
         });
     }
 
-    // 3. Empty placeholder fill (a:endParaRPr attributes copied to a:rPr)
+    // 3. Empty placeholder fill (a:endParaRPr copied to a:rPr)
     {
         let mut p = Presentation::open(fixture("poi/with_japanese.pptx"))?;
         let id = find_shape(&mut p, 0, |x| x.text_body().is_some_and(|b| b.paragraphs().iter().all(|q| q.items().is_empty())))?;
@@ -116,7 +116,7 @@ fn main() -> R {
         items.push(Item {
             file: save(&out, "03-empty-placeholder-fill", &p)?,
             source: "poi/with_japanese.pptx, slide 1",
-            edit: format!("Paragraph::set_text into the empty placeholder id {id}; the new run's a:rPr copies a:endParaRPr's attributes"),
+            edit: format!("Paragraph::set_text into the empty placeholder id {id}; the new run's a:rPr is a copy of a:endParaRPr"),
             observe: vec![
                 "Opens without a repair prompt.",
                 "The text looks the same as if typed into the empty placeholder in PowerPoint (size, language/proofing).",
@@ -266,10 +266,76 @@ fn main() -> R {
         });
     }
 
-    // 11–13. Cross-run find/replace (ADR-0008 §4; ADR still under review).
+    // 11. Phase 0.1: new runs/paragraphs copy formatting with child elements
+    {
+        let mut p = Presentation::open(fixture("poi/sample.pptx"))?;
+        let mut s = p.slide_mut(0)?;
+        s.shape_mut_by_id(2049)?.text_body_mut()?.set_text("Title line one\u{b}after a line break\nSecond title paragraph")?;
+        s.shape_mut_by_id(2050)?.text_body_mut()?.set_text("First subtitle paragraph\nSecond (copies a:pPr with a:spcAft)\nThird")?;
+        items.push(Item {
+            file: save(&out, "11-formatted-new-lines", &p)?,
+            source: "poi/sample.pptx, slide 1",
+            edit: "TextBody::set_text with \\v and new lines on the title (a:rPr has an a:sym child) and the subtitle (a:pPr has an a:spcAft child); Phase 0.1 copies both subtrees".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "New lines and the text after the line break look exactly like the first line (font, symbol font, size, paragraph spacing).",
+                "Empty-line heights (end of paragraph) match the text size.",
+            ],
+        });
+    }
+
+    // 12. Phase 0.1: empty paragraph whose a:endParaRPr has child elements
+    {
+        let mut p = Presentation::open(fixture("poi/sample_pptx_grouping_issues.pptx"))?;
+        let id = find_shape(&mut p, 0, |x| {
+            x.text_body().is_some_and(|b| {
+                let q = b.paragraphs()[0];
+                q.runs().is_empty() && q.raw().elements().any(|c| c.name().local() == "endParaRPr" && c.elements().next().is_some())
+            })
+        })?;
+        p.slide_mut(0)?.shape_mut_by_id(id)?.text_body_mut()?.paragraph_mut(0)?.set_text("Typed into the empty paragraph")?;
+        items.push(Item {
+            file: save(&out, "12-formatted-empty-fill", &p)?,
+            source: "poi/sample_pptx_grouping_issues.pptx, slide 1",
+            edit: format!("Paragraph::set_text into the empty first paragraph of shape id {id}, whose a:endParaRPr has child elements (copied as the new a:rPr)"),
+            observe: vec!["Opens without a repair prompt.", "The text looks as if typed there in PowerPoint (colour/font from the end-of-paragraph format)."],
+        });
+    }
+
+    // 13. Phase 0.1: hyperlinks stay on their run
+    {
+        let mut p = Presentation::open(fixture("poi/shapes.pptx"))?;
+        let id = find_shape(&mut p, 4, |x| *x.kind() == ShapeKind::Table)?;
+        let cell = {
+            let s = p.slide(4)?;
+            let t = s.shape_by_id(id)?.and_then(|x| x.table()).ok_or("table")?;
+            let mut found = None;
+            'rows: for (r, row) in t.rows().iter().enumerate() {
+                for (c, cell) in row.iter().enumerate() {
+                    if cell.text_body().is_some_and(|b| b.raw().elements().any(|q| q.elements().any(|r| r.elements().any(|rp| rp.elements().any(|l| l.name().local() == "hlinkClick"))))) {
+                        found = Some((r, c));
+                        break 'rows;
+                    }
+                }
+            }
+            found.ok_or("no linked cell")?
+        };
+        p.slide_mut(4)?.shape_mut_by_id(id)?.table_cell_mut(cell.0, cell.1)?.paragraph_mut(0)?.set_text("Linked text\u{b}plain text after a break")?;
+        items.push(Item {
+            file: save(&out, "13-hyperlink-run", &p)?,
+            source: "poi/shapes.pptx, slide 5",
+            edit: format!("table id {id}, cell {cell:?}: Paragraph::set_text(\"Linked text\\vplain text after a break\"); the new run copies the a:rPr without a:hlinkClick"),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Only \"Linked text\" is a hyperlink (same target as before); the text after the break looks the same but is not linked.",
+            ],
+        });
+    }
+
+    // 14–16. Cross-run find/replace (ADR-0008 §4; ADR still under review).
     // Each pattern is picked from the fixture so that the case applies.
     {
-        // 11: a match across two runs with different formatting
+        // 14: a match across two runs with different formatting
         let mut p = Presentation::open(fixture("poi/with_japanese.pptx"))?;
         let mut pick = None;
         'outer: for i in 0..p.slide_count() {
@@ -298,7 +364,7 @@ fn main() -> R {
         let o = ooxml_pptx::ReplaceOptions { find: ooxml_pptx::FindOptions { scope: ooxml_pptx::Scope::Slide(si), ..Default::default() }, ..Default::default() };
         let rep = p.replace_all(&pat, "【置換】", &o)?;
         items.push(Item {
-            file: save(&out, "11-replace-across-runs", &p)?,
+            file: save(&out, "14-replace-across-runs", &p)?,
             source: "poi/with_japanese.pptx",
             edit: format!("slide {}: replace_all({pat:?} → \"【置換】\"), {} match(es) across two differently formatted runs", si + 1, rep.replaced.len()),
             observe: vec![
@@ -308,18 +374,17 @@ fn main() -> R {
         });
     }
     {
-        // 12: a line break in the replacement (start run with an attribute-only a:rPr)
+        // 15: a line break in the replacement (the start run's a:rPr has child elements: subtree copy)
         let mut chosen = None;
-        for f in ["poi/layouts.pptx", "poi/sample.pptx", "python-pptx/ph-inherit-props.pptx", "libreoffice/slide-sections.pptx"] {
+        for f in ["poi/sample.pptx", "poi/layouts.pptx", "python-pptx/ph-inherit-props.pptx", "libreoffice/slide-sections.pptx"] {
             let mut p = Presentation::open(fixture(f))?;
             for i in 0..p.slide_count() {
                 let word = {
                     let s = p.slide(i)?;
                     s.shapes().into_iter().filter_map(|x| x.text_body()).flat_map(|b| b.paragraphs()).flat_map(|q| q.runs()).find_map(|r| {
-                        let plain = r.raw().elements().all(|e| e.elements().next().is_none());
                         let t = r.text();
                         let w = t.split_whitespace().nth(1)?.to_owned();
-                        (plain && w.chars().all(char::is_alphanumeric) && w.len() > 3).then_some(w)
+                        (w.chars().all(char::is_alphanumeric) && w.len() > 3).then_some(w)
                     })
                 };
                 let Some(w) = word else { continue };
@@ -336,14 +401,14 @@ fn main() -> R {
         }
         let (f, si, w, n, p) = chosen.ok_or("no plain run")?;
         items.push(Item {
-            file: save(&out, "12-replace-with-line-break", &p)?,
+            file: save(&out, "15-replace-with-line-break", &p)?,
             source: f,
-            edit: format!("slide {}: replace_all({w:?} → \"{w}\\v(new line)\"), {n} match(es): a:br + a new run copying the start run's a:rPr", si + 1),
+            edit: format!("slide {}: replace_all({w:?} → \"{w}\\v(new line)\"), {n} match(es): a:br + a new run copying the start run's a:rPr (subtree, links skipped)", si + 1),
             observe: vec!["Opens without a repair prompt.", "\"(new line)\" starts a new line in the same paragraph (Shift+Enter), in the same format as the word before it."],
         });
     }
     {
-        // 13: text inside a hyperlink run replaced (no line break): the link stays
+        // 16: text inside a hyperlink run replaced (no line break): the link stays
         let mut p = Presentation::open(fixture("poi/with_japanese.pptx"))?;
         let mut pick = None;
         for i in 0..p.slide_count() {
@@ -363,14 +428,14 @@ fn main() -> R {
         let o = ooxml_pptx::ReplaceOptions { find: ooxml_pptx::FindOptions { scope: ooxml_pptx::Scope::Slide(si), ..Default::default() }, ..Default::default() };
         let rep = p.replace_all(&w, &format!("[{w}]"), &o)?;
         items.push(Item {
-            file: save(&out, "13-replace-in-hyperlink", &p)?,
+            file: save(&out, "16-replace-in-hyperlink", &p)?,
             source: "poi/with_japanese.pptx",
             edit: format!("slide {}: replace_all({w:?} → \"[{w}]\"), {} match(es) inside a run with a:hlinkClick", si + 1, rep.replaced.len()),
             observe: vec!["Opens without a repair prompt.", "The edited text is still a working hyperlink to the same target (Ctrl+click / Slide Show)."],
         });
     }
 
-    let mut md = String::from("# ooxml-pptx Phase 0 (1–10) and cross-run find/replace (11–13, ADR-0008 §4) — manual check in Microsoft 365 PowerPoint\n\n");
+    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4) — manual check in Microsoft 365 PowerPoint\n\n");
     md.push_str("Generated by `cargo run -p ooxml-pptx --example manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
     md.push_str("For each file: open it in current Microsoft 365 PowerPoint (desktop), tick what holds, and write notes for anything else.\n");
     md.push_str("Inputs are third-party fixtures from `reference/fixtures/pptx/` (see its README for licences); do not redistribute the outputs.\n\n");

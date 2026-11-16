@@ -119,9 +119,37 @@ pub enum Error {
         /// Its byte offset in the value.
         offset: usize,
     },
+    /// [`Lens::detach_as`](crate::Lens::detach_as) refused the subtree
+    /// (ADR-0002 post-acceptance note "detach/insert").
+    #[error("cannot detach: {reason} ({name})")]
+    NotDetachable {
+        /// Why.
+        reason: DetachRefusal,
+        /// The offending element or attribute, in Clark notation (`{ns}local`;
+        /// just `local` without a namespace).
+        name: String,
+    },
+    /// [`LensMut::insert_at`](crate::LensMut::insert_at): the child index is
+    /// beyond the parent's children.
+    #[error("insertion index {index} is beyond the {len} children")]
+    InsertIndexOutOfRange {
+        /// The requested index.
+        index: usize,
+        /// The number of child items.
+        len: usize,
+    },
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
+    /// [`Package::remove_part`](crate::Package::remove_part) refused: a
+    /// precondition does not hold (nothing was changed).
+    #[error("cannot remove part {part:?}: {reason}")]
+    RemovePartRefused {
+        /// The part.
+        part: String,
+        /// Which precondition failed.
+        reason: crate::package::RemoveRefusal,
+    },
     /// The part is not well-formed XML in a way the underlying reader
     /// (quick-xml) would let through. Refused at parse time so that the tree
     /// never holds something a re-render could not write back, and element
@@ -209,3 +237,52 @@ impl std::fmt::Display for WellFormedness {
 
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Why [`Lens::detach_as`](crate::Lens::detach_as) refused a subtree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DetachRefusal {
+    /// An `mc:AlternateContent` element in the subtree (ADR-0002 §4.3:
+    /// branches are not edited).
+    AlternateContent,
+    /// Another Markup Compatibility element or attribute (`mc:Ignorable`
+    /// and friends name prefixes, which a copy re-chooses).
+    MarkupCompatibility,
+    /// An attribute that holds a relationship id (`r:id`, `r:embed`, the
+    /// Strict `r:` namespace, VML `o:relid`; `name::RELATIONSHIP_ATTRIBUTES`):
+    /// a copy would add a second reference to a relationship (Layer 3).
+    RelationshipAttribute,
+    /// A namespace declaration on an element of the subtree.
+    NamespaceDeclaration,
+    /// An element or attribute in a namespace that an ancestor's
+    /// `mc:Ignorable` lists, at the source (`detach_as`) or at the
+    /// destination (`insert_detached`): the copy would lose or gain
+    /// ignorability.
+    IgnorableNamespace,
+    /// `xml:space` in effect differs between source and destination
+    /// (inherited from ancestors) and the subtree has text: whitespace would
+    /// change meaning.
+    InheritedXmlSpace,
+    /// An attribute listed in [`crate::Detachable::UNIQUE_ATTRS`] (a
+    /// document-unique id such as DrawingML `smtId`) has a non-default
+    /// value: a copy would duplicate it.
+    UniqueAttribute,
+    /// An extension list (`extLst`, any namespace) in the kept subtree: its
+    /// content is open, so ids or references inside cannot be reviewed.
+    ExtensionList,
+}
+
+impl std::fmt::Display for DetachRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DetachRefusal::AlternateContent => "mc:AlternateContent in the subtree",
+            DetachRefusal::MarkupCompatibility => "markup-compatibility element or attribute in the subtree",
+            DetachRefusal::RelationshipAttribute => "relationship (r:) attribute in the subtree",
+            DetachRefusal::NamespaceDeclaration => "namespace declaration in the subtree",
+            DetachRefusal::IgnorableNamespace => "namespace made ignorable by an ancestor's mc:Ignorable",
+            DetachRefusal::InheritedXmlSpace => "text under a different inherited xml:space",
+            DetachRefusal::UniqueAttribute => "a document-unique id attribute with a non-default value",
+            DetachRefusal::ExtensionList => "an extension list (extLst) in the subtree",
+        })
+    }
+}

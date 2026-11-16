@@ -123,11 +123,20 @@ impl Presentation {
         let mut refs = SlideRefs::default();
         let rels = self.pkg.relationships(&part)?;
         for r in rels.by_type(MODERN_COMMENTS_REL) {
-            let doc = rels
-                .resolve(r)
-                .filter(|p| self.pkg.contains(p))
-                .and_then(|p| self.pkg.read_part(&p).ok())
-                .and_then(|b| XmlDocument::parse(&b).ok());
+            // Fail closed: a comment part that cannot be located, read or
+            // parsed — for whatever reason, including resource limits of the
+            // XML layer — is `None`, and `scan_comments(None)` locks the text
+            // of **every** shape of the slide (ADR-0005 §6). The error itself
+            // is not propagated: the slide stays readable and editable
+            // outside text (and its text edits are refused with
+            // `CommentAnchoredText`).
+            let doc = match rels.resolve(r).filter(|p| self.pkg.contains(p)) {
+                None => None,
+                Some(p) => match self.pkg.read_part(&p) {
+                    Err(_) => None,
+                    Ok(b) => XmlDocument::parse(&b).ok(),
+                },
+            };
             refs.scan_comments(doc.as_ref());
         }
         let doc = self.pkg.xml_part_mut(&part)?;
@@ -216,8 +225,8 @@ impl Presentation {
                         blocked: blocked_err.map(|_| &blocked as &dyn Fn() -> Error),
                         guard: body_ctx.as_ref().ok(),
                     };
-                    let p = node_at(body, &[pc]).expect("paragraph");
-                    let plan = replace::plan_paragraph(p, pattern, &segs, opts, &ctx);
+                    let para_path = [t.body.as_slice(), &[pc]].concat();
+                    let plan = replace::plan_paragraph(slide.doc, &para_path, pattern, &segs, opts, &ctx);
                     if plan.accepted.is_empty() && plan.refused.is_empty() {
                         continue;
                     }

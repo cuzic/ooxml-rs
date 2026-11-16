@@ -13,9 +13,10 @@
 //! 4. a touched run left empty is removed unless no `a:r` would remain
 //!    (then the first one stays with an empty `a:t`);
 //! 5. a `\v` in the replacement becomes `a:br` + a new run whose `a:rPr`
-//!    copies the start run's (the Phase 0 format-source copy); the suffix
-//!    goes into the last new run, which is refused when the start run has a
-//!    link ([`Error::LinkSplitByBreak`]);
+//!    is a subtree copy of the start run's without `a:hlinkClick` /
+//!    `a:hlinkMouseOver` (Phase 0.1, ADR-0005 §9); the suffix goes into the
+//!    last new run, which is refused when the start run has either link
+//!    ([`Error::LinkSplitByBreak`], ADR-0008 rev 3 r2-m3);
 //! 6. [`MixedFormat::Refuse`] refuses a match across runs whose `a:rPr`
 //!    differ beyond the proofing attributes ([`Error::MixedFormatInMatch`]);
 //! 7. ADR-0005 §6 locks: character-animated or comment-anchored text,
@@ -27,13 +28,17 @@
 
 use std::ops::Range;
 
-use ooxml_core::{ElementSpec, QName, RawItem, RawNode};
+use ooxml_core::{Detached, ElementSpec, RawItem, RawNode, XmlDocument};
 use ooxml_schema::dml::{Break, Field, Paragraph, Run, RunProperties, Text};
 
 use crate::error::{Error, Result};
 use crate::read::{self, ShapeKind, ShapePath};
 use crate::text;
-use crate::write::{Fmt, Guard, SlideMut, copy_attrs, node_at, para_shape, set_attrs};
+use crate::write::{CheckInsert, Guard, LINKS, SlideMut, detach, node_at, para_shape};
+
+/// The `a:rPr` of a created run: a subtree copy of the start run's, links
+/// skipped (ADR-0005 §9, Phase 0.1).
+type Fmt = Option<Detached<RunProperties>>;
 
 /// Which slides `find`/`replace_all` look at.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -123,10 +128,6 @@ pub struct ReplaceReport {
 /// Attributes ignored by [`MixedFormat::Refuse`] (proofing state only).
 pub const PROOFING_ATTRIBUTES: &[&str] = &["lang", "altLang", "err", "dirty", "smtClean", "smtId", "noProof", "bmk"];
 
-fn a(local: &'static str) -> QName {
-    QName::new(crate::names::A_NS, local)
-}
-
 pub(crate) fn check_pattern(pattern: &str) -> Result<()> {
     if pattern.is_empty() || pattern.contains(['\n', '\r', '\u{b}']) {
         return Err(Error::InvalidPattern);
@@ -175,8 +176,10 @@ fn rpr_of(n: &RawNode) -> Option<&RawNode> {
     n.elements().find(|c| c.is(RunProperties::QNAME))
 }
 
+/// Has the run's `a:rPr` a link — `a:hlinkClick` **or** `a:hlinkMouseOver`
+/// (ADR-0008 rev 3, review r2-m3)?
 fn has_link(rpr: Option<&RawNode>) -> bool {
-    rpr.is_some_and(|r| r.elements().any(|c| c.is(a("hlinkClick")) || c.is(a("hlinkMouseOver"))))
+    rpr.is_some_and(|r| r.elements().any(|c| LINKS.iter().any(|q| c.is(*q))))
 }
 
 /// A canonical string of an `a:rPr` for rule 6: attributes sorted (proofing
@@ -236,12 +239,14 @@ pub(crate) struct BodyCtx<'g> {
 /// Plans `pattern` → `segments` (the replacement split on `\v`) in one
 /// paragraph. Never changes anything.
 pub(crate) fn plan_paragraph(
-    p: &RawNode,
+    doc: &XmlDocument,
+    para_path: &[usize],
     pattern: &str,
     segments: &[&str],
     opts: &ReplaceOptions,
     ctx: &BodyCtx<'_>,
 ) -> ParaPlan {
+    let p = node_at(doc.root(), para_path).expect("paragraph path");
     let text = paragraph_text(p);
     let found = find_in(&text, pattern, opts.find.ascii_case_insensitive);
     let mut plan = ParaPlan::default();
@@ -302,7 +307,9 @@ pub(crate) fn plan_paragraph(
     // Checks per match, on the original model.
     let sp = spans(&items);
     let mut accepted = Vec::new();
+    let mut copies: Vec<Fmt> = Vec::new();
     for m in found {
+        let mut copy: Fmt = None;
         let cov = covered(&sp, &m);
         let refuse = |e: Error| Some(e);
         let err = if cov.iter().any(|&i| items[i].kind == Kind::Field) {
@@ -319,21 +326,37 @@ pub(crate) fn plan_paragraph(
             if has_link(start.rpr) && ends_inside {
                 refuse(Error::LinkSplitByBreak)
             } else {
-                // No depth check: a created `a:r`/`a:rPr`/`a:t` sits at the
-                // depth of the start run's own `a:t`, which the parser
-                // already accepted (ADR-0002 note "parser depth limit").
-                copy_attrs::<RunProperties>(start.rpr, "a:rPr").err()
+                // The start run's a:rPr, copied as a subtree without links;
+                // checked at its destination (under a new a:r, one created
+                // element below the a:p) before any change. No separate
+                // depth check: a created a:r/a:rPr/a:t sits at the depth of
+                // the start run's own elements, which the parser accepted.
+                let run = start.orig.expect("an original run");
+                let src = node_at(p, &[run])
+                    .and_then(|r| r.indexed_elements().find(|(_, c)| c.is(RunProperties::QNAME)))
+                    .map(|(i, _)| [para_path, &[run, i]].concat());
+                match detach::<RunProperties, RunProperties>(doc.root(), src, &LINKS, "a:rPr") {
+                    Err(e) => Some(e),
+                    Ok(d) => {
+                        let checked = d.as_ref().map_or(Ok(()), |d| d.check(doc, para_path, 1));
+                        copy = d;
+                        checked.err()
+                    }
+                }
             }
         } else {
             None
         };
         match err {
             Some(e) => plan.refused.push((m, e)),
-            None => accepted.push(m),
+            None => {
+                accepted.push(m);
+                copies.push(copy);
+            }
         }
     }
     // Apply accepted matches to the model, right to left.
-    for m in accepted.iter().rev() {
+    for (m, fmt) in accepted.iter().zip(&copies).rev() {
         let sp = spans(&items);
         let cov = covered(&sp, m);
         let (first, last) = (cov[0], *cov.last().expect("non-empty match"));
@@ -356,7 +379,6 @@ pub(crate) fn plan_paragraph(
         }
         let mut added = Vec::new();
         if segments.len() > 1 {
-            let fmt = copy_attrs::<RunProperties>(items[first].rpr, "a:rPr").expect("checked in planning");
             for (k, seg) in segments.iter().enumerate().skip(1) {
                 added.push(Item { orig: None, kind: Kind::Break, text: "\u{b}".into(), rpr: None, fmt: None, touched: false });
                 let t = if k == segments.len() - 1 { format!("{seg}{suffix}") } else { (*seg).to_owned() };
@@ -435,7 +457,7 @@ pub(crate) fn apply_plan(slide: &mut SlideMut<'_>, body: &[usize], para_child: u
             Kind::Run => {
                 let mut r = p.insert_by::<Run>(|k, _| k == *pos)?;
                 if let Some(f) = fmt {
-                    set_attrs(&mut r.insert::<RunProperties>()?, f)?;
+                    r.insert_detached(f)?;
                 }
                 r.insert::<Text>()?.set_text(t)?;
             }

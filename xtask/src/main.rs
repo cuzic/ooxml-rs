@@ -47,7 +47,7 @@ pub fn generate(root: &Path) -> Res<BTreeMap<String, String>> {
     let allow = config::load_allowlists(&root.join("codegen/allowlist"))?;
     let mut diags = model::Diagnostics::default();
     let model = model::Model::new(&sdk, &xsd, &overrides, &mut diags);
-    let ctx = emit::Ctx::new(&model, &allow, &mut diags)?;
+    let ctx = emit::Ctx::new(&model, &allow.entries, &allow.unique_attrs, &mut diags)?;
     let mut out = BTreeMap::new();
     for g in config::GROUPS {
         out.insert(format!("{SCHEMA_GEN_DIR}/{g}.rs"), ctx.emit_group(g, &mut diags)?);

@@ -257,7 +257,7 @@ fn invariants_on_every_fixture() {
     // The fixtures exercise every refusal class the rules define.
     // (BreakInMatch is defensive: a pattern cannot contain `\v`, so a
     // match never covers an `a:br`; AC text is tested on a synthetic deck.)
-    for k in ["FieldInMatch", "LinkSplitByBreak", "FormatNotCopyable"] {
+    for k in ["FieldInMatch", "LinkSplitByBreak"] {
         assert!(st.skipped.contains_key(k), "no {k} in the sweep: {st:?}");
     }
 }
@@ -406,11 +406,20 @@ fn rule_5_line_break_in_replacement() {
     let (items, text) = subtitle(&mut p);
     assert_eq!(text, "A\u{b} beta gamma");
     assert_eq!(items.len(), 4, "{items:?}");
-    // an rPr with child elements is not copyable in Phase 0 (attribute-only copy)
+    // an a:rPr with child elements is copied as a subtree (Phase 0.1):
+    // the new run after the break is red too
     let runs = r("", "<a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill>", "red text");
+    let (mut p, rep) = replaced(&runs, "red", "R\u{b}D", &opts(0));
+    assert!(rep.skipped.is_empty(), "{rep:?}");
+    let (items, text) = subtitle(&mut p);
+    assert_eq!(text, "R\u{b}D text");
+    assert_eq!(items[0][..items[0].find(']').unwrap()], items[2][..items[2].find(']').unwrap()], "{items:?}");
+    // a relationship reference in the copied subtree is not copyable
+    // (ADR-0005 §9): refused, byte-identical
+    let runs = r("", "<a:blipFill><a:blip r:embed=\"rId99\"/></a:blipFill>", "pic text");
     let input = deck(&runs);
     let mut pres = Presentation::from_bytes(input.clone()).unwrap();
-    let rep = pres.replace_all("red", "R\u{b}D", &opts(0)).unwrap();
+    let rep = pres.replace_all("pic", "P\u{b}C", &opts(0)).unwrap();
     assert_matches!(rep.skipped[..], [(_, Error::FormatNotCopyable("a:rPr"))]);
     assert_eq!(pres.to_bytes().unwrap(), input);
 }
@@ -425,6 +434,24 @@ fn rule_5_link_split_by_break() {
     let rep = pres.replace_all("here", "H\u{b}", &opts(0)).unwrap();
     assert_matches!(rep.skipped[..], [(_, Error::LinkSplitByBreak)]);
     assert_eq!(pres.to_bytes().unwrap(), input);
+    // a mouse-over link alone counts as a link too (ADR-0008 rev 3, r2-m3)
+    let hover = "<a:hlinkMouseOver r:id=\"rId98\"/>";
+    let runs_h = format!("{}{}", r("", hover, "hover here now"), r("", "", " after"));
+    let input_h = deck(&runs_h);
+    let mut pres = Presentation::from_bytes(input_h.clone()).unwrap();
+    let rep = pres.replace_all("here", "H\u{b}", &opts(0)).unwrap();
+    assert_matches!(rep.skipped[..], [(_, Error::LinkSplitByBreak)]);
+    assert_eq!(pres.to_bytes().unwrap(), input_h);
+    // ending at the end of the linked run is fine; the new run has no link
+    let (mut p, rep) = replaced(&runs, "now", "N\u{b}W", &opts(0));
+    assert!(rep.skipped.is_empty(), "{rep:?}");
+    let s = p.slide(0).unwrap();
+    let sh = s.shapes().into_iter().find(|x| x.name() == Some("Rectangle 3")).unwrap();
+    let para = sh.text_body().unwrap().paragraphs()[0];
+    let runs_after = para.runs();
+    assert!(rpr(runs_after[0].raw(), false).contains("hlinkClick"));
+    assert!(!rpr(runs_after[1].raw(), false).contains("hlinkClick"), "the copy skips the link");
+    drop(s);
     // without \v: the link stays on the whole start run
     let (mut p, _) = replaced(&runs, "here", "THERE", &opts(0));
     assert_eq!(subtitle(&mut p).1, "click THERE now after");
@@ -499,7 +526,7 @@ fn locks_and_containers_are_refused() {
     let mut pres = Presentation::from_bytes(input.clone()).unwrap();
     let found = pres.find("Lorem", &FindOptions { scope: Scope::Slide(0), ..FindOptions::default() }).unwrap();
     assert_eq!(found.len(), 1);
-    assert_eq!(pres.slide(0).unwrap().shapes().into_iter().find(|x| x.path() == &found[0].location.shape).unwrap().kind(), &ShapeKind::AlternateContent);
+    assert_eq!(pres.slide(0).unwrap().shapes().into_iter().find(|x| x.path() == found[0].location.shape).unwrap().kind(), &ShapeKind::AlternateContent);
     let rep = pres.replace_all("Lorem", "X", &opts(0)).unwrap();
     assert_matches!(rep.skipped[..], [(_, Error::InsideAlternateContent)]);
     assert_eq!(pres.to_bytes().unwrap(), input);
