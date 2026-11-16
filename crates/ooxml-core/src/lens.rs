@@ -38,7 +38,7 @@ fn check_xml_chars(value: &str) -> Result<()> {
         }
     }
 }
-use crate::xml::{RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
+use crate::xml::{DocToken, RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
 
 fn check_root<E: ElementSpec>(root: &RawNode) -> Result<()> {
     if root.is(E::QNAME) {
@@ -57,12 +57,15 @@ pub struct Lens<'a, E: ElementSpec> {
     root: &'a RawNode,
     node: &'a RawNode,
     path: Vec<usize>,
+    /// The document the root belongs to, when the lens came from
+    /// [`crate::XmlDocument::lens`] (same-part copies need it).
+    doc: Option<DocToken>,
     _e: PhantomData<fn() -> E>,
 }
 
 impl<E: ElementSpec> Clone for Lens<'_, E> {
     fn clone(&self) -> Self {
-        Lens { root: self.root, node: self.node, path: self.path.clone(), _e: PhantomData }
+        Lens { root: self.root, node: self.node, path: self.path.clone(), doc: self.doc, _e: PhantomData }
     }
 }
 
@@ -73,10 +76,15 @@ impl<E: ElementSpec> std::fmt::Debug for Lens<'_, E> {
 }
 
 impl<'a, E: ElementSpec> Lens<'a, E> {
+    pub(crate) fn with_doc(mut self, doc: DocToken) -> Self {
+        self.doc = Some(doc);
+        self
+    }
+
     /// A lens on `root`, which must be the element `E::QNAME`.
     pub fn root(root: &'a RawNode) -> Result<Self> {
         check_root::<E>(root)?;
-        Ok(Lens { root, node: root, path: Vec::new(), _e: PhantomData })
+        Ok(Lens { root, node: root, path: Vec::new(), doc: None, _e: PhantomData })
     }
 
     /// The raw node.
@@ -144,7 +152,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
     fn child_lens<C: ElementSpec>(&self, index: usize, node: &'a RawNode) -> Lens<'a, C> {
         let mut path = self.path.clone();
         path.push(index);
-        Lens { root: self.root, node, path, _e: PhantomData }
+        Lens { root: self.root, node, path, doc: self.doc, _e: PhantomData }
     }
 
     /// Child elements named `C::QNAME`, in document order.
@@ -172,7 +180,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
                 found_local: E::QNAME.local.into(),
             });
         }
-        Ok(Lens { root: self.root, node: self.node, path: self.path, _e: PhantomData })
+        Ok(Lens { root: self.root, node: self.node, path: self.path, doc: self.doc, _e: PhantomData })
     }
 
     /// An owned, span-less copy of this element's subtree, renamed to
@@ -204,9 +212,128 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
             return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &self.node.name));
         }
         let unique: Vec<UniqueAttr> = E::UNIQUE_ATTRS.iter().chain(C::UNIQUE_ATTRS).copied().collect();
-        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique)?;
+        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique, &CopyMode::OTHER_PART)?;
         root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
         Ok(Detached { root, text_inherits_space, _c: PhantomData })
+    }
+
+    /// A **same-part** copy (ADR-0002 note "same-part copy"): as
+    /// [`Self::detach_as`], except that attributes holding a relationship
+    /// id (`r:id`, `r:embed`, …, [`crate::name::RELATIONSHIP_ATTRIBUTES`])
+    /// are **kept**, and an `extLst` is kept when every `ext` in it has a
+    /// `uri` the caller allowed in `opts` ([`SamePartOptions::keep_extension`]).
+    /// The copy can only be inserted into the document it was taken from
+    /// ([`LensMut::insert_same_part`]): the ids stay valid because the part's
+    /// relationships are the same. Everything else [`Self::detach_as`]
+    /// refuses is still refused: document-unique attributes
+    /// ([`Detachable::UNIQUE_ATTRS`]: a non-zero `smtId`, effect container
+    /// names), Markup Compatibility, namespace declarations, ignorable
+    /// namespaces, inherited `xml:space`.
+    ///
+    /// The lens must come from [`crate::XmlDocument::lens`] (or a lens
+    /// derived from it): a lens from [`Lens::root`] / [`Lens::at`] does not
+    /// know its document and gives [`Error::WrongDocument`].
+    pub fn detach_same_part_as<C>(&self, skip: &[QName], opts: &SamePartOptions) -> Result<SamePartDetached<C>>
+    where
+        E: Detachable,
+        C: SameType<E> + Detachable,
+    {
+        let doc = self.doc.ok_or(Error::WrongDocument)?;
+        let ctx = ancestor_context(self.root, &self.path[..self.path.len().saturating_sub(1)], !self.path.is_empty());
+        let text_inherits_space = self.node.xml_space_preserve().is_none() && has_text(self.node);
+        if ctx.preserve && text_inherits_space {
+            return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &self.node.name));
+        }
+        let unique: Vec<UniqueAttr> = E::UNIQUE_ATTRS.iter().chain(C::UNIQUE_ATTRS).copied().collect();
+        let mode = CopyMode { keep_relationship_ids: true, extension_uris: &opts.extension_uris };
+        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique, &mode)?;
+        root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
+        Ok(SamePartDetached { copy: Detached { root, text_inherits_space, _c: PhantomData }, doc })
+    }
+}
+
+/// What a copy may keep beyond [`Lens::detach_as`]'s rules.
+struct CopyMode<'o> {
+    /// Same part: relationship-id attributes stay valid.
+    keep_relationship_ids: bool,
+    /// `ext/@uri` values whose `extLst` content may be copied (same part
+    /// only; compared ASCII case-insensitively).
+    extension_uris: &'o [String],
+}
+
+impl CopyMode<'static> {
+    const OTHER_PART: CopyMode<'static> = CopyMode { keep_relationship_ids: false, extension_uris: &[] };
+}
+
+/// Options of [`Lens::detach_same_part_as`].
+#[derive(Clone, Debug, Default)]
+pub struct SamePartOptions {
+    extension_uris: Vec<String>,
+}
+
+impl SamePartOptions {
+    /// Allows an `extLst` whose `ext` children all have one of the allowed
+    /// `uri`s (ASCII case-insensitive). An extension's content is open, so
+    /// the caller asserts, per extension, that it holds nothing
+    /// document-unique (the content still passes every other check, and
+    /// may keep same-part relationship ids). Example: DrawingML's hyperlink
+    /// colour, [`ext_uri::HYPERLINK_COLOR`].
+    pub fn keep_extension(mut self, uri: &str) -> Self {
+        self.extension_uris.push(uri.to_owned());
+        self
+    }
+}
+
+/// Extension URIs reviewed for same-part copies.
+pub mod ext_uri {
+    /// `a:hlinkClick/a:extLst/a:ext` holding `ahyp:hlinkClr` (MS-ODRAWXML
+    /// §2.5.13: whether the link takes the theme's hyperlink colour); a
+    /// boolean-like value, nothing document-unique. 12 in the 619-file
+    /// pptx corpus, the only extension below `a:rPr` there.
+    pub const HYPERLINK_COLOR: &str = "{A12FA001-AC4F-418D-AE19-62706E023703}";
+}
+
+/// A copy from [`Lens::detach_same_part_as`]: relationship ids and allowed
+/// extensions kept, so it can be inserted **only** into the document it was
+/// taken from ([`LensMut::insert_same_part`], else [`Error::WrongDocument`]).
+/// It cannot be passed to [`LensMut::insert_detached`] (another type).
+pub struct SamePartDetached<C: ElementSpec> {
+    copy: Detached<C>,
+    doc: DocToken,
+}
+
+impl<C: ElementSpec> Clone for SamePartDetached<C> {
+    fn clone(&self) -> Self {
+        SamePartDetached { copy: self.copy.clone(), doc: self.doc }
+    }
+}
+
+impl<C: ElementSpec> std::fmt::Debug for SamePartDetached<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SamePartDetached<{}>", C::SDK_NAME)
+    }
+}
+
+impl<C: ElementSpec> SamePartDetached<C> {
+    /// The copied subtree (prefix-less names, no spans).
+    pub fn raw(&self) -> &RawNode {
+        self.copy.raw()
+    }
+
+    /// Number of element levels of the copy.
+    pub fn height(&self) -> usize {
+        self.copy.height()
+    }
+
+    /// [`Detached::check_insert_under`] for a same-part copy: also
+    /// [`Error::WrongDocument`] when `doc` is not the document the copy was
+    /// taken from (checked first). Changes nothing; agrees with
+    /// [`LensMut::insert_same_part`] on lenses from `doc.lens_mut()`.
+    pub fn check_insert_under(&self, doc: &crate::XmlDocument, parent_path: &[usize], created: usize) -> Result<()> {
+        if doc.token() != self.doc {
+            return Err(Error::WrongDocument);
+        }
+        self.copy.check_insert_under(doc, parent_path, created)
     }
 }
 
@@ -303,7 +430,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
     pub fn at(root: &'a RawNode, path: &[usize]) -> Result<Self> {
         let node = element_at(root, path, E::QNAME)?;
         check_root::<E>(node)?;
-        Ok(Lens { root, node, path: path.to_vec(), _e: PhantomData })
+        Ok(Lens { root, node, path: path.to_vec(), doc: None, _e: PhantomData })
     }
 }
 
@@ -387,12 +514,20 @@ fn holds_relationship_id(name: &XName) -> bool {
 
 /// Copies `n` (whose direct children named in `skip` are left out) with
 /// prefixes and spans cleared, refusing what [`Lens::detach_as`] refuses.
-fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr]) -> Result<RawNode> {
+fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr], mode: &CopyMode<'_>) -> Result<RawNode> {
+    detach_rec(n, skip, ignorable, unique, mode, false)
+}
+
+/// [`detach_node`]; `in_ext`: `n` is inside an allowed extension, where
+/// namespace declarations are kept (extension content commonly declares its
+/// own namespace locally, e.g. `ahyp:hlinkClr`).
+fn detach_rec(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr], mode: &CopyMode<'_>, in_ext: bool) -> Result<RawNode> {
     if n.name.ns() == MC_NS {
         let reason = if n.is(MC_ALTERNATE_CONTENT) { DetachRefusal::AlternateContent } else { DetachRefusal::MarkupCompatibility };
         return Err(not_detachable(reason, &n.name));
     }
-    if n.name.local() == "extLst" {
+    let allowed_ext = n.name.local() == "extLst";
+    if allowed_ext && !extensions_allowed(n, mode.extension_uris) {
         return Err(not_detachable(DetachRefusal::ExtensionList, &n.name));
     }
     for u in unique.iter().filter(|u| n.is(u.element)) {
@@ -408,10 +543,15 @@ fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniq
     }
     let mut attrs = Vec::with_capacity(n.attrs.len());
     for a in &n.attrs {
+        if in_ext && a.name.ns() == XMLNS_NS {
+            // kept as written (prefix `xmlns`); `with_prefixes` honours it
+            attrs.push(a.clone());
+            continue;
+        }
         let reason = match a.name.ns() {
             XMLNS_NS => Some(DetachRefusal::NamespaceDeclaration),
             MC_NS => Some(DetachRefusal::MarkupCompatibility),
-            _ if holds_relationship_id(&a.name) => Some(DetachRefusal::RelationshipAttribute),
+            _ if !mode.keep_relationship_ids && holds_relationship_id(&a.name) => Some(DetachRefusal::RelationshipAttribute),
             u if ignorable.iter().any(|i| i == u) => Some(DetachRefusal::IgnorableNamespace),
             _ => None,
         };
@@ -424,7 +564,7 @@ fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniq
     for c in &n.children {
         children.push(match c {
             RawItem::Element(e) if skip.iter().any(|q| e.is(*q)) => continue,
-            RawItem::Element(e) => RawItem::Element(detach_node(e, &[], ignorable, unique)?),
+            RawItem::Element(e) => RawItem::Element(detach_rec(e, &[], ignorable, unique, mode, in_ext || allowed_ext)?),
             RawItem::Text(t) => RawItem::Text(RawText { value: t.value.clone(), span: None, cdata: t.cdata }),
             RawItem::Markup(m) => RawItem::Markup(m.clone()),
         });
@@ -435,12 +575,27 @@ fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniq
     Ok(out)
 }
 
+/// An `extLst` may be copied only when some extension URI is allowed (so
+/// [`Lens::detach_as`] and a same-part copy without options refuse every
+/// `extLst`), and every element child is an `ext` of the list's namespace
+/// whose `uri` is allowed.
+fn extensions_allowed(ext_lst: &RawNode, uris: &[String]) -> bool {
+    !uris.is_empty()
+        && ext_lst.elements().all(|e| {
+            e.name.local() == "ext"
+                && e.name.ns() == ext_lst.name.ns()
+                && e.attr(QName::new("", "uri")).is_some_and(|u| uris.iter().any(|a| a.eq_ignore_ascii_case(u)))
+        })
+}
+
 /// Mutable typed view: the part root plus a path of child indices.
 pub struct LensMut<'a, E: ElementSpec> {
     root: &'a mut RawNode,
     path: Vec<usize>,
     /// Depth limit for inserted elements (the root is depth 1).
     max_depth: usize,
+    /// As [`Lens`]'s `doc`: set by [`crate::XmlDocument::lens_mut`].
+    doc: Option<DocToken>,
     _e: PhantomData<fn() -> E>,
 }
 
@@ -464,9 +619,19 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         Self::root_with_limit(root, crate::xml::DEFAULT_MAX_DEPTH)
     }
 
+    pub(crate) fn with_doc(mut self, doc: DocToken) -> Self {
+        self.doc = Some(doc);
+        self
+    }
+
+    pub(crate) fn at_with_limit(root: &'a mut RawNode, path: &[usize], max_depth: usize) -> Result<Self> {
+        check_root::<E>(element_at(root, path, E::QNAME)?)?;
+        Ok(LensMut { root, path: path.to_vec(), max_depth, doc: None, _e: PhantomData })
+    }
+
     pub(crate) fn root_with_limit(root: &'a mut RawNode, max_depth: usize) -> Result<Self> {
         check_root::<E>(root)?;
-        Ok(LensMut { root, path: Vec::new(), max_depth, _e: PhantomData })
+        Ok(LensMut { root, path: Vec::new(), max_depth, doc: None, _e: PhantomData })
     }
 
     /// The raw node (read-only; mutation goes through the primitives).
@@ -482,7 +647,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     /// A read-only lens on the same node.
     pub fn as_lens(&self) -> Lens<'_, E> {
-        Lens { root: self.root, node: node_at(self.root, &self.path), path: self.path.clone(), _e: PhantomData }
+        Lens { root: self.root, node: node_at(self.root, &self.path), path: self.path.clone(), doc: self.doc, _e: PhantomData }
     }
 
     fn node_mut(&mut self) -> &mut RawNode {
@@ -502,7 +667,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     fn descend<C: ElementSpec>(&mut self, index: usize) -> LensMut<'_, C> {
         let mut path = self.path.clone();
         path.push(index);
-        LensMut { root: &mut *self.root, path, max_depth: self.max_depth, _e: PhantomData }
+        LensMut { root: &mut *self.root, path, max_depth: self.max_depth, doc: self.doc, _e: PhantomData }
     }
 
     /// Mutable lens on the first child named `C::QNAME`.
@@ -532,7 +697,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return None;
         }
         self.path.push(index);
-        Some(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
+        Some(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, doc: self.doc, _e: PhantomData })
     }
 
     /// Consuming variant of [`Self::child_mut_by`].
@@ -550,7 +715,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 found_local: E::QNAME.local.into(),
             });
         }
-        Ok(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
+        Ok(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, doc: self.doc, _e: PhantomData })
     }
 
     // ---- insertion ----
@@ -683,102 +848,6 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         self.insert_at_slot::<C>(slot, before)
     }
 
-    /// Inserts a new `C` child at child item index `index` (an index into
-    /// [`RawNode::children`], `0..=len`), for callers that already know the
-    /// position among same-slot siblings (e.g. from their own row index).
-    /// For a slot **without limits** the checks look only at the nearest
-    /// listed neighbours (plus any unlisted children between them), so the
-    /// cost is O(1) apart from the `Vec` insertion — where [`Self::insert_by`]
-    /// scans every child. A slot with limits is counted over all children,
-    /// as `insert_by` does.
-    ///
-    /// Schema order is checked **locally**: every slot the nearest listed
-    /// element before `index` could belong to must not come after `C`'s, every
-    /// slot of the nearest listed element after it must not come before
-    /// `C`'s (so an ambiguous neighbour such as a name listed in two slots is
-    /// refused unless every reading is in order: use `insert_by` or
-    /// `insert_in_slot` there), and neither may be an `mc:AlternateContent`
-    /// ([`Error::UnresolvedSibling`]). Disorder elsewhere in the parent is not
-    /// examined (where `insert_by` refuses the whole parent). Slot limits are
-    /// enforced exactly as by `insert_by` ([`Error::AlreadyPresent`]; an
-    /// `mc:AlternateContent` anywhere then refuses). Unlisted
-    /// children are skipped, as in `insert_by`. The caller owns the order
-    /// within the slot. Dirty duties, depth limit and prefix choice are those
-    /// of `insert_by`. [`Self::check_insert_at`] runs the same checks without
-    /// changing anything.
-    pub fn insert_at<C: ChildOf<E>>(&mut self, index: usize) -> Result<LensMut<'_, C>> {
-        self.check_insert_at::<C>(index)?;
-        let prefix = choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
-        let name = XName::new(C::QNAME.ns.into(), C::QNAME.local, prefix.as_deref());
-        let parent = self.node_mut();
-        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
-            parent.own_dirty = true; // self-closing parent gains its first child
-        }
-        parent.children.insert(index, RawItem::Element(RawNode::new_created(name)));
-        self.mark_path();
-        Ok(self.descend(index))
-    }
-
-    /// Every check of [`Self::insert_at`] (index range, depth limit, slot,
-    /// local schema order, slot limits, namespace prefix), without changing
-    /// anything: if it returns `Ok`, `insert_at::<C>(index)` succeeds on the
-    /// unchanged tree. Lets a caller validate a multi-step edit first.
-    pub fn check_insert_at<C: ChildOf<E>>(&self, index: usize) -> Result<()> {
-        let len = self.node().children.len();
-        if index > len {
-            return Err(Error::InsertIndexOutOfRange { index, len });
-        }
-        if self.path.len() + 2 > self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
-        }
-        let slots = self.slots()?;
-        let slot = match Self::slot_of(slots, C::QNAME)[..] {
-            [s] => s,
-            [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
-            _ => return Err(Error::AmbiguousSlot(C::QNAME)),
-        };
-        let children = &self.node().children;
-        let listed = |n: &RawNode| -> Result<Option<Vec<usize>>> {
-            if n.is(MC_ALTERNATE_CONTENT) {
-                return Err(Error::UnresolvedSibling(E::QNAME));
-            }
-            let c = Self::candidates(slots, &n.name);
-            Ok((!c.is_empty()).then_some(c))
-        };
-        for item in children[..index].iter().rev() {
-            if let Some(n) = item.as_element()
-                && let Some(c) = listed(n)?
-            {
-                // every candidate: an ambiguous neighbour's actual slot depends
-                // on the greedy assignment of the children before it (review F1)
-                if !c.iter().all(|&r| r <= slot) {
-                    return Err(Error::UnresolvedSibling(E::QNAME));
-                }
-                break;
-            }
-        }
-        for item in &children[index..] {
-            if let Some(n) = item.as_element()
-                && let Some(c) = listed(n)?
-            {
-                if !c.iter().all(|&r| r >= slot) {
-                    return Err(Error::UnresolvedSibling(E::QNAME));
-                }
-                break;
-            }
-        }
-        // A slot with limits is counted exactly as `insert_by` counts it: the
-        // full greedy assignment, which also refuses an `mc:AlternateContent`
-        // anywhere in the parent (reviews F2, F3). O(children); unlimited
-        // slots (rows, cells) never take this path.
-        let s = slots[slot];
-        if s.max_each.is_some() || s.max_total.is_some() {
-            self.place(slots, slot, C::QNAME, |_, _| false)?;
-        }
-        choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
-        Ok(())
-    }
-
     /// `insert_by` that never returns `true`: append at the end of the slot.
     pub fn insert<C: ChildOf<E>>(&mut self) -> Result<LensMut<'_, C>> {
         self.insert_by::<C>(|_, _| false)
@@ -852,6 +921,29 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         self.insert_detached_by(d, |_, _| false)
     }
 
+    /// Inserts a [`SamePartDetached`] copy exactly as
+    /// [`Self::insert_detached_by`] (same placement, prefix, destination and
+    /// depth rules), after checking that this lens is on the document the
+    /// copy was taken from: otherwise [`Error::WrongDocument`] and nothing
+    /// changes (a lens from [`LensMut::root`] knows no document and also
+    /// gives `WrongDocument`). Relationship-id attributes keep their values;
+    /// their prefix is chosen at the destination like any other.
+    pub fn insert_same_part_by<C: ChildOf<E>>(
+        &mut self,
+        d: &SamePartDetached<C>,
+        before: impl FnMut(usize, &RawNode) -> bool,
+    ) -> Result<LensMut<'_, C>> {
+        if self.doc != Some(d.doc) {
+            return Err(Error::WrongDocument);
+        }
+        self.insert_detached_by(&d.copy, before)
+    }
+
+    /// `insert_same_part_by` that appends at the end of the slot.
+    pub fn insert_same_part<C: ChildOf<E>>(&mut self, d: &SamePartDetached<C>) -> Result<LensMut<'_, C>> {
+        self.insert_same_part_by(d, |_, _| false)
+    }
+
     // ---- removal ----
 
     /// Removes the first `C` child (and its whole span). Returns whether one existed.
@@ -877,15 +969,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     // ---- attributes ----
 
-    /// Refusals shared by `set_attr` and `remove_attr`: an incomplete spec,
-    /// and namespace declarations. A declaration is `{XMLNS_NS}*`, or an
-    /// unqualified `xmlns` / `xmlns:*` (which would render as one). Writing
-    /// one could unbind a prefix still in use (not well-formed output) or
-    /// silently move existing names to another namespace (fuzz finding F-3).
-    fn check_attr_write(&self, q: QName) -> Result<()> {
-        if q.ns == XMLNS_NS || (q.ns.is_empty() && (q.local == "xmlns" || q.local.starts_with("xmlns:"))) {
-            return Err(Error::NamespaceDeclaration(q));
-        }
+    fn check_attr_write(&self) -> Result<()> {
         if E::ATTRS_INCOMPLETE { Err(Error::IncompleteSpec(E::QNAME)) } else { Ok(()) }
     }
 
@@ -893,10 +977,9 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// and prefix; a new one is appended. A namespaced attribute needs a
     /// non-empty prefix bound to its URI ([`Error::NamespaceNotInScope`]).
     /// A value with a character outside XML 1.0 `Char` is refused
-    /// ([`Error::InvalidXmlChar`]) before anything changes. Namespace
-    /// declarations are refused ([`Error::NamespaceDeclaration`]).
+    /// ([`Error::InvalidXmlChar`]) before anything changes.
     pub fn set_attr(&mut self, q: QName, value: &str) -> Result<()> {
-        self.check_attr_write(q)?;
+        self.check_attr_write()?;
         check_xml_chars(value)?;
         let existing = self.node().attrs.iter().position(|a| a.name.is(q));
         let prefix = match existing {
@@ -918,10 +1001,9 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         Ok(())
     }
 
-    /// Removes attribute `q`. Returns whether it existed. Namespace
-    /// declarations are refused ([`Error::NamespaceDeclaration`]).
+    /// Removes attribute `q`. Returns whether it existed.
     pub fn remove_attr(&mut self, q: QName) -> Result<bool> {
-        self.check_attr_write(q)?;
+        self.check_attr_write()?;
         let node = self.node_mut();
         let Some(i) = node.attrs.iter().position(|a| a.name.is(q)) else {
             return Ok(false);
@@ -1054,10 +1136,26 @@ fn attr_prefix_in(decls: &[(usize, Option<&str>, &str)], uri: &str) -> Result<Op
 /// a parent with declarations `decls` and prefix `parent_prefix` (the copy
 /// declares nothing itself, so `decls` hold for the whole subtree).
 fn with_prefixes(mut n: RawNode, decls: &[(usize, Option<&str>, &str)], parent_prefix: Option<&str>) -> Result<RawNode> {
+    // Declarations the copy kept (same-part copies, inside an allowed
+    // extension) bind for this element and its subtree, innermost.
+    let own: Vec<(Option<String>, String)> = n
+        .attrs
+        .iter()
+        .filter(|a| a.name.ns() == XMLNS_NS)
+        .map(|a| (a.name.declared_prefix().map(str::to_owned), a.value.clone()))
+        .collect();
+    let extended: Vec<(usize, Option<&str>, &str)>;
+    let decls = if own.is_empty() {
+        decls
+    } else {
+        let depth = decls.iter().map(|d| d.0).max().unwrap_or(0) + 1;
+        extended = decls.iter().copied().chain(own.iter().map(|(p, u)| (depth, p.as_deref(), u.as_str()))).collect();
+        &extended
+    };
     let ns: Arc<str> = n.name.ns().into();
     let prefix = element_prefix_in(decls, parent_prefix, &ns)?;
     n.name = XName::new(ns, n.name.local(), prefix.as_deref());
-    for a in &mut n.attrs {
+    for a in n.attrs.iter_mut().filter(|a| a.name.ns() != XMLNS_NS) {
         let ans: Arc<str> = a.name.ns().into();
         let p = attr_prefix_in(decls, &ans)?;
         a.name = XName::new(ans, a.name.local(), p.as_deref());

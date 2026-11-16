@@ -284,10 +284,6 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::ContentPart {}
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Presentation {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Slide {}
-#[cfg(all(feature = "dml", feature = "wml"))]
-impl ooxml_core::ChildOf<GraphicData> for super::wml::Document {}
-#[cfg(all(feature = "dml", feature = "wml"))]
-impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
 /// Read-only view of [`GraphicData`].
 #[derive(Clone, Debug)]
 pub struct GraphicDataView<'a>(pub ooxml_core::Lens<'a, GraphicData>);
@@ -322,16 +318,6 @@ impl<'a> GraphicDataView<'a> {
     /// `p:sld` children in document order.
     pub fn slide_iter(&self) -> impl Iterator<Item = super::pml::SlideView<'a>> {
         self.0.children::<super::pml::Slide>().map(super::pml::SlideView)
-    }
-    #[cfg(feature = "wml")]
-    /// `w:document` children in document order.
-    pub fn document_iter(&self) -> impl Iterator<Item = super::wml::DocumentView<'a>> {
-        self.0.children::<super::wml::Document>().map(super::wml::DocumentView)
-    }
-    #[cfg(feature = "wml")]
-    /// `w:settings` children in document order.
-    pub fn settings_iter(&self) -> impl Iterator<Item = super::wml::SettingsView<'a>> {
-        self.0.children::<super::wml::Settings>().map(super::wml::SettingsView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2097,10 +2083,6 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Slide>();
-#[cfg(all(feature = "dml", feature = "wml"))]
-const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Document>();
-#[cfg(all(feature = "dml", feature = "wml"))]
-const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();

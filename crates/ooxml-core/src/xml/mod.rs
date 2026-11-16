@@ -297,17 +297,6 @@ pub(crate) fn node_at_mut<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut 
 /// 256 steps.
 pub const DEFAULT_MAX_DEPTH: usize = 256;
 
-/// Default for [`ParseOptions::max_part_bytes`]: 1 GiB.
-///
-/// Far above any XML part in the test corpora (the largest is a few MiB),
-/// and above the decompressed size of nearly every media part; reading a
-/// part is the only time it is decompressed (untouched parts are copied
-/// through compressed).
-pub const DEFAULT_MAX_PART_BYTES: u64 = 1 << 30;
-
-/// Default for [`ParseOptions::max_package_bytes`]: 4 GiB.
-pub const DEFAULT_MAX_PACKAGE_BYTES: u64 = 4 << 30;
-
 /// Options for [`XmlDocument::parse_with`] and
 /// [`Package::from_bytes_with`](crate::Package::from_bytes_with).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -324,28 +313,11 @@ pub struct ParseOptions {
     /// a correspondingly larger stack, or an untrusted file can abort the
     /// process with a stack overflow.
     pub max_depth: usize,
-    /// Package only: the most bytes one part may decompress to. Checked
-    /// against the declared size before anything is allocated, and enforced
-    /// while decompressing ([`Error::PartTooLarge`](crate::Error::PartTooLarge)).
-    /// `[Content_Types].xml` and `_rels/.rels` are read at open, so a bomb
-    /// there fails the open. Default [`DEFAULT_MAX_PART_BYTES`].
-    pub max_part_bytes: u64,
-    /// Package only: the most bytes all parts together may declare as their
-    /// decompressed size, checked at open
-    /// ([`Error::PackageTooLarge`](crate::Error::PackageTooLarge)). The zip
-    /// reader refuses an entry that decompresses to more than it declares, so
-    /// this bounds the total work of reading every part. Default
-    /// [`DEFAULT_MAX_PACKAGE_BYTES`].
-    pub max_package_bytes: u64,
 }
 
 impl Default for ParseOptions {
     fn default() -> Self {
-        ParseOptions {
-            max_depth: DEFAULT_MAX_DEPTH,
-            max_part_bytes: DEFAULT_MAX_PART_BYTES,
-            max_package_bytes: DEFAULT_MAX_PACKAGE_BYTES,
-        }
+        ParseOptions { max_depth: DEFAULT_MAX_DEPTH }
     }
 }
 
@@ -355,27 +327,38 @@ impl ParseOptions {
         self.max_depth = max_depth;
         self
     }
-
-    /// Sets [`Self::max_part_bytes`].
-    pub fn with_max_part_bytes(mut self, max_part_bytes: u64) -> Self {
-        self.max_part_bytes = max_part_bytes;
-        self
-    }
-
-    /// Sets [`Self::max_package_bytes`].
-    pub fn with_max_package_bytes(mut self, max_package_bytes: u64) -> Self {
-        self.max_package_bytes = max_package_bytes;
-        self
-    }
 }
 
 /// A parsed XML part: the original source plus the raw tree.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct XmlDocument {
     source: Box<str>,
     root: RawNode,
     /// The depth limit the document was parsed with.
     max_depth: usize,
+    /// Identity of this tree for same-part copies
+    /// ([`crate::lens::SamePartDetached`]); a clone gets a new one.
+    token: DocToken,
+}
+
+impl Clone for XmlDocument {
+    /// A copy with a **new** identity: a same-part copy taken from the
+    /// original cannot be inserted into the clone (the clone may become
+    /// another part, whose relationships differ).
+    fn clone(&self) -> Self {
+        XmlDocument { source: self.source.clone(), root: self.root.clone(), max_depth: self.max_depth, token: DocToken::new() }
+    }
+}
+
+/// Identity of one [`XmlDocument`] (process-unique, never reused).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DocToken(u64);
+
+impl DocToken {
+    pub(crate) fn new() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        DocToken(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
 }
 
 impl XmlDocument {
@@ -416,7 +399,7 @@ impl XmlDocument {
 
     /// A read-only typed lens on the root element.
     pub fn lens<E: ElementSpec>(&self) -> Result<Lens<'_, E>> {
-        Lens::root(&self.root)
+        Lens::root(&self.root).map(|l| l.with_doc(self.token))
     }
 
     /// A mutable typed lens on the root element. Inserts that would nest
@@ -424,27 +407,30 @@ impl XmlDocument {
     /// [`Error::TooDeep`](crate::Error::TooDeep), so an edited tree always
     /// parses again with the same options.
     pub fn lens_mut<E: ElementSpec>(&mut self) -> Result<LensMut<'_, E>> {
-        LensMut::root_with_limit(&mut self.root, self.max_depth)
+        LensMut::root_with_limit(&mut self.root, self.max_depth).map(|l| l.with_doc(self.token))
+    }
+
+    /// A typed lens on the element at `path` (child indices into
+    /// [`RawNode::children`]), which must be `E::QNAME`: [`Lens::at`] that
+    /// also knows this document (for [`Lens::detach_same_part_as`]).
+    pub fn lens_at<E: ElementSpec>(&self, path: &[usize]) -> Result<Lens<'_, E>> {
+        Lens::at(&self.root, path).map(|l| l.with_doc(self.token))
+    }
+
+    /// A mutable typed lens on the element at `path`, which must be
+    /// `E::QNAME`, with this document's depth limit and identity.
+    pub fn lens_mut_at<E: ElementSpec>(&mut self, path: &[usize]) -> Result<LensMut<'_, E>> {
+        LensMut::at_with_limit(&mut self.root, path, self.max_depth).map(|l| l.with_doc(self.token))
+    }
+
+    pub(crate) fn token(&self) -> DocToken {
+        self.token
     }
 
     /// The element depth limit this document was parsed with (root =
     /// depth 1); inserts beyond it are refused with `TooDeep`.
     pub fn max_depth(&self) -> usize {
         self.max_depth
-    }
-
-    /// Removes the root's child item at `index` together with the
-    /// whitespace-only text item immediately before it, if any (so an
-    /// indented registry part stays tidy). Marks the root `subtree_dirty`;
-    /// the root keeps its original tags (ADR-0002 §4.2). Used by
-    /// [`Package::remove_part`](crate::Package::remove_part) only.
-    pub(crate) fn remove_root_child_with_leading_ws(&mut self, index: usize) {
-        let children = &mut self.root.children;
-        children.remove(index);
-        if index > 0 && matches!(&children[index - 1], RawItem::Text(t) if t.is_whitespace() && !t.cdata) {
-            children.remove(index - 1);
-        }
-        self.root.subtree_dirty = true;
     }
 
     /// Marks every node `own_dirty` + `subtree_dirty` and forgets text spans,

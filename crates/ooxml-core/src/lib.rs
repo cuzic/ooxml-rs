@@ -24,9 +24,9 @@ pub mod schema;
 pub mod value;
 pub mod xml;
 
-pub use error::{DetachRefusal, Error, Result, WellFormedness};
-pub use lens::{Detached, Lens, LensMut};
+pub use error::{DetachRefusal, Error, Result};
+pub use lens::{Detached, Lens, LensMut, SamePartDetached, SamePartOptions};
 pub use name::{QName, XName};
-pub use package::{Package, PartState, PartStateKind, RemoveRefusal, RemovedPart};
+pub use package::{Package, PartState, PartStateKind};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, SameType, SimpleType, Slot, UniqueAttr, Wildcard};
-pub use xml::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_PACKAGE_BYTES, DEFAULT_MAX_PART_BYTES, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
+pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
