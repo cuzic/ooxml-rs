@@ -132,20 +132,39 @@ pub struct CompactDoc {
     pub root: Node,
 }
 
-struct Interner {
-    map: HashMap<String, Name>,
-    key: String,
+/// Per-parse name interner. Keys borrow the source (the raw prefix and
+/// local name) and identify the namespace by the address of its interned
+/// URI, so a lookup neither formats nor allocates; FNV-1a instead of SipHash
+/// because keys are short and trusted to be few.
+struct Interner<'s> {
+    map: HashMap<(Option<&'s str>, &'s str, usize), Name, std::hash::BuildHasherDefault<Fnv>>,
 }
 
-impl Interner {
-    fn get(&mut self, ns: &Arc<str>, local: &str, prefix: Option<&str>) -> Name {
-        self.key.clear();
-        let _ = write!(self.key, "{}\u{0}{local}\u{0}{ns}", prefix.unwrap_or("\u{1}"));
-        if let Some(n) = self.map.get(self.key.as_str()) {
+#[derive(Default)]
+struct Fnv(u64);
+
+impl std::hash::Hasher for Fnv {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        let mut h = if self.0 == 0 { 0xcbf2_9ce4_8422_2325 } else { self.0 };
+        for b in bytes {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        self.0 = h;
+    }
+}
+
+impl<'s> Interner<'s> {
+    fn get(&mut self, ns: &Arc<str>, local: &'s str, prefix: Option<&'s str>) -> Name {
+        let key = (prefix, local, Arc::as_ptr(ns) as *const u8 as usize);
+        if let Some(n) = self.map.get(&key) {
             return n.clone();
         }
         let n = Name(Arc::new(NameData { ns: ns.clone(), local: local.into(), prefix: prefix.map(Into::into) }));
-        self.map.insert(self.key.clone(), n.clone());
+        self.map.insert(key, n.clone());
         n
     }
 }
@@ -160,7 +179,7 @@ struct Open {
 struct Ctx<'s> {
     src: &'s str,
     source: Arc<str>,
-    names: Interner,
+    names: Interner<'s>,
     uris: HashMap<String, Arc<str>>,
     empty: Arc<str>,
     xmlns: Arc<str>,
@@ -274,7 +293,7 @@ fn parse_src(src: &str, source: &Arc<str>, max_depth: usize) -> Result<Node, Str
     let mut cx = Ctx {
         src,
         source: source.clone(),
-        names: Interner { map: HashMap::new(), key: String::new() },
+        names: Interner { map: HashMap::default() },
         uris: HashMap::new(),
         empty: Arc::from(""),
         xmlns: Arc::from(XMLNS_NS),

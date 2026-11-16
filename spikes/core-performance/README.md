@@ -46,24 +46,42 @@ a default namespace, a BOM, CRLF, and `xmlns=""`.
 
 ## Results (2026-11-16, release, rustc 1.99.1)
 
-These were measured on the same shared AMD EPYC 7313P as `docs/testing/performance-baseline-2026-11.md`, with a 1-minute load average of 38–50 during the run, so times are noisy.
+These were measured on the same shared AMD EPYC 7313P as
+`docs/testing/performance-baseline-2026-11.md`.
 
-- **Parse** excludes dropping the tree. The value is dropped after the clock stops, and **Drop** is measured on its own (review of PR #24, M1).
-- Times are the best of 2–5 runs.
-- Allocation counts and heap sizes are exact. Fresh allocations and reallocations are counted separately.
+- **Runs.** Three repeated runs at a 1-minute load average of 6–7 (ADR-0010 rev 2, review
+  round 1 m2). The table is run 3; the ranges over all three runs are given below it.
+- **Timing.** Parse excludes the drop of the tree: the tree is dropped after the clock stops,
+  and Drop is measured on its own (PR #24 review M1). Times are best of 2–5.
+- **Exact figures.** Allocation counts and heap sizes are exact. Fresh allocations and
+  reallocations are counted separately.
+- **Interner fix (ADR-0010 rev 2, round-1 m1).** These numbers are after the fix. The
+  interner now keys on `(prefix, local)` borrowed from the source plus the interned namespace
+  URI's address, hashed with FNV-1a. Revision 1 formatted a key string with the namespace URI
+  for every lookup and hashed it with SipHash, which made `word/document.xml` 30–38% slower than
+  core (21.0 ms against 15.2 ms in one session).
 
 | Input | XML | Tree | Parse (no drop) | Allocations (+ reallocations) | Allocs/element (+ reallocs) | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 15.4 ms | 111064 (+ 2015) | 5.29 (+ 0.10) | 14.6 MiB | 50.3 | 6.4 ms | 0.0 ms | 2.7 ms |
-| | | compact (spike) | 13.7 ms | 43115 (+ 21) | 2.05 (+ 0.00) | 2.8 MiB | 9.7 | 1.5 ms | 0.0 ms | 2.5 ms |
-| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 223.0 ms | 1110064 (+ 20019) | 5.29 (+ 0.10) | 147.5 MiB | 47.5 | 95.6 ms | 0.1 ms | 27.1 ms |
-| | | compact (spike) | 133.4 ms | 430115 (+ 25) | 2.05 (+ 0.00) | 28.4 MiB | 9.1 | 19.1 ms | 0.1 ms | 30.6 ms |
-| sheet1.xml, 1000k cells | 33.1 MiB | core `XmlDocument` | 2840.8 ms | 11100064 (+ 200022) | 5.29 (+ 0.10) | 1474.6 MiB | 44.6 | 1304.3 ms | 60.4 ms | 549.1 ms |
-| | | compact (spike) | 1493.1 ms | 4300115 (+ 28) | 2.05 (+ 0.00) | 285.6 MiB | 8.6 | 200.1 ms | 12.2 ms | 363.9 ms |
-| pptx slide (ppt/slides/slide12.xml) | 0.0 MiB | core `XmlDocument` | 0.4 ms | 2564 (+ 88) | 4.89 (+ 0.17) | 0.2 MiB | 16.8 | 0.1 ms | 0.0 ms | 0.1 ms |
-| | | compact (spike) | 0.4 ms | 1493 (+ 51) | 2.85 (+ 0.10) | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.1 ms |
-| largest fixture word/document.xml | 1.3 MiB | core `XmlDocument` | 31.1 ms | 319805 (+ 1345) | 8.69 (+ 0.04) | 15.2 MiB | 11.8 | 12.8 ms | 0.1 ms | 10.1 ms |
-| | | compact (spike) | 39.2 ms | 153825 (+ 166) | 4.18 (+ 0.00) | 5.6 MiB | 4.3 | 2.6 ms | 0.1 ms | 11.1 ms |
+| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 7.1 ms | 111064 (+ 2015) | 5.29 (+ 0.10) | 14.6 MiB | 50.3 | 2.5 ms | 0.0 ms | 1.3 ms |
+| | | compact (spike) | 5.1 ms | 43089 (+ 19) | 2.05 (+ 0.00) | 2.8 MiB | 9.7 | 0.7 ms | 0.0 ms | 1.3 ms |
+| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 86.1 ms | 1110064 (+ 20019) | 5.29 (+ 0.10) | 147.5 MiB | 47.5 | 67.0 ms | 0.1 ms | 15.7 ms |
+| | | compact (spike) | 51.1 ms | 430089 (+ 23) | 2.05 (+ 0.00) | 28.4 MiB | 9.1 | 9.9 ms | 0.1 ms | 13.9 ms |
+| sheet1.xml, 1000k cells | 33.1 MiB | core `XmlDocument` | 907.7 ms | 11100064 (+ 200022) | 5.29 (+ 0.10) | 1474.6 MiB | 44.6 | 780.6 ms | 17.2 ms | 235.8 ms |
+| | | compact (spike) | 503.5 ms | 4300089 (+ 26) | 2.05 (+ 0.00) | 285.6 MiB | 8.6 | 151.9 ms | 4.3 ms | 152.5 ms |
+| pptx slide (ppt/slides/slide12.xml) | 0.0 MiB | core `XmlDocument` | 0.2 ms | 2564 (+ 88) | 4.89 (+ 0.17) | 0.2 MiB | 16.8 | 0.0 ms | 0.0 ms | 0.0 ms |
+| | | compact (spike) | 0.2 ms | 1392 (+ 48) | 2.66 (+ 0.09) | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.0 ms |
+| largest fixture word/document.xml | 1.3 MiB | core `XmlDocument` | 15.1 ms | 319805 (+ 1345) | 8.69 (+ 0.04) | 15.2 MiB | 11.8 | 6.1 ms | 0.0 ms | 5.0 ms |
+| | | compact (spike) | 14.6 ms | 153639 (+ 162) | 4.17 (+ 0.00) | 5.6 MiB | 4.3 | 1.2 ms | 0.0 ms | 5.3 ms |
+
+Ranges over the three runs (core against compact, parse without drop):
+
+| Input | core parse | compact parse | core drop | compact drop |
+|---|---|---|---|---|
+| sheet, 10k cells | 6.9–8.0 ms | 5.1 ms | 2.5 ms | 0.7 ms |
+| sheet, 100k cells | 79.1–86.1 ms | 50.5–51.1 ms | 58.3–67.0 ms | 9.9–10.8 ms |
+| sheet, 1M cells | 852–908 ms | 504–520 ms | 764–792 ms | 152–154 ms |
+| largest `word/document.xml` | 14.8–15.5 ms | 14.6–14.8 ms | 6.1–8.1 ms | 1.2–1.4 ms |
 
 Heap retained includes the source text: core keeps a `Box<str>` copy, compact an `Arc<str>`.
 
@@ -81,9 +99,14 @@ Node sizes:
 
 | Step | Time | Heap | Allocations |
 |---|---|---|---|
-| Index the rows (quick-xml scan, no tree) | 344 ms (164 ms in an earlier run at load ≈ 30) | 1.5 MiB | 200,031 |
-| Find, materialize, edit and re-render 1,000 rows | 22 ms | — | — |
-| Splice into the source (save, before deflate) | 4.1 ms | — | — |
+| Index the rows (quick-xml scan, no tree, **no validation**) | 165–171 ms (344 ms in an earlier run at load ≈ 48) | 1.5 MiB | 200,031 |
+| Find, materialize, edit and re-render 1,000 rows | 9–10 ms | — | — |
+| Splice into the source (save, before deflate) | 3.7–4.0 ms | — | — |
+
+The index scan does **not** validate. A validating skip, run as the same parser loop in a mode
+that builds nothing (ADR-0010 rev 2 §2.2), was measured by the round-1 reviewer at 312–320 ms.
+The spike's 1.5 MiB counts only `(r, start, end)` per row. Deferred row nodes as ADR-0010 §2.4
+describes them cost about 150–250 B per row.
 
 **Deflate level for a rewritten part** (the re-rendered 33.1 MiB sheet):
 
@@ -102,13 +125,16 @@ For comparison, the 2026-11 baseline (run 3) measures the same workload on today
 ## Reading the numbers
 
 - **Sheets.**
-  - About 5× less memory: 8.6–9.7 heap bytes per XML byte instead of 45–50.
-  - 2.6× fewer fresh allocations, and essentially no reallocations.
-  - Parsing is 1.1–1.9× faster with drop excluded; drop is 4–6.5× faster.
-  - For the 1M-cell sheet, parse plus drop goes from 4.1 s to 1.7 s (2.4×).
-- **Text-heavy documents.** The largest fixture `word/document.xml` needs 2.7× less memory. Its parse is no faster in this run (31 ms core, 39 ms compact); that difference is within this host's noise. Its remaining allocations are children vectors and attribute slices, one each per element, and the arena for children sketched as ADR-0010 stage 4 would remove most of them.
-- **The lazy sheet is the real step change for large sheets.** Indexing 100k rows needs 1.5 MiB and one scan, against 1.47 GiB for core's tree, and an edit materializes only the rows it touches.
-- **Not measured here.**
-  - Lens mutation on the compact tree. A changed value becomes an owned `SStr`; the dirty flags are unchanged.
-  - Atomic reference-count traffic under threads.
-  - The full validation (depth, entities, prefixes) that ADR-0010 requires during the lazy skip. The spike's index scan does not do it yet.
+  - About 5× less memory (8.6–9.7 heap bytes per XML byte instead of 45–50) and 2.6× fewer
+    allocations.
+  - Parse 1.35–1.8× faster and drop 3.5–6× faster.
+  - Most of the gain is memory and drop; parse speed is secondary.
+- **Text-heavy documents.** 2.7× less memory and parse time equal to core's. Before the interner
+  fix this was 30–38% slower.
+- **The lazy sheet is the real step change for large sheets.** The tree no longer grows with
+  untouched cells, and an edit expands only the rows it touches. The source text (33 MiB) is
+  still retained (ADR-0010 rev 2, Targets).
+- **Not measured here:**
+  - lens mutation on the compact tree;
+  - atomic reference-count traffic under threads;
+  - the validating skip, which the round-1 reviewer's probe measured.
