@@ -69,7 +69,12 @@ def facts(p):
         sheets.append({"name": s.get("name"), "type": ty.rsplit("/", 1)[-1], "part": t,
                        "state": s.get("state", "visible")})
     f["sheets"] = sheets
-    first = sheets[0]
+    # Owner decision 2026-11-16 (ADR-0001 note): the first *visible worksheet*.
+    visible = [s for s in sheets if s["type"] == "worksheet" and s["state"] == "visible"]
+    if not visible:
+        f["verdict"] = "Err(NoVisibleWorksheet)"
+        return f
+    first = visible[0]
     f["first_sheet"] = f"{first['name']} -> {first['part']} ({first['type']})"
     # Formula presence, by QName (SML f) vs. the naive byte prefix `<f`.
     sml_f = 0
@@ -90,8 +95,6 @@ def facts(p):
     if f["strict"]:
         f["verdict"] = "Err(StrictNotSupported) at open"
         return f
-    if first["type"] != "worksheet":
-        f["verdict"] = "first sheet is not a worksheet: Err (open question Q2)"
     data = z.read(first["part"])
     ws = ET.fromstring(data)
     f["worksheet_children"] = [
@@ -132,7 +135,7 @@ def facts(p):
         else:
             v = "value edits Ok"
             if f["merge_refs"]:
-                v += "; non-anchor cells of merged ranges Err(MergedCell) (Q3)"
+                v += "; cells of merged ranges (top-left included) Err(MergedCell) (Q3)"
             if f["vm_cells"]:
                 v += f"; {f['vm_cells']} vm cell(s) Err(RichValueCell) (Q4)"
             if f["has_tableParts"]:

@@ -208,6 +208,26 @@ fn set_text_duties() {
 }
 
 #[test]
+fn non_xml_characters_are_refused_before_any_change() {
+    let src = r#"<odd xmlns="urn:t"><t>keep</t></odd>"#;
+    let mut d = doc(src);
+    for bad in ["a\u{b}b", "\u{1}", "x\u{FFFE}", "\u{FFFF}", "\u{0}"] {
+        let mut odd = d.lens_mut::<Odd>().unwrap();
+        let mut t = odd.child_mut::<T>().unwrap();
+        assert_matches!(t.set_text(bad), Err(Error::InvalidXmlChar { .. }), "{bad:?}");
+        assert_matches!(t.set_attr(QName::new("", "k"), bad), Err(Error::InvalidXmlChar { .. }), "{bad:?}");
+    }
+    assert!(!d.is_dirty());
+    assert_eq!(d.serialize(), src);
+    // tab, LF, CR and non-BMP characters are XML characters
+    let mut odd = d.lens_mut::<Odd>().unwrap();
+    odd.child_mut::<T>().unwrap().set_text("a\tb\nc\rd\u{1F600}").unwrap();
+    assert_eq!(d.serialize(), "<odd xmlns=\"urn:t\"><t>a\tb\nc&#13;d\u{1F600}</t></odd>");
+    let err = Error::InvalidXmlChar { ch: '\u{b}', offset: 1 };
+    assert_eq!(err.to_string(), "character U+000B at byte 1 is not allowed in XML 1.0");
+}
+
+#[test]
 fn incomplete_specs_refuse_attribute_writes() {
     let mut d = doc(r#"<inc xmlns="urn:t"/>"#);
     assert_matches!(d.lens_mut::<Inc>().unwrap().set_attr(QName::new("", "x"), "1"), Err(Error::IncompleteSpec(_)));

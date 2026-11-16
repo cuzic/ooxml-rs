@@ -1,7 +1,10 @@
 """Check ADR-0005's proposed Phase0 PML/DML allowlist against the SDK data
 (run with `python3 -I`).
 
-Usage: python3 -I allowlist_check.py <Open-XML-SDK data dir> <ECMA XSD dir> <path to spikes/adr-0002/py/slottable.py>
+Usage: python3 -I allowlist_check.py <Open-XML-SDK data dir> <ECMA XSD dir> <path to spikes/adr-0002/py/slottable.py> <codegen/allowlist dir>
+
+The corpus-side claim "no mc:AlternateContent child at the write targets"
+is counted by probe.py (ac_under_txBody, ac_under_a_p), not here.
 
 For every proposed SDK Name: it exists, which schema file (feature group) it
 is in, its attributes after merging the same-file abstract base entry, its
@@ -13,44 +16,23 @@ whose XSD default does not fit the SDK type (=> set_type / DefaultMismatch).
 import sys, os, json, re
 import xml.etree.ElementTree as ET
 
-sdk, xsd, slottable = sys.argv[1], sys.argv[2], sys.argv[3]
+sdk, xsd, slottable, allow_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 src = open(slottable).read().split('# ---- ECMA side')[0]
 src = src.replace('sdk, xsd = sys.argv[1], sys.argv[2]', '')
 ns = {}
 exec(src, ns)
 lower, NSx = ns['lower'], ns['NS']
 
-ALLOW = {
-    # name: (mode, feature)
-    'p:CT_Presentation/p:presentation': 'read',
-    'p:CT_SlideIdList/p:sldIdLst': 'read',
-    'p:CT_SlideIdListEntry/p:sldId': 'read',
-    'p:CT_Slide/p:sld': 'read',
-    'p:CT_CommonSlideData/p:cSld': 'read',
-    'p:CT_GroupShape/p:spTree': 'read',
-    'p:CT_GroupShape/p:grpSp': 'read',
-    'p:CT_GroupShapeNonVisual/p:nvGrpSpPr': 'read',
-    'p:CT_Shape/p:sp': 'read',
-    'p:CT_ShapeNonVisual/p:nvSpPr': 'read',
-    'a:CT_NonVisualDrawingProps/p:cNvPr': 'read',
-    'p:CT_ApplicationNonVisualDrawingProps/p:nvPr': 'read',
-    'p:CT_Placeholder/p:ph': 'read',
-    'p:CT_GraphicalObjectFrame/p:graphicFrame': 'read',
-    'p:CT_GraphicalObjectFrameNonVisual/p:nvGraphicFramePr': 'read',
-    'a:CT_GraphicalObject/a:graphic': 'read',
-    'a:CT_GraphicalObjectData/a:graphicData': 'read',
-    'a:CT_Table/a:tbl': 'read',
-    'a:CT_TableRow/a:tr': 'read',
-    'a:CT_TableCell/a:tc': 'read',
-    'a:CT_TextBody/p:txBody': 'write',
-    'a:CT_TextBody/a:txBody': 'write',
-    'a:CT_TextParagraph/a:p': 'write',
-    'a:CT_RegularTextRun/a:r': 'write',
-    'xsd:string/a:t': 'write',
-    'a:CT_TextLineBreak/a:br': 'write',
-    'a:CT_TextField/a:fld': 'read',
-    'p:CT_SlideTiming/p:timing': 'read',
-}
+# The allowlist under test is read from codegen/allowlist/{pml,dml}.toml
+# (ADR-0005 rev 2 §5), so this script cannot drift from it (review M5).
+import tomllib
+ALLOW = {}
+for g in ('pml', 'dml'):
+    with open(os.path.join(allow_dir, g + '.toml'), 'rb') as fh:
+        t = tomllib.load(fh)
+    for mode in ('write', 'read'):
+        for n in t.get(mode, {}).get('names', []):
+            ALLOW[n] = mode
 PCT = {'ST_Percentage', 'ST_PositivePercentage', 'ST_FixedPercentage', 'ST_PositiveFixedPercentage',
        'ST_TextSpacingPercentOrPercentString', 'ST_TextFontScalePercentOrPercentString',
        'ST_TextBulletSizePercent'}

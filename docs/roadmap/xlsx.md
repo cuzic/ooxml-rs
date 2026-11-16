@@ -1,7 +1,7 @@
 # Excel (xlsx) roadmap: gap analysis, phases and Phase0 acceptance tests
 
-- Status: draft for review (milestone `xlsx-plan-v0`)
-- Date: 2026-11-16
+- Status: Phase0 implemented (milestone `xlsx-phase0`); plan accepted by the owner 2026-11-16
+- Date: 2026-11-16 (Phase0 implementation update: §1, §7, §8)
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md) (Phase0 definition),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md) (typed lens, allowlist)
 - Proposes: [ADR-0003](../adr/0003-xlsx-phase1-formula-and-calc-state.md)
@@ -10,8 +10,9 @@
 
 ## 要約（日本語）
 
-- ooxml-rs の Excel 対応は現時点で**何も実装されていない**。最初の目標は ADR-0001 の Phase0
-  （既存ファイルの値の書き換えを、触っていない部分を壊さずに行う）である。
+- ADR-0001 の Phase0（既存ファイルの値の書き換えを、触っていない部分を壊さずに行う）を
+  `crates/ooxml-xlsx` に実装した（milestone `xlsx-phase0`）。§7 の受け入れテストはすべて
+  自動テストとして通る。Excel で修復ダイアログが出ないかの確認はオーナーが手で行う（§7.6）。
 - Excel の機能面を約 60 項目に分け、それぞれについて関係する OOXML パートと要素、パートを
   またぐ整合性（ADR-0001 の Layer 3）、難しさ、参考ライブラリ（rust_xlsxwriter、calamine、
   umya-spreadsheet、openpyxl）の対応状況を表にした（§2、§3）。
@@ -29,19 +30,20 @@
   結合セル、インラインのリッチテキスト、`r` の無いセル、calcChain の有無、シート順の入れ替え）を
   すべて含む。
 - Phase0 の受け入れテストを、フィクスチャ・編集・判定方法（T1/T1b/T2、calamine での読み戻し）・
-  期待されるエラーの組で定めた（§7）。基盤（`ooxml-core`）が入ったらすぐ実装に着手できる。
+  期待されるエラーの組で定めた（§7）。オーナーの決定（2026-11-16）に合わせて一部を改めた
+  （「最初のシート」は最初の表示されているワークシート、結合範囲は左上も含めて書き込み拒否、など）。
 
 ---
 
 ## 1. Where we are
 
-| Area | State on `main` @ 4eca48d |
+| Area | State on `impl/xlsx-phase0` (from `main` @ d82d76d) |
 |---|---|
-| `ooxml-core` (Package, RawNode, lens) | Being implemented on `feat/foundation-v0` (not merged) |
-| `ooxml-schema` / `xtask codegen` | Being implemented on `feat/foundation-v0` |
-| `ooxml-xlsx` | Does not exist. Starts after foundation-v0 merges. |
-| Excel features implemented | **None** |
-| Fixtures | `reference/round_trip_corpus/fixture_minimal.xlsx` (hand-made) + this milestone's 25 third-party files |
+| `ooxml-core` (Package, RawNode, lens) | Merged (foundation-v0); used unchanged |
+| `ooxml-schema` / `xtask codegen` | Merged; `sml` allowlist grew by 3 read entries (table parts, for the header guard) |
+| `ooxml-xlsx` | **Phase0 implemented**: `Workbook::open/new/save`, first visible worksheet, `cell`/`cell_mut` → `set_string`/`set_number`, refusals, template. See the crate README. |
+| Excel features implemented | B1 (number write), B2 (read shared/inline, write inline), B3 (read flattened), B4 (`xml:space`, `_x` escapes), B7 (`dimension`), A1, A2/A3 (typed `Err`), A5 (from-scratch `core.xml`), plus the P0 guards of C1–C4, E1, F1, F10 |
+| Fixtures | `reference/round_trip_corpus/fixture_minimal.xlsx` (hand-made) + 25 third-party files (unchanged) |
 
 Phase0 (ADR-0001, with ADR-0002's allowlist) is the first target. Everything in §2 that is
 not Phase0 is a gap.
@@ -308,9 +310,9 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 
 - **Goal:** open a real `.xlsx`, overwrite values of existing cells or create cells on the first
   sheet, save, and lose nothing; from-scratch skeleton via an embedded template.
-- **Scope:** as ADR-0001 "Scope boundary" and ADR-0002 §5. Plus the two clarifications from §5
-  above (QName-based formula scan; guards for `vm` cells and table header cells), which need
-  owner confirmation (Q4, Q5).
+- **Scope:** as ADR-0001 "Scope boundary" and ADR-0002 §5, plus §5's two findings (QName-based
+  formula scan — now an ADR-0001 post-acceptance note; guards for `vm` cells and table header
+  cells — coordinator defaults, §8).
 - **Acceptance:** §7 below, every row green; clippy clean; CK clean.
 - **Exit gate:** XL check by the owner on the outputs listed in §7.4.
 
@@ -431,8 +433,9 @@ not name them; the variant *names* may change, the *classes* may not.
 - Fixtures: `reference/fixtures/xlsx/{poi,calamine}/*.xlsx|xlsm` and
   `reference/round_trip_corpus/fixture_minimal.xlsx`. Facts quoted below come from
   `spikes/xlsx/phase0_facts.py` (re-run it if a fixture changes).
-- "First sheet" = first `<sheet>` in workbook order (ADR-0002 §6), resolved via the
-  `officeDocument` relationship, *not* `xl/workbook.xml` by name.
+- "First sheet" = the **first visible worksheet** in workbook order (owner decision 2026-11-16,
+  ADR-0001 post-acceptance note; this replaces ADR-0002 §6's "first `<sheet>`"), resolved via the
+  `officeDocument` relationship and the workbook's relationships, *not* by part name.
 - Every test that writes runs against a temporary copy, and also once with
   `save` to the **same path** it was opened from (ADR-0001 R2-M4).
 - A test "passes CR" when calamine (dev-dependency) opens the output, and for the first sheet
@@ -443,13 +446,13 @@ not name them; the variant *names* may change, the *classes* may not.
 
 | ID | Fixtures | Action | Oracle / expectation |
 |---|---|---|---|
-| P0-PKG-1 | all 24 zip fixtures (all but `protected_passtika`) + `fixture_minimal` | `Package::open` → `save` with zero edits | L1 for **every** entry; same part order. Includes the data-descriptor fixtures `52348` (9 entries), `62272` (9), `70005-countifs` (11) |
+| P0-PKG-1 | all 24 zip fixtures (all but `protected_passtika`) + `fixture_minimal`; `SimpleStrict` is refused by `Package::open` itself (P0-PKG-3), so 23 + 1 | `Package::open` → `save` with zero edits, and `Workbook::open` → `save` | L1 for **every** entry; same part order. Includes the data-descriptor fixtures `52348` (9 entries), `62272` (9), `70005-countifs` (11) |
 | P0-PKG-2 | `protected_passtika.xlsx` | `open` | `Err(EncryptedPackage)` (CFB magic `D0 CF 11 E0`), not a zip error |
-| P0-PKG-3 | `SimpleStrict.xlsx` | `open` the workbook lens | `Err(StrictNotSupported)` (ADR-0001 out-of-scope list); `Package::open` alone may succeed and P0-PKG-1 still holds |
+| P0-PKG-3 | `SimpleStrict.xlsx` | `Workbook::open` | `Err(Core(StrictNotSupported))` (ADR-0001 out-of-scope list); in practice `Package::open` already refuses it (Strict package relationships) |
 | P0-PKG-4 | `renamed_workbook_part.xlsx` | locate first sheet | workbook = `xl/workbook2.xml`, sheet = `xl/sheet1.xml` (no hard-coded paths) |
-| P0-PKG-5 | `reordered_sheets.xlsx` | locate first sheet; look up sheet named `Sheet1` (Phase1 API, assert lookup only) | first sheet = `Sheet4` → `xl/worksheets/sheet1.xml`; `Sheet1` → `xl/worksheets/sheet4.xml`. rels are listed out of id order |
-| P0-PKG-6 | `xlmmacro.xlsm` | locate first sheet | first `<sheet>` is a macro sheet (`xl/macrosheets/sheet1.xml`) → `Err(NotAWorksheet)` (Q2) |
-| P0-PKG-7 | `TwoSheetsOneHidden.xlsx` | locate first sheet | `Sheet1`, which is `state="hidden"`: returned as is (Q2) |
+| P0-PKG-5 | `reordered_sheets.xlsx` | locate first sheet | first sheet = `Sheet4` → `xl/worksheets/sheet1.xml`; rels are listed out of id order. (Lookup by name is a Phase1 API; not tested in Phase0.) |
+| P0-PKG-6 | `xlmmacro.xlsm` | locate first sheet | the first `<sheet>` is a macro sheet and is skipped: `Sheet1` → `xl/worksheets/sheet1.xml` (Q2, decided) |
+| P0-PKG-7 | `TwoSheetsOneHidden.xlsx` | locate first sheet | `Sheet1` is `state="hidden"` and is skipped: `Sheet2` → `xl/worksheets/sheet2.xml` (Q2, decided). With every sheet hidden: `Err(NoVisibleWorksheet)` (synthetic) |
 
 ### 7.3 Parser/renderer tests (T1, T1b)
 
@@ -468,7 +471,7 @@ span or insertion point plus `dimension`.
 | ID | Fixture | Edit | Expectation |
 |---|---|---|---|
 | P0-E1 | `fixture_minimal.xlsx` | ADR-0001's sweep (A1, A2, B2, C2 bool→number, D2 self-closing) | T2; CR; foreign `extLst` intact (T2 locality) |
-| P0-E2 | `61605.xlsx` (Excel 2013; 45 self-closing styled cells, 6 merges, `x14ac`) | sweep over all 46 cells; new cell `A20` | merged anchors (`B1`, `B3`, `B4`, `B6`, `B8`, `B9`) Ok; other cells inside merges (`C1:E1`, …) → `Err(MergedCell)` (Q3); `s` kept on every write; self-closing `<c r="B2" s="1"/>` becomes open/close (own_dirty); `A20` creates `row r="20"` after `row r="15"`; `dimension` `B1:E15` → `A1:E20`; hyperlink on `B5` and `printerSettings1.bin` intact (L1); CR |
+| P0-E2 | `61605.xlsx` (Excel 2013; 45 self-closing styled cells, 6 merges, `x14ac`) | sweep over all 46 cells; new cell `A20` | every cell of a merged range, anchors (`B1`, `B3`, …) included → `Err(MergedCell)` (Q3, coordinator default: ADR-0001's wording); `s` kept on every write; self-closing `<c r="B2" s="1"/>` becomes open/close (own_dirty); `A20` creates `row r="20"` after `row r="15"`; `dimension` `B1:E15` → `A1:E20`; hyperlink on `B5` and `printerSettings1.bin` intact (L1); CR |
 | P0-E3 | `FillWithoutColor.xlsx` (Excel 16; 513 self-closing cells, 24 merges, self-closing `<row r="2" …/>`, 4 CF `<formula>`) | write `B2` (into the empty self-closing row); sweep a 20-cell sample across rows 3–61 | not refused by the formula scan (§5 finding 1); `row r="2"` gains its first child → re-rendered with `spans`, `ht`, `thickBot`, `x14ac:dyDescent` preserved; second sheet L1-identical; CR |
 | P0-E4 | `reordered_sheets.xlsx` (first sheet has `<sheetData/>`) | write `A1` = 1, `C3` = "x" | `<sheetData/>` → open/close, `row 1`, `row 3` in order (ADR-0001 R2-B2, R3-m2); `dimension` `A1` → `A1:C3`; sheets 2–4 L1; CR |
 | P0-E5 | `62272.xlsx` (LibreOffice 7.3; data descriptors; attribute-heavy `row`) | sweep `A1`; new `B2` | Ok; output entries for untouched parts L1 even though the input used data descriptors (container fields not compared, per ADR-0001 M1); CR |
@@ -494,17 +497,43 @@ span or insertion point plus `dimension`.
 | P0-R5 | `InlineString.xlsx` (one row and cell without `r`) | `cell(0,0)` | `Err(MissingReference)` |
 | P0-R6 | `61605.xlsx` | `set_number` on `C1` (inside `B1:E1`, not anchor) | `Err(MergedCell)` |
 | P0-R7 | any | `cell_mut(r,c)` with no setter call, then `save` | no change at all: every entry L1 (ADR-0001 R2-m1) |
-| P0-R8 | `fixture_minimal.xlsx` | `set_formula` (if the method exists at all in P0) | `Err(FormulaWrite)` |
-| P0-R9 | a fixture whose `worksheet` has an `mc:AlternateContent` child *and* lacks `dimension` (none in corpus; synthetic test-only XML string) | write outside range | `Err(UnresolvedSibling)` from the `dimension` insert (ADR-0002 §4.3); unit test on raw XML, not a fixture |
+| P0-R8 | `fixture_minimal.xlsx` | `set_formula` | The method does not exist in Phase0, so formula writes are not expressible; `set_string("=1+1")` stores text |
+| P0-R9 | synthetic `worksheet` with an `mc:AlternateContent` child | write | A missing `dimension` is never inserted (Q6), so with `<sheetData/>` present the write succeeds and no `dimension` appears; without `sheetData` its insertion is refused: `Err(UnresolvedSibling)` (ADR-0002 §4.3), nothing changed |
 
 ### 7.6 What Phase0 does not claim even when all of this passes
 
-- That Excel opens the outputs without a repair dialog: owner's XL check on P0-E2, E3, E4, E11,
-  E12, E14, E15 outputs.
+- That Excel opens the outputs without a repair dialog: owner's XL check. `cargo run -p
+  ooxml-xlsx --example manual_check -- <outdir>` writes the outputs of P0-E1, E2, E3, E4, E11,
+  E12, E13, E14, E15 plus the `x:`-prefixed (Hancom) and hidden-first-sheet cases, the unedited
+  originals, and `CHECKLIST.md` (what to look for, how to report).
 - Correct `spans` hints after edits outside a span (left as is; XL check covers it).
 - Anything about sheets other than the first, except that they are byte-preserved.
 
+### 7.7 Implementation status (milestone `xlsx-phase0`)
+
+Every row of §7.2–§7.5 is an automated test in `crates/ooxml-xlsx/tests/` (`package.rs`,
+`edit.rs`, `refusals.rs`), with the changes above. Additions beyond the table: the T2 oracle
+compares the bytes *between* allowed regions piecewise, so a misplaced insertion fails it, and
+`tests/oracle.rs` checks that L1, T2 and CR do fail on a stray byte, a misplaced cell, a changed
+part and a wrong value; every readable cell of every openable fixture decodes to the value
+calamine reads; same-path `save` is exercised on 17 fixtures. P0-E3 sweeps every 26th cell
+(20 cells); P0-R1–R3 try every 5th cell plus a new one (debug-build run time).
+
+Reading choices that follow calamine (and, as far as is known, Excel): a `t` without
+`xml:space="preserve"` in effect has its outer ASCII whitespace trimmed; phonetic runs (`rPh`) are
+not part of the value; `_xHHHH_` escapes are decoded (surrogate pairs combined).
+
 ## 8. Open questions for the project owner
+
+Decisions of 2026-11-16: **Q1** accepted (Phase1 = formulas and calc state, ADR-0003). **Q2**
+first *visible* worksheet (ADR-0001 note). **Q7** recorded as an ADR-0001 note. **Q9** the owner
+runs the XL check on current Microsoft 365 Excel. Coordinator defaults, open to revision:
+**Q3** any cell of a merged range is refused, top-left included (ADR-0001's wording; the
+proposal above to allow the anchor is *not* adopted); **Q4** `vm` cells refused; **Q5** table
+header rows refused (table parts read); **Q6** a missing `dimension` is never inserted; **Q8**
+third-party fixtures stay committed under a 5 MB cap.
+
+The original questions, for the record:
 
 - **Q1 (ADR-0003 topic).** Is "formula-aware edits and calculation state" acceptable as Phase1,
   with registries as Phase2? (§6 explains the ordering.)

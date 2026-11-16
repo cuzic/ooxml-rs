@@ -49,7 +49,30 @@
   the first sheet and resolve shared strings), in addition to the
   worksheet. Edits stay confined to the worksheet part; the extra parts
   remain dirty-free `Parsed` and are raw-copied per the M2 rule above.
-  "sheet1" means the first sheet in workbook order.
+  (The sentence that defined "sheet1" here is superseded by the next note.)
+- **Post-acceptance note (2026-11-16, owner decision — which sheet is
+  "sheet1"):** "sheet1" is the **first visible worksheet in workbook
+  order**: walk `<sheets>` in order and skip sheets whose `state` is
+  `hidden` or `veryHidden`, and sheets that are not worksheets
+  (chartsheets, macro sheets, dialog sheets — decided by the relationship
+  type and the part's content type). If no sheet qualifies, opening
+  returns `Err(NoVisibleWorksheet)`. This replaces "the first sheet in
+  workbook order" above and in ADR-0002 §6, which would have selected a
+  hidden sheet (`TwoSheetsOneHidden.xlsx`) or a macro sheet
+  (`xlmmacro.xlsm`). The worksheet's table parts are also parsed
+  read-only (table header guard), on the same raw-copy terms.
+- **Post-acceptance note (2026-11-16, owner decision — formula
+  detection):** the formula check in Layer 3 above ("check for the
+  presence of any `<f` start element") means: an element whose namespace
+  URI is the SpreadsheetML main namespace
+  (`http://schemas.openxmlformats.org/spreadsheetml/2006/main`) and whose
+  local name is `f`, anywhere in any worksheet, macro-sheet or
+  dialog-sheet part, matched after namespace resolution (any prefix).
+  It is **never** a byte-pattern match on `<f`, which also matches
+  `<formula>` (conditional formatting), `<from>` (drawing anchors),
+  `<fill>` and `<filterColumn>`, and misses prefixed `<x:f>`; `xm:f`
+  (x14 data validation in `extLst`) is a different namespace and not a
+  cell formula. Evidence: `docs/roadmap/xlsx.md` §5 finding 1.
 - **Post-acceptance note (2026-11-16, `RawNode` names):** per ADR-0002
   §3, `RawNode.name` and each attribute name are stored as the resolved
   `QName` (namespace URI, local name) together with the original prefix,
