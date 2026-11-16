@@ -3,7 +3,7 @@
 //! PowerPoint (PresentationML) on top of [`ooxml_core`] and the generated
 //! [`ooxml_schema`] `pml`/`dml` views: open and save any presentation
 //! losslessly, walk slides and shapes, read text, and edit text **inside
-//! existing text bodies** (Phase 0, [ADR-0005]).
+//! existing text bodies** (Phase 0 and 0.1, [ADR-0005]).
 //!
 //! ```no_run
 //! use ooxml_pptx::Presentation;
