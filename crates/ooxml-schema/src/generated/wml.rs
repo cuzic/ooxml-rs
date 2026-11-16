@@ -6,6 +6,10 @@ pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
 /// `m`: `http://schemas.openxmlformats.org/officeDocument/2006/math`
 pub const NS_M: &str = "http://schemas.openxmlformats.org/officeDocument/2006/math";
+/// `pic`: `http://schemas.openxmlformats.org/drawingml/2006/picture`
+pub const NS_PIC: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+/// `pic14`: `http://schemas.microsoft.com/office/drawing/2010/picture`
+pub const NS_PIC14: &str = "http://schemas.microsoft.com/office/drawing/2010/picture";
 /// `r`: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 /// `sl`: `http://schemas.openxmlformats.org/schemaLibrary/2006/main`
@@ -18,8 +22,72 @@ pub const NS_W14: &str = "http://schemas.microsoft.com/office/word/2010/wordml";
 pub const NS_W15: &str = "http://schemas.microsoft.com/office/word/2012/wordml";
 /// `w16du`: `http://schemas.microsoft.com/office/word/2023/wordml/word16du`
 pub const NS_W16DU: &str = "http://schemas.microsoft.com/office/word/2023/wordml/word16du";
+/// `wp`: `http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing`
+pub const NS_WP: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+/// `wp14`: `http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing`
+pub const NS_WP14: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+/// `a:ST_BlackWhiteMode` — Black and White Mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BlackWhiteModeValues {
+    /// `clr`
+    Color,
+    /// `auto`
+    Auto,
+    /// `gray`
+    Gray,
+    /// `ltGray`
+    LightGray,
+    /// `invGray`
+    InvGray,
+    /// `grayWhite`
+    GrayWhite,
+    /// `blackGray`
+    BlackGray,
+    /// `blackWhite`
+    BlackWhite,
+    /// `black`
+    Black,
+    /// `white`
+    White,
+    /// `hidden`
+    Hidden,
+}
+impl ooxml_core::EnumType for BlackWhiteModeValues {
+    const VALUES: &'static [&'static str] = &[
+        "clr",
+        "auto",
+        "gray",
+        "ltGray",
+        "invGray",
+        "grayWhite",
+        "blackGray",
+        "blackWhite",
+        "black",
+        "white",
+        "hidden",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Color),
+            1 => Some(Self::Auto),
+            2 => Some(Self::Gray),
+            3 => Some(Self::LightGray),
+            4 => Some(Self::InvGray),
+            5 => Some(Self::GrayWhite),
+            6 => Some(Self::BlackGray),
+            7 => Some(Self::BlackWhite),
+            8 => Some(Self::Black),
+            9 => Some(Self::White),
+            10 => Some(Self::Hidden),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_HighlightColor` — HighlightColorValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HighlightColorValues {
@@ -1179,6 +1247,1101 @@ impl ooxml_core::EnumType for SpaceProcessingModeValues {
         self as usize
     }
 }
+/// `a:CT_BlipFillProperties/pic:blipFill` — Picture Fill.
+#[derive(Debug)]
+pub enum BlipFill {}
+impl BlipFill {
+    /// `dpi`
+    pub const ATTR_DPI: ooxml_core::QName = ooxml_core::QName::new("", "dpi");
+    /// `rotWithShape`
+    pub const ATTR_ROT_WITH_SHAPE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "rotWithShape",
+    );
+}
+impl ooxml_core::ElementSpec for BlipFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_PIC, "blipFill");
+    const SDK_NAME: &'static str = "a:CT_BlipFillProperties/pic:blipFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BlipFill::ATTR_DPI,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BlipFill::ATTR_ROT_WITH_SHAPE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "blip")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "srcRect")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tile"),
+                    ooxml_core::QName::new(NS_A, "stretch"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<BlipFill> for super::dml::Blip {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<BlipFill> for super::dml::Stretch {}
+/// Read-only view of [`BlipFill`].
+#[derive(Clone, Debug)]
+pub struct BlipFillView<'a>(pub ooxml_core::Lens<'a, BlipFill>);
+impl<'a> BlipFillView<'a> {
+    /// `dpi` — DPI Setting
+    pub fn dpi(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BlipFill::ATTR_DPI, ooxml_core::value::parse_u32)
+    }
+    /// `rotWithShape` — Rotate With Shape
+    pub fn rotate_with_shape(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BlipFill::ATTR_ROT_WITH_SHAPE, ooxml_core::value::parse_bool)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:blip` child.
+    pub fn blip(&self) -> Option<super::dml::BlipView<'a>> {
+        self.0.child::<super::dml::Blip>().map(super::dml::BlipView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:stretch` child.
+    pub fn stretch(&self) -> Option<super::dml::StretchView<'a>> {
+        self.0.child::<super::dml::Stretch>().map(super::dml::StretchView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BlipFill`]. Reads go through [`BlipFillViewMut::as_view`].
+#[derive(Debug)]
+pub struct BlipFillViewMut<'a>(pub ooxml_core::LensMut<'a, BlipFill>);
+impl<'a> BlipFillViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BlipFillView<'_> {
+        BlipFillView(self.0.as_lens())
+    }
+    /// Sets `dpi` — DPI Setting
+    pub fn set_dpi(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(BlipFill::ATTR_DPI, s))
+    }
+    /// Removes `dpi`.
+    pub fn remove_dpi(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BlipFill::ATTR_DPI)
+    }
+    /// Sets `rotWithShape` — Rotate With Shape
+    pub fn set_rotate_with_shape(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BlipFill::ATTR_ROT_WITH_SHAPE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `rotWithShape`.
+    pub fn remove_rotate_with_shape(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BlipFill::ATTR_ROT_WITH_SHAPE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:blip` child, mutably.
+    pub fn blip_mut(&mut self) -> Option<super::dml::BlipViewMut<'_>> {
+        self.0.child_mut::<super::dml::Blip>().map(super::dml::BlipViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:blip` child, or a new one in schema position.
+    pub fn get_or_insert_blip(
+        &mut self,
+    ) -> Result<super::dml::BlipViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Blip>().map(super::dml::BlipViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:blip` child.
+    pub fn remove_blip(&mut self) -> bool {
+        self.0.remove::<super::dml::Blip>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:stretch` child, mutably.
+    pub fn stretch_mut(&mut self) -> Option<super::dml::StretchViewMut<'_>> {
+        self.0.child_mut::<super::dml::Stretch>().map(super::dml::StretchViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:stretch` child, or a new one in schema position.
+    pub fn get_or_insert_stretch(
+        &mut self,
+    ) -> Result<super::dml::StretchViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Stretch>().map(super::dml::StretchViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:stretch` child.
+    pub fn remove_stretch(&mut self) -> bool {
+        self.0.remove::<super::dml::Stretch>()
+    }
+}
+/// `a:CT_NonVisualDrawingProps/pic:cNvPr` — Non-Visual Drawing Properties.
+#[derive(Debug)]
+pub enum NonVisualDrawingProperties {}
+impl NonVisualDrawingProperties {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `descr`
+    pub const ATTR_DESCR: ooxml_core::QName = ooxml_core::QName::new("", "descr");
+    /// `hidden`
+    pub const ATTR_HIDDEN: ooxml_core::QName = ooxml_core::QName::new("", "hidden");
+    /// `title`
+    pub const ATTR_TITLE: ooxml_core::QName = ooxml_core::QName::new("", "title");
+}
+impl ooxml_core::ElementSpec for NonVisualDrawingProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_PIC, "cNvPr");
+    const SDK_NAME: &'static str = "a:CT_NonVisualDrawingProps/pic:cNvPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NonVisualDrawingProperties::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: NonVisualDrawingProperties::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: NonVisualDrawingProperties::ATTR_DESCR,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: NonVisualDrawingProperties::ATTR_HIDDEN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: NonVisualDrawingProperties::ATTR_TITLE,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlinkClick")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlinkHover")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`NonVisualDrawingProperties`].
+#[derive(Clone, Debug)]
+pub struct NonVisualDrawingPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, NonVisualDrawingProperties>,
+);
+impl<'a> NonVisualDrawingPropertiesView<'a> {
+    /// `id` — Application defined unique identifier.
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                NonVisualDrawingProperties::ATTR_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `name` — Name compatible with Object Model (non-unique).
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(NonVisualDrawingProperties::ATTR_NAME)
+    }
+    /// `descr` — Description of the drawing element. (default ``)
+    pub fn description(&self) -> &'a str {
+        self.0.attr(NonVisualDrawingProperties::ATTR_DESCR).unwrap_or("")
+    }
+    /// `hidden` — Flag determining to show or hide this element. (default `false`)
+    pub fn hidden(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                NonVisualDrawingProperties::ATTR_HIDDEN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `title` — Title (default ``)
+    pub fn title(&self) -> &'a str {
+        self.0.attr(NonVisualDrawingProperties::ATTR_TITLE).unwrap_or("")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NonVisualDrawingProperties`]. Reads go through [`NonVisualDrawingPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NonVisualDrawingPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NonVisualDrawingProperties>,
+);
+impl<'a> NonVisualDrawingPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NonVisualDrawingPropertiesView<'_> {
+        NonVisualDrawingPropertiesView(self.0.as_lens())
+    }
+    /// Sets `id` — Application defined unique identifier.
+    pub fn set_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(NonVisualDrawingProperties::ATTR_ID, s),
+        )
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_ID)
+    }
+    /// Sets `name` — Name compatible with Object Model (non-unique).
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NonVisualDrawingProperties::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_NAME)
+    }
+    /// Sets `descr` — Description of the drawing element. (default ``)
+    pub fn set_description(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NonVisualDrawingProperties::ATTR_DESCR, v)
+    }
+    /// Removes `descr`.
+    pub fn remove_description(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_DESCR)
+    }
+    /// Sets `hidden` — Flag determining to show or hide this element. (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                NonVisualDrawingProperties::ATTR_HIDDEN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_HIDDEN)
+    }
+    /// Sets `title` — Title (default ``)
+    pub fn set_title(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NonVisualDrawingProperties::ATTR_TITLE, v)
+    }
+    /// Removes `title`.
+    pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_TITLE)
+    }
+}
+/// `a:CT_NonVisualDrawingProps/wp:docPr` — Drawing Object Non-Visual Properties.
+#[derive(Debug)]
+pub enum DocProperties {}
+impl DocProperties {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `descr`
+    pub const ATTR_DESCR: ooxml_core::QName = ooxml_core::QName::new("", "descr");
+    /// `hidden`
+    pub const ATTR_HIDDEN: ooxml_core::QName = ooxml_core::QName::new("", "hidden");
+    /// `title`
+    pub const ATTR_TITLE: ooxml_core::QName = ooxml_core::QName::new("", "title");
+}
+impl ooxml_core::ElementSpec for DocProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_WP, "docPr");
+    const SDK_NAME: &'static str = "a:CT_NonVisualDrawingProps/wp:docPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DocProperties::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DocProperties::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DocProperties::ATTR_DESCR,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: DocProperties::ATTR_HIDDEN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DocProperties::ATTR_TITLE,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlinkClick")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlinkHover")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`DocProperties`].
+#[derive(Clone, Debug)]
+pub struct DocPropertiesView<'a>(pub ooxml_core::Lens<'a, DocProperties>);
+impl<'a> DocPropertiesView<'a> {
+    /// `id` — Application defined unique identifier.
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DocProperties::ATTR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `name` — Name compatible with Object Model (non-unique).
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(DocProperties::ATTR_NAME)
+    }
+    /// `descr` — Description of the drawing element. (default ``)
+    pub fn description(&self) -> &'a str {
+        self.0.attr(DocProperties::ATTR_DESCR).unwrap_or("")
+    }
+    /// `hidden` — Flag determining to show or hide this element. (default `false`)
+    pub fn hidden(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DocProperties::ATTR_HIDDEN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `title` — Title (default ``)
+    pub fn title(&self) -> &'a str {
+        self.0.attr(DocProperties::ATTR_TITLE).unwrap_or("")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DocProperties`]. Reads go through [`DocPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct DocPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, DocProperties>);
+impl<'a> DocPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DocPropertiesView<'_> {
+        DocPropertiesView(self.0.as_lens())
+    }
+    /// Sets `id` — Application defined unique identifier.
+    pub fn set_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(DocProperties::ATTR_ID, s))
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DocProperties::ATTR_ID)
+    }
+    /// Sets `name` — Name compatible with Object Model (non-unique).
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DocProperties::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DocProperties::ATTR_NAME)
+    }
+    /// Sets `descr` — Description of the drawing element. (default ``)
+    pub fn set_description(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DocProperties::ATTR_DESCR, v)
+    }
+    /// Removes `descr`.
+    pub fn remove_description(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DocProperties::ATTR_DESCR)
+    }
+    /// Sets `hidden` — Flag determining to show or hide this element. (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DocProperties::ATTR_HIDDEN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DocProperties::ATTR_HIDDEN)
+    }
+    /// Sets `title` — Title (default ``)
+    pub fn set_title(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DocProperties::ATTR_TITLE, v)
+    }
+    /// Removes `title`.
+    pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DocProperties::ATTR_TITLE)
+    }
+}
+/// `a:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr` — Defines the NonVisualGraphicFrameDrawingProperties Class.
+#[derive(Debug)]
+pub enum NonVisualGraphicFrameDrawingProperties {}
+impl ooxml_core::ElementSpec for NonVisualGraphicFrameDrawingProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_WP, "cNvGraphicFramePr");
+    const SDK_NAME: &'static str = "a:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "graphicFrameLocks")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualGraphicFrameDrawingProperties>
+for super::dml::GraphicFrameLocks {}
+/// Read-only view of [`NonVisualGraphicFrameDrawingProperties`].
+#[derive(Clone, Debug)]
+pub struct NonVisualGraphicFrameDrawingPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, NonVisualGraphicFrameDrawingProperties>,
+);
+impl<'a> NonVisualGraphicFrameDrawingPropertiesView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:graphicFrameLocks` child.
+    pub fn graphic_frame_locks(&self) -> Option<super::dml::GraphicFrameLocksView<'a>> {
+        self.0
+            .child::<super::dml::GraphicFrameLocks>()
+            .map(super::dml::GraphicFrameLocksView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NonVisualGraphicFrameDrawingProperties`]. Reads go through [`NonVisualGraphicFrameDrawingPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NonVisualGraphicFrameDrawingPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NonVisualGraphicFrameDrawingProperties>,
+);
+impl<'a> NonVisualGraphicFrameDrawingPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NonVisualGraphicFrameDrawingPropertiesView<'_> {
+        NonVisualGraphicFrameDrawingPropertiesView(self.0.as_lens())
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:graphicFrameLocks` child, mutably.
+    pub fn graphic_frame_locks_mut(
+        &mut self,
+    ) -> Option<super::dml::GraphicFrameLocksViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::GraphicFrameLocks>()
+            .map(super::dml::GraphicFrameLocksViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:graphicFrameLocks` child, or a new one in schema position.
+    pub fn get_or_insert_graphic_frame_locks(
+        &mut self,
+    ) -> Result<super::dml::GraphicFrameLocksViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::GraphicFrameLocks>()
+            .map(super::dml::GraphicFrameLocksViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:graphicFrameLocks` child.
+    pub fn remove_graphic_frame_locks(&mut self) -> bool {
+        self.0.remove::<super::dml::GraphicFrameLocks>()
+    }
+}
+/// `a:CT_NonVisualPictureProperties/pic:cNvPicPr` — Non-Visual Picture Drawing Properties.
+#[derive(Debug)]
+pub enum NonVisualPictureDrawingProperties {}
+impl NonVisualPictureDrawingProperties {
+    /// `preferRelativeResize`
+    pub const ATTR_PREFER_RELATIVE_RESIZE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "preferRelativeResize",
+    );
+}
+impl ooxml_core::ElementSpec for NonVisualPictureDrawingProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_PIC, "cNvPicPr");
+    const SDK_NAME: &'static str = "a:CT_NonVisualPictureProperties/pic:cNvPicPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NonVisualPictureDrawingProperties::ATTR_PREFER_RELATIVE_RESIZE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "picLocks")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`NonVisualPictureDrawingProperties`].
+#[derive(Clone, Debug)]
+pub struct NonVisualPictureDrawingPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, NonVisualPictureDrawingProperties>,
+);
+impl<'a> NonVisualPictureDrawingPropertiesView<'a> {
+    /// `preferRelativeResize` — preferRelativeResize (default `true`)
+    pub fn prefer_relative_resize(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                NonVisualPictureDrawingProperties::ATTR_PREFER_RELATIVE_RESIZE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NonVisualPictureDrawingProperties`]. Reads go through [`NonVisualPictureDrawingPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NonVisualPictureDrawingPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NonVisualPictureDrawingProperties>,
+);
+impl<'a> NonVisualPictureDrawingPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NonVisualPictureDrawingPropertiesView<'_> {
+        NonVisualPictureDrawingPropertiesView(self.0.as_lens())
+    }
+    /// Sets `preferRelativeResize` — preferRelativeResize (default `true`)
+    pub fn set_prefer_relative_resize(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                NonVisualPictureDrawingProperties::ATTR_PREFER_RELATIVE_RESIZE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `preferRelativeResize`.
+    pub fn remove_prefer_relative_resize(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0
+            .remove_attr(NonVisualPictureDrawingProperties::ATTR_PREFER_RELATIVE_RESIZE)
+    }
+}
+/// `a:CT_PositiveSize2D/wp:extent` — Inline Drawing Object Extents.
+#[derive(Debug)]
+pub enum Extent {}
+impl Extent {
+    /// `cx`
+    pub const ATTR_CX: ooxml_core::QName = ooxml_core::QName::new("", "cx");
+    /// `cy`
+    pub const ATTR_CY: ooxml_core::QName = ooxml_core::QName::new("", "cy");
+}
+impl ooxml_core::ElementSpec for Extent {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_WP, "extent");
+    const SDK_NAME: &'static str = "a:CT_PositiveSize2D/wp:extent";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extent::ATTR_CX,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Extent::ATTR_CY,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Extent`].
+#[derive(Clone, Debug)]
+pub struct ExtentView<'a>(pub ooxml_core::Lens<'a, Extent>);
+impl<'a> ExtentView<'a> {
+    /// `cx` — Extent Length
+    pub fn cx(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extent::ATTR_CX, ooxml_core::value::parse_i64)
+    }
+    /// `cy` — Extent Width
+    pub fn cy(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extent::ATTR_CY, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Extent`]. Reads go through [`ExtentViewMut::as_view`].
+#[derive(Debug)]
+pub struct ExtentViewMut<'a>(pub ooxml_core::LensMut<'a, Extent>);
+impl<'a> ExtentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ExtentView<'_> {
+        ExtentView(self.0.as_lens())
+    }
+    /// Sets `cx` — Extent Length
+    pub fn set_cx(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Extent::ATTR_CX, s))
+    }
+    /// Removes `cx`.
+    pub fn remove_cx(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extent::ATTR_CX)
+    }
+    /// Sets `cy` — Extent Width
+    pub fn set_cy(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Extent::ATTR_CY, s))
+    }
+    /// Removes `cy`.
+    pub fn remove_cy(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extent::ATTR_CY)
+    }
+}
+/// `a:CT_ShapeProperties/pic:spPr` — Shape Properties.
+#[derive(Debug)]
+pub enum ShapeProperties {}
+impl ShapeProperties {
+    /// `bwMode`
+    pub const ATTR_BW_MODE: ooxml_core::QName = ooxml_core::QName::new("", "bwMode");
+}
+impl ooxml_core::ElementSpec for ShapeProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_PIC, "spPr");
+    const SDK_NAME: &'static str = "a:CT_ShapeProperties/pic:spPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ShapeProperties::ATTR_BW_MODE,
+            ty: ooxml_core::SimpleType::Enum(
+                <BlackWhiteModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "xfrm")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "custGeom"),
+                    ooxml_core::QName::new(NS_A, "prstGeom"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ln")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "effectLst"),
+                    ooxml_core::QName::new(NS_A, "effectDag"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "scene3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "sp3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::PresetGeometry {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::Transform2D {}
+/// Read-only view of [`ShapeProperties`].
+#[derive(Clone, Debug)]
+pub struct ShapePropertiesView<'a>(pub ooxml_core::Lens<'a, ShapeProperties>);
+impl<'a> ShapePropertiesView<'a> {
+    /// `bwMode` — Black and White Mode
+    pub fn black_white_mode(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, BlackWhiteModeValues>> {
+        self.0.attr_enum(ShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:prstGeom` child.
+    pub fn preset_geometry(&self) -> Option<super::dml::PresetGeometryView<'a>> {
+        self.0.child::<super::dml::PresetGeometry>().map(super::dml::PresetGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:xfrm` child.
+    pub fn transform2_d(&self) -> Option<super::dml::Transform2DView<'a>> {
+        self.0.child::<super::dml::Transform2D>().map(super::dml::Transform2DView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ShapeProperties`]. Reads go through [`ShapePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct ShapePropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, ShapeProperties>);
+impl<'a> ShapePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ShapePropertiesView<'_> {
+        ShapePropertiesView(self.0.as_lens())
+    }
+    /// Sets `bwMode` — Black and White Mode
+    pub fn set_black_white_mode(
+        &mut self,
+        v: BlackWhiteModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ShapeProperties::ATTR_BW_MODE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `bwMode`.
+    pub fn remove_black_white_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:prstGeom` child, mutably.
+    pub fn preset_geometry_mut(
+        &mut self,
+    ) -> Option<super::dml::PresetGeometryViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::PresetGeometry>()
+            .map(super::dml::PresetGeometryViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:prstGeom` child, or a new one in schema position.
+    pub fn get_or_insert_preset_geometry(
+        &mut self,
+    ) -> Result<super::dml::PresetGeometryViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::PresetGeometry>()
+            .map(super::dml::PresetGeometryViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:prstGeom` child.
+    pub fn remove_preset_geometry(&mut self) -> bool {
+        self.0.remove::<super::dml::PresetGeometry>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:xfrm` child, mutably.
+    pub fn transform2_d_mut(&mut self) -> Option<super::dml::Transform2DViewMut<'_>> {
+        self.0.child_mut::<super::dml::Transform2D>().map(super::dml::Transform2DViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:xfrm` child, or a new one in schema position.
+    pub fn get_or_insert_transform2_d(
+        &mut self,
+    ) -> Result<super::dml::Transform2DViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::Transform2D>()
+            .map(super::dml::Transform2DViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:xfrm` child.
+    pub fn remove_transform2_d(&mut self) -> bool {
+        self.0.remove::<super::dml::Transform2D>()
+    }
+}
+/// `pic:CT_Picture/pic:pic` — Picture.
+#[derive(Debug)]
+pub enum Picture {}
+impl ooxml_core::ElementSpec for Picture {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_PIC, "pic");
+    const SDK_NAME: &'static str = "pic:CT_Picture/pic:pic";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC, "nvPicPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC, "blipFill")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC, "spPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC14, "style")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC14, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Picture> for BlipFill {}
+impl ooxml_core::ChildOf<Picture> for ShapeProperties {}
+impl ooxml_core::ChildOf<Picture> for NonVisualPictureProperties {}
+/// Read-only view of [`Picture`].
+#[derive(Clone, Debug)]
+pub struct PictureView<'a>(pub ooxml_core::Lens<'a, Picture>);
+impl<'a> PictureView<'a> {
+    /// First `pic:blipFill` child.
+    pub fn blip_fill(&self) -> Option<BlipFillView<'a>> {
+        self.0.child::<BlipFill>().map(BlipFillView)
+    }
+    /// First `pic:spPr` child.
+    pub fn shape_properties(&self) -> Option<ShapePropertiesView<'a>> {
+        self.0.child::<ShapeProperties>().map(ShapePropertiesView)
+    }
+    /// First `pic:nvPicPr` child.
+    pub fn non_visual_picture_properties(
+        &self,
+    ) -> Option<NonVisualPicturePropertiesView<'a>> {
+        self.0.child::<NonVisualPictureProperties>().map(NonVisualPicturePropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Picture`]. Reads go through [`PictureViewMut::as_view`].
+#[derive(Debug)]
+pub struct PictureViewMut<'a>(pub ooxml_core::LensMut<'a, Picture>);
+impl<'a> PictureViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PictureView<'_> {
+        PictureView(self.0.as_lens())
+    }
+    /// First `pic:blipFill` child, mutably.
+    pub fn blip_fill_mut(&mut self) -> Option<BlipFillViewMut<'_>> {
+        self.0.child_mut::<BlipFill>().map(BlipFillViewMut)
+    }
+    /// Existing `pic:blipFill` child, or a new one in schema position.
+    pub fn get_or_insert_blip_fill(
+        &mut self,
+    ) -> Result<BlipFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BlipFill>().map(BlipFillViewMut)
+    }
+    /// Removes the first `pic:blipFill` child.
+    pub fn remove_blip_fill(&mut self) -> bool {
+        self.0.remove::<BlipFill>()
+    }
+    /// First `pic:spPr` child, mutably.
+    pub fn shape_properties_mut(&mut self) -> Option<ShapePropertiesViewMut<'_>> {
+        self.0.child_mut::<ShapeProperties>().map(ShapePropertiesViewMut)
+    }
+    /// Existing `pic:spPr` child, or a new one in schema position.
+    pub fn get_or_insert_shape_properties(
+        &mut self,
+    ) -> Result<ShapePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ShapeProperties>().map(ShapePropertiesViewMut)
+    }
+    /// Removes the first `pic:spPr` child.
+    pub fn remove_shape_properties(&mut self) -> bool {
+        self.0.remove::<ShapeProperties>()
+    }
+    /// First `pic:nvPicPr` child, mutably.
+    pub fn non_visual_picture_properties_mut(
+        &mut self,
+    ) -> Option<NonVisualPicturePropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<NonVisualPictureProperties>()
+            .map(NonVisualPicturePropertiesViewMut)
+    }
+    /// Existing `pic:nvPicPr` child, or a new one in schema position.
+    pub fn get_or_insert_non_visual_picture_properties(
+        &mut self,
+    ) -> Result<NonVisualPicturePropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<NonVisualPictureProperties>()
+            .map(NonVisualPicturePropertiesViewMut)
+    }
+    /// Removes the first `pic:nvPicPr` child.
+    pub fn remove_non_visual_picture_properties(&mut self) -> bool {
+        self.0.remove::<NonVisualPictureProperties>()
+    }
+}
+/// `pic:CT_PictureNonVisual/pic:nvPicPr` — Non-Visual Picture Properties.
+#[derive(Debug)]
+pub enum NonVisualPictureProperties {}
+impl ooxml_core::ElementSpec for NonVisualPictureProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_PIC, "nvPicPr");
+    const SDK_NAME: &'static str = "pic:CT_PictureNonVisual/pic:nvPicPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC, "cNvPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_PIC, "cNvPicPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<NonVisualPictureProperties> for NonVisualDrawingProperties {}
+impl ooxml_core::ChildOf<NonVisualPictureProperties>
+for NonVisualPictureDrawingProperties {}
+/// Read-only view of [`NonVisualPictureProperties`].
+#[derive(Clone, Debug)]
+pub struct NonVisualPicturePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, NonVisualPictureProperties>,
+);
+impl<'a> NonVisualPicturePropertiesView<'a> {
+    /// First `pic:cNvPr` child.
+    pub fn non_visual_drawing_properties(
+        &self,
+    ) -> Option<NonVisualDrawingPropertiesView<'a>> {
+        self.0.child::<NonVisualDrawingProperties>().map(NonVisualDrawingPropertiesView)
+    }
+    /// First `pic:cNvPicPr` child.
+    pub fn non_visual_picture_drawing_properties(
+        &self,
+    ) -> Option<NonVisualPictureDrawingPropertiesView<'a>> {
+        self.0
+            .child::<NonVisualPictureDrawingProperties>()
+            .map(NonVisualPictureDrawingPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NonVisualPictureProperties`]. Reads go through [`NonVisualPicturePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NonVisualPicturePropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NonVisualPictureProperties>,
+);
+impl<'a> NonVisualPicturePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NonVisualPicturePropertiesView<'_> {
+        NonVisualPicturePropertiesView(self.0.as_lens())
+    }
+    /// First `pic:cNvPr` child, mutably.
+    pub fn non_visual_drawing_properties_mut(
+        &mut self,
+    ) -> Option<NonVisualDrawingPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<NonVisualDrawingProperties>()
+            .map(NonVisualDrawingPropertiesViewMut)
+    }
+    /// Existing `pic:cNvPr` child, or a new one in schema position.
+    pub fn get_or_insert_non_visual_drawing_properties(
+        &mut self,
+    ) -> Result<NonVisualDrawingPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<NonVisualDrawingProperties>()
+            .map(NonVisualDrawingPropertiesViewMut)
+    }
+    /// Removes the first `pic:cNvPr` child.
+    pub fn remove_non_visual_drawing_properties(&mut self) -> bool {
+        self.0.remove::<NonVisualDrawingProperties>()
+    }
+    /// First `pic:cNvPicPr` child, mutably.
+    pub fn non_visual_picture_drawing_properties_mut(
+        &mut self,
+    ) -> Option<NonVisualPictureDrawingPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<NonVisualPictureDrawingProperties>()
+            .map(NonVisualPictureDrawingPropertiesViewMut)
+    }
+    /// Existing `pic:cNvPicPr` child, or a new one in schema position.
+    pub fn get_or_insert_non_visual_picture_drawing_properties(
+        &mut self,
+    ) -> Result<NonVisualPictureDrawingPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<NonVisualPictureDrawingProperties>()
+            .map(NonVisualPictureDrawingPropertiesViewMut)
+    }
+    /// Removes the first `pic:cNvPicPr` child.
+    pub fn remove_non_visual_picture_drawing_properties(&mut self) -> bool {
+        self.0.remove::<NonVisualPictureDrawingProperties>()
+    }
+}
 /// `w:CT_Body/w:body` — Defines the Body Class.
 #[derive(Debug)]
 pub enum Body {}
@@ -2213,6 +3376,64 @@ impl<'a> DocumentView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_Drawing/w:drawing` — DrawingML Object.
+#[derive(Debug)]
+pub enum Drawing {}
+impl ooxml_core::ElementSpec for Drawing {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "drawing");
+    const SDK_NAME: &'static str = "w:CT_Drawing/w:drawing";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_WP, "anchor"),
+                    ooxml_core::QName::new(NS_WP, "inline"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Drawing> for Inline {}
+/// Read-only view of [`Drawing`].
+#[derive(Clone, Debug)]
+pub struct DrawingView<'a>(pub ooxml_core::Lens<'a, Drawing>);
+impl<'a> DrawingView<'a> {
+    /// First `wp:inline` child.
+    pub fn inline(&self) -> Option<InlineView<'a>> {
+        self.0.child::<Inline>().map(InlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Drawing`]. Reads go through [`DrawingViewMut::as_view`].
+#[derive(Debug)]
+pub struct DrawingViewMut<'a>(pub ooxml_core::LensMut<'a, Drawing>);
+impl<'a> DrawingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DrawingView<'_> {
+        DrawingView(self.0.as_lens())
+    }
+    /// First `wp:inline` child, mutably.
+    pub fn inline_mut(&mut self) -> Option<InlineViewMut<'_>> {
+        self.0.child_mut::<Inline>().map(InlineViewMut)
+    }
+    /// Existing `wp:inline` child, or a new one in schema position.
+    pub fn get_or_insert_inline(
+        &mut self,
+    ) -> Result<InlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Inline>().map(InlineViewMut)
+    }
+    /// Removes the first `wp:inline` child.
+    pub fn remove_inline(&mut self) -> bool {
+        self.0.remove::<Inline>()
     }
 }
 /// `w:CT_Empty/w:cr` — Carriage Return.
@@ -5571,6 +6792,7 @@ impl ooxml_core::ElementSpec for Run {
     );
 }
 impl ooxml_core::ChildOf<Run> for Break {}
+impl ooxml_core::ChildOf<Run> for Drawing {}
 impl ooxml_core::ChildOf<Run> for CarriageReturn {}
 impl ooxml_core::ChildOf<Run> for LastRenderedPageBreak {}
 impl ooxml_core::ChildOf<Run> for NoBreakHyphen {}
@@ -5601,6 +6823,10 @@ impl<'a> RunView<'a> {
     /// `w:br` children in document order.
     pub fn break_iter(&self) -> impl Iterator<Item = BreakView<'a>> {
         self.0.children::<Break>().map(BreakView)
+    }
+    /// `w:drawing` children in document order.
+    pub fn drawing_iter(&self) -> impl Iterator<Item = DrawingView<'a>> {
+        self.0.children::<Drawing>().map(DrawingView)
     }
     /// `w:cr` children in document order.
     pub fn carriage_return_iter(&self) -> impl Iterator<Item = CarriageReturnView<'a>> {
@@ -5708,6 +6934,28 @@ impl<'a> RunViewMut<'a> {
     /// Removes the first `w:br` child.
     pub fn remove_break(&mut self) -> bool {
         self.0.remove::<Break>()
+    }
+    /// First `w:drawing` child matching `pred`, mutably.
+    pub fn drawing_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DrawingViewMut<'_>> {
+        self.0.child_mut_by::<Drawing>(pred).map(DrawingViewMut)
+    }
+    /// Inserts a `w:drawing` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_drawing_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DrawingViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Drawing>(before).map(DrawingViewMut)
+    }
+    /// Appends a `w:drawing` at the end of its slot.
+    pub fn insert_drawing(&mut self) -> Result<DrawingViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Drawing>().map(DrawingViewMut)
+    }
+    /// Removes the first `w:drawing` child.
+    pub fn remove_drawing(&mut self) -> bool {
+        self.0.remove::<Drawing>()
     }
     /// First `w:tab` child matching `pred`, mutably.
     pub fn tab_char_mut_by(
@@ -10530,6 +11778,446 @@ impl<'a> VerticalTextAlignmentViewMut<'a> {
         self.0.remove_attr(VerticalTextAlignment::ATTR_W_VAL)
     }
 }
+/// `wp:CT_EffectExtent/wp:effectExtent` — Object Extents Including Effects.
+#[derive(Debug)]
+pub enum EffectExtent {}
+impl EffectExtent {
+    /// `l`
+    pub const ATTR_L: ooxml_core::QName = ooxml_core::QName::new("", "l");
+    /// `t`
+    pub const ATTR_T: ooxml_core::QName = ooxml_core::QName::new("", "t");
+    /// `r`
+    pub const ATTR_R: ooxml_core::QName = ooxml_core::QName::new("", "r");
+    /// `b`
+    pub const ATTR_B: ooxml_core::QName = ooxml_core::QName::new("", "b");
+}
+impl ooxml_core::ElementSpec for EffectExtent {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_WP, "effectExtent");
+    const SDK_NAME: &'static str = "wp:CT_EffectExtent/wp:effectExtent";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: EffectExtent::ATTR_L,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: EffectExtent::ATTR_T,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: EffectExtent::ATTR_R,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: EffectExtent::ATTR_B,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`EffectExtent`].
+#[derive(Clone, Debug)]
+pub struct EffectExtentView<'a>(pub ooxml_core::Lens<'a, EffectExtent>);
+impl<'a> EffectExtentView<'a> {
+    /// `l` — Additional Extent on Left Edge
+    pub fn left_edge(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(EffectExtent::ATTR_L, ooxml_core::value::parse_i64)
+    }
+    /// `t` — Additional Extent on Top Edge
+    pub fn top_edge(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(EffectExtent::ATTR_T, ooxml_core::value::parse_i64)
+    }
+    /// `r` — Additional Extent on Right Edge
+    pub fn right_edge(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(EffectExtent::ATTR_R, ooxml_core::value::parse_i64)
+    }
+    /// `b` — Additional Extent on Bottom Edge
+    pub fn bottom_edge(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(EffectExtent::ATTR_B, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`EffectExtent`]. Reads go through [`EffectExtentViewMut::as_view`].
+#[derive(Debug)]
+pub struct EffectExtentViewMut<'a>(pub ooxml_core::LensMut<'a, EffectExtent>);
+impl<'a> EffectExtentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> EffectExtentView<'_> {
+        EffectExtentView(self.0.as_lens())
+    }
+    /// Sets `l` — Additional Extent on Left Edge
+    pub fn set_left_edge(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(EffectExtent::ATTR_L, s))
+    }
+    /// Removes `l`.
+    pub fn remove_left_edge(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EffectExtent::ATTR_L)
+    }
+    /// Sets `t` — Additional Extent on Top Edge
+    pub fn set_top_edge(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(EffectExtent::ATTR_T, s))
+    }
+    /// Removes `t`.
+    pub fn remove_top_edge(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EffectExtent::ATTR_T)
+    }
+    /// Sets `r` — Additional Extent on Right Edge
+    pub fn set_right_edge(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(EffectExtent::ATTR_R, s))
+    }
+    /// Removes `r`.
+    pub fn remove_right_edge(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EffectExtent::ATTR_R)
+    }
+    /// Sets `b` — Additional Extent on Bottom Edge
+    pub fn set_bottom_edge(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(EffectExtent::ATTR_B, s))
+    }
+    /// Removes `b`.
+    pub fn remove_bottom_edge(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EffectExtent::ATTR_B)
+    }
+}
+/// `wp:CT_Inline/wp:inline` — Inline DrawingML Object.
+#[derive(Debug)]
+pub enum Inline {}
+impl Inline {
+    /// `distT`
+    pub const ATTR_DIST_T: ooxml_core::QName = ooxml_core::QName::new("", "distT");
+    /// `distB`
+    pub const ATTR_DIST_B: ooxml_core::QName = ooxml_core::QName::new("", "distB");
+    /// `distL`
+    pub const ATTR_DIST_L: ooxml_core::QName = ooxml_core::QName::new("", "distL");
+    /// `distR`
+    pub const ATTR_DIST_R: ooxml_core::QName = ooxml_core::QName::new("", "distR");
+    /// `wp14:anchorId`
+    pub const ATTR_WP14_ANCHOR_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_WP14,
+        "anchorId",
+    );
+    /// `wp14:editId`
+    pub const ATTR_WP14_EDIT_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_WP14,
+        "editId",
+    );
+}
+impl ooxml_core::ElementSpec for Inline {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_WP, "inline");
+    const SDK_NAME: &'static str = "wp:CT_Inline/wp:inline";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Inline::ATTR_DIST_T,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Inline::ATTR_DIST_B,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Inline::ATTR_DIST_L,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Inline::ATTR_DIST_R,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Inline::ATTR_WP14_ANCHOR_ID,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Inline::ATTR_WP14_EDIT_ID,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_WP, "extent")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_WP, "effectExtent")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_WP, "docPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_WP, "cNvGraphicFramePr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "graphic")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<Inline> for super::dml::Graphic {}
+impl ooxml_core::ChildOf<Inline> for DocProperties {}
+impl ooxml_core::ChildOf<Inline> for NonVisualGraphicFrameDrawingProperties {}
+impl ooxml_core::ChildOf<Inline> for Extent {}
+impl ooxml_core::ChildOf<Inline> for EffectExtent {}
+/// Read-only view of [`Inline`].
+#[derive(Clone, Debug)]
+pub struct InlineView<'a>(pub ooxml_core::Lens<'a, Inline>);
+impl<'a> InlineView<'a> {
+    /// `distT` — Distance From Text on Top Edge
+    pub fn distance_from_top(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Inline::ATTR_DIST_T, ooxml_core::value::parse_u32)
+    }
+    /// `distB` — Distance From Text on Bottom Edge
+    pub fn distance_from_bottom(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Inline::ATTR_DIST_B, ooxml_core::value::parse_u32)
+    }
+    /// `distL` — Distance From Text on Left Edge
+    pub fn distance_from_left(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Inline::ATTR_DIST_L, ooxml_core::value::parse_u32)
+    }
+    /// `distR` — Distance From Text on Right Edge
+    pub fn distance_from_right(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Inline::ATTR_DIST_R, ooxml_core::value::parse_u32)
+    }
+    /// `wp14:anchorId` — anchorId
+    pub fn anchor_id(&self) -> Option<&'a str> {
+        self.0.attr(Inline::ATTR_WP14_ANCHOR_ID)
+    }
+    /// `wp14:editId` — editId
+    pub fn edit_id(&self) -> Option<&'a str> {
+        self.0.attr(Inline::ATTR_WP14_EDIT_ID)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:graphic` child.
+    pub fn graphic(&self) -> Option<super::dml::GraphicView<'a>> {
+        self.0.child::<super::dml::Graphic>().map(super::dml::GraphicView)
+    }
+    /// First `wp:docPr` child.
+    pub fn doc_properties(&self) -> Option<DocPropertiesView<'a>> {
+        self.0.child::<DocProperties>().map(DocPropertiesView)
+    }
+    /// First `wp:cNvGraphicFramePr` child.
+    pub fn non_visual_graphic_frame_drawing_properties(
+        &self,
+    ) -> Option<NonVisualGraphicFrameDrawingPropertiesView<'a>> {
+        self.0
+            .child::<NonVisualGraphicFrameDrawingProperties>()
+            .map(NonVisualGraphicFrameDrawingPropertiesView)
+    }
+    /// First `wp:extent` child.
+    pub fn extent(&self) -> Option<ExtentView<'a>> {
+        self.0.child::<Extent>().map(ExtentView)
+    }
+    /// First `wp:effectExtent` child.
+    pub fn effect_extent(&self) -> Option<EffectExtentView<'a>> {
+        self.0.child::<EffectExtent>().map(EffectExtentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Inline`]. Reads go through [`InlineViewMut::as_view`].
+#[derive(Debug)]
+pub struct InlineViewMut<'a>(pub ooxml_core::LensMut<'a, Inline>);
+impl<'a> InlineViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> InlineView<'_> {
+        InlineView(self.0.as_lens())
+    }
+    /// Sets `distT` — Distance From Text on Top Edge
+    pub fn set_distance_from_top(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Inline::ATTR_DIST_T, s))
+    }
+    /// Removes `distT`.
+    pub fn remove_distance_from_top(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Inline::ATTR_DIST_T)
+    }
+    /// Sets `distB` — Distance From Text on Bottom Edge
+    pub fn set_distance_from_bottom(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Inline::ATTR_DIST_B, s))
+    }
+    /// Removes `distB`.
+    pub fn remove_distance_from_bottom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Inline::ATTR_DIST_B)
+    }
+    /// Sets `distL` — Distance From Text on Left Edge
+    pub fn set_distance_from_left(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Inline::ATTR_DIST_L, s))
+    }
+    /// Removes `distL`.
+    pub fn remove_distance_from_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Inline::ATTR_DIST_L)
+    }
+    /// Sets `distR` — Distance From Text on Right Edge
+    pub fn set_distance_from_right(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Inline::ATTR_DIST_R, s))
+    }
+    /// Removes `distR`.
+    pub fn remove_distance_from_right(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Inline::ATTR_DIST_R)
+    }
+    /// Sets `wp14:anchorId` — anchorId
+    pub fn set_anchor_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Inline::ATTR_WP14_ANCHOR_ID, v)
+    }
+    /// Removes `wp14:anchorId`.
+    pub fn remove_anchor_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Inline::ATTR_WP14_ANCHOR_ID)
+    }
+    /// Sets `wp14:editId` — editId
+    pub fn set_edit_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Inline::ATTR_WP14_EDIT_ID, v)
+    }
+    /// Removes `wp14:editId`.
+    pub fn remove_edit_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Inline::ATTR_WP14_EDIT_ID)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:graphic` child, mutably.
+    pub fn graphic_mut(&mut self) -> Option<super::dml::GraphicViewMut<'_>> {
+        self.0.child_mut::<super::dml::Graphic>().map(super::dml::GraphicViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:graphic` child, or a new one in schema position.
+    pub fn get_or_insert_graphic(
+        &mut self,
+    ) -> Result<super::dml::GraphicViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Graphic>().map(super::dml::GraphicViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:graphic` child.
+    pub fn remove_graphic(&mut self) -> bool {
+        self.0.remove::<super::dml::Graphic>()
+    }
+    /// First `wp:docPr` child, mutably.
+    pub fn doc_properties_mut(&mut self) -> Option<DocPropertiesViewMut<'_>> {
+        self.0.child_mut::<DocProperties>().map(DocPropertiesViewMut)
+    }
+    /// Existing `wp:docPr` child, or a new one in schema position.
+    pub fn get_or_insert_doc_properties(
+        &mut self,
+    ) -> Result<DocPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DocProperties>().map(DocPropertiesViewMut)
+    }
+    /// Removes the first `wp:docPr` child.
+    pub fn remove_doc_properties(&mut self) -> bool {
+        self.0.remove::<DocProperties>()
+    }
+    /// First `wp:cNvGraphicFramePr` child, mutably.
+    pub fn non_visual_graphic_frame_drawing_properties_mut(
+        &mut self,
+    ) -> Option<NonVisualGraphicFrameDrawingPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<NonVisualGraphicFrameDrawingProperties>()
+            .map(NonVisualGraphicFrameDrawingPropertiesViewMut)
+    }
+    /// Existing `wp:cNvGraphicFramePr` child, or a new one in schema position.
+    pub fn get_or_insert_non_visual_graphic_frame_drawing_properties(
+        &mut self,
+    ) -> Result<NonVisualGraphicFrameDrawingPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<NonVisualGraphicFrameDrawingProperties>()
+            .map(NonVisualGraphicFrameDrawingPropertiesViewMut)
+    }
+    /// Removes the first `wp:cNvGraphicFramePr` child.
+    pub fn remove_non_visual_graphic_frame_drawing_properties(&mut self) -> bool {
+        self.0.remove::<NonVisualGraphicFrameDrawingProperties>()
+    }
+    /// First `wp:extent` child, mutably.
+    pub fn extent_mut(&mut self) -> Option<ExtentViewMut<'_>> {
+        self.0.child_mut::<Extent>().map(ExtentViewMut)
+    }
+    /// Existing `wp:extent` child, or a new one in schema position.
+    pub fn get_or_insert_extent(
+        &mut self,
+    ) -> Result<ExtentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Extent>().map(ExtentViewMut)
+    }
+    /// Removes the first `wp:extent` child.
+    pub fn remove_extent(&mut self) -> bool {
+        self.0.remove::<Extent>()
+    }
+    /// First `wp:effectExtent` child, mutably.
+    pub fn effect_extent_mut(&mut self) -> Option<EffectExtentViewMut<'_>> {
+        self.0.child_mut::<EffectExtent>().map(EffectExtentViewMut)
+    }
+    /// Existing `wp:effectExtent` child, or a new one in schema position.
+    pub fn get_or_insert_effect_extent(
+        &mut self,
+    ) -> Result<EffectExtentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EffectExtent>().map(EffectExtentViewMut)
+    }
+    /// Removes the first `wp:effectExtent` child.
+    pub fn remove_effect_extent(&mut self) -> bool {
+        self.0.remove::<EffectExtent>()
+    }
+}
+const _: () = ooxml_core::schema::assert_spec::<BlipFill>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<BlipFill, super::dml::Blip>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<BlipFill, super::dml::Stretch>();
+const _: () = ooxml_core::schema::assert_spec::<NonVisualDrawingProperties>();
+const _: () = ooxml_core::schema::assert_spec::<DocProperties>();
+const _: () = ooxml_core::schema::assert_spec::<
+    NonVisualGraphicFrameDrawingProperties,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualGraphicFrameDrawingProperties,
+    super::dml::GraphicFrameLocks,
+>();
+const _: () = ooxml_core::schema::assert_spec::<NonVisualPictureDrawingProperties>();
+const _: () = ooxml_core::schema::assert_spec::<Extent>();
+const _: () = ooxml_core::schema::assert_spec::<ShapeProperties>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::PresetGeometry,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::Transform2D,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Picture>();
+const _: () = ooxml_core::schema::assert_child::<Picture, BlipFill>();
+const _: () = ooxml_core::schema::assert_child::<Picture, ShapeProperties>();
+const _: () = ooxml_core::schema::assert_child::<Picture, NonVisualPictureProperties>();
+const _: () = ooxml_core::schema::assert_spec::<NonVisualPictureProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualPictureProperties,
+    NonVisualDrawingProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualPictureProperties,
+    NonVisualPictureDrawingProperties,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Body>();
 const _: () = ooxml_core::schema::assert_child::<Body, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Body, DeletedRun>();
@@ -10551,6 +12239,8 @@ const _: () = ooxml_core::schema::assert_spec::<GridSpan>();
 const _: () = ooxml_core::schema::assert_spec::<DocumentProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Document>();
 const _: () = ooxml_core::schema::assert_child::<Document, Body>();
+const _: () = ooxml_core::schema::assert_spec::<Drawing>();
+const _: () = ooxml_core::schema::assert_child::<Drawing, Inline>();
 const _: () = ooxml_core::schema::assert_spec::<CarriageReturn>();
 const _: () = ooxml_core::schema::assert_spec::<LastRenderedPageBreak>();
 const _: () = ooxml_core::schema::assert_spec::<NoBreakHyphen>();
@@ -10644,6 +12334,7 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_spec::<PageNumberType>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, Break>();
+const _: () = ooxml_core::schema::assert_child::<Run, Drawing>();
 const _: () = ooxml_core::schema::assert_child::<Run, CarriageReturn>();
 const _: () = ooxml_core::schema::assert_child::<Run, LastRenderedPageBreak>();
 const _: () = ooxml_core::schema::assert_child::<Run, NoBreakHyphen>();
@@ -10762,3 +12453,14 @@ const _: () = ooxml_core::schema::assert_child::<TableRowProperties, GridBefore>
 const _: () = ooxml_core::schema::assert_spec::<Underline>();
 const _: () = ooxml_core::schema::assert_spec::<VerticalMerge>();
 const _: () = ooxml_core::schema::assert_spec::<VerticalTextAlignment>();
+const _: () = ooxml_core::schema::assert_spec::<EffectExtent>();
+const _: () = ooxml_core::schema::assert_spec::<Inline>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<Inline, super::dml::Graphic>();
+const _: () = ooxml_core::schema::assert_child::<Inline, DocProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Inline,
+    NonVisualGraphicFrameDrawingProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<Inline, Extent>();
+const _: () = ooxml_core::schema::assert_child::<Inline, EffectExtent>();

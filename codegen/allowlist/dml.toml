@@ -8,6 +8,19 @@ names = [
     "a:CT_RegularTextRun/a:r",
     "xsd:string/a:t",
     "a:CT_TextLineBreak/a:br",
+    # Word Phase2 inline images (ADR-0011 §3, §11): shared DrawingML entries,
+    # to be reviewed by ADR-0005's owner.
+    "a:CT_GraphicalObject/a:graphic",
+    "a:CT_GraphicalObjectData/a:graphicData",
+    "a:CT_GraphicalObjectFrameLocking/a:graphicFrameLocks",
+    "a:CT_Blip/a:blip",
+    "a:CT_StretchInfoProperties/a:stretch",
+    "a:CT_RelativeRect/a:fillRect",
+    "a:CT_Transform2D/a:xfrm",
+    "a:CT_Point2D/a:off",
+    "a:CT_PositiveSize2D/a:ext",
+    "a:CT_PresetGeometry2D/a:prstGeom",
+    "a:CT_GeomGuideList/a:avLst",
 ]
 
 # Phase0 read-only. a:rPr / a:pPr / a:endParaRPr are read entries: Phase0
@@ -17,8 +30,6 @@ names = [
 # wildcard (ADR-0002 post-acceptance note "wildcard parents").
 [read]
 names = [
-    "a:CT_GraphicalObject/a:graphic",
-    "a:CT_GraphicalObjectData/a:graphicData",
     "a:CT_Table/a:tbl",
     "a:CT_TableRow/a:tr",
     "a:CT_TableCell/a:tc",

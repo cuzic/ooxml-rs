@@ -61,6 +61,21 @@ names = [
     "w:CT_TblPrEx/w:tblPrEx",
     "w:CT_DecimalNumber/w:gridBefore",
     "w:CT_DecimalNumber/w:gridAfter",
+    # Word Phase2 part 2 (ADR-0011 §3, §11): inline images. The wp and pic
+    # entries are listed here rather than in a new wpd.toml group (Q7): the
+    # generator's groups are features, and only ooxml-docx uses them.
+    "w:CT_Drawing/w:drawing",
+    "wp:CT_Inline/wp:inline",
+    "a:CT_PositiveSize2D/wp:extent",
+    "wp:CT_EffectExtent/wp:effectExtent",
+    "a:CT_NonVisualDrawingProps/wp:docPr",
+    "a:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr",
+    "pic:CT_Picture/pic:pic",
+    "pic:CT_PictureNonVisual/pic:nvPicPr",
+    "a:CT_NonVisualDrawingProps/pic:cNvPr",
+    "a:CT_NonVisualPictureProperties/pic:cNvPicPr",
+    "a:CT_BlipFillProperties/pic:blipFill",
+    "a:CT_ShapeProperties/pic:spPr",
 ]
 
 # (ADR-0011 §7 reads w:hMerge raw.)

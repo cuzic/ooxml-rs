@@ -299,6 +299,15 @@ pub enum Error {
     #[error("a cell to merge is not empty")]
     MergeNonEmpty,
 
+    /// The bytes are not a PNG, JPEG or GIF image whose header gives a pixel
+    /// size (ADR-0011 §3; SVG is Phase4).
+    #[error("unsupported image (PNG, JPEG and GIF are supported)")]
+    UnsupportedImage,
+
+    /// The next drawing id would exceed 2³¹ − 1 (ADR-0011 §2).
+    #[error("no drawing id is left")]
+    DrawingIdsExhausted,
+
     /// No paragraph with that index.
     #[error("no paragraph {0}")]
     NoSuchParagraph(usize),

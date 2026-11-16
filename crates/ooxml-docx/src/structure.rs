@@ -208,7 +208,7 @@ fn container_at<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -
 impl Document {
     /// The item index of a paragraph in its parent, the parent's path, and
     /// the wrappers between the story container and the paragraph.
-    fn para_location(&self, at: ParaRef) -> Result<(Vec<usize>, usize)> {
+    pub(crate) fn para_location(&self, at: ParaRef) -> Result<(Vec<usize>, usize)> {
         let data = self.stories.get(at.story.0).ok_or(Error::NoSuchStory)?;
         let info = data.index.paragraphs.get(at.index).ok_or(Error::NoSuchParagraph(at.index))?;
         if let Some(w) = data.index.wrappers(info.frame).into_iter().next() {
@@ -221,7 +221,7 @@ impl Document {
 
     /// ADR-0007 §4's paragraph targets (no field, no tracked mark, no
     /// property revision), for a neighbour or a paragraph being split.
-    fn check_structure_neighbour(&self, at: ParaRef) -> Result<()> {
+    pub(crate) fn check_structure_neighbour(&self, at: ParaRef) -> Result<()> {
         let p = self.paragraph_at(at).ok_or(Error::NoSuchParagraph(at.index))?;
         if p.runs().any(|r| r.in_field()) {
             return Err(Error::InsideField);
@@ -766,7 +766,7 @@ pub(crate) fn table_lens<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[
 }
 
 /// A mutable lens on the paragraph at `path` (from the story root).
-fn para_lens<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -> Result<LensMut<'a, P>> {
+pub(crate) fn para_lens<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -> Result<LensMut<'a, P>> {
     let (parent, item) = path.split_at(path.len() - 1);
     let c = container_at(xml, kind, parent)?.ok_or(Error::NoSuchParagraph(0))?;
     on_container!(c, l => l.into_child_at::<P>(item[0]).ok_or(Error::NoSuchParagraph(0)))

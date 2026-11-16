@@ -67,6 +67,7 @@ mod document;
 mod error;
 pub mod fields;
 mod format;
+mod images;
 mod names;
 mod replace;
 mod story;
@@ -83,6 +84,7 @@ pub use format::{
     Underline, VertAlign,
 };
 pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
+pub use images::{DrawingId, ImageSize};
 pub use styles::{StyleInfo, StyleKind};
 pub use tables::{RowTemplate, TableRef};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};

@@ -6,6 +6,808 @@ pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
 /// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
 pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
+/// `r`: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
+pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+/// `a:ST_BlipCompression` — Blip Compression Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BlipCompressionValues {
+    /// `email`
+    Email,
+    /// `screen`
+    Screen,
+    /// `print`
+    Print,
+    /// `hqprint`
+    HighQualityPrint,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for BlipCompressionValues {
+    const VALUES: &'static [&'static str] = &[
+        "email",
+        "screen",
+        "print",
+        "hqprint",
+        "none",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Email),
+            1 => Some(Self::Screen),
+            2 => Some(Self::Print),
+            3 => Some(Self::HighQualityPrint),
+            4 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_ShapeType` — Preset Shape Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ShapeTypeValues {
+    /// `line`
+    Line,
+    /// `lineInv`
+    LineInverse,
+    /// `triangle`
+    Triangle,
+    /// `rtTriangle`
+    RightTriangle,
+    /// `rect`
+    Rectangle,
+    /// `diamond`
+    Diamond,
+    /// `parallelogram`
+    Parallelogram,
+    /// `trapezoid`
+    Trapezoid,
+    /// `nonIsoscelesTrapezoid`
+    NonIsoscelesTrapezoid,
+    /// `pentagon`
+    Pentagon,
+    /// `hexagon`
+    Hexagon,
+    /// `heptagon`
+    Heptagon,
+    /// `octagon`
+    Octagon,
+    /// `decagon`
+    Decagon,
+    /// `dodecagon`
+    Dodecagon,
+    /// `star4`
+    Star4,
+    /// `star5`
+    Star5,
+    /// `star6`
+    Star6,
+    /// `star7`
+    Star7,
+    /// `star8`
+    Star8,
+    /// `star10`
+    Star10,
+    /// `star12`
+    Star12,
+    /// `star16`
+    Star16,
+    /// `star24`
+    Star24,
+    /// `star32`
+    Star32,
+    /// `roundRect`
+    RoundRectangle,
+    /// `round1Rect`
+    Round1Rectangle,
+    /// `round2SameRect`
+    Round2SameRectangle,
+    /// `round2DiagRect`
+    Round2DiagonalRectangle,
+    /// `snipRoundRect`
+    SnipRoundRectangle,
+    /// `snip1Rect`
+    Snip1Rectangle,
+    /// `snip2SameRect`
+    Snip2SameRectangle,
+    /// `snip2DiagRect`
+    Snip2DiagonalRectangle,
+    /// `plaque`
+    Plaque,
+    /// `ellipse`
+    Ellipse,
+    /// `teardrop`
+    Teardrop,
+    /// `homePlate`
+    HomePlate,
+    /// `chevron`
+    Chevron,
+    /// `pieWedge`
+    PieWedge,
+    /// `pie`
+    Pie,
+    /// `blockArc`
+    BlockArc,
+    /// `donut`
+    Donut,
+    /// `noSmoking`
+    NoSmoking,
+    /// `rightArrow`
+    RightArrow,
+    /// `leftArrow`
+    LeftArrow,
+    /// `upArrow`
+    UpArrow,
+    /// `downArrow`
+    DownArrow,
+    /// `stripedRightArrow`
+    StripedRightArrow,
+    /// `notchedRightArrow`
+    NotchedRightArrow,
+    /// `bentUpArrow`
+    BentUpArrow,
+    /// `leftRightArrow`
+    LeftRightArrow,
+    /// `upDownArrow`
+    UpDownArrow,
+    /// `leftUpArrow`
+    LeftUpArrow,
+    /// `leftRightUpArrow`
+    LeftRightUpArrow,
+    /// `quadArrow`
+    QuadArrow,
+    /// `leftArrowCallout`
+    LeftArrowCallout,
+    /// `rightArrowCallout`
+    RightArrowCallout,
+    /// `upArrowCallout`
+    UpArrowCallout,
+    /// `downArrowCallout`
+    DownArrowCallout,
+    /// `leftRightArrowCallout`
+    LeftRightArrowCallout,
+    /// `upDownArrowCallout`
+    UpDownArrowCallout,
+    /// `quadArrowCallout`
+    QuadArrowCallout,
+    /// `bentArrow`
+    BentArrow,
+    /// `uturnArrow`
+    UTurnArrow,
+    /// `circularArrow`
+    CircularArrow,
+    /// `leftCircularArrow`
+    LeftCircularArrow,
+    /// `leftRightCircularArrow`
+    LeftRightCircularArrow,
+    /// `curvedRightArrow`
+    CurvedRightArrow,
+    /// `curvedLeftArrow`
+    CurvedLeftArrow,
+    /// `curvedUpArrow`
+    CurvedUpArrow,
+    /// `curvedDownArrow`
+    CurvedDownArrow,
+    /// `swooshArrow`
+    SwooshArrow,
+    /// `cube`
+    Cube,
+    /// `can`
+    Can,
+    /// `lightningBolt`
+    LightningBolt,
+    /// `heart`
+    Heart,
+    /// `sun`
+    Sun,
+    /// `moon`
+    Moon,
+    /// `smileyFace`
+    SmileyFace,
+    /// `irregularSeal1`
+    IrregularSeal1,
+    /// `irregularSeal2`
+    IrregularSeal2,
+    /// `foldedCorner`
+    FoldedCorner,
+    /// `bevel`
+    Bevel,
+    /// `frame`
+    Frame,
+    /// `halfFrame`
+    HalfFrame,
+    /// `corner`
+    Corner,
+    /// `diagStripe`
+    DiagonalStripe,
+    /// `chord`
+    Chord,
+    /// `arc`
+    Arc,
+    /// `leftBracket`
+    LeftBracket,
+    /// `rightBracket`
+    RightBracket,
+    /// `leftBrace`
+    LeftBrace,
+    /// `rightBrace`
+    RightBrace,
+    /// `bracketPair`
+    BracketPair,
+    /// `bracePair`
+    BracePair,
+    /// `straightConnector1`
+    StraightConnector1,
+    /// `bentConnector2`
+    BentConnector2,
+    /// `bentConnector3`
+    BentConnector3,
+    /// `bentConnector4`
+    BentConnector4,
+    /// `bentConnector5`
+    BentConnector5,
+    /// `curvedConnector2`
+    CurvedConnector2,
+    /// `curvedConnector3`
+    CurvedConnector3,
+    /// `curvedConnector4`
+    CurvedConnector4,
+    /// `curvedConnector5`
+    CurvedConnector5,
+    /// `callout1`
+    Callout1,
+    /// `callout2`
+    Callout2,
+    /// `callout3`
+    Callout3,
+    /// `accentCallout1`
+    AccentCallout1,
+    /// `accentCallout2`
+    AccentCallout2,
+    /// `accentCallout3`
+    AccentCallout3,
+    /// `borderCallout1`
+    BorderCallout1,
+    /// `borderCallout2`
+    BorderCallout2,
+    /// `borderCallout3`
+    BorderCallout3,
+    /// `accentBorderCallout1`
+    AccentBorderCallout1,
+    /// `accentBorderCallout2`
+    AccentBorderCallout2,
+    /// `accentBorderCallout3`
+    AccentBorderCallout3,
+    /// `wedgeRectCallout`
+    WedgeRectangleCallout,
+    /// `wedgeRoundRectCallout`
+    WedgeRoundRectangleCallout,
+    /// `wedgeEllipseCallout`
+    WedgeEllipseCallout,
+    /// `cloudCallout`
+    CloudCallout,
+    /// `cloud`
+    Cloud,
+    /// `ribbon`
+    Ribbon,
+    /// `ribbon2`
+    Ribbon2,
+    /// `ellipseRibbon`
+    EllipseRibbon,
+    /// `ellipseRibbon2`
+    EllipseRibbon2,
+    /// `leftRightRibbon`
+    LeftRightRibbon,
+    /// `verticalScroll`
+    VerticalScroll,
+    /// `horizontalScroll`
+    HorizontalScroll,
+    /// `wave`
+    Wave,
+    /// `doubleWave`
+    DoubleWave,
+    /// `plus`
+    Plus,
+    /// `flowChartProcess`
+    FlowChartProcess,
+    /// `flowChartDecision`
+    FlowChartDecision,
+    /// `flowChartInputOutput`
+    FlowChartInputOutput,
+    /// `flowChartPredefinedProcess`
+    FlowChartPredefinedProcess,
+    /// `flowChartInternalStorage`
+    FlowChartInternalStorage,
+    /// `flowChartDocument`
+    FlowChartDocument,
+    /// `flowChartMultidocument`
+    FlowChartMultidocument,
+    /// `flowChartTerminator`
+    FlowChartTerminator,
+    /// `flowChartPreparation`
+    FlowChartPreparation,
+    /// `flowChartManualInput`
+    FlowChartManualInput,
+    /// `flowChartManualOperation`
+    FlowChartManualOperation,
+    /// `flowChartConnector`
+    FlowChartConnector,
+    /// `flowChartPunchedCard`
+    FlowChartPunchedCard,
+    /// `flowChartPunchedTape`
+    FlowChartPunchedTape,
+    /// `flowChartSummingJunction`
+    FlowChartSummingJunction,
+    /// `flowChartOr`
+    FlowChartOr,
+    /// `flowChartCollate`
+    FlowChartCollate,
+    /// `flowChartSort`
+    FlowChartSort,
+    /// `flowChartExtract`
+    FlowChartExtract,
+    /// `flowChartMerge`
+    FlowChartMerge,
+    /// `flowChartOfflineStorage`
+    FlowChartOfflineStorage,
+    /// `flowChartOnlineStorage`
+    FlowChartOnlineStorage,
+    /// `flowChartMagneticTape`
+    FlowChartMagneticTape,
+    /// `flowChartMagneticDisk`
+    FlowChartMagneticDisk,
+    /// `flowChartMagneticDrum`
+    FlowChartMagneticDrum,
+    /// `flowChartDisplay`
+    FlowChartDisplay,
+    /// `flowChartDelay`
+    FlowChartDelay,
+    /// `flowChartAlternateProcess`
+    FlowChartAlternateProcess,
+    /// `flowChartOffpageConnector`
+    FlowChartOffpageConnector,
+    /// `actionButtonBlank`
+    ActionButtonBlank,
+    /// `actionButtonHome`
+    ActionButtonHome,
+    /// `actionButtonHelp`
+    ActionButtonHelp,
+    /// `actionButtonInformation`
+    ActionButtonInformation,
+    /// `actionButtonForwardNext`
+    ActionButtonForwardNext,
+    /// `actionButtonBackPrevious`
+    ActionButtonBackPrevious,
+    /// `actionButtonEnd`
+    ActionButtonEnd,
+    /// `actionButtonBeginning`
+    ActionButtonBeginning,
+    /// `actionButtonReturn`
+    ActionButtonReturn,
+    /// `actionButtonDocument`
+    ActionButtonDocument,
+    /// `actionButtonSound`
+    ActionButtonSound,
+    /// `actionButtonMovie`
+    ActionButtonMovie,
+    /// `gear6`
+    Gear6,
+    /// `gear9`
+    Gear9,
+    /// `funnel`
+    Funnel,
+    /// `mathPlus`
+    MathPlus,
+    /// `mathMinus`
+    MathMinus,
+    /// `mathMultiply`
+    MathMultiply,
+    /// `mathDivide`
+    MathDivide,
+    /// `mathEqual`
+    MathEqual,
+    /// `mathNotEqual`
+    MathNotEqual,
+    /// `cornerTabs`
+    CornerTabs,
+    /// `squareTabs`
+    SquareTabs,
+    /// `plaqueTabs`
+    PlaqueTabs,
+    /// `chartX`
+    ChartX,
+    /// `chartStar`
+    ChartStar,
+    /// `chartPlus`
+    ChartPlus,
+}
+impl ooxml_core::EnumType for ShapeTypeValues {
+    const VALUES: &'static [&'static str] = &[
+        "line",
+        "lineInv",
+        "triangle",
+        "rtTriangle",
+        "rect",
+        "diamond",
+        "parallelogram",
+        "trapezoid",
+        "nonIsoscelesTrapezoid",
+        "pentagon",
+        "hexagon",
+        "heptagon",
+        "octagon",
+        "decagon",
+        "dodecagon",
+        "star4",
+        "star5",
+        "star6",
+        "star7",
+        "star8",
+        "star10",
+        "star12",
+        "star16",
+        "star24",
+        "star32",
+        "roundRect",
+        "round1Rect",
+        "round2SameRect",
+        "round2DiagRect",
+        "snipRoundRect",
+        "snip1Rect",
+        "snip2SameRect",
+        "snip2DiagRect",
+        "plaque",
+        "ellipse",
+        "teardrop",
+        "homePlate",
+        "chevron",
+        "pieWedge",
+        "pie",
+        "blockArc",
+        "donut",
+        "noSmoking",
+        "rightArrow",
+        "leftArrow",
+        "upArrow",
+        "downArrow",
+        "stripedRightArrow",
+        "notchedRightArrow",
+        "bentUpArrow",
+        "leftRightArrow",
+        "upDownArrow",
+        "leftUpArrow",
+        "leftRightUpArrow",
+        "quadArrow",
+        "leftArrowCallout",
+        "rightArrowCallout",
+        "upArrowCallout",
+        "downArrowCallout",
+        "leftRightArrowCallout",
+        "upDownArrowCallout",
+        "quadArrowCallout",
+        "bentArrow",
+        "uturnArrow",
+        "circularArrow",
+        "leftCircularArrow",
+        "leftRightCircularArrow",
+        "curvedRightArrow",
+        "curvedLeftArrow",
+        "curvedUpArrow",
+        "curvedDownArrow",
+        "swooshArrow",
+        "cube",
+        "can",
+        "lightningBolt",
+        "heart",
+        "sun",
+        "moon",
+        "smileyFace",
+        "irregularSeal1",
+        "irregularSeal2",
+        "foldedCorner",
+        "bevel",
+        "frame",
+        "halfFrame",
+        "corner",
+        "diagStripe",
+        "chord",
+        "arc",
+        "leftBracket",
+        "rightBracket",
+        "leftBrace",
+        "rightBrace",
+        "bracketPair",
+        "bracePair",
+        "straightConnector1",
+        "bentConnector2",
+        "bentConnector3",
+        "bentConnector4",
+        "bentConnector5",
+        "curvedConnector2",
+        "curvedConnector3",
+        "curvedConnector4",
+        "curvedConnector5",
+        "callout1",
+        "callout2",
+        "callout3",
+        "accentCallout1",
+        "accentCallout2",
+        "accentCallout3",
+        "borderCallout1",
+        "borderCallout2",
+        "borderCallout3",
+        "accentBorderCallout1",
+        "accentBorderCallout2",
+        "accentBorderCallout3",
+        "wedgeRectCallout",
+        "wedgeRoundRectCallout",
+        "wedgeEllipseCallout",
+        "cloudCallout",
+        "cloud",
+        "ribbon",
+        "ribbon2",
+        "ellipseRibbon",
+        "ellipseRibbon2",
+        "leftRightRibbon",
+        "verticalScroll",
+        "horizontalScroll",
+        "wave",
+        "doubleWave",
+        "plus",
+        "flowChartProcess",
+        "flowChartDecision",
+        "flowChartInputOutput",
+        "flowChartPredefinedProcess",
+        "flowChartInternalStorage",
+        "flowChartDocument",
+        "flowChartMultidocument",
+        "flowChartTerminator",
+        "flowChartPreparation",
+        "flowChartManualInput",
+        "flowChartManualOperation",
+        "flowChartConnector",
+        "flowChartPunchedCard",
+        "flowChartPunchedTape",
+        "flowChartSummingJunction",
+        "flowChartOr",
+        "flowChartCollate",
+        "flowChartSort",
+        "flowChartExtract",
+        "flowChartMerge",
+        "flowChartOfflineStorage",
+        "flowChartOnlineStorage",
+        "flowChartMagneticTape",
+        "flowChartMagneticDisk",
+        "flowChartMagneticDrum",
+        "flowChartDisplay",
+        "flowChartDelay",
+        "flowChartAlternateProcess",
+        "flowChartOffpageConnector",
+        "actionButtonBlank",
+        "actionButtonHome",
+        "actionButtonHelp",
+        "actionButtonInformation",
+        "actionButtonForwardNext",
+        "actionButtonBackPrevious",
+        "actionButtonEnd",
+        "actionButtonBeginning",
+        "actionButtonReturn",
+        "actionButtonDocument",
+        "actionButtonSound",
+        "actionButtonMovie",
+        "gear6",
+        "gear9",
+        "funnel",
+        "mathPlus",
+        "mathMinus",
+        "mathMultiply",
+        "mathDivide",
+        "mathEqual",
+        "mathNotEqual",
+        "cornerTabs",
+        "squareTabs",
+        "plaqueTabs",
+        "chartX",
+        "chartStar",
+        "chartPlus",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Line),
+            1 => Some(Self::LineInverse),
+            2 => Some(Self::Triangle),
+            3 => Some(Self::RightTriangle),
+            4 => Some(Self::Rectangle),
+            5 => Some(Self::Diamond),
+            6 => Some(Self::Parallelogram),
+            7 => Some(Self::Trapezoid),
+            8 => Some(Self::NonIsoscelesTrapezoid),
+            9 => Some(Self::Pentagon),
+            10 => Some(Self::Hexagon),
+            11 => Some(Self::Heptagon),
+            12 => Some(Self::Octagon),
+            13 => Some(Self::Decagon),
+            14 => Some(Self::Dodecagon),
+            15 => Some(Self::Star4),
+            16 => Some(Self::Star5),
+            17 => Some(Self::Star6),
+            18 => Some(Self::Star7),
+            19 => Some(Self::Star8),
+            20 => Some(Self::Star10),
+            21 => Some(Self::Star12),
+            22 => Some(Self::Star16),
+            23 => Some(Self::Star24),
+            24 => Some(Self::Star32),
+            25 => Some(Self::RoundRectangle),
+            26 => Some(Self::Round1Rectangle),
+            27 => Some(Self::Round2SameRectangle),
+            28 => Some(Self::Round2DiagonalRectangle),
+            29 => Some(Self::SnipRoundRectangle),
+            30 => Some(Self::Snip1Rectangle),
+            31 => Some(Self::Snip2SameRectangle),
+            32 => Some(Self::Snip2DiagonalRectangle),
+            33 => Some(Self::Plaque),
+            34 => Some(Self::Ellipse),
+            35 => Some(Self::Teardrop),
+            36 => Some(Self::HomePlate),
+            37 => Some(Self::Chevron),
+            38 => Some(Self::PieWedge),
+            39 => Some(Self::Pie),
+            40 => Some(Self::BlockArc),
+            41 => Some(Self::Donut),
+            42 => Some(Self::NoSmoking),
+            43 => Some(Self::RightArrow),
+            44 => Some(Self::LeftArrow),
+            45 => Some(Self::UpArrow),
+            46 => Some(Self::DownArrow),
+            47 => Some(Self::StripedRightArrow),
+            48 => Some(Self::NotchedRightArrow),
+            49 => Some(Self::BentUpArrow),
+            50 => Some(Self::LeftRightArrow),
+            51 => Some(Self::UpDownArrow),
+            52 => Some(Self::LeftUpArrow),
+            53 => Some(Self::LeftRightUpArrow),
+            54 => Some(Self::QuadArrow),
+            55 => Some(Self::LeftArrowCallout),
+            56 => Some(Self::RightArrowCallout),
+            57 => Some(Self::UpArrowCallout),
+            58 => Some(Self::DownArrowCallout),
+            59 => Some(Self::LeftRightArrowCallout),
+            60 => Some(Self::UpDownArrowCallout),
+            61 => Some(Self::QuadArrowCallout),
+            62 => Some(Self::BentArrow),
+            63 => Some(Self::UTurnArrow),
+            64 => Some(Self::CircularArrow),
+            65 => Some(Self::LeftCircularArrow),
+            66 => Some(Self::LeftRightCircularArrow),
+            67 => Some(Self::CurvedRightArrow),
+            68 => Some(Self::CurvedLeftArrow),
+            69 => Some(Self::CurvedUpArrow),
+            70 => Some(Self::CurvedDownArrow),
+            71 => Some(Self::SwooshArrow),
+            72 => Some(Self::Cube),
+            73 => Some(Self::Can),
+            74 => Some(Self::LightningBolt),
+            75 => Some(Self::Heart),
+            76 => Some(Self::Sun),
+            77 => Some(Self::Moon),
+            78 => Some(Self::SmileyFace),
+            79 => Some(Self::IrregularSeal1),
+            80 => Some(Self::IrregularSeal2),
+            81 => Some(Self::FoldedCorner),
+            82 => Some(Self::Bevel),
+            83 => Some(Self::Frame),
+            84 => Some(Self::HalfFrame),
+            85 => Some(Self::Corner),
+            86 => Some(Self::DiagonalStripe),
+            87 => Some(Self::Chord),
+            88 => Some(Self::Arc),
+            89 => Some(Self::LeftBracket),
+            90 => Some(Self::RightBracket),
+            91 => Some(Self::LeftBrace),
+            92 => Some(Self::RightBrace),
+            93 => Some(Self::BracketPair),
+            94 => Some(Self::BracePair),
+            95 => Some(Self::StraightConnector1),
+            96 => Some(Self::BentConnector2),
+            97 => Some(Self::BentConnector3),
+            98 => Some(Self::BentConnector4),
+            99 => Some(Self::BentConnector5),
+            100 => Some(Self::CurvedConnector2),
+            101 => Some(Self::CurvedConnector3),
+            102 => Some(Self::CurvedConnector4),
+            103 => Some(Self::CurvedConnector5),
+            104 => Some(Self::Callout1),
+            105 => Some(Self::Callout2),
+            106 => Some(Self::Callout3),
+            107 => Some(Self::AccentCallout1),
+            108 => Some(Self::AccentCallout2),
+            109 => Some(Self::AccentCallout3),
+            110 => Some(Self::BorderCallout1),
+            111 => Some(Self::BorderCallout2),
+            112 => Some(Self::BorderCallout3),
+            113 => Some(Self::AccentBorderCallout1),
+            114 => Some(Self::AccentBorderCallout2),
+            115 => Some(Self::AccentBorderCallout3),
+            116 => Some(Self::WedgeRectangleCallout),
+            117 => Some(Self::WedgeRoundRectangleCallout),
+            118 => Some(Self::WedgeEllipseCallout),
+            119 => Some(Self::CloudCallout),
+            120 => Some(Self::Cloud),
+            121 => Some(Self::Ribbon),
+            122 => Some(Self::Ribbon2),
+            123 => Some(Self::EllipseRibbon),
+            124 => Some(Self::EllipseRibbon2),
+            125 => Some(Self::LeftRightRibbon),
+            126 => Some(Self::VerticalScroll),
+            127 => Some(Self::HorizontalScroll),
+            128 => Some(Self::Wave),
+            129 => Some(Self::DoubleWave),
+            130 => Some(Self::Plus),
+            131 => Some(Self::FlowChartProcess),
+            132 => Some(Self::FlowChartDecision),
+            133 => Some(Self::FlowChartInputOutput),
+            134 => Some(Self::FlowChartPredefinedProcess),
+            135 => Some(Self::FlowChartInternalStorage),
+            136 => Some(Self::FlowChartDocument),
+            137 => Some(Self::FlowChartMultidocument),
+            138 => Some(Self::FlowChartTerminator),
+            139 => Some(Self::FlowChartPreparation),
+            140 => Some(Self::FlowChartManualInput),
+            141 => Some(Self::FlowChartManualOperation),
+            142 => Some(Self::FlowChartConnector),
+            143 => Some(Self::FlowChartPunchedCard),
+            144 => Some(Self::FlowChartPunchedTape),
+            145 => Some(Self::FlowChartSummingJunction),
+            146 => Some(Self::FlowChartOr),
+            147 => Some(Self::FlowChartCollate),
+            148 => Some(Self::FlowChartSort),
+            149 => Some(Self::FlowChartExtract),
+            150 => Some(Self::FlowChartMerge),
+            151 => Some(Self::FlowChartOfflineStorage),
+            152 => Some(Self::FlowChartOnlineStorage),
+            153 => Some(Self::FlowChartMagneticTape),
+            154 => Some(Self::FlowChartMagneticDisk),
+            155 => Some(Self::FlowChartMagneticDrum),
+            156 => Some(Self::FlowChartDisplay),
+            157 => Some(Self::FlowChartDelay),
+            158 => Some(Self::FlowChartAlternateProcess),
+            159 => Some(Self::FlowChartOffpageConnector),
+            160 => Some(Self::ActionButtonBlank),
+            161 => Some(Self::ActionButtonHome),
+            162 => Some(Self::ActionButtonHelp),
+            163 => Some(Self::ActionButtonInformation),
+            164 => Some(Self::ActionButtonForwardNext),
+            165 => Some(Self::ActionButtonBackPrevious),
+            166 => Some(Self::ActionButtonEnd),
+            167 => Some(Self::ActionButtonBeginning),
+            168 => Some(Self::ActionButtonReturn),
+            169 => Some(Self::ActionButtonDocument),
+            170 => Some(Self::ActionButtonSound),
+            171 => Some(Self::ActionButtonMovie),
+            172 => Some(Self::Gear6),
+            173 => Some(Self::Gear9),
+            174 => Some(Self::Funnel),
+            175 => Some(Self::MathPlus),
+            176 => Some(Self::MathMinus),
+            177 => Some(Self::MathMultiply),
+            178 => Some(Self::MathDivide),
+            179 => Some(Self::MathEqual),
+            180 => Some(Self::MathNotEqual),
+            181 => Some(Self::CornerTabs),
+            182 => Some(Self::SquareTabs),
+            183 => Some(Self::PlaqueTabs),
+            184 => Some(Self::ChartX),
+            185 => Some(Self::ChartStar),
+            186 => Some(Self::ChartPlus),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_TextUnderlineType` — Text Underline Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextUnderlineValues {
@@ -216,6 +1018,167 @@ impl ooxml_core::EnumType for TextFontAlignmentValues {
         self as usize
     }
 }
+/// `a:CT_Blip/a:blip` — Defines the Blip Class.
+#[derive(Debug)]
+pub enum Blip {}
+impl Blip {
+    /// `r:embed`
+    pub const ATTR_R_EMBED: ooxml_core::QName = ooxml_core::QName::new(NS_R, "embed");
+    /// `r:link`
+    pub const ATTR_R_LINK: ooxml_core::QName = ooxml_core::QName::new(NS_R, "link");
+    /// `cstate`
+    pub const ATTR_CSTATE: ooxml_core::QName = ooxml_core::QName::new("", "cstate");
+}
+impl ooxml_core::ElementSpec for Blip {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "blip");
+    const SDK_NAME: &'static str = "a:CT_Blip/a:blip";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Blip::ATTR_R_EMBED,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: Blip::ATTR_R_LINK,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: Blip::ATTR_CSTATE,
+            ty: ooxml_core::SimpleType::Enum(
+                <BlipCompressionValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "alphaBiLevel"),
+                    ooxml_core::QName::new(NS_A, "alphaCeiling"),
+                    ooxml_core::QName::new(NS_A, "alphaFloor"),
+                    ooxml_core::QName::new(NS_A, "alphaInv"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "alphaModFix"),
+                    ooxml_core::QName::new(NS_A, "alphaRepl"),
+                    ooxml_core::QName::new(NS_A, "biLevel"),
+                    ooxml_core::QName::new(NS_A, "blur"),
+                    ooxml_core::QName::new(NS_A, "clrChange"),
+                    ooxml_core::QName::new(NS_A, "clrRepl"),
+                    ooxml_core::QName::new(NS_A, "duotone"),
+                    ooxml_core::QName::new(NS_A, "fillOverlay"),
+                    ooxml_core::QName::new(NS_A, "grayscl"),
+                    ooxml_core::QName::new(NS_A, "hsl"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "tint"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`Blip`].
+#[derive(Clone, Debug)]
+pub struct BlipView<'a>(pub ooxml_core::Lens<'a, Blip>);
+impl<'a> BlipView<'a> {
+    /// `r:embed` — Embedded Picture Reference (default ``)
+    pub fn embed(&self) -> &'a str {
+        self.0.attr(Blip::ATTR_R_EMBED).unwrap_or("")
+    }
+    /// `r:link` — Linked Picture Reference (default ``)
+    pub fn link(&self) -> &'a str {
+        self.0.attr(Blip::ATTR_R_LINK).unwrap_or("")
+    }
+    /// `cstate` — Compression state for blips. (default `none`)
+    pub fn compression_state(&self) -> ooxml_core::EnumValue<'a, BlipCompressionValues> {
+        self.0.attr_enum_or(Blip::ATTR_CSTATE, "none")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Blip`]. Reads go through [`BlipViewMut::as_view`].
+#[derive(Debug)]
+pub struct BlipViewMut<'a>(pub ooxml_core::LensMut<'a, Blip>);
+impl<'a> BlipViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BlipView<'_> {
+        BlipView(self.0.as_lens())
+    }
+    /// Sets `r:embed` — Embedded Picture Reference (default ``)
+    pub fn set_embed(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Blip::ATTR_R_EMBED, v)
+    }
+    /// Removes `r:embed`.
+    pub fn remove_embed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blip::ATTR_R_EMBED)
+    }
+    /// Sets `r:link` — Linked Picture Reference (default ``)
+    pub fn set_link(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Blip::ATTR_R_LINK, v)
+    }
+    /// Removes `r:link`.
+    pub fn remove_link(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blip::ATTR_R_LINK)
+    }
+    /// Sets `cstate` — Compression state for blips. (default `none`)
+    pub fn set_compression_state(
+        &mut self,
+        v: BlipCompressionValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Blip::ATTR_CSTATE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cstate`.
+    pub fn remove_compression_state(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blip::ATTR_CSTATE)
+    }
+}
+/// `a:CT_GeomGuideList/a:avLst` — List of Shape Adjust Values.
+#[derive(Debug)]
+pub enum AdjustValueList {}
+impl ooxml_core::ElementSpec for AdjustValueList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "avLst");
+    const SDK_NAME: &'static str = "a:CT_GeomGuideList/a:avLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "gd")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`AdjustValueList`].
+#[derive(Clone, Debug)]
+pub struct AdjustValueListView<'a>(pub ooxml_core::Lens<'a, AdjustValueList>);
+impl<'a> AdjustValueListView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AdjustValueList`]. Reads go through [`AdjustValueListViewMut::as_view`].
+#[derive(Debug)]
+pub struct AdjustValueListViewMut<'a>(pub ooxml_core::LensMut<'a, AdjustValueList>);
+impl<'a> AdjustValueListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AdjustValueListView<'_> {
+        AdjustValueListView(self.0.as_lens())
+    }
+}
 /// `a:CT_GraphicalObject/a:graphic` — Graphic Object.
 #[derive(Debug)]
 pub enum Graphic {}
@@ -248,6 +1211,29 @@ impl<'a> GraphicView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Graphic`]. Reads go through [`GraphicViewMut::as_view`].
+#[derive(Debug)]
+pub struct GraphicViewMut<'a>(pub ooxml_core::LensMut<'a, Graphic>);
+impl<'a> GraphicViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GraphicView<'_> {
+        GraphicView(self.0.as_lens())
+    }
+    /// First `a:graphicData` child, mutably.
+    pub fn graphic_data_mut(&mut self) -> Option<GraphicDataViewMut<'_>> {
+        self.0.child_mut::<GraphicData>().map(GraphicDataViewMut)
+    }
+    /// Existing `a:graphicData` child, or a new one in schema position.
+    pub fn get_or_insert_graphic_data(
+        &mut self,
+    ) -> Result<GraphicDataViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GraphicData>().map(GraphicDataViewMut)
+    }
+    /// Removes the first `a:graphicData` child.
+    pub fn remove_graphic_data(&mut self) -> bool {
+        self.0.remove::<GraphicData>()
+    }
+}
 /// `a:CT_GraphicalObjectData/a:graphicData` — Graphic Object Data.
 #[derive(Debug)]
 pub enum GraphicData {}
@@ -276,6 +1262,7 @@ impl ooxml_core::ElementSpec for GraphicData {
         ],
     );
 }
+impl ooxml_core::ChildOf<GraphicData> for Blip {}
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
 #[cfg(all(feature = "dml", feature = "pml"))]
@@ -284,6 +1271,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::ContentPart {}
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Presentation {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Slide {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Picture {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Comments {}
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -300,6 +1289,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::wml::Header {}
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Styles {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Inline {}
 /// Read-only view of [`GraphicData`].
 #[derive(Clone, Debug)]
 pub struct GraphicDataView<'a>(pub ooxml_core::Lens<'a, GraphicData>);
@@ -307,6 +1298,10 @@ impl<'a> GraphicDataView<'a> {
     /// `uri` — Uniform Resource Identifier
     pub fn uri(&self) -> Option<&'a str> {
         self.0.attr(GraphicData::ATTR_URI)
+    }
+    /// `a:blip` children in document order.
+    pub fn blip_iter(&self) -> impl Iterator<Item = BlipView<'a>> {
+        self.0.children::<Blip>().map(BlipView)
     }
     /// `a:graphic` children in document order.
     pub fn graphic_iter(&self) -> impl Iterator<Item = GraphicView<'a>> {
@@ -334,6 +1329,11 @@ impl<'a> GraphicDataView<'a> {
     /// `p:sld` children in document order.
     pub fn slide_iter(&self) -> impl Iterator<Item = super::pml::SlideView<'a>> {
         self.0.children::<super::pml::Slide>().map(super::pml::SlideView)
+    }
+    #[cfg(feature = "wml")]
+    /// `pic:pic` children in document order.
+    pub fn picture_iter(&self) -> impl Iterator<Item = super::wml::PictureView<'a>> {
+        self.0.children::<super::wml::Picture>().map(super::wml::PictureView)
     }
     #[cfg(feature = "wml")]
     /// `w:comments` children in document order.
@@ -375,9 +1375,501 @@ impl<'a> GraphicDataView<'a> {
     pub fn styles_iter(&self) -> impl Iterator<Item = super::wml::StylesView<'a>> {
         self.0.children::<super::wml::Styles>().map(super::wml::StylesView)
     }
+    #[cfg(feature = "wml")]
+    /// `wp:inline` children in document order.
+    pub fn inline_iter(&self) -> impl Iterator<Item = super::wml::InlineView<'a>> {
+        self.0.children::<super::wml::Inline>().map(super::wml::InlineView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`GraphicData`]. Reads go through [`GraphicDataViewMut::as_view`].
+#[derive(Debug)]
+pub struct GraphicDataViewMut<'a>(pub ooxml_core::LensMut<'a, GraphicData>);
+impl<'a> GraphicDataViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GraphicDataView<'_> {
+        GraphicDataView(self.0.as_lens())
+    }
+    /// Sets `uri` — Uniform Resource Identifier
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(GraphicData::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicData::ATTR_URI)
+    }
+    /// First `a:blip` child matching `pred`, mutably.
+    pub fn blip_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlipViewMut<'_>> {
+        self.0.child_mut_by::<Blip>(pred).map(BlipViewMut)
+    }
+    /// Removes the first `a:blip` child.
+    pub fn remove_blip(&mut self) -> bool {
+        self.0.remove::<Blip>()
+    }
+    /// First `a:graphic` child matching `pred`, mutably.
+    pub fn graphic_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GraphicViewMut<'_>> {
+        self.0.child_mut_by::<Graphic>(pred).map(GraphicViewMut)
+    }
+    /// Removes the first `a:graphic` child.
+    pub fn remove_graphic(&mut self) -> bool {
+        self.0.remove::<Graphic>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `pic:pic` child matching `pred`, mutably.
+    pub fn picture_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::PictureViewMut<'_>> {
+        self.0.child_mut_by::<super::wml::Picture>(pred).map(super::wml::PictureViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `pic:pic` child.
+    pub fn remove_picture(&mut self) -> bool {
+        self.0.remove::<super::wml::Picture>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `wp:inline` child matching `pred`, mutably.
+    pub fn inline_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::InlineViewMut<'_>> {
+        self.0.child_mut_by::<super::wml::Inline>(pred).map(super::wml::InlineViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `wp:inline` child.
+    pub fn remove_inline(&mut self) -> bool {
+        self.0.remove::<super::wml::Inline>()
+    }
+}
+/// `a:CT_GraphicalObjectFrameLocking/a:graphicFrameLocks` — Graphic Frame Locks.
+#[derive(Debug)]
+pub enum GraphicFrameLocks {}
+impl GraphicFrameLocks {
+    /// `noGrp`
+    pub const ATTR_NO_GRP: ooxml_core::QName = ooxml_core::QName::new("", "noGrp");
+    /// `noDrilldown`
+    pub const ATTR_NO_DRILLDOWN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "noDrilldown",
+    );
+    /// `noSelect`
+    pub const ATTR_NO_SELECT: ooxml_core::QName = ooxml_core::QName::new("", "noSelect");
+    /// `noChangeAspect`
+    pub const ATTR_NO_CHANGE_ASPECT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "noChangeAspect",
+    );
+    /// `noMove`
+    pub const ATTR_NO_MOVE: ooxml_core::QName = ooxml_core::QName::new("", "noMove");
+    /// `noResize`
+    pub const ATTR_NO_RESIZE: ooxml_core::QName = ooxml_core::QName::new("", "noResize");
+}
+impl ooxml_core::ElementSpec for GraphicFrameLocks {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "graphicFrameLocks");
+    const SDK_NAME: &'static str = "a:CT_GraphicalObjectFrameLocking/a:graphicFrameLocks";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_GRP,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_DRILLDOWN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_SELECT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_MOVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_RESIZE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`GraphicFrameLocks`].
+#[derive(Clone, Debug)]
+pub struct GraphicFrameLocksView<'a>(pub ooxml_core::Lens<'a, GraphicFrameLocks>);
+impl<'a> GraphicFrameLocksView<'a> {
+    /// `noGrp` — Disallow Shape Grouping (default `false`)
+    pub fn no_grouping(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_GRP,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noDrilldown` — Disallow Selection of Child Shapes (default `false`)
+    pub fn no_drilldown(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_DRILLDOWN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noSelect` — Disallow Shape Selection (default `false`)
+    pub fn no_selection(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_SELECT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noChangeAspect` — Disallow Aspect Ratio Change (default `false`)
+    pub fn no_change_aspect(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noMove` — Disallow Shape Movement (default `false`)
+    pub fn no_move(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_MOVE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noResize` — Disallow Shape Resize (default `false`)
+    pub fn no_resize(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_RESIZE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GraphicFrameLocks`]. Reads go through [`GraphicFrameLocksViewMut::as_view`].
+#[derive(Debug)]
+pub struct GraphicFrameLocksViewMut<'a>(pub ooxml_core::LensMut<'a, GraphicFrameLocks>);
+impl<'a> GraphicFrameLocksViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GraphicFrameLocksView<'_> {
+        GraphicFrameLocksView(self.0.as_lens())
+    }
+    /// Sets `noGrp` — Disallow Shape Grouping (default `false`)
+    pub fn set_no_grouping(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(GraphicFrameLocks::ATTR_NO_GRP, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `noGrp`.
+    pub fn remove_no_grouping(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_GRP)
+    }
+    /// Sets `noDrilldown` — Disallow Selection of Child Shapes (default `false`)
+    pub fn set_no_drilldown(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_DRILLDOWN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noDrilldown`.
+    pub fn remove_no_drilldown(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_DRILLDOWN)
+    }
+    /// Sets `noSelect` — Disallow Shape Selection (default `false`)
+    pub fn set_no_selection(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_SELECT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noSelect`.
+    pub fn remove_no_selection(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_SELECT)
+    }
+    /// Sets `noChangeAspect` — Disallow Aspect Ratio Change (default `false`)
+    pub fn set_no_change_aspect(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noChangeAspect`.
+    pub fn remove_no_change_aspect(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT)
+    }
+    /// Sets `noMove` — Disallow Shape Movement (default `false`)
+    pub fn set_no_move(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(GraphicFrameLocks::ATTR_NO_MOVE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `noMove`.
+    pub fn remove_no_move(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_MOVE)
+    }
+    /// Sets `noResize` — Disallow Shape Resize (default `false`)
+    pub fn set_no_resize(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_RESIZE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noResize`.
+    pub fn remove_no_resize(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_RESIZE)
+    }
+}
+/// `a:CT_Point2D/a:off` — Offset.
+#[derive(Debug)]
+pub enum Offset {}
+impl Offset {
+    /// `x`
+    pub const ATTR_X: ooxml_core::QName = ooxml_core::QName::new("", "x");
+    /// `y`
+    pub const ATTR_Y: ooxml_core::QName = ooxml_core::QName::new("", "y");
+}
+impl ooxml_core::ElementSpec for Offset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "off");
+    const SDK_NAME: &'static str = "a:CT_Point2D/a:off";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Offset::ATTR_X,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Offset::ATTR_Y,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Offset`].
+#[derive(Clone, Debug)]
+pub struct OffsetView<'a>(pub ooxml_core::Lens<'a, Offset>);
+impl<'a> OffsetView<'a> {
+    /// `x` — X-Axis Coordinate
+    pub fn x(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Offset::ATTR_X, ooxml_core::value::parse_i64)
+    }
+    /// `y` — Y-Axis Coordinate
+    pub fn y(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Offset::ATTR_Y, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Offset`]. Reads go through [`OffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct OffsetViewMut<'a>(pub ooxml_core::LensMut<'a, Offset>);
+impl<'a> OffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OffsetView<'_> {
+        OffsetView(self.0.as_lens())
+    }
+    /// Sets `x` — X-Axis Coordinate
+    pub fn set_x(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Offset::ATTR_X, s))
+    }
+    /// Removes `x`.
+    pub fn remove_x(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Offset::ATTR_X)
+    }
+    /// Sets `y` — Y-Axis Coordinate
+    pub fn set_y(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Offset::ATTR_Y, s))
+    }
+    /// Removes `y`.
+    pub fn remove_y(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Offset::ATTR_Y)
+    }
+}
+/// `a:CT_PositiveSize2D/a:ext` — Extents.
+#[derive(Debug)]
+pub enum Extents {}
+impl Extents {
+    /// `cx`
+    pub const ATTR_CX: ooxml_core::QName = ooxml_core::QName::new("", "cx");
+    /// `cy`
+    pub const ATTR_CY: ooxml_core::QName = ooxml_core::QName::new("", "cy");
+}
+impl ooxml_core::ElementSpec for Extents {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ext");
+    const SDK_NAME: &'static str = "a:CT_PositiveSize2D/a:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extents::ATTR_CX,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Extents::ATTR_CY,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Extents`].
+#[derive(Clone, Debug)]
+pub struct ExtentsView<'a>(pub ooxml_core::Lens<'a, Extents>);
+impl<'a> ExtentsView<'a> {
+    /// `cx` — Extent Length
+    pub fn cx(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extents::ATTR_CX, ooxml_core::value::parse_i64)
+    }
+    /// `cy` — Extent Width
+    pub fn cy(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extents::ATTR_CY, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Extents`]. Reads go through [`ExtentsViewMut::as_view`].
+#[derive(Debug)]
+pub struct ExtentsViewMut<'a>(pub ooxml_core::LensMut<'a, Extents>);
+impl<'a> ExtentsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ExtentsView<'_> {
+        ExtentsView(self.0.as_lens())
+    }
+    /// Sets `cx` — Extent Length
+    pub fn set_cx(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Extents::ATTR_CX, s))
+    }
+    /// Removes `cx`.
+    pub fn remove_cx(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extents::ATTR_CX)
+    }
+    /// Sets `cy` — Extent Width
+    pub fn set_cy(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(Extents::ATTR_CY, s))
+    }
+    /// Removes `cy`.
+    pub fn remove_cy(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extents::ATTR_CY)
+    }
+}
+/// `a:CT_PresetGeometry2D/a:prstGeom` — Preset geometry.
+#[derive(Debug)]
+pub enum PresetGeometry {}
+impl PresetGeometry {
+    /// `prst`
+    pub const ATTR_PRST: ooxml_core::QName = ooxml_core::QName::new("", "prst");
+}
+impl ooxml_core::ElementSpec for PresetGeometry {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "prstGeom");
+    const SDK_NAME: &'static str = "a:CT_PresetGeometry2D/a:prstGeom";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PresetGeometry::ATTR_PRST,
+            ty: ooxml_core::SimpleType::Enum(
+                <ShapeTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "avLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PresetGeometry> for AdjustValueList {}
+/// Read-only view of [`PresetGeometry`].
+#[derive(Clone, Debug)]
+pub struct PresetGeometryView<'a>(pub ooxml_core::Lens<'a, PresetGeometry>);
+impl<'a> PresetGeometryView<'a> {
+    /// `prst` — Preset Shape
+    pub fn preset(&self) -> Option<ooxml_core::EnumValue<'a, ShapeTypeValues>> {
+        self.0.attr_enum(PresetGeometry::ATTR_PRST)
+    }
+    /// First `a:avLst` child.
+    pub fn adjust_value_list(&self) -> Option<AdjustValueListView<'a>> {
+        self.0.child::<AdjustValueList>().map(AdjustValueListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PresetGeometry`]. Reads go through [`PresetGeometryViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresetGeometryViewMut<'a>(pub ooxml_core::LensMut<'a, PresetGeometry>);
+impl<'a> PresetGeometryViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresetGeometryView<'_> {
+        PresetGeometryView(self.0.as_lens())
+    }
+    /// Sets `prst` — Preset Shape
+    pub fn set_preset(&mut self, v: ShapeTypeValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresetGeometry::ATTR_PRST, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `prst`.
+    pub fn remove_preset(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresetGeometry::ATTR_PRST)
+    }
+    /// First `a:avLst` child, mutably.
+    pub fn adjust_value_list_mut(&mut self) -> Option<AdjustValueListViewMut<'_>> {
+        self.0.child_mut::<AdjustValueList>().map(AdjustValueListViewMut)
+    }
+    /// Existing `a:avLst` child, or a new one in schema position.
+    pub fn get_or_insert_adjust_value_list(
+        &mut self,
+    ) -> Result<AdjustValueListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<AdjustValueList>().map(AdjustValueListViewMut)
+    }
+    /// Removes the first `a:avLst` child.
+    pub fn remove_adjust_value_list(&mut self) -> bool {
+        self.0.remove::<AdjustValueList>()
     }
 }
 /// `a:CT_RegularTextRun/a:r` — Text Run.
@@ -442,6 +1934,167 @@ impl<'a> RunViewMut<'a> {
     /// Removes the first `a:t` child.
     pub fn remove_text(&mut self) -> bool {
         self.0.remove::<Text>()
+    }
+}
+/// `a:CT_RelativeRect/a:fillRect` — Fill Rectangle.
+#[derive(Debug)]
+pub enum FillRectangle {}
+impl FillRectangle {
+    /// `l`
+    pub const ATTR_L: ooxml_core::QName = ooxml_core::QName::new("", "l");
+    /// `t`
+    pub const ATTR_T: ooxml_core::QName = ooxml_core::QName::new("", "t");
+    /// `r`
+    pub const ATTR_R: ooxml_core::QName = ooxml_core::QName::new("", "r");
+    /// `b`
+    pub const ATTR_B: ooxml_core::QName = ooxml_core::QName::new("", "b");
+}
+impl ooxml_core::ElementSpec for FillRectangle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "fillRect");
+    const SDK_NAME: &'static str = "a:CT_RelativeRect/a:fillRect";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_T,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_B,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FillRectangle`].
+#[derive(Clone, Debug)]
+pub struct FillRectangleView<'a>(pub ooxml_core::Lens<'a, FillRectangle>);
+impl<'a> FillRectangleView<'a> {
+    /// `l` — Left Offset
+    pub fn left(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_L, ooxml_core::value::parse_i32)
+    }
+    /// `t` — Top Offset
+    pub fn top(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_T, ooxml_core::value::parse_i32)
+    }
+    /// `r` — Right Offset
+    pub fn right(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_R, ooxml_core::value::parse_i32)
+    }
+    /// `b` — Bottom Offset
+    pub fn bottom(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_B, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FillRectangle`]. Reads go through [`FillRectangleViewMut::as_view`].
+#[derive(Debug)]
+pub struct FillRectangleViewMut<'a>(pub ooxml_core::LensMut<'a, FillRectangle>);
+impl<'a> FillRectangleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FillRectangleView<'_> {
+        FillRectangleView(self.0.as_lens())
+    }
+    /// Sets `l` — Left Offset
+    pub fn set_left(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_L, s))
+    }
+    /// Removes `l`.
+    pub fn remove_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_L)
+    }
+    /// Sets `t` — Top Offset
+    pub fn set_top(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_T, s))
+    }
+    /// Removes `t`.
+    pub fn remove_top(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_T)
+    }
+    /// Sets `r` — Right Offset
+    pub fn set_right(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_R, s))
+    }
+    /// Removes `r`.
+    pub fn remove_right(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_R)
+    }
+    /// Sets `b` — Bottom Offset
+    pub fn set_bottom(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_B, s))
+    }
+    /// Removes `b`.
+    pub fn remove_bottom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_B)
+    }
+}
+/// `a:CT_StretchInfoProperties/a:stretch` — Stretch.
+#[derive(Debug)]
+pub enum Stretch {}
+impl ooxml_core::ElementSpec for Stretch {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "stretch");
+    const SDK_NAME: &'static str = "a:CT_StretchInfoProperties/a:stretch";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "fillRect")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Stretch> for FillRectangle {}
+/// Read-only view of [`Stretch`].
+#[derive(Clone, Debug)]
+pub struct StretchView<'a>(pub ooxml_core::Lens<'a, Stretch>);
+impl<'a> StretchView<'a> {
+    /// First `a:fillRect` child.
+    pub fn fill_rectangle(&self) -> Option<FillRectangleView<'a>> {
+        self.0.child::<FillRectangle>().map(FillRectangleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Stretch`]. Reads go through [`StretchViewMut::as_view`].
+#[derive(Debug)]
+pub struct StretchViewMut<'a>(pub ooxml_core::LensMut<'a, Stretch>);
+impl<'a> StretchViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StretchView<'_> {
+        StretchView(self.0.as_lens())
+    }
+    /// First `a:fillRect` child, mutably.
+    pub fn fill_rectangle_mut(&mut self) -> Option<FillRectangleViewMut<'_>> {
+        self.0.child_mut::<FillRectangle>().map(FillRectangleViewMut)
+    }
+    /// Existing `a:fillRect` child, or a new one in schema position.
+    pub fn get_or_insert_fill_rectangle(
+        &mut self,
+    ) -> Result<FillRectangleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FillRectangle>().map(FillRectangleViewMut)
+    }
+    /// Removes the first `a:fillRect` child.
+    pub fn remove_fill_rectangle(&mut self) -> bool {
+        self.0.remove::<FillRectangle>()
     }
 }
 /// `a:CT_Table/a:tbl` — Table.
@@ -2088,6 +3741,156 @@ impl<'a> ParagraphPropertiesView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_Transform2D/a:xfrm` — Defines the Transform2D Class.
+#[derive(Debug)]
+pub enum Transform2D {}
+impl Transform2D {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `flipH`
+    pub const ATTR_FLIP_H: ooxml_core::QName = ooxml_core::QName::new("", "flipH");
+    /// `flipV`
+    pub const ATTR_FLIP_V: ooxml_core::QName = ooxml_core::QName::new("", "flipV");
+}
+impl ooxml_core::ElementSpec for Transform2D {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "xfrm");
+    const SDK_NAME: &'static str = "a:CT_Transform2D/a:xfrm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Transform2D::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform2D::ATTR_FLIP_H,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform2D::ATTR_FLIP_V,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "off")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Transform2D> for Offset {}
+impl ooxml_core::ChildOf<Transform2D> for Extents {}
+/// Read-only view of [`Transform2D`].
+#[derive(Clone, Debug)]
+pub struct Transform2DView<'a>(pub ooxml_core::Lens<'a, Transform2D>);
+impl<'a> Transform2DView<'a> {
+    /// `rot` — Rotation (default `0`)
+    pub fn rotation(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Transform2D::ATTR_ROT, "0", ooxml_core::value::parse_i32)
+    }
+    /// `flipH` — Horizontal Flip (default `false`)
+    pub fn horizontal_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform2D::ATTR_FLIP_H,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `flipV` — Vertical Flip (default `false`)
+    pub fn vertical_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform2D::ATTR_FLIP_V,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:off` child.
+    pub fn offset(&self) -> Option<OffsetView<'a>> {
+        self.0.child::<Offset>().map(OffsetView)
+    }
+    /// First `a:ext` child.
+    pub fn extents(&self) -> Option<ExtentsView<'a>> {
+        self.0.child::<Extents>().map(ExtentsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Transform2D`]. Reads go through [`Transform2DViewMut::as_view`].
+#[derive(Debug)]
+pub struct Transform2DViewMut<'a>(pub ooxml_core::LensMut<'a, Transform2D>);
+impl<'a> Transform2DViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Transform2DView<'_> {
+        Transform2DView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation (default `0`)
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Transform2D::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform2D::ATTR_ROT)
+    }
+    /// Sets `flipH` — Horizontal Flip (default `false`)
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform2D::ATTR_FLIP_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipH`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform2D::ATTR_FLIP_H)
+    }
+    /// Sets `flipV` — Vertical Flip (default `false`)
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform2D::ATTR_FLIP_V, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipV`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform2D::ATTR_FLIP_V)
+    }
+    /// First `a:off` child, mutably.
+    pub fn offset_mut(&mut self) -> Option<OffsetViewMut<'_>> {
+        self.0.child_mut::<Offset>().map(OffsetViewMut)
+    }
+    /// Existing `a:off` child, or a new one in schema position.
+    pub fn get_or_insert_offset(
+        &mut self,
+    ) -> Result<OffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Offset>().map(OffsetViewMut)
+    }
+    /// Removes the first `a:off` child.
+    pub fn remove_offset(&mut self) -> bool {
+        self.0.remove::<Offset>()
+    }
+    /// First `a:ext` child, mutably.
+    pub fn extents_mut(&mut self) -> Option<ExtentsViewMut<'_>> {
+        self.0.child_mut::<Extents>().map(ExtentsViewMut)
+    }
+    /// Existing `a:ext` child, or a new one in schema position.
+    pub fn get_or_insert_extents(
+        &mut self,
+    ) -> Result<ExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Extents>().map(ExtentsViewMut)
+    }
+    /// Removes the first `a:ext` child.
+    pub fn remove_extents(&mut self) -> bool {
+        self.0.remove::<Extents>()
+    }
+}
 /// `xsd:string/a:t` — Defines the Text Class.
 #[derive(Debug)]
 pub enum Text {}
@@ -2125,9 +3928,12 @@ impl<'a> TextViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<Blip>();
+const _: () = ooxml_core::schema::assert_spec::<AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<Graphic>();
 const _: () = ooxml_core::schema::assert_child::<Graphic, GraphicData>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicData>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, Blip>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
 #[cfg(all(feature = "dml", feature = "pml"))]
@@ -2139,6 +3945,8 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Slide>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Picture>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Comments>();
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -2155,9 +3963,19 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Header
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Styles>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Inline>();
+const _: () = ooxml_core::schema::assert_spec::<GraphicFrameLocks>();
+const _: () = ooxml_core::schema::assert_spec::<Offset>();
+const _: () = ooxml_core::schema::assert_spec::<Extents>();
+const _: () = ooxml_core::schema::assert_spec::<PresetGeometry>();
+const _: () = ooxml_core::schema::assert_child::<PresetGeometry, AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
+const _: () = ooxml_core::schema::assert_spec::<FillRectangle>();
+const _: () = ooxml_core::schema::assert_spec::<Stretch>();
+const _: () = ooxml_core::schema::assert_child::<Stretch, FillRectangle>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableRow>();
 const _: () = ooxml_core::schema::assert_spec::<TableCell>();
@@ -2181,4 +3999,7 @@ const _: () = ooxml_core::schema::assert_child::<Paragraph, Field>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Break>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_spec::<Transform2D>();
+const _: () = ooxml_core::schema::assert_child::<Transform2D, Offset>();
+const _: () = ooxml_core::schema::assert_child::<Transform2D, Extents>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
