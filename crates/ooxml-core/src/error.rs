@@ -180,6 +180,18 @@ pub enum Error {
         /// Which precondition failed.
         reason: crate::package::RemoveRefusal,
     },
+    /// A registry write ([`RegistryPlan`](crate::RegistryPlan) step,
+    /// [`Package::apply`](crate::Package::apply) or a one-step convenience
+    /// such as [`Package::add_part`](crate::Package::add_part)) was refused;
+    /// nothing was changed.
+    #[error("registry write refused ({part:?}): {reason}")]
+    RegistryRefused {
+        /// The part concerned (the new part, the relationship's source —
+        /// `""` for the package — or the part whose type is set).
+        part: String,
+        /// Which precondition failed.
+        reason: crate::package::RegistryRefusal,
+    },
     /// The part is not well-formed XML in a way the underlying reader
     /// (quick-xml) would let through. Refused at parse time so that the tree
     /// never holds something a re-render could not write back, and element
