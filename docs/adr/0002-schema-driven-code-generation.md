@@ -246,11 +246,20 @@
   check). The document check does not see the package: removing the
   relationship between taking and inserting the copy is the caller's
   concern (PR #38 refuses removing a relationship an attribute names).
+  **In a transaction** (clone the parsed part, edit the clone through the
+  lens, `stage_part` it: ADR-0012, ADR-0016 §1), the copy is taken **from
+  the staged clone** and `check_insert_under` gets that clone; a copy taken
+  from the package's own tree is `WrongDocument` there (PR #49 review m2).
+  *Known limit:* a QName in an attribute value (`type="foo:T"`) is copied
+  verbatim and its prefix is not checked at the destination; MC values are
+  covered by the MC refusal, and DrawingML formatting has no other QName
+  values (review n3).
   Tests: `crates/ooxml-core/tests/detach_same_part.rs`,
   `crates/ooxml-schema/tests/detach_dml.rs` (real `a:rPr` with
   `a:hlinkClick` and `ahyp:hlinkClr`; an ignored corpus run copies all 83
-  slide `a:rPr` that hold a relationship id in the 619-presentation
-  ADR-0008 corpus — 12 with `ahyp:hlinkClr` — into a new run of their
+  `a:rPr` **on slides** (layouts and masters not counted) that hold a
+  relationship id in the 619-presentation ADR-0008 corpus — 12 with
+  `ahyp:hlinkClr` (14 with layouts and masters) — into a new run of their
   paragraph: the source bytes appear once more, verbatim, and the result
   re-parses); a mutant set over `same_part.rs`.
 

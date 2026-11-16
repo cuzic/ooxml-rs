@@ -34,7 +34,8 @@ const MC_IGNORABLE: QName = QName::new(MC_NS, "Ignorable");
 pub mod ext_uri {
     /// `a:hlinkClick/a:extLst/a:ext` holding `ahyp:hlinkClr` (whether a
     /// hyperlink takes the theme's hyperlink colour): a boolean-like value,
-    /// nothing document-unique. 14 in the 619-file pptx corpus (12 on
+    /// nothing document-unique. 14 in the 619-file pptx corpus (slides,
+    /// layouts and masters; 12 on
     /// slides), each declaring `xmlns:ahyp` on the element itself; the only
     /// extension below `a:rPr` there.
     pub const HYPERLINK_COLOR: &str = "{A12FA001-AC4F-418D-AE19-62706E023703}";
@@ -65,6 +66,17 @@ impl SamePartOptions {
 /// from ([`LensMut::insert_same_part`]; otherwise [`Error::WrongDocument`]).
 /// It is not a [`super::Detached`], so [`LensMut::insert_detached`] does
 /// not accept it.
+///
+/// **In a transaction** (ADR-0012/ADR-0016: clone the parsed part, edit the
+/// clone, `stage_part` it), take the copy **from the staged clone** and pass
+/// that clone to [`Self::check_insert_under`]: the clone is another document
+/// (it may become another part), so a copy taken from the package's own tree
+/// is refused there with [`Error::WrongDocument`] (safe, but surprising).
+///
+/// Known limit: a QName inside an attribute **value** (`type="foo:T"`) is
+/// copied verbatim and its prefix is not checked at the destination (only
+/// element and attribute names are). Markup Compatibility values are covered
+/// by the MC refusal; DrawingML formatting has no other QName values.
 pub struct SamePartDetached<C: ElementSpec> {
     root: RawNode,
     doc: DocToken,

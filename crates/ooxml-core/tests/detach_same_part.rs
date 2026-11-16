@@ -323,6 +323,10 @@ fn path_lenses_know_their_document() {
     d.lens_mut_at::<R>(&[1]).unwrap().insert_same_part(&copy).unwrap();
     assert_eq!(d.serialize().matches(r#"r:id="rId7""#).count(), 2);
     assert_matches!(d.lens_at::<RPr>(&[1]), Err(Error::WrongElement { .. }));
+    // a read lens derived from a mutable one keeps the document (review n1)
+    let mut d2 = doc(PLAIN);
+    let m = d2.lens_mut_at::<R>(&[0]).unwrap();
+    m.as_lens().child::<RPr>().unwrap().detach_same_part_as::<RPr>(&[], &opts()).unwrap();
     assert_matches!(d.lens_mut_at::<R>(&[9]).map(drop), Err(Error::WrongElement { .. }));
 }
 
