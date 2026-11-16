@@ -126,5 +126,6 @@ before anything is touched; only then is the plan applied, by steps that cannot 
   calcChain removal, validate-before-mutate, fault injection (`--features fault-injection`), the
   POI formula fixtures, tokenizer sweep.
 
-Manual Excel check (no Excel in CI): `cargo run -p ooxml-xlsx --example manual_check -- <outdir>`
-writes 21 edited files (11 Phase0, 10 Phase1), their originals and `CHECKLIST.md`.
+Manual Excel check (no Excel in CI): `cargo run -p ooxml-xlsx --example xlsx_manual_check -- <outdir>`
+writes 21 edited files (11 Phase0, 10 Phase1), their originals and `CHECKLIST.md`. `cargo xtask manual-check <outdir>`
+runs the Excel, PowerPoint and Word checks together into one bundle with a zip.

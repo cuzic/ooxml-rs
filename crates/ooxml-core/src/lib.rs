@@ -24,9 +24,9 @@ pub mod schema;
 pub mod value;
 pub mod xml;
 
-pub use error::{Error, Result};
+pub use error::{Error, Result, WellFormedness};
 pub use lens::{Lens, LensMut};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind, RemoveRefusal, RemovedPart};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
-pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
+pub use xml::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_PACKAGE_BYTES, DEFAULT_MAX_PART_BYTES, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};

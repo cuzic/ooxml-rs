@@ -1,0 +1,30 @@
+[package]
+name = "ooxml-docx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Lossless editing of Word (.docx) documents on top of ooxml-core (Word Phase0: run text and paragraph append)"
+readme = "README.md"
+include = ["src/**/*.rs", "Cargo.toml", "README.md"]
+
+[dependencies]
+ooxml-core = { workspace = true }
+ooxml-schema = { workspace = true, features = ["wml"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# T5 independent read-back oracle (ADR-0004 §7). Exact version: the oracle's
+# behaviour is part of the test's meaning.
+docx-rs = { version = "=0.4.22", default-features = false }
+serde_json = "1"
+zip = { workspace = true }
+
+[[example]]
+# Unique across the workspace: three crates have a manual check and cargo warns
+# about (and may later refuse) same-named example targets. The source file keeps
+# its name so open PRs that edit it do not conflict.
+name = "docx_manual_check"
+path = "examples/manual_check.rs"
