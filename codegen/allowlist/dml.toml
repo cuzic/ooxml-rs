@@ -1,8 +1,29 @@
-# dml allowlist (feature `dml`), ADR-0002 §5. Empty until the format plan
-# adds entries; see sml.toml for the format.
+# DrawingML allowlist (feature `dml`), ADR-0002 §5, ADR-0005 §5.
 
+# Phase0 write path: text in shapes and table cells.
 [write]
-names = []
+names = [
+    "a:CT_TextBody/a:txBody",
+    "a:CT_TextParagraph/a:p",
+    "a:CT_RegularTextRun/a:r",
+    "xsd:string/a:t",
+    "a:CT_TextLineBreak/a:br",
+]
 
+# Phase0 read-only. a:rPr / a:pPr / a:endParaRPr are read entries: Phase0
+# only inserts an empty a:rPr / a:pPr and copies attributes onto it with the
+# generic LensMut primitives (ADR-0005 §3 "format source"); typed
+# formatting setters are Phase 3. a:tbl is reached through a:graphicData's
+# wildcard (ADR-0002 post-acceptance note "wildcard parents").
 [read]
-names = []
+names = [
+    "a:CT_GraphicalObject/a:graphic",
+    "a:CT_GraphicalObjectData/a:graphicData",
+    "a:CT_Table/a:tbl",
+    "a:CT_TableRow/a:tr",
+    "a:CT_TableCell/a:tc",
+    "a:CT_TextField/a:fld",
+    "a:CT_TextCharacterProperties/a:rPr",
+    "a:CT_TextCharacterProperties/a:endParaRPr",
+    "a:CT_TextParagraphProperties/a:pPr",
+]

@@ -12,7 +12,8 @@
 > 追記のみの登録簿として扱う。根拠の数値は Apache POI などの実ファイル 105 個を
 > `spikes/pptx/` のスクリプトで数えたもの。
 
-- Status: draft for review (milestone `pptx-plan-v0`)
+- Status: draft for review (milestone `pptx-plan-v0`; Phase 0 updated for
+  ADR-0005 revision 2, milestone `pptx-phase0`)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md),
@@ -169,10 +170,10 @@ are **not in the slide part at all**. Decision (ADR-0005 §4, Phase 1):
 
 ### 3.2 `ST_Percentage` and DrawingML default mismatches (`set_type`)
 
-`percent.py` lists **81** attributes in `dml-main.xsd`, `pml.xsd` and
+`percent.py` lists **66** attributes in `dml-main.xsd`, `pml.xsd` and
 `dml-chart.xsd` whose XSD type is a DrawingML percentage union
 (`ST_PercentageDecimal` = int in 1/1000 % **or** `s:ST_Percentage` =
-`"-?\d+(\.\d+)?%"`). The SDK types 60 of them as `Int32Value` and a few as
+`"-?\d+(\.\d+)?%"`). The SDK types 61 of them as `Int32Value` and a few as
 `UInt16/Byte/SByte/UInt32Value`. ADR-0002's `typecheck.py` found 39 XSD
 defaults that do not fit the SDK type (25 `a`, 9 `c`, 5 `p`), all of the
 `"100%"`/`"0%"` form.
@@ -196,10 +197,11 @@ Decision:
   (no `DefaultMismatch`).
 - `a:buSzPct@val` gets `set_type` to `DmlPercent` too (SDK and files agree;
   the XSD pattern is the outlier), with a comment saying so.
-- Phase 0 needs exactly **one** such override,
-  `p:CT_Presentation/p:presentation@serverZoom`, because `p:presentation` is
-  allowlisted read-only to walk `sldIdLst` and its `"50%"` default would
-  otherwise produce a `DefaultMismatch` diagnostic (ADR-0005 §5).
+- Phase 0 has **no** override (project-owner default, 2026-11-16, review
+  m2): `p:presentation` is allowlisted read-only to walk `sldIdLst`, and
+  its `serverZoom` default `"50%"` stays dropped with one `DefaultMismatch`
+  line in `codegen/report.txt`; Phase 0 never reads `serverZoom`.
+  `DmlPercent` and the `set_type` vocabulary are decided with Phase 3.
 - Phase 3 (formatting writes) brings in the rest that matter for text:
   `a:CT_TextCharacterProperties@baseline`, `a:CT_TextSpacingPercent@val`,
   `a:CT_TextBulletSizePercent@val`, `a:CT_TextNormalAutofit@fontScale`
@@ -244,9 +246,9 @@ runs differ only in proofing attributes (`lang`, `altLang`, `err`, `dirty`,
 `smtClean`, `smtId`, `noProof`); 345 differ visibly. Within multi-run
 paragraphs, 22 % of two-word windows and 30 % of three-word windows cross a
 run boundary, so "find a phrase and replace it" will often span runs. 106
-`a:fld` and 52 paragraphs with `a:br` occur. No `a:t` in 4,848 carries
+`a:fld` and 52 paragraphs with `a:br` occur. No `a:t` in 4,980 (`probe.py`) carries
 `xml:space` (DrawingML's `a:t` has no `xml:space` attribute, ADR-0002's
-`set_text` therefore never adds one), yet 1,070 have leading/trailing spaces;
+`set_text` therefore never adds one), yet 1,074 have leading/trailing spaces (209 are whitespace only);
 they are preserved because XML parsers keep text content as is.
 
 Reference behaviour: python-pptx `_Paragraph.text = s` clears all runs and
@@ -315,7 +317,7 @@ ids are **never** renumbered, because modern comments
 | slide/master/layout ids (`p:sldMasterId`, `p:sldLayoutId` ≥ 2³¹) | presentation + masters | — | shared id space |
 | relationship ids | per source part | `r:id`, `r:embed`, `r:link` in XML | |
 | content types | package | — | `Default` by extension for media |
-| shape ids (`p:cNvPr@id`) | per slide part | `p:spTgt`, `p:bldP@spid`, `a:stCxn`/`a:endCxn`, `ac:spMk`, `p:txEl` | duplicates exist: id 0 ×3 in `bug62513.pptx` slide 17, id 7 twice across AC branches in `Of16-01.pptx`; reads must tolerate, writes must allocate `max+1` |
+| shape ids (`p:cNvPr@id`) | per slide part | `p:spTgt`, `p:bldP@spid`, `a:stCxn`/`a:endCxn`, `ac:spMk`, `p:txEl` | no duplicate shape ids outside AC in 105 files (the id 0 ×3 in `bug62513.pptx` slide 17 sits inside OLE fallbacks in `a:graphicData`, not on shapes); id 7 twice across AC branches in `Of16-01.pptx`; reads must tolerate, writes must allocate `max+1` |
 | `p14:creationId` | per slide | modern comments `pc:sldMk@cId` | optional |
 | comment authors | `commentAuthors.xml` (`@id`, `@lastIdx`) / `authors.xml` (GUID) | `p:cm@authorId,@idx` / `p188:cm@authorId` | |
 | text positions | per shape | `p:txEl/p:pRg`, `p:charRg`, `ac:txMk@cp,@len` | 97 `p:pRg` in 6 files; Phase 0 refuses edits that would shift them |
@@ -333,15 +335,22 @@ slides", "fix a typo in 40 decks"). Risk: low; no new parts or ids.
 Scope: open/save any `.pptx`/`.pptm`/`.ppsx`/`.potx` losslessly; list slides
 in presentation order; walk shapes (groups, table cells); read text (runs,
 breaks, cached field text) and direct placeholder `type`/`idx`; replace run
-text; set paragraph text (first run keeps its format); add paragraphs and
-runs to an **existing** text body; remove runs/paragraphs (not the last);
-`Err` for fields, AC-wrapped shapes, merged table cells, animated or
-comment-anchored text ranges.
+text; set paragraph text (first run keeps its format); set body text
+(existing paragraphs reused); add paragraphs and runs to an **existing**
+text body; remove runs/paragraphs (not the last) and fields (explicitly);
+`Err` for removing fields implicitly, AC-wrapped shapes, merged table cells,
+animated or comment-anchored text, unsupported paragraph content, format
+sources that need a subtree copy, and characters XML cannot hold.
 
-Acceptance: all 23 fixtures open and save with zero edits byte-identical per
-part (ADR-0001 Layer 1); T1/T1b on every slide part; T2 locality for every
-run in every fixture; independent read-back (python-pptx script) agrees with
-ooxml-pptx's own read for every edited file; every `Err` case has a fixture.
+Acceptance (ADR-0005 rev 2 §7): all 23 fixtures open and save with zero
+edits byte-identical per part (ADR-0001 Layer 1); T1/T1b on every slide
+part; T2 locality for every run, paragraph and body in every fixture; T3:
+python-pptx's read of every edited file equals the expected model
+`apply(edits, python-pptx(input))` and ooxml-pptx's own read; every `Err`
+case has a real or documented synthetic input; manual check in PowerPoint
+(`examples/manual_check.rs`).
+
+Implemented in `crates/ooxml-pptx` (milestone `pptx-phase0`).
 
 ### Phase 1 — read the whole deck
 

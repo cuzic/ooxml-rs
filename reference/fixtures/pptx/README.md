@@ -42,7 +42,7 @@ from `spikes/pptx/survey.py` (slide parts only).
 | `poi/picture-transparency.pptx` | 11,793 | **LibreOffice 25.8** | non-PowerPoint producer; AC-wrapped transitions on 4 slides |
 | `poi/placeholder-layout-color.pptx` | 346,876 | Mac PowerPoint 16 | 3 embedded fonts; placeholder colour inherited from layout |
 | `poi/EmbeddedAudio.pptx` | 90,047 | Mac PowerPoint 16 | embedded audio (`a:audioFile` + `p14:media`), timing |
-| `poi/bug62513.pptx` | 384,775 | PowerPoint 14 | 19 slides, 18 OLE objects, AC in `graphicData`, **duplicate shape id 0** (slide 17) |
+| `poi/bug62513.pptx` | 384,775 | PowerPoint 14 | 19 slides, 18 OLE objects, AC in `graphicData`; `cNvPr id="0"` three times on slide 17, all inside OLE fallbacks in `a:graphicData` (**not** duplicate shape ids, ADR-0005 review M3); `a:normAutofit` caches (manual check 02) |
 | `python-pptx/ph-inherit-props.pptx` | 23,566 | Mac PowerPoint 14 | placeholders whose geometry comes from the layout (Phase 1 oracle) |
 | `python-pptx/shp-connector-props.pptx` | 22,899 | Mac PowerPoint 14 | connectors referencing shape ids |
 | `python-pptx/sld-notes.pptx` | 22,964 | Mac PowerPoint 14 | slide with and without a notes slide |
@@ -83,9 +83,23 @@ b81bda36d34258d78329187df6beb99d12bba5a3bd25e7a51506ede016a72191  open-xml-sdk/a
 Verify with `sha256sum -c` after extracting the block above, run from this
 directory.
 
+## Synthetic test inputs
+
+Constructs that no file here (or in the 105-file survey corpus) contains
+are tested on inputs **derived in memory** from these files by one minimal
+XML edit each, in `crates/ooxml-pptx/tests/refusals.rs` (marked
+`SYNTHETIC:`): `conformance="strict"`, a dangling `sldId@r:id`, a duplicated
+and a missing `cNvPr@id`, an `a14:m` inside `a:p`, `p:pRg` → `p:charRg`,
+a text-range comment anchor (`ac:deMkLst` → `ac:txMkLst` + `ac:txMk`), an
+unknown comment anchor, a malformed comment part, the DrawingML namespace
+declared per element. Nothing derived is written to this directory, and the
+fixtures are never packaged into a crate (they are read by relative path).
+
 ## Known gaps
 
-- No modern comment anchored to a **text range** (`ac:txMk`); ADR-0005 Q5.
+- No modern comment anchored to a **text range** (`ac:txMk`; 0 in the
+  105-file corpus, `spikes/pptx/probe.py`); covered by a synthetic input
+  (above); a real one is still wanted from third-party corpora.
 - No custom show (`p:custShow`) in any of the 105 surveyed files.
 - No Strict-conformance or encrypted `.pptx` (ADR-0001's `Err` cases need a
   separate fixture; the SDK's `encrypted_pptx.pptx` is a candidate).
