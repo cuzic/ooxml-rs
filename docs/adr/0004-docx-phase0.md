@@ -1,6 +1,6 @@
 # ADR-0004: Word Phase0: text edits and paragraph append in `document.xml`
 
-- Status: **Accepted** (revision 4; Opus round-4 review `0004-opus-review-round4.md` converged with Minor findings m12–m14 only, tracked as a follow-up)
+- Status: **Accepted** (revision 4; Opus round-4 review `0004-opus-review-round4.md` converged with Minor findings m12–m14 only; revision 5 fixes them after acceptance, no decision changes)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, oracles, fail-honestly
   stance), [ADR-0002](0002-schema-driven-code-generation.md) (generated views, slots, primitives,
@@ -90,6 +90,30 @@
     custom-properties parts (§6).
   - Corpus check: gate outcomes are unchanged for all 643 files in the POI, SDK and docx4j
     corpora.
+- **Revision 5** (after acceptance; the Minor findings of `0004-opus-review-round4.md`, all fail
+  closed, status stays Accepted):
+  - **m12** — `DOCPROPERTY` matching: a custom property linked to content is checked **before**
+    the built-in allow-list, so a linked custom `Company` or `Title` shadows the built-in and is
+    refused; an argument that is a prefix of a linked name is refused too. Arguments, custom
+    property names and bookmark names are compared after the same normalisation (trimmed, inner
+    whitespace runs collapsed to one space, any Unicode white space, upper-cased). Ambiguous
+    quoting yields no argument (refused): a straight or full-width quote is closed only by the same
+    character, typographic quotes by each other, so `"A”B"` is no longer read as `A`; a quote
+    character inside a bare argument and text glued to a closing quote are refused (§6 W2).
+  - **m13** — `LINK`'s file is its **second** argument (the first is the ProgID), so
+    `LINK Word.Document.12` alone or with `""` is `LINK (non-literal source)`. The item argument
+    (`INCLUDETEXT`'s bookmark, `LINK`'s third argument) is compared with every `w:bookmarkStart`
+    name in the main part and the scanned stories; a match is `<CODE> (self reference)`, refused.
+    This catches the form Word's "paste link" inside one document writes (`LINK Word.Document.12
+    "<own path>" "OLE_LINK1"`) without knowing the path (§6 W2).
+  - **m14** — tests for the surviving mutants: `w:instrText` alone in a text box (M22), first
+    settings part on and second explicitly off (M32, M33), a linked property in a second
+    custom-properties part (M34), `DOCPROPERTY "A{ QUOTE B }"` (M37), plus one test per new rule
+    (each killed by its own mutant). M5 (the paragraph-level `mc:AlternateContent` rule) and M20
+    (the container check of `separate`) stay as **defence in depth**: the container rule already
+    refuses every form they catch in which result runs could reach R1 (§6 W2).
+  - Corpus check: gate outcomes and settable-run maps unchanged for all 737 scanned files (643
+    `.docx`).
 
 ## Context
 
@@ -498,9 +522,17 @@ the first gate (W1, W3, W2 order); `write_gates()` lists all:
   and `BARCODE` with `\b` in any case and spacing (`BARCODE \b`; revision 4). Arguments may be
   quoted with straight or typographic quotes (“ ” „ ‟ ＂; revision 4, m9: Word's AutoFormat
   produces them when a field code is typed by hand, and whether Word reads them as quotes is *(u)*,
-  checked by `manual_check` output `11`). `INCLUDETEXT`, `INCLUDEPICTURE` and `LINK` get the key
-  `<CODE> (non-literal source)` when their instruction contains a nested field or has no literal
-  first argument (revision 4, N3). A calculated text form field (`w:ffData/w:textInput/
+  checked by `manual_check` output `11`). Quoting that could be read two ways yields no argument
+  (revision 5, m12c: `"` and `＂` close only themselves, “ ” „ ‟ close each other; a quote inside a
+  bare argument or text glued to a closing quote is ambiguous). Argument and names are compared
+  trimmed, with inner white space collapsed and upper-cased (revision 5, m12b).
+  `INCLUDETEXT`, `INCLUDEPICTURE` and `LINK` get the key `<CODE> (non-literal source)` when their
+  instruction contains a nested field or has no literal **file** argument: the first argument,
+  or the second for `LINK`, whose first is the ProgID (revision 4, N3; revision 5, m13). With a
+  literal file and an item argument (`INCLUDETEXT`'s bookmark, `LINK`'s third argument) the key is
+  `<CODE> (item <ITEM>)`, which is refused as `<CODE> (self reference)` when `<ITEM>` names a
+  `w:bookmarkStart` of the document (main part or scanned story), and safe otherwise (revision 5,
+  m13). A calculated text form field (`w:ffData/w:textInput/
   w:type w:val="calculated"` on its `begin`) has the key `FORMTEXT (calculated)`. Keys are what
   `StaleFieldRisk { codes }` reports.
 - **Malformed markup fails closed (revision 3, review round 2 m1).** `<malformed field>` is
@@ -512,7 +544,11 @@ the first gate (W1, W3, W2 order); `write_gates()` lists all:
   does not enter `mc:AlternateContent`, would see the field's result runs as outside any field. A
   complete field in a text box's own paragraph inside `mc:AlternateContent` is classified
   normally, and so are fields in block-level `mc:AlternateContent`. Word does not write any of
-  these forms (schema violations); none occurs in the fixtures.
+  these forms (schema violations); none occurs in the fixtures. Since revision 4 a branch of such
+  an `mc:AlternateContent` is its own container, so the container rule below catches every form
+  in which the field's result runs reach R1; this rule is kept as **defence in depth** (revision
+  5, review round 4 m14, mutant M5), like the container check of `separate` (mutant M20), which
+  the check of `end` subsumes for R1.
 - **Field markers follow the body walk (revision 4, review round 3 m7).** The scan reads each
   story with the body walk's own grammar (`body::descend`, shared by both). Inside an element the
   walk does not enter (a text box's `w:txbxContent`, ruby text `w:rt`, `m:oMath`, a branch of
@@ -550,11 +586,15 @@ every layout (review m5's restatement of revision 1's criterion):
     (`fields::DOCPROPERTY_SAFE`);
   - also safe if `X` is a custom property in `docProps/custom.xml` without `linkTarget` and not
     named like a statistic;
+  - refused first, whatever the lists above say (revision 5, m12a): `X` equal to, or a prefix of,
+    the name of a custom property linked to content (a linked custom `Company` shadows the
+    built-in; which one Word returns is *(u)*, so the gate fails closed);
   - everything else is refused: the statistics (`Words`, `Characters`, `CharactersWithSpaces`,
     `Lines`, `Paragraphs`, `Bytes`), properties linked to content, names in no part, and
     `DOCPROPERTY` without a literal argument;
 - links and external content: `HYPERLINK`, `INCLUDEPICTURE`, `INCLUDETEXT`, `LINK` (these three
-  only with a literal source, revision 4), `EMBED`;
+  only with a literal source, revision 4, and not when their item names a bookmark of the
+  document, revision 5), `EMBED`;
 - mail merge: `MERGEFIELD`, `MERGEREC`, `MERGESEQ`, `NEXT`, `NEXTIF`, `SKIPIF`, `GREETINGLINE`,
   `ADDRESSBLOCK`;
 - form fields and user input: `FORMTEXT`, `FORMCHECKBOX`, `FORMDROPDOWN`, `ASK`, `FILLIN`, `SET`;
@@ -574,7 +614,7 @@ arguments or switches that make its result depend on the document's content:
 | `BARCODE` | `\b`: the argument is a bookmark whose text is encoded | `BARCODE \b` refused, in any case and spacing (`bm\b`, `\B`; revision 4) |
 | `FORMTEXT` | calculated type: the result is an expression over other form fields' bookmarks | `FORMTEXT (calculated)` refused |
 | `AUTHOR`, `TITLE`, `SUBJECT`, `KEYWORDS`, `COMMENTS` | an argument *sets* the property | safe: the value comes from the instruction, not from the content |
-| `INCLUDETEXT`, `INCLUDEPICTURE`, `LINK` | the source file: `{ INCLUDETEXT "{ FILENAME \p }" bookmark }` includes the document itself, a known Word idiom for repeating a bookmark's text | revision 4 (review round 3 N3): refused unless the source is a plain literal (`<CODE> (non-literal source)`). A literal path that happens to name the document itself is not detected *(u)*; no `INCLUDETEXT` or `LINK` occurs in the 626-file corpora |
+| `INCLUDETEXT`, `INCLUDEPICTURE`, `LINK` | the source file: `{ INCLUDETEXT "{ FILENAME \p }" bookmark }` includes the document itself, a known Word idiom for repeating a bookmark's text | revision 4 (review round 3 N3): refused unless the source is a plain literal (`<CODE> (non-literal source)`). A literal path that happens to name the document itself is not detected *(u)*, unless the item argument names a bookmark of the document (revision 5, m13: `<CODE> (self reference)`, the form of Word's in-document "paste link"); no `INCLUDETEXT` or `LINK` occurs in the 626-file corpora |
 | `HYPERLINK`, `GOTOBUTTON`, `MACROBUTTON` | `\l` / jump target is a bookmark; a nested field as the target | safe: the bookmark or URL is a target, and the displayed text is the field's own cached result, which Word does not derive from the target |
 | `NEXTIF`, `SKIPIF`, `ASK`, `SET` | comparisons and bookmark assignment | safe: merge data or user input; `SET`/`ASK` assign, and the fields that read the bookmark (`REF`) are refused |
 | `EQ`, `DISPLAYBARCODE` | nested fields as arguments | each nested field is classified on its own |
