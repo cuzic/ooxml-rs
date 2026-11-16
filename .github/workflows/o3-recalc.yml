@@ -1,0 +1,33 @@
+name: O3 recalculation data (manual)
+
+# ADR-0003 §7.1 oracle O3: LibreOffice recalculates the O3 inputs and
+# outputs; the resulting TSV is uploaded as an artifact for the owner to
+# review and commit to reference/fixtures/xlsx/o3/expected.tsv. Then
+# `cargo test -p ooxml-xlsx --test phase1_o3 -- --ignored` checks it.
+on:
+  workflow_dispatch:
+
+jobs:
+  o3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - name: Install LibreOffice
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-calc
+      - name: Write O3 inputs and outputs
+        run: cargo run -p ooxml-xlsx --example o3_inputs -- "$RUNNER_TEMP/o3"
+      - name: Recalculate with LibreOffice
+        run: python3 -I spikes/xlsx/o3_recalc.py "$RUNNER_TEMP/o3" o3/expected.tsv
+      - name: Check
+        run: |
+          mkdir -p reference/fixtures/xlsx/o3
+          cp o3/expected.tsv reference/fixtures/xlsx/o3/expected.tsv
+          cargo test -p ooxml-xlsx --test phase1_o3 -- --ignored
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: o3-expected
+          path: o3/expected.tsv
