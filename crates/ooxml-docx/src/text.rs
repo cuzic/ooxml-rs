@@ -121,6 +121,13 @@ pub(crate) fn check_text_only(run: &RawNode) -> Result<()> {
     Ok(())
 }
 
+/// Does a `w:t` of the run need `xml:space="preserve"` (by
+/// [`needs_preserve`]) without carrying it itself? Word drops the edge
+/// spaces of such text (review round 2, m6).
+pub(crate) fn lacks_needed_preserve(run: &RawNode) -> bool {
+    run.elements().filter(|c| is::<Text>(c)).any(|t| needs_preserve(&t.text()) && t.xml_space_preserve() != Some(true))
+}
+
 /// The run's content as [`Piece`]s, if it is already in the form Phase0
 /// writes (only `w:t`, `w:tab`, text-wrapping `w:br` besides `w:rPr` and
 /// whitespace). Used to make writing the same content a no-op.

@@ -21,6 +21,12 @@ pub(crate) const DIR: QName = w("dir");
 pub(crate) const BDO: QName = w("bdo");
 pub(crate) const RUBY: QName = w("ruby");
 pub(crate) const RUBY_BASE: QName = w("rubyBase");
+pub(crate) const FF_DATA: QName = w("ffData");
+pub(crate) const TEXT_INPUT: QName = w("textInput");
+pub(crate) const TEXT_INPUT_TYPE: QName = w("type");
+pub(crate) const VAL: QName = w("val");
+pub(crate) const WRITE_PROTECTION: QName = w("writeProtection");
+pub(crate) const RECOMMENDED: QName = w("recommended");
 
 /// Relationship types of the story parts scanned for fields (W2).
 pub(crate) const STORY_RELATIONSHIPS: &[&str] = &[
@@ -30,6 +36,14 @@ pub(crate) const STORY_RELATIONSHIPS: &[&str] = &[
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes",
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
 ];
+
+/// Relationship type of `docProps/custom.xml` (package level).
+pub(crate) const CUSTOM_PROPERTIES_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties";
+
+/// Namespace of `docProps/custom.xml`.
+pub(crate) const CUSTOM_PROPERTIES_NS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties";
 
 /// Relationship type of `settings.xml`.
 pub(crate) const SETTINGS_RELATIONSHIP: &str =

@@ -16,6 +16,8 @@ pub enum Error {
     ///   has a `<!DOCTYPE>`);
     /// - O3 [`ooxml_core::Error::StrictNotSupported`] (Strict relationship
     ///   type, or the main part's root in a Strict namespace);
+    /// - O5 [`ooxml_core::Error::TooDeep`] (a parsed or scanned part nests
+    ///   elements deeper than the core parser's limit, 1024 by default);
     /// - A1 [`ooxml_core::Error::UnresolvedSibling`] (append into a body
     ///   with an `mc:AlternateContent` child);
     /// - [`ooxml_core::Error::WrongElement`] (the main part is not a
@@ -32,6 +34,13 @@ pub enum Error {
     #[error("the main document part has no w:body")]
     NoBody,
 
+    /// A2: the body has no `w:sectPr` of its own and ends with a paragraph
+    /// whose `w:pPr` holds the last section's `w:sectPr`. A paragraph
+    /// appended after it would fall into a new section with default page
+    /// settings, so append is refused (Phase0 does not move `w:sectPr`).
+    #[error("the body ends with a section break in its last paragraph; appending would start a new section")]
+    SectionBreakAtEnd,
+
     /// W1: `w:trackRevisions` is on in `settings.xml`. An untracked edit
     /// would break the author's expectation that every change is recorded.
     #[error("track changes is on (settings w:trackRevisions); untracked edits are refused")]
@@ -47,12 +56,16 @@ pub enum Error {
     },
 
     /// W2: a story part has a field whose cached result depends on the
-    /// document's content, or whose code ooxml-rs cannot classify. Writes
-    /// would leave its result silently stale.
+    /// document's content, or whose code ooxml-rs cannot classify, or field
+    /// markup ooxml-rs cannot follow. Writes would leave its result silently
+    /// stale.
     #[error("the document has fields whose cached results could go stale: {codes:?}")]
     StaleFieldRisk {
-        /// The refused field codes, upper-cased, sorted, without
-        /// duplicates (`=` for formulas).
+        /// The refused keys ([`crate::fields::field_key`]), sorted, without
+        /// duplicates: the upper-cased code (`=` for formulas), with the
+        /// classifying argument for `INFO`/`DOCPROPERTY` (`INFO NUMWORDS`)
+        /// and `BARCODE \b`, or a marker such as
+        /// [`crate::fields::MALFORMED`].
         codes: Vec<String>,
     },
 

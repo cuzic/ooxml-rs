@@ -103,20 +103,32 @@ impl Wrapper {
     }
 }
 
-/// A run: its path from the part root, its wrappers (outermost first,
-/// paragraph-level wrappers included) and whether it is inside a complex
-/// field.
+/// One element the walk descended into: its parent frame, its child index
+/// in that parent, and the wrapper it adds. Runs and paragraphs refer to a
+/// frame instead of storing their whole path, so the index is linear in the
+/// number of visited elements whatever the nesting depth (review round 2,
+/// N1: per-run paths made it quadratic in the depth of nested tables).
+#[derive(Clone, Copy, Debug)]
+struct Frame {
+    parent: u32,
+    index: u32,
+    wrapper: Option<Wrapper>,
+}
+
+/// Parent of the `w:body` frame.
+const NO_FRAME: u32 = u32::MAX;
+
+/// A run: its frame, and whether it is inside a complex field.
 #[derive(Clone, Debug)]
 pub(crate) struct RunInfo {
-    pub path: Vec<usize>,
-    pub wrappers: Vec<Wrapper>,
+    pub frame: u32,
     pub in_field: bool,
 }
 
 /// A paragraph in body flow.
 #[derive(Clone, Debug)]
 pub(crate) struct ParaInfo {
-    pub path: Vec<usize>,
+    pub frame: u32,
     pub runs: Vec<RunInfo>,
 }
 
@@ -128,92 +140,120 @@ pub(crate) struct BodyIndex {
     pub paragraphs: Vec<ParaInfo>,
     /// Complex fields still open after the last run of the body.
     pub open_fields_at_end: usize,
+    frames: Vec<Frame>,
 }
 
-#[derive(Default)]
-struct Walker {
-    path: Vec<usize>,
-    wrappers: Vec<Wrapper>,
-    depth: usize,
-    paragraphs: Vec<ParaInfo>,
+impl BodyIndex {
+    /// Child indices from the part root (`w:document`) to the element of
+    /// `frame`.
+    pub(crate) fn path(&self, frame: u32) -> Vec<usize> {
+        let mut path = Vec::new();
+        let mut f = frame;
+        while f != NO_FRAME {
+            let fr = self.frames[f as usize];
+            path.push(fr.index as usize);
+            f = fr.parent;
+        }
+        path.reverse();
+        path
+    }
+
+    /// Wrappers between `w:body` and the element of `frame`, outermost
+    /// first (paragraph-level wrappers included).
+    pub(crate) fn wrappers(&self, frame: u32) -> Vec<Wrapper> {
+        let mut out = Vec::new();
+        let mut f = frame;
+        while f != NO_FRAME {
+            let fr = self.frames[f as usize];
+            out.extend(fr.wrapper);
+            f = fr.parent;
+        }
+        out.reverse();
+        out
+    }
 }
 
-/// Walks the body of a `w:document` root.
+/// How the children of an element on the walk stack are read.
+#[derive(Clone, Copy)]
+enum Mode {
+    /// Body, cells, block/row/cell SDTs and custom XML.
+    Block,
+    /// Paragraph-level content.
+    Inline,
+    /// A run's children (only `w:ruby` is descended into).
+    Run,
+    /// `w:ruby` (only `w:rubyBase`).
+    Ruby,
+}
+
+/// The first element child of `node` at or after child index `from`.
+pub(crate) fn next_element(node: &RawNode, from: usize) -> Option<(usize, &RawNode)> {
+    node.children().get(from..)?.iter().enumerate().find_map(|(k, c)| c.as_element().map(|e| (from + k, e)))
+}
+
+/// Walks the body of a `w:document` root. Iterative: the depth of the part
+/// costs heap, not stack.
 pub(crate) fn index(root: &RawNode) -> BodyIndex {
     let Some((b, body)) = root.indexed_elements().find(|(_, n)| is::<Body>(n)) else {
         return BodyIndex::default();
     };
-    let mut w = Walker { path: vec![b], ..Walker::default() };
-    w.block(body);
-    BodyIndex { body: Some(b), paragraphs: w.paragraphs, open_fields_at_end: w.depth }
-}
-
-impl Walker {
-    fn with<T>(&mut self, index: usize, wrapper: Option<Wrapper>, f: impl FnOnce(&mut Self) -> T) -> T {
-        self.path.push(index);
-        if let Some(wr) = wrapper {
-            self.wrappers.push(wr);
-        }
-        let out = f(self);
-        if wrapper.is_some() {
-            self.wrappers.pop();
-        }
-        self.path.pop();
-        out
-    }
-
-    /// Block-level content: body, cells, block/row/cell SDTs and custom XML.
-    fn block(&mut self, node: &RawNode) {
-        for (i, child) in node.indexed_elements() {
-            if is::<Paragraph>(child) {
-                self.with(i, None, |w| w.paragraph(child));
-            } else if is::<Table>(child) || is::<TableRow>(child) || is::<TableCell>(child) || child.is(SDT_CONTENT) {
-                self.with(i, None, |w| w.block(child));
-            } else if child.is(SDT) || child.is(CUSTOM_XML) {
-                self.with(i, Wrapper::of(child), |w| w.block(child));
+    let mut out = BodyIndex { body: Some(b), ..BodyIndex::default() };
+    let new_frame = |out: &mut BodyIndex, parent: u32, index: usize, wrapper: Option<Wrapper>| -> u32 {
+        let id = u32::try_from(out.frames.len()).expect("fewer than 2^32 elements");
+        out.frames.push(Frame { parent, index: u32::try_from(index).expect("child index fits u32"), wrapper });
+        id
+    };
+    let body_frame = new_frame(&mut out, NO_FRAME, b, None);
+    let mut depth = 0usize;
+    // (element, its frame, mode, index of the next child to look at)
+    let mut stack: Vec<(&RawNode, u32, Mode, usize)> = vec![(body, body_frame, Mode::Block, 0)];
+    while let Some((node, frame, mode, next)) = stack.last_mut() {
+        let (node, frame, mode) = (*node, *frame, *mode);
+        let Some((i, child)) = next_element(node, *next) else {
+            stack.pop();
+            continue;
+        };
+        *next = i + 1;
+        let enter = match mode {
+            Mode::Block if is::<Paragraph>(child) => {
+                let f = new_frame(&mut out, frame, i, None);
+                out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new() });
+                Some((f, Mode::Inline))
             }
-        }
-    }
-
-    fn paragraph(&mut self, node: &RawNode) {
-        let mut runs = Vec::new();
-        self.inline(node, &mut runs);
-        self.paragraphs.push(ParaInfo { path: self.path.clone(), runs });
-    }
-
-    /// Paragraph-level content.
-    fn inline(&mut self, node: &RawNode, runs: &mut Vec<RunInfo>) {
-        for (i, child) in node.indexed_elements() {
-            if is::<Run>(child) {
-                self.with(i, None, |w| w.run(child, runs));
-            } else if child.is(SDT_CONTENT) {
-                self.with(i, None, |w| w.inline(child, runs));
-            } else if let Some(wr) = Wrapper::of(child) {
-                self.with(i, Some(wr), |w| w.inline(child, runs));
+            Mode::Block
+                if is::<Table>(child) || is::<TableRow>(child) || is::<TableCell>(child) || child.is(SDT_CONTENT) =>
+            {
+                Some((new_frame(&mut out, frame, i, None), Mode::Block))
             }
+            Mode::Block if child.is(SDT) || child.is(CUSTOM_XML) => {
+                Some((new_frame(&mut out, frame, i, Wrapper::of(child)), Mode::Block))
+            }
+            Mode::Inline if is::<Run>(child) => {
+                let f = new_frame(&mut out, frame, i, None);
+                let before = depth;
+                let mut has_fld_char = false;
+                for c in child.elements().filter(|c| is::<FieldChar>(c)) {
+                    has_fld_char = true;
+                    match c.attr(FieldChar::ATTR_W_FLD_CHAR_TYPE) {
+                        Some("begin") => depth += 1,
+                        Some("end") => depth = depth.saturating_sub(1),
+                        _ => {}
+                    }
+                }
+                let para = out.paragraphs.last_mut().expect("runs are only walked inside a paragraph");
+                para.runs.push(RunInfo { frame: f, in_field: before > 0 || depth > 0 || has_fld_char });
+                Some((f, Mode::Run))
+            }
+            Mode::Inline if child.is(SDT_CONTENT) => Some((new_frame(&mut out, frame, i, None), Mode::Inline)),
+            Mode::Inline => Wrapper::of(child).map(|w| (new_frame(&mut out, frame, i, Some(w)), Mode::Inline)),
+            Mode::Run if child.is(RUBY) => Some((new_frame(&mut out, frame, i, Some(Wrapper::Ruby)), Mode::Ruby)),
+            Mode::Ruby if child.is(RUBY_BASE) => Some((new_frame(&mut out, frame, i, None), Mode::Inline)),
+            _ => None,
+        };
+        if let Some((f, m)) = enter {
+            stack.push((child, f, m, 0));
         }
     }
-
-    fn run(&mut self, node: &RawNode, runs: &mut Vec<RunInfo>) {
-        let before = self.depth;
-        let mut has_fld_char = false;
-        for child in node.elements().filter(|c| is::<FieldChar>(c)) {
-            has_fld_char = true;
-            match child.attr(FieldChar::ATTR_W_FLD_CHAR_TYPE) {
-                Some("begin") => self.depth += 1,
-                Some("end") => self.depth = self.depth.saturating_sub(1),
-                _ => {}
-            }
-        }
-        runs.push(RunInfo {
-            path: self.path.clone(),
-            wrappers: self.wrappers.clone(),
-            in_field: before > 0 || self.depth > 0 || has_fld_char,
-        });
-        for (j, ruby) in node.indexed_elements().filter(|(_, c)| c.is(RUBY)) {
-            for (k, base) in ruby.indexed_elements().filter(|(_, c)| c.is(RUBY_BASE)) {
-                self.with(j, Some(Wrapper::Ruby), |w| w.with(k, None, |w| w.inline(base, runs)));
-            }
-        }
-    }
+    out.open_fields_at_end = depth;
+    out
 }

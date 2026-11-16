@@ -46,6 +46,18 @@ mod text;
 pub use document::{Document, Paragraph, Run};
 pub use error::{Error, Result};
 
+/// `settings/w:writeProtection`, as reported by
+/// [`Document::write_protection`]. It does not gate writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct WriteProtection {
+    /// `w:recommended` is on ("open as read-only" is suggested).
+    pub recommended: bool,
+    /// A password hash (`w:hash` or `w:hashValue`) is present: Word asks for
+    /// it before saving over the file.
+    pub has_password: bool,
+}
+
 /// Where a run sits (ADR-0004 §3). Only [`RunContext::Direct`] and
 /// [`RunContext::Hyperlink`] runs can be settable in Phase0.
 ///
