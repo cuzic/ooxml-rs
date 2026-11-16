@@ -18,7 +18,7 @@ python3 -I spikes/xlsx-phase4/range_survey.py --summary /tmp/poi-xlsx | grep '^#
 
 **Corpus (revision 2, review m11).** The numbers in ADR-0014 revision 2 come from the **full**
 `test-data/spreadsheet` directory of Apache POI at `47dcff769bb395034dddfd59c4609659b6dbc6a4`
-(367 files, fetched 2026-11-16). 342 of them are readable Transitional packages: the rest are
+(367 `.xlsx` + `.xlsm` files, fetched 2026-11-16; the directory's one `.xltx` is not counted). 342 of them are readable Transitional packages: the rest are
 Strict, encrypted, fuzzing cases or not zip, and 4 packages with a DTD in some part are skipped
 (`r2:dtd_part`).
 

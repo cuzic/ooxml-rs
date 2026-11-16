@@ -242,7 +242,9 @@ def survey(path):
                 if fx is not None:
                     t = "".join(fx.itertext())
                     if "!" in t:
-                        c("x14:dv_other_sheet")
+                        # any "!", including "#REF!": not "another sheet" (that is
+                        # r2:x14_dv_source:other_sheet); renamed in revision 3 (review R2)
+                        c("x14:dv_formula1_contains_bang")
                     c("r2:x14_dv_source:" + ("ref_error" if "#REF!" in t else
                                               "other_sheet" if "!" in t else
                                               "inline_list" if t.startswith('"') else "same_sheet_or_name"))

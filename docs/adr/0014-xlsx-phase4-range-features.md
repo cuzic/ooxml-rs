@@ -1,6 +1,7 @@
 # ADR-0014: xlsx Phase4 — range features on existing worksheets
 
-- Status: **Proposed** (revision 2)
+- Status: **Accepted** (revision 3; review round 2: "Accepted after Minor only: yes", with the
+  conditions recorded in §12 and §3)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layers 1–3, T1/T1b/T2, append-only
@@ -8,11 +9,14 @@
     anchors (§3).
   - [ADR-0002](0002-schema-driven-code-generation.md): typed lens, allowlist, §4.3 insertion
     (schema slots, `mc:AlternateContent` refusal).
-  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) (PR #20): tokenizer, name and sheet
+  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) (Accepted, revision 5; PR #20): tokenizer, name and sheet
     resolution, plan → validate → apply, poisoning.
   - [ADR-0006](0006-xlsx-phase2-shared-strings-and-styles.md) (Accepted): the `dxfs` registry
     (§5 item 8) and the package-wide `numFmtId` allocator (§5 item 3).
-  - [ADR-0009](0009-xlsx-phase3-sheet-operations.md) **revision 2** (PR #27):
+  - [ADR-0009](0009-xlsx-phase3-sheet-operations.md), **the version that is Accepted**
+    (revision 2 or later; PR #27; revision 3 is Proposed at the time of writing). §12's
+    subset condition is re-checked against that version when it is accepted (revision 3,
+    review R2-5):
     - defined names (§9);
     - `set_print_area`/`set_print_titles`;
     - the rename table of formula locations (§6) and its closed-world scan;
@@ -55,6 +59,26 @@
     - `cols` (m6), panes (m7), page setup (m8), protection encoding (m9) and merge details
       (m10);
     - the corpus table re-run on the full pinned copy (m11).
+- **Revision 3** (after `0014-opus-review-round2.md`: Minor only, "Accepted after Minor only:
+  yes"; branch merged with `origin/main`). Status **Accepted**.
+  - **R2-1:** the merged-cell relaxation covers **value and formula writes**: anchor allowed,
+    non-anchor `MergedCell`. **Style-only writes** are allowed on every cell of a merged
+    range. `merge`/`unmerge` update `SheetContext.merges` in the same apply step. The tests and
+    documents the implementation changes are listed (§3), and ADR-0001's note states the same
+    scope.
+  - **R2-2:** `merge_clearing` and `set_hyperlink` with `opts.text` compose ADR-0003 §7's
+    allowed diff for the cell write (dependents' caches, `calcPr`, `calcChain`). `opts.text`
+    is the same write as `set_string` (shared when the workbook has an sst). `protect_sheet`'s
+    attribute removal and `remove_autofilter`'s emptied `sheetPr` are in the table.
+  - **R2-3:** "generated from this table" is defined: a data table in
+    `tests/allowed_diff.rs`, a name-set equality test, a span-based judgement and per-row
+    mutants (§2).
+  - **R2-4:** `remove_autofilter` keeps `_FilterDatabase`, as Excel does. Rewriting the
+    name's text in `set_autofilter` is an ADR-0009 §9 name edit.
+  - **R2-5:** depends on ADR-0009's Accepted version; §12's subset condition is re-checked
+    then. Why Phase4 keeps in-place edits next to ADR-0009 rev 3's `stage_part` is recorded,
+    with the rule that Phase4 follows if `stage_part` becomes the xlsx-wide rule.
+  - **Owner decision 2026-11-16:** Q1–Q4 accepted as proposed.
   - The reviewer's answers to Q1–Q4 are recorded as **proposed defaults** pending the owner.
     Q2 refuses cross-sheet list sources until an Excel check, and documents the defined-name
     workaround.
@@ -220,7 +244,22 @@ to write in `codegen/allowlist/sml.toml`, plus hand-written x14 lenses for the `
 
 Phase1's byte-exact allowed-diff oracle (ADR-0003 §7) is reused. For each call, the expected
 output is the input with exactly the changes this table allows for that call. Every other byte
-and part must be identical, and the oracle is **generated from this table**.
+and part must be identical.
+
+**"Generated from this table" (revision 3, review R2-3)** means:
+
+- The table also exists as **data**: a `const` table in `crates/ooxml-xlsx/tests/allowed_diff.rs`
+  mapping each call to a `&[Allowed]`. An `Allowed` is `{ part, path, kind }`: `part` selects
+  the sheet, its `.rels`, `workbook.xml`, `styles.xml`, …; `path` is the element path
+  (`mergeCells/mergeCell`); `kind` is `Create`, `Remove`, `EditAttrs(&[names])` or
+  `Children`. `Compose(Phase1CellWrite { cell })` and `Compose(Phase2Registry)` include
+  ADR-0003 §7's allowed diff for a cell write and ADR-0006's T2-append.
+- A test checks that the set of call names in this ADR table equals the set in the data table,
+  so neither can gain a row alone.
+- The oracle judges with Layer 2 spans: every byte outside the spans of the allowed elements
+  (and outside the allowed attributes' values) is identical, by `assert_t2`'s algorithm.
+- Mutation check: for each row, a mutant that touches one sibling element the row does not
+  allow must fail the oracle.
 
 Across all features:
 
@@ -233,17 +272,17 @@ Across all features:
 | Call | Sheet part | Other parts |
 |---|---|---|
 | `merge` | one new `mergeCell`; `mergeCells` container + `count` | — |
-| `merge_clearing` | as `merge`, plus the cleared `v`/`is`/`f` of non-anchor cells (Phase1 removals) | `calcChain.xml` removed when the formula set changes (Phase1); `sst/@count` (Phase2) |
+| `merge_clearing` | as `merge`, plus the cleared `v`/`is`/`f` and `t` of non-anchor cells; **composed with** ADR-0003 §7's allowed diff for each cleared cell (dependents' `v`/`t`/`is`, other sheets included) | the same composition: `workbook.xml` `calcPr/@fullCalcOnLoad` (with `calcPr` created), `calcChain.xml` removed when the formula set changes; `sst/@count` (Phase2) |
 | `unmerge` | one `mergeCell` removed; container + `count` | — |
-| `set_hyperlink` | one new `hyperlink` (`ref`, `r:id` or `location`, `display`, `tooltip`); `hyperlinks` container; with `opts.text`, the anchor cell's value (Phase0 write) | the sheet's `.rels` (one appended `Relationship`, or the part created); `[Content_Types].xml` only through core's rules when the `.rels` part is created; with `opts.text`, the `sst`/style registries (Phase2) |
+| `set_hyperlink` | one new `hyperlink` (`ref`, `r:id` or `location`, `display`, `tooltip`); `hyperlinks` container; with `opts.text`, the anchor cell's string write (§4), **composed with** ADR-0003 §7's allowed diff for that cell | the sheet's `.rels` (one appended `Relationship`, or the part created); `[Content_Types].xml` only through core's rules when the `.rels` part is created; with `opts.text`: Phase1's `workbook.xml`/`calcChain.xml` changes as composed, `sharedStrings.xml` by T2-append when the workbook has an sst (§4), and `styles.xml` only with the "Hyperlink" style opt-in |
 | `remove_hyperlink` | the `hyperlink` element(s); container | — (the relationship stays, §4) |
 | `add_validation` | one new `dataValidation`; `dataValidations` container + `count` | — |
 | `remove_validation` | the rule(s); container + `count`; for x14: the `x14:dataValidation`, `x14:dataValidations/@count`, and the `ext` element when it becomes empty | — |
 | `add_conditional_format` | one new `conditionalFormatting` block with one `cfRule` (a new block: §6) | `styles.xml`: one appended `dxf` + `dxfs/@count` (Phase2 registry), possibly a new `numFmt` (ADR-0006 §5 item 3) |
 | `add_conditional_format_first` | as above, plus `priority` on **every** other `cfRule` **and every `x14:cfRule`** in `extLst` | as above |
 | `remove_conditional_format` | the `cfRule`, its block when empty; for linked rules the `x14:cfRule`, its `x14:conditionalFormatting` when empty, and the `ext` when empty | — |
-| `set_autofilter` | `autoFilter` (new, or `@ref` of an existing plain one, §7) | `workbook.xml`: the local `_FilterDatabase`'s text and `hidden`, or one new `definedName` and the `definedNames` container when absent |
-| `remove_autofilter` | the `autoFilter` element with its children; `sheetPr/@filterMode` | `workbook.xml`: the local `_FilterDatabase`, and `definedNames` when it becomes empty |
+| `set_autofilter` | `autoFilter` (new, or `@ref` of an existing plain one, §7) | `workbook.xml`: the local `_FilterDatabase`'s text and `hidden`, or one new `definedName` and the `definedNames` container when absent; when an existing name's text changes, **composed with** ADR-0009 §9's name edit (Phase1 invalidation of formulas that use the name) |
+| `remove_autofilter` | the `autoFilter` element with its children; `sheetPr/@filterMode` (an emptied `sheetPr` element stays) | — (the `_FilterDatabase` name stays, §7) |
 | `freeze_panes`/`split_panes`/`unfreeze` | the `sheetView` (created in `sheetViews`, both in their slots, when absent); its `pane`; its `selection` elements (replaced as in §8) | — |
 | `set_zoom`/`set_show_gridlines`/`set_right_to_left` | attributes of that `sheetView` (created when absent) | — |
 | column setters | the `col` elements of the range (edited, split, new); `cols` container; `sheetFormatPr/@outlineLevelCol` (and `sheetFormatPr` itself, created with the required `defaultRowHeight`, §9) | — |
@@ -251,7 +290,7 @@ Across all features:
 | `page_setup_mut` | `pageSetup` attributes (created when absent); for fit-to-page `sheetPr/pageSetUpPr/@fitToPage`, with `sheetPr` and `pageSetUpPr` created when absent | — |
 | `set_margins`/`set_print_options`/`set_header_footer` | that element (created when absent) | — |
 | `add_row_break`/`add_col_break` | one `brk`; container + `count` + `manualBreakCount` | — |
-| `protect_sheet`/`unprotect_sheet` | `sheetProtection` (created, attributes replaced as in §11, or removed) | — |
+| `protect_sheet`/`unprotect_sheet` | `sheetProtection` (created, attributes replaced as in §11, or removed); replacing may **remove** an existing attribute whose value equals the default (§11) | — |
 | `protect_workbook` | — | `workbook.xml`: `workbookProtection` (as in §11) |
 
 A call whose changes would fall outside its row is a bug. The oracle reports it as such and
@@ -281,17 +320,34 @@ nobody widens the table ad hoc.
   (`NoSuchMerge` otherwise).
   - The non-anchor cells keep whatever they hold. In a file with hidden values (`60512.xlsm`)
     those values become visible again. The API documentation says so (m10).
-- **Writing into merged ranges (revision 2, review M1).** Phase0 and Phase1 refuse writes into
-  any cell of a merged range, the anchor included (ADR-0001 Phase0 list; ADR-0003's guard
-  table; implemented as `ctx.merges.iter().find(|m| m.contains(at))` in `edit.rs`).
-  - Phase4 **deliberately relaxes** this: a write to the **anchor** (top-left cell) of a merged
-    range is allowed, as in Excel.
-  - A write to a **non-anchor** cell stays `Err(MergedCell)`, so no new hidden value is ever
-    created.
-  - This is a behaviour change of Phase0. It is recorded as a post-acceptance note in ADR-0001
-    (this PR), and ADR-0003's guard row "Write into any cell of a merged range (top-left
-    included)" becomes "Write into a non-anchor cell of a merged range" when Phase4 is
-    implemented.
+- **Writing into merged ranges (revision 2, review M1; scope made exact in revision 3, R2-1).**
+  Phase0 and Phase1 refuse writes into any cell of a merged range, the anchor included
+  (ADR-0001 Phase0 list; ADR-0003's guard table; implemented as
+  `ctx.merges.iter().find(|m| m.contains(at))` in `edit.rs`). Phase4 **deliberately relaxes**
+  this:
+  - **Value and formula writes** (`set_number`, `set_string`, `set_string_inline`,
+    `set_formula`, `remove_formula`, `set_bool`, `set_error`, `set_datetime` and the
+    `*_with_format` forms): allowed on the **anchor** (top-left cell), as in Excel; on a
+    **non-anchor** cell they stay `Err(MergedCell)`, so no new hidden value is ever created.
+    The later guards still apply: an anchor inside an array range, a table header or a `vm`
+    cell is refused by them, since `edit_cell` evaluates merge → table header → array anchor
+    → array result.
+  - **Style-only writes** (ADR-0006 §7.3: `set_format`, `set_style_index`,
+    `set_named_style`, `set_num_format`/`set_font`/`set_fill`/`set_border`): allowed on
+    **every** cell of a merged range. They create no value, and Excel formats edge cells
+    individually (the outer border of a merged range is the edge cells' borders).
+  - **Session state.** The guard reads `SheetContext.merges`. `merge`, `merge_clearing` and
+    `unmerge` update that list in the same apply step as the sheet edit. Tests: after `merge`,
+    a value write to a non-anchor cell is `Err(MergedCell)`; after `unmerge`, it succeeds.
+  - **Tests and documents that change** when this is implemented (the implementation PR lists
+    them as intended changes):
+    - `tests/refusals.rs` `r6_merged`: the write to `B1`, an anchor, becomes `Ok`;
+    - `tests/edit.rs` (line 15's sweep): `Expect::Merged` no longer applies to anchors;
+    - `crates/ooxml-xlsx/README.md`'s `MergedCell` row ("top-left cell included");
+    - ADR-0003's guard row ("Write into any cell of a merged range (top-left included)" →
+      "A value or formula write to a non-anchor cell of a merged range") and its line 31
+      ("refusal of every cell of a merged range");
+    - ADR-0001's post-acceptance note (this PR) states the same scope.
   - Existing hidden values (fact 1) are untouched by every other Phase4 call.
 - `count` is updated. calamine exposes merges, so CR covers this feature.
 
@@ -316,8 +372,11 @@ nobody widens the table ad hoc.
 - **Internal links.** `location` only. The target is lexed with the Phase1 tokenizer and
   resolved with ADR-0003 §2.4 (unknown sheet → `Err(UnknownSheet)`).
 - `display` and `tooltip` are optional.
-  - The **cell value is not changed** unless the caller asks (`opts.text`). That writes an
-    inline string through Phase0, to the anchor of a merged range if the cell is in one (§3).
+  - The **cell value is not changed** unless the caller asks (`opts.text`). That is the same
+    write as `set_string` (revision 3, review R2-2): a shared string through ADR-0006's
+    registry when the workbook has a `sharedStrings.xml`, else an inline string. It goes to
+    the anchor of a merged range if the cell is in one (§3), and it is a Phase1 value write
+    (dependents lose their caches, as composed in §2).
   - Applying the "Hyperlink" cell style is a Phase2 named-style lookup and is opt-in.
 - A new hyperlink whose `ref` overlaps an existing one is refused (`HyperlinkOverlap`).
 - **Removal** removes the `hyperlink` element and **keeps** the relationship (review m2). Core
@@ -439,6 +498,8 @@ nobody widens the table ad hoc.
     - A **workbook-scope** `_FilterDatabase` (1 corpus file, text `#REF!`) is never touched.
   - ADR-0009 rev 2 §9 refuses `_xlnm.*` writes other than print names, and reserves
     `_FilterDatabase` for this phase. The name rules and the formula text follow ADR-0009 §9.
+    Rewriting an existing name's text is a name edit under ADR-0009 §9: formulas that use
+    `_FilterDatabase` (none expected) are invalidated like any name edit (§2's row).
   - A range overlapping a table is refused (`TableOverlap`): tables carry their own
     `autoFilter`.
 - **Filter criteria are out of scope.** Writing a `filterColumn` without hiding the rows it
@@ -449,9 +510,11 @@ nobody widens the table ad hoc.
     `Err(FilterActive)`. Removing it would leave rows hidden that no filter explains. A later
     `remove_autofilter_showing_rows` could unhide them and report which ones (Alternatives 7).
     Corpus: 0 active filters;
-  - otherwise it removes the `autoFilter` element with its children, clears
-    `sheetPr/@filterMode` if present (0 in the corpus), and removes the local
-    `_FilterDatabase` (refusing on duplicates as above);
+  - otherwise it removes the `autoFilter` element with its children and clears
+    `sheetPr/@filterMode` if present (0 in the corpus). **The local `_FilterDatabase` name is
+    kept** (revision 3, review R2-4), as Excel keeps it (fact 5), and `set_autofilter`'s reuse
+    rule relies on it. Removing it would widen the diff to `workbook.xml` and would be a name
+    deletion under ADR-0009 §9 (`NameInUse` when used). `workbook.xml` is not touched;
   - the **sheet-level** `sortState` (a direct child of `worksheet`) is Excel's record of the
     last sort, independent of the filter (fact 5). It is **kept**. Revision 1 removed it.
 
@@ -569,7 +632,10 @@ nobody widens the table ad hoc.
 
 **Formula and reference sites created by Phase4**, and where ADR-0009 rev 2 handles them.
 ADR-0014 is accepted only if this list is a subset of ADR-0009 rev 2's §6 rename table and of
-its closed-world scan.
+its closed-world scan. **Acceptance condition (revision 3, review R2-5):** the subset is
+re-checked against ADR-0009's **Accepted** version when it is accepted. The review confirmed it
+for rev 2; ADR-0009's open round-2 finding R2-M1 (drawing `.rels` `#Sheet!A1`) touches no
+Phase4 site.
 
 | Site | Syntax | ADR-0009 rev 2 §6 (rename) | §5 (delete) |
 |---|---|---|---|
@@ -612,6 +678,15 @@ hyperlinks only, and edits two parts for autofilters.
   registry entry. Both edits are planned and checked first, then applied in place, and a
   failure poisons (ADR-0003 §3.1). ADR-0009 rev 2 stages `workbook.xml` in a `RegistryPlan`
   for its own operations. Phase4 needs no plan, because no part or relationship is added.
+- **Relation to ADR-0009's `stage_part` (revision 3, review R2-5).** ADR-0009 revision 3
+  (Proposed) resolves its R2-M2 by putting everything one operation changes, Phase1's cache
+  stripping included, into the plan through `stage_part`. Phase4 keeps the in-place order
+  above for its two multi-part cases. Each is a small, fully validated edit: one sheet
+  element plus one relationship, or one sheet element plus one name. Staging would clone a
+  possibly large sheet for every hyperlink, while step 4 is already proven not to fail
+  after step 1 (the same reasoning as ADR-0011 §1). If ADR-0009's Accepted version makes
+  `stage_part` the rule for every multi-part xlsx operation, Phase4 follows it, and the
+  hyperlink and autofilter orders here change to that form.
 
 **Phase1 and Phase2:**
 
@@ -733,8 +808,10 @@ For every feature:
 
 ## Open questions for the project owner
 
-The round-1 reviewer's recommendations are recorded as **proposed defaults**, pending the
-owner's confirmation:
+**Owner decision 2026-11-16:** Q1–Q4 are decided as their proposed defaults below (merge refuses
+by default, with the `merge_clearing` opt-in; cross-sheet list validation refused until the XL
+check; CF priority `max + 1`; a salt option with the OS CSPRNG by default and spin count ≤
+10,000,000). They were recorded first as the round-1 reviewer's recommendations:
 
 1. **Merge default.** *Proposed default:* refusal is the default, and `merge_clearing` is
    opt-in. Values that disappear are data loss with Phase1 invalidation, so they need an
