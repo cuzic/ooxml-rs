@@ -3743,6 +3743,284 @@ impl<'a> DefinedNamesView<'a> {
         self.0.raw()
     }
 }
+/// `x:CT_Dxf/x:dxf` — Formatting.
+#[derive(Debug)]
+pub enum DifferentialFormat {}
+impl ooxml_core::ElementSpec for DifferentialFormat {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dxf");
+    const SDK_NAME: &'static str = "x:CT_Dxf/x:dxf";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "font")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "numFmt")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "fill")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "alignment")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "border")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "protection")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DifferentialFormat> for Border {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Alignment {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Protection {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Fill {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Font {}
+impl ooxml_core::ChildOf<DifferentialFormat> for NumberingFormat {}
+/// Read-only view of [`DifferentialFormat`].
+#[derive(Clone, Debug)]
+pub struct DifferentialFormatView<'a>(pub ooxml_core::Lens<'a, DifferentialFormat>);
+impl<'a> DifferentialFormatView<'a> {
+    /// First `x:border` child.
+    pub fn border(&self) -> Option<BorderView<'a>> {
+        self.0.child::<Border>().map(BorderView)
+    }
+    /// First `x:alignment` child.
+    pub fn alignment(&self) -> Option<AlignmentView<'a>> {
+        self.0.child::<Alignment>().map(AlignmentView)
+    }
+    /// First `x:protection` child.
+    pub fn protection(&self) -> Option<ProtectionView<'a>> {
+        self.0.child::<Protection>().map(ProtectionView)
+    }
+    /// First `x:fill` child.
+    pub fn fill(&self) -> Option<FillView<'a>> {
+        self.0.child::<Fill>().map(FillView)
+    }
+    /// First `x:font` child.
+    pub fn font(&self) -> Option<FontView<'a>> {
+        self.0.child::<Font>().map(FontView)
+    }
+    /// First `x:numFmt` child.
+    pub fn numbering_format(&self) -> Option<NumberingFormatView<'a>> {
+        self.0.child::<NumberingFormat>().map(NumberingFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DifferentialFormat`]. Reads go through [`DifferentialFormatViewMut::as_view`].
+#[derive(Debug)]
+pub struct DifferentialFormatViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DifferentialFormat>,
+);
+impl<'a> DifferentialFormatViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DifferentialFormatView<'_> {
+        DifferentialFormatView(self.0.as_lens())
+    }
+    /// First `x:border` child, mutably.
+    pub fn border_mut(&mut self) -> Option<BorderViewMut<'_>> {
+        self.0.child_mut::<Border>().map(BorderViewMut)
+    }
+    /// Existing `x:border` child, or a new one in schema position.
+    pub fn get_or_insert_border(
+        &mut self,
+    ) -> Result<BorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Border>().map(BorderViewMut)
+    }
+    /// Removes the first `x:border` child.
+    pub fn remove_border(&mut self) -> bool {
+        self.0.remove::<Border>()
+    }
+    /// First `x:alignment` child, mutably.
+    pub fn alignment_mut(&mut self) -> Option<AlignmentViewMut<'_>> {
+        self.0.child_mut::<Alignment>().map(AlignmentViewMut)
+    }
+    /// Existing `x:alignment` child, or a new one in schema position.
+    pub fn get_or_insert_alignment(
+        &mut self,
+    ) -> Result<AlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Alignment>().map(AlignmentViewMut)
+    }
+    /// Removes the first `x:alignment` child.
+    pub fn remove_alignment(&mut self) -> bool {
+        self.0.remove::<Alignment>()
+    }
+    /// First `x:protection` child, mutably.
+    pub fn protection_mut(&mut self) -> Option<ProtectionViewMut<'_>> {
+        self.0.child_mut::<Protection>().map(ProtectionViewMut)
+    }
+    /// Existing `x:protection` child, or a new one in schema position.
+    pub fn get_or_insert_protection(
+        &mut self,
+    ) -> Result<ProtectionViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Protection>().map(ProtectionViewMut)
+    }
+    /// Removes the first `x:protection` child.
+    pub fn remove_protection(&mut self) -> bool {
+        self.0.remove::<Protection>()
+    }
+    /// First `x:fill` child, mutably.
+    pub fn fill_mut(&mut self) -> Option<FillViewMut<'_>> {
+        self.0.child_mut::<Fill>().map(FillViewMut)
+    }
+    /// Existing `x:fill` child, or a new one in schema position.
+    pub fn get_or_insert_fill(&mut self) -> Result<FillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Fill>().map(FillViewMut)
+    }
+    /// Removes the first `x:fill` child.
+    pub fn remove_fill(&mut self) -> bool {
+        self.0.remove::<Fill>()
+    }
+    /// First `x:font` child, mutably.
+    pub fn font_mut(&mut self) -> Option<FontViewMut<'_>> {
+        self.0.child_mut::<Font>().map(FontViewMut)
+    }
+    /// Existing `x:font` child, or a new one in schema position.
+    pub fn get_or_insert_font(&mut self) -> Result<FontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Font>().map(FontViewMut)
+    }
+    /// Removes the first `x:font` child.
+    pub fn remove_font(&mut self) -> bool {
+        self.0.remove::<Font>()
+    }
+    /// First `x:numFmt` child, mutably.
+    pub fn numbering_format_mut(&mut self) -> Option<NumberingFormatViewMut<'_>> {
+        self.0.child_mut::<NumberingFormat>().map(NumberingFormatViewMut)
+    }
+    /// Existing `x:numFmt` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_format(
+        &mut self,
+    ) -> Result<NumberingFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NumberingFormat>().map(NumberingFormatViewMut)
+    }
+    /// Removes the first `x:numFmt` child.
+    pub fn remove_numbering_format(&mut self) -> bool {
+        self.0.remove::<NumberingFormat>()
+    }
+}
+/// `x:CT_Dxfs/x:dxfs` — Defines the DifferentialFormats Class.
+#[derive(Debug)]
+pub enum DifferentialFormats {}
+impl DifferentialFormats {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for DifferentialFormats {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dxfs");
+    const SDK_NAME: &'static str = "x:CT_Dxfs/x:dxfs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DifferentialFormats::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "dxf")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DifferentialFormats> for DifferentialFormat {}
+/// Read-only view of [`DifferentialFormats`].
+#[derive(Clone, Debug)]
+pub struct DifferentialFormatsView<'a>(pub ooxml_core::Lens<'a, DifferentialFormats>);
+impl<'a> DifferentialFormatsView<'a> {
+    /// `count` — Format Count
+    pub fn count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DifferentialFormats::ATTR_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `x:dxf` children in document order.
+    pub fn differential_format_iter(
+        &self,
+    ) -> impl Iterator<Item = DifferentialFormatView<'a>> {
+        self.0.children::<DifferentialFormat>().map(DifferentialFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DifferentialFormats`]. Reads go through [`DifferentialFormatsViewMut::as_view`].
+#[derive(Debug)]
+pub struct DifferentialFormatsViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DifferentialFormats>,
+);
+impl<'a> DifferentialFormatsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DifferentialFormatsView<'_> {
+        DifferentialFormatsView(self.0.as_lens())
+    }
+    /// Sets `count` — Format Count
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DifferentialFormats::ATTR_COUNT, s),
+        )
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DifferentialFormats::ATTR_COUNT)
+    }
+    /// First `x:dxf` child matching `pred`, mutably.
+    pub fn differential_format_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DifferentialFormatViewMut<'_>> {
+        self.0.child_mut_by::<DifferentialFormat>(pred).map(DifferentialFormatViewMut)
+    }
+    /// Inserts a `x:dxf` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_differential_format_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DifferentialFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DifferentialFormat>(before).map(DifferentialFormatViewMut)
+    }
+    /// Appends a `x:dxf` at the end of its slot.
+    pub fn insert_differential_format(
+        &mut self,
+    ) -> Result<DifferentialFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DifferentialFormat>().map(DifferentialFormatViewMut)
+    }
+    /// Removes the first `x:dxf` child.
+    pub fn remove_differential_format(&mut self) -> bool {
+        self.0.remove::<DifferentialFormat>()
+    }
+}
 /// `x:CT_Fill/x:fill` — Fill.
 #[derive(Debug)]
 pub enum Fill {}
@@ -4231,6 +4509,55 @@ impl<'a> FontFamilyNumberingViewMut<'a> {
         self.0.remove_attr(FontFamilyNumbering::ATTR_VAL)
     }
 }
+/// `x:CT_FontName/x:rFont` — Font.
+#[derive(Debug)]
+pub enum RunFont {}
+impl RunFont {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RunFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "rFont");
+    const SDK_NAME: &'static str = "x:CT_FontName/x:rFont";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RunFont::ATTR_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RunFont`].
+#[derive(Clone, Debug)]
+pub struct RunFontView<'a>(pub ooxml_core::Lens<'a, RunFont>);
+impl<'a> RunFontView<'a> {
+    /// `val` — String Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(RunFont::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunFont`]. Reads go through [`RunFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunFontViewMut<'a>(pub ooxml_core::LensMut<'a, RunFont>);
+impl<'a> RunFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunFontView<'_> {
+        RunFontView(self.0.as_lens())
+    }
+    /// Sets `val` — String Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFont::ATTR_VAL, v)
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFont::ATTR_VAL)
+    }
+}
 /// `x:CT_FontNameNonEmpty/x:name` — Font Name.
 #[derive(Debug)]
 pub enum FontName {}
@@ -4485,6 +4812,55 @@ impl<'a> FontsViewMut<'a> {
     /// Removes the first `x:font` child.
     pub fn remove_font(&mut self) -> bool {
         self.0.remove::<Font>()
+    }
+}
+/// `x:CT_IntProperty/x:family` — Font Family.
+#[derive(Debug)]
+pub enum FontFamily {}
+impl FontFamily {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for FontFamily {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "family");
+    const SDK_NAME: &'static str = "x:CT_IntProperty/x:family";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontFamily::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FontFamily`].
+#[derive(Clone, Debug)]
+pub struct FontFamilyView<'a>(pub ooxml_core::Lens<'a, FontFamily>);
+impl<'a> FontFamilyView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FontFamily::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FontFamily`]. Reads go through [`FontFamilyViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontFamilyViewMut<'a>(pub ooxml_core::LensMut<'a, FontFamily>);
+impl<'a> FontFamilyViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontFamilyView<'_> {
+        FontFamilyView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FontFamily::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontFamily::ATTR_VAL)
     }
 }
 /// `x:CT_MergeCell/x:mergeCell` — Merged Cell.
@@ -4869,11 +5245,16 @@ impl ooxml_core::ElementSpec for Run {
         ],
     );
 }
+impl ooxml_core::ChildOf<Run> for RunProperties {}
 impl ooxml_core::ChildOf<Run> for Text {}
 /// Read-only view of [`Run`].
 #[derive(Clone, Debug)]
 pub struct RunView<'a>(pub ooxml_core::Lens<'a, Run>);
 impl<'a> RunView<'a> {
+    /// First `x:rPr` child.
+    pub fn run_properties(&self) -> Option<RunPropertiesView<'a>> {
+        self.0.child::<RunProperties>().map(RunPropertiesView)
+    }
     /// First `x:t` child.
     pub fn text(&self) -> Option<TextView<'a>> {
         self.0.child::<Text>().map(TextView)
@@ -4881,6 +5262,344 @@ impl<'a> RunView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Run`]. Reads go through [`RunViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunViewMut<'a>(pub ooxml_core::LensMut<'a, Run>);
+impl<'a> RunViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunView<'_> {
+        RunView(self.0.as_lens())
+    }
+    /// First `x:rPr` child, mutably.
+    pub fn run_properties_mut(&mut self) -> Option<RunPropertiesViewMut<'_>> {
+        self.0.child_mut::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Existing `x:rPr` child, or a new one in schema position.
+    pub fn get_or_insert_run_properties(
+        &mut self,
+    ) -> Result<RunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Removes the first `x:rPr` child.
+    pub fn remove_run_properties(&mut self) -> bool {
+        self.0.remove::<RunProperties>()
+    }
+    /// First `x:t` child, mutably.
+    pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
+        self.0.child_mut::<Text>().map(TextViewMut)
+    }
+    /// Existing `x:t` child, or a new one in schema position.
+    pub fn get_or_insert_text(&mut self) -> Result<TextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Text>().map(TextViewMut)
+    }
+    /// Removes the first `x:t` child.
+    pub fn remove_text(&mut self) -> bool {
+        self.0.remove::<Text>()
+    }
+}
+/// `x:CT_RPrElt/x:rPr` — Run Properties.
+#[derive(Debug)]
+pub enum RunProperties {}
+impl ooxml_core::ElementSpec for RunProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "rPr");
+    const SDK_NAME: &'static str = "x:CT_RPrElt/x:rPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X, "b"),
+                    ooxml_core::QName::new(NS_X, "i"),
+                    ooxml_core::QName::new(NS_X, "strike"),
+                    ooxml_core::QName::new(NS_X, "condense"),
+                    ooxml_core::QName::new(NS_X, "extend"),
+                    ooxml_core::QName::new(NS_X, "outline"),
+                    ooxml_core::QName::new(NS_X, "shadow"),
+                    ooxml_core::QName::new(NS_X, "u"),
+                    ooxml_core::QName::new(NS_X, "vertAlign"),
+                    ooxml_core::QName::new(NS_X, "sz"),
+                    ooxml_core::QName::new(NS_X, "color"),
+                    ooxml_core::QName::new(NS_X, "rFont"),
+                    ooxml_core::QName::new(NS_X, "family"),
+                    ooxml_core::QName::new(NS_X, "charset"),
+                    ooxml_core::QName::new(NS_X, "scheme"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<RunProperties> for Bold {}
+impl ooxml_core::ChildOf<RunProperties> for Italic {}
+impl ooxml_core::ChildOf<RunProperties> for Strike {}
+impl ooxml_core::ChildOf<RunProperties> for Color {}
+impl ooxml_core::ChildOf<RunProperties> for RunFont {}
+impl ooxml_core::ChildOf<RunProperties> for FontScheme {}
+impl ooxml_core::ChildOf<RunProperties> for FontSize {}
+impl ooxml_core::ChildOf<RunProperties> for FontFamily {}
+impl ooxml_core::ChildOf<RunProperties> for Underline {}
+/// Read-only view of [`RunProperties`].
+#[derive(Clone, Debug)]
+pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
+impl<'a> RunPropertiesView<'a> {
+    /// `x:b` children in document order.
+    pub fn bold_iter(&self) -> impl Iterator<Item = BoldView<'a>> {
+        self.0.children::<Bold>().map(BoldView)
+    }
+    /// `x:i` children in document order.
+    pub fn italic_iter(&self) -> impl Iterator<Item = ItalicView<'a>> {
+        self.0.children::<Italic>().map(ItalicView)
+    }
+    /// `x:strike` children in document order.
+    pub fn strike_iter(&self) -> impl Iterator<Item = StrikeView<'a>> {
+        self.0.children::<Strike>().map(StrikeView)
+    }
+    /// `x:color` children in document order.
+    pub fn color_iter(&self) -> impl Iterator<Item = ColorView<'a>> {
+        self.0.children::<Color>().map(ColorView)
+    }
+    /// `x:rFont` children in document order.
+    pub fn run_font_iter(&self) -> impl Iterator<Item = RunFontView<'a>> {
+        self.0.children::<RunFont>().map(RunFontView)
+    }
+    /// `x:scheme` children in document order.
+    pub fn font_scheme_iter(&self) -> impl Iterator<Item = FontSchemeView<'a>> {
+        self.0.children::<FontScheme>().map(FontSchemeView)
+    }
+    /// `x:sz` children in document order.
+    pub fn font_size_iter(&self) -> impl Iterator<Item = FontSizeView<'a>> {
+        self.0.children::<FontSize>().map(FontSizeView)
+    }
+    /// `x:family` children in document order.
+    pub fn font_family_iter(&self) -> impl Iterator<Item = FontFamilyView<'a>> {
+        self.0.children::<FontFamily>().map(FontFamilyView)
+    }
+    /// `x:u` children in document order.
+    pub fn underline_iter(&self) -> impl Iterator<Item = UnderlineView<'a>> {
+        self.0.children::<Underline>().map(UnderlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunProperties`]. Reads go through [`RunPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, RunProperties>);
+impl<'a> RunPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunPropertiesView<'_> {
+        RunPropertiesView(self.0.as_lens())
+    }
+    /// First `x:b` child matching `pred`, mutably.
+    pub fn bold_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BoldViewMut<'_>> {
+        self.0.child_mut_by::<Bold>(pred).map(BoldViewMut)
+    }
+    /// Inserts a `x:b` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bold_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BoldViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Bold>(before).map(BoldViewMut)
+    }
+    /// Appends a `x:b` at the end of its slot.
+    pub fn insert_bold(&mut self) -> Result<BoldViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Bold>().map(BoldViewMut)
+    }
+    /// Removes the first `x:b` child.
+    pub fn remove_bold(&mut self) -> bool {
+        self.0.remove::<Bold>()
+    }
+    /// First `x:i` child matching `pred`, mutably.
+    pub fn italic_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ItalicViewMut<'_>> {
+        self.0.child_mut_by::<Italic>(pred).map(ItalicViewMut)
+    }
+    /// Inserts a `x:i` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_italic_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ItalicViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Italic>(before).map(ItalicViewMut)
+    }
+    /// Appends a `x:i` at the end of its slot.
+    pub fn insert_italic(&mut self) -> Result<ItalicViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Italic>().map(ItalicViewMut)
+    }
+    /// Removes the first `x:i` child.
+    pub fn remove_italic(&mut self) -> bool {
+        self.0.remove::<Italic>()
+    }
+    /// First `x:strike` child matching `pred`, mutably.
+    pub fn strike_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<StrikeViewMut<'_>> {
+        self.0.child_mut_by::<Strike>(pred).map(StrikeViewMut)
+    }
+    /// Inserts a `x:strike` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_strike_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<StrikeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Strike>(before).map(StrikeViewMut)
+    }
+    /// Appends a `x:strike` at the end of its slot.
+    pub fn insert_strike(&mut self) -> Result<StrikeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Strike>().map(StrikeViewMut)
+    }
+    /// Removes the first `x:strike` child.
+    pub fn remove_strike(&mut self) -> bool {
+        self.0.remove::<Strike>()
+    }
+    /// First `x:color` child matching `pred`, mutably.
+    pub fn color_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ColorViewMut<'_>> {
+        self.0.child_mut_by::<Color>(pred).map(ColorViewMut)
+    }
+    /// Inserts a `x:color` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_color_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Color>(before).map(ColorViewMut)
+    }
+    /// Appends a `x:color` at the end of its slot.
+    pub fn insert_color(&mut self) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Color>().map(ColorViewMut)
+    }
+    /// Removes the first `x:color` child.
+    pub fn remove_color(&mut self) -> bool {
+        self.0.remove::<Color>()
+    }
+    /// First `x:rFont` child matching `pred`, mutably.
+    pub fn run_font_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunFontViewMut<'_>> {
+        self.0.child_mut_by::<RunFont>(pred).map(RunFontViewMut)
+    }
+    /// Inserts a `x:rFont` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_font_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunFontViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RunFont>(before).map(RunFontViewMut)
+    }
+    /// Appends a `x:rFont` at the end of its slot.
+    pub fn insert_run_font(&mut self) -> Result<RunFontViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RunFont>().map(RunFontViewMut)
+    }
+    /// Removes the first `x:rFont` child.
+    pub fn remove_run_font(&mut self) -> bool {
+        self.0.remove::<RunFont>()
+    }
+    /// First `x:scheme` child matching `pred`, mutably.
+    pub fn font_scheme_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FontSchemeViewMut<'_>> {
+        self.0.child_mut_by::<FontScheme>(pred).map(FontSchemeViewMut)
+    }
+    /// Inserts a `x:scheme` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_font_scheme_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FontSchemeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FontScheme>(before).map(FontSchemeViewMut)
+    }
+    /// Appends a `x:scheme` at the end of its slot.
+    pub fn insert_font_scheme(
+        &mut self,
+    ) -> Result<FontSchemeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FontScheme>().map(FontSchemeViewMut)
+    }
+    /// Removes the first `x:scheme` child.
+    pub fn remove_font_scheme(&mut self) -> bool {
+        self.0.remove::<FontScheme>()
+    }
+    /// First `x:sz` child matching `pred`, mutably.
+    pub fn font_size_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FontSizeViewMut<'_>> {
+        self.0.child_mut_by::<FontSize>(pred).map(FontSizeViewMut)
+    }
+    /// Inserts a `x:sz` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_font_size_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FontSizeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FontSize>(before).map(FontSizeViewMut)
+    }
+    /// Appends a `x:sz` at the end of its slot.
+    pub fn insert_font_size(
+        &mut self,
+    ) -> Result<FontSizeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FontSize>().map(FontSizeViewMut)
+    }
+    /// Removes the first `x:sz` child.
+    pub fn remove_font_size(&mut self) -> bool {
+        self.0.remove::<FontSize>()
+    }
+    /// First `x:family` child matching `pred`, mutably.
+    pub fn font_family_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FontFamilyViewMut<'_>> {
+        self.0.child_mut_by::<FontFamily>(pred).map(FontFamilyViewMut)
+    }
+    /// Inserts a `x:family` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_font_family_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FontFamilyViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FontFamily>(before).map(FontFamilyViewMut)
+    }
+    /// Appends a `x:family` at the end of its slot.
+    pub fn insert_font_family(
+        &mut self,
+    ) -> Result<FontFamilyViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FontFamily>().map(FontFamilyViewMut)
+    }
+    /// Removes the first `x:family` child.
+    pub fn remove_font_family(&mut self) -> bool {
+        self.0.remove::<FontFamily>()
+    }
+    /// First `x:u` child matching `pred`, mutably.
+    pub fn underline_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<UnderlineViewMut<'_>> {
+        self.0.child_mut_by::<Underline>(pred).map(UnderlineViewMut)
+    }
+    /// Inserts a `x:u` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_underline_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Underline>(before).map(UnderlineViewMut)
+    }
+    /// Appends a `x:u` at the end of its slot.
+    pub fn insert_underline(
+        &mut self,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Underline>().map(UnderlineViewMut)
+    }
+    /// Removes the first `x:u` child.
+    pub fn remove_underline(&mut self) -> bool {
+        self.0.remove::<Underline>()
     }
 }
 /// `x:CT_Row/x:row` — Row.
@@ -5293,6 +6012,28 @@ impl<'a> InlineStringViewMut<'a> {
     pub fn as_view(&self) -> InlineStringView<'_> {
         InlineStringView(self.0.as_lens())
     }
+    /// First `x:r` child matching `pred`, mutably.
+    pub fn run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunViewMut<'_>> {
+        self.0.child_mut_by::<Run>(pred).map(RunViewMut)
+    }
+    /// Inserts a `x:r` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Run>(before).map(RunViewMut)
+    }
+    /// Appends a `x:r` at the end of its slot.
+    pub fn insert_run(&mut self) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Run>().map(RunViewMut)
+    }
+    /// Removes the first `x:r` child.
+    pub fn remove_run(&mut self) -> bool {
+        self.0.remove::<Run>()
+    }
     /// First `x:t` child, mutably.
     pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
         self.0.child_mut::<Text>().map(TextViewMut)
@@ -5368,6 +6109,28 @@ impl<'a> SharedStringItemViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> SharedStringItemView<'_> {
         SharedStringItemView(self.0.as_lens())
+    }
+    /// First `x:r` child matching `pred`, mutably.
+    pub fn run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunViewMut<'_>> {
+        self.0.child_mut_by::<Run>(pred).map(RunViewMut)
+    }
+    /// Inserts a `x:r` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Run>(before).map(RunViewMut)
+    }
+    /// Appends a `x:r` at the end of its slot.
+    pub fn insert_run(&mut self) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Run>().map(RunViewMut)
+    }
+    /// Removes the first `x:r` child.
+    pub fn remove_run(&mut self) -> bool {
+        self.0.remove::<Run>()
     }
     /// First `x:t` child, mutably.
     pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
@@ -5802,6 +6565,7 @@ impl ooxml_core::ChildOf<Stylesheet> for Borders {}
 impl ooxml_core::ChildOf<Stylesheet> for CellStyleFormats {}
 impl ooxml_core::ChildOf<Stylesheet> for CellStyles {}
 impl ooxml_core::ChildOf<Stylesheet> for CellFormats {}
+impl ooxml_core::ChildOf<Stylesheet> for DifferentialFormats {}
 impl ooxml_core::ChildOf<Stylesheet> for Fills {}
 impl ooxml_core::ChildOf<Stylesheet> for Fonts {}
 impl ooxml_core::ChildOf<Stylesheet> for NumberingFormats {}
@@ -5824,6 +6588,10 @@ impl<'a> StylesheetView<'a> {
     /// First `x:cellXfs` child.
     pub fn cell_formats(&self) -> Option<CellFormatsView<'a>> {
         self.0.child::<CellFormats>().map(CellFormatsView)
+    }
+    /// First `x:dxfs` child.
+    pub fn differential_formats(&self) -> Option<DifferentialFormatsView<'a>> {
+        self.0.child::<DifferentialFormats>().map(DifferentialFormatsView)
     }
     /// First `x:fills` child.
     pub fn fills(&self) -> Option<FillsView<'a>> {
@@ -5877,6 +6645,22 @@ impl<'a> StylesheetViewMut<'a> {
     /// Removes the first `x:cellXfs` child.
     pub fn remove_cell_formats(&mut self) -> bool {
         self.0.remove::<CellFormats>()
+    }
+    /// First `x:dxfs` child, mutably.
+    pub fn differential_formats_mut(
+        &mut self,
+    ) -> Option<DifferentialFormatsViewMut<'_>> {
+        self.0.child_mut::<DifferentialFormats>().map(DifferentialFormatsViewMut)
+    }
+    /// Existing `x:dxfs` child, or a new one in schema position.
+    pub fn get_or_insert_differential_formats(
+        &mut self,
+    ) -> Result<DifferentialFormatsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DifferentialFormats>().map(DifferentialFormatsViewMut)
+    }
+    /// Removes the first `x:dxfs` child.
+    pub fn remove_differential_formats(&mut self) -> bool {
+        self.0.remove::<DifferentialFormats>()
     }
     /// First `x:fills` child, mutably.
     pub fn fills_mut(&mut self) -> Option<FillsViewMut<'_>> {
@@ -7857,6 +8641,18 @@ const _: () = ooxml_core::schema::assert_spec::<ForegroundColor>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
+const _: () = ooxml_core::schema::assert_spec::<DifferentialFormat>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Border>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Alignment>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Protection>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Fill>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Font>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, NumberingFormat>();
+const _: () = ooxml_core::schema::assert_spec::<DifferentialFormats>();
+const _: () = ooxml_core::schema::assert_child::<
+    DifferentialFormats,
+    DifferentialFormat,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Fill>();
 const _: () = ooxml_core::schema::assert_child::<Fill, PatternFill>();
 const _: () = ooxml_core::schema::assert_spec::<Fills>();
@@ -7872,11 +8668,13 @@ const _: () = ooxml_core::schema::assert_child::<Font, FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<Font, FontSize>();
 const _: () = ooxml_core::schema::assert_child::<Font, Underline>();
 const _: () = ooxml_core::schema::assert_spec::<FontFamilyNumbering>();
+const _: () = ooxml_core::schema::assert_spec::<RunFont>();
 const _: () = ooxml_core::schema::assert_spec::<FontName>();
 const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
 const _: () = ooxml_core::schema::assert_spec::<FontSize>();
 const _: () = ooxml_core::schema::assert_spec::<Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Fonts, Font>();
+const _: () = ooxml_core::schema::assert_spec::<FontFamily>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
@@ -7887,7 +8685,18 @@ const _: () = ooxml_core::schema::assert_spec::<PatternFill>();
 const _: () = ooxml_core::schema::assert_child::<PatternFill, BackgroundColor>();
 const _: () = ooxml_core::schema::assert_child::<PatternFill, ForegroundColor>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
+const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
+const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Bold>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Italic>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Strike>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Color>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, RunFont>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontScheme>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontSize>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontFamily>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_spec::<Row>();
 const _: () = ooxml_core::schema::assert_child::<Row, Cell>();
 const _: () = ooxml_core::schema::assert_spec::<InlineString>();
@@ -7909,6 +8718,7 @@ const _: () = ooxml_core::schema::assert_child::<Stylesheet, Borders>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, CellStyleFormats>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, CellStyles>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, CellFormats>();
+const _: () = ooxml_core::schema::assert_child::<Stylesheet, DifferentialFormats>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, Fills>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, NumberingFormats>();
