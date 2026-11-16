@@ -20,9 +20,11 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
 
-use crate::error::{Error, Result};
-use crate::name::{MC_ALTERNATE_CONTENT, QName, XML_NS, XML_SPACE, XMLNS_NS, XName};
-use crate::schema::{ChildOf, Content, ElementSpec, EnumType, EnumValue, AttrError, Slot};
+use std::sync::Arc;
+
+use crate::error::{DetachRefusal, Error, Result};
+use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, R_NS, XML_NS, XML_SPACE, XMLNS_NS, XName};
+use crate::schema::{ChildOf, Content, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot};
 use crate::value::{first_invalid_xml_char, has_edge_ws};
 
 /// Refuses a value that XML 1.0 cannot represent (ADR-0002 post-acceptance
@@ -170,6 +172,94 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
         }
         Ok(Lens { root: self.root, node: self.node, path: self.path, _e: PhantomData })
     }
+
+    /// An owned, span-less copy of this element's subtree, renamed to
+    /// `C::QNAME`, for [`LensMut::insert_detached`] (ADR-0002
+    /// post-acceptance note "detach/insert"). Element and attribute names
+    /// keep their namespace URIs; prefixes are chosen again at the
+    /// destination. Direct children whose name is in `skip` are left out
+    /// (with their whole subtree).
+    ///
+    /// Refused, before anything is copied ([`Error::NotDetachable`]):
+    /// an `mc:AlternateContent` element or any other Markup Compatibility
+    /// element or attribute in the kept subtree (`mc:Ignorable` names
+    /// prefixes); an attribute in the relationships (`r:`) namespace, which
+    /// would duplicate a reference into Layer 3; a namespace declaration on
+    /// any kept element (its scope would move).
+    pub fn detach_as<C: SameType<E>>(&self, skip: &[QName]) -> Result<Detached<C>> {
+        let mut root = detach_node(self.node, skip)?;
+        root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
+        Ok(Detached { root, _c: PhantomData })
+    }
+}
+
+/// An owned copy of an element subtree taken by [`Lens::detach_as`]: no
+/// source spans, no prefixes (names carry namespace URIs only), typed as
+/// `C`. Insert it with [`LensMut::insert_detached`] /
+/// [`LensMut::insert_detached_by`]; it can be cloned to insert it more
+/// than once.
+pub struct Detached<C: ElementSpec> {
+    root: RawNode,
+    _c: PhantomData<fn() -> C>,
+}
+
+impl<C: ElementSpec> Clone for Detached<C> {
+    fn clone(&self) -> Self {
+        Detached { root: self.root.clone(), _c: PhantomData }
+    }
+}
+
+impl<C: ElementSpec> std::fmt::Debug for Detached<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Detached<{}>", C::SDK_NAME)
+    }
+}
+
+impl<C: ElementSpec> Detached<C> {
+    /// The copied subtree (prefix-less names, no spans).
+    pub fn raw(&self) -> &RawNode {
+        &self.root
+    }
+}
+
+fn not_detachable(reason: DetachRefusal, name: &XName) -> Error {
+    core::hint::cold_path();
+    Error::NotDetachable { reason, name: format!("{{{}}}{}", name.ns(), name.local()) }
+}
+
+/// Copies `n` (whose direct children named in `skip` are left out) with
+/// prefixes and spans cleared, refusing what [`Lens::detach_as`] refuses.
+fn detach_node(n: &RawNode, skip: &[QName]) -> Result<RawNode> {
+    if n.name.ns() == MC_NS {
+        let reason = if n.is(MC_ALTERNATE_CONTENT) { DetachRefusal::AlternateContent } else { DetachRefusal::MarkupCompatibility };
+        return Err(not_detachable(reason, &n.name));
+    }
+    let mut attrs = Vec::with_capacity(n.attrs.len());
+    for a in &n.attrs {
+        let reason = match a.name.ns() {
+            XMLNS_NS => Some(DetachRefusal::NamespaceDeclaration),
+            R_NS => Some(DetachRefusal::RelationshipAttribute),
+            MC_NS => Some(DetachRefusal::MarkupCompatibility),
+            _ => None,
+        };
+        if let Some(reason) = reason {
+            return Err(not_detachable(reason, &a.name));
+        }
+        attrs.push(RawAttr { name: XName::new(a.name.ns().into(), a.name.local(), None), value: a.value.clone() });
+    }
+    let mut children = Vec::with_capacity(n.children.len());
+    for c in &n.children {
+        children.push(match c {
+            RawItem::Element(e) if skip.iter().any(|q| e.is(*q)) => continue,
+            RawItem::Element(e) => RawItem::Element(detach_node(e, &[])?),
+            RawItem::Text(t) => RawItem::Text(RawText { value: t.value.clone(), span: None, cdata: t.cdata }),
+            RawItem::Markup(m) => RawItem::Markup(m.clone()),
+        });
+    }
+    let mut out = RawNode::new_created(XName::new(n.name.ns().into(), n.name.local(), None));
+    out.attrs = attrs;
+    out.children = children;
+    Ok(out)
 }
 
 /// Mutable typed view: the part root plus a path of child indices.
@@ -434,6 +524,43 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         }
     }
 
+    /// Inserts a [`Detached`] copy in `C`'s slot, placed exactly as
+    /// [`Self::insert_by`] places a new `C` (same slot rules, limits and
+    /// refusals). Every element and attribute of the copy gets its prefix
+    /// chosen at the destination by the ADR-0002 §3 rules (the copy declares
+    /// no namespaces, so all of it sees the parent's bindings). All prefixes
+    /// are chosen before the tree changes: a namespace without a usable
+    /// prefix is [`Error::NamespaceNotInScope`] and changes nothing. The
+    /// inserted nodes are created nodes (rendered in full on output).
+    pub fn insert_detached_by<C: ChildOf<E>>(
+        &mut self,
+        d: Detached<C>,
+        before: impl FnMut(usize, &RawNode) -> bool,
+    ) -> Result<LensMut<'_, C>> {
+        let slots = self.slots()?;
+        let slot = match Self::slot_of(slots, C::QNAME)[..] {
+            [s] => s,
+            [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
+            _ => return Err(Error::AmbiguousSlot(C::QNAME)),
+        };
+        let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
+        let decls = declarations(self.root, &self.path);
+        let parent_prefix = self.node().name.prefix();
+        let node = with_prefixes(d.root, &decls, parent_prefix)?;
+        let parent = self.node_mut();
+        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
+            parent.own_dirty = true; // self-closing parent gains its first child
+        }
+        parent.children.insert(index, RawItem::Element(node));
+        self.mark_path();
+        Ok(self.descend(index))
+    }
+
+    /// `insert_detached_by` that appends at the end of the slot.
+    pub fn insert_detached<C: ChildOf<E>>(&mut self, d: Detached<C>) -> Result<LensMut<'_, C>> {
+        self.insert_detached_by(d, |_, _| false)
+    }
+
     // ---- removal ----
 
     /// Removes the first `C` child (and its whole span). Returns whether one existed.
@@ -565,19 +692,22 @@ fn effective<'r>(decls: &[(usize, Option<&'r str>, &'r str)], prefix: Option<&st
 /// Prefix for a new element in namespace `uri` under the element at
 /// `parent_path` (ADR-0002 §3, prefix rules). `Ok(None)` = unprefixed.
 pub(crate) fn choose_element_prefix(root: &RawNode, parent_path: &[usize], uri: &str) -> Result<Option<String>> {
+    let decls = declarations(root, parent_path);
+    element_prefix_in(&decls, node_at(root, parent_path).name.prefix(), uri)
+}
+
+/// [`choose_element_prefix`] on given declarations and parent prefix.
+fn element_prefix_in(decls: &[(usize, Option<&str>, &str)], pp: Option<&str>, uri: &str) -> Result<Option<String>> {
     if uri == XML_NS {
         return Ok(Some("xml".into()));
     }
-    let decls = declarations(root, parent_path);
     if uri.is_empty() {
-        return match effective(&decls, None) {
+        return match effective(decls, None) {
             None | Some("") => Ok(None),
             Some(_) => Err(Error::NamespaceNotInScope(String::new())),
         };
     }
-    let parent = node_at(root, parent_path);
-    let pp = parent.name.prefix();
-    if effective(&decls, pp) == Some(uri) {
+    if effective(decls, pp) == Some(uri) {
         return Ok(pp.map(Into::into));
     }
     // Innermost element first; within one element the default namespace wins.
@@ -585,7 +715,7 @@ pub(crate) fn choose_element_prefix(root: &RawNode, parent_path: &[usize], uri: 
     for depth in (0..=max_depth).rev() {
         let here: Vec<_> = decls
             .iter()
-            .filter(|(d, p, u)| *d == depth && *u == uri && effective(&decls, *p) == Some(uri))
+            .filter(|(d, p, u)| *d == depth && *u == uri && effective(decls, *p) == Some(uri))
             .collect();
         if here.iter().any(|(_, p, _)| p.is_none()) {
             return Ok(None);
@@ -599,18 +729,45 @@ pub(crate) fn choose_element_prefix(root: &RawNode, parent_path: &[usize], uri: 
 
 /// Prefix for a new attribute in namespace `uri` on the element at `path`.
 pub(crate) fn choose_attr_prefix(root: &RawNode, path: &[usize], uri: &str) -> Result<Option<String>> {
+    attr_prefix_in(&declarations(root, path), uri)
+}
+
+/// [`choose_attr_prefix`] on given declarations.
+fn attr_prefix_in(decls: &[(usize, Option<&str>, &str)], uri: &str) -> Result<Option<String>> {
     if uri.is_empty() {
         return Ok(None);
     }
     if uri == XML_NS {
         return Ok(Some("xml".into()));
     }
-    let decls = declarations(root, path);
     decls
         .iter()
         .rev()
-        .find(|(_, p, u)| *u == uri && p.is_some() && effective(&decls, *p) == Some(uri))
+        .find(|(_, p, u)| *u == uri && p.is_some() && effective(decls, *p) == Some(uri))
         .and_then(|(_, p, _)| p.map(String::from))
         .map(Some)
         .ok_or_else(|| Error::NamespaceNotInScope(uri.into()))
+}
+
+/// A detached subtree with every element and attribute prefix chosen for
+/// a parent with declarations `decls` and prefix `parent_prefix` (the copy
+/// declares nothing itself, so `decls` hold for the whole subtree).
+fn with_prefixes(mut n: RawNode, decls: &[(usize, Option<&str>, &str)], parent_prefix: Option<&str>) -> Result<RawNode> {
+    let ns: Arc<str> = n.name.ns().into();
+    let prefix = element_prefix_in(decls, parent_prefix, &ns)?;
+    n.name = XName::new(ns, n.name.local(), prefix.as_deref());
+    for a in &mut n.attrs {
+        let ans: Arc<str> = a.name.ns().into();
+        let p = attr_prefix_in(decls, &ans)?;
+        a.name = XName::new(ans, a.name.local(), p.as_deref());
+    }
+    let children = std::mem::take(&mut n.children);
+    n.children = children
+        .into_iter()
+        .map(|c| match c {
+            RawItem::Element(e) => with_prefixes(e, decls, prefix.as_deref()).map(RawItem::Element),
+            other => Ok(other),
+        })
+        .collect::<Result<_>>()?;
+    Ok(n)
 }

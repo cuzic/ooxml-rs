@@ -102,6 +102,15 @@ pub enum Error {
         /// Its byte offset in the value.
         offset: usize,
     },
+    /// [`Lens::detach_as`](crate::Lens::detach_as) refused the subtree
+    /// (ADR-0002 post-acceptance note "detach/insert").
+    #[error("cannot detach: {reason} ({name})")]
+    NotDetachable {
+        /// Why.
+        reason: DetachRefusal,
+        /// The offending element or attribute, in Clark notation.
+        name: String,
+    },
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
@@ -109,3 +118,31 @@ pub enum Error {
 
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Why [`Lens::detach_as`](crate::Lens::detach_as) refused a subtree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DetachRefusal {
+    /// An `mc:AlternateContent` element in the subtree (ADR-0002 §4.3:
+    /// branches are not edited).
+    AlternateContent,
+    /// Another Markup Compatibility element or attribute (`mc:Ignorable`
+    /// and friends name prefixes, which a copy re-chooses).
+    MarkupCompatibility,
+    /// An attribute in the relationships namespace (`r:id`, `r:embed`, …):
+    /// a copy would add a second reference to a relationship (Layer 3).
+    RelationshipAttribute,
+    /// A namespace declaration on an element of the subtree.
+    NamespaceDeclaration,
+}
+
+impl std::fmt::Display for DetachRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DetachRefusal::AlternateContent => "mc:AlternateContent in the subtree",
+            DetachRefusal::MarkupCompatibility => "markup-compatibility element or attribute in the subtree",
+            DetachRefusal::RelationshipAttribute => "relationship (r:) attribute in the subtree",
+            DetachRefusal::NamespaceDeclaration => "namespace declaration in the subtree",
+        })
+    }
+}

@@ -24,9 +24,9 @@ pub mod schema;
 pub mod value;
 pub mod xml;
 
-pub use error::{Error, Result};
-pub use lens::{Lens, LensMut};
+pub use error::{DetachRefusal, Error, Result};
+pub use lens::{Detached, Lens, LensMut};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind};
-pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
+pub use schema::{AttrError, AttrSpec, ChildOf, Content, SameType, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
 pub use xml::{ElementSpan, RawAttr, RawItem, RawNode, RawText, XmlDocument};
