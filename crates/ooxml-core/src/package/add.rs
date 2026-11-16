@@ -1177,7 +1177,14 @@ impl RegistryPlan {
             let external = attr(plan.rel_node(&at), "TargetMode") == Some("External");
             // a fragment-only target is a location (`#'My Sheet'!A1`), not a URI
             let fragment = !external && target.starts_with('#');
-            let ok = if fragment { valid_attr_text(target) && !target.chars().any(char::is_control) } else { uri_like(target) };
+            // an empty fragment, or a second `#` after a part target, is not a
+            // URI reference (review round 3, n12); a fragment-only location
+            // may hold `#` itself (sheet names can)
+            let ok = if fragment {
+                target.len() > 1 && valid_attr_text(target) && !target.chars().any(char::is_control)
+            } else {
+                uri_like(target) && target.matches('#').count() <= 1
+            };
             if !ok {
                 return Err(RegistryRefusal::InvalidTarget);
             }

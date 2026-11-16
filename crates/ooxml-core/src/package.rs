@@ -262,8 +262,10 @@ impl Package {
             removed_rel_ids: Vec::new(),
         };
         pkg.content_types = ContentTypes::parse(&pkg.read_part(CONTENT_TYPES_PART)?)?;
-        let rels_name = rels_part_name(None);
-        if pkg.contains(&rels_name) {
+        // matched as the registry matches it (OPC names are case-insensitive;
+        // PR #38 review round 3, n13)
+        if let Some(i) = pkg.find_ci(&rels_part_name(None)) {
+            let rels_name = pkg.parts[i].name.clone();
             pkg.package_rels = Relationships::parse(None, &pkg.read_part(&rels_name)?)?;
         }
         if let Some(strict) = pkg.package_rels.iter().find(|r| r.rel_type.starts_with(STRICT_NS_PREFIX)) {
