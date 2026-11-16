@@ -669,3 +669,124 @@ fn nested_dot_rels_relative_target() {
     let removed = pkg.remove_part("foo/x.xml", &["urn:x"]).unwrap();
     assert_eq!(removed.relationships, vec![("foo/_rels/.rels".to_owned(), "rId1".to_owned())]);
 }
+
+fn calc_chain_pkg(rels: &str, extra: &[(&str, &str)]) -> Vec<u8> {
+    let mut files = vec![
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", r#"<w xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><x r:id="rId3"/></w>"#),
+        ("xl/_rels/workbook.xml.rels", rels),
+        ("xl/calcChain.xml", "<c/>"),
+    ];
+    files.extend_from_slice(extra);
+    zip_of(&files)
+}
+
+fn rels_of(items: &str) -> String {
+    format!(r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{items}</Relationships>"#)
+}
+
+/// Round 4 N12: the safety net works per relationship on the parsed tree:
+/// also when another relationship in the same `.rels` matches (S1), and for
+/// file names written with character references (S2) or percent-encoding
+/// (mutants AH, AK).
+#[test]
+fn safety_net_is_per_relationship() {
+    for odd in [r#"xl\calcChain.xml"#, "%2E/calcChain.xml", r#"xl\calc&#67;hain.xml"#, "%2E/calc&#x43;hain.xml", r#"xl\calc%43hain.xml"#] {
+        let r = rels_of(&format!(
+            r#"<Relationship Id="rId2" Type="{CALC_CHAIN}" Target="calcChain.xml"/><Relationship Id="rId3" Type="{CALC_CHAIN}" Target="{odd}"/>"#
+        ));
+        let b = calc_chain_pkg(&r, &[]);
+        let mut pkg = Package::from_bytes(b.clone()).unwrap();
+        assert_refused(&mut pkg, &b, "xl/calcChain.xml", &[CALC_CHAIN], |x| matches!(x, RemoveRefusal::UnresolvedMention { .. }));
+    }
+    // a percent-encoded part name, spelled as an IRI with a backslash
+    let r = rels_of(r#"<Relationship Id="rId9" Type="urn:x" Target="xl\c画.xml"/>"#);
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/c%E7%94%BB.xml", "<c/>")]);
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/c%E7%94%BB.xml", &["urn:x"], |x| matches!(x, RemoveRefusal::UnresolvedMention { .. }));
+}
+
+/// Round 4 N13: no false refusals for another existing part with the same
+/// file name, an external target, a type URI containing the name, or a
+/// directory entry; calcChain is unaffected.
+#[test]
+fn safety_net_does_not_over_refuse() {
+    let r = rels_of(&format!(
+        r#"<Relationship Id="rId2" Type="{CALC_CHAIN}" Target="calcChain.xml"/><Relationship Id="rId4" Type="urn:x" Target="other/calcChain.xml"/><Relationship Id="rId5" Type="urn:x" Target="http://example.com/calcChain.xml" TargetMode="External"/>"#
+    ));
+    let b = calc_chain_pkg(&r, &[("xl/other/calcChain.xml", "<c/>"), ("zz/_rels/z.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="urn:x" Target="http://example.com/calcChain.xml" TargetMode="External"/></Relationships>"#)]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    assert_eq!(pkg.remove_part("xl/calcChain.xml", &[CALC_CHAIN]).unwrap().relationships.len(), 1);
+    // a type URI ending in the part's (extension-less) file name
+    let r = rels_of(r#"<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/>"#);
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/media/a.png", "P"), ("xl/x/image", "I")]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    pkg.remove_part("xl/x/image", &[]).unwrap();
+    // a directory entry
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/", "")]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    pkg.remove_part("xl/", &[]).unwrap();
+}
+
+/// Round 4 N14: `%5Frels` / `.rel%73` spellings are relationships parts too
+/// (their relationships are scanned), consistently with `HasOwnRelationships`.
+#[test]
+fn percent_encoded_rels_names_are_scanned() {
+    for rels in ["xl/%5Frels/sheet.xml.rels", "xl/_rels/sheet.xml.rel%73"] {
+        let b = sheet_with_image("xl/sheet.xml", rels, "media/i.png", "rId1");
+        let mut pkg = Package::from_bytes(b.clone()).unwrap();
+        assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| matches!(r, RemoveRefusal::StillReferenced { .. }));
+        assert_refused(&mut pkg, &b, "xl/sheet.xml", &[], |r| matches!(r, RemoveRefusal::HasOwnRelationships { .. }));
+    }
+}
+
+/// Round 4 N15: whitespace around `TargetMode` (AI) and `Type` (AJ) is
+/// collapsed; a padded `Id` in the package `.rels` leaves the cache (AD).
+#[test]
+fn padded_attributes() {
+    let r = rels_of(&format!(
+        r#"<Relationship Id="rId2" Type=" {CALC_CHAIN} " Target="calcChain.xml"/><Relationship Id="rId5" Type="urn:e" Target="calcChain.xml" TargetMode=" External "/>"#
+    ));
+    let b = calc_chain_pkg(&r, &[]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    let removed = pkg.remove_part("xl/calcChain.xml", &[CALC_CHAIN]).unwrap();
+    assert_eq!(removed.relationships, vec![("xl/_rels/workbook.xml.rels".to_owned(), "rId2".to_owned())]);
+    let pkg_rels = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id=" rId2 " Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>"#;
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", pkg_rels), ("xl/workbook.xml", "<w/>"), ("docProps/core.xml", "<c/>")]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    pkg.remove_part("docProps/core.xml", &[CORE_PROPS]).unwrap();
+    assert_eq!(pkg.package_relationships().iter().count(), 1, "the padded Id left the cache");
+}
+
+/// Round 4 N11: the duplicate-name check at open is linear (small always-on
+/// size; the 50k version below is ignored by default).
+fn open_many(n: usize) -> std::time::Duration {
+    let mut zw = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let o = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for (name, body) in [("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS)] {
+        zw.start_file(name, o).unwrap();
+        zw.write_all(body.as_bytes()).unwrap();
+    }
+    for i in 0..n {
+        zw.start_file(format!("x/p{i}.xml"), o).unwrap();
+    }
+    let b = zw.finish().unwrap().into_inner();
+    let t = std::time::Instant::now();
+    Package::from_bytes(b).unwrap();
+    t.elapsed()
+}
+
+#[test]
+fn open_duplicate_check_is_linear_small() {
+    let d = open_many(5_000);
+    assert!(d < std::time::Duration::from_secs(5), "{d:?}");
+}
+
+#[test]
+#[ignore = "timing: run with --release --ignored"]
+fn open_duplicate_check_is_linear_50k() {
+    let d = open_many(50_000);
+    println!("open with 50,000 entries: {d:?}");
+    assert!(d < std::time::Duration::from_secs(2), "{d:?}");
+}
