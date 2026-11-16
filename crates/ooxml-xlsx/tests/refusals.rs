@@ -188,3 +188,90 @@ fn reads() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Implementation review round 1 (docs/reviews/xlsx-phase0-impl-round1.md)
+// ---------------------------------------------------------------------------
+
+const SHEET1: &str = "xl/worksheets/sheet1.xml";
+const MC: &str = r#"xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
+const AC: &str = "<mc:AlternateContent><mc:Fallback/></mc:AlternateContent>";
+
+fn unresolved(r: &ooxml_xlsx::Result<()>) -> bool {
+    matches!(r, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))))
+}
+
+/// F1: a write that is refused changes nothing, even when the refusal comes
+/// from the cell's own children. `fixture_minimal` with an
+/// `mc:AlternateContent` child added to A2 (value "Alice") and to the
+/// value-less D2 (given `t="b"`): before the fix, the setters removed the
+/// old value / `t`, then failed, leaving the part dirty and "Alice" lost on
+/// save.
+#[test]
+fn f1_err_inside_cell_changes_nothing() {
+    let input = read("minimal");
+    let sheet = text(&input, SHEET1)
+        .replace(r#"<c r="A2" t="s"><v>1</v></c>"#, &format!(r#"<c r="A2" t="s" {MC}><v>1</v>{AC}</c>"#))
+        .replace(r#"<c r="D2" s="1"/>"#, &format!(r#"<c r="D2" s="1" t="b" {MC}>{AC}</c>"#));
+    let bytes = rebuild(&input, &[(SHEET1, sheet.into_bytes())]);
+    for (cell, w) in [
+        ("A2", W::Str("new".into())),
+        ("A2", W::Num(1.0)),
+        ("D2", W::Num(1.0)),
+        ("D2", W::Str("x".into())),
+    ] {
+        let (mut wb, r) = apply(&bytes, a1(cell), &w);
+        assert!(unresolved(&r), "{cell} {w:?}: {r:?}");
+        assert_unchanged(&wb, &bytes);
+        // the caller who skips the failed cell and saves keeps the old value
+        let v = wb.worksheet().unwrap().cell(1, 0).unwrap().unwrap().value().unwrap();
+        assert_eq!(v, CellValue::String("Alice".into()));
+    }
+    // a neighbour without AC is still writable
+    let (_, r) = apply(&bytes, a1("B2"), &W::Num(2.0));
+    r.unwrap();
+}
+
+/// F1 + F6: an `mc:AlternateContent` child of the row concerned, or of
+/// `sheetData` (rows wrapped in AC), may hold the cell: reads are `Err`
+/// rather than `Ok(None)`, writes are refused before anything changes.
+#[test]
+fn f6_alternate_content_around_rows_and_cells() {
+    let input = read("minimal");
+    // (a) the row-1 element wrapped in AC inside sheetData
+    let rows = patched(
+        &input,
+        SHEET1,
+        "<sheetData>\n<row r=\"1\">\n<c r=\"A1\" s=\"1\" t=\"s\"><v>0</v></c>\n</row>",
+        &format!(
+            "<sheetData {MC}><mc:AlternateContent><mc:Choice Requires=\"x\"/><mc:Fallback><row r=\"1\"><c r=\"A1\" s=\"1\" t=\"s\"><v>0</v></c></row></mc:Fallback></mc:AlternateContent>"
+        ),
+    );
+    // (b) the A2.. cells of row 2 followed by an AC
+    let cells =
+        patched(&input, SHEET1, "<row r=\"2\">", &format!("<row r=\"2\" {MC}><mc:AlternateContent><mc:Fallback/></mc:AlternateContent>"));
+    for (what, sheet) in [("rows in AC", rows), ("AC in row 2", cells)] {
+        let bytes = rebuild(&input, &[(SHEET1, sheet)]);
+        let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+        {
+            let ws = wb.worksheet().unwrap();
+            let read = |r, c| ws.cell(r, c).map(|c| c.is_some());
+            if what == "rows in AC" {
+                assert_matches!(read(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))), "{what}");
+            }
+            assert_matches!(read(1, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))), "{what}");
+            assert_matches!(read(1, 7), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))), "{what}");
+        }
+        assert_unchanged(&wb, &bytes);
+        for cell in ["A2", "H2", "B2"] {
+            let (wb, r) = apply(&bytes, a1(cell), &W::Num(1.0));
+            assert!(unresolved(&r), "{what} {cell}: {r:?}");
+            assert_unchanged(&wb, &bytes);
+        }
+    }
+    // (c) a worksheet with an AC and no sheetData: sheetData may be inside it
+    let bytes = with_sheet(&format!("{WS_OPEN}<mc:AlternateContent><mc:Fallback><sheetData/></mc:Fallback></mc:AlternateContent></worksheet>"));
+    let mut wb = Workbook::from_bytes(bytes).unwrap();
+    assert_matches!(wb.worksheet().unwrap().cell(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+}
+

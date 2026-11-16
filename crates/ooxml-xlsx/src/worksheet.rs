@@ -1,6 +1,7 @@
 //! [`Worksheet`], [`CellRef`] (read) and [`CellMut`] (write).
 
-use ooxml_core::{ElementSpec, EnumValue, RawNode, XmlDocument};
+use ooxml_core::name::MC_ALTERNATE_CONTENT;
+use ooxml_core::{ElementSpec, EnumValue, QName, RawNode, XmlDocument};
 use ooxml_schema::sml::{self, CellValues, TextView};
 
 use crate::error::{Error, Result};
@@ -129,6 +130,16 @@ fn row_number(n: &RawNode) -> Option<&str> {
     n.attr(sml::Row::ATTR_R)
 }
 
+/// `Err(UnresolvedSibling(parent))` if `n` has an `mc:AlternateContent`
+/// child: what it wraps (rows, cells, values) cannot be located without
+/// MCE processing, so neither a read nor a write can be answered honestly.
+fn refuse_alternate_content(n: &RawNode, parent: QName) -> Result<()> {
+    if n.elements().any(|c| c.is(MC_ALTERNATE_CONTENT)) {
+        return Err(ooxml_core::Error::UnresolvedSibling(parent).into());
+    }
+    Ok(())
+}
+
 impl<'wb> Worksheet<'wb> {
     pub(crate) fn new(doc: &'wb mut XmlDocument, ctx: &'wb SheetContext) -> Self {
         Self { doc, ctx }
@@ -151,9 +162,17 @@ impl<'wb> Worksheet<'wb> {
     /// Finds the row and cell, enforcing ADR-0002 §4.2's `MissingReference`
     /// rule (any `row` without `r`, or any `c` without `r` in the row
     /// concerned) and checking the order that insertion relies on.
+    ///
+    /// An `mc:AlternateContent` child of `sheetData`, of the row concerned,
+    /// or of `worksheet` when `sheetData` is absent could hold the cell, so
+    /// it is refused rather than answered with "absent" (review round 1, F6).
     fn locate(&self, at: CellIndex) -> Result<Located> {
         let ws = self.view()?;
-        let Some(sd) = ws.sheet_data() else { return Ok(Located { row: None, cell: None }) };
+        let Some(sd) = ws.sheet_data() else {
+            refuse_alternate_content(ws.raw(), sml::Worksheet::QNAME)?;
+            return Ok(Located { row: None, cell: None });
+        };
+        refuse_alternate_content(sd.raw(), sml::SheetData::QNAME)?;
         let part = &self.ctx.sheet_part;
         let missing = |what: String| Error::MissingReference { part: part.clone(), what };
         let want_row = at.row + 1;
@@ -172,6 +191,7 @@ impl<'wb> Worksheet<'wb> {
         }
         let Some(ri) = found_row else { return Ok(Located { row: None, cell: None }) };
         let row = sd.raw().children()[ri].as_element().expect("row index");
+        refuse_alternate_content(row, sml::Row::QNAME)?;
         let mut found_cell = None;
         let mut prev: Option<u32> = None;
         for (i, c) in row.indexed_elements().filter(|(_, n)| n.is(sml::Cell::QNAME)) {
@@ -195,7 +215,10 @@ impl<'wb> Worksheet<'wb> {
     ///
     /// Errors: [`Error::MissingReference`] if the sheet has a `row` without
     /// `r`, or the row has a `c` without `r` (ADR-0002 §4.2: a silent `None`
-    /// could hide a value); [`Error::OutOfRange`].
+    /// could hide a value); [`Error::OutOfOrder`] if rows or the row's
+    /// cells are not ascending; core `UnresolvedSibling` if `sheetData` or
+    /// the row has an `mc:AlternateContent` child (or `worksheet` has one and
+    /// no `sheetData`), for the same reason; [`Error::OutOfRange`].
     pub fn cell(&self, row: u32, col: u32) -> Result<Option<CellRef<'_>>> {
         let at = CellIndex::new(row, col)?;
         let Located { row: Some(ri), cell: Some(ci) } = self.locate(at)? else { return Ok(None) };
@@ -231,7 +254,12 @@ impl<'wb> Worksheet<'wb> {
         self.cell_mut(row, col)?.set_number(value)
     }
 
-    /// Every check that can refuse a write, before anything is changed.
+    /// Every check that can refuse a write, before anything is changed: once
+    /// this returns `Ok`, [`Self::write`] cannot fail part-way (review round
+    /// 1, F1). The remaining fallible steps of `write` are insertions whose
+    /// parent was checked here (`sheetData`, the row and the cell have no
+    /// `mc:AlternateContent` child, rows and cells are ascending) or that go
+    /// into a node `write` has just created.
     fn preflight(&self, at: CellIndex) -> Result<Located> {
         if let Some(block) = &self.ctx.edit_block {
             return Err(block.to_error());
@@ -251,6 +279,10 @@ impl<'wb> Worksheet<'wb> {
             if c.raw().attr(sml::Cell::ATTR_VM).is_some() {
                 return Err(Error::RichValueCell { cell });
             }
+            // the setters remove the old value and then insert `v`/`is`
+            // next to the remaining children; an AC there would fail only
+            // after the removal
+            refuse_alternate_content(c.raw(), sml::Cell::QNAME)?;
         }
         Ok(loc)
     }
@@ -355,9 +387,10 @@ impl CellMut<'_, '_> {
     /// Errors (nothing is changed): [`Error::FormulaPresent`] /
     /// [`Error::FormulaScanFailed`] (workbook-wide), [`Error::MergedCell`],
     /// [`Error::TableHeaderCell`], [`Error::RichValueCell`],
-    /// [`Error::MissingReference`], [`Error::OutOfOrder`]; core refusals
-    /// such as `UnresolvedSibling` if `sheetData` itself must be inserted
-    /// next to an `mc:AlternateContent`.
+    /// [`Error::MissingReference`], [`Error::OutOfOrder`],
+    /// core `UnresolvedSibling` if `sheetData`, the row or the cell has an
+    /// `mc:AlternateContent` child, or if `sheetData` itself must be
+    /// inserted next to one.
     pub fn set_string(self, value: &str) -> Result<()> {
         let units = value.encode_utf16().count();
         if units > MAX_STRING_LEN {

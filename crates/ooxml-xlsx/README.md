@@ -45,6 +45,9 @@ wb.save("new.xlsx")?;
 
 ## Refusals (`Err`, nothing changed)
 
+Every refusal is decided before the sheet is touched: after an `Err` the part
+is not dirty and saves byte-identical to the input.
+
 | Error | When |
 | --- | --- |
 | `FormulaPresent` | Any value edit, if any sheet part (worksheet, macro sheet, dialog sheet) contains an element in the SpreadsheetML main namespace with local name `f`, or the workbook has a `calcChain.xml`. Matched by QName, never by the bytes `<f` (`<formula>`, `<from>`, `<fill>` are not formulas; `xm:f` is another namespace). |
@@ -55,7 +58,7 @@ wb.save("new.xlsx")?;
 | `MissingReference` | Reads **and** writes, when any `row` in `sheetData`, or any `c` in the row concerned, lacks `r`. |
 | `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. |
 | `Core(EncryptedPackage)`, `Core(StrictNotSupported)`, `Core(DtdNotAllowed)` | From `ooxml-core` at open. |
-| `Core(UnresolvedSibling)` | `sheetData` would have to be inserted into a `worksheet` that has an `mc:AlternateContent` child (ADR-0002 §4.3). |
+| `Core(UnresolvedSibling)` | An `mc:AlternateContent` child of `sheetData`, of the row concerned, or of the target cell (writes), or of a `worksheet` without `sheetData`: what it wraps may be the cell, so reads **and** writes are refused instead of answering "absent". Also when `sheetData` would have to be inserted into a `worksheet` that has an `mc:AlternateContent` child (ADR-0002 §4.3). |
 
 ## Tests
 
