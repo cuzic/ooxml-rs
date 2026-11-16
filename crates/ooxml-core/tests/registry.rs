@@ -570,6 +570,17 @@ fn copy_relationships_keeps_ids() {
     let r = again.relationships("xl/drawings/drawing2.xml").unwrap();
     assert_eq!(r.resolve(r.by_id("rId1").unwrap()).as_deref(), Some("xl/media/image1.png"));
     assert_eq!(again.incoming_relationships("xl/media/image1.png").len(), 2);
+
+    // Ids that are not rId1..rIdN are copied as they are
+    let mut pkg = Package::from_bytes(synthetic()).unwrap();
+    let mut plan = RegistryPlan::new(&pkg);
+    let wb2 = plan.add_part(&pkg, PartNameRequest::Exact("xl/workbook2.xml".into()), "application/xml", WORKBOOK.as_bytes()).unwrap();
+    let ids = plan.copy_relationships(&pkg, "xl/workbook.xml", &wb2, &[]).unwrap();
+    assert_eq!(ids, ["rId1", "R44c83fbb", "rId3"]);
+    pkg.apply(plan).unwrap();
+    let r = Package::from_bytes(pkg.to_bytes().unwrap()).unwrap().relationships("xl/workbook2.xml").unwrap();
+    assert_eq!(r.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["rId1", "R44c83fbb", "rId3"]);
+    assert_eq!(r.resolve(r.by_id("rId3").unwrap()).as_deref(), Some("xl/worksheets/sheet3.xml"));
 }
 
 #[test]
