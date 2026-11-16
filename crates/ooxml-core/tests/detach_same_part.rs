@@ -45,6 +45,8 @@ spec!(End, "end", Content::Slots(&[ANY]));
 impl ChildOf<P> for R {}
 impl ChildOf<P> for End {}
 impl ChildOf<R> for RPr {}
+// test-only: a run nested in run properties gives a deeper destination
+impl ChildOf<RPr> for R {}
 // like a:endParaRPr / a:rPr (both a:CT_TextCharacterProperties)
 impl SameType<RPr> for End {}
 impl SameType<End> for RPr {}
@@ -387,4 +389,106 @@ fn own_xml_space_is_not_inherited() {
     copy.check_insert_under(&d, &[1], 0).unwrap();
     d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
     assert_eq!(d.serialize().matches(r#"<x:note xml:space="preserve">a  b</x:note>"#).count(), 2);
+}
+
+const MC: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+
+/// Review P49R2-M1: copies out of or into an `mc:AlternateContent` branch
+/// are refused, as a move is (#44): the check twin and the insertion agree,
+/// and nothing changes.
+#[test]
+fn alternate_content_branches_are_refused() {
+    let s = format!(
+        concat!(
+            r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y" xmlns:mc="{mc}">"#,
+            r#"<mc:AlternateContent><mc:Choice Requires="y"><x:r><x:rPr><y:k/></x:rPr><x:t>a</x:t></x:r></mc:Choice>"#,
+            r#"<mc:Fallback><x:r><x:t>f</x:t></x:r></mc:Fallback></mc:AlternateContent>"#,
+            r#"<x:r><x:rPr b="1"/><x:t>b</x:t></x:r><x:r><x:t>c</x:t></x:r></x:p>"#
+        ),
+        mc = MC
+    );
+    let mut d = doc(&s);
+    // out of the Choice branch (to the outside or to the Fallback): refused when taken
+    assert_matches!(
+        d.lens_at::<RPr>(&[0, 0, 0, 0]).unwrap().detach_same_part_as::<RPr>(&[], &opts()),
+        Err(Error::NotDetachable { reason: DetachRefusal::AlternateContent, .. })
+    );
+    // into the Fallback branch: refused by the check twin and the insertion
+    let copy = d.lens_at::<RPr>(&[1, 0]).unwrap().detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[0, 1, 0], 0), Err(Error::NotDetachable { reason: DetachRefusal::AlternateContent, .. }));
+    let before = d.serialize();
+    let r = d.lens_mut_at::<R>(&[0, 1, 0]).unwrap().insert_same_part(&copy).map(drop);
+    assert_matches!(r, Err(Error::NotDetachable { reason: DetachRefusal::AlternateContent, .. }));
+    assert_eq!(d.serialize(), before);
+    // outside any branch: fine
+    copy.check_insert_under(&d, &[2], 0).unwrap();
+    d.lens_mut_at::<R>(&[2]).unwrap().insert_same_part(&copy).unwrap();
+}
+
+/// Review n4: an element prefix (no attribute) rebound at the destination,
+/// and an `mc:Ignorable` prefix redeclared on the element that lists it.
+#[test]
+fn element_prefix_rebinding_and_ignorable_redeclared_on_its_element() {
+    let s = concat!(
+        r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y">"#,
+        r#"<x:r><x:rPr><y:k/></x:rPr><x:t>a</x:t></x:r>"#,
+        r#"<x:r xmlns:y="urn:other"><x:t>b</x:t></x:r><x:r><x:t>c</x:t></x:r></x:p>"#
+    );
+    let d = doc(s);
+    let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[1], 0), Err(Error::NotDetachable { reason: DetachRefusal::NamespaceBinding, .. }));
+    copy.check_insert_under(&d, &[2], 0).unwrap();
+    // `y` is redeclared (urn:y2) on the run whose mc:Ignorable lists it: the
+    // ignorable namespace is urn:y2, not the outer urn:y
+    let s = format!(
+        concat!(
+            r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y" xmlns:mc="{mc}">"#,
+            r#"<x:r xmlns:y="urn:y2" mc:Ignorable="y"><x:rPr><y:k/></x:rPr><x:t>a</x:t></x:r>"#,
+            r#"<x:r xmlns:y="urn:y2"><x:t>b</x:t></x:r></x:p>"#
+        ),
+        mc = MC
+    );
+    let d = doc(&s);
+    let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[1], 0), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+}
+
+/// Review n4: the insertion itself refuses past the depth limit (a deeper
+/// destination than the source), as the check twin does; and a self-closing
+/// parent gains its first child with `own_dirty` (review n5).
+#[test]
+fn insertion_depth_limit_and_self_closing_parent() {
+    let s = concat!(
+        r#"<x:p xmlns:x="urn:t" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
+        r#"<x:r><x:rPr><x:link r:id="rId7"/></x:rPr><x:t>a</x:t></x:r>"#,
+        r#"<x:r><x:rPr><x:r><x:t>b</x:t></x:r></x:rPr><x:t>c</x:t></x:r><x:r/></x:p>"#
+    );
+    let opts5 = ooxml_core::ParseOptions::default().with_max_depth(5);
+    let mut d = XmlDocument::parse_with(s.as_bytes(), &opts5).unwrap();
+    let copy = d.lens_at::<RPr>(&[0, 0]).unwrap().detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    // the nested run is at depth 4: rPr would be 5 and link 6
+    assert_matches!(copy.check_insert_under(&d, &[1, 0, 0], 0), Err(Error::TooDeep { .. }));
+    let before = d.serialize();
+    assert_matches!(d.lens_mut_at::<R>(&[1, 0, 0]).unwrap().insert_same_part(&copy).map(drop), Err(Error::TooDeep { .. }));
+    assert_eq!(d.serialize(), before);
+    // the self-closing run: fits, and gains its tags
+    d.lens_mut_at::<R>(&[2]).unwrap().insert_same_part(&copy).unwrap();
+    let run = d.root().elements().nth(2).unwrap();
+    assert!(run.own_dirty() && run.subtree_dirty());
+    assert!(d.serialize().contains(r#"<x:r><x:rPr><x:link r:id="rId7"/></x:rPr></x:r>"#), "{}", d.serialize());
+}
+
+/// Review n1: whitespace-only text between child elements is indentation,
+/// not content (as for a move, #44 m3b): such a copy goes where the
+/// inherited `xml:space` differs.
+#[test]
+fn indentation_is_not_inherited_text() {
+    let s = concat!(
+        r#"<x:p xmlns:x="urn:t">"#,
+        "<x:r xml:space=\"preserve\"><x:rPr>\n  <x:fill/>\n  <x:end/>\n</x:rPr><x:t>a</x:t></x:r><x:r><x:t>b</x:t></x:r></x:p>"
+    );
+    let mut d = doc(s);
+    let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    copy.check_insert_under(&d, &[1], 0).unwrap();
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
 }

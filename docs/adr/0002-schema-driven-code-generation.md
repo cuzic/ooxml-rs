@@ -205,7 +205,8 @@
   namespace declarations and relationship ids unchanged (the ids stay valid
   because the part's `.rels` is the same). Direct children named in `skip`
   are left out (the copy's children are then re-rendered); renaming to
-  `C::QNAME` keeps the prefix and re-renders the root's tags. This is what
+  `C::QNAME` keeps the prefix and re-renders the root's tags; a rename into
+  another namespace is a compile-time error (PR #49 review m1). This is what
   `ahyp:hlinkClr` needs: all 14 in the corpus declare `xmlns:ahyp` on the
   element itself (N1), which `detach_as` refuses and could not re-prefix.
   (2) *What is lifted and what stays (N3).* Lifted compared with
@@ -221,7 +222,13 @@
   extension content still passes every other check. Reviewed:
   `lens::ext_uri::HYPERLINK_COLOR` (`{A12FA001-AC4F-418D-AE19-62706E023703}`,
   `ahyp:hlinkClr`). Without options every `extLst` is refused.
-  (3) *Destination check, as a same-part move (PR #44).* The copy records,
+  (3) *Destination check, exactly as a same-part move (PR #44), with its
+  helpers (`declarations`/`effective`, `ancestor_context`, the move's
+  `Usage`; review m2).* A copy out of or into an `mc:AlternateContent`
+  branch is refused (`NotDetachable { AlternateContent }`), as a move is
+  (review P49R2-M1): consumers that pick another branch would see the copy
+  without its branch's `Requires`. Whitespace-only text between child
+  elements is indentation, not content (#44 m3b). The copy records,
   at the source, the binding of every prefix it uses **without declaring
   it** (element and attribute prefixes; declarations inside the copy travel
   with it), the `mc:Ignorable` status of every namespace its names use, and
@@ -229,8 +236,9 @@
   refused unless the destination gives the same meaning:
   `NotDetachable { NamespaceBinding | IgnorableNamespace | InheritedXmlSpace }`.
   Prefixes inside attribute values (`mc:Ignorable`, `mc:Requires`) need no
-  check because MC is refused. The ancestor scan duplicates #44's; the two
-  are to be folded into one helper once both are merged.
+  check because MC is refused. Known limit, shared with the move: an
+  ancestor's `mc:ProcessContent` and `mc:MustUnderstand` are not compared
+  (review n2).
   (4) *One document only.* Every `XmlDocument` has a process-unique
   identity; **a clone gets a new one** (it may become another part).
   Lenses from `XmlDocument::lens`/`lens_mut` and the new
@@ -261,7 +269,15 @@
   relationship id in the 619-presentation ADR-0008 corpus — 12 with
   `ahyp:hlinkClr` (14 with layouts and masters) — into a new run of their
   paragraph: the source bytes appear once more, verbatim, and the result
-  re-parses); a mutant set over `same_part.rs`.
+  re-parses); a mutant set over `same_part.rs`. The round-2 review copied
+  **every** `a:r/a:rPr` on slides, layouts, masters and notes of that
+  corpus — 47,464, not only those with relationship ids — with T2 intact
+  and 0 refusals (review n6).
+  *Checklist addition for `[detach]` types* (review n3): besides holding no
+  document-unique value, a detachable type's subtree must have **no
+  attribute of type `xsd:QName`**, because a copy does not check prefixes
+  inside attribute values (today's types, `CT_TextCharacterProperties` and
+  `CT_TextParagraphProperties`, have none).
 - **Post-acceptance note (2026-11-16, same-part move — additive, no
   change to the decisions; requested by ADR-0013 §2 for table-cell merges,
   usable by any format crate; revised after the PR #44 round-1 review,
