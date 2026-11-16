@@ -10,9 +10,15 @@ python3 -I units.py <dirs/files...> [--json out.json]
 ```
 
 Corpus of the 2026-11-16 run: Apache POI `test-data/slideshow/*.pptx`
-(94 files, fetched for the PowerPoint plan; not committed) plus the committed
-fixtures `reference/fixtures/pptx/`. Files are de-duplicated by SHA-256: 91
-distinct readable files (15 duplicates skipped, 11 unreadable), 522 slides.
+(94 files, fetched from POI trunk on 2026-11-16 for the PowerPoint plan; not
+committed) plus the committed fixtures `reference/fixtures/pptx/`. Files are
+de-duplicated by SHA-256: 91 distinct readable files (15 duplicates skipped,
+11 unreadable), 522 slides. Because POI's test data changes over time (a run
+on a later POI HEAD gives 97 files), the corpus is **pinned by content**:
+[`results/corpus-sha256.txt`](results/corpus-sha256.txt) lists the SHA-256 and
+name of every distinct file read (readable or not; written when the
+environment variable `UNITS_SHA_LIST` names an output file). The full output
+is [`results/units-91.txt`](results/units-91.txt).
 
 What it measures: slide ids (gaps, order vs. id, range), presentation `rId`
 patterns, slide/notes/media part naming, content types (`Default` vs
@@ -47,7 +53,9 @@ slides duplicable (ADR-0012 types): 457
 duplicate shape ids (outside AC): 0   sparse ids: 257 slides
 slides where some non-shape @id exceeds max shape id: 5
 slides with p14:creationId: 172   hidden slides: 3
-app.xml Slides == count: 86 (4 without Slides, 1 without app.xml)
+slides where a @spid or comment moniker id exceeds every @id: 11
+app.xml Slides == count: 86, Notes == notes: 86, HiddenSlides == hidden: 86
+  (4 without Slides, 1 without app.xml)
   slide-titles heading: 78 (count == slides: 77); labels localized
   (Slide Titles, Folientitel, Bildrubriker, Заголовки слайдов, 幻灯片标题, …)
 ```

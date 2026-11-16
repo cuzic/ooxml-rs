@@ -103,6 +103,7 @@ def main():
     hist = collections.defaultdict(collections.Counter)
     examples = collections.defaultdict(list)
     seen = set()
+    sha_list = []
     for f in files(args):
         data = open(f, 'rb').read()
         h = hashlib.sha256(data).hexdigest()
@@ -111,6 +112,7 @@ def main():
             continue
         seen.add(h)
         name = os.path.basename(f)
+        sha_list.append((h, name))
         try:
             z = zipfile.ZipFile(f)
             names = set(z.namelist())
@@ -189,6 +191,7 @@ def main():
             c['files with slide parts not in sldIdLst'] += 1
             c['slide parts not in sldIdLst'] += len(orphans)
         # --- per slide
+        hidden_count = sum(1 for t in slide_parts if sx_hidden(z, t))
         layout_use = collections.Counter()
         notes_of = collections.defaultdict(list)
         media_use = collections.defaultdict(set)
@@ -263,6 +266,28 @@ def main():
                     c['slides with sparse shape ids (max > 4*count+10)'] += 1
             # all @id anywhere (python-pptx's max_shape_id reads //@id)
             all_ids = [int(e.get('id')) for e in sx.iter() if (e.get('id') or '').isdigit()]
+            # ids named elsewhere (review m1): numeric @spid (timing, p:control,
+            # p:oleObj "_x0000_s1026"), and ac:*Mk@id in this slide's comment parts
+            spids = []
+            for e in sx.iter():
+                v = e.get('spid')
+                if v is None:
+                    continue
+                m = re.fullmatch(r'(?:_x0000_s)?(\d+)', v)
+                if m:
+                    spids.append(int(m.group(1)))
+            mk = []
+            for _, ty, x, ext_ in srels:
+                if ty.endswith('/comments') and not ext_ and x in names:
+                    try:
+                        for e in ET.fromstring(z.read(x)).iter():
+                            if e.tag.startswith('{http://schemas.microsoft.com/office/drawing/2013/main/command}') and (e.get('id') or '').isdigit():
+                                mk.append(int(e.get('id')))
+                    except Exception:
+                        pass
+            if (spids or mk) and max(spids + mk) > max(all_ids or [0]):
+                c['slides where a @spid or comment moniker id exceeds every @id'] += 1
+                examples['spid above @id'].append((name, t, max(spids + mk), max(all_ids or [0])))
             if all_ids and shape_ids and max(all_ids) > max(shape_ids):
                 c['slides where some non-shape @id exceeds max shape id'] += 1
             if sx.find('.//p14:creationId', NS) is not None:
@@ -377,8 +402,11 @@ def main():
                     c['app.xml Slides != count'] += 1
                     examples['app.xml Slides mismatch'].append((name, s.text, len(entries)))
                 n = ap.find('ep:Notes', NS)
-                if n is not None and int(n.text or -1) != sum(len(v) for v in notes_of.values()):
-                    c['app.xml Notes != notes count'] += 1
+                if n is not None:
+                    if int(n.text or -1) == sum(len(v) for v in notes_of.values()):
+                        c['app.xml Notes == notes count'] += 1
+                    else:
+                        c['app.xml Notes != notes count'] += 1
                 if ap.find('ep:TitlesOfParts', NS) is not None:
                     c['app.xml with TitlesOfParts'] += 1
                     hp = ap.find('ep:HeadingPairs/vt:vector', NS)
@@ -392,8 +420,13 @@ def main():
                                 if cnt.strip().isdigit() and int(cnt) == len(entries):
                                     c['slide-titles heading count == slides'] += 1
                             hist['app.xml heading labels'][label.strip()] += 1
-                if ap.find('ep:HiddenSlides', NS) is not None:
+                hs = ap.find('ep:HiddenSlides', NS)
+                if hs is not None:
                     c['app.xml with HiddenSlides'] += 1
+                    if int(hs.text or -1) == hidden_count:
+                        c['app.xml HiddenSlides == hidden slides (show=0|false)'] += 1
+                    else:
+                        c['app.xml HiddenSlides != hidden slides'] += 1
             except Exception:
                 c['app.xml unreadable'] += 1
         else:
@@ -408,6 +441,10 @@ def main():
         print(f'{k}: ' + ', '.join(f'{a}={b}' for a, b in sorted(v.items(), key=lambda x: str(x[0]))))
     for k, v in sorted(examples.items()):
         print(f'example {k}: {v[:6]}')
+    if os.environ.get('UNITS_SHA_LIST'):
+        with open(os.environ['UNITS_SHA_LIST'], 'w') as fh:
+            for h, n in sorted(sha_list, key=lambda x: x[1]):
+                fh.write(f'{h}  {n}\n')
     if jout:
         json.dump(out, open(jout, 'w'), indent=1, default=str)
 
