@@ -1,9 +1,13 @@
 //! Layer 3 OPC registries: `[Content_Types].xml` and relationship parts
-//! (ADR-0001). Read-only for now; the append-only invariant governs any
-//! future write API (existing entries are never renumbered or removed). The
-//! one exception is [`crate::Package::remove_part`], which removes entries
-//! only together with the part they register (ADR-0001 interim
-//! post-acceptance note of 2026-11-16; ADR-0003 §4.3 when accepted).
+//! (ADR-0001). They are written only by [`crate::Package`]'s primitives, under
+//! the append-only invariant (existing entries are never renumbered):
+//! [`crate::Package::add_part`], [`crate::Package::add_relationship`] and
+//! [`crate::Package::add_related_part`] append entries,
+//! [`crate::Package::set_content_type`] sets the type of one part's
+//! `Override` (ADR-0001 post-acceptance note "registry additions"), and
+//! [`crate::Package::remove_part`] removes entries only together with the
+//! part they register (ADR-0001 interim post-acceptance note of 2026-11-16;
+//! ADR-0003 §4.3 when accepted).
 //!
 //! Part names in this crate are zip entry names: no leading `/`
 //! (`xl/workbook.xml`). OPC's `/`-prefixed names are converted on input.
@@ -60,6 +64,26 @@ impl ContentTypes {
     /// `(part name, content type)` overrides in document order.
     pub fn overrides(&self) -> &[(String, String)] {
         &self.overrides
+    }
+
+    /// Records a new override (after [`crate::Package::add_part`] or
+    /// [`crate::Package::set_content_type`] wrote it to the XML).
+    pub(crate) fn push_override(&mut self, part: &str, content_type: &str) {
+        self.overrides.push((part.trim_start_matches('/').to_owned(), content_type.to_owned()));
+    }
+
+    /// Records a new default (after a registry plan wrote it to the XML).
+    pub(crate) fn push_default(&mut self, ext: &str, content_type: &str) {
+        self.defaults.push((ext.to_owned(), content_type.to_owned()));
+    }
+
+    /// Sets the content type of every override for `part`.
+    pub(crate) fn set_override(&mut self, part: &str, content_type: &str) {
+        for (p, t) in &mut self.overrides {
+            if same_part_name(p, part) {
+                *t = content_type.to_owned();
+            }
+        }
     }
 
     /// Drops every override for `part` (after [`crate::Package::remove_part`]
@@ -195,6 +219,20 @@ impl Relationships {
         }
     }
 
+    /// Records a relationship appended by
+    /// [`crate::Package::add_relationship`].
+    pub(crate) fn push(&mut self, rel: Relationship) {
+        self.rels.push(rel);
+    }
+
+    /// Rewrites the `Target` of the relationship `id` (after
+    /// [`crate::RegistryPlan::set_relationship_target`]).
+    pub(crate) fn set_target(&mut self, id: &str, target: &str) {
+        for r in self.rels.iter_mut().filter(|r| xml_trim(&r.id) == xml_trim(id)) {
+            r.target = target.to_owned();
+        }
+    }
+
     /// The source part (`None` = package).
     pub fn source(&self) -> Option<&str> {
         self.source.as_deref()
@@ -237,6 +275,26 @@ pub fn rels_part_name(source: Option<&str>) -> String {
     }
 }
 
+/// The relative target that reaches `part` from `source` (`None` = the
+/// package, whose targets are relative to the root): the inverse of
+/// [`resolve_target`] for part names without `.`/`..` segments.
+///
+/// `relative_target(Some("xl/workbook.xml"), "xl/worksheets/sheet2.xml")` is
+/// `worksheets/sheet2.xml`; from `xl/worksheets/sheet1.xml` to
+/// `xl/drawings/drawing1.xml` it is `../drawings/drawing1.xml`.
+pub fn relative_target(source: Option<&str>, part: &str) -> String {
+    let part = part.trim_start_matches('/');
+    let base: Vec<&str> = match source.map(|s| s.trim_start_matches('/')).and_then(|s| s.rsplit_once('/')) {
+        Some((dir, _)) => dir.split('/').collect(),
+        None => Vec::new(),
+    };
+    let target: Vec<&str> = part.split('/').collect();
+    let common = base.iter().zip(&target).take_while(|(a, b)| a == b).count().min(target.len().saturating_sub(1));
+    let mut out: Vec<&str> = std::iter::repeat_n("..", base.len() - common).collect();
+    out.extend(&target[common..]);
+    out.join("/")
+}
+
 /// Resolves a relative relationship target against its source part.
 pub fn resolve_target(source: Option<&str>, target: &str) -> String {
     let target = target.split(['#', '?']).next().unwrap_or_default();
@@ -274,5 +332,16 @@ mod tests {
         assert_eq!(resolve_target(Some("xl/worksheets/sheet1.xml"), "../drawings/d.xml"), "xl/drawings/d.xml");
         assert_eq!(resolve_target(None, "/xl/workbook.xml"), "xl/workbook.xml");
         assert_eq!(resolve_target(None, "xl/workbook.xml"), "xl/workbook.xml");
+        for (src, part, rel) in [
+            (Some("xl/workbook.xml"), "xl/worksheets/sheet2.xml", "worksheets/sheet2.xml"),
+            (Some("xl/worksheets/sheet1.xml"), "xl/drawings/drawing1.xml", "../drawings/drawing1.xml"),
+            (None, "xl/workbook.xml", "xl/workbook.xml"),
+            (Some("top.xml"), "a/b.xml", "a/b.xml"),
+            (Some("a/b/c.xml"), "d.xml", "../../d.xml"),
+            (Some("ppt/slides/slide1.xml"), "ppt/slides/slide2.xml", "slide2.xml"),
+        ] {
+            assert_eq!(relative_target(src, part), rel);
+            assert_eq!(resolve_target(src, &relative_target(src, part)), part);
+        }
     }
 }
