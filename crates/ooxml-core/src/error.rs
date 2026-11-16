@@ -160,6 +160,14 @@ pub enum Error {
         /// The number of child items.
         len: usize,
     },
+    /// A same-part copy ([`crate::SamePartDetached`]) was offered to
+    /// another document (or a clone of its document), or taken from / put
+    /// into a lens that does not know its document
+    /// ([`Lens::root`](crate::Lens::root), [`Lens::at`](crate::Lens::at),
+    /// [`LensMut::root`](crate::LensMut::root)): its relationship ids are
+    /// only valid in the part it came from (ADR-0002 note "same-part copy").
+    #[error("a same-part copy can only be inserted into the document it was taken from")]
+    WrongDocument,
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
@@ -171,6 +179,18 @@ pub enum Error {
         part: String,
         /// Which precondition failed.
         reason: crate::package::RemoveRefusal,
+    },
+    /// A registry write ([`RegistryPlan`](crate::RegistryPlan) step,
+    /// [`Package::apply`](crate::Package::apply) or a one-step convenience
+    /// such as [`Package::add_part`](crate::Package::add_part)) was refused;
+    /// nothing was changed.
+    #[error("registry write refused ({part:?}): {reason}")]
+    RegistryRefused {
+        /// The part concerned (the new part, the relationship's source —
+        /// `""` for the package — or the part whose type is set).
+        part: String,
+        /// Which precondition failed.
+        reason: crate::package::RegistryRefusal,
     },
     /// The part is not well-formed XML in a way the underlying reader
     /// (quick-xml) would let through. Refused at parse time so that the tree
@@ -331,6 +351,12 @@ pub enum DetachRefusal {
     /// An extension list (`extLst`, any namespace) in the kept subtree: its
     /// content is open, so ids or references inside cannot be reviewed.
     ExtensionList,
+    /// Same-part copy ([`crate::Lens::detach_same_part_as`]): a prefix the
+    /// copy uses without declaring it is bound to another namespace (or
+    /// unbound) at the destination, so its bytes would mean something else
+    /// there. `name` is `{xmlns}prefix` (`{xmlns}xmlns` for the default
+    /// namespace).
+    NamespaceBinding,
 }
 
 impl std::fmt::Display for DetachRefusal {
@@ -344,6 +370,7 @@ impl std::fmt::Display for DetachRefusal {
             DetachRefusal::InheritedXmlSpace => "text under a different inherited xml:space",
             DetachRefusal::UniqueAttribute => "a document-unique id attribute with a non-default value",
             DetachRefusal::ExtensionList => "an extension list (extLst) in the subtree",
+            DetachRefusal::NamespaceBinding => "a prefix of the copy means another namespace at the destination",
         })
     }
 }

@@ -1,4 +1,5 @@
-//! Writes the T3 oracle cases (ADR-0005 §7) for the independent python-pptx
+//! Writes the T3 oracle cases (ADR-0005 §7) and the find/replace cases
+//! (ADR-0008 §7 O5) for the independent python-pptx
 //! check: `cases.json`, one edited `<case>.pptx` per case, and
 //! ooxml-pptx's own model of each input and output.
 //!
@@ -17,7 +18,8 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = PathBuf::from(std::env::args().nth(1).ok_or("usage: oracle_cases OUTDIR")?);
     std::fs::create_dir_all(&out)?;
-    let cases = cases::all_cases();
+    let mut cases = cases::all_cases();
+    cases.extend(cases::replace_cases()); // ADR-0008 §7 O5 (review #48 M1)
     for c in &cases {
         std::fs::write(out.join(format!("{}.pptx", c.name)), &c.output)?;
         let mut input = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(&c.fixture))?;
