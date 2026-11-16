@@ -308,11 +308,16 @@ fn format_sources() {
     // Real: sample.pptx's title run has <a:sym> in its a:rPr and an
     // attribute-only a:pPr; "\v" and new lines copy both.
     let mut p = open("poi/sample.pptx");
-    let (rpr, ppr) = {
+    let (rpr, ppr, end) = {
         let s = p.slide(0).unwrap();
         let q = body_of(&s, 2049)[0].raw();
-        (subtree(child(child(q, "r").unwrap(), "rPr").unwrap(), &[]), subtree(child(q, "pPr").unwrap(), &[]))
+        (
+            subtree(child(child(q, "r").unwrap(), "rPr").unwrap(), &[]),
+            subtree(child(q, "pPr").unwrap(), &[]),
+            subtree(child(q, "endParaRPr").unwrap(), &[]),
+        )
     };
+    assert_ne!(rpr, end);
     p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\u{b}b\nc\n").unwrap();
     {
         let s = p.slide(0).unwrap();
@@ -325,9 +330,17 @@ fn format_sources() {
         }
         for q in &paras[1..] {
             assert_eq!(subtree(child(q.raw(), "pPr").unwrap(), &[]), ppr);
-            assert_eq!(subtree(child(q.raw(), "endParaRPr").unwrap(), &[]), rpr, "R2-5: endParaRPr from the run format source");
+            assert_eq!(subtree(child(q.raw(), "endParaRPr").unwrap(), &[]), end, "N3-1: the last paragraph's own a:endParaRPr");
         }
     }
+    // SYNTHETIC: the same title with an empty a:endParaRPr (no format of its
+    // own): new paragraphs take the run format source instead (R2-5).
+    let bare = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        replace_once(&x, "</a:r><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp><p:sp>", "</a:r><a:endParaRPr/></a:p></p:txBody></p:sp><p:sp>")
+    });
+    let mut q = Presentation::from_bytes(bare).unwrap();
+    q.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\nb").unwrap();
+    assert_eq!(subtree(child(body_of(&q.slide(0).unwrap(), 2049)[1].raw(), "endParaRPr").unwrap(), &[]), rpr);
     // The subtitle's first a:pPr has an a:spcAft child: new paragraphs copy it.
     p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("only").unwrap();
     let ppr = subtree(child(body_of(&p.slide(0).unwrap(), 2050)[0].raw(), "pPr").unwrap(), &[]);
@@ -700,4 +713,56 @@ fn comment_sub_conditions() {
     let mut p = Presentation::from_bytes(anchorless).unwrap();
     let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
     assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 });
+}
+
+#[test]
+fn comment_and_id_sub_conditions_round3() {
+    // Review N3-2: the remaining §6 sub-conditions, each on a synthetic input.
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    // SYNTHETIC: an unknown child of p188:cmLst: the whole slide is locked
+    let unknown_child = patch("libreoffice/modern-comments.pptx", PART, |x| replace_once(&x, "</p188:cmLst>", "<p188:futureThing/></p188:cmLst>"));
+    let mut p = Presentation::from_bytes(unknown_child).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 });
+    // SYNTHETIC: ac:deMkLst without a txMk element but with cp/len offsets
+    // on its shape moniker: not a whole-drawing anchor; shape 2 is locked,
+    // shape 3 is not
+    let offsets = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        let at = x.find("<ac:spMk ").unwrap();
+        format!("{}<ac:spMk cp=\"0\" len=\"3\" {}", &x[..at], &x[at + "<ac:spMk ".len()..])
+    });
+    let mut p = Presentation::from_bytes(offsets).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 2 });
+    p.slide_mut(0).unwrap().shape_mut_by_id(3).unwrap().text_body_mut().unwrap().set_text("other shape ok").unwrap();
+    // SYNTHETIC: sample.pptx's title with cNvPr@id not a number (present,
+    // unlike shape_addressing's missing id)
+    let nan = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| replace_once(&x, "id=\"2049\"", "id=\"title\""));
+    let mut p = Presentation::from_bytes(nan).unwrap();
+    let path = path_of(&mut p, 0, |s| s.placeholder().is_some());
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut(&path).map(|_| ()));
+    assert_matches!(e, Error::InvalidShapeId);
+}
+
+#[test]
+fn unreadable_comment_parts_fail_closed() {
+    // PR #16 review m4: any failure to read or parse a comment part locks
+    // the text of every shape (it never disables the guard). SYNTHETIC
+    // comment parts: not XML at all, empty, not UTF-8, and nested deeper
+    // than any real part (each element level an unknown anchor wrapper).
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    let deep = {
+        let mut s = String::from(r#"<p188:cmLst xmlns:p188="http://schemas.microsoft.com/office/powerpoint/2018/8/main"><p188:cm id="x">"#);
+        s.push_str(&"<p188:n>".repeat(1500));
+        s.push_str(&"</p188:n>".repeat(1500));
+        s.push_str("</p188:cm></p188:cmLst>");
+        s.into_bytes()
+    };
+    for (what, bytes) in [("binary", vec![0xFF, 0xFE, 0x00, 0x01]), ("empty", Vec::new()), ("latin-1", b"<p188:cmLst \xE9/>".to_vec()), ("deep", deep)] {
+        let mut pkg = Package::from_bytes(cases::read_fixture("libreoffice/modern-comments.pptx")).unwrap();
+        pkg.set_part(PART, bytes).unwrap();
+        let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
+        assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 }, "{what}");
+    }
 }

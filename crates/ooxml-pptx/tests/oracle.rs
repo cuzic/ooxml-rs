@@ -49,7 +49,10 @@ fn runs(p: &Value) -> Vec<Value> {
 /// Phase 0.1: the whole subtree is copied, except the link children
 /// (`a:hlinkClick`, `a:hlinkMouseOver`); nothing left → no element.
 fn run_fmt(p: &Value) -> Value {
-    let mut f = runs(p).first().map_or_else(|| p["end"].clone(), |r| r[2].clone());
+    without_links(runs(p).first().map_or_else(|| p["end"].clone(), |r| r[2].clone()))
+}
+
+fn without_links(mut f: Value) -> Value {
     if let Some(children) = f.get_mut("children").and_then(Value::as_array_mut) {
         const A: &str = "{http://schemas.openxmlformats.org/drawingml/2006/main}";
         children.retain(|c| c["name"] != format!("{A}hlinkClick") && c["name"] != format!("{A}hlinkMouseOver"));
@@ -112,10 +115,15 @@ fn apply(model: &mut Value, e: &Value) {
                 if i < n {
                     para_set(&mut paras[i], line);
                 } else {
-                    // R2-5: the run format source also becomes `a:endParaRPr`
+                    // R2-5 / N3-1: `a:endParaRPr` from the last paragraph's
+                    // own one if it has any format, else its run format source
                     let fmt = run_fmt(&last);
+                    let end = match without_links(last["end"].clone()) {
+                        Value::Null => fmt.clone(),
+                        own => own,
+                    };
                     let items = build(&segs(line), None, &fmt);
-                    paras.push(json!({"ppr": last["ppr"], "end": fmt, "items": items}));
+                    paras.push(json!({"ppr": last["ppr"], "end": end, "items": items}));
                 }
             }
             paras.truncate(lines.len());

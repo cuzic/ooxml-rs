@@ -129,13 +129,13 @@ def set_paragraph(p, text):
     fill(p, text.split('\v'), runs[0] if runs else None, src)
 
 
-def new_paragraph(body, text, ppr, src):
+def new_paragraph(body, text, ppr, src, end_src):
     p = make(body, 'p')
     kids(body, 'p')[-1].addnext(p)
     if ppr is not None:
         p.append(copy.deepcopy(ppr))
     fill(p, text.split('\v'), None, src)
-    end = copy_as(src, 'endParaRPr')
+    end = copy_as(end_src, 'endParaRPr')
     if end is not None:
         p.append(end)
 
@@ -155,17 +155,21 @@ def edit(body, op, a):
     elif op == 'remove_field':
         paras[a['p']].remove(kids(paras[a['p']], 'fld')[a['f']])
     elif op == 'add_paragraph':
-        new_paragraph(body, a['text'], None, None)
+        new_paragraph(body, a['text'], None, None, None)
     elif op == 'remove_paragraph':
         body.remove(paras[a['p']])
     elif op == 'body_set_text':
         lines = a['text'].replace('\r\n', '\n').replace('\r', '\n').split('\n')
         last = paras[-1]
         ppr, src = copy.deepcopy(last.find(A + 'pPr')), copy.deepcopy(run_source(last))
+        # the end-of-paragraph format carries over (N3-1): the last
+        # paragraph's own a:endParaRPr when it has a format to copy
+        own_end = last.find(A + 'endParaRPr')
+        end_src = copy.deepcopy(own_end) if copy_as(own_end, 'endParaRPr') is not None else src
         for p, line in zip(paras, lines):
             set_paragraph(p, line)
         for line in lines[len(paras):]:
-            new_paragraph(body, line, ppr, src)
+            new_paragraph(body, line, ppr, src, end_src)
         for p in paras[len(lines):]:
             body.remove(p)
     else:
