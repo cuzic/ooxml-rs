@@ -261,7 +261,7 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 ### Phase0 (ADR-0004)
 
-Implemented in `crates/ooxml-docx` (ADR-0004 revision 2, still Proposed).
+Implemented in `crates/ooxml-docx` (ADR-0004 revision 3, still Proposed).
 
 **Scope.**
 
@@ -271,8 +271,11 @@ Implemented in `crates/ooxml-docx` (ADR-0004 revision 2, still Proposed).
   `in_field()`.
 - Write: `Document::set_run_text(paragraph, run, text)`, and `append_paragraph(text)` before
   `sectPr`.
-- Gates: `EncryptedPackage`, `DtdNotAllowed`, `StrictNotSupported`, `TrackRevisionsOn`,
-  `DocumentProtected`, `StaleFieldRisk`.
+- Gates: `EncryptedPackage`, `DtdNotAllowed`, `StrictNotSupported`, `TooDeep` (core's nesting
+  limit, O5), `TrackRevisionsOn`, `DocumentProtected`, `StaleFieldRisk` (fields classified with
+  their arguments for `INFO`/`DOCPROPERTY`; malformed field markup refused).
+- Append refusal `SectionBreakAtEnd` when the last section's `sectPr` sits in the last paragraph.
+- Reported only: `writeProtection`, Mark as Final, `updateFields`.
 - Per-run refusals: `InsideField`, `InsideRevision`, `UnsupportedContext` (SDT, smartTag,
   customXml, bidi, ruby), `RunNotTextOnly`.
 
@@ -305,7 +308,33 @@ Implemented in `crates/ooxml-docx` (ADR-0004 revision 2, still Proposed).
 - `pStyle`/`rStyle` set to an **existing** style ID, read from `styles.xml`, else `Err(UnknownStyle)`.
 - `set_update_fields_on_open`.
 - `Document::new()` from an embedded template (deferred from Phase0; template source, page size and East Asian font defaults to be decided by the owner).
-- Possibly: an opt-in to edit enforced-protection documents, and per-operation `StaleFieldRisk` (ADR-0004 open questions).
+- Possibly: an opt-in to edit enforced-protection documents (with `readOnly` + `w:permStart`/`w:permEnd` editable ranges, a common template pattern, as an input to that decision).
+- Moving the last section's `sectPr` on append (lifting A2), as an explicit, documented edit.
+
+**Planned direction for `StaleFieldRisk` (ADR-0004 open questions 2 and 3; recommendation of
+`0004-opus-review-round2.md`, recorded in ADR-0004 revision 3, awaiting the owner's
+confirmation).**
+
+- **Per-operation check, limited.** A two-column table in `fields.rs` (code → allowed under
+  `set_run_text` / under `append_paragraph`) replaces the single `SAFE` list, which is the
+  "allowed under both" special case. Phase1 adds only `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM`,
+  `AUTONUM`, `AUTONUMLGL`, `AUTONUMOUT` as allowed under both operations: their results depend
+  only on the number and order of fields, the instruction text or note numbering, none of which
+  Phase0's operations change. Tests enumerate the whole table.
+- **`TOC`, `PAGEREF`, `REF` under append** are not added in this step: a default paragraph style
+  with `w:outlineLvl` would put the appended paragraph into a `\u` TOC, and endnotes move after
+  the appended paragraph, which can change a `PAGEREF` to them. They go with the `updateFields`
+  opt-in or a later step.
+- **Refused under `set_run_text`** in any case: `TOC`, `REF`, `PAGEREF`, `STYLEREF`, `=`, `IF`
+  (unless the next rule applies), `NUMWORDS`, `NUMCHARS`, and `INFO`/`DOCPROPERTY` statistics.
+- **`IF`** is safe when (a) every nested field is safe and (b) neither side of the comparison is a
+  bare identifier (a bookmark reference: `{ IF bm = "x" … }`). A tokenizer over the instruction
+  (quoted strings, numbers, operators, nested-field placeholders) decides (b). The mail-merge
+  pattern `{ IF { MERGEFIELD G } = "F" "Ms." "Mr." }` passes. Note: in a mail-merge main document
+  (`settings/w:mailMerge`), `IF` and `MERGEFIELD` are re-evaluated on every merge *(u)*.
+- **`updateFields` opt-in** covers the rest: documents with `REF`/`TOC` or an `IF` that fails (a)
+  or (b), where the caller accepts that Word updates the fields on open. It is never the default,
+  because readers other than Word keep the stale results (ADR-0004 Alternatives 4).
 
 **Acceptance.**
 
