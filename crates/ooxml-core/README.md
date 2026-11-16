@@ -98,7 +98,7 @@ Write primitives (ADR-0002 §4.2):
 | --- | --- |
 | `insert_by::<C>(before)` | Into `C`'s slot; `before(index_in_slot, existing)` picks the position inside the slot (callers own row/column order). Else before the first higher-ranked child, else immediately before the close tag. No whitespace is added. |
 | `insert::<C>()` | Append at the end of the slot. |
-| `insert_at::<C>(index)`, `check_insert_at::<C>(index)` | Insert at a child item index the caller computed (e.g. from its own row index): O(1) placement instead of `insert_by`'s scan of every child. Schema order is checked against the nearest listed neighbours only (and slot limits, depth, prefix); `check_insert_at` runs the same checks without changing anything, for validate-then-apply callers. `InsertIndexOutOfRange` for an index past the children. |
+| `insert_at::<C>(index)`, `check_insert_at::<C>(index)` | Insert at a child item index the caller computed (e.g. from its own row index): for a slot without limits, O(1) placement instead of `insert_by`'s scan of every child. Schema order is checked against the nearest listed neighbours only, every slot an ambiguous neighbour could take must be in order; slot limits are counted over all children exactly as `insert_by` does (and refuse next to any `mc:AlternateContent`); depth and prefix as `insert_by`; `check_insert_at` runs the same checks without changing anything, for validate-then-apply callers. `InsertIndexOutOfRange` for an index past the children. |
 | `insert_in_slot::<C>(slot, before)` | For a QName that is in two slots (otherwise `AmbiguousSlot`). |
 | `get_or_insert::<C>()` | First existing `C`, or insert. |
 | `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
