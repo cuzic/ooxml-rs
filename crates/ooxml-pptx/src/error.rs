@@ -136,7 +136,7 @@ pub enum Error {
     /// A new run or paragraph would need the formatting of an existing
     /// `a:rPr` / `a:endParaRPr` / `a:pPr` that has child elements (fill,
     /// fonts, bullets, …) or attributes outside the schema: copying it needs
-    /// a subtree-copy primitive (Phase 2). Use `add_run` / `add_paragraph`
+    /// a subtree-copy primitive (not in Phase 0). Use `add_run` / `add_paragraph`
     /// for explicitly unformatted text.
     #[error("the formatting of {0} cannot be copied in Phase 0 (child elements or unknown attributes)")]
     FormatNotCopyable(&'static str),
