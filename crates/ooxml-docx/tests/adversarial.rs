@@ -100,7 +100,20 @@ fn n2_statistics_and_argument_dependent_fields_are_refused() {
     ] {
         assert_eq!(body_codes(&format!("<w:p>{}</w:p><w:p><w:r><w:t>body</w:t></w:r></w:p>", fld(code))), [key], "{code}");
     }
-    for code in ["INFO NumPages", "INFO Author", "DOCPROPERTY Title", "DOCPROPERTY Pages", "DOCPROPERTY \"Client Name\"", "BARCODE \"98052\" \\u"] {
+    // DOCPROPERTY is an allow-list (review round 3, m9): unknown names,
+    // custom names absent from custom.xml, odd spellings are refused.
+    for (code, key) in [
+        ("DOCPROPERTY \"Client Name\"", "DOCPROPERTY CLIENT NAME"),
+        ("DOCPROPERTY \u{201C}Words\u{201D}", "DOCPROPERTY WORDS"),
+        ("DOCPROPERTY \u{201C}Client\u{201D}", "DOCPROPERTY CLIENT"),
+        ("DOCPROPERTY \u{201C}Words", "DOCPROPERTY"),
+        ("INFO \u{201C}NumWords\u{201D}", "INFO NUMWORDS"),
+        ("BARCODE bm\\b", "BARCODE \\b"),
+        ("BARCODE bm \\B", "BARCODE \\b"),
+    ] {
+        assert_eq!(body_codes(&format!("<w:p>{}</w:p>", fld(code))), [key], "{code}");
+    }
+    for code in ["INFO NumPages", "INFO Author", "DOCPROPERTY Title", "DOCPROPERTY Pages", "DOCPROPERTY Company", "DOCPROPERTY \u{201C}Title\u{201D}", "BARCODE \"98052\" \\u"] {
         assert_eq!(body_codes(&format!("<w:p>{}</w:p>", fld(code))), Vec::<String>::new(), "{code}");
     }
     // fldSimple goes through the same key.
@@ -122,9 +135,15 @@ fn n2_docproperty_of_a_linked_custom_property_is_refused() {
     let props = custom_xml(
         r#"<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="Client" linkTarget="_ClientBookmark"><vt:lpwstr>ACME</vt:lpwstr></property><property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="Project"><vt:lpwstr>X</vt:lpwstr></property>"#,
     );
-    let body = format!("<w:p>{}{}</w:p>", fld("DOCPROPERTY Client"), fld("DOCPROPERTY \"Project\""));
+    let body = format!("<w:p>{}{}{}</w:p>", fld("DOCPROPERTY Client"), fld("DOCPROPERTY \"Project\""), fld("DOCPROPERTY Unknown"));
     let bytes = with_parts(&docx(&body, None, None), &[("docProps/custom.xml", &props)], CUSTOM_REL);
-    assert_eq!(refused_codes(bytes), ["DOCPROPERTY CLIENT"]);
+    // Project: a custom property without linkTarget, safe. Unknown: not in
+    // custom.xml and not on the allow-list, refused.
+    assert_eq!(refused_codes(bytes), ["DOCPROPERTY CLIENT", "DOCPROPERTY UNKNOWN"]);
+    // A custom property named like a statistic is still refused.
+    let props = custom_xml(r#"<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="Words"><vt:lpwstr>1</vt:lpwstr></property>"#);
+    let bytes = with_parts(&docx(&format!("<w:p>{}</w:p>", fld("DOCPROPERTY Words")), None, None), &[("docProps/custom.xml", &props)], CUSTOM_REL);
+    assert_eq!(refused_codes(bytes), ["DOCPROPERTY WORDS"]);
 }
 
 // ---- m1: field markup that cannot be followed fails closed --------------
@@ -368,4 +387,108 @@ fn n1_just_under_the_limit_works() {
         Document::from_bytes(docx(&format!("{}<w:sectPr/>", nested_tables(d + 1)), None, None)),
         Err(Error::Core(CoreError::TooDeep { limit: DEFAULT_MAX_DEPTH, .. }))
     );
+}
+
+// ---- review round 3 -----------------------------------------------------
+
+/// N3: `{ INCLUDETEXT "{ FILENAME \p }" Client }` includes a bookmark of
+/// the document itself (the reviewer's Q05): refused, like `REF Client`.
+#[test]
+fn n3_file_source_must_be_a_literal() {
+    let body = r#"<w:p><w:bookmarkStart w:id="0" w:name="Client"/><w:r><w:t>ACME</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDETEXT "</w:instrText></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> FILENAME \p </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:instrText>C:\\x\\self.docx</w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:instrText xml:space="preserve">" Client </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>ACME</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#;
+    let input = docx(body, None, None);
+    assert_eq!(refused_codes(input.clone()), ["INCLUDETEXT (non-literal source)"]);
+    let mut doc = Document::from_bytes(input).unwrap();
+    assert_matches!(doc.set_run_text(0, 0, "Globex"), Err(Error::StaleFieldRisk { .. }));
+    // The same for INCLUDEPICTURE and LINK, and for a missing source.
+    let nested = |code: &str| {
+        format!(
+            r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> {code} "</w:instrText></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>MERGEFIELD path</w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:instrText xml:space="preserve">" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#
+        )
+    };
+    assert_eq!(body_codes(&nested("INCLUDEPICTURE")), ["INCLUDEPICTURE (non-literal source)"]);
+    assert_eq!(body_codes(&nested("LINK Excel.Sheet.12")), ["LINK (non-literal source)"]);
+    assert_eq!(body_codes(&format!("<w:p>{}</w:p>", fld("INCLUDETEXT \\* MERGEFORMAT"))), ["INCLUDETEXT (non-literal source)"]);
+    // Literal sources stay safe.
+    for code in [r#"INCLUDETEXT "C:\\a.docx" bm"#, r#"INCLUDEPICTURE "a.png""#, r#"LINK Excel.Sheet.12 "a.xlsx" "Sheet1!R1C1""#] {
+        assert_eq!(body_codes(&format!("<w:p>{}</w:p>", fld(code))), Vec::<String>::new(), "{code}");
+    }
+}
+
+/// m7 (the reviewer's Q01): a field whose begin the body walk cannot see is
+/// malformed, so its result run cannot be edited.
+#[test]
+fn m7_field_markers_outside_the_body_walk_are_malformed() {
+    let tail = r#"<w:r><w:t>RESULT</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>"#;
+    let open = r#"<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> MERGEFIELD Name </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>"#;
+    let cases = [
+        ("begin in text box story", format!("<w:p><w:r><w:pict><w:txbxContent><w:p>{open}</w:p></w:txbxContent></w:pict></w:r>{tail}</w:p>")),
+        ("begin in ruby text", format!("<w:p><w:r><w:ruby><w:rt>{open}</w:rt><w:rubyBase><w:r><w:t>k</w:t></w:r></w:rubyBase></w:ruby></w:r>{tail}</w:p>")),
+        ("fldChar directly in w:p", r#"<w:p><w:fldChar w:fldCharType="begin"/><w:r><w:instrText> MERGEFIELD Name </w:instrText></w:r><w:fldChar w:fldCharType="separate"/><w:r><w:t>RESULT</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#.to_owned()),
+        ("begin in block-level AC", format!(r#"<mc:AlternateContent><mc:Choice Requires="w14"><w:p>{open}</w:p></mc:Choice></mc:AlternateContent><w:p>{tail}</w:p>"#)),
+        ("begin in m:oMath", format!(r#"<w:p><m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{open}</m:oMath>{tail}</w:p>"#)),
+        ("fldChar nested in w:r child", r#"<w:p><w:r><w:x><w:fldChar w:fldCharType="begin"/></w:x></w:r><w:r><w:instrText> MERGEFIELD Name </w:instrText></w:r><w:r><w:x><w:fldChar w:fldCharType="separate"/></w:x></w:r><w:r><w:t>RESULT</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#.to_owned()),
+        ("instrText outside a run", r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:instrText> MERGEFIELD Name </w:instrText><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>RESULT</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#.to_owned()),
+    ];
+    for (name, body) in cases {
+        let input = docx(&body, None, None);
+        assert!(refused_codes(input.clone()).contains(&MALFORMED.to_owned()), "{name}");
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let target = doc.paragraphs().find_map(|p| p.runs().find(|r| r.text() == "RESULT").map(|r| (p.index(), r.index()))).unwrap();
+        assert_matches!(doc.set_run_text(target.0, target.1, "EDITED"), Err(Error::StaleFieldRisk { .. }), "{name}");
+        assert_eq!(entries(&doc.to_bytes().unwrap()), entries(&input), "{name}");
+    }
+    // Complete fields inside those containers are classified normally.
+    let complete = format!("<w:p><w:r><w:t>x</w:t></w:r><w:r><w:pict><w:txbxContent><w:p>{}</w:p></w:txbxContent></w:pict></w:r></w:p>", fld("PAGE"));
+    assert_eq!(body_codes(&complete), Vec::<String>::new());
+    let ruby = format!("<w:p><w:r><w:ruby><w:rt>{}</w:rt><w:rubyBase><w:r><w:t>k</w:t></w:r></w:rubyBase></w:ruby></w:r></w:p>", fld("REF x"));
+    assert_eq!(body_codes(&ruby), ["REF"]);
+    // A field spanning paragraphs and table cells of the body is not.
+    let span = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>PAGE</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+    assert_eq!(body_codes(span), Vec::<String>::new());
+}
+
+/// m8 (the reviewer's Q02): A2 holds when blocks without paragraphs follow
+/// the section-break paragraph.
+#[test]
+fn m8_a2_with_blocks_without_paragraphs_after_the_break() {
+    let last = r#"<w:p><w:r><w:t>last</w:t></w:r></w:p><w:p><w:pPr><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr></w:pPr></w:p>"#;
+    for trailer in [
+        r#"<w:sdt><w:sdtPr/><w:sdtContent/></w:sdt>"#,
+        r#"<w:sdt><w:sdtPr/><w:sdtContent><w:bookmarkStart w:id="1" w:name="x"/><w:bookmarkEnd w:id="1"/></w:sdtContent></w:sdt>"#,
+        r#"<w:customXml w:element="x"/>"#,
+        r#"<w:tbl><w:tblPr/><w:tblGrid/></w:tbl>"#,
+        r#"<w:sdtContent/>"#,
+    ] {
+        let input = docx(&format!("{last}{trailer}"), None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(doc.append_paragraph("NEW"), Err(Error::SectionBreakAtEnd), "{trailer}");
+        assert_eq!(entries(&doc.to_bytes().unwrap()), entries(&input));
+    }
+    let orphan = r#"<w:p><w:r><w:t>last</w:t></w:r></w:p><w:sdtContent><w:p><w:pPr><w:sectPr><w:pgSz w:orient="landscape"/></w:sectPr></w:pPr></w:p></w:sdtContent>"#;
+    assert_matches!(Document::from_bytes(docx(orphan, None, None)).unwrap().append_paragraph("NEW"), Err(Error::SectionBreakAtEnd));
+}
+
+/// m10: the unknown-`fldCharType` rule on its own (a mis-cased
+/// `separate` after a valid begin: no other rule catches it).
+#[test]
+fn m10_unknown_type_rule_alone() {
+    let body = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>PAGE</w:instrText></w:r><w:r><w:fldChar w:fldCharType="Separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#;
+    assert_eq!(body_codes(body), [MALFORMED]);
+}
+
+/// m11 (the reviewer's Q03): every settings relationship is read.
+#[test]
+fn m11_every_settings_part_counts() {
+    let base = docx("<w:p><w:r><w:t>x</w:t></w:r></w:p>", Some(""), None);
+    let rels = String::from_utf8(part(&base, "word/_rels/document.xml.rels")).unwrap().replace(
+        "</Relationships>",
+        r#"<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings2.xml"/></Relationships>"#,
+    );
+    let base = with_part(&base, "word/_rels/document.xml.rels", rels.as_bytes());
+    let second = format!(r#"<w:settings xmlns:w="{W_NS}"><w:trackRevisions/><w:documentProtection w:edit="readOnly" w:enforcement="1"/><w:writeProtection w:recommended="1"/></w:settings>"#);
+    let doc = Document::from_bytes(with_parts(&base, &[("word/settings2.xml", &second)], "")).unwrap();
+    let gates: Vec<String> = doc.write_gates().iter().map(|e| format!("{e:?}")).collect();
+    assert_eq!(gates, ["TrackRevisionsOn", r#"DocumentProtected { edit: "readOnly" }"#]);
+    assert_eq!(doc.write_protection().map(|w| w.recommended), Some(true));
 }
