@@ -426,6 +426,11 @@ impl XmlDocument {
         &self.root
     }
 
+    /// The root element, mutably (registry primitives in `package`).
+    pub(crate) fn root_mut(&mut self) -> &mut RawNode {
+        &mut self.root
+    }
+
     /// True if anything was changed through the lens.
     pub fn is_dirty(&self) -> bool {
         self.root.subtree_dirty
