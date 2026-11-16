@@ -24,9 +24,9 @@ pkg.save("book.xlsx")?;                              // temp file + rename; same
 
 | Item | Notes |
 | --- | --- |
-| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`; `Error::Package("duplicate part name …")` when two zip entries name the same OPC part (equal after ASCII case folding and percent-decoding; checked in linear time). |
+| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`; `Error::Package("duplicate part name …")` when two zip entries name the same OPC part (equal after ASCII case folding and percent-decoding; checked in linear time); `Error::TruncatedEntry` when an entry's stored data does not lie inside the archive (it could not be copied through unchanged); `Error::PackageTooLarge` when the declared decompressed sizes add up to more than `ParseOptions::max_package_bytes` (default 4 GiB). |
 | `part_names()`, `contains(name)`, `state(name) -> PartStateKind` | Part names are zip entry names, no leading `/`. Original order is kept. |
-| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). |
+| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). At most `ParseOptions::max_part_bytes` (default 1 GiB, `Error::PartTooLarge`); the declared size decides the refusal, never the allocation. |
 | `xml_part(name)` / `xml_part_mut(name)` | Parse once into an `XmlDocument`. A part parsed but not edited is still raw-copied on save. |
 | `parsed_part(name)` | `&self` access to a tree already parsed (`None` while `Raw` or `Replaced`); never parses. |
 | `set_part(name, bytes)` | Replace an existing part wholesale (`Replaced`). New parts: `Error::NewPartUnsupported` (Phase0). |
@@ -45,7 +45,12 @@ as attributes in `XMLNS_NS`), child items (`RawItem::{Element, Text, Markup}`),
 its `ElementSpan` in the source, and `own_dirty` / `subtree_dirty`.
 `serialize()` emits untouched subtrees verbatim (T1: no edits ⇒ identical
 bytes). Any `<!DOCTYPE>` is refused (`Error::DtdNotAllowed`): no entity
-expansion, no XXE.
+expansion, no XXE. Constructs quick-xml would let through but that are not
+well-formed, or would make a span inexact, are refused with
+`Error::NotWellFormed { position, reason: WellFormedness }`: a second byte
+order mark, an XML declaration not at the start, an empty element/attribute
+name or prefix, U+0000, `xmlns:p=""`, and any reader position that does not
+match the source.
 
 Element nesting is limited. An element deeper than `ParseOptions::max_depth` makes the parse
 fail with `Error::TooDeep { limit, position }` before the element is built. The default is
@@ -105,12 +110,16 @@ Write primitives (ADR-0002 §4.2):
 | `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
 | `set_attr(q, value)`, `remove_attr(q)` | Untyped; typed setters are generated. Setting the current value is not a change. |
 | `set_text(value)` | `Content::Text` elements only; sets `xml:space="preserve"` for edge whitespace when the spec declares `xml:space`; never removes it. |
+| `Lens::detach_as::<C>(skip)` → `Detached<C>` | Only for `Detachable` types (opted in by an allowlist `[detach]` section; never id-bearing subtrees). Owned, span-less, prefix-less copy, renamed to `C::QNAME`; `C: SameType<E> + Detachable`. Direct children named in `skip` are left out. Refuses (`NotDetachable { reason, name }`) MC content, relationship-id attributes (`name::RELATIONSHIP_ATTRIBUTES`), namespace declarations, namespaces an ancestor's `mc:Ignorable` lists, text under an inherited `xml:space="preserve"`, document-unique attributes with a non-default value (`Detachable::UNIQUE_ATTRS`, e.g. `smtId`), and extension lists (`extLst`) unless skipped. Use a lens that knows the ancestors (`XmlDocument::lens`, `Lens::at`). |
+| `insert_detached[_by]::<C>(&d[, before])` | Places the copy like `insert_by::<C>`; every element/attribute prefix is chosen at the destination **before** the tree changes; created nodes are re-rendered. Same refusals as `insert_by` (incl. `TooDeep`, counted at the copy's deepest element), plus `NamespaceNotInScope` and the destination's `mc:Ignorable` / `xml:space`. `Detached::check_insert_under(doc, path, created)` checks those without changing anything (`WrongElement` for a bad path). |
 
 Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
 out of schema order), `UnsupportedContentModel`, `NotAllowed`, `NotText`,
 `IncompleteSpec` (spec with an unresolved SDK base), `NamespaceNotInScope`
-(no usable prefix; Phase0 never declares namespaces), `InvalidXmlChar`
+(no usable prefix; Phase0 never declares namespaces), `NamespaceDeclaration`
+(`set_attr`/`remove_attr` on `xmlns`/`xmlns:*`: declarations are managed by
+core only), `InvalidXmlChar`
 (`set_text`/`set_attr` value with a character outside XML 1.0 `Char`, e.g.
 U+000B; checked before anything changes, so no primitive can write a part
 that is not well-formed).
@@ -130,7 +139,8 @@ element); attributes need a non-empty prefix; `xml:` always works.
 SDK-listed children of a wildcard parent such as `a:graphicData` (ADR-0002
 post-acceptance note). `QName` (static), `ElementSpec { QNAME, SDK_NAME, ATTRS, CONTENT,
 ATTRS_INCOMPLETE }`, `ChildOf<P>` (compile-time child check with a readable
-`on_unimplemented` message), `AttrSpec`, `SimpleType`, `Slot { names,
+`on_unimplemented` message), `Detachable` (opted-in copy sources),
+`SameType<S>` (same schema type: a renamed copy is schema-valid), `AttrSpec`, `SimpleType`, `Slot { names,
 wildcard, max_each, max_total }`, `Wildcard`, `Content::{Empty, Text, Slots,
 Unsupported}`, `EnumType`, `EnumValue<'a, E>`, and the `const fn` checks
 (`assert_spec`, `assert_child`, …) used by generated `const _` items.
@@ -143,10 +153,8 @@ Namespace constants the core acts on: `name::{MC_NS, R_NS, XML_NS, XMLNS_NS}`.
   (the append-only rule applies when writes arrive). The only registry write
   so far is the removal done by `remove_part`.
 - The `mc:AlternateContent` rank rule (ADR-0002 §4.3 "later rule").
-- A copy-subtree primitive (requested by the pptx plan). `RawNode` is
-  `Clone`; a future `LensMut::insert_copy::<C>(&RawNode)` would insert a
-  span-less clone (re-rendered, prefixes re-checked) with the usual dirty
-  duties. The current API does not preclude it.
+- Copies across parts that carry relationships (`r:` attributes are
+  refused by `detach_as`; copying them needs Layer 3 writes).
 - Formula detection is format-specific and not in core. If a scan helper is
   added here it will match element names (namespace URI + local name),
   never byte patterns.

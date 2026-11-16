@@ -4,6 +4,8 @@
 pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// `a14`: `http://schemas.microsoft.com/office/drawing/2010/main`
 pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
+/// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
+pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
 /// `a:ST_TextUnderlineType` — Text Underline Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextUnderlineValues {
@@ -282,6 +284,10 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::ContentPart {}
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Presentation {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Slide {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Document {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
 /// Read-only view of [`GraphicData`].
 #[derive(Clone, Debug)]
 pub struct GraphicDataView<'a>(pub ooxml_core::Lens<'a, GraphicData>);
@@ -316,6 +322,16 @@ impl<'a> GraphicDataView<'a> {
     /// `p:sld` children in document order.
     pub fn slide_iter(&self) -> impl Iterator<Item = super::pml::SlideView<'a>> {
         self.0.children::<super::pml::Slide>().map(super::pml::SlideView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:document` children in document order.
+    pub fn document_iter(&self) -> impl Iterator<Item = super::wml::DocumentView<'a>> {
+        self.0.children::<super::wml::Document>().map(super::wml::DocumentView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:settings` children in document order.
+    pub fn settings_iter(&self) -> impl Iterator<Item = super::wml::SettingsView<'a>> {
+        self.0.children::<super::wml::Settings>().map(super::wml::SettingsView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -919,6 +935,42 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         ],
     );
 }
+impl ooxml_core::schema::__private::Sealed for EndParagraphRunProperties {}
+impl ooxml_core::Detachable for EndParagraphRunProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+impl ooxml_core::SameType<RunProperties> for EndParagraphRunProperties {}
 /// Read-only view of [`EndParagraphRunProperties`].
 #[derive(Clone, Debug)]
 pub struct EndParagraphRunPropertiesView<'a>(
@@ -1319,6 +1371,42 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::schema::__private::Sealed for RunProperties {}
+impl ooxml_core::Detachable for RunProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+impl ooxml_core::SameType<EndParagraphRunProperties> for RunProperties {}
 /// Read-only view of [`RunProperties`].
 #[derive(Clone, Debug)]
 pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
@@ -1849,6 +1937,41 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
         ],
     );
 }
+impl ooxml_core::schema::__private::Sealed for ParagraphProperties {}
+impl ooxml_core::Detachable for ParagraphProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
 /// Read-only view of [`ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct ParagraphPropertiesView<'a>(pub ooxml_core::Lens<'a, ParagraphProperties>);
@@ -1974,6 +2097,10 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Slide>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Document>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();

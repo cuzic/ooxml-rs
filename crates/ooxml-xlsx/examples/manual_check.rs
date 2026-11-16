@@ -3,7 +3,7 @@
 //! CI), plus a checklist.
 //!
 //! ```sh
-//! cargo run -p ooxml-xlsx --example manual_check -- <outdir>
+//! cargo run -p ooxml-xlsx --example xlsx_manual_check -- <outdir>
 //! ```
 //!
 //! `<outdir>/` gets the edited files, `originals/` (unedited inputs, to tell

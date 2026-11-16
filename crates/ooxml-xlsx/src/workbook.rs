@@ -102,6 +102,26 @@ pub(crate) type ApplyStepHook = ApplyStep;
 /// Phase0's "sheet1" is the **first visible worksheet in workbook order**
 /// ([`Self::worksheet`]); Phase1 opens any worksheet by name or index.
 /// Every part that is not edited is copied through unchanged on save.
+///
+/// # Examples
+///
+/// ```no_run
+/// use ooxml_xlsx::{CellValue, Error, Workbook};
+///
+/// let mut wb = Workbook::open("book.xlsx")?;
+/// if let Some(why) = wb.edit_refusal() {
+///     return Err(why); // e.g. Error::Poisoned: nothing was changed
+/// }
+/// let mut ws = wb.worksheet()?;
+/// if let Some(CellValue::Number(n)) = ws.cell_a1("B2")?.map(|c| c.value()).transpose()? {
+///     ws.cell_mut(1, 1)?.set_number(n + 1.0)?;
+/// }
+/// ws.cell_mut(0, 0)?.set_string("total")?;
+/// wb.save("book.xlsx")?; // temp file + rename: same path is safe
+/// # Ok::<(), Error>(())
+/// ```
+///
+/// A complete, runnable version is `examples/edit_cells.rs`.
 #[derive(Debug)]
 pub struct Workbook {
     pub(crate) pkg: Package,
@@ -123,7 +143,8 @@ pub struct Workbook {
     from_template: bool,
     template_sheet_taken: bool,
     #[cfg(feature = "fault-injection")]
-    pub(crate) fault: Option<ApplyStep>,
+    /// The step to fail at, and whether to panic instead of returning `Err`.
+    pub(crate) fault: Option<(ApplyStep, bool)>,
 }
 
 impl Workbook {
@@ -408,7 +429,16 @@ impl Workbook {
     #[cfg(feature = "fault-injection")]
     #[doc(hidden)]
     pub fn inject_apply_failure(&mut self, step: ApplyStep) {
-        self.fault = Some(step);
+        self.fault = Some((step, false));
+    }
+
+    /// Test hook: make the next edit **panic** just before `step` of its
+    /// apply phase (ADR-0003 §7.3, review R4-m6: a panic must leave the
+    /// workbook poisoned). Only with the `fault-injection` feature.
+    #[cfg(feature = "fault-injection")]
+    #[doc(hidden)]
+    pub fn inject_apply_panic(&mut self, step: ApplyStep) {
+        self.fault = Some((step, true));
     }
 }
 

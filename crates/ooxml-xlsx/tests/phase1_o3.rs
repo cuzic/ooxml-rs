@@ -64,13 +64,18 @@ fn same(a: &(String, String), b: &(String, String)) -> bool {
 const VOLATILE: &[&str] = &["NOW(", "TODAY(", "RAND(", "RANDBETWEEN(", "OFFSET(", "INDIRECT(", "CELL(", "INFO("];
 
 /// Any formula text (shared masters included) with a volatile function, or
-/// any `ca="1"`, in any sheet part.
+/// any `ca="1"`, in any sheet part, or a volatile function in a defined name
+/// of `workbook.xml` (review R4-m3: a formula can reach one through a name).
 fn has_volatile(bytes: &[u8]) -> bool {
-    sheet_parts(bytes).values().any(|p| {
-        let x = String::from_utf8(part(bytes, p)).unwrap();
-        let up = x.to_ascii_uppercase();
-        VOLATILE.iter().any(|f| up.contains(f)) || x.contains(r#"ca="1""#) || x.contains(r#"ca="true""#)
-    })
+    let wb_part = ooxml_xlsx::Workbook::from_bytes(bytes.to_vec()).unwrap().workbook_part().to_owned();
+    let names = String::from_utf8(part(bytes, &wb_part)).unwrap().to_ascii_uppercase();
+    let in_names = names.split("<DEFINEDNAME").skip(1).any(|d| VOLATILE.iter().any(|f| d.split("</DEFINEDNAME").next().unwrap_or("").contains(f)));
+    in_names
+        || sheet_parts(bytes).values().any(|p| {
+            let x = String::from_utf8(part(bytes, p)).unwrap();
+            let up = x.to_ascii_uppercase();
+            VOLATILE.iter().any(|f| up.contains(f)) || x.contains(r#"ca="1""#) || x.contains(r#"ca="true""#)
+        })
 }
 
 #[test]

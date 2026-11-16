@@ -69,6 +69,9 @@ def cell_xml(ref, spec):
         return f'<c r="{ref}" t="inlineStr"><is><t>{escape(spec)}</t></is></c>'
     if isinstance(spec, tuple) and spec[0] == "result":
         return f'<c r="{ref}"><v>{spec[1]}</v></c>'
+    if isinstance(spec, tuple) and spec[0] == "raw":
+        # the cell's content verbatim (schema-invalid shapes, e.g. duplicate caches)
+        return f'<c r="{ref}"{spec[1]}</c>'
     return f'<c r="{ref}"><v>{spec}</v></c>'
 
 
@@ -339,3 +342,20 @@ build(
 )
 build("o1_unknown_cm.xlsx", [("Sheet1", {"A1": 1, "B1": F("A1*2", 2, c_attrs={"cm": "1"})}, "ws")], metadata=METADATA_OTHER)
 build("o1_no_calcpr.xlsx", [("Sheet1", {"A1": 1, "B1": F("A1*2", 2)}, "ws")], calc_pr=None, calc_chain=False)
+
+# --- o1_duplicate_caches (PR #20 review R4-M1): schema-invalid duplicate
+#     caches on dependents. Stripping must remove every <v> and <is>, as the
+#     target write does: B1 (plain), C1:C2 (CSE, the result cell C2 with two
+#     <v>), D1 (t="str"), E1 (two <is>).
+build(
+    "o1_duplicate_caches.xlsx",
+    [("Sheet1", {
+        "A1": 1, "A2": 2,
+        "B1": ("raw", ' s="0"><f>A1*2</f><v>2</v><v>2</v>'),
+        "C1": F("A1:A2*3", 3, f_attrs={"t": "array", "ref": "C1:C2"}),
+        "C2": ("raw", '><v>6</v><v>6</v>'),
+        "D1": ("raw", ' s="0" t="str"><f>A1&amp;"x"</f><v>1x</v><v>1x</v>'),
+        "E1": ("raw", ' s="0" t="inlineStr"><f>A1&amp;"y"</f><is><t>1y</t></is><is><t>y</t></is>'),
+        "F1": F("A2*2", 4),
+    }, "ws")],
+)
