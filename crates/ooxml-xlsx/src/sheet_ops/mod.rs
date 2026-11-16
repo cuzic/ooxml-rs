@@ -10,6 +10,7 @@
 //! (census, sheet list, names) is rebuilt from the package; a failed rebuild
 //! poisons the workbook (ADR-0009 §2).
 
+mod app_xml;
 mod names;
 mod scan;
 
@@ -26,6 +27,7 @@ use crate::formula::lexer::{Prefix, TokKind, lex};
 use crate::formula::precedents::{Rect, fold};
 use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, REL_WORKSHEET, Workbook};
+use app_xml::Listed;
 use names::{PrefixEdit, Unrewritable, rewrite_formula, rewrite_location, validate_sheet_name};
 use scan::{PartKind, scan_part};
 
@@ -435,6 +437,37 @@ impl Workbook {
         })
     }
 
+    /// The sheets as `docProps/app.xml` lists them (kind, `veryHidden`).
+    fn listed(&mut self) -> Result<Vec<Listed>> {
+        let doc = self.pkg.xml_part(&self.workbook_part)?;
+        let kids = sheet_children(doc)?;
+        let sheets = doc.root().elements().find(|e| e.is(sml::Sheets::QNAME)).expect("checked");
+        Ok(kids
+            .iter()
+            .zip(&self.sheets)
+            .map(|(&k, s)| {
+                let e = sheets.children()[k].as_element().expect("element");
+                let vh = e.attr(ooxml_core::QName::new("", "state")).is_some_and(|v| v.trim() == "veryHidden");
+                Listed { name: s.name.clone(), kind: s.kind, very_hidden: vh }
+            })
+            .collect())
+    }
+
+    /// Stages the `docProps/app.xml` update (ADR-0009 §11) when its shape is
+    /// recognized and no structure would have to be invented; otherwise
+    /// app.xml stays as it is.
+    fn stage_app_xml(&mut self, change: &mut Change, before: &[Listed], after: &[Listed], edit: Option<&PrefixEdit<'_>>, deleted: Option<&str>) -> Result<()> {
+        let rels = self.pkg.package_relationships().clone();
+        let Some(part) = rels.by_type(app_xml::REL_EXTENDED).next().and_then(|r| rels.resolve(r)).filter(|p| self.pkg.contains(p)) else {
+            return Ok(());
+        };
+        let Ok(doc) = self.pkg.xml_part(&part) else { return Ok(()) };
+        if let Some(new) = app_xml::update(doc, before, after, edit, deleted)? {
+            change.docs.insert(part, new);
+        }
+        Ok(())
+    }
+
     // ------------------------------------------------------------ add
 
     /// Adds an empty worksheet named `name` at `position` (0-based in
@@ -491,6 +524,10 @@ impl Workbook {
             s.set_sheet_id(sheet_id)?;
             s.0.set_attr(ooxml_core::QName::new(R_NS, "id"), &rid)?;
         }
+        let before = self.listed()?;
+        let mut after = before.clone();
+        after.insert(position, Listed { name: name.to_owned(), kind: SheetKind::Worksheet, very_hidden: false });
+        self.stage_app_xml(&mut change, &before, &after, None, None)?;
         self.finish(plan, change).map(drop)
     }
 
@@ -601,6 +638,9 @@ impl Workbook {
             remap_local_names(doc, &|i| Some(newpos.get(i as usize).copied().unwrap_or(i)))?;
             Self::remap_views(doc, &|i| newpos.get(i as usize).copied().unwrap_or(i), &visible)?;
         }
+        let before = self.listed()?;
+        let after: Vec<Listed> = perm.iter().map(|&o| before[o].clone()).collect();
+        self.stage_app_xml(&mut change, &before, &after, None, None)?;
         self.commit(change, |_, _| Ok(())).map(drop)
     }
 
@@ -670,6 +710,10 @@ impl Workbook {
         if state != SheetState::Visible {
             self.select_tab(&mut change, active.map(|a| a as usize), &[])?;
         }
+        let before = self.listed()?;
+        let mut after = before.clone();
+        after[i].very_hidden = state == SheetState::VeryHidden;
+        self.stage_app_xml(&mut change, &before, &after, None, None)?;
         self.commit(change, |_, _| Ok(())).map(drop)
     }
 
@@ -751,6 +795,10 @@ impl Workbook {
                 location: format!("relationship {id} (a control character cannot be written into a Target)"),
             });
         }
+        let listed_before = self.listed()?;
+        let mut listed_after = listed_before.clone();
+        listed_after[i].name = new_name.to_owned();
+        self.stage_app_xml(&mut change, &listed_before, &listed_after, Some(&edit), None)?;
         for (src, id, before, after) in &targets {
             change.rewritten.push(RewrittenLocation {
                 part: ooxml_core::opc::rels_part_name(src.as_deref()),
@@ -1054,6 +1102,10 @@ impl Workbook {
         // the active sheet after the delete, as an old position
         let active_old = active.map(|a| if a as usize >= d { a as usize + 1 } else { a as usize });
         self.select_tab(&mut change, active_old, &[d])?;
+        let before = self.listed()?;
+        let mut after = before.clone();
+        after.remove(d);
+        self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
         let calc_chain = self.calc_chain.clone();
         let set_refs: Vec<String> = set.clone();
         let out = self.commit(change, move |plan, pkg| {

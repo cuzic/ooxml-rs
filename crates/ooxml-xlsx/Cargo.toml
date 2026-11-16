@@ -16,7 +16,7 @@ fault-injection = []
 
 [dependencies]
 ooxml-core = { workspace = true }
-ooxml-schema = { workspace = true, features = ["sml"] }
+ooxml-schema = { workspace = true, features = ["sml", "props"] }
 quick-xml = { workspace = true }
 thiserror = { workspace = true }
 
