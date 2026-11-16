@@ -30,6 +30,9 @@ use crate::name::{CONTENT_TYPES_NS, PACKAGE_RELATIONSHIPS_NS, QName, STRICT_NS_P
 use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relationships, normalize_part_name, rels_part_name, same_part_name, xml_trim};
 use crate::xml::{ParseOptions, XmlDocument};
 
+mod add;
+pub use add::{AddRefusal, AddedPart, PartContent};
+
 /// `[Content_Types].xml` or a relationships part.
 fn is_opc_metadata(name: &str) -> bool {
     name == CONTENT_TYPES_PART || name.ends_with(".rels")
@@ -171,8 +174,11 @@ pub enum PartStateKind {
 #[derive(Debug)]
 struct Part {
     name: String,
-    /// Index of the original zip entry.
+    /// Index of the original zip entry (meaningless when `added`).
     index: usize,
+    /// Added by [`Package::add_part`]: there is no original entry, so the
+    /// part is always written fresh, whatever its state.
+    added: bool,
     compression: CompressionMethod,
     state: PartState,
 }
@@ -235,7 +241,7 @@ impl Package {
             if !seen.insert(normalize_part_name(&name)) {
                 return Err(Error::Package(format!("duplicate part name {name:?}")));
             }
-            parts.push(Part { name, index, compression: file.compression(), state: PartState::Raw });
+            parts.push(Part { name, index, added: false, compression: file.compression(), state: PartState::Raw });
         }
         let mut pkg = Package {
             archive,
@@ -301,7 +307,7 @@ impl Package {
         let part = self.get(name)?;
         match &part.state {
             PartState::Raw => self.read_original(part.index),
-            PartState::Parsed(d) if !d.is_dirty() => self.read_original(part.index),
+            PartState::Parsed(d) if !d.is_dirty() && !part.added => self.read_original(part.index),
             PartState::Parsed(d) => Ok(d.serialize().into_bytes()),
             PartState::Replaced(b) => Ok(b.clone()),
         }
@@ -357,9 +363,9 @@ impl Package {
         }
     }
 
-    /// Replaces an existing part's bytes wholesale. Adding a new part is not
-    /// supported yet ([`Error::NewPartUnsupported`]): it needs
-    /// `[Content_Types].xml` and relationships updated together (ADR-0001).
+    /// Replaces an existing part's bytes wholesale. A name that is not a part
+    /// is [`Error::NewPartUnsupported`]: new parts go through
+    /// [`Self::add_part`], which registers the content type as well.
     pub fn set_part(&mut self, name: &str, bytes: impl Into<Vec<u8>>) -> Result<()> {
         let i = self.find(name).ok_or_else(|| Error::NewPartUnsupported(name.into()))?;
         self.parts[i].state = PartState::Replaced(bytes.into());
@@ -664,7 +670,7 @@ impl Package {
         for part in &self.parts {
             let fresh: Option<Vec<u8>> = match &part.state {
                 PartState::Raw => None,
-                PartState::Parsed(d) if !d.is_dirty() => None,
+                PartState::Parsed(d) if !d.is_dirty() && !part.added => None,
                 PartState::Parsed(d) => Some(d.serialize().into_bytes()),
                 PartState::Replaced(b) => Some(b.clone()),
             };

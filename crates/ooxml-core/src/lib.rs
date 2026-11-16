@@ -9,7 +9,9 @@
 //!   written back byte-for-byte; [`Lens`] / [`LensMut`]: typed views and the
 //!   schema-aware write primitives.
 //! - **Layer 3** — [`opc`]: `[Content_Types].xml` and relationship
-//!   registries (read-only for now).
+//!   registries, written only by `Package`'s append-only primitives
+//!   (`add_part`, `add_relationship`, `set_content_type`) and by
+//!   `remove_part`.
 //!
 //! Schema knowledge ([`ElementSpec`] implementations) is generated into the
 //! `ooxml-schema` crate; see `README.md` for the API tour.
@@ -27,6 +29,6 @@ pub mod xml;
 pub use error::{Error, Result};
 pub use lens::{Lens, LensMut};
 pub use name::{QName, XName};
-pub use package::{Package, PartState, PartStateKind, RemoveRefusal, RemovedPart};
+pub use package::{AddRefusal, AddedPart, Package, PartContent, PartState, PartStateKind, RemoveRefusal, RemovedPart};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
 pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
