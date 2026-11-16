@@ -46,6 +46,26 @@ impl Gate {
 /// is parsed read-only and stays a raw copy on save; headers, footers,
 /// notes and comments are parsed transiently to scan their fields; every
 /// other part is passed through untouched (Layer 1).
+///
+/// # Examples
+///
+/// ```no_run
+/// use ooxml_docx::Document;
+///
+/// let mut doc = Document::open("letter.docx")?;
+/// doc.write_gate()?; // track changes, protection, fields that could go stale
+/// let hit = doc.paragraphs().find_map(|p| {
+///     p.runs().find(|r| r.text() == "{{name}}" && r.check_settable().is_ok()).map(|r| (p.index(), r.index()))
+/// });
+/// if let Some((p, r)) = hit {
+///     doc.set_run_text(p, r, "Ada Lovelace")?;
+/// }
+/// doc.append_paragraph("Regards,\tthe team")?;
+/// doc.save("letter-filled.docx")?;
+/// # Ok::<(), ooxml_docx::Error>(())
+/// ```
+///
+/// A complete, runnable version is `examples/fill_runs.rs`.
 #[derive(Debug)]
 pub struct Document {
     pkg: Package,
@@ -83,6 +103,8 @@ impl Document {
         xml.lens::<wml::Document>()?;
         let index = body::index(xml.root());
         let mut codes = FieldScan::scan(xml.root());
+        let mut bookmarks = std::collections::BTreeSet::new();
+        fields::bookmark_names(xml.root(), &mut bookmarks);
 
         let rels = pkg.relationships(&main)?;
         let target = |rel_type: &str| -> Vec<String> {
@@ -99,6 +121,7 @@ impl Document {
         for story in stories {
             let doc = XmlDocument::parse(&pkg.read_part(&story)?)?;
             codes.extend(FieldScan::scan(doc.root()));
+            fields::bookmark_names(doc.root(), &mut bookmarks);
         }
 
         let custom = CustomProperties::read(&pkg)?;
@@ -142,7 +165,7 @@ impl Document {
         if let Some(edit) = protected_edit {
             gates.push(Gate::DocumentProtected(edit));
         }
-        let refused = fields::refused(codes, &custom.names);
+        let refused = fields::refused(codes, &custom.names, &bookmarks);
         if !refused.is_empty() {
             gates.push(Gate::StaleFieldRisk(refused));
         }
@@ -517,7 +540,7 @@ impl<'d> Run<'d> {
 /// What `docProps/custom.xml` tells the gates.
 #[derive(Default)]
 struct CustomProperties {
-    /// Upper-cased custom property names (for W2's `DOCPROPERTY`).
+    /// Normalised custom property names (for W2's `DOCPROPERTY`).
     names: fields::CustomNames,
     /// `_MarkAsFinal` is true.
     marked_final: bool,
@@ -535,9 +558,9 @@ impl CustomProperties {
             for prop in doc.root().elements().filter(|e| e.is(QName::new(CUSTOM_PROPERTIES_NS, "property"))) {
                 let name = attr(prop, "name").unwrap_or_default();
                 if attr(prop, "linkTarget").is_some() {
-                    out.names.linked.push(name.to_uppercase());
+                    out.names.linked.push(fields::normalize_name(&name));
                 }
-                out.names.all.push(name.to_uppercase());
+                out.names.all.push(fields::normalize_name(&name));
                 if name == "_MarkAsFinal" {
                     let value = prop.elements().next().map(|v| v.text().into_owned()).unwrap_or_default();
                     out.marked_final |= ooxml_core::value::parse_on_off(&value) == Some(true);

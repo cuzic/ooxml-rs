@@ -20,7 +20,7 @@ use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_schema::wml::{DeletedFieldCode, FieldChar, FieldCode, Paragraph, SimpleField};
 
 use crate::body::{Mode, descend, next_element};
-use crate::names::{FF_DATA, TEXT_INPUT, TEXT_INPUT_TYPE, VAL, is};
+use crate::names::{BOOKMARK_START, FF_DATA, NAME, TEXT_INPUT, TEXT_INPUT_TYPE, VAL, is};
 
 /// Codes whose cached result cannot be made wrong by a Phase0 edit: it
 /// depends only on document properties, the date or time, the environment,
@@ -93,14 +93,33 @@ pub const MALFORMED: &str = "<malformed field>";
 /// Codes whose argument names a file the result is taken from. When that
 /// argument is not a plain literal (a nested field such as
 /// `{ INCLUDETEXT "{ FILENAME \p }" bookmark }`, which includes the document
-/// itself, or no argument at all), the key gets [`NON_LITERAL_SOURCE`] and
-/// is refused (review round 3, N3). A literal path that happens to name the
-/// document itself is not detected *(u)*.
+/// itself, no argument at all, or ambiguous quoting), the key gets
+/// [`NON_LITERAL_SOURCE`] and is refused (review round 3, N3). The file is
+/// the first argument of `INCLUDETEXT` and `INCLUDEPICTURE`, and the
+/// **second** of `LINK`, whose first argument is the ProgID
+/// (`LINK Word.Document.12 "C:\\a.docx" "OLE_LINK1"`; review round 4, m13).
+/// A literal path that happens to name the document itself is not detected
+/// *(u)*, but the form Word's "paste link" writes inside one document is:
+/// see [`ITEM_ARGUMENT`].
 pub const FILE_SOURCE: &[&str] = &["INCLUDETEXT", "INCLUDEPICTURE", "LINK"];
 
 /// Suffix of the key of a [`FILE_SOURCE`] field whose source is not a
 /// literal.
 pub const NON_LITERAL_SOURCE: &str = " (non-literal source)";
+
+/// Marks the item argument in a [`FILE_SOURCE`] key: the bookmark of
+/// `INCLUDETEXT` (second argument) and the item of `LINK` (third), e.g.
+/// `INCLUDETEXT (item BM)`. Such a key is safe unless the item names a
+/// bookmark of this document (review round 4, m13: Word's "paste link"
+/// inside one document writes `LINK Word.Document.12 "<own path>"
+/// "OLE_LINK1"` and the bookmark `OLE_LINK1`); then the document reports
+/// [`SELF_REFERENCE`]. The check is syntactic: whether the path names this
+/// document is not known, so any matching bookmark refuses.
+pub const ITEM_ARGUMENT: &str = " (item ";
+
+/// Suffix of the refused key of a [`FILE_SOURCE`] field whose item argument
+/// names a bookmark of the document (`LINK (self reference)`).
+pub const SELF_REFERENCE: &str = " (self reference)";
 
 /// Built-in `DOCPROPERTY` names whose values Phase0 cannot change (review
 /// round 3, m9: an allow-list). Upper-cased. `PAGES` is pagination. Names
@@ -141,19 +160,75 @@ pub fn field_code(instruction: &str) -> String {
 /// argument match the lists, and anything unexpected is refused anyway.
 const QUOTES: &[char] = &['"', '\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}', '\u{FF02}'];
 
-/// The first argument after the code: a quoted string without its quotes
-/// (any of [`QUOTES`] opens and closes), or a token up to whitespace or
-/// `\`. `None` if the instruction goes straight to a switch, ends, or has
-/// an unterminated quote.
-fn first_argument(rest: &str) -> Option<&str> {
-    let rest = rest.trim_start();
-    let arg = if let Some(q) = rest.strip_prefix(QUOTES) {
-        &q[..q.find(QUOTES)?]
-    } else {
-        &rest[..rest.find(|c: char| c.is_whitespace() || c == '\\').unwrap_or(rest.len())]
-    };
-    let arg = arg.trim();
+/// Typographic quotation marks: one of them opens, any of them closes.
+const TYPOGRAPHIC_QUOTES: &[char] = &['\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}'];
+
+/// Does `close` end an argument opened by `open`? A straight quote and the
+/// full-width one close only themselves; typographic quotes close each
+/// other (`„Words“`).
+fn closes(open: char, close: char) -> bool {
+    match open {
+        '"' | '\u{FF02}' => close == open,
+        _ => TYPOGRAPHIC_QUOTES.contains(&close),
+    }
+}
+
+/// The positional arguments after the code, up to the first switch (`\`)
+/// or the end: quoted strings without their quotes, or tokens up to
+/// whitespace or `\`. `None` when the quoting is ambiguous (review round 4,
+/// m12c): an unterminated quote, a quote character inside an argument that
+/// does not close it (`"A”B"`, `A”B`), or text glued to a closing quote
+/// (`"A"B`). Callers treat `None` as "no literal argument", which refuses.
+fn arguments(rest: &str) -> Option<Vec<&str>> {
+    let mut out = Vec::new();
+    let mut s = rest;
+    loop {
+        s = s.trim_start();
+        if s.is_empty() || s.starts_with('\\') {
+            return Some(out);
+        }
+        if let Some(open) = s.chars().next().filter(|c| QUOTES.contains(c)) {
+            let body = &s[open.len_utf8()..];
+            let end = body.find(QUOTES)?;
+            let close = body[end..].chars().next()?;
+            if !closes(open, close) {
+                return None;
+            }
+            let after = &body[end + close.len_utf8()..];
+            if after.chars().next().is_some_and(|c| !c.is_whitespace() && c != '\\') {
+                return None;
+            }
+            out.push(&body[..end]);
+            s = after;
+        } else {
+            let end = s.find(|c: char| c.is_whitespace() || c == '\\').unwrap_or(s.len());
+            if s[..end].contains(QUOTES) {
+                return None;
+            }
+            out.push(&s[..end]);
+            s = &s[end..];
+        }
+    }
+}
+
+/// A name as compared by the gates (review round 4, m12b): whitespace
+/// trimmed and inner runs of whitespace (any Unicode `White_Space`, as
+/// `str::trim`) collapsed to one space, upper-cased. Applied alike to field
+/// arguments, custom property names and bookmark names.
+pub(crate) fn normalize_name(name: &str) -> String {
+    name.split_whitespace().collect::<Vec<_>>().join(" ").to_uppercase()
+}
+
+/// The `i`-th positional argument, normalised; `None` if it is missing,
+/// empty or the quoting is ambiguous.
+fn argument(rest: &str, i: usize) -> Option<String> {
+    let arg = normalize_name(arguments(rest)?.get(i)?);
     (!arg.is_empty()).then_some(arg)
+}
+
+/// The first argument after the code (see [`argument`]).
+fn first_argument(rest: &str) -> Option<String> {
+    argument(rest, 0)
 }
 
 /// The classification key of an instruction (review round 2, N2): the code
@@ -165,8 +240,10 @@ fn first_argument(rest: &str) -> Option<&str> {
 ///   (a nested field as argument, say), which is refused;
 /// - `BARCODE` with a `\b` switch (its argument is a bookmark), in any
 ///   case and spacing (`bm\b`, `\B`): `BARCODE \b`, refused;
-/// - a [`FILE_SOURCE`] code without a literal first argument:
-///   `<CODE> (non-literal source)`, refused.
+/// - a [`FILE_SOURCE`] code without a literal file argument:
+///   `<CODE> (non-literal source)`, refused; with one and an item argument
+///   (`INCLUDETEXT` bookmark, `LINK` item): `<CODE> (item <ITEM>)`, refused
+///   by the document if `<ITEM>` is one of its bookmarks ([`ITEM_ARGUMENT`]).
 pub fn field_key(instruction: &str) -> String {
     key(instruction, false)
 }
@@ -178,12 +255,23 @@ fn key(instruction: &str, nested: bool) -> String {
     match code.as_str() {
         "INFO" | "DOCPROPERTY" if nested => code,
         "INFO" | "DOCPROPERTY" => match first_argument(rest) {
-            Some(arg) => format!("{code} {}", arg.to_uppercase()),
+            Some(arg) => format!("{code} {arg}"),
             None => code,
         },
         "BARCODE" if rest.to_lowercase().contains("\\b") => "BARCODE \\b".into(),
-        c if FILE_SOURCE.contains(&c) && (nested || first_argument(rest).is_none()) => {
-            format!("{code}{NON_LITERAL_SOURCE}")
+        c if FILE_SOURCE.contains(&c) => {
+            let (file, item) = match c {
+                "LINK" => (1, Some(2)),
+                "INCLUDETEXT" => (0, Some(1)),
+                _ => (0, None),
+            };
+            if nested || argument(rest, file).is_none() {
+                format!("{code}{NON_LITERAL_SOURCE}")
+            } else if let Some(item) = item.and_then(|i| argument(rest, i)) {
+                format!("{code}{ITEM_ARGUMENT}{item})")
+            } else {
+                code
+            }
         }
         _ => code,
     }
@@ -203,6 +291,11 @@ pub fn is_safe(key: &str) -> bool {
     }
     if let Some(arg) = key.strip_prefix("DOCPROPERTY ") {
         return DOCPROPERTY_SAFE.contains(&arg);
+    }
+    if let Some((base, _)) = key.split_once(ITEM_ARGUMENT)
+        && FILE_SOURCE.contains(&base)
+    {
+        return true;
     }
     SAFE.contains(&key)
 }
@@ -403,7 +496,8 @@ fn is_calculated(fld_char: &RawNode) -> bool {
         .any(|t| t.attr(VAL) == Some("calculated"))
 }
 
-/// Custom properties of `docProps/custom.xml`, upper-cased.
+/// Custom properties of `docProps/custom.xml`, normalised with
+/// [`normalize_name`].
 #[derive(Debug, Default)]
 pub(crate) struct CustomNames {
     /// Linked to content (`linkTarget`, a bookmark).
@@ -412,20 +506,48 @@ pub(crate) struct CustomNames {
     pub all: Vec<String>,
 }
 
-/// The refused keys of a scan: sorted, without duplicates. `DOCPROPERTY X`
-/// is safe when `X` is in [`DOCPROPERTY_SAFE`], or when it is a custom
-/// property that is not linked to content and not a [`STATISTICS`] name.
-pub(crate) fn refused(codes: impl IntoIterator<Item = String>, custom: &CustomNames) -> Vec<String> {
-    let safe = |c: &str| match c.strip_prefix("DOCPROPERTY ") {
-        Some(a) => {
-            is_safe(c)
-                || (custom.all.iter().any(|n| n == a)
-                    && !custom.linked.iter().any(|n| n == a)
-                    && !STATISTICS.contains(&a))
+/// Adds the names of every `w:bookmarkStart` under `node` (normalised with
+/// [`normalize_name`]) to `out`.
+pub(crate) fn bookmark_names(node: &RawNode, out: &mut BTreeSet<String>) {
+    for child in node.elements() {
+        if child.is(BOOKMARK_START)
+            && let Some(name) = child.attr(NAME)
+        {
+            out.insert(normalize_name(name));
         }
-        None => is_safe(c),
+        bookmark_names(child, out);
+    }
+}
+
+/// The refused keys of a scan: sorted, without duplicates.
+///
+/// - `DOCPROPERTY X` is refused when `X` is a custom property linked to
+///   content or a prefix of one, **before** the built-in allow-list (review
+///   round 4, m12a: a linked custom `Company` shadows the built-in); else it
+///   is safe when `X` is in [`DOCPROPERTY_SAFE`], or a custom property that
+///   is not a [`STATISTICS`] name. The prefix rule fails closed for
+///   arguments Word may read further than ooxml-rs (a nested field's result
+///   is not part of the instruction).
+/// - `<CODE> (item X)` ([`ITEM_ARGUMENT`]) becomes `<CODE> (self reference)`
+///   when `X` is one of `bookmarks`, and is safe otherwise.
+pub(crate) fn refused(codes: impl IntoIterator<Item = String>, custom: &CustomNames, bookmarks: &BTreeSet<String>) -> Vec<String> {
+    let classify = |c: String| -> Option<String> {
+        if let Some(a) = c.strip_prefix("DOCPROPERTY ") {
+            if custom.linked.iter().any(|n| n.starts_with(a)) {
+                return Some(c);
+            }
+            let safe = is_safe(&c) || (custom.all.iter().any(|n| n == a) && !STATISTICS.contains(&a));
+            return (!safe).then_some(c);
+        }
+        if let Some((base, item)) = c.split_once(ITEM_ARGUMENT)
+            && FILE_SOURCE.contains(&base)
+        {
+            let item = item.strip_suffix(')').unwrap_or(item);
+            return bookmarks.contains(item).then(|| format!("{base}{SELF_REFERENCE}"));
+        }
+        (!is_safe(&c)).then_some(c)
     };
-    codes.into_iter().filter(|c| !safe(c)).collect::<BTreeSet<_>>().into_iter().collect()
+    codes.into_iter().filter_map(classify).collect::<BTreeSet<_>>().into_iter().collect()
 }
 
 #[cfg(test)]
@@ -452,15 +574,30 @@ mod tests {
         assert_eq!(field_key("INFO \u{FF02}NumWords\u{FF02}"), "INFO NUMWORDS");
         assert_eq!(field_key("BARCODE bm\\b"), "BARCODE \\b");
         assert_eq!(field_key("BARCODE bm \\B \\u"), "BARCODE \\b");
-        assert_eq!(field_key("INCLUDETEXT \"c:\\\\a.docx\" bm"), "INCLUDETEXT");
+        assert_eq!(field_key("INCLUDETEXT \"c:\\\\a.docx\" bm"), "INCLUDETEXT (item BM)");
+        assert_eq!(field_key("INCLUDETEXT \"c:\\\\a.docx\""), "INCLUDETEXT");
+        // m13: LINK's file is its second argument; the third is the item.
+        assert_eq!(field_key("LINK Word.Document.12 \"C:\\\\x\\\\self.docx\" \"OLE_LINK1\" \\a \\r"), "LINK (item OLE_LINK1)");
+        assert_eq!(field_key("LINK Word.Document.12"), "LINK (non-literal source)");
+        assert_eq!(field_key("LINK Word.Document.12 \"\" \"OLE_LINK1\""), "LINK (non-literal source)");
+        assert_eq!(field_key("LINK Excel.Sheet.12 \"a.xlsx\" \\a"), "LINK");
+        // m12b/c: names are normalised; ambiguous quoting yields no argument.
+        assert_eq!(field_key("DOCPROPERTY \" Client \u{A0}Name \""), "DOCPROPERTY CLIENT NAME");
+        assert_eq!(field_key("DOCPROPERTY \"A\u{201D}B\""), "DOCPROPERTY");
+        assert_eq!(field_key("DOCPROPERTY A\u{201D}B"), "DOCPROPERTY");
+        assert_eq!(field_key("DOCPROPERTY \"A\"B"), "DOCPROPERTY");
+        assert_eq!(field_key("DOCPROPERTY \"A\u{201D} \\* MERGEFORMAT\""), "DOCPROPERTY");
+        assert_eq!(field_key("DOCPROPERTY \u{201E}Words\u{201C}"), "DOCPROPERTY WORDS");
+        assert_eq!(field_key("DOCPROPERTY \"Words\"\\* MERGEFORMAT"), "DOCPROPERTY WORDS");
+        assert_eq!(field_key("INCLUDETEXT \"a\u{201D}.docx\" bm"), "INCLUDETEXT (non-literal source)");
         assert_eq!(field_key("INCLUDETEXT \\* MERGEFORMAT"), "INCLUDETEXT (non-literal source)");
         assert_eq!(key("INCLUDETEXT \"\" Client", true), "INCLUDETEXT (non-literal source)");
         assert_eq!(key("LINK Excel.Sheet.12 \"\" \"R1C1\"", true), "LINK (non-literal source)");
         assert_eq!(key("DOCPROPERTY  \\* MERGEFORMAT", true), "DOCPROPERTY");
-        for safe in ["INFO NUMPAGES", "INFO AUTHOR", "DOCPROPERTY PAGES", "DOCPROPERTY TITLE", "DOCPROPERTY COMPANY", "BARCODE", "INCLUDETEXT", "LINK"] {
+        for safe in ["INFO NUMPAGES", "INFO AUTHOR", "DOCPROPERTY PAGES", "DOCPROPERTY TITLE", "DOCPROPERTY COMPANY", "BARCODE", "INCLUDETEXT", "LINK", "INCLUDETEXT (item BM)", "LINK (item OLE_LINK1)"] {
             assert!(is_safe(safe), "{safe}");
         }
-        for refused in ["INFO", "DOCPROPERTY", "INFO NUMWORDS", "INFO FILESIZE", "INFO TOC", "INFO INFO", "INFO DOCPROPERTY", "DOCPROPERTY WORDS", "DOCPROPERTY BYTES", "DOCPROPERTY CLIENT NAME", "DOCPROPERTY \u{201C}WORDS\u{201D}", "INCLUDETEXT (non-literal source)", "FILESIZE", "BARCODE \\b", CALCULATED_FORM_FIELD, MALFORMED] {
+        for refused in ["INFO", "DOCPROPERTY", "INFO NUMWORDS", "INFO FILESIZE", "INFO TOC", "INFO INFO", "INFO DOCPROPERTY", "DOCPROPERTY WORDS", "DOCPROPERTY BYTES", "DOCPROPERTY CLIENT NAME", "DOCPROPERTY \u{201C}WORDS\u{201D}", "INCLUDETEXT (non-literal source)", "LINK (self reference)", "FILESIZE", "BARCODE \\b", CALCULATED_FORM_FIELD, MALFORMED] {
             assert!(!is_safe(refused), "{refused}");
         }
         for s in STATISTICS {
