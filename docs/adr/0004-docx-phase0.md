@@ -1,6 +1,6 @@
 # ADR-0004: Word Phase0: text edits and paragraph append in `document.xml`
 
-- Status: **Proposed** (revision 3)
+- Status: **Proposed** (revision 4)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, oracles, fail-honestly
   stance), [ADR-0002](0002-schema-driven-code-generation.md) (generated views, slots, primitives,
@@ -64,6 +64,32 @@
   - The reviewer's answers to owner questions 2 and 3 are recorded as the planned Phase1 direction
     (roadmap, Phase1; open questions below).
   - The review's adversarial probes P01–P12 are assertions in `tests/adversarial.rs`.
+- **Revision 4** (after `0004-opus-review-round3.md`; fail closed throughout):
+  - **N3** — `INCLUDETEXT`, `INCLUDEPICTURE` and `LINK` (the codes whose argument names the file
+    the result comes from) are refused when that argument is not a plain literal: a nested field
+    (`{ INCLUDETEXT "{ FILENAME \p }" Client }` includes a bookmark of the document itself, the
+    same dependency as `REF`) or no argument at all (§6 W2).
+  - **m7** — the field scan now follows the body walk's grammar (one shared function): a
+    `w:fldChar` or `w:instrText` that is not a direct child of a run the walk reaches, or a
+    `separate`/`end`/`w:instrText` in a different *container* than its `begin` (text box, ruby text,
+    math, a branch of `mc:AlternateContent`), is `<malformed field>`. A field whose `begin` the walk
+    cannot see can no longer leave its result runs settable (§6 W2).
+  - **m8** — A2 is decided on the last paragraph of the body flow, so blocks without paragraphs
+    after the section break (empty `w:sdt`, empty `w:customXml`, a table without rows) no longer
+    bypass it (§3.2).
+  - **m9** — `DOCPROPERTY` uses an allow-list: built-in properties that are not statistics, plus
+    custom properties of `docProps/custom.xml` without `linkTarget`. Any other name is refused.
+    Typographic quotes (“ ” „ ‟ ＂) delimit arguments, and `BARCODE \b` is detected in any case and
+    spacing. `manual_check` gains output `11` for the owner's check of how Word reads typographic
+    quotes (§6, §7).
+  - **m10** — a test with a mis-cased `Separate` kills the surviving mutant of the
+    unknown-`fldCharType` rule. The `w:fldChar` clause of R1 is recorded as defence in depth (R4
+    refuses such runs too).
+  - **m11** — every settings relationship is read, and any part that turns W1 or W3 on turns it
+    on. `writeProtection` and `updateFields` are merged over the parts. The same applies to
+    custom-properties parts (§6).
+  - Corpus check: gate outcomes are unchanged for all 643 files in the POI, SDK and docx4j
+    corpora.
 
 ## Context
 
@@ -287,18 +313,20 @@ break) is a different element and not a slot anchor (`poi-Headers`). Then `p.ins
 and the content as in step 1. The new nodes have no original span, so ADR-0001 T2's "insertion
 point" rule applies.
 
-**Last section in the last paragraph (revision 3, review round 2 m2).** When the body has no
-`w:sectPr` of its own and its last block is a paragraph whose `w:pPr` holds a `w:sectPr` (or a
-content control or custom-XML block that ends with one), that paragraph carries the last section's
-properties. A paragraph inserted after it would belong to a new final section with default page
+**Last section in the last paragraph (revision 3, review round 2 m2; revision 4, round 3 m8).**
+When the body has no `w:sectPr` of its own and the **last paragraph of the body flow** (§3.1, at
+any depth, in document order) has a `w:pPr` holding a `w:sectPr`, that paragraph carries the last
+section's properties. No paragraph follows it, and blocks without paragraphs (an empty `w:sdt` or
+`w:customXml`, a table without rows) do not change this; revision 3 looked at the last block and
+could be bypassed by them. A paragraph inserted after it would belong to a new final section with default page
 size, orientation and margins *(u)*: a landscape document would end with a portrait page. The
 goal is to keep the existing section, and Phase0 has two ways to append into it, both rejected:
 inserting before that paragraph changes the order of the text, and moving the `w:sectPr` into the
 new paragraph edits an existing paragraph, which breaks append's "pure insertion" guarantee (T2).
 So `append_paragraph` refuses with **A2** `SectionBreakAtEnd` and the document is unchanged.
 Appending stays allowed when a body-level `w:sectPr` exists (the paragraph then ends an earlier
-section), when a table follows the paragraph, and when there is no `w:sectPr` at all
-(`poi-55733`). Phase1 may move the `w:sectPr` as an explicit, documented edit. There are no
+section), when a table with paragraphs follows the paragraph, and when there is no `w:sectPr` at
+all (`poi-55733`). Phase1 may move the `w:sectPr` as an explicit, documented edit. There are no
 occurrences in the corpora.
 
 #### 3.3 Order of checks
@@ -442,8 +470,8 @@ the first gate (W1, W3, W2 order); `write_gates()` lists all:
 
 | # | Variant | Condition | Test |
 |---|---|---|---|
-| W1 | `TrackRevisionsOn` | **any** `settings/w:trackRevisions` is on (a duplicate is a schema violation; a later "on" is not hidden by an earlier "off", revision 3): `val` absent, `true`, `1`, `on`, **or not a valid `ST_OnOff` value (fail closed)** | `poi-delins`; unit test of all eight forms (absent element, empty element, `true`/`1`/`on`/`false`/`0`/`off`, invalid) |
-| W3 | `DocumentProtected { edit }` | **any** `settings/w:documentProtection` (duplicates: the first restricted one is reported, revision 3) with `enforcement` on (an invalid value counts as on) and `edit` other than `none` (absent `edit` = no restriction; an unknown value counts as restricted). Covers `readOnly`, `comments`, `forms`, `trackedChanges`. `w:formatting`-only protection allows edits and passes. | `poi-documentProtection_readonly_no_password` (added); unit test of the variants |
+| W1 | `TrackRevisionsOn` | **any** `settings/w:trackRevisions`, in **any** settings part the main part relates to (revision 4: ECMA-376 allows one relationship, a second one is read too), is on (a duplicate is a schema violation; a later "on" is not hidden by an earlier "off", revision 3): `val` absent, `true`, `1`, `on`, **or not a valid `ST_OnOff` value (fail closed)** | `poi-delins`; unit test of all eight forms (absent element, empty element, `true`/`1`/`on`/`false`/`0`/`off`, invalid) |
+| W3 | `DocumentProtected { edit }` | **any** `settings/w:documentProtection` in any settings part (duplicates: the first restricted one is reported, revision 3) with `enforcement` on (an invalid value counts as on) and `edit` other than `none` (absent `edit` = no restriction; an unknown value counts as restricted). Covers `readOnly`, `comments`, `forms`, `trackedChanges`. `w:formatting`-only protection allows edits and passes. | `poi-documentProtection_readonly_no_password` (added); unit test of the variants |
 | W2 | `StaleFieldRisk { codes }` | a story part (main, headers, footers, footnotes, endnotes, comments) has a field whose key is content-dependent or **not classifiable**, or **field markup that cannot be followed** (`<malformed field>`, revision 3) | `sdk-TOC2` (`PAGEREF`, `TOC`), `sdk-complex2010` (`=`, `SEQ`, `TC`); unit tests |
 
 **W2 field scan (review M1).** Per story part, in document order, with a stack:
@@ -467,7 +495,12 @@ the first gate (W1, W3, W2 order); `write_gates()` lists all:
 - The **key** (`fields::field_key`, revision 3) is the code, except for `INFO` and `DOCPROPERTY`,
   whose key carries the first argument, unquoted and upper-cased (`INFO NUMWORDS`,
   `DOCPROPERTY CLIENT NAME`; the bare code if there is no literal argument, e.g. a nested field),
-  and `BARCODE` with `\b` (`BARCODE \b`). A calculated text form field (`w:ffData/w:textInput/
+  and `BARCODE` with `\b` in any case and spacing (`BARCODE \b`; revision 4). Arguments may be
+  quoted with straight or typographic quotes (“ ” „ ‟ ＂; revision 4, m9: Word's AutoFormat
+  produces them when a field code is typed by hand, and whether Word reads them as quotes is *(u)*,
+  checked by `manual_check` output `11`). `INCLUDETEXT`, `INCLUDEPICTURE` and `LINK` get the key
+  `<CODE> (non-literal source)` when their instruction contains a nested field or has no literal
+  first argument (revision 4, N3). A calculated text form field (`w:ffData/w:textInput/
   w:type w:val="calculated"` on its `begin`) has the key `FORMTEXT (calculated)`. Keys are what
   `StaleFieldRisk { codes }` reports.
 - **Malformed markup fails closed (revision 3, review round 2 m1).** `<malformed field>` is
@@ -480,6 +513,22 @@ the first gate (W1, W3, W2 order); `write_gates()` lists all:
   complete field in a text box's own paragraph inside `mc:AlternateContent` is classified
   normally, and so are fields in block-level `mc:AlternateContent`. Word does not write any of
   these forms (schema violations); none occurs in the fixtures.
+- **Field markers follow the body walk (revision 4, review round 3 m7).** The scan reads each
+  story with the body walk's own grammar (`body::descend`, shared by both). Inside an element the
+  walk does not enter (a text box's `w:txbxContent`, ruby text `w:rt`, `m:oMath`, a branch of
+  `mc:AlternateContent`, an unknown element), it starts a new **container** and still recognizes
+  paragraphs and runs there, so complete fields in text boxes are classified. Two more cases are
+  `<malformed field>`:
+  - a `w:fldChar` or `w:instrText` that is not a direct child of such a run (directly in `w:p`, or
+    under another child of `w:r`);
+  - a `separate`, `end` or `w:instrText` in a different container than its field's `begin`.
+
+  Fields that span paragraphs and table cells of the body stay in one container and are fine. In
+  the main part, container 0 (the body) holds exactly the markers the body walk counts for R1. A
+  field whose `begin` the walk cannot see therefore cannot leave its result runs looking outside a
+  field: the document is refused by W2 first. The six forms of the round-3 review (begin in a text
+  box, in ruby text, in `m:oMath`, in block-level `mc:AlternateContent`, `w:fldChar` directly in
+  `w:p`, `w:fldChar` under another child of `w:r`) are tested, plus `w:instrText` outside a run.
 
 **Classification (owner decision 2026-11-16: accepted).** A code is **safe** when its cached
 result depends only on things Phase0 cannot change, or on pagination, which Word recomputes at
@@ -491,12 +540,21 @@ every layout (review m5's restatement of revision 1's criterion):
   `FILENAME`, `LASTSAVEDBY`, `TEMPLATE`, `DOCVARIABLE`, `USERNAME`, `USERINITIALS`,
   `USERADDRESS`, `REVNUM`;
 - by argument (revision 3): `INFO X` is safe when `X` is itself a safe plain code (`INFO
-  NumPages`, `INFO Author`); `DOCPROPERTY X` is safe unless `X` is a document statistic
-  (`Words`, `Characters`, `CharactersWithSpaces`, `Lines`, `Paragraphs`, `Bytes`, and the `INFO`
-  spellings `NumWords`, `NumChars`, `FileSize`; `Pages` is pagination and safe) or a custom
-  property linked to content (`linkTarget` in `docProps/custom.xml`). `INFO` or `DOCPROPERTY`
-  without a literal argument is refused;
-- links and external content: `HYPERLINK`, `INCLUDEPICTURE`, `INCLUDETEXT`, `LINK`, `EMBED`;
+  NumPages`, `INFO Author`). `INFO` without a literal argument is refused;
+- `DOCPROPERTY X`, an **allow-list** (revision 4, review round 3 m9; revision 3 used a deny-list
+  of statistics, which let unknown spellings through):
+  - safe if `X` is a built-in property that is not a statistic: `Author`, `Category`,
+    `Comments`, `Company`, `CreateTime`, `HyperlinkBase`, `Keywords`, `LastPrinted`,
+    `LastSavedBy`, `LastSavedTime`, `Manager`, `NameofApplication`, `Pages` (pagination),
+    `RevisionNumber`, `Security`, `Subject`, `Template`, `Title`, `TotalEditingTime`
+    (`fields::DOCPROPERTY_SAFE`);
+  - also safe if `X` is a custom property in `docProps/custom.xml` without `linkTarget` and not
+    named like a statistic;
+  - everything else is refused: the statistics (`Words`, `Characters`, `CharactersWithSpaces`,
+    `Lines`, `Paragraphs`, `Bytes`), properties linked to content, names in no part, and
+    `DOCPROPERTY` without a literal argument;
+- links and external content: `HYPERLINK`, `INCLUDEPICTURE`, `INCLUDETEXT`, `LINK` (these three
+  only with a literal source, revision 4), `EMBED`;
 - mail merge: `MERGEFIELD`, `MERGEREC`, `MERGESEQ`, `NEXT`, `NEXTIF`, `SKIPIF`, `GREETINGLINE`,
   `ADDRESSBLOCK`;
 - form fields and user input: `FORMTEXT`, `FORMCHECKBOX`, `FORMDROPDOWN`, `ASK`, `FILLIN`, `SET`;
@@ -511,13 +569,13 @@ arguments or switches that make its result depend on the document's content:
 | Code | Argument-dependent case | Decision |
 |---|---|---|
 | `INFO` | the argument is another field's name | classified as that field (`INFO NumWords` refused) |
-| `DOCPROPERTY` | statistics; custom property linked to a bookmark | refused (the list above; `linkTarget` read from `docProps/custom.xml`) |
+| `DOCPROPERTY` | statistics; custom property linked to a bookmark; unknown names | allow-list since revision 4 (above); `linkTarget` read from `docProps/custom.xml` |
 | `FILESIZE` | none, but the saved size changes with every Phase0 save | **moved to content-dependent**. `SAVEDATE` stays safe: it agrees with `docProps/core.xml`, which Phase0 also leaves as Word last saved it (§5); `FILESIZE` has no such counterpart and would show a size the file no longer has |
-| `BARCODE` | `\b`: the argument is a bookmark whose text is encoded | `BARCODE \b` refused |
+| `BARCODE` | `\b`: the argument is a bookmark whose text is encoded | `BARCODE \b` refused, in any case and spacing (`bm\b`, `\B`; revision 4) |
 | `FORMTEXT` | calculated type: the result is an expression over other form fields' bookmarks | `FORMTEXT (calculated)` refused |
 | `AUTHOR`, `TITLE`, `SUBJECT`, `KEYWORDS`, `COMMENTS` | an argument *sets* the property | safe: the value comes from the instruction, not from the content |
-| `INCLUDETEXT` | `INCLUDETEXT "file" bookmark` | safe: the source is another file. Including the document itself is exotic and not detected *(u)* |
-| `HYPERLINK`, `GOTOBUTTON`, `MACROBUTTON` | `\l` / jump target is a bookmark | safe: the bookmark is a target, the displayed text is the field's own |
+| `INCLUDETEXT`, `INCLUDEPICTURE`, `LINK` | the source file: `{ INCLUDETEXT "{ FILENAME \p }" bookmark }` includes the document itself, a known Word idiom for repeating a bookmark's text | revision 4 (review round 3 N3): refused unless the source is a plain literal (`<CODE> (non-literal source)`). A literal path that happens to name the document itself is not detected *(u)*; no `INCLUDETEXT` or `LINK` occurs in the 626-file corpora |
+| `HYPERLINK`, `GOTOBUTTON`, `MACROBUTTON` | `\l` / jump target is a bookmark; a nested field as the target | safe: the bookmark or URL is a target, and the displayed text is the field's own cached result, which Word does not derive from the target |
 | `NEXTIF`, `SKIPIF`, `ASK`, `SET` | comparisons and bookmark assignment | safe: merge data or user input; `SET`/`ASK` assign, and the fields that read the bookmark (`REF`) are refused |
 | `EQ`, `DISPLAYBARCODE` | nested fields as arguments | each nested field is classified on its own |
 | others (`PAGE`…, `DATE`…, `DOCVARIABLE`, mail merge, `SYMBOL`, `ADVANCE`, `PRIVATE`) | none | safe |
@@ -534,13 +592,13 @@ Per target:
 
 | # | Variant | Condition | Test |
 |---|---|---|---|
-| R1 | `InsideField` | `Run::in_field()` (between a `begin` and its `end` at any depth, instruction or result, or holding a `w:fldChar`), or a `w:fldSimple` wrapper. The depth is **one counter over the whole body in document order**, across paragraphs, cells and wrappers (review m2); an unterminated `begin` keeps the rest of the body inside (fail closed), which also refuses `append_paragraph` | `poi-FieldCodes`, `sdk-Field-more-field` (8 text runs), `poi-FldSimple`; unit test: a result spanning three paragraphs and a hyperlink in a table cell |
+| R1 | `InsideField` | `Run::in_field()` (between a `begin` and its `end` at any depth, instruction or result, or holding a `w:fldChar` — this last clause is defence in depth, since R4 refuses such runs too; review round 3 m10), or a `w:fldSimple` wrapper. The depth is **one counter over the whole body in document order**, across paragraphs, cells and wrappers (review m2); an unterminated `begin` keeps the rest of the body inside (fail closed), which also refuses `append_paragraph` | `poi-FieldCodes`, `sdk-Field-more-field` (8 text runs), `poi-FldSimple`; unit test: a result spanning three paragraphs and a hyperlink in a table cell |
 | R2 | `InsideRevision { context }` | a `w:ins`, `w:del`, `w:moveFrom` or `w:moveTo` wrapper | `poi-delins` with `trackRevisions` removed; unit test |
 | R3 | `UnsupportedContext { ancestor }` | any wrapper other than `w:hyperlink` (§3.1): `w:sdt` (data-bound content is overwritten by Word from the custom XML store, roadmap row 16), `w:smartTag`, `w:customXml`, `w:dir`, `w:bdo`, `w:ruby` | `poi-smarttag-snippet` (8 runs), `sdk-coverpage1` (all runs); unit test for each |
 | R4 | `RunNotTextOnly { child }` | content other than `w:t`, `w:tab`, `w:br` (no `type` or `textWrapping`, no `clear` or `none`), `w:cr`, `w:noBreakHyphen`, `w:softHyphen`, `w:lastRenderedPageBreak`; or a comment, PI or non-whitespace text in `w:r`. Examples: `w:drawing`, `w:sym`, `w:footnoteReference`, `w:fldChar`, `w:object`, `w:ruby`, `mc:AlternateContent`, page `w:br` | `poi-shapes-with-text` (`mc:AlternateContent`); unit test |
 | T1 | `InvalidXmlChar { ch }` | text contains an XML-1.0-forbidden character | unit test |
 | A1 | `Core(UnresolvedSibling)` | `append_paragraph` into a `w:body` with an `mc:AlternateContent` child | `sdk-HelloO14` |
-| A2 | `SectionBreakAtEnd` | `append_paragraph` when the body has no `w:sectPr` of its own and ends with a paragraph carrying `w:pPr/w:sectPr` (§3.2, revision 3) | `adversarial.rs` (P01, also inside a content control) |
+| A2 | `SectionBreakAtEnd` | `append_paragraph` when the body has no `w:sectPr` of its own and the last paragraph of the body flow carries `w:pPr/w:sectPr` (§3.2, revisions 3 and 4) | `adversarial.rs` (P01, inside a content control; round 3's Q02: empty `w:sdt`, bookmark-only `w:sdtContent`, empty `w:customXml`, table without rows, orphan `w:sdtContent`) |
 | — | `NoBody`, `NoSuchParagraph`, `NoSuchRun` | no `w:body` to append to; index out of range | unit tests |
 
 **Reported, not gated (revision 3, review round 2 m3).**
@@ -643,9 +701,10 @@ Fixtures are `reference/fixtures/docx/*.docx`: 23 open as packages, 3 are O1–O
   fixtures (table cell, hyperlink run, run with `w:lastRenderedPageBreak`, paragraph with
   `w14:textId` in a commented document, append without `sectPr`, append to a multi-section
   document, whitespace/tab/break mapping, document with fields, headers/footers with fields,
-  notes) and `CHECKLIST.md`. The owner opens them in current Microsoft 365 Word and checks for no
+  notes), one synthetic document (`11`: `DOCPROPERTY "Words"`, `DOCPROPERTY “Words”` and
+  `INFO “NumWords”`, revision 4) and `CHECKLIST.md`. The owner opens them in current Microsoft 365 Word and checks for no
   repair dialog, the expected text, and unchanged fields, comments and notes. The checklist asks
-  the `w14:textId` and `w:lastRenderedPageBreak` questions explicitly.
+  the `w14:textId`, `w:lastRenderedPageBreak` and typographic-quote questions explicitly.
 
 ## Alternatives considered
 
@@ -719,9 +778,12 @@ refused), DTD refusal location (core), allowlist layout (foundation's per-group 
 
 Still open:
 
-1. **Manual Word check** (§7): no repair dialog on the ten `manual_check` outputs; in particular
-   whether keeping `w14:textId` on an edited paragraph is harmless (output `04`), and whether
-   dropping `w:lastRenderedPageBreak` has a visible effect (output `03`).
+1. **Manual Word check** (§7): no repair dialog on the `manual_check` outputs. In particular:
+   whether keeping `w14:textId` on an edited paragraph is harmless (output `04`); whether
+   dropping `w:lastRenderedPageBreak` has a visible effect (output `03`); and whether Word reads
+   typographic quotes in field arguments as quotes (output `11`, review round 3 m9).
+   ooxml-docx already treats them as quotes, so either answer is fail closed. The answer decides
+   whether this needs more than a note.
 2. **Per-operation W2** (review m5). Phase0 keeps the document-wide rule. Revision 3 records the
    round-2 reviewer's recommendation as the planned Phase1 direction (roadmap, Phase1): a
    per-operation check limited to `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM`, `AUTONUM*`, whose
@@ -742,7 +804,11 @@ Still open:
   `readback/`, `readback_compare.py`), run 2026-11-16 on rustc 1.99.1 / Python 3.15.
 - Implementation and tests: `crates/ooxml-docx/` (`src/body.rs` walk, `src/fields.rs` scan and
   table, `src/document.rs` API, `tests/`, `examples/manual_check.rs`).
-- Reviews: `docs/adr/0004-opus-review-round1.md`, `docs/adr/0004-opus-review-round2.md`.
+- Reviews: `docs/adr/0004-opus-review-round1.md`, `docs/adr/0004-opus-review-round2.md`,
+  `docs/adr/0004-opus-review-round3.md`.
+- Microsoft: [List of field codes in Word](https://support.microsoft.com/en-us/office/list-of-field-codes-in-word-1ad6d91a-55a7-4a8d-b535-cf7888659a51),
+  [IncludeText field](https://support.microsoft.com/en-us/word/field-codes-includetext-field),
+  [DocProperty field](https://support.microsoft.com/en-us/word/field-codes-docproperty-field).
 - Fixtures and provenance: `reference/fixtures/docx/README.md` (Apache POI trunk `47dcff76`,
   Open XML SDK `431ab05c`).
 - Open XML SDK schema data (`431ab05c`): `w:CT_Body/w:body`, `w:CT_P/w:p`, `w:CT_R/w:r`,

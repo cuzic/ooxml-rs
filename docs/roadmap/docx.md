@@ -261,7 +261,7 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 ### Phase0 (ADR-0004)
 
-Implemented in `crates/ooxml-docx` (ADR-0004 revision 3, still Proposed).
+Implemented in `crates/ooxml-docx` (ADR-0004 revision 4, still Proposed).
 
 **Scope.**
 
