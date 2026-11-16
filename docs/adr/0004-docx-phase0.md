@@ -23,7 +23,7 @@
     `RawNode` tree, which core already exposes; writes descend with `LensMut::into_child_at`
     through allowlisted entries only, which works for `[read]` entries because `ChildOf` exists
     between any two allowlisted entries (ADR-0002 post-acceptance note). No core addition is needed
-    for M2. One unrelated additive core change was needed: `Package::parsed_part` (PR #9). The
+    for M2. One unrelated additive core change was needed: `Package::parsed_part` (PR #9, merged). The
     `ChildOf` claim of revision 1 is corrected (§4).
   - **M3** — new gate W3 `DocumentProtected` (§6), with a POI fixture added.
   - **m1** text mapping table with `\r`, whitespace-only text nodes, comments/PIs, the own-text
@@ -279,7 +279,7 @@ point" rule applies.
   unlisted element.
 - **Core addition:** none for M2. `Package::xml_part` takes `&mut self` (it may parse), so
   `Document::paragraphs(&self)` needed `Package::parsed_part(&self, name)`, an additive accessor
-  for a tree already parsed: PR #9 (`core/package-parsed-part`). This branch merges it; it is
+  for a tree already parsed: PR #9 (`core/package-parsed-part`, merged into main). It is
   useful to the Excel and PowerPoint crates in the same way.
 
 ### 4. Phase0 WML allowlist and overrides
@@ -511,9 +511,16 @@ Fixtures are `reference/fixtures/docx/*.docx`: 23 open as packages, 3 are O1–O
 - **T6 (schema order)**: after each T2 edit, the edited run's element children are in
   `w:CT_R` slot order under ADR-0002 §4.1's greedy assignment; after each append, so are the
   body's.
-- **Corpus cross-check** (not a committed test): the crate was run over both corpora (POI 129,
-  SDK 444), editing every settable run, appending, saving and reopening each writable file, with
-  no panic and the same file-level outcomes as the spike.
+- **Corpus cross-check** (a throwaway scan, not committed): the crate was run over both corpora
+  (POI 129, SDK 444), editing up to 300 settable runs per writable file, appending, saving and
+  reopening. No panic, no error. File-level outcomes equal the spike's, except that ooxml-rs
+  opens POI's fuzz case `clusterfuzz-…-6733884933668864.docx`, which Python's `zipfile` rejects
+  for a bad CRC in a part ooxml-rs never decompresses (raw copy). Settable runs are identical
+  (POI 27,763, SDK 23,448); the text-run totals differ by one run per corpus that the spike's
+  `iter()` reaches and the body walk does not (neither counts it as settable). Edits in POI's
+  `deep-table-cell.docx` (5,000 nested tables) take 3–4 s each in a release build: core's
+  path-based `LensMut` re-walks the path at every `into_child_at` step, which is quadratic in
+  depth. Real documents are a few levels deep.
 - **Manual (explicit gap, as in ADR-0001)**: there is no Word or LibreOffice in this sandbox.
   `cargo run -p ooxml-docx --example manual_check -- <outdir>` writes ten named outputs from
   fixtures (table cell, hyperlink run, run with `w:lastRenderedPageBreak`, paragraph with

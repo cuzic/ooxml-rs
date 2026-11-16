@@ -48,8 +48,8 @@ Headers/footers/notes/comments editing, cross-run replace, formatting, new struc
 `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
 
 Known cost: a write descends from the part root through `ooxml-core`'s path-based lens, which is
-quadratic in nesting depth. It is negligible for real documents, but a pathological file with
-5,000 nested tables (POI `deep-table-cell.docx`) takes a noticeable time per edit.
+quadratic in nesting depth. It is negligible for real documents, but in a pathological file with
+5,000 nested tables (POI `deep-table-cell.docx`) an edit takes 3–4 s in a release build.
 
 ## Tests
 
