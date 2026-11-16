@@ -29,6 +29,10 @@ pub(crate) enum CellOp {
     /// Formula text, without `=`.
     Formula(String),
     RemoveFormula,
+    /// Removes the value and formula (`v`, `is`, `f`, `t`) of an existing
+    /// cell, keeping its style: `merge_clearing` (ADR-0014 §3). Unlike
+    /// `RemoveFormula`, it also applies to a cell without a formula.
+    Clear,
 }
 
 /// The cells an edit invalidates.
@@ -92,6 +96,16 @@ impl Workbook {
 
     /// Plans, validates and applies one cell edit.
     pub(crate) fn edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_mode(sheet, at, op, false)
+    }
+
+    /// Runs every check of [`Self::edit_cell`] without applying anything
+    /// (parsing and index building aside, which change no bytes).
+    pub(crate) fn check_edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_mode(sheet, at, op, true)
+    }
+
+    fn edit_cell_mode(&mut self, sheet: usize, at: CellIndex, op: CellOp, dry_run: bool) -> Result<()> {
         self.check_poisoned()?;
         if let Some(b) = &self.census.block {
             return Err(b.to_error());
@@ -101,7 +115,9 @@ impl Workbook {
 
         // ---- guards on the cell ----
         let ctx = self.contexts.get(&sheet).expect("context loaded with the worksheet");
-        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at)) {
+        // Phase4 (ADR-0014 §3): the anchor of a merged range is writable, as
+        // in Excel; a value in any other cell would be hidden.
+        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
             return Err(Error::MergedCell { cell, range: m.to_string() });
         }
         if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
@@ -184,6 +200,10 @@ impl Workbook {
         let chain = if formula_set_changes { self.calc_chain.clone() } else { None };
         if let Some(p) = &chain {
             self.pkg.check_remove_part(p, &[REL_CALC_CHAIN])?;
+        }
+
+        if dry_run {
+            return Ok(());
         }
 
         // ---- apply ----
@@ -410,7 +430,7 @@ impl Workbook {
     }
 
     #[cfg(feature = "fault-injection")]
-    fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
         if let Some((at, panic)) = self.fault
             && at == step
         {
@@ -423,7 +443,7 @@ impl Workbook {
 
     #[cfg(not(feature = "fault-injection"))]
     #[inline(always)]
-    fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
         Ok(())
     }
 }

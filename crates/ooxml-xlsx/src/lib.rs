@@ -61,6 +61,8 @@ mod escape;
 mod formula;
 mod graph;
 mod index;
+mod protect;
+mod range;
 mod reference;
 mod workbook;
 mod worksheet;
@@ -71,6 +73,7 @@ pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 pub use workbook::ApplyStep;
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
+pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, Protection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it
 /// by one row and column either succeed or fail cleanly? Never panics.

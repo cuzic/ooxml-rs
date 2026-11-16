@@ -42,9 +42,10 @@ pub enum Error {
         reason: String,
     },
 
-    /// The cell is inside a merged range (any cell, the top-left one
-    /// included).
-    #[error("cell {cell} is inside the merged range {range}")]
+    /// A value or formula write to a **non-anchor** cell of a merged range
+    /// (ADR-0014 §3: the top-left cell, the anchor, is writable; a value in
+    /// any other cell would be hidden by the merge).
+    #[error("cell {cell} is a non-anchor cell of the merged range {range}")]
     MergedCell {
         /// The cell, A1 style.
         cell: String,
@@ -210,6 +211,93 @@ pub enum Error {
     /// `workbook.xml` and `docProps/app.xml` together).
     #[error("naming or renaming a sheet is not supported in Phase0")]
     SheetNamingUnsupported,
+
+    // ---- Phase4 (ADR-0014 §13) ----
+    /// A merge needs at least two cells.
+    #[error("{0} is a single cell; a merge needs at least two")]
+    MergeSingleCell(String),
+
+    /// The range overlaps an existing merged range.
+    #[error("{range} overlaps the merged range {existing}")]
+    MergeOverlap {
+        /// The requested range.
+        range: String,
+        /// The existing merged range.
+        existing: String,
+    },
+
+    /// `merge` would hide values or formulas in non-anchor cells; use
+    /// `merge_clearing` to clear them explicitly.
+    #[error("merging {range} would hide the contents of {cells:?}")]
+    MergeWouldHideValues {
+        /// The requested range.
+        range: String,
+        /// The non-anchor cells that hold a value or a formula.
+        cells: Vec<String>,
+    },
+
+    /// No merged range equals the given range.
+    #[error("no merged range {0}")]
+    NoSuchMerge(String),
+
+    /// The range overlaps a table (a table carries its own autofilter, and
+    /// cannot contain merged cells).
+    #[error("{range} overlaps table {table:?}")]
+    TableOverlap {
+        /// The requested range.
+        range: String,
+        /// The table's name.
+        table: String,
+    },
+
+    /// The range overlaps a PivotTable's location.
+    #[error("{range} overlaps the PivotTable at {location}")]
+    PivotOverlap {
+        /// The requested range.
+        range: String,
+        /// The PivotTable's `location/@ref`.
+        location: String,
+    },
+
+    /// The sheet has a query table whose output range cannot be located,
+    /// so a merge or filter on it is refused.
+    #[error("the sheet has a query table ({0}); its output range may overlap")]
+    QueryTableOverlap(String),
+
+    /// The sheet's `autoFilter` has filter criteria or a sort state; moving
+    /// its range would retarget them.
+    #[error("the sheet's autoFilter has filter criteria or a sort state")]
+    AutoFilterExists,
+
+    /// The sheet's `autoFilter` filters rows (a `filterColumn`); removing it
+    /// would leave rows hidden that no filter explains.
+    #[error("the sheet's autoFilter is active (filterColumn); it is not removed")]
+    FilterActive,
+
+    /// More than one built-in name of this kind and scope.
+    #[error("{name} is defined more than once for this sheet")]
+    DuplicateBuiltInName {
+        /// The name.
+        name: String,
+    },
+
+    /// A formula uses the defined name that the edit would change.
+    #[error("defined name {name} is used by a formula ({cell})")]
+    NameInUse {
+        /// The name.
+        name: String,
+        /// One formula cell that uses it (`Sheet!A1`), or `defined name X`.
+        cell: String,
+    },
+
+    /// A protection spin count above 10,000,000 (POI's and Excel's limit).
+    #[error("spin count {0} exceeds 10,000,000")]
+    InvalidSpinCount(u32),
+
+    /// The operating system's random number generator failed (salt for a
+    /// password hash).
+    #[error("could not obtain random bytes for the salt: {0}")]
+    Random(String),
 }
 
 /// `Result` with [`Error`].

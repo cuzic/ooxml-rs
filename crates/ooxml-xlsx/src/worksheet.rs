@@ -17,8 +17,8 @@ use crate::workbook::Workbook;
 /// Rows and columns are 0-based (`A1` = `(0, 0)`).
 #[derive(Debug)]
 pub struct Worksheet<'wb> {
-    wb: &'wb mut Workbook,
-    sheet: usize,
+    pub(crate) wb: &'wb mut Workbook,
+    pub(crate) sheet: usize,
 }
 
 /// A decoded cell value.
@@ -220,7 +220,7 @@ pub(crate) struct TargetPlan {
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
         CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) => Some(t.as_str()),
-        CellOp::RemoveFormula => None,
+        CellOp::RemoveFormula | CellOp::Clear => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -251,7 +251,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
         CellOp::Number(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) => Some(sml::InlineString::QNAME),
         CellOp::Formula(_) => Some(sml::CellFormula::QNAME),
-        CellOp::RemoveFormula => None,
+        CellOp::RemoveFormula | CellOp::Clear => None,
     };
     match ws.sheet_data() {
         None => check_insertable::<sml::Worksheet>(ws.raw().elements(), sml::SheetData::QNAME)?,
@@ -308,7 +308,7 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
             let mut kids = is.elements();
             matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
         }),
-        CellOp::RemoveFormula => None,
+        CellOp::RemoveFormula | CellOp::Clear => None,
     }
 }
 
@@ -400,7 +400,7 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                 }
                 f.set_text(text)?;
             }
-            CellOp::RemoveFormula => {
+            CellOp::RemoveFormula | CellOp::Clear => {
                 c.remove_data_type()?;
             }
         }
