@@ -16,7 +16,7 @@ use crate::body::{self, BodyIndex, ParaInfo, RunInfo, Wrapper};
 use crate::error::{Error, Result};
 use crate::fields::{self, FieldScan};
 use crate::names::{
-    CUSTOM_PROPERTIES_NS, CUSTOM_PROPERTIES_RELATIONSHIP, CUSTOM_XML, RECOMMENDED, SDT, SETTINGS_RELATIONSHIP,
+    CUSTOM_PROPERTIES_NS, CUSTOM_PROPERTIES_RELATIONSHIP, RECOMMENDED, SETTINGS_RELATIONSHIP,
     STORY_RELATIONSHIPS, WRITE_PROTECTION, is,
 };
 use crate::text::{Piece, check_text_only, current_pieces, lacks_needed_preserve, map_text, needs_preserve, run_text};
@@ -92,7 +92,9 @@ impl Document {
                 .filter(|n| pkg.contains(n))
                 .collect()
         };
-        let settings = target(SETTINGS_RELATIONSHIP).into_iter().next();
+        // Every settings relationship (ECMA-376 allows one; with more, any
+        // part that turns a gate on turns it on, review round 3, m11).
+        let settings = target(SETTINGS_RELATIONSHIP);
         let stories: Vec<String> = STORY_RELATIONSHIPS.iter().flat_map(|t| target(t)).collect();
         for story in stories {
             let doc = XmlDocument::parse(&pkg.read_part(&story)?)?;
@@ -104,25 +106,25 @@ impl Document {
         let mut gates = Vec::new();
         let mut update_fields = None;
         let mut write_protection = None;
-        if let Some(name) = settings {
+        let mut track_revisions = false;
+        let mut protected_edit = None;
+        for name in settings {
             let view = SettingsView(pkg.xml_part(&name)?.lens::<Settings>()?);
             // Every occurrence counts (a duplicate is a schema violation, but
             // a later "on" must not hide behind an earlier "off"), and an
             // invalid ST_OnOff value fails closed: the gate is on.
-            if view.0.children::<TrackRevisions>().map(TrackRevisionsView).any(|t| t.val().unwrap_or(true)) {
-                gates.push(Gate::TrackRevisionsOn);
-            }
+            track_revisions |= view.0.children::<TrackRevisions>().map(TrackRevisionsView).any(|t| t.val().unwrap_or(true));
             let restricted_edit = view.0.children::<DocumentProtection>().map(DocumentProtectionView).find_map(|p| {
                 let enforced = p.enforcement().unwrap_or(Some(true)).unwrap_or(false);
                 let edit = p.edit();
                 let restricted = edit.as_ref().is_some_and(|e| e.known() != Some(DocumentProtectionValues::None));
                 (enforced && restricted).then(|| edit.map(|e| e.as_str().to_owned()).unwrap_or_default())
             });
-            if let Some(edit) = restricted_edit {
-                gates.push(Gate::DocumentProtected(edit));
+            protected_edit = protected_edit.or(restricted_edit);
+            if let Some(u) = view.update_fields_on_open().map(|u| u.val().unwrap_or(true)) {
+                update_fields = Some(update_fields.unwrap_or(false) || u);
             }
-            update_fields = view.update_fields_on_open().map(|u| u.val().unwrap_or(true));
-            write_protection = view.raw().elements().filter(|e| e.is(WRITE_PROTECTION)).fold(None, |acc: Option<WriteProtection>, e| {
+            write_protection = view.raw().elements().filter(|e| e.is(WRITE_PROTECTION)).fold(write_protection, |acc: Option<WriteProtection>, e| {
                 let this = WriteProtection {
                     // Advisory: anything but an explicit "off" counts.
                     recommended: e.attr(RECOMMENDED).is_some_and(|v| ooxml_core::value::parse_on_off(v) != Some(false)),
@@ -134,7 +136,13 @@ impl Document {
                 })
             });
         }
-        let refused = fields::refused(codes, &custom.linked);
+        if track_revisions {
+            gates.push(Gate::TrackRevisionsOn);
+        }
+        if let Some(edit) = protected_edit {
+            gates.push(Gate::DocumentProtected(edit));
+        }
+        let refused = fields::refused(codes, &custom.names);
         if !refused.is_empty() {
             gates.push(Gate::StaleFieldRisk(refused));
         }
@@ -283,42 +291,23 @@ impl Document {
     }
 }
 
-/// A2: the body has no `w:sectPr` of its own and its last block is (or
-/// ends with) a paragraph whose `w:pPr` holds a `w:sectPr`. That paragraph
-/// ends the last section; a paragraph appended after it would start a new
-/// section with default page settings (review round 2, m2).
+/// A2: the body has no `w:sectPr` of its own and the last paragraph of the
+/// body flow (in document order, at any depth) has a `w:pPr/w:sectPr`. That
+/// paragraph ends the last section, and no paragraph follows it, so a
+/// paragraph appended at the end of the body would start a new section
+/// with default page settings (review round 2 m2; round 3 m8: blocks
+/// without paragraphs after it, such as an empty `w:sdt` or a table without
+/// rows, do not change this).
 fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
     let Some(body) = index.body.and_then(|b| root.children()[b].as_element()) else { return false };
     if body.elements().any(is::<SectionProperties>) {
         return false;
     }
-    let is_block = |e: &RawNode| is::<P>(e) || is::<Table>(e) || e.is(SDT) || e.is(CUSTOM_XML);
-    let Some((last, _)) = body.indexed_elements().filter(|(_, e)| is_block(e)).last() else { return false };
-    // The last paragraph of the flow, if it lies inside (or is) that block.
     let Some(para) = index.paragraphs.last() else { return false };
-    let path = index.path(para.frame);
-    path.get(1) == Some(&last)
-        && is_last_block_paragraph(root, &path)
-        && node_at(root, &path)
-            .elements()
-            .filter(|e| is::<ParagraphProperties>(e))
-            .any(|ppr| ppr.elements().any(is::<SectionProperties>))
-}
-
-/// Is the paragraph at `path` the last block along its path (no table,
-/// paragraph or content control follows it at any level up to the body)?
-fn is_last_block_paragraph(root: &RawNode, path: &[usize]) -> bool {
-    let mut node = root;
-    for (depth, &i) in path.iter().enumerate() {
-        if depth >= 1 {
-            let later = node.children()[i + 1..].iter().filter_map(|c| c.as_element());
-            if later.into_iter().any(|e| is::<P>(e) || is::<Table>(e) || is::<TableRow>(e) || is::<TableCell>(e) || e.is(SDT) || e.is(CUSTOM_XML)) {
-                return false;
-            }
-        }
-        node = node.children()[i].as_element().expect("indexed paths point at elements");
-    }
-    true
+    node_at(root, &index.path(para.frame))
+        .elements()
+        .filter(|e| is::<ParagraphProperties>(e))
+        .any(|ppr| ppr.elements().any(is::<SectionProperties>))
 }
 
 /// One step towards a paragraph: the paragraph itself, or the cell of the
@@ -528,32 +517,31 @@ impl<'d> Run<'d> {
 /// What `docProps/custom.xml` tells the gates.
 #[derive(Default)]
 struct CustomProperties {
-    /// Upper-cased names of properties linked to content (`linkTarget`, a
-    /// bookmark): `DOCPROPERTY` of one is content-dependent.
-    linked: Vec<String>,
+    /// Upper-cased custom property names (for W2's `DOCPROPERTY`).
+    names: fields::CustomNames,
     /// `_MarkAsFinal` is true.
     marked_final: bool,
 }
 
 impl CustomProperties {
-    /// Reads the part named by the package's custom-properties
-    /// relationship, transiently (it stays a raw copy on save).
+    /// Reads every part named by a package-level custom-properties
+    /// relationship, transiently (they stay raw copies on save).
     fn read(pkg: &Package) -> Result<Self> {
         let rels = pkg.package_relationships();
-        let Some(name) = rels.by_type(CUSTOM_PROPERTIES_RELATIONSHIP).filter_map(|r| rels.resolve(r)).find(|n| pkg.contains(n)) else {
-            return Ok(Self::default());
-        };
-        let doc = XmlDocument::parse(&pkg.read_part(&name)?)?;
         let mut out = Self::default();
-        let attr = |e: &RawNode, local| e.attr(QName::new("", local)).map(str::to_owned);
-        for prop in doc.root().elements().filter(|e| e.is(QName::new(CUSTOM_PROPERTIES_NS, "property"))) {
-            let name = attr(prop, "name").unwrap_or_default();
-            if attr(prop, "linkTarget").is_some() {
-                out.linked.push(name.to_uppercase());
-            }
-            if name == "_MarkAsFinal" {
-                let value = prop.elements().next().map(|v| v.text().into_owned()).unwrap_or_default();
-                out.marked_final |= ooxml_core::value::parse_on_off(&value) == Some(true);
+        for name in rels.by_type(CUSTOM_PROPERTIES_RELATIONSHIP).filter_map(|r| rels.resolve(r)).filter(|n| pkg.contains(n)) {
+            let doc = XmlDocument::parse(&pkg.read_part(&name)?)?;
+            let attr = |e: &RawNode, local| e.attr(QName::new("", local)).map(str::to_owned);
+            for prop in doc.root().elements().filter(|e| e.is(QName::new(CUSTOM_PROPERTIES_NS, "property"))) {
+                let name = attr(prop, "name").unwrap_or_default();
+                if attr(prop, "linkTarget").is_some() {
+                    out.names.linked.push(name.to_uppercase());
+                }
+                out.names.all.push(name.to_uppercase());
+                if name == "_MarkAsFinal" {
+                    let value = prop.elements().next().map(|v| v.text().into_owned()).unwrap_or_default();
+                    out.marked_final |= ooxml_core::value::parse_on_off(&value) == Some(true);
+                }
             }
         }
         Ok(out)

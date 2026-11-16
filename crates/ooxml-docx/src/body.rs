@@ -173,17 +173,44 @@ impl BodyIndex {
     }
 }
 
-/// How the children of an element on the walk stack are read.
-#[derive(Clone, Copy)]
-enum Mode {
+/// How the children of an element on the walk stack are read. Shared
+/// with the field scan ([`crate::fields`]), which must agree with the body
+/// walk on which `w:fldChar` elements the walk counts (review round 3, m7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Mode {
+    /// `w:document`: only `w:body` is descended into.
+    Document,
     /// Body, cells, block/row/cell SDTs and custom XML.
     Block,
     /// Paragraph-level content.
     Inline,
-    /// A run's children (only `w:ruby` is descended into).
+    /// A run's children (only `w:ruby` is descended into; `w:fldChar` and
+    /// `w:instrText` here are the ones the walk counts).
     Run,
     /// `w:ruby` (only `w:rubyBase`).
     Ruby,
+}
+
+/// The body walk's grammar: whether it descends into `child` of an element
+/// read in `mode`, and if so, the mode for `child`'s children and the
+/// wrapper `child` adds.
+pub(crate) fn descend(mode: Mode, child: &RawNode) -> Option<(Mode, Option<Wrapper>)> {
+    match mode {
+        Mode::Document if is::<Body>(child) => Some((Mode::Block, None)),
+        Mode::Block if is::<Paragraph>(child) => Some((Mode::Inline, None)),
+        Mode::Block
+            if is::<Table>(child) || is::<TableRow>(child) || is::<TableCell>(child) || child.is(SDT_CONTENT) =>
+        {
+            Some((Mode::Block, None))
+        }
+        Mode::Block if child.is(SDT) || child.is(CUSTOM_XML) => Some((Mode::Block, Wrapper::of(child))),
+        Mode::Inline if is::<Run>(child) => Some((Mode::Run, None)),
+        Mode::Inline if child.is(SDT_CONTENT) => Some((Mode::Inline, None)),
+        Mode::Inline => Wrapper::of(child).map(|w| (Mode::Inline, Some(w))),
+        Mode::Run if child.is(RUBY) => Some((Mode::Ruby, Some(Wrapper::Ruby))),
+        Mode::Ruby if child.is(RUBY_BASE) => Some((Mode::Inline, None)),
+        _ => None,
+    }
 }
 
 /// The first element child of `node` at or after child index `from`.
@@ -214,45 +241,29 @@ pub(crate) fn index(root: &RawNode) -> BodyIndex {
             continue;
         };
         *next = i + 1;
-        let enter = match mode {
-            Mode::Block if is::<Paragraph>(child) => {
-                let f = new_frame(&mut out, frame, i, None);
-                out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new() });
-                Some((f, Mode::Inline))
-            }
-            Mode::Block
-                if is::<Table>(child) || is::<TableRow>(child) || is::<TableCell>(child) || child.is(SDT_CONTENT) =>
-            {
-                Some((new_frame(&mut out, frame, i, None), Mode::Block))
-            }
-            Mode::Block if child.is(SDT) || child.is(CUSTOM_XML) => {
-                Some((new_frame(&mut out, frame, i, Wrapper::of(child)), Mode::Block))
-            }
-            Mode::Inline if is::<Run>(child) => {
-                let f = new_frame(&mut out, frame, i, None);
-                let before = depth;
-                let mut has_fld_char = false;
-                for c in child.elements().filter(|c| is::<FieldChar>(c)) {
-                    has_fld_char = true;
-                    match c.attr(FieldChar::ATTR_W_FLD_CHAR_TYPE) {
-                        Some("begin") => depth += 1,
-                        Some("end") => depth = depth.saturating_sub(1),
-                        _ => {}
-                    }
-                }
-                let para = out.paragraphs.last_mut().expect("runs are only walked inside a paragraph");
-                para.runs.push(RunInfo { frame: f, in_field: before > 0 || depth > 0 || has_fld_char });
-                Some((f, Mode::Run))
-            }
-            Mode::Inline if child.is(SDT_CONTENT) => Some((new_frame(&mut out, frame, i, None), Mode::Inline)),
-            Mode::Inline => Wrapper::of(child).map(|w| (new_frame(&mut out, frame, i, Some(w)), Mode::Inline)),
-            Mode::Run if child.is(RUBY) => Some((new_frame(&mut out, frame, i, Some(Wrapper::Ruby)), Mode::Ruby)),
-            Mode::Ruby if child.is(RUBY_BASE) => Some((new_frame(&mut out, frame, i, None), Mode::Inline)),
-            _ => None,
-        };
-        if let Some((f, m)) = enter {
-            stack.push((child, f, m, 0));
+        let Some((child_mode, wrapper)) = descend(mode, child) else { continue };
+        let f = new_frame(&mut out, frame, i, wrapper);
+        if mode == Mode::Block && is::<Paragraph>(child) {
+            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new() });
         }
+        if child_mode == Mode::Run {
+            let before = depth;
+            // A run holding a `w:fldChar` is refused by R1 even when the
+            // depth does not change (a lone `separate`); R4 refuses it as
+            // well, so this is defence in depth (review round 3, m10).
+            let mut has_fld_char = false;
+            for c in child.elements().filter(|c| is::<FieldChar>(c)) {
+                has_fld_char = true;
+                match c.attr(FieldChar::ATTR_W_FLD_CHAR_TYPE) {
+                    Some("begin") => depth += 1,
+                    Some("end") => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
+            let para = out.paragraphs.last_mut().expect("runs are only walked inside a paragraph");
+            para.runs.push(RunInfo { frame: f, in_field: before > 0 || depth > 0 || has_fld_char });
+        }
+        stack.push((child, f, child_mode, 0));
     }
     out.open_fields_at_end = depth;
     out
