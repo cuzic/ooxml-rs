@@ -282,7 +282,12 @@ fn f6_alternate_content_around_rows_and_cells() {
 fn f7_dimension_ref() {
     let input = read("minimal");
     let with_dim = |dim: &str| rebuild(&input, &[(SHEET1, patched(&input, SHEET1, r#"<dimension ref="A1:D2"/>"#, dim))]);
-    for dim in [r#"<dimension ref="A1:D"/>"#, r#"<dimension ref="A1:D2:E3"/>"#, r#"<dimension ref=""/>"#, "<dimension/>"] {
+    let refused = [
+        "A1:D", "A1:D2:E3", "", " A1:D2", "A1:D2 ", "A1 B2", "Sheet1!A1:D2", "A0:D2", "A1:XFD1048577", "A1:XFE1",
+    ];
+    let refused = refused.iter().map(|d| format!(r#"<dimension ref="{d}"/>"#)).chain(["<dimension/>".to_owned()]);
+    for dim in refused {
+        let dim = dim.as_str();
         let bytes = with_dim(dim);
         let (wb, r) = apply(&bytes, a1("F9"), &W::Num(1.0));
         assert_matches!(r, Err(Error::Malformed(_)), "{dim}");
@@ -291,11 +296,27 @@ fn f7_dimension_ref() {
         assert_matches!(r, Err(Error::Malformed(_)), "{dim}: refused inside the range too");
         assert_unchanged(&wb, &bytes);
     }
-    for (dim, want) in [("a1:d2", "A1:F9"), ("A1", "A1:F9"), ("A1:XFD1048576", "A1:XFD1048576")] {
+    // accepted spellings (N6): `$` anchors, lower case, either corner order,
+    // a single cell; grown to the canonical form when the write is outside
+    for (dim, want) in [
+        ("a1:d2", "A1:F9"),
+        ("$A$1:$D$2", "A1:F9"),
+        ("D2:A1", "A1:F9"),
+        ("A1:A1", "A1:F9"),
+        ("A1", "A1:F9"),
+        ("A1:XFD1048576", "A1:XFD1048576"),
+    ] {
         let bytes = with_dim(&format!(r#"<dimension ref="{dim}"/>"#));
         let (wb, r) = apply(&bytes, a1("F9"), &W::Num(1.0));
         r.unwrap();
         assert!(sheet_xml(&wb.to_bytes().unwrap()).contains(&format!(r#"<dimension ref="{want}"/>"#)), "{dim}");
+    }
+    // a write inside the range leaves the spelling byte-for-byte alone (N5)
+    for dim in ["a1:d2", "$A$1:$D$2", "D2:A1", "B2", "A1:XFD1048576"] {
+        let bytes = with_dim(&format!(r#"<dimension ref="{dim}"/>"#));
+        let (wb, r) = apply(&bytes, a1("B2"), &W::Num(1.0));
+        r.unwrap();
+        assert!(sheet_xml(&wb.to_bytes().unwrap()).contains(&format!(r#"<dimension ref="{dim}"/>"#)), "{dim} inside");
     }
 }
 
@@ -566,4 +587,30 @@ fn n3_alternate_content_inside_cell_on_read() {
         assert!(unresolved(&r), "{cell}: {r:?}");
         assert_unchanged(&wb, &bytes);
     }
+}
+
+/// N5: only ASCII whitespace is trimmed on read (calamine's rule); NBSP and
+/// U+3000 at the edges are text. U+FFFE/U+FFFF are written as `_xHHHH_` and
+/// read back (the value's characters are checked before anything changes).
+#[test]
+fn n5_unicode_edges() {
+    let input = read("minimal");
+    let sheet = patched(
+        &input,
+        SHEET1,
+        r#"<c r="D2" s="1"/>"#,
+        "<c r=\"D2\" t=\"inlineStr\"><is><t>\u{3000}全角\u{3000}</t></is></c><c r=\"E2\" t=\"inlineStr\"><is><t> \u{A0}nb\u{A0} </t></is></c>",
+    );
+    let bytes = rebuild(&input, &[(SHEET1, sheet)]);
+    let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    let ws = wb.worksheet().unwrap();
+    let cal = calamine_cells(&bytes);
+    for (c, want) in [(3, "\u{3000}全角\u{3000}"), (4, "\u{A0}nb\u{A0}")] {
+        let v = ws.cell(1, c).unwrap().unwrap().value().unwrap();
+        assert_eq!(v, CellValue::String(want.into()));
+        assert!(calamine_matches(cal["Sheet1"].get(&(1, c)), &v), "calamine {:?}", cal["Sheet1"].get(&(1, c)));
+    }
+    let w = W::Str("a\u{FFFE}b\u{FFFF}".into());
+    let out = check_edit("minimal", &input, a1("C3"), &w);
+    assert!(sheet_xml(&out).contains("a_xFFFE_b_xFFFF_"));
 }
