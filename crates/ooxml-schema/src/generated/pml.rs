@@ -354,8 +354,6 @@ impl ooxml_core::ElementSpec for TextBody {
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TextBody> for super::dml::Paragraph {}
-#[cfg(all(feature = "pml", feature = "dml"))]
-impl ooxml_core::SameType<super::dml::TextBody> for TextBody {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
@@ -929,7 +927,6 @@ impl ooxml_core::ChildOf<GroupShape> for GroupShape {}
 impl ooxml_core::ChildOf<GroupShape> for NonVisualGroupShapeProperties {}
 impl ooxml_core::ChildOf<GroupShape> for Picture {}
 impl ooxml_core::ChildOf<GroupShape> for Shape {}
-impl ooxml_core::SameType<ShapeTree> for GroupShape {}
 /// Read-only view of [`GroupShape`].
 #[derive(Clone, Debug)]
 pub struct GroupShapeView<'a>(pub ooxml_core::Lens<'a, GroupShape>);
@@ -1023,7 +1020,6 @@ impl ooxml_core::ChildOf<ShapeTree> for GroupShape {}
 impl ooxml_core::ChildOf<ShapeTree> for NonVisualGroupShapeProperties {}
 impl ooxml_core::ChildOf<ShapeTree> for Picture {}
 impl ooxml_core::ChildOf<ShapeTree> for Shape {}
-impl ooxml_core::SameType<GroupShape> for ShapeTree {}
 /// Read-only view of [`ShapeTree`].
 #[derive(Clone, Debug)]
 pub struct ShapeTreeView<'a>(pub ooxml_core::Lens<'a, ShapeTree>);

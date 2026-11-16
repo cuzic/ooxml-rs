@@ -17,7 +17,13 @@ pub const GROUPS: &[&str] = &["sml", "wml", "pml", "dml"];
 /// names = ["x:CT_Row/x:row"]
 /// [read]           # `*View` only
 /// names = ["x:CT_Workbook/x:workbook"]
+/// [detach]         # optional: also `ooxml_core::Detachable` (must be listed above)
+/// names = ["a:CT_TextCharacterProperties/a:rPr"]
 /// ```
+///
+/// `[detach]` opts an entry into `Lens::detach_as` (ADR-0002 note
+/// "detach/insert"). List only types whose subtrees hold no document-unique
+/// value (shape ids, `p:ph@idx`, `w14:paraId`, …) and no reference to one.
 ///
 /// `ChildOf` impls are generated between any two allowlisted entries
 /// (read or write), so the generic `LensMut` primitives stay available for
@@ -29,6 +35,8 @@ pub struct AllowlistFile {
     pub write: Section,
     #[serde(default)]
     pub read: Section,
+    #[serde(default)]
+    pub detach: Section,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -48,6 +56,8 @@ pub enum Access {
 pub struct Allowed {
     pub group: &'static str,
     pub access: Access,
+    /// Listed in `[detach]`: generates `Detachable` (and `SameType` partners).
+    pub detach: bool,
 }
 
 /// SDK Name → (group, access).
@@ -61,9 +71,15 @@ pub fn load_allowlists(dir: &Path) -> Res<BTreeMap<String, Allowed>> {
                 if n.ends_with('/') {
                     return Err(format!("{}: {n:?} is an abstract entry; allowlist concrete SDK Names", p.display()).into());
                 }
-                if out.insert(n.clone(), Allowed { group: g, access }).is_some() {
+                if out.insert(n.clone(), Allowed { group: g, access, detach: false }).is_some() {
                     return Err(format!("{n:?} is allowlisted twice").into());
                 }
+            }
+        }
+        for n in &f.detach.names {
+            match out.get_mut(n) {
+                Some(a) if a.group == g => a.detach = true,
+                _ => return Err(format!("{}: [detach] entry {n:?} must also be in [write] or [read] of this file", p.display()).into()),
             }
         }
     }

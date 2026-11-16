@@ -81,8 +81,8 @@ Write primitives (ADR-0002 §4.2):
 | `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
 | `set_attr(q, value)`, `remove_attr(q)` | Untyped; typed setters are generated. Setting the current value is not a change. |
 | `set_text(value)` | `Content::Text` elements only; sets `xml:space="preserve"` for edge whitespace when the spec declares `xml:space`; never removes it. |
-| `Lens::detach_as::<C>(skip)` → `Detached<C>` | Owned, span-less, prefix-less copy of the subtree, renamed to `C::QNAME`; `C: SameType<E>` (reflexive, or generated for allowlisted pairs with one SDK complex type, e.g. `a:endParaRPr` ↔ `a:rPr`). Direct children named in `skip` are left out. Refuses (`NotDetachable`) Markup Compatibility elements/attributes (incl. `mc:AlternateContent`), `r:` attributes and namespace declarations in the kept subtree. |
-| `insert_detached[_by]::<C>(d[, before])` | Places the copy like `insert_by::<C>`; every element/attribute prefix is chosen at the destination (rules below) **before** the tree changes; created nodes are re-rendered. Same refusals as `insert_by`, plus `NamespaceNotInScope` for any namespace of the copy. |
+| `Lens::detach_as::<C>(skip)` → `Detached<C>` | Only for `Detachable` types (opted in by an allowlist `[detach]` section; never id-bearing subtrees). Owned, span-less, prefix-less copy, renamed to `C::QNAME`; `C: SameType<E> + Detachable`. Direct children named in `skip` are left out. Refuses (`NotDetachable { reason, name }`) MC content, relationship-id attributes (`name::RELATIONSHIP_ATTRIBUTES`), namespace declarations, namespaces an ancestor's `mc:Ignorable` lists, and text under an inherited `xml:space="preserve"`. Use a lens that knows the ancestors (`XmlDocument::lens`, `Lens::at`). |
+| `insert_detached[_by]::<C>(&d[, before])` | Places the copy like `insert_by::<C>`; every element/attribute prefix is chosen at the destination **before** the tree changes; created nodes are re-rendered. Same refusals as `insert_by`, plus `NamespaceNotInScope`. `Detached::check_insert_under(root, path)` checks the latter without changing anything. |
 
 Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
@@ -108,8 +108,8 @@ element); attributes need a non-empty prefix; `xml:` always works.
 SDK-listed children of a wildcard parent such as `a:graphicData` (ADR-0002
 post-acceptance note). `QName` (static), `ElementSpec { QNAME, SDK_NAME, ATTRS, CONTENT,
 ATTRS_INCOMPLETE }`, `ChildOf<P>` (compile-time child check with a readable
-`on_unimplemented` message), `SameType<S>` (same schema type: a renamed copy
-is valid), `AttrSpec`, `SimpleType`, `Slot { names,
+`on_unimplemented` message), `Detachable` (opted-in copy sources),
+`SameType<S>` (same schema type: a renamed copy is schema-valid), `AttrSpec`, `SimpleType`, `Slot { names,
 wildcard, max_each, max_total }`, `Wildcard`, `Content::{Empty, Text, Slots,
 Unsupported}`, `EnumType`, `EnumValue<'a, E>`, and the `const fn` checks
 (`assert_spec`, `assert_child`, …) used by generated `const _` items.

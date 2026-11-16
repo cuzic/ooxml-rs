@@ -1092,7 +1092,6 @@ impl ooxml_core::ElementSpec for InlineString {
 }
 impl ooxml_core::ChildOf<InlineString> for Run {}
 impl ooxml_core::ChildOf<InlineString> for Text {}
-impl ooxml_core::SameType<SharedStringItem> for InlineString {}
 /// Read-only view of [`InlineString`].
 #[derive(Clone, Debug)]
 pub struct InlineStringView<'a>(pub ooxml_core::Lens<'a, InlineString>);
@@ -1169,7 +1168,6 @@ impl ooxml_core::ElementSpec for SharedStringItem {
 }
 impl ooxml_core::ChildOf<SharedStringItem> for Run {}
 impl ooxml_core::ChildOf<SharedStringItem> for Text {}
-impl ooxml_core::SameType<InlineString> for SharedStringItem {}
 /// Read-only view of [`SharedStringItem`].
 #[derive(Clone, Debug)]
 pub struct SharedStringItemView<'a>(pub ooxml_core::Lens<'a, SharedStringItem>);
@@ -2427,7 +2425,6 @@ impl ooxml_core::ElementSpec for Text {
         ooxml_core::SimpleType::String,
     );
 }
-impl ooxml_core::SameType<CellValue> for Text {}
 /// Read-only view of [`Text`].
 #[derive(Clone, Debug)]
 pub struct TextView<'a>(pub ooxml_core::Lens<'a, Text>);
@@ -2495,7 +2492,6 @@ impl ooxml_core::ElementSpec for CellValue {
         ooxml_core::SimpleType::String,
     );
 }
-impl ooxml_core::SameType<Text> for CellValue {}
 /// Read-only view of [`CellValue`].
 #[derive(Clone, Debug)]
 pub struct CellValueView<'a>(pub ooxml_core::Lens<'a, CellValue>);

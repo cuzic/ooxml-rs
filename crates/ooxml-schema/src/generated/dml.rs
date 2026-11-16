@@ -616,8 +616,6 @@ impl ooxml_core::ElementSpec for TextBody {
     );
 }
 impl ooxml_core::ChildOf<TextBody> for Paragraph {}
-#[cfg(all(feature = "dml", feature = "pml"))]
-impl ooxml_core::SameType<super::pml::TextBody> for TextBody {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
@@ -921,6 +919,7 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         ],
     );
 }
+impl ooxml_core::Detachable for EndParagraphRunProperties {}
 impl ooxml_core::SameType<RunProperties> for EndParagraphRunProperties {}
 /// Read-only view of [`EndParagraphRunProperties`].
 #[derive(Clone, Debug)]
@@ -1322,6 +1321,7 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::Detachable for RunProperties {}
 impl ooxml_core::SameType<EndParagraphRunProperties> for RunProperties {}
 /// Read-only view of [`RunProperties`].
 #[derive(Clone, Debug)]
@@ -1853,6 +1853,7 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
         ],
     );
 }
+impl ooxml_core::Detachable for ParagraphProperties {}
 /// Read-only view of [`ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct ParagraphPropertiesView<'a>(pub ooxml_core::Lens<'a, ParagraphProperties>);

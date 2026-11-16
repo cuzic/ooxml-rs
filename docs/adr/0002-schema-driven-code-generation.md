@@ -90,35 +90,58 @@
   controls, U+FFFE/U+FFFF). Format crates still own their own line-break
   rules; this is the backstop.
 - **Post-acceptance note (2026-11-16, detach/insert — additive, no change
-  to the decisions; from the ADR-0005 round-2 review, Q2):** a copy-subtree
+  to the decisions; from the ADR-0005 round-2 review, Q2; revised after the
+  PR #18 round-1 review, `docs/reviews/pr18-round1.md`):** a copy-subtree
   primitive in two steps, so the source is read through a `Lens` and no
   `&mut` borrow is held while copying.
-  (1) `Lens::detach_as::<C: SameType<E>>(skip) -> Result<Detached<C>>`
-  takes an owned copy of the element's subtree with spans cleared and
-  **namespace URIs only** (no prefixes), renamed to `C::QNAME`; direct
-  children whose QName is in `skip` are left out. It refuses
-  (`Error::NotDetachable(DetachRefusal)`), before copying anything: any
-  Markup Compatibility element or attribute in the kept subtree
-  (`mc:AlternateContent` per §4.3; `mc:Ignorable` etc. name prefixes),
-  any attribute in the `r:` namespace (a second reference to a
-  relationship would be a Layer 3 change), and any namespace declaration
-  on a kept element (its scope would move).
-  (2) `LensMut::insert_detached[_by]::<C: ChildOf<E>>(d[, before])` places
-  the copy exactly as `insert_by::<C>` (same slot, limits and refusals) and
-  chooses **every** element and attribute prefix at the destination with the
-  §3 prefix rules — the copy declares nothing, so the parent's bindings hold
+  (1) *Opt-in types.* `ooxml_core::Detachable` is generated only for the
+  entries listed in a new, optional `[detach]` section of an allowlist file
+  (they must also be in its `[write]` or `[read]`). An entry is listed only
+  after review that its subtree holds **no document-unique value and no
+  reference to one** (shape ids `cNvPr@id`, `p:ph@idx`, connector
+  `a:stCxn/@id`, `w14:paraId`, …): copying such a subtree would duplicate
+  an id. **Id-bearing subtrees (shapes, groups, shape trees, text bodies)
+  are not detachable in Phase 0.1**; today only `a:rPr`, `a:endParaRPr`
+  and `a:pPr` (`dml.toml`). `SameType<S>` ("a renamed copy of an `S` is
+  schema-valid as `Self`") is reflexive by a blanket impl and generated
+  only between detachable entries with the same SDK complex type (the part
+  of the SDK Name before `/`) whose resolved attributes, completeness,
+  content model and children agree (else a `SameTypeMismatch`
+  diagnostic): today `a:endParaRPr` ↔ `a:rPr`. It is a schema-type
+  guarantee, not a semantic one, and assumes the lens's spec is right for
+  the node (`Lens::cast` only checks the QName).
+  (2) `Lens::detach_as::<C>(skip) -> Result<Detached<C>>` with
+  `E: Detachable, C: SameType<E> + Detachable` takes an owned copy with
+  spans cleared and **namespace URIs only** (no prefixes), renamed to
+  `C::QNAME`; *direct* children whose QName is in `skip` are left out. It
+  refuses (`Error::NotDetachable { reason: DetachRefusal, name }`), before
+  copying anything, when the kept subtree has: a Markup Compatibility
+  element or attribute (`AlternateContent`, `MarkupCompatibility`); an
+  attribute holding a relationship id — Transitional or Strict
+  relationships namespace, VML `o:relid` (`RelationshipAttribute`; a copy
+  would add a Layer 3 reference); a namespace declaration
+  (`NamespaceDeclaration`); an element or attribute in a namespace that an
+  **ancestor's** `mc:Ignorable` lists (`IgnorableNamespace`: the copy would
+  change its ignorability); or text while `xml:space="preserve"` is
+  inherited from an ancestor (`InheritedXmlSpace`; carrying the attribute
+  could add one the schema type does not declare). Ancestors are visible
+  through lenses from `XmlDocument::lens` or the new `Lens::at(root,
+  path)`; `Lens::root` on an inner node sees none.
+  (3) `LensMut::insert_detached[_by]::<C: ChildOf<E>>(&d[, before])`
+  (by reference: one copy can be inserted many times) places the copy
+  exactly as `insert_by::<C>` (same slot, limits and refusals) and chooses
+  **every** element and attribute prefix at the destination with the §3
+  prefix rules — the copy declares nothing, so the parent's bindings hold
   for all of it — before the tree changes (`NamespaceNotInScope` leaves it
-  untouched). Inserted nodes are created nodes (`own_dirty`, re-rendered);
-  the usual dirty duties apply. `Detached` is `Clone`.
-  (3) `SameType<S>` ("a renamed copy of an `S` is a valid `Self`") is
-  reflexive by a blanket impl in core; the generator emits it for every
-  pair of allowlisted entries with the same SDK complex type (the part of
-  the SDK Name before `/`) whose resolved attributes, content model and
-  children agree (else a `SameTypeMismatch` diagnostic, none today). Today:
-  `a:endParaRPr` ↔ `a:rPr`, `p:txBody` ↔ `a:txBody`, `p:spTree` ↔
-  `p:grpSp`, `x:is` ↔ `x:si`, `x:t` ↔ `x:v`. Tests:
-  `crates/ooxml-core/tests/detach.rs` (pure-insertion locality, renaming,
-  prefix re-selection across documents, refusals, slot rules).
+  untouched). Inserted nodes are created nodes (`own_dirty`, re-rendered).
+  `Detached::check_insert_under(root, parent_path)` answers the
+  `NamespaceNotInScope` question without changing anything, for that
+  element or any element created below it, so a format crate can check a
+  multi-insert edit before its first change.
+  Tests: `crates/ooxml-core/tests/detach.rs` (pure-insertion locality,
+  renaming, prefix rules per copied element, every refusal, slot rules,
+  `check_insert_under`), `xtask` unit test of `SameTypeMismatch`,
+  `ooxml-schema` doc tests (`compile_fail` for `p:sp` and `p:grpSp`).
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
