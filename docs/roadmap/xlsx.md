@@ -412,7 +412,7 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 
 ### Phase4 — range-based worksheet features (write and edit)
 
-Design: [ADR-0014](../adr/0014-xlsx-phase4-range-features.md) (Proposed, revision 2). It narrows
+Design: [ADR-0014](../adr/0014-xlsx-phase4-range-features.md) (Accepted, revision 3; owner decisions on Q1–Q4 2026-11-16). It narrows
 the scope below:
 
 - x14-only forms are preserved but not created. Cross-sheet DV and CF references are refused
