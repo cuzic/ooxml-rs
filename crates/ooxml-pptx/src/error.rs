@@ -140,6 +140,51 @@ pub enum Error {
     /// for explicitly unformatted text.
     #[error("the formatting of {0} cannot be copied in Phase 0 (child elements or unknown attributes)")]
     FormatNotCopyable(&'static str),
+
+    // ---- Phase 2 (ADR-0012 §9): slides as units ----
+    /// The layout is not reachable from a master in `p:sldMasterIdLst`
+    /// through its `p:sldLayoutIdLst`.
+    #[error("layout {0:?} is not a layout of a master of this presentation")]
+    LayoutNotFound(String),
+    /// No `p:sldId@id` is left below 2,147,483,648 (`ST_SlideId`).
+    #[error("no slide id is left (ST_SlideId ends at 2147483647)")]
+    SlideIdsExhausted,
+    /// No shape id is left below `i32::MAX`.
+    #[error("no shape id is left on this slide")]
+    ShapeIdsExhausted,
+    /// No `p14:creationId` value is left (u32).
+    #[error("no p14:creationId value is left")]
+    CreationIdsExhausted,
+    /// Delete of a slide that another part references: a relationship from
+    /// outside the cascade, a Slide Zoom or other numeric `sldId`
+    /// reference, or a relationships part that cannot be read
+    /// (`rel_type` `"?"`).
+    #[error("the slide is referenced from {from_part:?} ({rel_type})")]
+    SlideIsReferenced {
+        /// The referring part.
+        from_part: String,
+        /// The relationship type, `"sldId"` for an id-valued attribute,
+        /// `"?"` for an unreadable relationships part.
+        rel_type: String,
+    },
+    /// Delete of a slide named in a custom show (`p:custShowLst`).
+    #[error("the slide is part of a custom show")]
+    SlideInCustomShow,
+    /// `presProps` has a slide show range by position (`p:showPr/p:sldRg`):
+    /// positions must not change.
+    #[error("the presentation has a slide show range by position (p:sldRg)")]
+    ShowRangeByPosition,
+    /// Delete/duplicate of a slide with a relationship of a type outside
+    /// ADR-0012 §6 / §4.4 (charts, OLE, controls, comments on duplicate, …).
+    #[error("the slide has a part of type {0:?}, which this operation does not support")]
+    UnsupportedSlidePart(String),
+    /// A section list ADR-0012 §5 does not model (another placement,
+    /// inside `mc:AlternateContent`, several lists).
+    #[error("the presentation's section list is not in a supported form")]
+    UnsupportedSections,
+    /// The sections' slide lists do not concatenate to `p:sldIdLst`.
+    #[error("the section lists do not match the slide list")]
+    SectionsInconsistent,
 }
 
 impl From<ooxml_core::AttrError> for Error {

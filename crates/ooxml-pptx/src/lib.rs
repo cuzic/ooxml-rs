@@ -28,11 +28,13 @@ mod names;
 mod presentation;
 mod read;
 mod refs;
+mod slides;
 mod text;
 mod write;
 
 pub use error::{Error, Result};
 pub use presentation::Presentation;
+pub use slides::LayoutRef;
 pub use read::{
     CellRef, FieldRef, ParagraphRef, PlaceholderRef, RunRef, ShapeKind, ShapePath, ShapeRef, Slide, SlideInfo,
     TableRef, TextBodyRef, TextItem,
