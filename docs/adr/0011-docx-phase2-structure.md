@@ -1,6 +1,6 @@
 # ADR-0011: Word Phase2: structure (new parts, new IDs, append-only registries)
 
-- Status: **Proposed** (revision 2)
+- Status: **Proposed** (revision 3)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 3 and its append-only
@@ -11,7 +11,7 @@
   - [ADR-0007](0007-docx-phase1-template-filling.md): Word Phase1, PR #25, under review;
   - PR #14 (`Package::remove_part`, the interim registry-removal note in ADR-0001);
   - **the core registry API on `core/add-part`** (`RegistryPlan` / `Package::apply` and the
-    one-step operations with `check_*` twins; PR pending). By the coordinator's decision of
+    one-step operations with `check_*` twins; **PR #38**). By the coordinator's decision of
     2026-11-16 (review B1) it is the **single source of truth** for:
     - part naming;
     - relationship ids;
@@ -53,6 +53,24 @@
   - **m1–m11:** see the sections; the m-numbers are noted in place.
   - The reviewer's answers to Q1–Q8 are recorded as **proposed defaults** pending the owner
     (§Open questions).
+
+- **Revision 3** (after `0011-opus-review-round2.md`: 1 Major, 8 Minor; `origin/main` merged
+  again):
+  - **N1:** namespace declarations become a core **insert-with-declaration** primitive with
+    a check twin. Revision 2's `declare_namespace` on an already created node could not work,
+    because core picks a new element's prefix when it creates it and refuses an unbound one.
+    The exact requirement is in §1. The core PR is assigned separately.
+  - **N2:** the order is dry run, then plan, then apply, then tree edits. That avoids
+    `StalePlan`.
+  - **N3:** T-OPC is judged against the input.
+  - **N4:** ooxml-docx refuses an allocated `rId` that equals an `r:*` value in the source
+    part. The case-sensitivity note was stale and is removed.
+  - **N5:** PR #38 is cited.
+  - **N6:** wording.
+  - **N7:** `w:CT_NumLvl/w:lvlOverride` is added to `[detach]`.
+  - **N8:** the out-of-scope manual check is removed.
+  - **N9:** `titlePg` and note-numbering restarts are documented, and `NOTEREF` is removed
+    from the structure column.
 
 ## Context
 
@@ -135,10 +153,19 @@ the branch:
    - the media part of `insert_image` (§3);
    - `numbering.xml` for the first list (§5a).
 
-   Each is planned with its relationship in one `RegistryPlan`. The plan borrows
-   `&Package`, so ooxml-docx runs its own Layer 2 dry runs (ADR-0007 §7) while the plan is
-   held. Then `Package::apply` and the tree edits run, in that order. Neither can fail after
-   the checks.
+   **Order (revision 3, review N2):**
+   1. the Layer 2 dry run on the story parts (ADR-0007 §7). It may call
+      `Package::xml_part_mut`, which advances the package's generation;
+   2. the `RegistryPlan` for the new part and relationships. It records the package's id and
+      generation; the relationship id and the part name are decided here;
+   3. `Package::apply` (cannot fail except `StalePlan`, and nothing touches the package
+      between 2 and 3);
+   4. the tree edits, which write the decided `r:id` and cannot fail after step 1.
+
+   Building the plan **before** the dry run would make `apply` refuse with `StalePlan`.
+   ADR-0012's alternative stages a cloned story tree in the same plan (`stage_part`). It is
+   not used here, because it would clone a possibly large `document.xml` for every image or
+   list; step 4 is already proven not to fail.
 2. **Media content types:** `add_part` with the sniffed type (`image/png`, `image/jpeg`,
    `image/gif`). An existing matching `Default` is used, otherwise core writes an `Override`.
    Word Phase2 **never adds a `Default`**, consistent with ADR-0009. Word reads media
@@ -149,21 +176,58 @@ the branch:
    for the type when there is one (`jpg` vs `jpeg`, review m5), else the canonical one.
 4. **Relationship ids:** core's rule. Two inputs to the core rules table, from Word's evidence:
    - ids of another shape (`R44c83fbb49ca402c`, 16 files) occur and must never collide;
-   - a new id should also avoid every value of an `r:`-namespace attribute in the source part,
-     the referenced-but-undefined case of M3. Measured: 0 such dangling `r:*` among 2,805
-     attributes. The upper-case `RID9` question (core compares case-sensitively) goes to the
-     same table.
+   - **ooxml-docx requires** (revision 3, review N4) that the id core allocates does not equal,
+     ignoring ASCII case, any value of an `r:`-namespace attribute in the source part. This
+     is the referenced-but-undefined case of M3. If it does, the operation is refused with
+     `Err(RelIdReferenced)` before anything changes, and T-REG checks it. Measured: 0 such
+     dangling `r:*` among 2,805 attributes, so the refusal is a safety net, not a code path
+     the corpora reach. Core's `next_relationship_id` already compares ids ignoring ASCII
+     case (PR #38), so revision 2's case-sensitivity remark is withdrawn.
 5. **Dangling targets** are real: 26 internal targets in 19 SDK files resolve to no part
    (`review1.py`). Core already avoids their names.
 
 **What else core needs** (additive notes to ADR-0002, separate from `core/add-part`):
 
-1. **Namespace declarations on created elements (§3, review M2).**
-   `LensMut::declare_namespace(prefix, uri)` on a **created** node only; on an original node
-   it is refused, since that would dirty its start tag. If the preferred prefix is already
-   bound to another URI in scope, the domain picks another (`a1`, `a2`, …; review m11) rather
-   than failing. `xml` and `xmlns` are refused. ADR-0002 says "Phase0 never declares
-   namespaces"; this lifts that for created nodes only.
+1. **Insert with namespace declaration (revision 3, review N1; core PR assigned separately).**
+   Core decides a new element's prefix **when it creates it** (`choose_element_prefix`) and
+   refuses with `NamespaceNotInScope` when no binding is in scope. So revision 2's
+   `declare_namespace` on an already created node could never be reached for `a:graphic`,
+   `pic:pic` or `a:graphicFrameLocks`. Their element names are in namespaces that the document
+   root does not declare:
+   - `a` is undeclared on the root of POI 112/113, SDK 440/442 and template 208/210 main
+     parts;
+   - `pic` on POI 109/113, SDK 440/442 and template 199/210;
+   - `wp` on POI 6/113 and SDK 6/442.
+
+   (Reviewer's `probe2-ns.out`.) Requirement on the core PR:
+   - **`insert_by_declaring::<C>(before, decls)` / `insert_at_declaring::<C>(index, decls)`**
+     (names indicative): `decls` is a list of `(preferred prefix, URI)`. The new element
+     carries an `xmlns:<prefix>` declaration for each, and its own name and its attributes'
+     names use those bindings. The element is a created node (`own_dirty`), and no original
+     node's start tag changes.
+   - **Check twin** `check_insert_*_declaring` runs the same checks without changing anything:
+     slot, order, limits, depth, and the prefix choice. It **returns the prefixes actually
+     used**.
+   - **Prefix choice:** use the preferred prefix if it is unbound at the insertion point or
+     already bound to the same URI. In the latter case no declaration is written, and nothing
+     is redundant. If it is bound to **another** URI, use the first of `<p>1`, `<p>2`, … that
+     is free (review m11). `xml`, `xmlns` and the empty prefix are refused.
+   - Descendants created under that element find the binding through the existing
+     `choose_element_prefix` / `choose_attr_prefix`. No further API is needed.
+   - Depth and dirty rules are those of `insert_by` / `insert_at`.
+
+   **Where ooxml-docx declares** (§3): on **each outermost created element** whose own name,
+   or an attribute name in its created subtree, is in a namespace not bound at its insertion
+   point. That is Word's shape. For `insert_image`:
+   - `wp:inline` declares `wp` (when the root lacks it) and `r` (when the root lacks it;
+     `r:embed` sits below it);
+   - `a:graphicFrameLocks` declares `a`;
+   - `a:graphic` declares `a`;
+   - `pic:pic` declares `pic`.
+   - `a:blip`, `a:stretch`, `a:xfrm`, … are created under `a:graphic`, inside the binding.
+
+   ADR-0007's dry run uses the check twin for these inserts. Only ADR-0011 needs this
+   primitive: ADR-0009 and ADR-0012 create new parts as whole byte strings.
 2. **`SameType` modulo required skips** (ADR-0007 §8.2), reused for table rows (§7).
 
 No core change is needed for relationship attributes in copies. PR #18's `detach_as` refuses
@@ -245,17 +309,19 @@ paragraph or after a given run.
     `pic:blipFill(a:blip r:embed, a:stretch/a:fillRect)`, and
     `pic:spPr(a:xfrm(off, ext), a:prstGeom prst="rect"/a:avLst)`.
 
-  **Declaration rule (revision 2, review M2).** On the created subtree, each outermost element
-  that uses a namespace (`a`, `pic`, `wp`, `r`) not in scope at that element declares it
-  (§1). `a:graphicFrameLocks` is a sibling's child of `a:graphic`, so `a:graphic`'s
-  declaration does not reach it. Word declares `a` on both:
+  **Declaration rule (revisions 2 and 3, reviews M2, N1).** Each outermost created element
+  whose name, or an attribute name in its created subtree, uses a namespace (`a`, `pic`, `wp`,
+  `r`) not bound at its insertion point is inserted **with** that declaration, using core's
+  insert-with-declaration primitive (§1). `a:graphicFrameLocks` is the child of a sibling of
+  `a:graphic`, so `a:graphic`'s declaration does not reach it. Word declares `a` on both:
   - measured, `a:graphicFrameLocks` carries its own `xmlns:a` in fx 34/34, POI 60/60,
     SDK 290/291, docx4j 6/6 and template 40/49;
   - the 10 without one sit in files that declare `a` on the root.
 
-  With the rule, revision 1's `NamespaceNotInScope` for a story root without `wp` (POI 5,
-  SDK 6 writable files) is gone: `wp` is declared on `w:drawing`'s child `wp:inline` when
-  needed. The same holds for `r`.
+  With the rule, revision 1's `NamespaceNotInScope` for a story root without `wp` (POI 6/113,
+  SDK 6/442 main parts) is gone: `wp:inline` is inserted declaring `wp`, and `r` when the
+  root lacks it. Every insert of the operation is dry-run with the check twin (§1) before the
+  first write.
 - **Where:** a new run, after the given run or at the end of the paragraph (`insert_by` in
   `w:p`'s content slot). The run gets no `rPr`. The paragraph must pass ADR-0007's paragraph
   checks, so no image is inserted inside a field result, a revision or a content control.
@@ -358,6 +424,14 @@ paragraph or after a given run.
     `w:lnNumType/@w:restart` is set to `continuous` when it is `newSection`. Note numbering
     (`w:footnotePr`/`w:endnotePr` `w:numRestart`) is left as it is: it is per-section by
     nature *(u)*.
+  - **What the later half does not keep (revision 3, review N9):**
+    - `w:titlePg` stays on both halves, so the first page after the break shows the
+      first-page header, as when a break is inserted in Word *(u)*. Measured `sectPr` with
+      `titlePg`: POI 6, SDK 71, template 12.
+    - With `numRestart` `eachSect` or `eachPage` (SDK 20 `sectPr`, settings 3), footnote
+      numbers after the break change. That is why `NOTEREF` is not allowed in the structure
+      column (§10).
+    - Both are documented on the API.
     - Measured `sectPr` with `pgNumType/@start`: POI 6, SDK 23, template 11. SDK has 20
       `footnotePr/numRestart` and 1 `endnotePr/numRestart` (`review1.py`).
     - Word's behaviour is a `manual_check` item.
@@ -480,7 +554,8 @@ appends a `w:style` to `styles.xml`:
   - Start from the name with every character outside `[A-Za-z0-9]` removed. That is Word's
     rule as observed: `Tělo textu` → `Tlotextu`, `Überschrift 1 Zchn` → `berschrift1Zchn`.
   - If that is **empty** (a fully Cyrillic or CJK name), the id is `a`, or `a` + the
-    smallest free number, which is how localized Word names such styles. Measured: names that
+    smallest free number. That is close to how localized Word names such styles; Word also
+    uses letter suffixes (`aa`, `ab`: POI 33, SDK 27; revision 3, review N6). Measured: names that
     strip to empty, POI 89 / template 30 / fixtures 7; ids of the form `a`/`aN`, POI 131,
     SDK 131, fixtures 37 (`review1.py`).
   - A stripped id that starts with a digit is kept: `ST_String` allows it, and Word writes
@@ -529,7 +604,8 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
 - **W1 and W3** apply to every operation.
 - **W2** gets a **structure** column in ADR-0007 §6's per-operation table. Structural edits
   change paragraph counts, numbering, outline and pagination, so its additional allowed set
-  is only `TC`, `XE`, `NOTEREF` *(conservative)*. Everything else needs the `updateFields`
+  is only `TC`, `XE` *(conservative; `NOTEREF` removed in revision 3, review N9: a section
+  break can renumber notes; 0 corpus files use `NOTEREF`)*. Everything else needs the `updateFields`
   opt-in.
 - Images, hyperlinks, bookmarks and styles are classified like this:
 
@@ -561,9 +637,10 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
     `w:CT_String253/w:basedOn`, `w:CT_String253/w:next`, `w:CT_RPrStyle/w:rPr`,
     `w:CT_PPrStyle/w:pPr`;
   - images: `w:CT_Drawing/w:drawing`.
-- **`[detach]`** gains `w:CT_TrPr/w:trPr`, `w:CT_TcPr/w:tcPr`, `w:CT_PPr/w:pPr` and
-  `w:CT_SectPr/w:sectPr` (the last always copied with its header/footer references skipped,
-  §6). Each review checks that the
+- **`[detach]`** gains the following entries (revision 3, review N7, adds the last one):
+  - `w:CT_TrPr/w:trPr`, `w:CT_TcPr/w:tcPr`, `w:CT_PPr/w:pPr`;
+  - `w:CT_SectPr/w:sectPr`, always copied with its header/footer references skipped (§6);
+  - `w:CT_NumLvl/w:lvlOverride`, for `restart_list` (§5a). Each review checks that the
   subtree holds no document-unique id once the listed skips apply.
 - **New file `codegen/allowlist/wpd.toml`** for the `wp` and `pic` entries, which only Word
   uses: `wp:CT_Inline/wp:inline`, `wp:CT_PositiveSize2D/wp:extent`,
@@ -585,14 +662,17 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
   - T3: every part not named by the operation is byte-identical. New parts are additional
     entries at the end of the zip.
 - **T-OPC (shared with xlsx Phase3), on every output:**
-  - every relationship's internal target exists;
+  - every relationship **added by the operation** has an internal target that exists. Like
+    the content-type check, this is a difference against the input (revision 3, review N3):
+    the SDK has 26 dangling targets in 19 files;
   - every part **added or changed by the operation** has exactly one content type, by
     `Override` or by `Default`. The check is a difference against the input: POI has 1 file
     with an untyped part from its producer (review m10). Every new `Override` names an
     existing part;
   - no new part name equals an existing relationship target, dangling ones included
     (review m10);
-  - relationship ids are unique per source, ignoring case;
+  - relationship ids are unique per source, ignoring case, among the ids added by the
+    operation and against the input's ids;
   - no new part is an orphan;
   - every `r:id`/`r:embed` written resolves in its part's relationships;
   - the zip has no duplicate names (OPC equivalence).
@@ -623,7 +703,6 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
     `pgNumType/@start` (M1);
   - `continuous` and `nextPage` breaks, checked at the boundary (M1);
   - merges;
-  - a new header on section 2 of 3;
   - a style named like a localized built-in.
 
 ### 13. How the libraries do it (source-verified; §Sources for pins)
@@ -694,9 +773,9 @@ it hands out is absent everywhere it must be. That check is what T-REG tests.
   - New values never adopt a dangling reference (M3).
 - **Positive:** T-OPC and T-REG apply to both formats and are independent of the code they
   check (T7).
-- **Negative:** this ADR depends on the core registry API (`core/add-part`, PR pending) and
+- **Negative:** this ADR depends on the core registry API (`core/add-part`, PR #38) and
   on two additive lens changes, each with its own review:
-  - namespace declarations on created nodes;
+  - insert with namespace declaration, plus its check twin (a core PR assigned separately, §1);
   - `SameType` modulo skips (shared with ADR-0007).
 - **Negative:** these are refused in Phase2 and wait for a move primitive:
   - merging non-empty cells;
@@ -745,8 +824,10 @@ what this revision specifies, pending the owner's confirmation.
 - Spike: `spikes/docx-phase2/README.md`, `registries.py`, `needs.py` and, since revision 2,
   `review1.py`; run 2026-11-16, Python 3.15.
 - Review: `docs/adr/0011-opus-review-round1.md`.
-- Core registry API: branch `core/add-part` (`crates/ooxml-core/src/package/add.rs`; PR
-  pending).
+- Core registry API: PR #38, branch `core/add-part` (`crates/ooxml-core/src/package/add.rs`).
+- Core "insert with namespace declaration" (§1): the core PR assigned on 2026-11-16 (number to
+  be added once it is open).
+- Review: `docs/adr/0011-opus-review-round2.md`.
 - Library source (read, not executed):
   - python-docx `e45454602b53e8e572b179ccf1c91093ec9f4ed7` (`src/docx/`);
   - Apache POI `47dcff769bb395034dddfd59c4609659b6dbc6a4`

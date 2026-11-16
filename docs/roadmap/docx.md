@@ -355,7 +355,7 @@ Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The e
 **Scope.**
 
 - **Core registries** (revision 2, after review B1). There is no Word-specific part API. Word uses the core registry API on `core/add-part` (`RegistryPlan` / `Package::apply`), which is the single source of truth for part naming, relationship ids, `Default` vs `Override` and dangling targets. Word adds at most one part per operation and never adds a `Default`.
-- **Two additive lens changes:** namespace declarations on created elements (`a:` and `pic:` are declared locally by Word, including on `a:graphicFrameLocks`), and `SameType` modulo required skips, as in ADR-0007.
+- **Two additive lens changes:** insert with namespace declaration plus its check twin (`a:` and `pic:` are declared locally by Word, including on `a:graphicFrameLocks`; revision 3), and `SameType` modulo required skips, as in ADR-0007.
 - **Word registries.** Every scope covers definitions **and references** (revision 2), so a new value never adopts a dangling reference:
   - drawing ids: max + 1 over all `docPr`/`cNvPr` ids in all stories and both AC branches;
   - annotation ids: max + 1 over the union of bookmarks, comments, revisions and permissions;
