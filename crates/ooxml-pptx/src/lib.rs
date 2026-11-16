@@ -23,15 +23,27 @@
 //!
 //! [ADR-0005]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0005-pptx-phase0.md
 
+mod deck;
+mod deckread;
 mod error;
 mod names;
 mod presentation;
 mod read;
 mod refs;
+mod resolve;
 mod text;
 mod write;
 
+pub use deck::{ChainLink, Deck, DeckSlide, PartRef};
+pub use deckread::{
+    Anchor, Author, Branch, Build, Comment, Effect, Link, LinkColor, LinkEvent, LinkLocation, LinkTarget, Section, Sections, ShowJump, Target,
+    Timing, Transition, UNDERSTOOD_NAMESPACES,
+};
 pub use error::{Error, Result};
+pub use resolve::{
+    Autofit, BodyProps, Bullet, ClrMap, Color, Family, Fill, Font, Lookup, MapSource, MatchKind, Outline, ParaProps, PlaceholderMatch,
+    Reason, Resolved, Role, RunItem, RunProps, Source, Spacing, TextStyleKind, Xfrm,
+};
 pub use presentation::Presentation;
 pub use read::{
     CellRef, FieldRef, ParagraphRef, PlaceholderRef, RunRef, ShapeKind, ShapePath, ShapeRef, Slide, SlideInfo,

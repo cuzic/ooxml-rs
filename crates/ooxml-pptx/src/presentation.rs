@@ -163,4 +163,17 @@ impl Presentation {
         refs.scan_timing(doc.root());
         Ok(SlideMut { doc, info, refs })
     }
+
+    /// Parses the whole deck once — every slide's layout, master and theme,
+    /// the comment parts — and returns a read view (ADR-0008 §1.1, §5).
+    /// Never marks anything dirty.
+    pub fn deck(&mut self) -> Result<crate::Deck<'_>> {
+        let main = self.pkg.main_document_part().ok_or_else(|| Error::NotAPresentation("no officeDocument relationship".into()))?;
+        let entries: Vec<(u32, Option<String>)> = self.slides.iter().map(|e| (e.slide_id, e.part.clone())).collect();
+        let (slides, rels) = crate::deck::load(&mut self.pkg, &main, &entries)?;
+        let pkg = &self.pkg;
+        let pres_part = pkg.part_names().find(|n| *n == main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
+        let pres = pkg.parsed_part(&main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
+        Ok(crate::Deck { pkg, pres_part, pres, slides, rels })
+    }
 }

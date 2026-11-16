@@ -1,0 +1,1232 @@
+//! The inheritance resolver (ADR-0008 §1, Accepted revision 3).
+//!
+//! Every value comes back as a [`Lookup`]: `Set` with its [`Source`] (which
+//! part and which step supplied it), `Unset` (no element of the chain sets
+//! it: the application default applies, which Phase 1 never invents), or
+//! `Unresolved` with a [`Reason`].
+//!
+//! *Set* means present on the raw element (§1.3 "What *set* means"): the
+//! resolver tests attribute / child presence on the raw tree and parses the
+//! present value; XSD defaults never stop a chain. Attributes of a group's
+//! member element (autofit scales, `startAt`, a font's `pitchFamily` /
+//! `charset`, `xfrm` `rot` / `flip*`) are read only from the element that won
+//! the group; absent there, they are that element's XSD default with
+//! `defaulted: true` (review r2-m1).
+//!
+//! Values are **as specified**, not as displayed (§1.6): autofit scales and
+//! colour transforms are not applied; a linked run's display colour follows
+//! [`crate::Link::color_rule`].
+//!
+//! This implementation covers the slide context (§1.2–§1.6). The notes and
+//! layout/master contexts of §1.7 are a follow-up (ADR-0008 §2 notes
+//! editing is out of this PR).
+
+use ooxml_core::{AttrError, QName, RawNode};
+use ooxml_core::value::{DmlPercent, parse_dml_percent};
+
+use crate::deck::{DeckSlide, a, child, p, un};
+use crate::error::Result;
+use crate::read::{ParagraphRef, ShapeRef, TextBodyRef, ac_representative};
+
+// ---------------------------------------------------------------------------
+// Public result types
+
+/// One property after the chain (ADR-0008 §5).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Lookup<'a, T> {
+    /// An element of the chain sets it.
+    Set(Resolved<'a, T>),
+    /// No element sets it: the application's default applies (never invented).
+    Unset,
+    /// The chain cannot decide in Phase 1.
+    Unresolved(Reason<'a>),
+}
+
+impl<'a, T> Lookup<'a, T> {
+    /// The value when `Set` and valid.
+    pub fn value(&self) -> Option<&T> {
+        match self {
+            Lookup::Set(r) => r.value.as_ref().ok(),
+            _ => None,
+        }
+    }
+    /// The source when `Set`.
+    pub fn source(&self) -> Option<&Source<'a>> {
+        match self {
+            Lookup::Set(r) => Some(&r.source),
+            _ => None,
+        }
+    }
+}
+
+/// A value with its provenance.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Resolved<'a, T> {
+    /// The value, or the raw text when it is outside the type's lexical
+    /// space (ADR-0002 §1.2, "never lossy").
+    pub value: std::result::Result<T, AttrError>,
+    /// Where it came from.
+    pub source: Source<'a>,
+    /// The winning group member lacked the attribute: this is its XSD
+    /// default (§1.3, review r2-m1).
+    pub defaulted: bool,
+}
+
+/// Why a lookup is not decided.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum Reason<'a> {
+    /// Table-cell text below the cell's own list style: table styles are Phase 3.
+    TableStyle,
+    /// `a:schemeClr val="phClr"`: only meaningful inside a theme style matrix.
+    PlaceholderColor,
+    /// `a:pPr@lvl` is not an integer 0–8: level-dependent steps cannot run (r2-m9).
+    InvalidLevel,
+    /// A placeholder in a group: geometry is in the group's coordinates (§1.5).
+    GroupCoordinates,
+    /// The slide or its layout has a `themeOverride`, which Phase 1 does not apply (r2-m7).
+    ThemeOverride,
+    /// `normAutofit` scales from a layout or master: a cache of another shape (§1.6).
+    InheritedAutofitScale {
+        /// The element that had the scale.
+        from: Source<'a>,
+    },
+    /// An empty or missing theme typeface: the script fonts apply (§1.4).
+    ScriptDependent {
+        /// `+mn-ea` etc.
+        reference: &'a str,
+        /// The theme's `(script, typeface)` entries of that font collection.
+        script_fonts: Vec<(&'a str, &'a str)>,
+    },
+    /// The chain is broken (missing layout, master or theme).
+    BrokenChain,
+}
+
+/// Which chain step supplied a value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Source<'a> {
+    /// On the element asked about (`a:rPr`, `a:pPr`, `a:bodyPr`, `a:xfrm`).
+    Direct,
+    /// The paragraph's `a:pPr/a:defRPr` (step 2).
+    ParagraphDefault,
+    /// The shape's (or cell's) own `a:lstStyle` at `level`.
+    ShapeListStyle {
+        /// List level (0-based).
+        level: u8,
+    },
+    /// The shape's own `p:style/a:fontRef` (step 4).
+    ShapeStyle,
+    /// A layout or master placeholder.
+    Placeholder {
+        /// Layout or master.
+        role: Role,
+        /// Part name.
+        part: &'a str,
+        /// `cNvPr@id` of that placeholder (`None` if it has none).
+        shape_id: Option<u32>,
+        /// How it was matched (§1.2).
+        matched: MatchKind,
+        /// List level for text properties.
+        level: Option<u8>,
+    },
+    /// The master's `p:txStyles` (or another text style).
+    MasterTextStyle {
+        /// Master part.
+        part: &'a str,
+        /// Which style.
+        style: TextStyleKind,
+        /// List level.
+        level: u8,
+    },
+    /// The presentation's `p:defaultTextStyle`.
+    PresentationDefault {
+        /// List level.
+        level: u8,
+    },
+}
+
+/// Layout or master.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// The slide layout.
+    Layout,
+    /// The slide master.
+    Master,
+}
+
+/// `p:txStyles` member.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextStyleKind {
+    /// `p:titleStyle`.
+    Title,
+    /// `p:bodyStyle`.
+    Body,
+    /// `p:otherStyle`.
+    Other,
+}
+
+/// How a slide placeholder found its layout placeholder (ADR-0008 §1.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MatchKind {
+    /// Same effective idx, same type.
+    Idx,
+    /// Same idx, different type of the same family.
+    IdxFamily,
+    /// Several layout placeholders share the idx; exact type broke the tie.
+    IdxTieType,
+    /// Several share the idx; the family broke the tie.
+    IdxTieFamily,
+    /// Explicit `@idx` pointing at another family (taken anyway).
+    IdxTypeMismatch,
+    /// No usable idx candidate: exact type.
+    Type,
+    /// No usable idx candidate: same family.
+    Family,
+    /// No layout placeholder: resolved from the master by family.
+    Orphan,
+    /// Layout → master (by the layout placeholder's family).
+    MasterFamily,
+}
+
+/// The layout and master placeholders a slide placeholder inherits from.
+#[derive(Clone, Debug)]
+pub struct PlaceholderMatch<'a> {
+    /// The layout placeholder (`None` for an orphan).
+    pub layout: Option<&'a RawNode>,
+    /// The master placeholder of the family (`None` if the master has none).
+    pub master: Option<&'a RawNode>,
+    /// How the layout placeholder was found.
+    pub kind: MatchKind,
+    /// "The first" of several equal candidates was taken (§1.2).
+    pub ambiguous: bool,
+    /// Number of equal candidates when `ambiguous`.
+    pub candidates: usize,
+    /// The slide placeholder's family (selects `p:txStyles`, §1.3 step 7).
+    pub family: Family,
+}
+
+/// Placeholder family (§1.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Family {
+    /// `title`, `ctrTitle`.
+    Title,
+    /// Everything else with text (`body`, `obj`, `subTitle`, `chart`, …).
+    Body,
+    /// `dt`.
+    Date,
+    /// `ftr`.
+    Footer,
+    /// `sldNum`.
+    SlideNumber,
+    /// `hdr`.
+    Header,
+    /// `sldImg` (notes).
+    SlideImage,
+}
+
+impl Family {
+    fn of(ty: &str) -> Family {
+        match ty {
+            "title" | "ctrTitle" => Family::Title,
+            "dt" => Family::Date,
+            "ftr" => Family::Footer,
+            "sldNum" => Family::SlideNumber,
+            "hdr" => Family::Header,
+            "sldImg" => Family::SlideImage,
+            _ => Family::Body,
+        }
+    }
+    fn text_style(self) -> Option<TextStyleKind> {
+        match self {
+            Family::Title => Some(TextStyleKind::Title),
+            Family::Body => Some(TextStyleKind::Body),
+            Family::Date | Family::Footer | Family::SlideNumber | Family::Header => Some(TextStyleKind::Other),
+            Family::SlideImage => None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Placeholder matching (§1.2)
+
+#[derive(Clone, Copy)]
+struct Ph<'a> {
+    shape: &'a RawNode,
+    ty: &'a str,
+    idx: Option<u32>,
+    has_idx: bool,
+    in_group: bool,
+}
+
+fn nv_ph(shape: &RawNode) -> Option<&RawNode> {
+    let nv = shape.elements().find(|c| c.name().local().starts_with("nv"))?;
+    child(child(nv, p("nvPr"))?, p("ph"))
+}
+
+fn ph_of(shape: &RawNode, in_group: bool) -> Option<Ph<'_>> {
+    let ph = nv_ph(shape)?;
+    let raw_idx = ph.attr(un("idx"));
+    Some(Ph {
+        shape,
+        ty: ph.attr(un("type")).unwrap_or("obj"),
+        idx: raw_idx.map_or(Some(0), |v| v.parse().ok()),
+        has_idx: raw_idx.is_some(),
+        in_group,
+    })
+}
+
+fn tree_of(root: &RawNode) -> Option<&RawNode> {
+    child(child(root, p("cSld"))?, p("spTree"))
+}
+
+/// Every placeholder of a part's shape tree, group members included.
+fn placeholders(root: &RawNode) -> Vec<Ph<'_>> {
+    fn walk<'a>(n: &'a RawNode, in_group: bool, out: &mut Vec<Ph<'a>>) {
+        for c in n.elements() {
+            if c.is(p("grpSp")) {
+                walk(c, true, out);
+            } else if let Some(ph) = ph_of(c, in_group) {
+                out.push(ph);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if let Some(t) = tree_of(root) {
+        walk(t, false, &mut out);
+    }
+    out
+}
+
+fn first_canon<'a>(v: &[Ph<'a>]) -> Option<Ph<'a>> {
+    v.iter().find(|x| x.idx == Some(0)).or(v.first()).copied()
+}
+
+/// §1.2: slide → layout. Returns (layout placeholder, kind, ambiguous, candidates).
+fn match_layout<'a>(sp: &Ph<'_>, lph: &[Ph<'a>]) -> (Option<Ph<'a>>, MatchKind, bool, usize) {
+    let fam = |t: &str| Family::of(t);
+    let by_idx: Vec<Ph<'a>> = lph.iter().filter(|x| x.idx.is_some() && x.idx == sp.idx).copied().collect();
+    let tie = by_idx.len() > 1;
+    let same: Vec<Ph<'a>> = by_idx.iter().filter(|x| x.ty == sp.ty).copied().collect();
+    if let Some(&f) = same.first() {
+        return (Some(f), if tie { MatchKind::IdxTieType } else { MatchKind::Idx }, same.len() > 1, same.len());
+    }
+    let famc: Vec<Ph<'a>> = by_idx.iter().filter(|x| fam(x.ty) == fam(sp.ty)).copied().collect();
+    if let Some(&f) = famc.first() {
+        return (Some(f), if tie { MatchKind::IdxTieFamily } else { MatchKind::IdxFamily }, famc.len() > 1, famc.len());
+    }
+    if let (Some(&f), true) = (by_idx.first(), sp.has_idx) {
+        return (Some(f), MatchKind::IdxTypeMismatch, tie, by_idx.len());
+    }
+    let by_type: Vec<Ph<'a>> = lph.iter().filter(|x| x.ty == sp.ty).copied().collect();
+    if let Some(f) = first_canon(&by_type) {
+        return (Some(f), MatchKind::Type, by_type.len() > 1, by_type.len());
+    }
+    let by_fam: Vec<Ph<'a>> = lph.iter().filter(|x| fam(x.ty) == fam(sp.ty)).copied().collect();
+    if let Some(f) = first_canon(&by_fam) {
+        return (Some(f), MatchKind::Family, by_fam.len() > 1, by_fam.len());
+    }
+    (None, MatchKind::Orphan, false, 0)
+}
+
+fn shape_id(shape: &RawNode) -> Option<u32> {
+    crate::read::raw_shape_id(shape)
+}
+
+// ---------------------------------------------------------------------------
+// The text-property chain (§1.3)
+
+/// A run-like item whose properties are resolved.
+#[derive(Clone, Copy, Debug)]
+pub enum RunItem<'a> {
+    /// An `a:r`.
+    Run(crate::RunRef<'a>),
+    /// An `a:fld`.
+    Field(crate::FieldRef<'a>),
+    /// The paragraph end (`a:endParaRPr`).
+    End,
+}
+
+/// One step of a run-property chain: the source and the `a:rPr`-like element.
+#[derive(Clone, Debug)]
+struct Step<'a> {
+    source: Source<'a>,
+    node: Option<&'a RawNode>,
+    /// `p:style/a:fontRef` (fonts and fill only).
+    font_ref: bool,
+}
+
+/// What the chain ends with when nothing is set.
+#[derive(Clone, Debug)]
+enum Tail<'a> {
+    Unset,
+    Unresolved(Reason<'a>),
+}
+
+struct Chain<'a> {
+    steps: Vec<Step<'a>>,
+    /// After the level-independent steps, the remaining ones are not
+    /// consulted and this is returned (invalid level, r2-m9).
+    stop_after: Option<(usize, Reason<'a>)>,
+    tail: Tail<'a>,
+    theme: Option<&'a RawNode>,
+    theme_override: bool,
+    clr_map: Option<ClrMap<'a>>,
+}
+
+fn level_el(list: Option<&RawNode>, level: u8) -> Option<&RawNode> {
+    let list = list?;
+    let name = ["lvl1pPr", "lvl2pPr", "lvl3pPr", "lvl4pPr", "lvl5pPr", "lvl6pPr", "lvl7pPr", "lvl8pPr", "lvl9pPr"][usize::from(level)];
+    child(list, a(name))
+}
+
+fn lst_style(body: Option<&RawNode>) -> Option<&RawNode> {
+    child(body?, a("lstStyle"))
+}
+
+fn txbody(shape: &RawNode) -> Option<&RawNode> {
+    child(shape, p("txBody"))
+}
+
+/// The paragraph level: `Ok(0..=8)`, or `Err` with the raw value.
+fn level_of(para: &RawNode) -> std::result::Result<u8, AttrError> {
+    let Some(ppr) = child(para, a("pPr")) else { return Ok(0) };
+    match ppr.attr(un("lvl")) {
+        None => Ok(0),
+        Some(v) => v.parse::<u8>().ok().filter(|l| *l <= 8).ok_or_else(|| attr_error("lvl", v)),
+    }
+}
+
+fn attr_error(name: &'static str, raw: &str) -> AttrError {
+    AttrError { attr: QName::new("", name), raw: raw.to_owned() }
+}
+
+/// The colour map in effect for a slide (§1.4).
+#[derive(Clone, Copy, Debug)]
+pub struct ClrMap<'a> {
+    /// The `a:overrideClrMapping` or `p:clrMap` element.
+    pub node: &'a RawNode,
+    /// Where it came from.
+    pub from: MapSource,
+}
+
+/// Which element supplied the colour map.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MapSource {
+    /// The slide's `p:clrMapOvr/a:overrideClrMapping`.
+    SlideOverride,
+    /// The layout's override.
+    LayoutOverride,
+    /// The master's `p:clrMap`.
+    Master,
+}
+
+impl<'a> DeckSlide<'a, '_> {
+    /// The effective colour map: slide override, else layout override, else
+    /// the master's `p:clrMap` (ADR-0008 §1.4; POI's `mapSchemeColor`,
+    /// LibreOffice's `layout-clrmap-override.pptx`; ECMA §19.3.1.7 says
+    /// `a:masterClrMapping` means the master's, review m2).
+    pub fn color_map(&self) -> Result<Option<ClrMap<'a>>> {
+        let ovr = |root: &'a RawNode| child(child(root, p("clrMapOvr"))?, a("overrideClrMapping"));
+        if let Some(n) = ovr(self.doc.root()) {
+            return Ok(Some(ClrMap { node: n, from: MapSource::SlideOverride }));
+        }
+        if let Some(n) = ovr(self.layout()?.root()) {
+            return Ok(Some(ClrMap { node: n, from: MapSource::LayoutOverride }));
+        }
+        Ok(child(self.master()?.root(), p("clrMap")).map(|n| ClrMap { node: n, from: MapSource::Master }))
+    }
+
+    /// The layout and master placeholders of a slide placeholder (§1.2);
+    /// `None` for a shape that is not a placeholder.
+    pub fn placeholder_match(&self, shape: &ShapeRef<'a>) -> Result<Option<PlaceholderMatch<'a>>> {
+        let node = representative(shape);
+        let Some(sp) = ph_of(node, shape.depth() > 0) else { return Ok(None) };
+        let (layout, master) = (self.layout()?, self.master()?);
+        let lph = placeholders(layout.root());
+        let mph = placeholders(master.root());
+        let (lp, kind, ambiguous, candidates) = match_layout(&sp, &lph);
+        let fam_ty = lp.map_or(sp.ty, |l| l.ty);
+        let mp = mph.iter().find(|m| Family::of(m.ty) == Family::of(fam_ty)).map(|m| m.shape);
+        Ok(Some(PlaceholderMatch { layout: lp.map(|l| l.shape), master: mp, kind, ambiguous, candidates, family: Family::of(sp.ty) }))
+    }
+
+    fn chain(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: Option<ParagraphRef<'a>>, level: Option<u8>, run_level: bool) -> Result<Chain<'a>> {
+        let node = representative(shape);
+        let is_cell = body.raw().is(a("txBody"));
+        let lvl = level.unwrap_or(0);
+        let theme = self.theme().ok().map(|t| t.root());
+        let mut steps = Vec::new();
+        let clr_map = self.color_map().ok().flatten();
+        let mut chain = Chain { steps: Vec::new(), stop_after: None, tail: Tail::Unset, theme, theme_override: self.chain.theme_override, clr_map };
+        // steps 1–2 are added by the caller (they depend on the item)
+        let _ = para;
+        let pre = |steps: &mut Vec<Step<'a>>, source: Source<'a>, n: Option<&'a RawNode>| steps.push(Step { source, node: n, font_ref: false });
+        if level.is_none() {
+            // invalid level: stop at the first level-dependent step (r2-m9)
+            chain.stop_after = Some((0, Reason::InvalidLevel));
+            chain.steps = steps;
+            return Ok(chain);
+        }
+        pre(&mut steps, Source::ShapeListStyle { level: lvl }, level_el(lst_style(Some(body.raw())), lvl));
+        if is_cell {
+            chain.steps = steps;
+            chain.tail = Tail::Unresolved(Reason::TableStyle);
+            return Ok(chain);
+        }
+        if run_level && let Some(fr) = child(node, p("style")).and_then(|s| child(s, a("fontRef"))) {
+            steps.push(Step { source: Source::ShapeStyle, node: Some(fr), font_ref: true });
+        }
+        match self.placeholder_match(shape)? {
+            Some(m) => {
+                let master = self.master()?;
+                if let Some(l) = m.layout {
+                    let lp = self.layout()?;
+                    pre(&mut steps, Source::Placeholder { role: Role::Layout, part: lp.name, shape_id: shape_id(l), matched: m.kind, level: Some(lvl) }, level_el(lst_style(txbody(l)), lvl));
+                }
+                if let Some(mp) = m.master {
+                    pre(&mut steps, Source::Placeholder { role: Role::Master, part: master.name, shape_id: shape_id(mp), matched: MatchKind::MasterFamily, level: Some(lvl) }, level_el(lst_style(txbody(mp)), lvl));
+                }
+                if let Some(kind) = m.family.text_style() {
+                    let local = match kind {
+                        TextStyleKind::Title => "titleStyle",
+                        TextStyleKind::Body => "bodyStyle",
+                        TextStyleKind::Other => "otherStyle",
+                    };
+                    let st = child(master.root(), p("txStyles")).and_then(|t| child(t, p(local)));
+                    pre(&mut steps, Source::MasterTextStyle { part: master.name, style: kind, level: lvl }, level_el(st, lvl));
+                }
+                pre(&mut steps, Source::PresentationDefault { level: lvl }, level_el(self.deck.default_text_style(), lvl));
+            }
+            None => {
+                pre(&mut steps, Source::PresentationDefault { level: lvl }, level_el(self.deck.default_text_style(), lvl));
+                let master = self.master()?;
+                let st = child(master.root(), p("txStyles")).and_then(|t| child(t, p("otherStyle")));
+                pre(&mut steps, Source::MasterTextStyle { part: master.name, style: TextStyleKind::Other, level: lvl }, level_el(st, lvl));
+            }
+        }
+        chain.steps = steps;
+        Ok(chain)
+    }
+
+    /// Run properties of `item` in paragraph `para` of `body` (the shape's
+    /// `p:txBody` or one of its table cells' `a:txBody`), ADR-0008 §1.3.
+    pub fn run_props(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: ParagraphRef<'a>, item: RunItem<'a>) -> Result<RunProps<'a>> {
+        let level = level_of(para.raw());
+        let own = match item {
+            RunItem::Run(r) => child(r.raw(), a("rPr")),
+            RunItem::Field(f) => child(f.raw(), a("rPr")),
+            RunItem::End => child(para.raw(), a("endParaRPr")),
+        };
+        let ppr = child(para.raw(), a("pPr"));
+        let mut chain = self.chain(shape, body, Some(para), level.as_ref().ok().copied(), true)?;
+        let mut steps = vec![
+            Step { source: Source::Direct, node: own, font_ref: false },
+            Step { source: Source::ParagraphDefault, node: ppr.and_then(|n| child(n, a("defRPr"))), font_ref: false },
+        ];
+        if let Some((_, reason)) = chain.stop_after.take() {
+            chain.steps = steps;
+            chain.stop_after = Some((2, reason));
+        } else {
+            // the list-style level elements carry run properties in a:defRPr
+            for s in chain.steps.drain(..) {
+                let node = if s.font_ref { s.node } else { s.node.and_then(|n| child(n, a("defRPr"))) };
+                steps.push(Step { node, ..s });
+            }
+            chain.steps = steps;
+        }
+        Ok(RunProps::resolve(&chain))
+    }
+
+    /// Paragraph properties (§1.3: the chain without steps 2 and 4).
+    pub fn para_props(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: ParagraphRef<'a>) -> Result<ParaProps<'a>> {
+        let level = level_of(para.raw());
+        let mut chain = self.chain(shape, body, Some(para), level.as_ref().ok().copied(), false)?;
+        let mut steps = vec![Step { source: Source::Direct, node: child(para.raw(), a("pPr")), font_ref: false }];
+        if let Some((_, reason)) = chain.stop_after.take() {
+            chain.stop_after = Some((1, reason));
+        } else {
+            steps.append(&mut chain.steps);
+        }
+        chain.steps = steps;
+        Ok(ParaProps::resolve(&chain, level))
+    }
+
+    /// Body properties: slide `a:bodyPr` → layout placeholder → master
+    /// placeholder for placeholders; the shape's own for other shapes.
+    pub fn body_props(&self, shape: &ShapeRef<'a>) -> Result<BodyProps<'a>> {
+        let node = representative(shape);
+        let mut steps = vec![Step { source: Source::Direct, node: txbody(node).and_then(|b| child(b, a("bodyPr"))), font_ref: false }];
+        if let Some(m) = self.placeholder_match(shape)? {
+            if let Some(l) = m.layout {
+                steps.push(Step {
+                    source: Source::Placeholder { role: Role::Layout, part: self.layout()?.name, shape_id: shape_id(l), matched: m.kind, level: None },
+                    node: txbody(l).and_then(|b| child(b, a("bodyPr"))),
+                    font_ref: false,
+                });
+            }
+            if let Some(mp) = m.master {
+                steps.push(Step {
+                    source: Source::Placeholder { role: Role::Master, part: self.master()?.name, shape_id: shape_id(mp), matched: MatchKind::MasterFamily, level: None },
+                    node: txbody(mp).and_then(|b| child(b, a("bodyPr"))),
+                    font_ref: false,
+                });
+            }
+        }
+        Ok(BodyProps::resolve(&steps))
+    }
+
+    fn geometry_steps(&self, shape: &ShapeRef<'a>) -> Result<std::result::Result<Vec<Step<'a>>, Reason<'a>>> {
+        let node = representative(shape);
+        let own = |n: &'a RawNode| -> Option<&'a RawNode> {
+            if n.is(p("graphicFrame")) { child(n, p("xfrm")) } else { child(n, p("spPr")) }
+        };
+        let mut steps = vec![Step { source: Source::Direct, node: own(node), font_ref: false }];
+        if let Some(m) = self.placeholder_match(shape)? {
+            let in_group_layout = m.layout.is_some_and(|l| placeholders(self.layout().map(|x| x.root()).unwrap_or(l)).iter().any(|x| std::ptr::eq(x.shape, l) && x.in_group));
+            if shape.depth() > 0 || in_group_layout {
+                return Ok(Err(Reason::GroupCoordinates));
+            }
+            if let Some(l) = m.layout {
+                steps.push(Step { source: Source::Placeholder { role: Role::Layout, part: self.layout()?.name, shape_id: shape_id(l), matched: m.kind, level: None }, node: own(l), font_ref: false });
+            }
+            if let Some(mp) = m.master {
+                steps.push(Step { source: Source::Placeholder { role: Role::Master, part: self.master()?.name, shape_id: shape_id(mp), matched: MatchKind::MasterFamily, level: None }, node: own(mp), font_ref: false });
+            }
+        }
+        Ok(Ok(steps))
+    }
+
+    /// Position and size (`a:xfrm`/`p:xfrm` as one unit, §1.5).
+    pub fn geometry(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Xfrm>> {
+        let steps = match self.geometry_steps(shape)? {
+            Ok(s) => s,
+            Err(r) => return Ok(Lookup::Unresolved(r)),
+        };
+        for s in steps {
+            let x = s.node.and_then(|n| if n.is(p("xfrm")) { Some(n) } else { child(n, a("xfrm")) });
+            let Some(x) = x else { continue };
+            let (Some(off), Some(ext)) = (child(x, a("off")), child(x, a("ext"))) else { continue };
+            let num = |n: &RawNode, k: &'static str| n.attr(un(k)).and_then(|v| v.parse::<i64>().ok());
+            let value = match (num(off, "x"), num(off, "y"), num(ext, "cx"), num(ext, "cy")) {
+                (Some(x0), Some(y0), Some(cx), Some(cy)) => Ok(Xfrm {
+                    x: x0,
+                    y: y0,
+                    cx,
+                    cy,
+                    rot: x.attr(un("rot")).and_then(|v| v.parse().ok()).unwrap_or(0),
+                    flip_h: x.attr(un("flipH")).and_then(ooxml_core::value::parse_bool).unwrap_or(false),
+                    flip_v: x.attr(un("flipV")).and_then(ooxml_core::value::parse_bool).unwrap_or(false),
+                }),
+                _ => Err(attr_error("xfrm", "off/ext")),
+            };
+            let defaulted = x.attr(un("rot")).is_none() && x.attr(un("flipH")).is_none() && x.attr(un("flipV")).is_none();
+            return Ok(Lookup::Set(Resolved { value, source: s.source, defaulted }));
+        }
+        Ok(Lookup::Unset)
+    }
+
+    /// The outline: the XSD choice `a:prstGeom | a:custGeom` (§1.5, review m5a).
+    pub fn outline(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Outline<'a>>> {
+        let steps = match self.geometry_steps(shape)? {
+            Ok(s) => s,
+            Err(r) => return Ok(Lookup::Unresolved(r)),
+        };
+        for s in steps {
+            let Some(sppr) = s.node.filter(|n| n.is(p("spPr"))) else { continue };
+            if let Some(g) = child(sppr, a("prstGeom")) {
+                return Ok(Lookup::Set(Resolved { value: Ok(Outline::Preset(g.attr(un("prst")).unwrap_or(""))), source: s.source, defaulted: false }));
+            }
+            if child(sppr, a("custGeom")).is_some() {
+                return Ok(Lookup::Set(Resolved { value: Ok(Outline::Custom), source: s.source, defaulted: false }));
+            }
+        }
+        Ok(Lookup::Unset)
+    }
+}
+
+/// The element a shape entry stands for (an AC's representative).
+fn representative<'a>(shape: &ShapeRef<'a>) -> &'a RawNode {
+    if *shape.kind() == crate::ShapeKind::AlternateContent { ac_representative(shape.raw()).unwrap_or(shape.raw()) } else { shape.raw() }
+}
+
+/// Position and size in EMU, with rotation (60000ths of a degree) and flips.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Xfrm {
+    /// `a:off@x`.
+    pub x: i64,
+    /// `a:off@y`.
+    pub y: i64,
+    /// `a:ext@cx`.
+    pub cx: i64,
+    /// `a:ext@cy`.
+    pub cy: i64,
+    /// `@rot` (default 0, from the winning element).
+    pub rot: i32,
+    /// `@flipH`.
+    pub flip_h: bool,
+    /// `@flipV`.
+    pub flip_v: bool,
+}
+
+/// A shape's outline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outline<'a> {
+    /// `a:prstGeom@prst`.
+    Preset(&'a str),
+    /// `a:custGeom`.
+    Custom,
+}
+
+// ---------------------------------------------------------------------------
+// Property sets
+
+/// A typeface with its theme reference (§1.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Font<'a> {
+    /// The typeface (the theme's, for a `+mj-*`/`+mn-*` reference).
+    pub typeface: &'a str,
+    /// `+mj-lt` etc. when the value came from the theme.
+    pub theme_ref: Option<&'a str>,
+    /// `@pitchFamily` of the winning element (default 0, r2-m1).
+    pub pitch_family: u8,
+    /// `@charset` of the winning element (default 1).
+    pub charset: u8,
+}
+
+/// A fill (§1.3 element group).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Fill<'a> {
+    /// `a:noFill`.
+    None,
+    /// `a:solidFill`.
+    Solid(Color<'a>),
+    /// `a:gradFill`, `a:blipFill`, `a:pattFill`, `a:grpFill`: element name.
+    Other(&'a str),
+}
+
+/// A colour as specified, with the scheme mapping (§1.4).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Color<'a> {
+    /// The colour element's local name (`srgbClr`, `schemeClr`, `sysClr`, …).
+    pub kind: &'a str,
+    /// Its `@val`.
+    pub val: Option<&'a str>,
+    /// For `schemeClr`: the theme slot after the colour map (`tx1` → `dk1`).
+    pub theme_slot: Option<&'a str>,
+    /// Which colour map applied.
+    pub map_source: Option<MapSource>,
+    /// RGB before transforms: `srgbClr@val`, `sysClr@lastClr`, or the theme
+    /// slot's colour.
+    pub base_rgb: Option<[u8; 3]>,
+    /// Transforms (`lumMod`, `tint`, …) as `(name, value)`, not applied.
+    pub transforms: Vec<(&'a str, Option<DmlPercent>)>,
+}
+
+fn hex_rgb(s: &str) -> Option<[u8; 3]> {
+    if s.len() != 6 {
+        return None;
+    }
+    let v = u32::from_str_radix(s, 16).ok()?;
+    Some([(v >> 16) as u8, (v >> 8) as u8, v as u8])
+}
+
+const FILLS: [&str; 6] = ["noFill", "solidFill", "gradFill", "blipFill", "pattFill", "grpFill"];
+const SCHEME_MAPPED: [&str; 12] = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6", "hlink", "folHlink"];
+
+fn color_of<'a>(c: &'a RawNode, chain: &Chain<'a>) -> std::result::Result<Color<'a>, Reason<'a>> {
+    let kind = c.name().local();
+    let val = c.attr(un("val"));
+    let transforms = c.elements().filter(|t| t.name().ns() == crate::names::A_NS).map(|t| (t.name().local(), t.attr(un("val")).and_then(parse_dml_percent))).collect();
+    let mut col = Color { kind, val, theme_slot: None, map_source: None, base_rgb: None, transforms };
+    match kind {
+        "srgbClr" => col.base_rgb = val.and_then(hex_rgb),
+        "sysClr" => col.base_rgb = c.attr(un("lastClr")).and_then(hex_rgb),
+        "schemeClr" => {
+            let v = val.unwrap_or("");
+            if v == "phClr" {
+                return Err(Reason::PlaceholderColor);
+            }
+            if chain.theme_override {
+                return Err(Reason::ThemeOverride);
+            }
+            let slot = if SCHEME_MAPPED.contains(&v) {
+                let map = chain.clr_map;
+                col.map_source = map.map(|m| m.from);
+                map.and_then(|m| m.node.attr(un(scheme_name(v)))).unwrap_or(v)
+            } else {
+                v
+            };
+            col.theme_slot = Some(slot);
+            col.base_rgb = chain.theme.and_then(|t| theme_color(t, slot));
+            if chain.theme.is_none() {
+                return Err(Reason::BrokenChain);
+            }
+        }
+        _ => {}
+    }
+    Ok(col)
+}
+
+fn scheme_name(v: &str) -> &'static str {
+    SCHEME_MAPPED.into_iter().find(|x| *x == v).unwrap_or("tx1")
+}
+
+fn theme_elements(theme: &RawNode) -> Option<&RawNode> {
+    child(theme, a("themeElements"))
+}
+
+fn theme_color(theme: &RawNode, slot: &str) -> Option<[u8; 3]> {
+    let cs = child(theme_elements(theme)?, a("clrScheme"))?;
+    let e = cs.elements().find(|c| c.name().local() == slot)?;
+    let c = e.elements().next()?;
+    match c.name().local() {
+        "srgbClr" => c.attr(un("val")).and_then(hex_rgb),
+        "sysClr" => c.attr(un("lastClr")).and_then(hex_rgb),
+        _ => None,
+    }
+}
+
+/// Resolves a `+mj-*`/`+mn-*` reference through the theme.
+fn theme_font<'a>(theme: &'a RawNode, reference: &'a str) -> std::result::Result<&'a str, Reason<'a>> {
+    let coll = if reference.starts_with("+mj") { "majorFont" } else { "minorFont" };
+    let script = match &reference[reference.len().saturating_sub(2)..] {
+        "lt" => "latin",
+        "ea" => "ea",
+        _ => "cs",
+    };
+    let fc = theme_elements(theme).and_then(|t| child(t, a("fontScheme"))).and_then(|f| child(f, a(coll_static(coll))));
+    let tf = fc.and_then(|f| child(f, a(script_static(script)))).and_then(|e| e.attr(un("typeface"))).filter(|t| !t.is_empty());
+    tf.ok_or_else(|| Reason::ScriptDependent {
+        reference,
+        script_fonts: fc
+            .map(|f| f.elements().filter(|e| e.is(a("font"))).filter_map(|e| Some((e.attr(un("script"))?, e.attr(un("typeface"))?))).collect())
+            .unwrap_or_default(),
+    })
+}
+
+fn coll_static(c: &str) -> &'static str {
+    if c == "majorFont" { "majorFont" } else { "minorFont" }
+}
+fn script_static(s: &str) -> &'static str {
+    match s {
+        "latin" => "latin",
+        "ea" => "ea",
+        _ => "cs",
+    }
+}
+
+/// Generic "first step that has the attribute" lookup.
+fn find_attr<'a, T>(chain: &Chain<'a>, name: &'static str, parse: impl Fn(&'a str) -> Option<T>) -> Lookup<'a, T> {
+    for (i, s) in chain.steps.iter().enumerate() {
+        if let Some((stop, reason)) = &chain.stop_after
+            && i >= *stop
+        {
+            return Lookup::Unresolved(reason.clone());
+        }
+        if s.font_ref {
+            continue;
+        }
+        if let Some(raw) = s.node.and_then(|n| n.attr(un(name))) {
+            let value = parse(raw).ok_or_else(|| AttrError { attr: un(name), raw: raw.to_owned() });
+            return Lookup::Set(Resolved { value, source: s.source.clone(), defaulted: false });
+        }
+    }
+    if let Some((_, reason)) = &chain.stop_after {
+        return Lookup::Unresolved(reason.clone());
+    }
+    match &chain.tail {
+        Tail::Unset => Lookup::Unset,
+        Tail::Unresolved(r) => Lookup::Unresolved(r.clone()),
+    }
+}
+
+/// The first step holding any member of a child-element group.
+fn find_group<'a>(chain: &Chain<'a>, members: &[&str]) -> std::result::Result<Option<(&'a RawNode, Source<'a>)>, Reason<'a>> {
+    for (i, s) in chain.steps.iter().enumerate() {
+        if let Some((stop, reason)) = &chain.stop_after
+            && i >= *stop
+        {
+            return Err(reason.clone());
+        }
+        if s.font_ref {
+            continue;
+        }
+        if let Some(c) = s.node.and_then(|n| n.elements().find(|c| c.name().ns() == crate::names::A_NS && members.contains(&c.name().local()))) {
+            return Ok(Some((c, s.source.clone())));
+        }
+    }
+    if let Some((_, reason)) = &chain.stop_after {
+        return Err(reason.clone());
+    }
+    match &chain.tail {
+        Tail::Unset => Ok(None),
+        Tail::Unresolved(r) => Err(r.clone()),
+    }
+}
+
+fn parse_u32(s: &str) -> Option<u32> {
+    s.parse().ok()
+}
+fn parse_i64(s: &str) -> Option<i64> {
+    s.parse().ok()
+}
+fn parse_bool(s: &str) -> Option<bool> {
+    ooxml_core::value::parse_bool(s)
+}
+fn parse_str(s: &str) -> Option<&str> {
+    Some(s)
+}
+
+/// Run properties as specified (§1.3, §1.6).
+#[derive(Clone, Debug)]
+pub struct RunProps<'a> {
+    /// `sz`, 1/100 pt (autofit's `fontScale` not applied).
+    pub size: Lookup<'a, u32>,
+    /// `b`.
+    pub bold: Lookup<'a, bool>,
+    /// `i`.
+    pub italic: Lookup<'a, bool>,
+    /// `u` (raw `ST_TextUnderlineType`).
+    pub underline: Lookup<'a, &'a str>,
+    /// `strike`.
+    pub strike: Lookup<'a, &'a str>,
+    /// `cap`.
+    pub caps: Lookup<'a, &'a str>,
+    /// `baseline` (`DmlPercent`).
+    pub baseline: Lookup<'a, DmlPercent>,
+    /// `spc` (1/100 pt).
+    pub spacing: Lookup<'a, i64>,
+    /// `kern`.
+    pub kern: Lookup<'a, u32>,
+    /// `lang`.
+    pub lang: Lookup<'a, &'a str>,
+    /// `a:latin`.
+    pub latin: Lookup<'a, Font<'a>>,
+    /// `a:ea`.
+    pub east_asian: Lookup<'a, Font<'a>>,
+    /// `a:cs`.
+    pub complex_script: Lookup<'a, Font<'a>>,
+    /// `a:sym`.
+    pub symbol: Lookup<'a, Font<'a>>,
+    /// The fill group.
+    pub fill: Lookup<'a, Fill<'a>>,
+}
+
+impl<'a> RunProps<'a> {
+    fn resolve(c: &Chain<'a>) -> RunProps<'a> {
+        RunProps {
+            size: find_attr(c, "sz", parse_u32),
+            bold: find_attr(c, "b", parse_bool),
+            italic: find_attr(c, "i", parse_bool),
+            underline: find_attr(c, "u", parse_str),
+            strike: find_attr(c, "strike", parse_str),
+            caps: find_attr(c, "cap", parse_str),
+            baseline: find_attr(c, "baseline", parse_dml_percent),
+            spacing: find_attr(c, "spc", parse_i64),
+            kern: find_attr(c, "kern", parse_u32),
+            lang: find_attr(c, "lang", parse_str),
+            latin: font(c, "latin", "lt"),
+            east_asian: font(c, "ea", "ea"),
+            complex_script: font(c, "cs", "cs"),
+            symbol: font(c, "sym", ""),
+            fill: fill(c),
+        }
+    }
+}
+
+/// One of the font slots, including the `fontRef` step (§1.3 step 4).
+fn font<'a>(c: &Chain<'a>, slot: &'static str, suffix: &'static str) -> Lookup<'a, Font<'a>> {
+    for (i, s) in c.steps.iter().enumerate() {
+        if let Some((stop, reason)) = &c.stop_after
+            && i >= *stop
+        {
+            return Lookup::Unresolved(reason.clone());
+        }
+        let Some(n) = s.node else { continue };
+        if s.font_ref {
+            if suffix.is_empty() {
+                continue;
+            }
+            let reference: &'static str = match (n.attr(un("idx")), suffix) {
+                (Some("major"), "lt") => "+mj-lt",
+                (Some("major"), "ea") => "+mj-ea",
+                (Some("major"), "cs") => "+mj-cs",
+                (Some("minor"), "lt") => "+mn-lt",
+                (Some("minor"), "ea") => "+mn-ea",
+                (Some("minor"), "cs") => "+mn-cs",
+                _ => continue, // idx="none": no typeface
+            };
+            return theme_ref(c, reference, s.source.clone(), 0, 1, true);
+        }
+        let Some(f) = child(n, a(slot)) else { continue };
+        let raw = f.attr(un("typeface")).unwrap_or("");
+        let pf = f.attr(un("pitchFamily"));
+        let cs = f.attr(un("charset"));
+        let pitch = pf.and_then(|v| v.parse().ok()).unwrap_or(0);
+        let charset = cs.and_then(|v| v.parse().ok()).unwrap_or(1);
+        let defaulted = pf.is_none() && cs.is_none();
+        if raw.starts_with('+') && raw.len() == 6 {
+            return theme_ref(c, raw, s.source.clone(), pitch, charset, defaulted);
+        }
+        return Lookup::Set(Resolved { value: Ok(Font { typeface: raw, theme_ref: None, pitch_family: pitch, charset }), source: s.source.clone(), defaulted });
+    }
+    if let Some((_, reason)) = &c.stop_after {
+        return Lookup::Unresolved(reason.clone());
+    }
+    match &c.tail {
+        Tail::Unset => Lookup::Unset,
+        Tail::Unresolved(r) => Lookup::Unresolved(r.clone()),
+    }
+}
+
+fn theme_ref<'a>(c: &Chain<'a>, reference: &'a str, source: Source<'a>, pitch: u8, charset: u8, defaulted: bool) -> Lookup<'a, Font<'a>> {
+    if c.theme_override {
+        return Lookup::Unresolved(Reason::ThemeOverride);
+    }
+    let Some(theme) = c.theme else { return Lookup::Unresolved(Reason::BrokenChain) };
+    match theme_font(theme, reference) {
+        Ok(tf) => Lookup::Set(Resolved { value: Ok(Font { typeface: tf, theme_ref: Some(reference), pitch_family: pitch, charset }), source, defaulted }),
+        Err(r) => Lookup::Unresolved(r),
+    }
+}
+
+fn fill<'a>(c: &Chain<'a>) -> Lookup<'a, Fill<'a>> {
+    for (i, s) in c.steps.iter().enumerate() {
+        if let Some((stop, reason)) = &c.stop_after
+            && i >= *stop
+        {
+            return Lookup::Unresolved(reason.clone());
+        }
+        let Some(n) = s.node else { continue };
+        if s.font_ref {
+            // the colour child of a:fontRef, if any, is a solid fill
+            let Some(col) = n.elements().next() else { continue };
+            return match color_of(col, c) {
+                Ok(col) => Lookup::Set(Resolved { value: Ok(Fill::Solid(col)), source: s.source.clone(), defaulted: false }),
+                Err(r) => Lookup::Unresolved(r),
+            };
+        }
+        let Some(f) = n.elements().find(|e| e.name().ns() == crate::names::A_NS && FILLS.contains(&e.name().local())) else { continue };
+        let v = match f.name().local() {
+            "noFill" => Fill::None,
+            "solidFill" => match f.elements().next().map(|col| color_of(col, c)) {
+                Some(Ok(col)) => Fill::Solid(col),
+                Some(Err(r)) => return Lookup::Unresolved(r),
+                None => Fill::Other("solidFill"),
+            },
+            other => Fill::Other(other),
+        };
+        return Lookup::Set(Resolved { value: Ok(v), source: s.source.clone(), defaulted: false });
+    }
+    if let Some((_, reason)) = &c.stop_after {
+        return Lookup::Unresolved(reason.clone());
+    }
+    match &c.tail {
+        Tail::Unset => Lookup::Unset,
+        Tail::Unresolved(r) => Lookup::Unresolved(r.clone()),
+    }
+}
+
+/// A bullet as specified.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Bullet<'a> {
+    /// `a:buNone`.
+    None,
+    /// `a:buChar@char`.
+    Char(&'a str),
+    /// `a:buAutoNum@type` and `@startAt` (default 1 from the winning element).
+    AutoNum {
+        /// Numbering scheme.
+        scheme: &'a str,
+        /// First number.
+        start_at: u32,
+    },
+    /// `a:buBlip`.
+    Picture,
+}
+
+/// Paragraph properties as specified.
+#[derive(Clone, Debug)]
+pub struct ParaProps<'a> {
+    /// `a:pPr@lvl` (direct; `Err` when invalid).
+    pub level: std::result::Result<u8, AttrError>,
+    /// `algn`.
+    pub align: Lookup<'a, &'a str>,
+    /// `marL` (EMU).
+    pub margin_left: Lookup<'a, i64>,
+    /// `indent` (EMU).
+    pub indent: Lookup<'a, i64>,
+    /// `rtl`.
+    pub rtl: Lookup<'a, bool>,
+    /// `defTabSz`.
+    pub default_tab: Lookup<'a, i64>,
+    /// Bullet type group.
+    pub bullet: Lookup<'a, Bullet<'a>>,
+    /// `a:lnSpc` (`spcPct` as percent or `spcPts` as 1/100 pt).
+    pub line_spacing: Lookup<'a, Spacing>,
+    /// `a:spcBef`.
+    pub space_before: Lookup<'a, Spacing>,
+    /// `a:spcAft`.
+    pub space_after: Lookup<'a, Spacing>,
+}
+
+/// A text spacing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Spacing {
+    /// `a:spcPct@val`.
+    Percent(DmlPercent),
+    /// `a:spcPts@val` (1/100 pt).
+    Points(i64),
+}
+
+impl<'a> ParaProps<'a> {
+    fn resolve(c: &Chain<'a>, level: std::result::Result<u8, AttrError>) -> ParaProps<'a> {
+        let spacing = |name: &'static str| -> Lookup<'a, Spacing> {
+            match find_group(c, &[name]) {
+                Err(r) => Lookup::Unresolved(r),
+                Ok(None) => Lookup::Unset,
+                Ok(Some((n, source))) => {
+                    let v = if let Some(p) = child(n, a("spcPct")) {
+                        p.attr(un("val")).and_then(parse_dml_percent).map(Spacing::Percent)
+                    } else {
+                        child(n, a("spcPts")).and_then(|p| p.attr(un("val"))).and_then(|v| v.parse().ok()).map(Spacing::Points)
+                    };
+                    Lookup::Set(Resolved { value: v.ok_or_else(|| attr_error("val", "")), source, defaulted: false })
+                }
+            }
+        };
+        let bullet = match find_group(c, &["buNone", "buAutoNum", "buChar", "buBlip"]) {
+            Err(r) => Lookup::Unresolved(r),
+            Ok(None) => Lookup::Unset,
+            Ok(Some((n, source))) => {
+                let (v, defaulted) = match n.name().local() {
+                    "buNone" => (Bullet::None, false),
+                    "buChar" => (Bullet::Char(n.attr(un("char")).unwrap_or("")), false),
+                    "buAutoNum" => {
+                        let s = n.attr(un("startAt"));
+                        (Bullet::AutoNum { scheme: n.attr(un("type")).unwrap_or(""), start_at: s.and_then(|v| v.parse().ok()).unwrap_or(1) }, s.is_none())
+                    }
+                    _ => (Bullet::Picture, false),
+                };
+                Lookup::Set(Resolved { value: Ok(v), source, defaulted })
+            }
+        };
+        ParaProps {
+            level,
+            align: find_attr(c, "algn", parse_str),
+            margin_left: find_attr(c, "marL", parse_i64),
+            indent: find_attr(c, "indent", parse_i64),
+            rtl: find_attr(c, "rtl", parse_bool),
+            default_tab: find_attr(c, "defTabSz", parse_i64),
+            bullet,
+            line_spacing: spacing("lnSpc"),
+            space_before: spacing("spcBef"),
+            space_after: spacing("spcAft"),
+        }
+    }
+}
+
+/// Autofit as specified (§1.6).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Autofit<'a> {
+    /// `a:noAutofit`.
+    None,
+    /// `a:normAutofit`: scales `Set` on the shape itself (defaulted 100 %/0 %
+    /// when absent there), `Unresolved(InheritedAutofitScale)` when the
+    /// winning element is a layout's or master's.
+    Normal {
+        /// `@fontScale`.
+        font_scale: Lookup<'a, DmlPercent>,
+        /// `@lnSpcReduction`.
+        line_spacing_reduction: Lookup<'a, DmlPercent>,
+    },
+    /// `a:spAutoFit`.
+    Shape,
+}
+
+/// Body properties as specified.
+#[derive(Clone, Debug)]
+pub struct BodyProps<'a> {
+    /// `anchor`.
+    pub anchor: Lookup<'a, &'a str>,
+    /// `anchorCtr`.
+    pub anchor_center: Lookup<'a, bool>,
+    /// `wrap`.
+    pub wrap: Lookup<'a, &'a str>,
+    /// `lIns`, `tIns`, `rIns`, `bIns` (EMU).
+    pub insets: [Lookup<'a, i64>; 4],
+    /// `vert`.
+    pub vertical: Lookup<'a, &'a str>,
+    /// `rot`.
+    pub rotation: Lookup<'a, i64>,
+    /// `numCol`.
+    pub columns: Lookup<'a, u32>,
+    /// `upright` (inherited per attribute, §1.3).
+    pub upright: Lookup<'a, bool>,
+    /// The autofit group.
+    pub autofit: Lookup<'a, Autofit<'a>>,
+}
+
+impl<'a> BodyProps<'a> {
+    fn resolve(steps: &[Step<'a>]) -> BodyProps<'a> {
+        let c = Chain { steps: steps.to_vec(), stop_after: None, tail: Tail::Unset, theme: None, theme_override: false, clr_map: None };
+        let autofit = match find_group(&c, &["noAutofit", "normAutofit", "spAutoFit"]) {
+            Err(r) => Lookup::Unresolved(r),
+            Ok(None) => Lookup::Unset,
+            Ok(Some((n, source))) => {
+                let v = match n.name().local() {
+                    "noAutofit" => Autofit::None,
+                    "spAutoFit" => Autofit::Shape,
+                    _ => {
+                        let scale = |name: &'static str, default: i32| -> Lookup<'a, DmlPercent> {
+                            if source != Source::Direct {
+                                return Lookup::Unresolved(Reason::InheritedAutofitScale { from: source.clone() });
+                            }
+                            match n.attr(un(name)) {
+                                Some(raw) => Lookup::Set(Resolved { value: parse_dml_percent(raw).ok_or_else(|| attr_error(name, raw)), source: source.clone(), defaulted: false }),
+                                None => Lookup::Set(Resolved { value: Ok(DmlPercent::Thousandths(default)), source: source.clone(), defaulted: true }),
+                            }
+                        };
+                        Autofit::Normal { font_scale: scale("fontScale", 100_000), line_spacing_reduction: scale("lnSpcReduction", 0) }
+                    }
+                };
+                Lookup::Set(Resolved { value: Ok(v), source, defaulted: false })
+            }
+        };
+        BodyProps {
+            anchor: find_attr(&c, "anchor", parse_str),
+            anchor_center: find_attr(&c, "anchorCtr", parse_bool),
+            wrap: find_attr(&c, "wrap", parse_str),
+            insets: [find_attr(&c, "lIns", parse_i64), find_attr(&c, "tIns", parse_i64), find_attr(&c, "rIns", parse_i64), find_attr(&c, "bIns", parse_i64)],
+            vertical: find_attr(&c, "vert", parse_str),
+            rotation: find_attr(&c, "rot", parse_i64),
+            columns: find_attr(&c, "numCol", parse_u32),
+            upright: find_attr(&c, "upright", parse_bool),
+            autofit,
+        }
+    }
+}
+
+impl<'a> Lookup<'a, Font<'a>> {
+    /// The typeface, if resolved.
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.value().map(|f| f.typeface)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn family_and_styles() {
+        assert_eq!(Family::of("ctrTitle"), Family::Title);
+        assert_eq!(Family::of("obj"), Family::Body);
+        assert_eq!(Family::of("pic"), Family::Body);
+        assert_eq!(Family::Footer.text_style(), Some(TextStyleKind::Other));
+        assert_eq!(Family::SlideImage.text_style(), None);
+        assert_eq!(hex_rgb("FF0080"), Some([255, 0, 128]));
+        assert_eq!(hex_rgb("FFF"), None);
+    }
+}

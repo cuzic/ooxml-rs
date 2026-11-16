@@ -146,6 +146,16 @@ pub enum Error {
     /// explicitly unformatted text.
     #[error("the formatting of {0} cannot be copied (relationship id, unique id or name, extension list, markup compatibility, namespace declaration or scope)")]
     FormatNotCopyable(&'static str),
+    /// A link of the slide → layout → master → theme chain is missing or
+    /// does not parse (ADR-0008 §1.1). Only resolver calls that need the
+    /// link fail; Phase 0 reads and writes on that slide keep working.
+    #[error("{from}: the {missing:?} of the chain is missing or unreadable")]
+    BrokenChain {
+        /// The part whose link is broken (the slide).
+        from: String,
+        /// Which link.
+        missing: crate::ChainLink,
+    },
 }
 
 impl From<ooxml_core::AttrError> for Error {

@@ -63,17 +63,35 @@ pres.save("deck-edited.pptx")?;
 # Ok::<(), Error>(())
 ```
 
+Phase 1 reads ([ADR-0008](../../docs/adr/0008-pptx-phase1-deck-reading.md)
+§1, §3): `Presentation::deck()` parses every slide's layout, master and
+theme once and returns a `Deck`; `DeckSlide` resolves run, paragraph and
+body properties, geometry and outline through the inheritance chain, each
+value a `Lookup` (`Set` with its `Source`, `Unset`, or `Unresolved` with a
+`Reason`), and reads links/actions, comments (legacy and p188),
+transitions (MCE branch by namespace URI) and a timing summary;
+`Deck::sections()` reads p14 sections. Values are as specified, not as
+displayed (§1.6). Notes, layout and master contexts (§1.7) and notes
+editing (§2) are not implemented yet.
+
 Development:
 
 - `cargo test -p ooxml-pptx` — L1/T1/T1b (`tests/roundtrip.rs`), T2
   locality (`tests/locality.rs`), T3 expected model (`tests/oracle.rs`),
-  T4 refusals (`tests/refusals.rs`) over `reference/fixtures/pptx/`
+  T4 refusals (`tests/refusals.rs`), the ADR-0008 resolver
+  (`tests/resolve.rs`; `OOXML_PPTX_CORPUS=dir:dir … -- --ignored` compares
+  76 source counters with the spike model) and read APIs
+  (`tests/deckread.rs`) over `reference/fixtures/pptx/`
   (third-party files, read by path, never packaged).
 - Independent read-back (CI job `pptx-readback`):
   `cargo run -p ooxml-pptx --example oracle_cases -- OUT` then
   `python3 -I crates/ooxml-pptx/tests/oracle/check.py OUT reference/fixtures/pptx`
   with python-pptx from `tests/oracle/requirements.txt`
-  (`--site DIR` if it is installed into a directory).
+  (`--site DIR` if it is installed into a directory). ADR-0008 O1/O3:
+  `cargo run -p ooxml-pptx --example resolve_dump -- OUT.json` then
+  `python3 -I crates/ooxml-pptx/tests/oracle/resolve_check.py OUT.json reference/fixtures/pptx`
+  (known geometry differences in `tests/oracle/geometry_known_differences.json`;
+  the POI table for O2b is `tests/oracle/poi_known_differences.md`).
 - Manual check in PowerPoint:
   `cargo run -p ooxml-pptx --example pptx_manual_check -- OUT` writes edited
   files and `OUT/CHECKLIST.md`. `cargo xtask manual-check <outdir>` runs the

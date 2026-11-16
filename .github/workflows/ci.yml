@@ -48,3 +48,8 @@ jobs:
         run: cargo run --release -p ooxml-pptx --example oracle_cases -- "$RUNNER_TEMP/pptx-oracle"
       - name: python-pptx read-back
         run: python -I crates/ooxml-pptx/tests/oracle/check.py "$RUNNER_TEMP/pptx-oracle" reference/fixtures/pptx
+      # ADR-0008 §7 O1 (placeholder geometry) and O3 (links) vs python-pptx
+      - name: resolved geometry and links
+        run: |
+          cargo run --release -p ooxml-pptx --example resolve_dump -- "$RUNNER_TEMP/pptx-resolve.json"
+          python -I crates/ooxml-pptx/tests/oracle/resolve_check.py "$RUNNER_TEMP/pptx-resolve.json" reference/fixtures/pptx
