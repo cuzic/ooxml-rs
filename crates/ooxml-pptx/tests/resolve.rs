@@ -200,7 +200,8 @@ fn sample_title_and_body() {
     assert!(matches!(rp.size.source(), Some(Source::MasterTextStyle { style: TextStyleKind::Title, .. })));
     // tx1 through the master's clrMap to dk1 of the theme
     let Some(Fill::Solid(col)) = rp.fill.value() else { panic!("{:?}", rp.fill) };
-    assert_eq!((col.val, col.theme_slot), (Some("tx1"), Some("dk1")));
+    assert_eq!((col.val, col.theme_slot.map(|t| t.as_str())), (Some("tx1"), Some("dk1")));
+    assert_eq!(col.theme_slot, Some(ooxml_core::EnumValue::Known(ooxml_schema::dml::ColorSchemeIndexValues::Dark1)));
 }
 
 // ---------------------------------------------------------------------------
@@ -307,7 +308,7 @@ fn s6_slide_color_map_override() {
     let mut p = patched(&[(SLIDE, "<a:masterClrMapping/>", r#"<a:overrideClrMapping bg1="dk1" tx1="lt1" bg2="dk2" tx2="lt2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>"#)]);
     title_run(&mut p, |rp, _| {
         let Some(Fill::Solid(c)) = rp.fill.value() else { panic!("{:?}", rp.fill) };
-        assert_eq!(c.theme_slot, Some("lt1"));
+        assert_eq!(c.theme_slot.map(|t| t.as_str()), Some("lt1"));
         assert_eq!(c.map_source, Some(ooxml_pptx::MapSource::SlideOverride));
     });
 }
@@ -347,7 +348,7 @@ fn s6b_layout_color_map_override() {
     let mut p = patched(&[("ppt/slideLayouts/slideLayout1.xml", "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>", r#"<p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="lt1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:clrMapOvr>"#)]);
     title_run(&mut p, |rp, _| {
         let Some(Fill::Solid(c)) = rp.fill.value() else { panic!("{:?}", rp.fill) };
-        assert_eq!((c.theme_slot, c.map_source), (Some("lt1"), Some(ooxml_pptx::MapSource::LayoutOverride)));
+        assert_eq!((c.theme_slot.map(|t| t.as_str()), c.map_source), (Some("lt1"), Some(ooxml_pptx::MapSource::LayoutOverride)));
     });
 }
 
