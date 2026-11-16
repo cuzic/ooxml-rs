@@ -356,11 +356,11 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
   - XL on: edited `shared_formulas.xlsx`, `xlookup.xlsx`, a workbook after formula removal.
 - **Oracles:** L1, T1/T1b/T2 (extended allowed-diff set), CR, XL.
 
-### Phase2 — shared-string and style registries ("two seed modes"; ADR-0006, Proposed)
+### Phase2 — shared-string and style registries ("two seed modes"; ADR-0006, Accepted)
 
 - **Goal:** rust_xlsxwriter-level cell formatting for from-scratch files and for new cells in
   existing files; dates.
-- **Design:** [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (revision 2).
+- **Design:** [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (revision 3, Accepted).
   Measurements: [`spikes/xlsx-phase2/`](../../spikes/xlsx-phase2/README.md) (342 POI packages +
   24 fixtures). A throwaway prototype on branch `spike/xlsx-phase2-proto` ran the edit-mode
   registry on all of them (330 POI packages pass every check, 0 failures).
