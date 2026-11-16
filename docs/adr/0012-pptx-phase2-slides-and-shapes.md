@@ -1,6 +1,6 @@
 # ADR-0012: PowerPoint Phase 2 — slides and shapes as units
 
-- Status: **Proposed** (revision 2)
+- Status: **Accepted** (revision 3)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (Layer 1
   passthrough, Layer 3 append-only registries, From-scratch path),
@@ -18,7 +18,8 @@
   `results/corpus-sha256.txt`, output in `results/units-91.txt`);
   python-pptx 1.0.2 and Apache POI (commit `47dcff76`) source, cited per
   rule in §10
-- Review: [round 1](0012-opus-review-round1.md)
+- Review: [round 1](0012-opus-review-round1.md),
+  [round 2](0012-opus-review-round2.md) (converged: Accepted after Minor only)
 - Core prerequisite: the registry transaction of the core PR built on
   branch `core/add-part` (`RegistryPlan`, `Package::apply`; §2), which also
   carries the single ADR-0001 note "registry writes"
@@ -51,6 +52,22 @@
   | m12 corpus pin | SHA-256 list committed | spike |
   | m13 comment part template | removed | §3 |
   | Q1–Q4 | the review's recommendations recorded as proposed defaults | Open questions |
+
+- **Revision 3** (after `0012-opus-review-round2.md`: converged, Accepted
+  after Minor only, N1 required before acceptance). Status: Accepted.
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | N1 comment relationships cannot be removed from a copy (`remove_relationship` only sees existing `.rels`) | `duplicate_slide` of a slide (or its notes) with a `comments` relationship is refused (`UnsupportedSlidePart(comments)`) in Phase 2; a relationship-type filter on `copy_relationships` is requested from the core PR (#38), and the refusal is lifted only when that filter lands | §2, §4.4, §9 |
+  | N2 `remove_parts` allowed types | listed in full, `slide` included; the `remove_relationship` step is optional | §4.2, §6 |
+  | N3 notes and tags relationships on duplicate | the notes copy's types checked with the same set; tags copied per distinct target; a tags part with its own relationships refused | §4.4 |
+  | N4 unreadable `.rels` | a core requirement: `incoming_relationships` must refuse (not skip) a relationship part it cannot read; `delete_slide` is refused | §2, §4.2 |
+  | N5 viewProps allowlist | `p:outlineViewPr`/`p:sldLst`/`p:sld` added; an emptied `p:sldLst` is kept | §4.2, §11 |
+  | N6 high-water holder | the `Presentation` value; lost with it; shape ids need none in Phase 2 | §3 |
+  | N7 media content type | `Default` reused / `Override` / fallback to `Override` on `WouldRetypePart` | §4.5 |
+  | N8 self-jump links | not remapped: the copy's link still targets the original; manual check | §4.4, Consequences |
+  | N9 ADR-0016 notes API, `app.xml` `Notes` | one creation API (`ensure_notes_slide`, extended by ADR-0016 to create the notes master); every creation path counts `Notes` | §4.6, §7 |
+  | Q5 | the review's recommendation recorded | Open questions |
 
 ## Context
 
@@ -138,9 +155,9 @@ replace these names once it is up). Phase 2 uses:
 | `add_relationship(pkg, source, type, Target::Part \| External)` | presentation → slide, slide → layout/notes/media, notes → master/slide; `rId{max+1}`, gaps not reused |
 | `copy_relationships(pkg, src, dst, target_map)` | duplicate: the copy's relationships with the **same `Id`s**, internal targets re-relativized for the new part, `target_map` sending `notesSlide`/`tags` to their copies (review M1) |
 | `remove_relationship(pkg, source, id)` | the presentation → slide relationship; refused while any attribute of the (staged) source still carries the `Id` |
-| `remove_parts(pkg, names, allowed_rel_types)` | the deleted slide and its cascade (§6) **as one set**; the caller lists the relationship types it allows (the interim note's type allowlist) |
+| `remove_parts(pkg, names, allowed_rel_types)` | the deleted slide and its cascade (§6) **as one set**; the caller lists the relationship types it allows (the interim note's type allowlist; the full list is in §6, `slide` included) |
 | `stage_part(pkg, name, content)` | the edited `presentation.xml`, `app.xml`, `viewProps.xml` (and new slide XML) as trees cloned from the parsed parts and edited through the lens; later steps' reference scans read the staged content (review B1) |
-| `Package::incoming_relationships(name)`, `part_name_in_use(name)` | the pre-delete reference check (§4.2) |
+| `Package::incoming_relationships(name)`, `part_name_in_use(name)` | the pre-delete reference check (§4.2); must **refuse**, not skip, a relationship part it cannot read (requested below) |
 
 **Transaction shape (every operation, §4).** (1) Clone the parsed trees
 that change (`presentation.xml`, sections live in it, `app.xml`,
@@ -169,7 +186,21 @@ ids (`sldId`, shape ids) are pptx rules (§3, §4.2), not part of the note.
 writing): `copy_relationships` should copy an internal target that
 resolves to no part (e.g. `Target="#_ftn1"` hyperlinks, 4 in
 `with_japanese.pptx`) **verbatim** instead of refusing, so such slides can
-be duplicated; until then they are `Core(…)` refusals.
+be duplicated; until then they are `Core(…)` refusals. Two more
+requests (review round 2):
+
+- **N1:** a relationship-type filter on `copy_relationships` (e.g.
+  `skip_types: &[&str]`: relationships of those types are not written;
+  their `Id`s stay unused, never reallocated). The coordinator has asked
+  the #38 owner for it. Until it lands, `duplicate_slide` refuses slides
+  with comments (§4.4); once it lands, the comment relationships are
+  skipped instead and that refusal goes.
+- **N4:** `Package::incoming_relationships` must fail closed: a
+  relationship part that cannot be read or parsed is an error (today it is
+  skipped), so a reference hidden in a broken `.rels` cannot be missed
+  (ADR-0005 §6, "unreadable means locked"). Until then, `ooxml-pptx`
+  checks that every `.rels` part parses before `delete_slide`, and refuses
+  otherwise.
 
 ### 3. Registries and allocation rules
 
@@ -178,14 +209,16 @@ be duplicated; until then they are `Core(…)` refusals.
 | part names | core (`PartNameRequest::Numbered`) | largest number in use + 1 per template (`slide`, `notesSlide`, `media/image`, `media/media`, `tags/tag`); the reason is that a stale reference (a dangling relationship, an external tool's history) to a removed or gap name must never resolve to a new, unrelated part | rename an existing part (python-pptx's `rename_slide_parts`) |
 | content types | core | `Override` per new XML part; `Default` per new media extension (core conditions) | edit or remove a `Default` |
 | relationship ids | core | `rId{max+1}` per source part; duplicated parts keep the original `Id`s (`copy_relationships`) | reuse a gap (python-pptx `_next_rId`) |
-| `p:sldId@id` | `ooxml-pptx` | `max(existing, **every id allocated or removed in this session**, 255) + 1` (session high-water mark, review m2); refused above `ST_SlideId`'s maximum 2,147,483,647 (`SlideIdsExhausted`). Reuse across sessions (an id deleted and saved, then allocated by a later session) cannot be prevented; the new slide's `p14:creationId` differs, so modern comments (`pc:sldMk` carries both) still do not attach to it | search for a gap (python-pptx's fallback) |
+| `p:sldId@id` | `ooxml-pptx` | `max(existing, **every id allocated or removed in this session**, 255) + 1` (session high-water mark, review m2); refused above `ST_SlideId`'s maximum 2,147,483,647 (`SlideIdsExhausted`). Reuse across sessions (an id deleted and saved, then allocated by a later session) cannot be prevented; the new slide's `p14:creationId` differs, so modern comments (`pc:sldMk` carries both) still do not attach to it. The session is the lifetime of the `Presentation` value that holds the high-water mark (review N6): giving the package up (`into_package()`) and opening it again loses it, with the same limit as reuse across sessions | search for a gap (python-pptx's fallback) |
 | shape ids (`cNvPr@id`) | `ooxml-pptx`, per slide part | `max + 1` over: every numeric unprefixed `@id` in the part (python-pptx's `//@id`, which covers ids inside `mc:AlternateContent` and `a:graphicData`), every numeric `@spid` and the number of `_x0000_s####` `@spid`s (timing, `p:control`, `p:oleObj`), and every `ac:*Mk@id` in the slide's modern comment parts (review m1: on 11 corpus slides these exceed every `@id`, e.g. `p:control spid="3074"`); refused above `i32::MAX` (`ShapeIdsExhausted`; POI reads ids as `int`) | the lowest free id (POI `allocateShapeId`) |
 | `p14:creationId@val` | `ooxml-pptx` | for a duplicated slide: `max(over all slides) + 1` (u32; refused on overflow) | copy the original's |
 | sections | `ooxml-pptx` | membership only (§5) | create, rename or reorder sections |
 
 Existing duplicate shape ids (none outside AC in the corpus, id 7 in both
 AC branches of `Of16-01.pptx`) are tolerated on read, as in Phase 0; new
-ids are above all of them.
+ids are above all of them. Shape ids need no session high-water mark in
+Phase 2, which deletes no shapes; a later phase that deletes shapes adds
+one per slide.
 
 ### 4. Operations
 
@@ -254,10 +287,15 @@ Validate (all inside the transaction, before `apply`):
   slide's own notes slide (removed with it), or from another part of the
   cascade (§6); `viewProps.xml`'s outline entry
   (`p:outlineViewPr/p:sldLst/p:sld r:id`, view state only) is removed
-  together with its relationship (staged `viewProps.xml`). Any other
+  together with its relationship (staged `viewProps.xml`; an emptied
+  `p:sldLst` is kept — `sld` is `minOccurs="0"` in
+  `CT_OutlineViewSlideList`, review N5). Any other
   source — another slide's jump link, a layout's or master's action
   button, another slide's notes, a SmartArt `diagramData` hyperlink — is
-  `SlideIsReferenced { from_part, rel_type }`.
+  `SlideIsReferenced { from_part, rel_type }`. A relationship part that
+  cannot be read or parsed refuses the delete
+  (`SlideIsReferenced { from_part: <that part>, rel_type: "?" }`; fail
+  closed, review N4, §2).
 - **References by `sldId` value:** the section lists are updated (§5);
   Slide Zoom objects (`pslz:sldZmObj@sldId`, any slide) and any other
   numeric `sldId` attribute equal to the slide's id found in a slide's or
@@ -270,7 +308,13 @@ Then, in the same plan: stage `presentation.xml` without the `p:sldId`
 and the section entry (the section stays, possibly empty: 12 of 17
 corpus sections are empty), `remove_relationship` for presentation →
 slide, `remove_parts` for the slide and its cascade (§6) with the allowed
-types, stage `app.xml` (§7) and `viewProps.xml` if changed; apply.
+types of §6 (which include `slide`: `remove_parts` checks the type of
+every remaining relationship into the set, the presentation's and
+viewProps' included, before it looks at removals already in the plan),
+stage `app.xml` (§7) and `viewProps.xml` if changed; apply. The explicit
+`remove_relationship` for presentation → slide is optional:
+`remove_parts` removes a relationship from a remaining part whose staged
+content no longer names its `Id` (review N2).
 
 #### 4.3 `move_slide(from, to)`
 
@@ -279,29 +323,44 @@ besides sections), staged as one edit. Sections: §5.
 
 #### 4.4 `duplicate_slide(index, at) -> SlideMut`
 
-Allowed when the slide's relationship types are all in `slideLayout`,
-`notesSlide`, `image`, `media`, `audio`, `video`, `hdphoto`, `hyperlink`,
-`slide` (jump links), `tags`, `comments` (457/522 corpus slides without
-`comments`); anything else (charts, diagrams, OLE, controls, …) is
-`UnsupportedSlidePart` (their parts would need cloning with their own
-trees). In one plan:
+Allowed when the relationship types of the slide **and of its notes
+slide** (review N3) are all in `slideLayout`, `notesSlide`,
+`notesMaster`, `image`, `media`, `audio`, `video`, `hdphoto`,
+`hyperlink`, `slide` (jump links; the notes' back-relationship), `tags`
+(457/522 corpus slides); anything else (charts, diagrams, OLE, controls,
+…) is `UnsupportedSlidePart` (their parts would need cloning with their
+own trees). **Comments** (legacy or modern, 3 corpus slides) are
+`UnsupportedSlidePart(comments)` in Phase 2 (review N1): a copy must not
+share the original's comment part (modern comments name the original's
+`sldId`/`creationId` in `pc:sldMk`), and the core cannot drop a copied
+relationship from a `.rels` created in the same plan. When the core's
+`copy_relationships` gains the type filter requested in §2, the comment
+relationships are skipped instead and the refusal goes. A `tags` part
+that has relationships of its own (rare) is
+`UnsupportedSlidePart(tags)`. In one plan:
 
 1. the new slide part: the original's XML (cloned tree), with
    `p14:creationId` (if present) set to a new value (§3);
 2. a copy of the notes slide (new part; its own `p14:creationId`, if any,
-   renewed the same way) and a copy of each `tags` part (PowerPoint
-   duplicates tags; add-ins key them per slide, review m5);
+   renewed the same way) and a copy of each `tags` part of the slide or
+   its notes (PowerPoint duplicates tags; add-ins key them per slide,
+   review m5) — one copy per **distinct target**, so two `r:id`s naming
+   one tags part map to one copy in `target_map` (review N3);
 3. `copy_relationships(original, new, target_map)` with the notes and
    tags copies in `target_map`: the copy keeps every `Id`, so its XML's
    `r:id`/`r:embed`/`r:link` stay valid; layout and media stay **shared**
    (15 shared media in the corpus); then the same for the notes copy
    (notes master shared, its `slide` relationship mapped to the new
-   slide);
-4. **comments are not copied** (they are about the original): their
-   relationships are removed from the copy in the same plan
-   (`remove_relationship`; the copied XML does not reference them, review
-   m4);
-5. presentation relationship, `p:sldId` at `at`, sections (§5), `app.xml`.
+   slide, its tags mapped to their copies);
+4. presentation relationship, `p:sldId` at `at`, sections (§5), `app.xml`.
+
+**Jump links to the slide itself** (review N8): a `slide` relationship
+from the original to itself (a "repeat this slide" button) is **not**
+remapped: the copy's link still targets the original, like every other
+jump link it copies. Whether PowerPoint remaps it is unverified; it is an
+item of the manual check (§10). `ppaction://hlinkshowjump?jump=…`
+actions (next, previous, first, last) have no relationship and are
+unaffected.
 
 Shape ids are per slide, so they stay; animations in the copy keep
 referring to the copy's shapes.
@@ -318,8 +377,13 @@ On a `SlideMut`, appended at the end of `p:spTree` (top of z-order):
   else `UnsupportedImage`); **dedup by SHA-256** against every existing
   part with an image content type (python-pptx `_find_by_sha1`, POI
   `findPictureData` by checksum + bytes), else a new
-  `ppt/media/image{}.{ext}` (`add_part`, `Numbered`) with a `Default` for
-  the extension (`add_default_content_type`) or an `Override`; an `image`
+  `ppt/media/image{}.{ext}` (`add_part`, `Numbered`) whose content type
+  is chosen like this (review N7): an existing `Default` for the extension
+  with the same type → nothing added; a `Default` with another type (e.g.
+  `bin`) → an `Override`; no `Default` → `add_default_content_type`, and
+  when the core refuses it with `WouldRetypePart` (a part with that
+  extension and no `Override` exists) → an `Override` instead, not an
+  error; an `image`
   relationship from the slide (`add_relationship`); the slide's edited
   clone staged in the same plan; a
   `p:pic` with `p:blipFill/a:blip r:embed`, `a:stretch/a:fillRect`,
@@ -342,7 +406,9 @@ created notes slide always has a body placeholder, so ADR-0008's
 `NoNotesBody` cannot occur on it. A presentation without a notes master
 (36 of 91 files have one; the template of §8 does) is `NoNotesMaster` in
 Phase 2; creating a notes master is specified in ADR-0016 §8 (Phase 3),
-which supersedes this refusal when implemented.
+which supersedes this refusal when implemented. There is **one** notes
+creation API (review N9): ADR-0016 extends `ensure_notes_slide` to create
+the notes master when missing instead of adding a second entry point.
 
 ### 5. Sections (`p14:sectionLst`)
 
@@ -375,7 +441,14 @@ part it reaches, recursively through their own internal relationships,
 whose relationship type is in the cascade set **and** to which no
 relationship from outside the set points (`incoming_relationships`, OPC
 equivalence); `allowed_rel_types` is that set, so implicit references by
-type stay protected (§2). Only **internal** targets that resolve to a part
+type stay protected (§2). Listed in full (review N2), it is: `slide` (the
+presentation's and viewProps' relationships to the deleted slide, and
+the notes' back-relationship), `notesSlide`, `comments` (legacy) and the
+modern comments type, `image`, `media`, `audio`, `video`, `hdphoto`,
+`chart`, `package`, `chartStyle`, `chartColorStyle`, `chartUserShapes`,
+`diagramData`, `diagramLayout`, `diagramQuickStyle`, `diagramColors`,
+`diagramDrawing`, `oleObject`, `vmlDrawing`, `tags`, `themeOverride` (each
+under its transitional and, where defined, strict/Microsoft URI). Only **internal** targets that resolve to a part
 cascade; external targets (`image`/`video`/`oleObject` links with
 `TargetMode="External"`, 1 + 7 in `56812.pptx`) and internal targets that
 resolve to no part (`#_ftn1` hyperlinks) go away as relationships only
@@ -403,7 +476,9 @@ that PowerPoint keeps exact — measured on the 86 files that have them
 `Notes` = notes slides in 86/86, `HiddenSlides` = slides with
 `p:sld@show` `0` or `false` in 86/86 (review m9). Add/duplicate/delete
 adjust `Slides`, `Notes` (a slide with notes; `ensure_notes_slide` adds
-one) and `HiddenSlides`. `TitlesOfParts`/`HeadingPairs` are **left
+one) and `HiddenSlides`. The rule holds for every path that creates a
+notes slide, including ADR-0016's (Phase 3) creation of a notes master
+through the same `ensure_notes_slide` (review N9). `TitlesOfParts`/`HeadingPairs` are **left
 unchanged**: the "slide titles" group is identifiable only by a localized
 label (`Slide Titles`, `Folientitel`, `Bildrubriker`, `幻灯片标题`, …) or
 by position, and a wrong guess would corrupt the font/theme lists in the
@@ -449,10 +524,10 @@ through the same `Package::open` → edit path; no separate writer.
 | `LayoutNotFound` | the layout is not reachable from a master in `p:sldMasterIdLst` |
 | `SlideIndexOutOfRange` (Phase 0) | bad `index`/`at` |
 | `SlideIdsExhausted`, `ShapeIdsExhausted` | §3 |
-| `SlideIsReferenced { from_part, rel_type }` | delete of a slide that another part references (relationship from outside the cascade, Slide Zoom, unknown numeric `sldId` reference; §4.2) |
+| `SlideIsReferenced { from_part, rel_type }` | delete of a slide that another part references (relationship from outside the cascade, Slide Zoom, unknown numeric `sldId` reference), or with an unreadable relationship part (§4.2) |
 | `SlideInCustomShow` | delete of a slide named in `p:custShowLst` |
 | `ShowRangeByPosition` | add/delete/move/duplicate with `presProps` `p:showPr/p:sldRg` |
-| `UnsupportedSlidePart(rel_type)` | delete/duplicate with a relationship type outside §6 / §4.4 |
+| `UnsupportedSlidePart(rel_type)` | delete/duplicate with a relationship type outside §6 / §4.4; duplicate of a slide with comments or a tags part with relationships (§4.4) |
 | `UnsupportedSections`, `SectionsInconsistent` | §5 |
 | `NoNotesMaster` | §4.6 |
 | `UnsupportedImage` | §4.5 |
@@ -486,12 +561,16 @@ through the same `Package::open` → edit path; no separate writer.
   ranges, inconsistent sections, exhausted ids, a `control` relationship,
   a layout action button linking to the slide, a Slide Zoom, and a case
   the **core** refuses inside the transaction after the pptx edits were
-  staged (review B1).
+  staged (review B1); a slide with comments on duplicate (N1), a tags
+  part with its own relationships (N3), an unreadable `.rels` on delete
+  (N4).
 - **Manual (owner):** a deck built with `Presentation::new()` and each
   operation applied to `sample.pptx`, `slide-sections.pptx` and
   `airplane-transition.pptx` (only `slide2.xml`), opened in Microsoft 365
   PowerPoint: opens without repair; sections as expected; app.xml
-  staleness visible or not.
+  staleness visible or not; and, for review N8, PowerPoint's own
+  duplicate of a slide with a jump link to itself — whether its copy
+  links to itself or to the original (ADR-0012 keeps the original).
 
 **Comparison with the reference implementations** (source-verified):
 
@@ -530,7 +609,8 @@ impl SlideMut<'_> {
 The allowlist grows by the elements written (`p:sldIdLst`/`p:sldId` →
 `[write]`, `p:pic` and its non-visual/blip children, `p:clrMapOvr`,
 `p14:sectionLst`/`p14:section`/`p14:sldIdLst`/`p14:sldId`, notes slide
-elements); new slide parts are built as complete `XmlDocument`s (no
+elements, and for the delete of an outline entry `p:outlineViewPr`/
+`p:sldLst`/`p:sld` with remove, review N5); new slide parts are built as complete `XmlDocument`s (no
 original to preserve) and existing parts are edited only through the lens
 on clones staged in the transaction.
 
@@ -549,6 +629,10 @@ on clones staged in the transaction.
   a custom show, is refused rather than repaired; duplicating slides with
   charts/diagrams/OLE is refused (65 of 522 slides).
 - Negative: `app.xml` title lists can become stale (§7).
+- Negative: slides with comments cannot be duplicated until the core's
+  `copy_relationships` type filter lands (§4.4, 3 of 522 corpus slides).
+- Negative: a duplicated slide's jump link to itself keeps pointing to
+  the original (§4.4), unverified against PowerPoint.
 - Negative: `max + 1` allocation makes ids and part numbers grow
   monotonically over many edit sessions (no compaction, by design).
 
@@ -590,7 +674,12 @@ used unless the owner decides otherwise.
 - **Q4** Template. *Default:* 16:9 with PowerPoint's standard 11 layouts in
   the standard order (§8).
 - **Q5** Footers on new slides in decks with "apply to all" footers
-  (§4.1): not reproduced in Phase 2; confirm acceptable.
+  (§4.1). *Default (round-2 review's recommendation):* not reproduced.
+  Reproducing it would mean inferring the "apply to all" state from
+  `p:hf` and the master's `dt`/`ftr`/`sldNum` placeholder text, i.e.
+  writing a guess; callers can add footers explicitly with the Phase 0
+  text API. If the manual check shows a visible difference, an
+  `add_slide_with_footers` can be considered in a later phase.
 
 ## Sources
 
