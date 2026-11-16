@@ -741,7 +741,7 @@ fn numfmt_ids_are_above_every_id_in_the_package() {
     let s = styles_xml(&input).replace("<fonts", r#"<numFmts count="1"><numFmt numFmtId="14" formatCode="yyyy/m/d"/></numFmts><fonts"#);
     let red = p1::with_part(&input, "xl/styles.xml", &s);
     let mut wb = Workbook::from_bytes(red.clone()).unwrap();
-    let e = wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &Format::date());
+    let e = wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &Format::new().set_num_format_index(14));
     assert!(matches!(e, Err(Error::BuiltinNumFormatRedefined { id: 14 })), "{e:?}");
     assert_l1_except(&red, &wb.to_bytes().unwrap(), &[]);
     // set_datetime falls back to yyyy-mm-dd there

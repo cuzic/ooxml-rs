@@ -159,7 +159,7 @@ impl SharedStrings {
         Ok(Some(SharedStrings {
             prefix: root.name().prefix().map(str::to_owned),
             entries: t.count,
-            reuse: t.reuse,
+            reuse: std::sync::Arc::unwrap_or_clone(t.reuse),
             refs,
             has_count: root.attr(QName::new("", "count")).is_some(),
             has_unique: root.attr(QName::new("", "uniqueCount")).is_some(),

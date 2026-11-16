@@ -222,13 +222,24 @@ fn font_from_node(n: &ooxml_core::RawNode) -> Option<Font> {
             return None;
         }
         match e.name().local() {
-            "b" | "i" | "strike" if only(e, &["val"]) => {
+            "b" | "i" | "strike" | "condense" | "extend" if only(e, &["val"]) => {
                 let on = !matches!(val(e).as_deref(), Some("0" | "false"));
                 match e.name().local() {
                     "b" => f.bold = on,
                     "i" => f.italic = on,
+                    "condense" => f.condense = on,
+                    "extend" => f.extend = on,
                     _ => f.strike = on,
                 }
+            }
+            "charset" if only(e, &["val"]) => f.charset = Some(val(e)?.trim().parse().ok()?),
+            "vertAlign" if only(e, &["val"]) => {
+                f.vert_align = Some(match val(e)?.trim() {
+                    "baseline" => crate::registry::format::VertAlign::Baseline,
+                    "superscript" => crate::registry::format::VertAlign::Superscript,
+                    "subscript" => crate::registry::format::VertAlign::Subscript,
+                    _ => return None,
+                })
             }
             "u" if only(e, &["val"]) => {
                 f.underline = match val(e).as_deref() {
@@ -288,11 +299,35 @@ impl crate::worksheet::Worksheet<'_> {
     /// Is the cell's number format a date or time format (calamine's rule:
     /// built-in ids 14–22, 27–36, 45, 47, 50–58, or a custom code with
     /// date/time tokens)? `false` for a missing cell.
+    ///
+    /// A read: it never activates the style registry (PR #50 review m5).
+    /// A workbook without a styles part has no date formats (`false`).
     pub fn is_date(&mut self, row: u32, col: u32) -> Result<bool> {
         let Some(s) = self.cell(row, col)?.map(|c| c.style_index()).transpose()? else { return Ok(false) };
-        let st = self.wb.styles()?;
-        let (id, code) = st.num_format_of(s);
-        let custom = id.filter(|i| st.codes.contains_key(i)).and(code);
+        if let Some(st) = self.wb.registries.styles.as_ref() {
+            let (id, code) = st.num_format_of(s);
+            let custom = id.filter(|i| st.codes.contains_key(i)).and(code);
+            return Ok(crate::registry::format::is_date_format(id, custom.as_deref()));
+        }
+        let Some(part) = crate::registry::styles::styles_part(self.wb)? else { return Ok(false) };
+        let doc = self.wb.pkg.xml_part(&part)?;
+        let root = doc.root();
+        if !root.is(sml::Stylesheet::QNAME) {
+            return Ok(false);
+        }
+        let table = |local: &str| root.elements().find(|e| e.name().ns() == crate::SML_NS && e.name().local() == local);
+        let id = table("cellXfs")
+            .and_then(|t| t.elements().nth(s as usize))
+            .filter(|x| x.is(sml::CellFormat::QNAME))
+            .and_then(|x| x.attr(ooxml_core::QName::new("", "numFmtId")))
+            .and_then(|v| v.trim().parse::<u32>().ok());
+        let custom = id.and_then(|i| {
+            table("numFmts")?
+                .elements()
+                .filter(|e| e.is(sml::NumberingFormat::QNAME))
+                .find(|e| e.attr(ooxml_core::QName::new("", "numFmtId")).and_then(|v| v.trim().parse::<u32>().ok()) == Some(i))
+                .and_then(|e| e.attr(ooxml_core::QName::new("", "formatCode")).map(str::to_owned))
+        });
         Ok(crate::registry::format::is_date_format(id, custom.as_deref()))
     }
 

@@ -119,8 +119,15 @@ impl std::fmt::Display for FontSize {
 pub enum NumFormat {
     /// Built-in id 0.
     General,
-    /// A built-in id (refused if the workbook redefines it).
+    /// A built-in id, 0–163 (ECMA-376 §18.8.30; refused if the workbook
+    /// redefines it, and `InvalidFormat` from 164 up: those ids are custom,
+    /// and an undefined one would later take the meaning of whatever custom
+    /// format gets that id).
     Builtin(u16),
+    /// Excel's default short date: built-in 14 (`mm-dd-yy`, shown in the
+    /// user's short-date form), or the code `yyyy-mm-dd` when the workbook
+    /// redefines id 14 (ADR-0006 §6). [`Format::date`] uses it.
+    DefaultDate,
     /// A format code; a locale-independent built-in code maps to its id
     /// unless the workbook redefines that id.
     Code(String),
@@ -139,7 +146,29 @@ pub enum Underline {
     DoubleAccounting,
 }
 
-/// A font (ADR-0006 §3; rust_xlsxwriter's feature set).
+/// `vertAlign`: superscript, subscript or the explicit baseline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VertAlign {
+    /// `val="baseline"`.
+    Baseline,
+    /// `val="superscript"`.
+    Superscript,
+    /// `val="subscript"`.
+    Subscript,
+}
+
+impl VertAlign {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            VertAlign::Baseline => "baseline",
+            VertAlign::Superscript => "superscript",
+            VertAlign::Subscript => "subscript",
+        }
+    }
+}
+
+/// A font (ADR-0006 §3; rust_xlsxwriter's feature set plus `charset`,
+/// `condense` and `extend`, which East Asian default fonts carry).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Font {
     /// Face name.
@@ -160,6 +189,15 @@ pub struct Font {
     pub family: Option<u8>,
     /// `<scheme val/>` (`minor`, `major`).
     pub scheme: Option<String>,
+    /// `<charset val/>` (128 = Shift-JIS, …; Japanese Excel's default font
+    /// has one).
+    pub charset: Option<u8>,
+    /// `<vertAlign val/>`.
+    pub vert_align: Option<VertAlign>,
+    /// `<condense/>` (a Macintosh compatibility flag).
+    pub condense: bool,
+    /// `<extend/>` (a Macintosh compatibility flag).
+    pub extend: bool,
 }
 
 impl Default for Font {
@@ -176,6 +214,10 @@ impl Default for Font {
             color: Some(Color::Theme { index: 1, tint: Tint::NONE }),
             family: Some(2),
             scheme: Some("minor".into()),
+            charset: None,
+            vert_align: None,
+            condense: false,
+            extend: false,
         }
     }
 }
@@ -372,6 +414,16 @@ impl Format {
         f.scheme = None;
         self
     }
+    /// Superscript, subscript or baseline.
+    pub fn set_font_script(mut self, v: VertAlign) -> Self {
+        self.font_mut().vert_align = Some(v);
+        self
+    }
+    /// Font character set (`charset`).
+    pub fn set_font_charset(mut self, charset: u8) -> Self {
+        self.font_mut().charset = Some(charset);
+        self
+    }
     /// Font colour.
     pub fn set_font_color(mut self, c: Color) -> Self {
         self.font_mut().color = Some(c);
@@ -418,10 +470,11 @@ impl Format {
         self.quote_prefix = true;
         self
     }
-    /// The default date format (`NumFormat::Builtin(14)`, `mm-dd-yy`, which
-    /// Excel shows in the user's short-date form).
+    /// The default date format ([`NumFormat::DefaultDate`]: built-in 14,
+    /// shown in the user's short-date form, or `yyyy-mm-dd` when the
+    /// workbook redefines 14).
     pub fn date() -> Self {
-        Format { num_format: Some(NumFormat::Builtin(14)), ..Format::default() }
+        Format { num_format: Some(NumFormat::DefaultDate), ..Format::default() }
     }
 }
 
@@ -437,21 +490,45 @@ impl Format {
         fn one_of<E: EnumType>(what: &str, v: &str) -> crate::Result<()> {
             if E::VALUES.contains(&v) { Ok(()) } else { Err(crate::Error::InvalidFormat(format!("{what} {v:?}"))) }
         }
+        let bad = |what: String| Err(crate::Error::InvalidFormat(what));
+        // Excel's palette has 12 theme colours (0 = lt1 … 11 = folHlink).
+        let color = |c: &Option<Color>| match c {
+            Some(Color::Theme { index, .. }) if *index > 11 => bad(format!("theme colour index {index} (0-11)")),
+            _ => Ok(()),
+        };
         if let Some(f) = &self.font {
             if f.name.is_empty() {
-                return Err(crate::Error::InvalidFormat("empty font name".into()));
+                return bad("empty font name".into());
+            }
+            // Excel's limit for a font name (review m4)
+            if f.name.chars().count() > 31 {
+                return bad(format!("font name {:?} is longer than 31 characters", f.name));
+            }
+            if let Some(fam) = f.family
+                && fam > 14
+            {
+                return bad(format!("font family {fam} (ST_FontFamily: 0-14)"));
             }
             if let Some(s) = &f.scheme {
                 one_of::<FontSchemeValues>("font scheme", s)?;
             }
+            color(&f.color)?;
         }
-        if let Some(Fill::Pattern { pattern, .. }) = &self.fill {
+        if let Some(Fill::Pattern { pattern, fg, bg }) = &self.fill {
             one_of::<PatternValues>("fill pattern", pattern)?;
+            color(fg)?;
+            color(bg)?;
         }
         if let Some(b) = &self.border {
             for s in [&b.left, &b.right, &b.top, &b.bottom, &b.diagonal].into_iter().flatten() {
                 one_of::<BorderStyleValues>("border style", &s.style)?;
+                color(&s.color)?;
             }
+        }
+        if let Some(NumFormat::Code(c)) = &self.num_format
+            && c.is_empty()
+        {
+            return bad("empty number format code".into());
         }
         if let Some(a) = &self.alignment {
             if let Some(h) = &a.horizontal {
@@ -463,6 +540,9 @@ impl Format {
             if a.rotation.is_some_and(|r| r > 180 && r != 255) {
                 return Err(crate::Error::InvalidFormat(format!("text rotation {}", a.rotation.unwrap_or_default())));
             }
+            if a.indent.is_some_and(|i| i > 250) {
+                return Err(crate::Error::InvalidFormat(format!("indent {} (Excel's maximum is 250)", a.indent.unwrap_or_default())));
+            }
             if a.reading_order.is_some_and(|r| r > 2) {
                 return Err(crate::Error::InvalidFormat(format!("reading order {}", a.reading_order.unwrap_or_default())));
             }
@@ -471,7 +551,12 @@ impl Format {
     }
 }
 
-/// ECMA-376 Part 1 §18.8.30 built-in number formats (locale-independent ids).
+/// Built-in ids whose display depends on the user's locale although their
+/// table code is fixed: a code is never mapped to them (PR #50 review m1),
+/// only an explicit `Builtin` or [`NumFormat::DefaultDate`] uses them.
+pub(crate) const LOCALE_DEPENDENT: &[u16] = &[14, 22];
+
+/// ECMA-376 Part 1 §18.8.30 built-in number formats.
 pub(crate) const BUILTIN: &[(u16, &str)] = &[
     (0, "General"),
     (1, "0"),

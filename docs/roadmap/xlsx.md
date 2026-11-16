@@ -5,7 +5,8 @@
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md) (Phase0 definition),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md) (typed lens, allowlist)
 - Proposes: [ADR-0003](../adr/0003-xlsx-phase1-formula-and-calc-state.md) (Phase1),
-  [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (Phase2)
+  [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (Phase2),
+  [ADR-0009](../adr/0009-xlsx-phase3-sheet-operations.md) (Phase3)
 - Fixtures: [`reference/fixtures/xlsx/`](../../reference/fixtures/xlsx/README.md);
   scripts: [`spikes/xlsx/`](../../spikes/xlsx/README.md)
 
@@ -414,17 +415,47 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
   `set_error`; manual-check files 22–34 for XL items (a)–(g). Part 2 (follow-up PR): rich
   strings, `CellRef::format()`, the `dxfs` registry shape.
 
-### Phase3 — package structure edits
+### Phase3 — package structure edits (ADR-0009, Proposed, revision 2)
 
-- **Goal:** add, delete, rename, reorder, hide sheets in existing packages; defined names CRUD;
-  VBA blob insertion; `app.xml`/`core.xml` maintenance.
-- **Scope:** OPC registries in `ooxml-core` (CT defaults/overrides, rels id allocation, part
-  name allocation that does not assume `sheetN.xml` numbering — `reordered_sheets.xlsx`,
-  `renamed_workbook_part.xlsx`); `sheetId` allocation (never reused); `localSheetId` renumbering
-  on reorder; formula sheet-name rewriting on rename (uses P1 tokenizer); `app.xml`
-  `TitlesOfParts`/`HeadingPairs`.
-- **Acceptance:** L1 for unrelated parts; OPC conformance checks (every rel target exists, every
-  part has a content type, no orphan parts) on all fixture outputs; CR sheet names/order; XL.
+- **Goal:** add, delete, rename, reorder and hide sheets in existing packages; defined-name
+  CRUD; VBA blob insertion; `app.xml` maintenance.
+- **Design:** [ADR-0009](../adr/0009-xlsx-phase3-sheet-operations.md). Measurements:
+  [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md).
+- **Core:** PR #38's registry transaction (`RegistryPlan`). It stages the `workbook.xml`
+  edit, the closed-set removal of a sheet with everything it owns, and any additions, then
+  validates them together and applies them infallibly. Its single rules table fixes part
+  names (max + 1), `rId`s and content types.
+- **Scope:**
+  - `sheetId` = max + 1 over every id-keyed place, never reused in a session.
+  - **Rename:**
+    - rewrites every known location, with per-location syntax: formulas, names, chart
+      `c:f`/`c15:`/chartEx, pivot sources, DV/CF incl. `cfvo` and `xm:f`, table column
+      formulas, connection parameters, form controls, hyperlinks, `app.xml`;
+    - a **closed-world scan** refuses the rename when the old name appears in sheet-prefix
+      form anywhere else.
+  - **Delete:**
+    - removes the closed set the sheet owns;
+    - rewrites references to a bare `#REF!`;
+    - refuses sheets with pivots, slicers, OLE objects, controls, SmartArt or chartEx, tables
+      used elsewhere, sheets a custom view names, and macro or dialog sheets;
+    - removes calcChain.
+  - Every structural operation seeds Phase1 with all `Everything` formulas. A move that
+    reverses a 3-D reference is refused, and shared workbooks are refused.
+  - Defined-name CRUD with Excel's name rules, including `custom.xml` `linkTarget`.
+  - **VBA:**
+    - an `Override` for `vbaProject.bin`;
+    - signatures found by relationship type and removed when the project changes;
+    - `.xlam` and templates handled;
+    - `ExtensionMismatch` only after a content-type change in the session.
+  - `app.xml` is maintained only when its shape is recognized.
+- **Acceptance (ADR-0009 "Test oracles"):**
+  - OPC conformance and L1;
+  - T2 on registry parts;
+  - a rewrite oracle against openpyxl tokenizer output, plus an **independent
+    residual-mention oracle** over every part, with a synthetic one-reference-per-location
+    fixture;
+  - CR, O3 and a corpus run;
+  - mutation testing and XL.
 
 ### Phase4 — range-based worksheet features (write and edit)
 
@@ -452,6 +483,8 @@ Revision 2 also:
   Feature list matches rust_xlsxwriter's for these items (checklist in the phase ADR).
 
 ### Phase5 — drawing-layer objects and table/chart creation
+
+Design: [ADR-0017](../adr/0017-xlsx-phase5-objects.md) (Proposed).
 
 - **Scope:** images (anchors, `cNvPr/@id` allocation), notes (comments + VML), threaded comments
   (+ persons + fallback note), tables (create; header sync replacing P1's guard), sparklines,

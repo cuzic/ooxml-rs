@@ -145,6 +145,9 @@ pub struct Workbook {
     /// Phase2 registries (ADR-0006), activated by the first write that
     /// needs them.
     pub(crate) registries: crate::registry::Registries,
+    /// `style_sensitive()`'s answer, computed once and dropped whenever a
+    /// formula is written or removed (PR #50 review M5).
+    pub(crate) style_sensitive: Option<bool>,
     from_template: bool,
     template_sheet_taken: bool,
     #[cfg(feature = "fault-injection")]
@@ -227,6 +230,7 @@ impl Workbook {
             policy: CalcPolicy::default(),
             poisoned: None,
             registries: Default::default(),
+            style_sensitive: None,
             from_template: false,
             template_sheet_taken: false,
             #[cfg(feature = "fault-injection")]
