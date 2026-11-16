@@ -48,7 +48,7 @@ fn r1_to_r3_formula_present() {
     let c = ws.cell(1, 0).unwrap().unwrap();
     assert_eq!(c.formula().as_deref(), Some("B2"));
     assert_eq!(c.value().unwrap(), CellValue::String("ProductionOrderConfirmation".into()));
-    assert!(matches!(c.value().unwrap(), CellValue::String(_)));
+    assert_matches!(c.value().unwrap(), CellValue::String(_));
 }
 
 /// P0-R4, R5: rows/cells without `r` → reads and writes refused.

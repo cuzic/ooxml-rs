@@ -4,6 +4,8 @@
 
 mod common;
 
+use std::assert_matches;
+
 use common::*;
 use ooxml_core::PartStateKind;
 use ooxml_xlsx::{CellValue, Error, Workbook};
@@ -217,14 +219,14 @@ fn e14_52348_inline_strings() {
 #[test]
 fn e15_from_scratch() {
     let mut wb = Workbook::new().unwrap();
-    assert!(matches!(wb.add_worksheet_with_name("Data"), Err(Error::SheetNamingUnsupported)));
+    assert_matches!(wb.add_worksheet_with_name("Data"), Err(Error::SheetNamingUnsupported));
     {
         let mut ws = wb.add_worksheet().unwrap();
         assert_eq!(ws.name(), "Sheet1");
         ws.write_string(0, 0, "a").unwrap();
         ws.write_number(1, 1, 2.0).unwrap();
     }
-    assert!(matches!(wb.add_worksheet(), Err(Error::SheetAdditionUnsupported)));
+    assert_matches!(wb.add_worksheet(), Err(Error::SheetAdditionUnsupported));
     assert_eq!(wb.package().state("docProps/core.xml"), Some(PartStateKind::Replaced));
     let out = wb.to_bytes().unwrap();
     let template = include_bytes!("../template/blank.xlsx");
@@ -295,8 +297,8 @@ fn repeated_edits_and_escapes() {
         ws.write_number(1, 1, 3.0).unwrap();
         ws.write_string(1, 1, "a\u{1}b _x0041_ c\r\nd").unwrap();
         ws.write_string(0, 0, "\ttabbed").unwrap();
-        assert!(matches!(ws.write_number(0, 0, f64::NAN), Err(Error::InvalidNumber(_))));
-        assert!(matches!(ws.write_string(0, 0, &"x".repeat(32_768)), Err(Error::StringTooLong(32_768))));
+        assert_matches!(ws.write_number(0, 0, f64::NAN), Err(Error::InvalidNumber(_)));
+        assert_matches!(ws.write_string(0, 0, &"x".repeat(32_768)), Err(Error::StringTooLong(32_768)));
         ws.write_string(2, 0, &"\u{1F61C}".repeat(16_383)).unwrap();
     }
     let out = wb.to_bytes().unwrap();
