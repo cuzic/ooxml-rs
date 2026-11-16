@@ -200,6 +200,9 @@ pub struct Package {
     generation: u64,
     /// Parts removed in this session (never reused by numbered names).
     removed_names: Vec<String>,
+    /// `(relationships part, Id)` removed in this session: a new `Id` stays
+    /// above them (session high-water; ADR-0009 review m2).
+    removed_rel_ids: Vec<(String, String)>,
 }
 
 impl Package {
@@ -261,6 +264,7 @@ impl Package {
             id: add::new_package_id(),
             generation: 0,
             removed_names: Vec::new(),
+            removed_rel_ids: Vec::new(),
         };
         pkg.content_types = ContentTypes::parse(&pkg.read_part(CONTENT_TYPES_PART)?)?;
         let rels_name = rels_part_name(None);
@@ -643,6 +647,7 @@ impl Package {
             self.package_rels = r;
         }
         self.removed_names.push(self.parts[plan.part].name.clone());
+        self.removed_rel_ids.extend(plan.removed.relationships.iter().cloned());
         self.parts.remove(plan.part);
         self.generation += 1;
         plan.removed

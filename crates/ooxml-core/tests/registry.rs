@@ -571,3 +571,19 @@ fn copy_relationships_keeps_ids() {
     assert_eq!(r.resolve(r.by_id("rId1").unwrap()).as_deref(), Some("xl/media/image1.png"));
     assert_eq!(again.incoming_relationships("xl/media/image1.png").len(), 2);
 }
+
+#[test]
+fn relationship_ids_stay_above_removed_ones_in_the_session() {
+    let input = synthetic();
+    let mut pkg = Package::from_bytes(input).unwrap();
+    // sheet3's relationship rId3 is the largest; remove sheet3, then add a sheet
+    pkg.remove_parts(&["xl/worksheets/sheet3.xml", "xl/drawings/drawing1.xml"], &[REL_WS, REL_DRAWING]).unwrap();
+    let (_, id) = pkg
+        .add_related_part(Some("xl/workbook.xml"), REL_WS, PartNameRequest::Numbered("xl/worksheets/sheet{}.xml".into()), WS_CT, SHEET_XML)
+        .unwrap();
+    assert_eq!(id, "rId4", "rId3 was removed in this session and is not reused");
+    // also after remove_relationship in one plan and an add in the next
+    pkg.remove_relationship(Some("xl/workbook.xml"), "rId4").unwrap();
+    let id = pkg.add_relationship(Some("xl/workbook.xml"), REL_IMAGE, Target::Part("xl/worksheets/sheet1.xml".into())).unwrap();
+    assert_eq!(id, "rId5");
+}

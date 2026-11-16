@@ -802,8 +802,16 @@ impl RegistryPlan {
         };
         let rels_name = rels_part_name(source.as_deref());
         let mut attrs: Vec<(&str, &str)> = Vec::new();
-        let planned_ids: Vec<String> =
-            self.new_ids.iter().filter(|(r, _)| same_part_name(r, &rels_name)).map(|(_, id)| id.clone()).collect();
+        // Ids planned for this part, and Ids removed from it in this plan or
+        // earlier in the session: a new Id stays above all of them.
+        let planned_ids: Vec<String> = self
+            .new_ids
+            .iter()
+            .chain(&self.removed_ids)
+            .chain(&pkg.removed_rel_ids)
+            .filter(|(r, _)| same_part_name(r, &rels_name))
+            .map(|(_, id)| id.clone())
+            .collect();
         let id;
         match pkg.find_ci(&rels_name) {
             Some(ri) => {
@@ -1010,6 +1018,7 @@ impl Package {
             self.content_types.remove_override(n);
         }
         self.removed_names.extend(plan.gone_names);
+        self.removed_rel_ids.extend(plan.removed_ids.iter().cloned());
         for p in plan.new_parts {
             let state = match p.content {
                 NewContent::Given(PartContent::Bytes(b)) => PartState::Replaced(b),
