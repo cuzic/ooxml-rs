@@ -1,26 +1,27 @@
 # ADR-0017: xlsx Phase5 — drawing-layer and object features
 
-- Status: **Proposed** (revision 2)
+- Status: **Accepted** (revision 3; review round 2: Accepted after Minor only)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 1–3, T1/T1b/T2, append-only
     registries;
   - [ADR-0002](0002-schema-driven-code-generation.md): typed lens, allowlist codegen, §4.3
     schema-slot insertion and the `mc:AlternateContent` refusal;
-  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) (revision 4 on PR #20; section
-    numbers refer to it): census, tokenizer,
+  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) (revision 5, Accepted, on main;
+    section numbers refer to it; P5-pre amends §3.1's "A batch API is therefore not needed"):
+    census, tokenizer,
     `Everything`, plan → validate → apply with poisoning, the potential spill area, the
     `RichValueCell`/`TableHeaderCell`/`UnknownCellMetadata` guards;
   - [ADR-0006](0006-xlsx-phase2-shared-strings-and-styles.md) (Accepted): registries,
     append-only with exact-form reuse;
-  - **ADR-0009 revision 2** (PR #27, `plan/xlsx-phase3`) and **PR #38** (`ooxml-core`
-    `RegistryPlan`): every package-structure edit is one staged registry transaction;
-    the sheet-rename/delete location table;
-  - [ADR-0014](0014-xlsx-phase4-range-features.md) (PR #35, in revision): range features,
-    the per-edit allowed-diff lists, worksheet `extLst` handling.
+  - **ADR-0009 revision 3** and **PR #38** (`ooxml-core` `RegistryPlan`): every
+    package-structure edit is one staged registry transaction; the sheet-rename/delete
+    location table;
+  - [ADR-0014](0014-xlsx-phase4-range-features.md) (Accepted, revision 3, on main): range
+    features, the per-edit allowed-diff lists, worksheet `extLst` handling.
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.7 (F3–F7, F10, E9), §6 Phase5.
 - Evidence: [`spikes/xlsx-phase5/`](../../spikes/xlsx-phase5/README.md) (corpus survey).
-- Review: [round 1](0017-opus-review-round1.md)
+- Review: [round 1](0017-opus-review-round1.md), [round 2](0017-opus-review-round2.md)
 
 ## Revision history
 
@@ -61,6 +62,18 @@
       refused;
     - m10: GUID collision check, and `dT` as an XL item;
     - m11: sparkline ext order as an XL item.
+
+- **Revision 3** (after `0017-opus-review-round2.md`: converged, Accepted after Minor only):
+  - r2-m1: `ColumnInUse` parses structured-reference tokens with a defined sub-grammar,
+    compares case-insensitively, and fails closed (§6.3);
+  - r2-m2: the double-bracket rule follows Excel's list of special characters (§6.1);
+  - r2-m3: allocator edge cases (§2.2);
+  - r2-m4: what the `CellWritePlan` puts into the `RegistryPlan` and what it applies in place,
+    and why this differs from ADR-0009 rev 3 (§2.1);
+  - r2-m5: panic injection, coverage of the image, note and chart steps, `StalePlan` (§2.1);
+  - r2-m6: allowed-diff rows (Test oracles 1);
+  - r2-m7: references updated;
+  - r2-m8: only edited trees built from the current state are staged (§2.1).
 
 ## Context
 
@@ -227,23 +240,35 @@ in-place insertions that were checked in step 1:
 2. **Registry plan.** Build one `RegistryPlan` containing:
    - `add_part` (`Numbered`), `add_relationship`, `add_default_content_type` (media);
    - `stage_part` for every existing **small** part whose content changes (drawing, comments,
-     VML, table, `metadata.xml`, `persons`), and for `workbook.xml` when `calcPr` changes;
+     VML, table, `metadata.xml`, `persons`), and for `workbook.xml` when `calcPr` changes.
+     **Only a tree the operation actually edits is staged, and it is cloned from the part's
+     current state** (`xml_part`, which includes this session's earlier in-place edits), never
+     from an older copy. An unedited clone is never staged: with PR #38 round 2's N1 such a
+     stage would write the original entry and drop the session's edits (review r2-m8);
    - `remove_parts` for removals, **including `calcChain.xml`** when the cell writes require
      it (ADR-0003 §4.3 policy; `remove_parts(&[calcChain], &[REL_CALC_CHAIN])`, the same shape
      as ADR-0009 §2).
 
    Each step is validated against the virtual view. A refusal drops the plan: nothing changed.
-3. **Apply.** `Package::apply(plan)` (infallible except `StalePlan`), then the in-place edits
-   of the **sheet part** validated in step 1, in a fixed order:
-   1. element insertions (`<drawing>`, `<legacyDrawing>`, `<tableParts>`/`<tablePart>`,
-      `extLst` content);
-   2. the `CellWritePlan`'s cell writes and cache strips (sheetData, and the `sst` appends of
-      Phase2);
-   3. the census and index updates.
+3. **Apply.**
+   - The workbook is poisoned, then `Package::apply(plan)` runs. Its only error is
+     `StalePlan`, which it returns **before changing anything** (PR #38). So on `StalePlan` the
+     poison is cleared and the error is returned as an ordinary `Err`: nothing changed, and the
+     workbook stays usable (review r2-m5). A stale plan can only come from a bug in step 1's
+     ordering, and a test injects one.
+   - Then the in-place edits validated in step 1 follow, in a fixed order:
+     1. element insertions in the sheet part (`<drawing>`, `<legacyDrawing>`,
+        `<tableParts>`/`<tablePart>`, `extLst` content);
+     2. the `CellWritePlan`'s in-place part: cell writes, cache strips (on this and other
+        sheets), shared-formula hand-offs, and the `sst` appends of Phase2;
+     3. the census and index updates.
 
-   A failure here is a bug by construction. The workbook is poisoned as in ADR-0003 §3.1:
-   poisoned before apply, cleared on success, so a panic also poisons. **Fault injection**
-   before each of these steps is tested for table creation, dynamic arrays and header sync.
+   A failure here is a bug by construction. The workbook stays poisoned as in ADR-0003 §3.1
+   (poisoned before apply, cleared on success), so a panic also poisons. **Fault injection**
+   is tested before each of these steps, **as an `Err` and as a panic** (`catch_unwind`,
+   ADR-0003 rev 5 R4-m6, ADR-0009 rev 3 §2). It covers table creation, dynamic arrays and
+   header sync, plus one point each for image (`<drawing>`), note (`<legacyDrawing>`) and
+   chart.
 
 | Operation | Step 1 validates | Plan contains | In place after apply |
 |---|---|---|---|
@@ -264,9 +289,19 @@ and P5d).**
 - The census changes are accumulated **inside** the plan: cell k is planned against the
   census as cells 1..k−1 leave it. Examples: a calculated column's cells, and the totals row's
   `SUBTOTAL(109,T[Col])` over that column.
-- The plan returns the strip set, the hand-offs, the `calcPr` change and the calcChain
-  decision. These go into the `RegistryPlan` as staged parts and removals, and the cell edits
-  are applied after it.
+- **What goes where** (review r2-m4).
+  - Only the `calcPr` change (a staged `workbook.xml`) and the calcChain removal go into the
+    `RegistryPlan`.
+  - Strips, hand-offs, cell writes and `sst` appends are applied **in place after `apply`**,
+    at positions validated in step 1. This avoids cloning large sheets (289 ms for a
+    200k-formula sheet).
+  - ADR-0009 rev 3 (R2-M2) instead applies its strips and `sst/@count` to staged clones,
+    because a sheet operation already stages the parts it rewrites. Phase5's cell edits touch
+    sheets nothing else stages.
+  - P5-pre's API therefore returns positions for the in-place path, and can also apply them
+    to a clone, for ADR-0009.
+  - The `CellWritePlan`'s validation includes Phase2's `sst` checks: slot, exact-form reuse,
+    and de-duplication of the same string appended twice within one plan.
 - The usual refusals (`RichValueCell`, `UnknownCellMetadata`, `SharedFormulaMaster`, an
   `mc:AlternateContent` next to `calcPr`, …) therefore happen in step 1, with every byte
   unchanged. Regression tests cover a `vm` cell, a `cm` cell and a shared-formula master
@@ -274,7 +309,10 @@ and P5d).**
 
 **Removals.** Only table removal changes the sheet (its `tablePart`), so only it stages the
 sheet part (review m1). Staging clones the tree (289 ms for a 200k-formula sheet, ADR-0003).
-PR #38 clones the plan at each step, so the sheet is staged as the plan's **last** step.
+PR #38 shares staged trees between plan steps (`Arc`, "the copy is shallow"), so a staged
+sheet is not cloned again. The sheet is still staged as the plan's **last** step, so that
+every earlier step's reference scan sees the sheet's current `r:id`s and the removal is
+validated against the final view (review r2-m7).
 Picture, note and thread removals stage only the small parts they change.
 
 Core follow-up (requested, not blocking): a read-only `Lens::check_insert_at`/
@@ -294,14 +332,27 @@ high-waters for the session: an id removed in the session is never handed out ag
   - every `cNvPr/@id` in the sheet's drawing, inside groups and in every
     `mc:Choice`/`mc:Fallback` branch;
   - every number in a VML `id="…_sN"` **or `o:spid="…_sN"`** on any VML element of the
-    sheet;
-  - the sheet's `control/@shapeId` and `oleObject/@shapeId`;
+    sheet's `legacyDrawing` **and `legacyDrawingHF`** parts. A part that is not XML
+    (`BrNotClosed.xlsx`) is scanned in its bytes with the spike's patterns; if that fails,
+    every operation that allocates on the sheet is `Err(PartNotEditable)` (review r2-m3);
+  - the sheet's `control/@shapeId` and `oleObject/@shapeId`, in every `mc:AlternateContent`
+    branch (they usually sit in one: `mv-calculator…xlsm`);
   - the session high-water.
 - Numbers that do not parse are ignored for the maximum (negative `_x0000_s-1`, a trailing
   space in LibreOffice's `id="_x0000_s1026 "`). A new id string must also not equal any
   existing one.
-- The allocator is used for both new `cNvPr`s and new VML shapes. A VML number is then moved
-  up into the sheet's `o:idmap` block range (§4.2). Never 0, at least 2 in a new drawing.
+- The allocator is used for both new `cNvPr`s and new VML shapes. Never 0; at least 2 in a
+  new drawing.
+- **A VML shape needs a number inside the sheet's `o:idmap` blocks** (§4.2). Uniqueness is
+  the requirement, not monotonicity (review r2-m3). The number is the first that applies of:
+  1. the smallest number ≥ the allocator's value that is inside one of the sheet's blocks
+     (`1024·b + 1 … 1024·b + 1023`) and equal to no existing number;
+  2. otherwise the smallest unused number in the sheet's blocks;
+  3. otherwise a new block (1 + max block of the workbook) appended to the sheet's `data`, and
+     its first number.
+
+  A drawing `cNvPr` above every block (a large drawing id) therefore does not push note
+  numbers out of range.
 - Corpus (spike re-run, `o:spid` included): 466 VML shape numbers. Every non-negative one is
   inside its sheet's blocks; 2 negative ones (`right-to-left.xlsx`) are not. 264
   `control`/`oleObject` `shapeId`s. Drawing and VML share numbers on 6 sheets in 5 files.
@@ -319,7 +370,7 @@ high-waters for the session: an id removed in the session is never handed out ag
 | table name | §6.2 | |
 | comment author | exact string match among existing authors, else append | ADR-0006 exact-form reuse; RX and POI do the same |
 | VML block | a sheet without VML gets **1 + max** over every block of every `o:idmap/@data` in the workbook (comma lists split). A VML part that is not XML has its `data` read from the bytes; if even that fails, allocating a new block is `Err(PartNotEditable)`. A sheet whose blocks are full gets a new block appended to its `data` list. | corpus: blocks unique per workbook; OP and POI write `data="1"` everywhere |
-| VML shape | the allocator's number, raised to the first free number inside the sheet's blocks (`1024·b + 1 … 1024·b + 1023`) | corpus: every non-negative number lies in its sheet's blocks |
+| VML shape | the allocator's rule for VML (above): a free number inside the sheet's blocks, else a new block | corpus: every non-negative number lies in its sheet's blocks |
 | GUIDs (threads, persons) | random v4, upper-case, braced; checked against every existing thread and person id (review m10); a test hook injects a deterministic source (Q4) | Excel's form |
 | `metadata.xml` indices | §9 | |
 
@@ -544,9 +595,16 @@ What is written:
   specifier that we write:
   - `'`, `#`, `[` and `]` in a column name are escaped with a leading `'` (RX `table.rs`
     L2021-2026);
-  - a name with leading or trailing whitespace is written in the double-bracket form
-    `Table[[ Sum for Q2 ]]`, as LibreOffice writes it (`LIBRE_OFFICE-128382-0.xlsx`,
-    `63934.xlsx`).
+  - a column specifier is written in the **double-bracket form** `Table[[Col]]` when the name
+    has leading or trailing whitespace, or any of Excel's special characters for structured
+    references (Microsoft, "Using structured references with Excel tables"): tab, LF, CR,
+    `,` `:` `.` `[` `]` `#` `'` `"` `{` `}` `$` `^` `&` `*` `+` `=` `-` `>` `<` `/`
+    (review r2-m2). LibreOffice writes `Table[[ Sum for Q2 ]]` (`LIBRE_OFFICE-128382-0.xlsx`,
+    `63934.xlsx`). Inner spaces alone keep the single-bracket form, as Excel writes
+    `T[Sales Amount]`;
+  - inside a multi-part reference (`Table[[#This Row],[Col]]`) every part is bracketed anyway.
+
+  XL item: totals over columns whose names contain `,`, `:` or `$`.
 
   Totals, calculated columns and the `ColumnInUse` match (§6.3) all use it. Every generated
   formula round-trips through Phase1's lexer (tested, with names from those two files).
@@ -584,9 +642,23 @@ What is written:
   (`TableHeaderCell`), since Excel would turn it into text and rename the column. A column
   name change does **not** rewrite structured references that use the old name: refused with
   `Err(ColumnInUse)` when any formula location (ADR-0009 §6 table) mentions the column.
-  - Every spelling counts: escaped, double-bracketed, with or without the table name, `[@Col]`,
-    and RX's table-less `[[#This Row],Col]` inside the table's own range.
-  - The match is made on lexer tokens, with the specifier function's decoding.
+  How a mention is found (review r2-m1; it fails closed):
+  - Phase1's lexer keeps a structured reference as **one opaque token** (ADR-0003 rev 5 §2.1).
+    A sub-grammar parses its inside:
+    - an optional table name, then `[` … `]`;
+    - inside, either one column, or a comma list of special items (`#All`, `#Data`,
+      `#Headers`, `#Totals`, `#This Row`, and `@` as `#This Row`) and columns or column ranges
+      (`[Q1]:[Q3]`);
+    - each bracketed element with its `'` escapes removed;
+    - the forms `[@Col]` and `[@[Col with space]]`.
+  - The tokens checked are those whose table name is the table (compared with ADR-0003
+    §2.4's fold), and table-less ones in formulas inside the table's range.
+  - Each column element, **and both endpoints of a column range**, is compared with the old
+    name **case-insensitively** with the same fold: `T[sales]` refers to `Sales`.
+  - **Any structured-reference token the sub-grammar cannot parse refuses the rename**
+    (`ColumnInUse`).
+  - Tests: case differences, column ranges, `[@[…]]`, `#Totals`, escapes, and an
+    unparseable token.
   - Renaming referenced columns is Phase7.
 - **Not synced** (review m6):
   - tables with `tableType="queryTable"` (13 in the corpus) or `"xml"` (5), whose columns are
@@ -742,7 +814,7 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
 |---|---|
 | Phase1 (ADR-0003) | Header, totals and calculated-column cells and dynamic arrays go through the `CellWritePlan` (§2.1; an ADR-0003 addendum): census, dependents, `fullCalcOnLoad`, and the calcChain removal folded into the `RegistryPlan`. A new table name seeds every `Everything` formula. Images, notes, threads and sparklines do not touch formulas. |
 | Phase2 (ADR-0006) | Header and label strings use the shared-string registry. No style is created by Phase5, except a table's cells keep their existing `s`. |
-| Phase3 (ADR-0009) | Delete/rename cover every Phase5 part through the cascade and location tables; Phase5 adds to ADR-0009's table-id high-water and `TableInUse` check. Chart sheets use §4. |
+| Phase3 (ADR-0009) | Delete/rename cover every Phase5 part through the cascade and location tables; The table-id high-water introduced in §2.2 (ADR-0009 rev 3 keeps high-waters only for `sheetId` and `rId`) also applies to tables removed by ADR-0009's sheet deletion, and Phase5's self-reference rule extends its `TableInUse` check (§6.4). Chart sheets use §4. |
 | Phase4 (ADR-0014) | A table refuses an overlapping sheet `autoFilter` and merges; ADR-0014's merge and autofilter operations refuse table ranges. `extLst` handling is shared (§8). |
 
 ### 11. Errors
@@ -769,12 +841,12 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
    | image | `<drawing>` inserted (new drawing only) | drawing (new, or one anchor appended), drawing `.rels`, media part, CT (`Default`/`Override` appended); **sheet `.rels`** for a new drawing (review m5) |
    | note | `<legacyDrawing>` inserted (new VML only) | comments (one `comment`, maybe one `author`), VML (one shape, maybe shapetype and idmap), sheet `.rels`, CT |
    | thread | as note | + threaded-comment part, `persons` (one person), workbook `.rels`, **two CT `Override`s** |
-   | table | `tableParts`/`tablePart`, header/totals/column cells and their dependents' caches, `sst` per Phase2 | table part, sheet `.rels`, CT, **`workbook.xml` `calcPr`, calcChain removed** (when formula cells are written) |
-   | header sync | the header cell, its dependents' caches | the table part (`tableColumn/@name`), `workbook.xml`/calcChain if there are dependents |
+   | table | `tableParts`/`tablePart`, header/totals/column cells, their dependents' caches on this sheet | table part, sheet `.rels`, CT, `sst` (Phase2 appends and `count`), **`workbook.xml` `calcPr`, calcChain removed** (when formula cells are written), **other sheets with dependents (`v`/`is` removed only)** (review r2-m6) |
+   | header sync | the header cell, its dependents' caches on this sheet | the table part (`tableColumn/@name`), `sst` (append and `count`), `workbook.xml`/calcChain if there are dependents, other sheets with dependents (`v`/`is` removed only) |
    | chart | as image | chart part, drawing, rels, CT |
    | chart sheet | — | chartsheet part, drawing, chart, **`workbook.xml`, workbook `.rels`, `app.xml`**, CT |
    | sparkline | `extLst` only | — |
-   | dynamic array | the cell, its dependents' caches | `metadata.xml` (blocks in their slots), workbook `.rels`, CT, **`workbook.xml`, calcChain removed** |
+   | dynamic array | the cell, its dependents' caches on this sheet | `metadata.xml` (blocks in their slots), workbook `.rels`, CT, **`workbook.xml`, calcChain removed**, other sheets with dependents (`v`/`is` removed only) |
    | cache refresh | — | `c:numCache`/`c:strCache` content of the refreshed charts |
    | remove image | — | the drawing (one anchor gone), its `.rels` and the media part when unreferenced, CT `Override`s of removed parts |
    | remove note / thread | — | comments (one `comment`), VML (one shape), threaded part (the thread's comments) |
@@ -806,10 +878,14 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
    - `bug66215.xlsx` (M1);
    - `LIBRE_OFFICE-128382-0.xlsx` and `63934.xlsx` (M2);
    - the calamine rich-value fixture (m3).
-   - **Failure atomicity** (review B1): fault injection before each in-place step after
-     `apply` (table creation, dynamic array, header sync) poisons. A `vm` cell, a `cm` cell or
-     a shared-formula master in a new table's range is refused **before** apply, with every
-     byte unchanged.
+   - **Failure atomicity** (reviews B1, r2-m5):
+     - Fault injection, as an `Err` and as a panic, before each in-place step after `apply`
+       poisons the workbook. This covers table creation, dynamic arrays and header sync, plus
+       the `<drawing>` and `<legacyDrawing>` insertions of image, chart and note.
+     - An injected `StalePlan` returns an ordinary `Err` with the workbook unpoisoned and
+       unchanged.
+     - A `vm` cell, a `cm` cell or a shared-formula master in a new table's range is refused
+       **before** apply, with every byte unchanged.
 4. **Independent readers**: calamine 0.38 reads back tables (`load_tables`, `table_by_name`:
    name, columns, data range) and pictures (`pictures`); `ooxmlsdk`'s parse of every created
    part (roadmap Phase5 acceptance); created parts compared structurally with RX's output for
