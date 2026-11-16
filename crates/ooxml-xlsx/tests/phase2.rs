@@ -49,14 +49,12 @@ fn patch_part(bytes: &[u8], name: &str, from: &str, to: &str) -> Vec<u8> {
     p1::with_part(bytes, name, &String::from_utf8(patched(bytes, name, from, to)).unwrap())
 }
 
-/// The workbook part, by content type.
+/// The workbook part, through the package's `officeDocument` relationship
+/// (content types alone mislead: `65016.xlsx` gives every `.xml` part the
+/// main content type by `Default`, templates use `template.main+xml`).
 fn workbook_part(bytes: &[u8]) -> String {
     let pkg = ooxml_core::Package::from_bytes(bytes.to_vec()).unwrap();
-    let names: Vec<String> = pkg.part_names().map(str::to_owned).collect();
-    names
-        .into_iter()
-        .find(|n| pkg.content_type(n).is_some_and(|ct| ct.ends_with("sheet.main+xml") || ct.ends_with("sheet.macroEnabled.main+xml")))
-        .unwrap()
+    pkg.main_document_part().expect("officeDocument relationship")
 }
 
 const REL_STYLES: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
@@ -255,7 +253,15 @@ fn run_one(name: &str, input: &[u8], t: &mut Tally) {
 
     // L1 for every other part. A write with formula dependents (Phase1)
     // also strips their caches and sets fullCalcOnLoad.
-    let invalidated = part(input, &wb_part) != part(&out, &wb_part);
+    // In manual calculation mode Phase1 strips dependents' caches without
+    // setting fullCalcOnLoad (ADR-0003), so workbook.xml does not tell.
+    let manual = parse(&part(input, &wb_part))
+        .root()
+        .elements()
+        .find(|e| e.is(x("calcPr")))
+        .and_then(|c| c.attr(QName::new("", "calcMode")))
+        .is_some_and(|m| m.trim() == "manual");
+    let invalidated = manual || part(input, &wb_part) != part(&out, &wb_part);
     let sheet_parts: Vec<String> = p1::sheet_parts(input).into_values().collect();
     let mut changed = vec![sheet_part.as_str()];
     if invalidated {
@@ -343,7 +349,23 @@ fn run_one(name: &str, input: &[u8], t: &mut Tally) {
                 m.retain(|k, _| o.is_some_and(|o| o.contains_key(k)));
             }
         }
-        assert!(cin == cout, "{name}: (c) CR: other cells differ");
+        if cin != cout {
+            let mut diffs = Vec::new();
+            for (sheet, mi) in &cin {
+                let mo = cout.get(sheet);
+                for (k, v) in mi {
+                    if mo.and_then(|m| m.get(k)) != Some(v) {
+                        diffs.push(format!("{sheet}!{k:?}: {v:?} -> {:?}", mo.and_then(|m| m.get(k))));
+                    }
+                }
+                for (k, v) in mo.into_iter().flatten() {
+                    if !mi.contains_key(k) {
+                        diffs.push(format!("{sheet}!{k:?}: (none) -> {v:?}"));
+                    }
+                }
+            }
+            panic!("{name}: (c) CR: other cells differ: {}", diffs.into_iter().take(8).collect::<Vec<_>>().join("; "));
+        }
         if b.is_ok() {
             let mut xw: Xlsx<_> = Xlsx::new(Cursor::new(out.clone())).unwrap();
             let styles = xw.worksheet_style(&sheet_name).unwrap();
@@ -402,6 +424,41 @@ fn registry_sweep_over_every_fixture() {
     eprintln!("{t:#?}");
     assert!(t.ok >= 18, "{t:#?}");
     assert!(t.strings_appended >= 12 && t.styles_appended >= 16, "{t:#?}");
+}
+
+/// The same per-package checks over a local corpus directory (the POI
+/// `test-data/spreadsheet` download of `spikes/xlsx-phase2/README.md`). Not
+/// in CI: the files are not committed. Every package that opens is run;
+/// failures are collected and reported together.
+#[test]
+#[ignore = "needs OOXML_XLSX_CORPUS=<directory of .xlsx/.xlsm files>"]
+fn registry_sweep_over_a_local_corpus() {
+    let dir = std::env::var("OOXML_XLSX_CORPUS").expect("set OOXML_XLSX_CORPUS");
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("xlsx") || x.eq_ignore_ascii_case("xlsm")))
+        .collect();
+    files.sort();
+    let mut t = Tally::default();
+    let mut failed = Vec::new();
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    for f in &files {
+        let name = f.file_name().unwrap().to_string_lossy().into_owned();
+        let input = std::fs::read(f).unwrap();
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_one(&name, &input, &mut t)));
+        if let Err(p) = r {
+            let msg = p.downcast_ref::<String>().cloned().or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_owned())).unwrap_or_default();
+            failed.push(format!("{name}: {}", msg.lines().next().unwrap_or_default()));
+        }
+    }
+    std::panic::set_hook(hook);
+    eprintln!("{} files; ok {}; strings appended {}; styles appended {}; refused {}", files.len(), t.ok, t.strings_appended, t.styles_appended, t.refused.len());
+    for r in &t.refused {
+        eprintln!("  refused: {r}");
+    }
+    assert!(failed.is_empty(), "{} packages failed:\n{}", failed.len(), failed.join("\n"));
 }
 
 // ------------------------------------------------------------ growth bound (oracle 6)
@@ -481,6 +538,77 @@ fn style_alternate_content() {
     let out = wb.to_bytes().unwrap();
     let cr = calamine_cells(&out);
     assert!(cr.values().any(|s| s.get(&(31, 0)) == Some(&Data::String("new in hancell".into()))));
+}
+
+#[test]
+fn ac_that_is_not_index_stable_refuses_index_operations() {
+    // a Choice with two xf: indices behind it depend on the reader (§2, n9)
+    let base = Workbook::new().unwrap().to_bytes().unwrap();
+    let xf = r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>"#;
+    let s = styles_xml(&base).replace(
+        &format!(r#"<cellXfs count="1">{xf}</cellXfs>"#),
+        &format!(r#"<cellXfs count="2">{xf}<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x14">{xf}{xf}</mc:Choice><mc:Fallback>{xf}</mc:Fallback></mc:AlternateContent></cellXfs>"#),
+    );
+    assert!(s.contains("mc:Choice"));
+    let input = p1::with_part(&base, "xl/styles.xml", &s);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    let e = guarded(&mut wb, |wb| wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_style_index(0));
+    assert!(matches!(e, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))), "{e:?}");
+    let e = guarded(&mut wb, |wb| wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &Format::new()));
+    assert!(matches!(e, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))), "{e:?}");
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+}
+
+#[test]
+fn custom_numfmt_with_extra_attributes_is_not_reused() {
+    let base = Workbook::new().unwrap().to_bytes().unwrap();
+    let code = NEW_CODE.replace('"', "&quot;");
+    let s = styles_xml(&base).replace(
+        "<fonts",
+        &format!(r#"<numFmts count="2"><numFmt xmlns:x="urn:example" x:tag="1" numFmtId="170" formatCode="{code}"/><numFmt numFmtId="171" formatCode="0.0000"/></numFmts><fonts"#),
+    );
+    let input = p1::with_part(&base, "xl/styles.xml", &s);
+    let out = write(&input, (0, 0), &Format::new().set_num_format(NEW_CODE));
+    let e = style_entries(&parse(&part(&out, "xl/styles.xml")));
+    assert_eq!(e["numFmts"].len(), 3, "170 has another attribute: not the exact form, so a new id");
+    assert!(e["numFmts"][2].contains(r#"numFmtId="172""#), "{:?}", e["numFmts"]);
+    let out = write(&input, (0, 0), &Format::new().set_num_format("0.0000"));
+    assert_eq!(style_entries(&parse(&part(&out, "xl/styles.xml")))["numFmts"].len(), 2, "171 is reused");
+}
+
+#[test]
+fn sst_with_alternate_content_refuses_shared_writes() {
+    let base = Workbook::new().unwrap().to_bytes().unwrap();
+    let sst = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" count="0" uniqueCount="2"><si><t>a</t></si><mc:AlternateContent><mc:Choice Requires="x14"><si><t>b</t></si></mc:Choice><mc:Fallback><si><t>b</t></si></mc:Fallback></mc:AlternateContent></sst>"#;
+    let input = p1::with_part(&base, "xl/sharedStrings.xml", sst);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    for text in ["new", "a"] {
+        let e = guarded(&mut wb, |wb| wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_string(text));
+        assert!(matches!(e, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))), "{text}: {e:?}");
+    }
+    // the inline form is unaffected
+    wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_string_inline("new").unwrap();
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &["xl/worksheets/sheet1.xml"]);
+}
+
+#[test]
+fn stripped_shared_string_formula_results_leave_the_count() {
+    // a formula cell typed t="s" (as some producers write it): Phase1 strips
+    // its cached value and type, so it no longer counts (§4.5)
+    let base = Workbook::new().unwrap().to_bytes().unwrap();
+    let sst = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="1" uniqueCount="1"><si><t>x</t></si></sst>"#;
+    let b = p1::with_part(&base, "xl/sharedStrings.xml", sst);
+    let input = p1::with_part(&b, "xl/worksheets/sheet1.xml", r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1" t="s"><f>A1</f><v>0</v></c></row></sheetData></worksheet>"#);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_string("y").unwrap();
+    let out = wb.to_bytes().unwrap();
+    let xml = sheet_xml(&out);
+    assert!(!xml.contains(r#"<c r="B1" t="s">"#), "B1's cache is stripped: {xml}");
+    let root = parse(&part(&out, "xl/sharedStrings.xml"));
+    assert_eq!(root.root().attr(QName::new("", "count")), Some("1"), "A1 only");
+    assert_eq!(count_s_refs_by_content_type(&out), 1);
 }
 
 // ------------------------------------------------------------ shared strings
