@@ -89,6 +89,23 @@
   primitive can write a part that is not well-formed (U+000B, other C0
   controls, U+FFFE/U+FFFF). Format crates still own their own line-break
   rules; this is the backstop.
+- **Post-acceptance note (2026-11-16, parser depth limit — no change to
+  the decisions; from the ADR-0004 round-2 review, N1, and the PR #16
+  round-1 review, M1):** the Layer 2 parser refuses element nesting deeper
+  than `ParseOptions::max_depth` with `Error::TooDeep { limit, position }`,
+  checked at the start tag before the node is allocated. The default is
+  **256** (root = depth 1); the deepest real part measured is 33 (POI
+  `bug59058`), median 9 over 1,641 parts. The limit bounds every recursive
+  operation on the tree (`Clone`, `Drop`, `Debug`, dirty serialization,
+  `structurally_eq`, format-crate walks) and path-based lens addressing: at
+  1024 a debug-build `clone()` needed about 1.7 MiB of stack; at 256 all of
+  them are tested on a 1 MiB thread in a debug build. The parsed document
+  remembers its limit and `XmlDocument::lens_mut` refuses inserts beyond it,
+  so edited output always reparses. `XmlDocument::parse_with` and
+  `Package::{from_bytes_with, open_with}` take the options; OPC metadata
+  parts are never parsed below the default. Raising the limit needs a
+  proportionally larger stack (documented on `max_depth`). Format crates
+  map the error to their own open-time refusal (ooxml-docx: O5).
 - **Post-acceptance note (2026-11-16, detach/insert — additive, no change
   to the decisions; from the ADR-0005 round-2 review, Q2; revised after the
   PR #18 round-1 review, `docs/reviews/pr18-round1.md`):** a copy-subtree
@@ -133,11 +150,13 @@
   **every** element and attribute prefix at the destination with the §3
   prefix rules — the copy declares nothing, so the parent's bindings hold
   for all of it — before the tree changes (`NamespaceNotInScope` leaves it
-  untouched). Inserted nodes are created nodes (`own_dirty`, re-rendered).
-  `Detached::check_insert_under(root, parent_path)` answers the
-  `NamespaceNotInScope` question without changing anything, for that
-  element or any element created below it, so a format crate can check a
-  multi-insert edit before its first change.
+  untouched). The whole copy obeys the parser depth limit (note "parser
+  depth limit"): its deepest element counts, `TooDeep` before any change.
+  Inserted nodes are created nodes (`own_dirty`, re-rendered).
+  `Detached::check_insert_under(doc, parent_path, created)` answers the
+  `NamespaceNotInScope` and `TooDeep` questions without changing anything,
+  for a copy placed `created` new elements below that element, so a format
+  crate can check a multi-insert edit before its first change.
   Tests: `crates/ooxml-core/tests/detach.rs` (pure-insertion locality,
   renaming, prefix rules per copied element, every refusal, slot rules,
   `check_insert_under`), `xtask` unit test of `SameTypeMismatch`,

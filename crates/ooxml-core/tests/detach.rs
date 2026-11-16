@@ -292,10 +292,30 @@ fn check_insert_under_matches_insert_and_changes_nothing() {
     // m4
     let copy = first_rpr(&doc(SRC)).detach_as::<RPr>(&[q("link")]).unwrap(); // uses urn:y
     let ok = doc(r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y"><x:r><x:t>b</x:t></x:r></x:p>"#);
-    copy.check_insert_under(ok.root(), &[0]).unwrap();
-    copy.check_insert_under(ok.root(), &[]).unwrap(); // under a run created below p
+    copy.check_insert_under(&ok, &[0], 0).unwrap();
+    copy.check_insert_under(&ok, &[], 1).unwrap(); // under a run created below p
     let bad = doc(r#"<x:p xmlns:x="urn:t"><x:r xmlns:y="urn:y"><x:t>b</x:t></x:r></x:p>"#);
-    copy.check_insert_under(bad.root(), &[0]).unwrap(); // bound on the run itself
-    assert_matches!(copy.check_insert_under(bad.root(), &[]), Err(Error::NamespaceNotInScope(ref u)) if u == "urn:y");
+    copy.check_insert_under(&bad, &[0], 0).unwrap(); // bound on the run itself
+    assert_matches!(copy.check_insert_under(&bad, &[], 1), Err(Error::NamespaceNotInScope(ref u)) if u == "urn:y");
     assert!(!bad.root().subtree_dirty());
+}
+
+#[test]
+fn the_whole_copy_respects_the_depth_limit() {
+    // PR #16: inserts beyond the parsed document's depth limit are TooDeep;
+    // for a copy, its deepest element counts. Copy height 3 (rPr/fill/c).
+    let copy = first_rpr(&doc(SRC)).detach_as::<RPr>(&[q("link"), QName::new("urn:y", "ext")]).unwrap();
+    assert_eq!(copy.height(), 3);
+    let dst = r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y"><x:r><x:t>b</x:t></x:r></x:p>"#; // run at depth 2
+    // limit 5 fits exactly (rPr 3, fill 4, c 5); limit 4 does not
+    let mut d = XmlDocument::parse_with(dst.as_bytes(), &ooxml_core::ParseOptions::default().with_max_depth(4)).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[0], 0), Err(Error::TooDeep { limit: 4, .. }));
+    let e = d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&copy).unwrap_err();
+    assert_matches!(e, Error::TooDeep { limit: 4, .. });
+    assert!(!d.root().subtree_dirty(), "refused before any change");
+    let mut d = XmlDocument::parse_with(dst.as_bytes(), &ooxml_core::ParseOptions::default().with_max_depth(5)).unwrap();
+    copy.check_insert_under(&d, &[0], 0).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[0], 1), Err(Error::TooDeep { .. }), "one created level in between");
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&copy).unwrap();
+    XmlDocument::parse_with(d.serialize().as_bytes(), &ooxml_core::ParseOptions::default().with_max_depth(5)).unwrap();
 }

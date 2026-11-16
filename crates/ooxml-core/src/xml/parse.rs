@@ -7,7 +7,7 @@ use quick_xml::XmlVersion;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use super::{ElementSpan, MarkupKind, RawAttr, RawItem, RawMarkup, RawNode, RawText, XmlDocument};
+use super::{ElementSpan, ParseOptions, MarkupKind, RawAttr, RawItem, RawMarkup, RawNode, RawText, XmlDocument};
 use crate::error::{Error, Result};
 use crate::name::{XML_NS, XMLNS_NS, XName};
 
@@ -50,15 +50,15 @@ fn split_qname(raw: &str) -> (Option<&str>, &str) {
     }
 }
 
-pub(super) fn parse(bytes: &[u8]) -> Result<XmlDocument> {
+pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument> {
     if bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xFF, 0xFE]) {
         return Err(Error::UnsupportedEncoding("UTF-16 (byte order mark)".into()));
     }
     let source: Box<str> = std::str::from_utf8(bytes)
         .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?
         .into();
-    let root = Parser::new(&source).run()?;
-    Ok(XmlDocument { source, root })
+    let root = Parser::new(&source, options.max_depth).run()?;
+    Ok(XmlDocument { source, root, max_depth: options.max_depth })
 }
 
 struct Parser<'s> {
@@ -70,10 +70,12 @@ struct Parser<'s> {
     /// Open elements with the scope length to restore on close.
     stack: Vec<(RawNode, usize)>,
     root: Option<RawNode>,
+    /// Maximum element depth (the root is depth 1).
+    max_depth: usize,
 }
 
 impl<'s> Parser<'s> {
-    fn new(src: &'s str) -> Self {
+    fn new(src: &'s str, max_depth: usize) -> Self {
         // The BOM stays in the verbatim prolog; the reader starts after it.
         let base = if src.starts_with('\u{feff}') { 3 } else { 0 };
         let mut reader = Reader::from_str(&src[base..]);
@@ -81,7 +83,7 @@ impl<'s> Parser<'s> {
         cfg.trim_text(false);
         cfg.expand_empty_elements = false;
         cfg.check_end_names = true;
-        Parser { src, reader, base, scope: Scope::new(), stack: Vec::new(), root: None }
+        Parser { src, reader, base, scope: Scope::new(), stack: Vec::new(), root: None, max_depth }
     }
 
     fn run(mut self) -> Result<RawNode> {
@@ -206,6 +208,11 @@ impl<'s> Parser<'s> {
     /// Builds a node from a start tag, pushing its namespace declarations
     /// onto the scope.
     fn open(&mut self, e: &BytesStart<'_>, before: usize, after: usize, empty: bool) -> Result<RawNode> {
+        // Checked before anything is allocated for the element: the depth
+        // of the new element is the number of open ancestors plus one.
+        if self.stack.len() >= self.max_depth {
+            return Err(Error::TooDeep { limit: self.max_depth, position: before });
+        }
         if self.root.is_some() && self.stack.is_empty() {
             return Err(xml_err(before, "more than one root element"));
         }
