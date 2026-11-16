@@ -193,6 +193,67 @@
   renaming, prefix rules per copied element, every refusal, slot rules,
   `check_insert_under`), `xtask` unit test of `SameTypeMismatch`,
   `ooxml-schema` doc tests (`compile_fail` for `p:sp` and `p:grpSp`).
+- **Post-acceptance note (2026-11-16, same-part move — additive, no
+  change to the decisions; requested by ADR-0013 §2 for table-cell merges,
+  usable by any format crate; revised after the PR #44 round-1 review,
+  `docs/reviews/pr44-round1.md`):** `Lens::move_source()` captures an
+  element as a `MoveSource<S>` (a path plus its spec, reached through
+  `ChildOf` links); `LensMut::move_in[_by]::<C: ChildOf<E>>(&from, [before])`
+  with `S: SameType<C>` (as for `detach_as`, so a same-named element of
+  another complex type, e.g. `w:pPr/w:rPr` vs `w:r/w:rPr`, cannot be moved
+  into `C`'s slot) moves it and its subtree into the lens's element,
+  placed exactly as `insert_by::<C>` would place a new `C` (slot, caller
+  order, limits and refusals computed on the children **without** the
+  moved element when it is already one of them), and returns a lens on it;
+  `check_move_in_by` runs the same validation without changing anything
+  (`Ok` exactly when the move succeeds). The moved node keeps its source
+  span and flags, so its bytes are written unchanged: the output differs
+  from the input only by those bytes leaving the source and appearing at
+  the destination (plus a self-closing destination parent re-rendered when
+  it gains its first child). Because the bytes do not change, the move is
+  refused (`Error::NotMovable { reason: MoveRefusal, name }`, before any
+  change) when it would change their meaning: a prefix the subtree uses
+  **without declaring it** — in an element or attribute name, the default
+  namespace, or named in a Markup Compatibility attribute value
+  (`mc:Ignorable`, `mc:MustUnderstand`, `mc:ProcessContent`,
+  `mc:PreserveElements`, `mc:PreserveAttributes`, `mc:Choice/@Requires`)
+  — bound to another namespace or unbound at the destination
+  (`NamespaceBinding`; declarations inside the subtree travel with it and
+  are not compared with outer scopes); a namespace of the subtree
+  ignorable (`mc:Ignorable`) at one place only (`IgnorableNamespace`);
+  text that inherits `xml:space` from different values (`XmlSpace`;
+  whitespace-only text between child elements is indentation and does
+  not count). Also refused: the root (`Root`), a destination inside the
+  moved element (`IntoItself`), a source or destination inside
+  `mc:AlternateContent` (`AlternateContent`: a consumer reading the other
+  branch would see the element vanish or appear), a source path that no
+  longer leads to an `S::QNAME` element (`WrongElement`), and a subtree
+  whose deepest element would pass the part's depth limit (`TooDeep`).
+  Dirty duties: the source parent and the destination parent with their
+  ancestors get `subtree_dirty`; a source parent with a close tag keeps
+  its tags when emptied; only a self-closing destination parent gains
+  `own_dirty`. Adjacent whitespace text stays where it was (a move to the
+  end of a slot lands after trailing indentation). **Paths:** a move
+  shifts by one the later siblings of the source and the destination's
+  children from the insertion index on (with their descendants); a stale
+  `MoveSource` may name another element of the same name. Several children
+  of one parent are moved last-first or with sources re-taken. **Batches:**
+  `NamespaceBinding`, `IgnorableNamespace`, `XmlSpace`, `AlternateContent`
+  and `TooDeep` depend only on ancestor attributes and the subtree, which
+  moves do not change, so a batch can check them once up front; slot
+  limits, order and `IntoItself` depend on the current children (re-check,
+  or check the whole batch on a clone). The ancestor walk, path lookup,
+  binding lookup and subtree height are shared with detach/insert
+  (`ancestor_context`, `element_at`, `declarations`/`effective`,
+  `subtree_height`). Unlike `insert_detached`, which re-chooses prefixes
+  and so only refuses a `preserve` destination, a move keeps its bytes and
+  refuses an `xml:space` difference in both directions. Tests:
+  `crates/ooxml-core/tests/move_subtree.rs` (locality, dirty duties,
+  destination-path shift, every refusal, Markup Compatibility values,
+  self-declared prefixes, both directions of every meaning check, the
+  depth limit exactly, last-first batches, brute-force agreement of check
+  and move over two trees, one with differing contexts); 26 hand-made
+  mutants killed.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

@@ -106,6 +106,15 @@ pub enum Error {
     /// The element's spec is marked `attrs_incomplete` (unresolved base class).
     #[error("{0}'s attribute list is incomplete in the schema data; writes are refused")]
     IncompleteSpec(QName),
+    /// [`LensMut::move_in_by`](crate::LensMut::move_in_by) refused the move
+    /// (ADR-0002 post-acceptance note "same-part move").
+    #[error("cannot move {name}: {reason}")]
+    NotMovable {
+        /// Why.
+        reason: MoveRefusal,
+        /// The element, prefix or namespace concerned.
+        name: String,
+    },
     /// No usable prefix is bound to the namespace at this point.
     #[error("namespace {0:?} is not in scope with a usable prefix")]
     NamespaceNotInScope(String),
@@ -237,6 +246,45 @@ impl std::fmt::Display for WellFormedness {
 
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Why a same-part move was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MoveRefusal {
+    /// The part's root element cannot be moved.
+    Root,
+    /// The destination is the moved element or inside it.
+    IntoItself,
+    /// A prefix the subtree uses without declaring it (on an element or
+    /// attribute, the default namespace, or named in a Markup Compatibility
+    /// attribute value such as `mc:Ignorable` or `mc:Choice/@Requires`)
+    /// means another namespace, or nothing, at the destination; the moved
+    /// bytes would change meaning.
+    NamespaceBinding,
+    /// A namespace the subtree uses is ignorable (`mc:Ignorable`) at one
+    /// place and not at the other.
+    IgnorableNamespace,
+    /// The subtree has text that inherits `xml:space`, and the inherited
+    /// value differs at the destination.
+    XmlSpace,
+    /// The source or the destination is inside `mc:AlternateContent` (a
+    /// `mc:Choice` / `mc:Fallback` branch): consumers reading the other
+    /// branch would see the element vanish or appear.
+    AlternateContent,
+}
+
+impl std::fmt::Display for MoveRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MoveRefusal::Root => "the root element",
+            MoveRefusal::IntoItself => "into itself",
+            MoveRefusal::NamespaceBinding => "a prefix is bound differently at the destination",
+            MoveRefusal::IgnorableNamespace => "a namespace is ignorable at only one place",
+            MoveRefusal::XmlSpace => "inherited xml:space differs",
+            MoveRefusal::AlternateContent => "inside mc:AlternateContent",
+        })
+    }
+}
 
 /// Why [`Lens::detach_as`](crate::Lens::detach_as) refused a subtree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
