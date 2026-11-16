@@ -9,27 +9,11 @@ use common::*;
 use ooxml_core::PartStateKind;
 use ooxml_xlsx::{CellValue, Error, Workbook};
 
-fn refuse_everywhere(name: &str, check: impl Fn(&Error) -> bool) {
-    let input = read(name);
-    let wb = Workbook::from_bytes(input.clone()).unwrap();
-    assert!(wb.edit_refusal().is_some_and(|e| check(&e)), "{name}");
-    // every 5th cell keeps the debug-build run short; all cells are refused alike
-    let mut cells: Vec<_> = existing_cells(&input).into_iter().step_by(5).collect();
-    cells.push(a1("Z99"));
-    for at in cells {
-        for w in [W::Num(1.0), W::Str("x".into())] {
-            let (wb, r) = apply(&input, at, &w);
-            let e = r.expect_err(name);
-            assert!(check(&e), "{name} {at}: {e:?}");
-            assert_unchanged(&wb, &input);
-        }
-    }
-}
-
-/// P0-R1..R3: any formula anywhere → every write refused, with or without
-/// `calcChain.xml`; reads still work (cached values).
+/// P0-R1..R3 superseded by Phase1 (ADR-0003): formula-bearing workbooks are
+/// no longer refused workbook-wide; reads still return cached values and
+/// formula text. (Phase1 behaviour is tested in `phase1_*.rs`.)
 #[test]
-fn r1_to_r3_formula_present() {
+fn r1_to_r3_formula_workbooks_are_editable_in_phase1() {
     for name in [
         "poi/shared_formulas.xlsx",
         "poi/70005-countifs.xlsx",
@@ -37,18 +21,14 @@ fn r1_to_r3_formula_present() {
         "poi/xlookup.xlsx",
         "poi/NewStyleConditionalFormattings.xlsx",
     ] {
-        refuse_everywhere(name, |e| matches!(e, Error::FormulaPresent { .. }));
+        let wb = Workbook::from_bytes(read(name)).unwrap();
+        assert!(wb.edit_refusal().is_none(), "{name}: {:?}", wb.edit_refusal());
     }
-    // the calcChain-less one is caught by the element scan, not the fast path
-    let wb = Workbook::from_bytes(read("poi/70005-countifs.xlsx")).unwrap();
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/worksheets/sheet1.xml");
-    // reads: a formula cell's cached string result and its formula text
     let mut wb = Workbook::from_bytes(read("poi/shared_formulas.xlsx")).unwrap();
     let ws = wb.worksheet().unwrap();
     let c = ws.cell(1, 0).unwrap().unwrap();
     assert_eq!(c.formula().as_deref(), Some("B2"));
     assert_eq!(c.value().unwrap(), CellValue::String("ProductionOrderConfirmation".into()));
-    assert_matches!(c.value().unwrap(), CellValue::String(_));
 }
 
 /// P0-R4, R5: rows/cells without `r` → reads and writes refused.
@@ -144,7 +124,7 @@ fn malformed_shapes() {
     let fill = with_sheet(&format!(r#"{WS_OPEN}<sheetData/><filterColumn/><formula/></worksheet>"#));
     assert!(Workbook::from_bytes(fill).unwrap().edit_refusal().is_none());
     let f = with_sheet(&format!(r#"{WS_OPEN}<sheetData><row r="1"><c r="A1"><f>1</f></c></row></sheetData></worksheet>"#));
-    assert_matches!(apply(&f, a1("C3"), &W::Num(1.0)).1, Err(Error::FormulaPresent { .. }));
+    assert_matches!(apply(&f, a1("C3"), &W::Num(1.0)).1, Ok(()), "no dependent: a Phase1 value edit");
     let dtd = with_sheet(&format!(r#"<!DOCTYPE x>{WS_OPEN}<sheetData/></worksheet>"#));
     assert_matches!(Workbook::from_bytes(dtd), Err(Error::Core(ooxml_core::Error::DtdNotAllowed { .. })));
 }
@@ -345,32 +325,46 @@ fn f4_whitespace_like_calamine() {
         assert!(calamine_matches(cal["Sheet1"].get(&(r, c)), &v), "({r}, {c}): calamine {:?}", cal["Sheet1"].get(&(r, c)));
     }
 }
-/// F2 / ADR-0001 R2-M3: a formula only on a sheet other than "sheet1"
-/// refuses every write. `poi/51850.xlsx` (no formula, no calcChain) with one
-/// row `A99 = Sheet1!A1*2` inserted at the start of sheet2's `sheetData`.
+/// F2 / ADR-0001 R2-M3, Phase1 semantics (ADR-0003): a formula only on a
+/// sheet other than "sheet1" no longer refuses writes; it is found by the
+/// census and loses its cached value when its precedent is written.
+/// `poi/51850.xlsx` (no formula, no calcChain) with one row
+/// `A9999 = '<first sheet>'!A1*2` appended to sheet2's `sheetData`.
 #[test]
 fn f2_formula_on_another_sheet_only() {
     let input = read("poi/51850.xlsx");
     assert!(Workbook::from_bytes(input.clone()).unwrap().edit_refusal().is_none(), "the unedited fixture is writable");
+    // The formula names the first sheet by its real name (an unknown sheet
+    // name would make it depend on everything, ADR-0003 §2.4).
+    let first = Workbook::from_bytes(input.clone()).unwrap().sheet_names().next().unwrap().replace('\'', "''");
     let s2 = patched(
         &input,
         "xl/worksheets/sheet2.xml",
-        "<sheetData>",
-        r#"<sheetData><row r="99"><c r="A99"><f>Sheet1!A1*2</f><v>0</v></c></row>"#,
+        "</sheetData>",
+        &format!(r#"<row r="9999"><c r="A9999"><f>'{first}'!A1*2</f><v>0</v></c></row></sheetData>"#),
     );
     let bytes = rebuild(&input, &[("xl/worksheets/sheet2.xml", s2)]);
-    let wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
     assert_eq!(wb.worksheet_part(), SHEET1);
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/worksheets/sheet2.xml");
-    for at in ["A1", "B2", "Z99"] {
+    assert!(wb.edit_refusal().is_none());
+    let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
+    assert_eq!(wb.dependents(&names[0], a1("A1")).unwrap(), vec![(names[1].clone(), a1("A9999"))]);
+    let (wb, r) = apply(&bytes, a1("A1"), &W::Num(1.0));
+    r.unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(text(&out, "xl/worksheets/sheet2.xml").contains(&format!(r#"<c r="A9999"><f>'{first}'!A1*2</f></c>"#)));
+    for at in ["B2", "Z99"] {
         let (wb, r) = apply(&bytes, a1(at), &W::Num(1.0));
-        assert_matches!(r, Err(Error::FormulaPresent { .. }), "{at}");
-        assert_unchanged(&wb, &bytes);
+        r.unwrap();
+        assert_l1_except(&bytes, &wb.to_bytes().unwrap(), &[SHEET1]);
     }
 }
 
-/// F2: formulas in macro sheets and dialog sheets count, found through
-/// either the content type or the workbook relationship.
+/// F2, Phase1 semantics: formulas in macro sheets and dialog sheets count,
+/// found through `<sheets>`, the content type or the workbook relationship.
+/// A macro-sheet formula that would become a dependent refuses the edit
+/// (`MacroSheetDependent`); a sheet part with formulas that `<sheets>` does
+/// not list makes the census incomplete (`FormulaScanFailed`).
 #[test]
 fn f2_formula_in_macro_or_dialog_sheet_only() {
     // (a) poi/xlmmacro.xlsm: its macro sheet (CT override *and* xlMacrosheet
@@ -380,9 +374,10 @@ fn f2_formula_in_macro_or_dialog_sheet_only() {
     let m = patched(&input, "xl/macrosheets/sheet1.xml", "<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><f>RETURN()</f></c></row></sheetData>"#);
     let bytes = rebuild(&input, &[("xl/macrosheets/sheet1.xml", m)]);
     let wb = Workbook::from_bytes(bytes.clone()).unwrap();
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/macrosheets/sheet1.xml");
+    assert!(wb.edit_refusal().is_none());
+    // RETURN() is not on the value-function table: it depends on everything.
     let (wb, r) = apply(&bytes, a1("A1"), &W::Num(1.0));
-    assert_matches!(r, Err(Error::FormulaPresent { .. }));
+    assert_matches!(r, Err(Error::MacroSheetDependent { .. }));
     assert_unchanged(&wb, &bytes);
 
     // `fixture_minimal` plus one extra sheet part holding a formula
@@ -400,7 +395,7 @@ fn f2_formula_in_macro_or_dialog_sheet_only() {
     );
     let bytes = rebuild(&input, &[("[Content_Types].xml", ct), ("xl/dialogsheets/sheet1.xml", sheet_with_f("dialogsheet"))]);
     let wb = Workbook::from_bytes(bytes).unwrap();
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/dialogsheets/sheet1.xml");
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaScanFailed { part, .. }) if part == "xl/dialogsheets/sheet1.xml");
     // (c) a macro sheet known only by its relationship (content type falls
     // back to the `xml` Default, application/xml)
     let rels = patched(
@@ -411,11 +406,12 @@ fn f2_formula_in_macro_or_dialog_sheet_only() {
     );
     let bytes = rebuild(&input, &[("xl/_rels/workbook.xml.rels", rels), ("xl/macrosheets/sheet1.xml", sheet_with_f("xm:macrosheet"))]);
     let wb = Workbook::from_bytes(bytes).unwrap();
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/macrosheets/sheet1.xml");
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaScanFailed { part, .. }) if part == "xl/macrosheets/sheet1.xml");
 }
 
-/// F2: ADR-0001's fast path: a `calcChain.xml` refuses edits even when no
-/// sheet has an `f`. `fixture_minimal` plus a calcChain part, its workbook
+/// F2, Phase1 semantics: a `calcChain.xml` alone no longer refuses edits
+/// (Phase0's fast path is gone); a value edit with no dependent keeps it
+/// byte-identical. `fixture_minimal` plus a calcChain part, its workbook
 /// relationship and its content-type override.
 #[test]
 fn f2_calc_chain_only() {
@@ -435,10 +431,10 @@ fn f2_calc_chain_only() {
     let chain = br#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B2" i="1"/></calcChain>"#.to_vec();
     let bytes = rebuild(&input, &[("xl/_rels/workbook.xml.rels", rels), ("[Content_Types].xml", ct), ("xl/calcChain.xml", chain)]);
     let wb = Workbook::from_bytes(bytes.clone()).unwrap();
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/calcChain.xml");
+    assert!(wb.edit_refusal().is_none());
     let (wb, r) = apply(&bytes, a1("B2"), &W::Num(1.0));
-    assert_matches!(r, Err(Error::FormulaPresent { .. }));
-    assert_unchanged(&wb, &bytes);
+    r.unwrap();
+    assert_l1_except(&bytes, &wb.to_bytes().unwrap(), &[SHEET1]);
 }
 
 /// F2: a sheet other than "sheet1" that cannot be scanned (not well-formed;

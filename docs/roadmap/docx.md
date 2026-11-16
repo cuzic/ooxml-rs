@@ -19,6 +19,10 @@
 - Phase1（テンプレートへの差し込み）の設計は ADR-0007（`docs/adr/0007-docx-phase1-template-filling.md`、Accepted、revision 3）。ランをまたぐ置換、ヘッダー・フッター・脚注・文末脚注・コメントの編集、表のセル、直接書式の一部、既存スタイルの適用、フィールドの操作別判定と `updateFields` を扱う。根拠は `spikes/docx-phase1/`。
   - テンプレートエンジンのテスト用テンプレート 212 個にあるプレースホルダー 517 個のうち 511 個（98.8%）を置換できる。204 個はランをまたいでいる。
   - スマートタグ内の編集は Phase1 でも拒否する。SDK のデータに `w:smartTag` が無く、型付きで降りられないため。
+- Phase2（構造の追加）の設計は ADR-0011（`docs/adr/0011-docx-phase2-structure.md`、Accepted、revision 4）。Word で初めてパーツと ID を追加するフェーズで、次の 2 つからなる。
+  - `ooxml-core` 側：`core/add-part` のレジストリ API（パーツ名、関係 ID、Content Types）を使う。この API が唯一の規則の置き場で、xlsx・pptx と共通（revision 2）。
+  - `ooxml-docx` 側：追記のみの ID レジストリ（描画 ID、注釈 ID、ブックマーク名、番号付け、スタイル）。
+  - 根拠は `spikes/docx-phase2/`。
 
 ## 1. Method and status legend
 
@@ -360,18 +364,42 @@ the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions 
 
 ### Phase2: structure
 
+Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Accepted, revision 4). The evidence is in
+`spikes/docx-phase2/`.
+
 **Scope.**
 
-- Registries: OPC part/rel/content-type (from the foundation `Package`), style IDs, numbering, annotation IDs, paraId, `wp:docPr/@id`, bookmark names.
-- APIs: insert paragraph or run anywhere with properties; create tables (`tblGrid` consistent with cells, `gridSpan`/`vMerge`); lists (new `w:num` per list, `lvlOverride` restart); inline images (media part + rel + content-type `Default`); hyperlinks (external rel / anchor); bookmarks; section breaks; new header/footer parts; new styles (two seed modes as in ADR-0001: from scratch dedups by value, edit appends only).
+- **Core registries** (revision 2, after review B1). There is no Word-specific part API. Word uses the core registry API on `core/add-part` (`RegistryPlan` / `Package::apply`), which is the single source of truth for part naming, relationship ids, `Default` vs `Override` and dangling targets. Word adds at most one part per operation and never adds a `Default`.
+- **Two additive lens changes:** insert with namespace declaration plus its check twin (`a:` and `pic:` are declared locally by Word, including on `a:graphicFrameLocks`; revision 3), and `SameType` modulo required skips, as in ADR-0007.
+- **Word registries.** Every scope covers definitions **and references** (revision 2), so a new value never adopts a dangling reference:
+  - drawing ids: max + 1 over all `docPr`/`cNvPr` ids in all stories and both AC branches;
+  - annotation ids: max + 1 over the union of bookmarks, comments, revisions and permissions;
+  - bookmark names: checked, case-insensitive;
+  - `numId`/`abstractNumId`: max + 1, with `numId` 0 reserved, plus a fresh `nsid`;
+  - style ids.
+
+  Phase2 writes no `w14:paraId`/`textId`; that registry is deferred to Phase3.
+- **Operations:**
+  - inline images (PNG/JPEG/GIF, deduplicated package-wide by content);
+  - hyperlinks (one external relationship per link; internal anchors);
+  - bookmarks;
+  - lists: create, apply, restart (new `num` with `startOverride`), remove;
+  - section breaks: a copy of the `sectPr` (with its header references rewritten) for the earlier half, and `w:type` on the later half. This lifts ADR-0004's A2;
+  - tables: insert/delete rows and columns, merge or split cells, on a consistent grid only;
+  - new paragraphs and run splitting;
+  - new paragraph and character styles: latent built-in names are refused, and `stylesWithEffects.xml` is left unchanged.
+- **Refused until a move primitive exists:** merging non-empty cells, wrapping existing runs into a hyperlink, and deleting rows that hold half of a range.
 
 **Acceptance.**
 
-- Registry property tests: existing IDs never change.
-- The new ID is absent from every part, including both AC branches.
-- docx-rs read-back of tables, lists and images.
-- `ooxmlsdk` (ADR-0002's suggested oracle) parses the output without error. It is evaluated when Phase2 starts.
-- Owner check in Word.
+- T1–T6 on every changed part.
+- **T-OPC**, shared with xlsx Phase3: every target exists; every new or changed part has exactly one content type; ids are unique; there are no orphans. An independent implementation of it runs over `roxmltree`.
+- **Deleting operations** refuse ranges that hold footnote references or revisions.
+- **Out of Phase2:** new header/footer parts, new tables, a new styles part.
+- **T-REG:** every allocated value is fresh in its whole scope, and existing values and duplicates are unchanged. Corpus property tests check this.
+- **docx-rs read-back** of tables, numbering, drawings, hyperlinks, bookmarks and sections.
+- **`ooxmlsdk` parse:** evaluated at the start of the implementation.
+- **Owner check in Word.**
 
 ### Phase3: review and semantics
 
@@ -386,7 +414,10 @@ the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions 
 
 **Acceptance.**
 
-- `sdk-Comment010` round-trip with a reply added (all 5 parts agree).
+- `poi-testComment` round-trip with a reply added and resolved, with every comment part agreeing.
+  Its companions use the 2012 `w15` namespace.
+- `sdk-Comment010` refuses replies and resolve (`LegacyCommentsExtended`, ADR-0015 rev 2), because
+  its `commentsExtended` uses the Office 2013 pre-release namespace. Adding a comment still works.
 - Tracked edit on `poi-delins` with docx-rs read-back of `ins`/`del`.
 - Resolver differential tests against a hand-computed table from the fixtures. LibreOffice is the reference where available; it is not available in this sandbox.
 
@@ -406,14 +437,14 @@ the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions 
 
 | Registry | Owner (proposed) | Keys | Phase | Rule |
 |---|---|---|---|---|
-| OPC content types / rels | `ooxml-core::Package` | part names, rIds | 2 | as ADR-0001 |
+| OPC content types / rels | `ooxml-core::Package` | part names, rIds | 2 | the core registry API on `core/add-part`, single source of truth for Word, xlsx and pptx (ADR-0011 §1, revision 2) |
 | Style IDs | `ooxml-docx::Styles` | `w:styleId` | 1 read, 2 append | never rename; refs to unknown IDs are Err |
 | Numbering | `ooxml-docx::Numbering` | `numId`, `abstractNumId` | 2 | append-only; never reuse a freed ID |
-| Annotation IDs | `ooxml-docx::Annotations` | `w:id` of bookmarks, comments, ins/del/move, perm | 2 | max+1 over the union of all story parts |
+| Annotation IDs | `ooxml-docx::Annotations` | `w:id` of bookmarks, comments, ins/del/move, perm | 2 | max+1 over the union of all story parts and `comments.xml` (ADR-0011 §2; cross-category collisions: 0 in POI/SDK) |
 | Note IDs | `ooxml-docx::Notes` | footnote / endnote `w:id` (+ separator IDs in settings) | 3 | per kind |
-| paraId / textId / durableId | `ooxml-docx::ParaIds` | `w14:paraId`, `w14:textId`, `w16cid:durableId` | 2/3 | random < 0x80000000, absent everywhere; never fix duplicates |
+| paraId / textId / durableId | `ooxml-docx::ParaIds` | `w14:paraId`, `w14:textId`, `w16cid:durableId` | 3 (deferred from 2 by ADR-0011) | random < 0x80000000, absent everywhere; never fix duplicates |
 | Bookmark names | `ooxml-docx::Annotations` | `w:name` | 2 | unique (case rule to be confirmed) |
-| Drawing IDs | `ooxml-docx::Drawings` | `wp:docPr/@id` | 2 | max+1 over all stories |
+| Drawing IDs | `ooxml-docx::Drawings` | `wp:docPr/@id` | 2 | max+1 over all stories, both AC branches (ADR-0011 §2); `pic:cNvPr/@id` written as 0 |
 | rsids | (none) | `settings/w:rsids` | — | never created; Word adds its own |
 | Custom XML store | `ooxml-docx::CustomXml` | `ds:itemID` ↔ `w:dataBinding/@storeItemID` | 3 | edits keep both sides in sync |
 
