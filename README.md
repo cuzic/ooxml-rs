@@ -30,28 +30,56 @@ anything only a live Office instance can do, like real recalculation).
 
 ## Status
 
-**No implementation code exists yet.** What's here is the foundational
-architecture decision — [ADR-0001](docs/adr/0001-lossless-round-trip-architecture.md),
-**Accepted** after three rounds of independent adversarial review (see
-the `opus-review-round*.md` files alongside it) — and a minimal hand-authored
-test fixture (`reference/round_trip_corpus/`). The ADR is the place to
-start reading: it lays out a three-layer design (OPC part-level
-passthrough; a lossless raw-XML-tree-plus-typed-lens for parts that are
-actually edited; append-only cross-part index registries) and a
-deliberately narrow Phase0 scope (Excel only, plain value edits to
-existing cells, formula-free workbooks only) chosen specifically because
-each of those boundaries survived three rounds of someone else trying to
-break it.
+Phase0 is implemented for Excel, Word and PowerPoint on a shared foundation. Every phase is
+designed in an ADR, reviewed in adversarial rounds, and then implemented. See
+[`docs/adr/README.md`](docs/adr/README.md) for the ADR index and their status, and
+[`docs/process.md`](docs/process.md) for how work is done. The design starts at
+[ADR-0001](docs/adr/0001-lossless-round-trip-architecture.md), which sets out three layers:
+
+- OPC part-level passthrough;
+- a lossless raw XML tree with typed lenses for the parts that are edited;
+- append-only cross-part registries.
+
+Nothing is published to crates.io yet.
 
 ## Layout
 
-| Crate | Status | Role |
+| Crate | Status | What it does |
 | --- | --- | --- |
-| `ooxml-core` | not started | OPC package abstraction, lossless raw XML tree, shared XML-writer/escaping utilities — see ADR-0001. |
-| `ooxml-xlsx` | not started | Excel: `Workbook`/`Worksheet`/`Cell`, covering both from-scratch generation and round-trip editing through the same `ooxml-core` foundation. |
+| [`ooxml-core`](crates/ooxml-core/README.md) | implemented | **Layer 1:** OPC `Package`; untouched parts are copied with their original compressed bytes. **Layer 2:** lossless `XmlDocument`/`RawNode` tree; untouched elements are written back byte for byte; typed `Lens`/`LensMut` write primitives. **Layer 3:** content types and relationships, read-only. Refuses encrypted and Strict packages at open; refuses parsing a part that carries a DTD or nests deeper than 256 levels (unparsed parts are copied through unchanged). [ADR-0001](docs/adr/0001-lossless-round-trip-architecture.md), [ADR-0002](docs/adr/0002-schema-driven-code-generation.md) |
+| [`ooxml-schema`](crates/ooxml-schema/README.md) | implemented (generated) | `ElementSpec` markers, `ChildOf` impls, enums and typed views, generated from the Open XML SDK data and the ECMA-376 XSDs for the allowlisted elements (`codegen/allowlist/`). [ADR-0002](docs/adr/0002-schema-driven-code-generation.md) |
+| `xtask` | implemented | `cargo xtask codegen [--check]`: the schema code generator. `cargo xtask stats` reports on it. |
+| [`ooxml-xlsx`](crates/ooxml-xlsx/README.md) | Phase0 | Opens Transitional, unencrypted workbooks. Reads cell values (number, string, bool, …) and writes numbers and strings on the first visible sheet. Creates a workbook from an embedded template. Refuses formulas, merged ranges, table headers and similar cases with a typed error. [ADR-0001](docs/adr/0001-lossless-round-trip-architecture.md), [`docs/roadmap/xlsx.md`](docs/roadmap/xlsx.md) |
+| [`ooxml-docx`](crates/ooxml-docx/README.md) | Phase0 | Reads the body's paragraphs and runs. Replaces one run's text. Appends a paragraph. Refuses edits under track changes, protection or content-dependent fields, and edits inside fields, revisions or content controls. [ADR-0004](docs/adr/0004-docx-phase0.md) |
+| [`ooxml-pptx`](crates/ooxml-pptx/README.md) | Phase0 | Walks slides and shapes and reads text. Edits text inside existing text bodies (shapes, group members, table cells). Refuses edits that would break animation or comment references. [ADR-0005](docs/adr/0005-pptx-phase0.md) |
+| `ooxml-bench` | dev only | Performance baseline against calamine, rust_xlsxwriter and umya-spreadsheet. Not built by `cargo test`. [Report](docs/testing/performance-baseline-2026-11.md) |
 
-Word (`ooxml-docx`) and PowerPoint (`ooxml-pptx`) are out of scope until
-`ooxml-core`'s design is validated against Excel.
+Designs for later phases, and core changes still in review, are open PRs; the
+[ADR index](docs/adr/README.md) links them.
+
+## Building and testing
+
+- **Toolchain:** Rust 1.99 or newer (MSRV 1.99, edition 2024); see `CLAUDE.md` for the API
+  policy.
+- **Checks** (as in CI, `.github/workflows/ci.yml`):
+
+  ```sh
+  cargo test --workspace --all-features
+  cargo clippy --workspace --all-targets --all-features -- -D warnings
+  cargo xtask codegen --check     # generated code and vendored inputs are up to date
+  ```
+
+- **Regenerating the schema code** after an allowlist or override change: `cargo xtask codegen`.
+- **Manual checks in Microsoft 365**, which CI cannot run. Each writes edited files plus a
+  checklist for the project owner:
+
+  ```sh
+  cargo run -p ooxml-xlsx --example manual_check -- <outdir>
+  cargo run -p ooxml-docx --example manual_check -- <outdir>
+  cargo run -p ooxml-pptx --example manual_check -- <outdir>
+  ```
+
+- **Benchmarks:** `cargo bench -p ooxml-bench --bench baseline` (and `--bench breakdown`).
 
 ## Third-party test fixtures
 
