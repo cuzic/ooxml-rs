@@ -29,4 +29,4 @@ pub use lens::{Lens, LensMut};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
-pub use xml::{ElementSpan, RawAttr, RawItem, RawNode, RawText, XmlDocument};
+pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
