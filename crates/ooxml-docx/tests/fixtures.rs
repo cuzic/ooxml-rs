@@ -7,7 +7,7 @@ use std::assert_matches;
 
 use common::*;
 use ooxml_core::Error as CoreError;
-use ooxml_docx::{Document, Error, RunContext};
+use ooxml_docx::{Document, Error, Operation, RunContext};
 
 fn open(stem: &str) -> Result<Document, Error> {
     Document::from_bytes(fixture(stem))
@@ -43,7 +43,10 @@ fn gated_documents_read_but_never_write() {
     for &stem in GATED {
         let input = fixture(stem);
         let mut doc = Document::from_bytes(input.clone()).unwrap();
-        let expected = doc.write_gate().unwrap_err().to_string();
+        doc.write_gate().unwrap_err();
+        // ADR-0007 §6.1: text edits and appends are gated by their own W2 column.
+        let expected = doc.write_gate_for(Operation::Text).unwrap_err().to_string();
+        assert_eq!(expected, doc.write_gate_for(Operation::Append).unwrap_err().to_string());
         assert!(doc.paragraph_count() > 0, "{stem}: reads work");
         let text: String = doc.paragraphs().map(|p| p.text()).collect();
         assert!(!text.is_empty(), "{stem}");
