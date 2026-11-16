@@ -364,3 +364,145 @@ fn chart_formulas_follow_a_rename() {
     assert!(!after.contains("Sheet1!") && after.contains("<c:f>'Daten 1'!$A$1:$B$1</c:f>"));
     assert_eq!(before.replace("Sheet1!", "'Daten 1'!"), after, "byte-local: only the c:f text changes");
 }
+
+const WS_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const REL_NS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+fn sheet_xml_with(inner: &str) -> Vec<u8> {
+    format!(r#"<worksheet xmlns="{WS_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">{inner}</worksheet>"#).into_bytes()
+}
+
+/// A part another sheet also uses stays when its sheet is deleted (closed
+/// set: shared parts are kept).
+#[test]
+fn delete_keeps_shared_parts() {
+    let rels = format!(r#"<Relationships xmlns="{REL_NS}"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings" Target="../printerSettings/p1.bin"/></Relationships>"#);
+    let base = common::p1::book(&[("A", ""), ("B", "")], "", "");
+    let input = rebuild(&base, &[
+        ("xl/worksheets/_rels/sheet1.xml.rels", rels.clone().into_bytes()),
+        ("xl/worksheets/_rels/sheet2.xml.rels", rels.into_bytes()),
+        ("xl/printerSettings/p1.bin", b"PS".to_vec()),
+    ]);
+    let input = common::p1::with_part(&input, "[Content_Types].xml", &text(&input, "[Content_Types].xml").replace("</Types>", r#"<Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings"/></Types>"#));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.delete_sheet("A").unwrap();
+    let pkg = Package::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    assert!(pkg.contains("xl/printerSettings/p1.bin"), "the shared part stays");
+    assert!(!pkg.contains("xl/worksheets/_rels/sheet1.xml.rels"));
+}
+
+/// A deleted sheet's id is not reused by a later add (ADR-0009 §3).
+#[test]
+fn sheet_ids_are_not_reused() {
+    let mut wb = Workbook::from_bytes(common::p1::book(&[("A", ""), ("B", "")], "", "")).unwrap();
+    wb.delete_sheet("B").unwrap();
+    wb.add_sheet("C", 1).unwrap();
+    let w = text(&wb.to_bytes().unwrap(), "xl/workbook.xml");
+    assert!(w.contains(r#"name="C" sheetId="3""#), "{w}");
+}
+
+/// The closed-world scan refuses a mention in a place this version does
+/// not rewrite: a data-validation formula, and an unknown XML part.
+#[test]
+fn scan_refuses_unknown_places() {
+    let base = common::p1::book(&[("A", ""), ("Data", "")], "", "");
+    let dv = sheet_xml_with(r#"<sheetData/><dataValidations count="1"><dataValidation type="list" sqref="A1"><formula1>Data!$A$1:$A$3</formula1></dataValidation></dataValidations>"#);
+    let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", dv)]);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    assert!(matches!(wb.rename_sheet("Data", "D2"), Err(Error::UnrewritableReference { .. })));
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+    let input = rebuild(&base, &[("xl/custom.xml", br#"<x a="Data!A1"/>"#.to_vec())]);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    assert!(matches!(wb.rename_sheet("Data", "D2"), Err(Error::UnrewritableReference { .. })));
+    assert!(matches!(wb.delete_sheet("Data"), Err(Error::UnrewritableReference { .. })));
+}
+
+/// Deleting the active, selected sheet selects the next visible one, and
+/// `activeTab` follows positions.
+#[test]
+fn delete_moves_the_active_tab() {
+    let views = r#"<bookViews><workbookView activeTab="2"/></bookViews>"#;
+    let base = common::p1::book(&[("A", ""), ("B", ""), ("C", "")], "", views);
+    let selected = sheet_xml_with(r#"<sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews><sheetData/>"#);
+    let plain = sheet_xml_with(r#"<sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetData/>"#);
+    let input = rebuild(&base, &[("xl/worksheets/sheet3.xml", selected), ("xl/worksheets/sheet2.xml", plain)]);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    wb.delete_sheet("A").unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(text(&out, "xl/workbook.xml").contains(r#"activeTab="1""#), "C moved from 2 to 1");
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.delete_sheet("C").unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(text(&out, "xl/workbook.xml").contains(r#"activeTab="1""#));
+    assert!(text(&out, "xl/worksheets/sheet2.xml").contains(r#"tabSelected="1""#), "B is selected now");
+}
+
+/// A table used elsewhere refuses the delete of its sheet.
+#[test]
+fn table_in_use_refuses_delete() {
+    let base = common::p1::book(&[("A", r#"<row r="1"><c r="A1"><f>SUM(Tbl[Col])</f></c></row>"#), ("B", "")], "", "");
+    let rels = format!(r#"<Relationships xmlns="{REL_NS}"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>"#);
+    let table = format!(r#"<table xmlns="{WS_NS}" id="1" name="Tbl" displayName="Tbl" ref="A1:A2"><tableColumns count="1"><tableColumn id="1" name="Col"/></tableColumns></table>"#);
+    let input = rebuild(&base, &[
+        ("xl/worksheets/sheet2.xml", sheet_xml_with(r#"<sheetData/><tableParts count="1"><tablePart r:id="rId1"/></tableParts>"#)),
+        ("xl/worksheets/_rels/sheet2.xml.rels", rels.into_bytes()),
+        ("xl/tables/table1.xml", table.into_bytes()),
+    ]);
+    let input = common::p1::with_part(&input, "[Content_Types].xml", &text(&input, "[Content_Types].xml").replace("</Types>", r#"<Override PartName="/xl/tables/table1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/></Types>"#));
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    assert!(matches!(wb.delete_sheet("B"), Err(Error::TableInUse(_))));
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+}
+
+/// A pivot cache sourcing the sheet refuses its delete (ADR-0009 §5).
+#[test]
+fn pivot_source_refuses_delete() {
+    let input = read("poi/ExcelPivotTableSample.xlsx");
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    assert!(matches!(wb.delete_sheet("Tabelle1"), Err(Error::SheetIsPivotSource(_))));
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+}
+
+/// `localSheetId`s at or after an added sheet's position shift by one.
+#[test]
+fn add_shifts_local_names() {
+    let names = r#"<definedName name="L0" localSheetId="0">A!$A$1</definedName><definedName name="L1" localSheetId="1">B!$A$1</definedName>"#;
+    let mut wb = Workbook::from_bytes(common::p1::book(&[("A", ""), ("B", "")], names, "")).unwrap();
+    wb.add_sheet("New", 1).unwrap();
+    let w = text(&wb.to_bytes().unwrap(), "xl/workbook.xml");
+    assert!(w.contains(r#"name="L0" localSheetId="0""#) && w.contains(r#"name="L1" localSheetId="2""#), "{w}");
+}
+
+/// Shared workbooks refuse every structural operation.
+#[test]
+fn shared_workbooks_refuse() {
+    let base = common::p1::book(&[("A", ""), ("B", "")], "", "");
+    let rels = text(&base, "xl/_rels/workbook.xml.rels").replace(
+        "</Relationships>",
+        r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/revisionHeaders" Target="revisions/revisionHeaders.xml"/></Relationships>"#,
+    );
+    let input = rebuild(&base, &[("xl/_rels/workbook.xml.rels", rels.into_bytes()), ("xl/revisions/revisionHeaders.xml", b"<headers/>".to_vec())]);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    assert!(matches!(wb.add_sheet("C", 0), Err(Error::SharedWorkbook)));
+    assert!(matches!(wb.rename_sheet("A", "Z"), Err(Error::SharedWorkbook)));
+    assert!(matches!(wb.delete_sheet("B"), Err(Error::SharedWorkbook)));
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+}
+
+/// A delete removes `calcChain.xml` (the set of formula cells changes).
+#[test]
+fn delete_removes_calc_chain() {
+    let base = common::p1::book(&[("A", r#"<row r="1"><c r="A1"><f>1+1</f><v>2</v></c></row>"#), ("B", r#"<row r="1"><c r="A1"><f>2+2</f><v>4</v></c></row>"#)], "", "");
+    let rels = text(&base, "xl/_rels/workbook.xml.rels").replace(
+        "</Relationships>",
+        r#"<Relationship Id="rId98" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/></Relationships>"#,
+    );
+    let cc = format!(r#"<calcChain xmlns="{WS_NS}"><c r="A1" i="1"/><c r="A1" i="2"/></calcChain>"#);
+    let input = rebuild(&base, &[("xl/_rels/workbook.xml.rels", rels.into_bytes()), ("xl/calcChain.xml", cc.into_bytes())]);
+    let input = common::p1::with_part(&input, "[Content_Types].xml", &text(&input, "[Content_Types].xml").replace("</Types>", r#"<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/></Types>"#));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.delete_sheet("B").unwrap();
+    let pkg = Package::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    assert!(!pkg.contains("xl/calcChain.xml"));
+    assert!(!text(&wb.to_bytes().unwrap(), "[Content_Types].xml").contains("calcChain"));
+}
