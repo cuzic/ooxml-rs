@@ -227,11 +227,11 @@ impl Package {
         let len = data.len() as u64;
         let mut archive = ZipArchive::new(Cursor::new(data))?;
         let mut parts = Vec::with_capacity(archive.len());
+        let mut declared: u64 = 0;
         // OPC part-name equivalence (ASCII case-insensitive, an IRI entry
         // name equals its percent-encoded form; review N8): each name is
         // normalized once, so the check is linear (review N11).
         let mut seen = std::collections::HashSet::with_capacity(archive.len());
-        let mut declared: u64 = 0;
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index)?;
             let name = file.name()?.into_owned();

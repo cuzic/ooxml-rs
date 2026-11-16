@@ -1,0 +1,7 @@
+agree (source layout)                              167
+agree (source master)                              288
+agree (source slide)                               255
+compared                                           711
+python-pptx None, ours resolved (source master)    1
+python-pptx cannot open                            13
+   (('layouts.pptx', '262', '2'), (457200, 274638, 8229600, 1143000), (None, None, None, None))

@@ -1,0 +1,125 @@
+ac_under_sld.content=['p:transition']                                            12
+      e.g. bug64693.pptx
+      e.g. bug68703.pptx
+      e.g. crop-to-0.pptx
+comments.files_legacy                                                            1
+comments.files_modern                                                            1
+comments.legacy.cm                                                               2
+comments.modern.anchor=ac:deMkLst                                                1
+      e.g. modern-comments.pptx
+comments.modern.anchor_moniker=ac:spMk                                           1
+comments.modern.anchor_moniker=pc:docMk                                          1
+comments.modern.anchor_moniker=pc:sldMk                                          1
+comments.modern.cm                                                               1
+comments.modern.reply                                                            2
+file                                                                             104
+link.attr.highlightClick                                                         1
+link.layout.a:hlinkClick.on_p:cNvPr                                              1
+link.layout.action=(none) -> external(hyperlink)                                 1
+      e.g. ('ArtisticEffectSample.pptx', 'ppt/slideLayouts/slideLayout5.xml')
+link.master.a:hlinkClick.on_a:rPr                                                2
+link.master.action=(none) -> external(hyperlink)                                 2
+      e.g. ('slide-sections.pptx', 'ppt/slideMasters/slideMaster1.xml')
+      e.g. ('slide-sections.pptx', 'ppt/slideMasters/slideMaster2.xml')
+link.slide.a:hlinkClick.on_a:rPr                                                 48
+link.slide.a:hlinkClick.on_p:cNvPr                                               39
+link.slide.a:hlinkMouseOver.on_a:rPr                                             1
+link.slide.action=(none) -> external(hyperlink)                                  46
+      e.g. ('alterman_security.pptx', 'ppt/slides/slide22.xml')
+      e.g. ('alterman_security.pptx', 'ppt/slides/slide22.xml')
+      e.g. ('alterman_security.pptx', 'ppt/slides/slide22.xml')
+link.slide.action=(none) -> internal(hyperlink)                                  4
+      e.g. ('with_japanese.pptx', 'ppt/slides/slide1.xml')
+      e.g. ('with_japanese.pptx', 'ppt/slides/slide1.xml')
+      e.g. ('with_japanese.pptx', 'ppt/slides/slide1.xml')
+link.slide.action=hlinksldjump -> internal(slide)                                21
+      e.g. ('51187.pptx', 'ppt/slides/slide1.xml')
+      e.g. ('keyframes.pptx', 'ppt/slides/slide4.xml')
+      e.g. ('keyframes.pptx', 'ppt/slides/slide5.xml')
+link.slide.action=macro -> empty r:id                                            13
+      e.g. ('keyframes.pptx', 'ppt/slides/slide16.xml')
+      e.g. ('keyframes.pptx', 'ppt/slides/slide17.xml')
+      e.g. ('keyframes.pptx', 'ppt/slides/slide18.xml')
+link.slide.action=media -> empty r:id                                            4
+      e.g. ('EmbeddedAudio.pptx', 'ppt/slides/slide1.xml')
+      e.g. ('EmbeddedVideo.pptx', 'ppt/slides/slide1.xml')
+      e.g. ('mediareference.pptx', 'ppt/slides/slide1.xml')
+link.tooltip                                                                     3
+notes.body_empty                                                                 140
+notes.body_nonempty                                                              88
+notes.body_placeholders=1                                                        228
+notes.part                                                                       228
+notes.ph.type=body                                                               228
+notes.ph.type=dt                                                                 23
+notes.ph.type=ftr                                                                3
+notes.ph.type=hdr                                                                13
+notes.ph.type=sldImg                                                             228
+notes.ph.type=sldNum                                                             205
+notes.slide_without_notes                                                        317
+presentation.ext uri={2D200454-40CA-4A62-9FC3-DE9A4176ACB9}                      5
+presentation.ext uri={521415D9-36F7-43E2-AB2F-B90AF26B5E84}                      4
+presentation.ext uri={EFAFB233-063F-42B5-8137-9DF3F51BA10A}                      29
+sections.empty_section                                                           12
+      e.g. bug64693.pptx
+      e.g. bug64693.pptx
+      e.g. bug64693.pptx
+sections.files                                                                   4
+sections.section                                                                 17
+slide                                                                            545
+timing                                                                           279
+timing.build=p:bldP                                                              98
+timing.cTn.nodeType=afterEffect                                                  16
+timing.cTn.nodeType=clickEffect                                                  113
+timing.cTn.nodeType=clickPar                                                     29
+timing.cTn.nodeType=interactiveSeq                                               3
+timing.cTn.nodeType=mainSeq                                                      64
+timing.cTn.nodeType=tmRoot                                                       279
+timing.cTn.nodeType=withEffect                                                   101
+timing.cTn.nodeType=withGroup                                                    29
+timing.effect.presetClass=emph                                                   3
+timing.effect.presetClass=entr                                                   179
+timing.effect.presetClass=exit                                                   27
+timing.effect.presetClass=mediacall                                              5
+timing.effect.presetClass=path                                                   16
+timing.p:audio                                                                   3
+timing.p:cmd                                                                     5
+timing.p:sldTgt                                                                  131
+timing.p:video                                                                   1
+timing.spTgt.child=(none)                                                        380
+timing.spTgt.child=p:txEl                                                        97
+transition.ac.choice.Requires=p14                                                11
+transition.ac.choice.Requires=p15                                                1
+transition.ac.choice.attr=advClick                                               1
+transition.ac.choice.attr=p14:dur                                                11
+transition.ac.choice.attr=spd                                                    11
+transition.ac.choice.attr={http://schemas.microsoft.com/office/powerpoint/2007/7/12/main}dur 1
+transition.ac.choice.kind=p15:prstTrans                                          1
+transition.ac.choice.kind=p:checker                                              1
+transition.ac.choice.kind=p:fade                                                 2
+transition.ac.fallback.kind=p:checker                                            1
+transition.ac.fallback.kind=p:fade                                               3
+transition.direct                                                                205
+transition.direct.attr=advClick                                                  6
+transition.direct.attr=advTm                                                     6
+transition.direct.attr=spd                                                       81
+transition.direct.kind=p:blinds                                                  2
+transition.direct.kind=p:comb                                                    1
+transition.direct.kind=p:diamond                                                 1
+transition.direct.kind=p:dissolve                                                1
+transition.direct.kind=p:fade                                                    78
+transition.direct.kind=p:newsflash                                               1
+transition.direct.kind=p:plus                                                    1
+transition.direct.kind=p:push                                                    1
+transition.direct.kind=p:randomBar                                               2
+transition.direct.kind=p:strips                                                  2
+transition.direct.kind=p:wheel                                                   4
+transition.direct.kind=p:wipe                                                    16
+transition.direct.kind=p:zoom                                                    33
+transition.on_layout                                                             234
+      e.g. 45541_Footer.pptx
+      e.g. 45541_Footer.pptx
+      e.g. 45541_Footer.pptx
+transition.on_master                                                             23
+      e.g. 45541_Footer.pptx
+      e.g. 45541_Header.pptx
+      e.g. 45545_Comment.pptx
