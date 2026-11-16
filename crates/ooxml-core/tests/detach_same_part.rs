@@ -115,9 +115,19 @@ fn relationship_ids_are_kept_within_the_part() {
     let out = d.serialize();
     let inserted = r#"<x:rPr b="1"><x:link r:id="rId7" r:embed="rId8"/></x:rPr>"#;
     assert_eq!(out, PLAIN.replace(r#"<x:r><x:t>b"#, &format!("<x:r>{inserted}<x:t>b")), "a pure insertion, ids unchanged");
-    // and it can be inserted again (by reference), also as the other SameType
+    // and as the other SameType (renamed: its tags are re-rendered, the
+    // prefix kept), and with a direct child skipped (children re-rendered)
     let end = first_rpr(&d).detach_same_part_as::<End>(&[], &opts()).unwrap();
     assert_eq!(end.raw().name().local(), "end");
+    let bare = first_rpr(&d).detach_same_part_as::<RPr>(&[q("link")], &opts()).unwrap();
+    let mut p = d.lens_mut::<P>().unwrap();
+    p.insert_same_part(&end).unwrap();
+    p.nth_child_mut::<R>(1).unwrap().remove::<RPr>();
+    p.nth_child_mut::<R>(1).unwrap().insert_same_part(&bare).unwrap();
+    let out = d.serialize();
+    assert!(out.contains(r#"<x:end b="1"><x:link r:id="rId7" r:embed="rId8"/></x:end>"#), "{out}");
+    assert!(out.contains(r#"<x:r><x:rPr b="1"></x:rPr><x:t>b</x:t></x:r>"#), "{out}");
+    XmlDocument::parse(out.as_bytes()).unwrap();
 }
 
 #[test]
@@ -181,9 +191,8 @@ fn document_unique_attributes_and_the_other_refusals_still_apply() {
         let d = doc(&s.replace(r#"uid="3""#, r#"uid="0""#).replace(r#"uid="1""#, r#"uid="0""#));
         first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
     }
-    // namespace declarations, Markup Compatibility
+    // Markup Compatibility (attribute or element)
     for rpr in [
-        r#"<x:rPr xmlns:y="urn:y"/>"#,
         r#"<x:rPr mc:Ignorable="y" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"/>"#,
         r#"<x:rPr><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"/></x:rPr>"#,
     ] {
@@ -191,23 +200,28 @@ fn document_unique_attributes_and_the_other_refusals_still_apply() {
         let d = doc(&s);
         assert_matches!(first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()), Err(Error::NotDetachable { .. }), "{rpr}");
     }
-    // a namespace an ancestor makes ignorable
-    let s = concat!(
-        r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="y">"#,
-        r#"<x:r><x:rPr y:k="v"/><x:t>a</x:t></x:r></x:p>"#
+    // Checked at the destination (as a move is): an ignorable namespace
+    // and an inherited xml:space are fine where they mean the same...
+    let ign = concat!(
+        r#"<x:p xmlns:x="urn:t" xmlns:y="urn:y" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">"#,
+        r#"<x:r mc:Ignorable="y"><x:rPr y:k="v"/><x:t>a</x:t></x:r><x:r mc:Ignorable="y"><x:t>b</x:t></x:r><x:r><x:t>c</x:t></x:r></x:p>"#
     );
-    let d = doc(s);
-    assert_matches!(
-        first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()),
-        Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. })
+    let spc = concat!(
+        r#"<x:p xmlns:x="urn:t">"#,
+        r#"<x:r xml:space="preserve"><x:rPr><x:note>a  b</x:note></x:rPr><x:t>a</x:t></x:r><x:r xml:space="preserve"><x:t>b</x:t></x:r><x:r><x:t>c</x:t></x:r></x:p>"#
     );
-    // text under an inherited xml:space="preserve"
-    let s = r#"<x:p xmlns:x="urn:t" xml:space="preserve"><x:r><x:rPr><x:note>a  b</x:note></x:rPr><x:t>a</x:t></x:r></x:p>"#;
-    let d = doc(s);
-    assert_matches!(
-        first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()),
-        Err(Error::NotDetachable { reason: DetachRefusal::InheritedXmlSpace, .. })
-    );
+    for (s, reason) in [(ign, DetachRefusal::IgnorableNamespace), (spc, DetachRefusal::InheritedXmlSpace)] {
+        let mut d = doc(s);
+        let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+        copy.check_insert_under(&d, &[1], 0).unwrap();
+        // ...and refused where they would change its meaning
+        assert_matches!(copy.check_insert_under(&d, &[2], 0), Err(Error::NotDetachable { reason: r, .. }) if r == reason);
+        let before = d.serialize();
+        let r = d.lens_mut::<P>().unwrap().nth_child_mut::<R>(2).unwrap().insert_same_part(&copy).map(drop);
+        assert_matches!(r, Err(Error::NotDetachable { reason: r, .. }) if r == reason);
+        assert_eq!(d.serialize(), before, "an Err changes nothing");
+        d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
+    }
 }
 
 #[test]
@@ -263,17 +277,16 @@ fn check_twin_agrees_with_the_insertion() {
             assert_eq!(d.serialize(), before);
         } else {
             assert_eq!(check, ins, "target run {target}");
-            assert!(check.as_ref().is_err_and(|e| e.contains("NamespaceNotInScope")), "{check:?}");
+            assert!(check.as_ref().is_err_and(|e| e.contains("NamespaceBinding")), "{check:?}");
             assert_eq!(d.serialize(), before, "an Err changes nothing");
         }
     }
 }
 
-/// Namespace declarations are kept inside an allowed extension (extension
-/// content commonly declares its namespace locally, as `ahyp:hlinkClr`
-/// does) and are honoured when prefixes are chosen; elsewhere they are
-/// still refused. An empty `extLst` is refused unless an extension is
-/// allowed.
+/// The copy is a span-preserving clone: namespace declarations travel with
+/// its bytes (extension content declares its namespace locally, as
+/// `ahyp:hlinkClr` does). An empty `extLst` is refused unless an extension
+/// is allowed.
 #[test]
 fn declarations_inside_an_allowed_extension_are_kept() {
     let u = ext_uri::HYPERLINK_COLOR;
@@ -284,13 +297,12 @@ fn declarations_inside_an_allowed_extension_are_kept() {
     let out = d.serialize();
     assert_eq!(out.matches(r#"<z:clr xmlns:z="urn:z" v="tx"><z:k/></z:clr>"#).count(), 2, "{out}");
     XmlDocument::parse(out.as_bytes()).unwrap();
-    // outside an extension: refused
-    let s = PLAIN.replace(r#"<x:link r:id="rId7" r:embed="rId8"/>"#, r#"<z:k xmlns:z="urn:z"/>"#);
-    let d = doc(&s);
-    assert_matches!(
-        first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts().keep_extension(u)),
-        Err(Error::NotDetachable { reason: DetachRefusal::NamespaceDeclaration, .. })
-    );
+    // a declaration anywhere in the copy travels with its bytes
+    let s = PLAIN.replace(r#"<x:link r:id="rId7" r:embed="rId8"/>"#, r#"<z:k xmlns:z="urn:z" z:v="1"/>"#);
+    let mut d = doc(&s);
+    let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
+    assert_eq!(d.serialize().matches(r#"<z:k xmlns:z="urn:z" z:v="1"/>"#).count(), 2);
     // an empty extLst
     let s = PLAIN.replace(r#"<x:link r:id="rId7" r:embed="rId8"/>"#, r#"<x:extLst/>"#);
     let d = doc(&s);
@@ -312,4 +324,63 @@ fn path_lenses_know_their_document() {
     assert_eq!(d.serialize().matches(r#"r:id="rId7""#).count(), 2);
     assert_matches!(d.lens_at::<RPr>(&[1]), Err(Error::WrongElement { .. }));
     assert_matches!(d.lens_mut_at::<R>(&[9]).map(drop), Err(Error::WrongElement { .. }));
+}
+
+/// A prefix the copy declares itself is not compared with the destination
+/// (it travels with the bytes), even where the destination binds it to
+/// another namespace; MC attributes deeper in the copy are refused; the
+/// depth limit counts the copy's deepest element, in the check twin too.
+#[test]
+fn own_declarations_nested_mc_and_depth() {
+    let s = concat!(
+        r#"<x:p xmlns:x="urn:t">"#,
+        r#"<x:r><x:rPr><z:k xmlns:z="urn:z" z:v="1"/></x:rPr><x:t>a</x:t></x:r>"#,
+        r#"<x:r xmlns:z="urn:other"><x:t>b</x:t></x:r></x:p>"#
+    );
+    let mut d = doc(s);
+    let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    copy.check_insert_under(&d, &[1], 0).unwrap();
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
+    assert_eq!(d.serialize().matches(r#"<z:k xmlns:z="urn:z" z:v="1"/>"#).count(), 2);
+    // nested MC attribute
+    let s = PLAIN.replace(
+        r#"<x:link r:id="rId7" r:embed="rId8"/>"#,
+        r#"<x:fill xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x"/>"#,
+    );
+    let d = doc(&s);
+    assert_matches!(
+        first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()),
+        Err(Error::NotDetachable { reason: DetachRefusal::MarkupCompatibility, .. })
+    );
+    // depth: p(1) / r(2) / rPr(3) / link(4). With a limit of 4 the copy fits
+    // under a run, but not one created element deeper (check twin); the
+    // insertion counts the copy's deepest element the same way.
+    let opts4 = ooxml_core::ParseOptions::default().with_max_depth(4);
+    let mut d = XmlDocument::parse_with(PLAIN.as_bytes(), &opts4).unwrap();
+    let copy = d.lens::<P>().unwrap().children::<R>().next().unwrap().child::<RPr>().unwrap().detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    assert_eq!(copy.height(), 2);
+    copy.check_insert_under(&d, &[1], 0).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[1], 1), Err(Error::TooDeep { .. }));
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
+    let opts3 = ooxml_core::ParseOptions::default().with_max_depth(3);
+    let shallow = PLAIN.replace(r#"<x:link r:id="rId7" r:embed="rId8"/>"#, "");
+    let d3 = XmlDocument::parse_with(shallow.as_bytes(), &opts3).unwrap();
+    let flat = d3.lens::<P>().unwrap().children::<R>().next().unwrap().child::<RPr>().unwrap().detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    flat.check_insert_under(&d3, &[1], 0).unwrap();
+    assert_matches!(flat.check_insert_under(&d3, &[1], 1), Err(Error::TooDeep { .. }));
+}
+
+/// Text under the copy's own `xml:space` does not inherit it, so the
+/// destination's inherited value does not matter for it.
+#[test]
+fn own_xml_space_is_not_inherited() {
+    let s = concat!(
+        r#"<x:p xmlns:x="urn:t">"#,
+        r#"<x:r xml:space="preserve"><x:rPr><x:note xml:space="preserve">a  b</x:note></x:rPr><x:t>a</x:t></x:r><x:r><x:t>c</x:t></x:r></x:p>"#
+    );
+    let mut d = doc(s);
+    let copy = first_rpr(&d).detach_same_part_as::<RPr>(&[], &opts()).unwrap();
+    copy.check_insert_under(&d, &[1], 0).unwrap();
+    d.lens_mut::<P>().unwrap().nth_child_mut::<R>(1).unwrap().insert_same_part(&copy).unwrap();
+    assert_eq!(d.serialize().matches(r#"<x:note xml:space="preserve">a  b</x:note>"#).count(), 2);
 }

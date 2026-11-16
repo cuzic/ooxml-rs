@@ -120,9 +120,10 @@ fn hyperlink_run_properties_copy_within_the_part() {
 
 /// Corpus run (ignored; needs the files): every slide `a:rPr` that holds a
 /// relationship id — 83 in the 619-presentation ADR-0008 corpus, all
-/// hyperlinks, 12 with `ahyp:hlinkClr` — is copied into a new run of its own
-/// paragraph with a same-part copy. The output re-parses, the copy is
-/// structurally equal to its source, and the relationship ids are the same.
+/// hyperlinks, 12 with `ahyp:hlinkClr` (each declaring `xmlns:ahyp` on
+/// itself) — is copied into a new run of its own paragraph with a same-part
+/// copy. The source bytes appear once more in the output (verbatim), it
+/// re-parses, and the copy is structurally equal to its source.
 ///
 /// `OOXML_SAME_PART_CORPUS` names a file listing `.pptx` paths, one per line.
 #[test]
@@ -165,7 +166,12 @@ fn corpus_hyperlink_runs_copy_within_their_slide() {
                 let mut run = p.insert::<Run>().unwrap_or_else(|e| panic!("{path} {slide} {t:?}: {e}"));
                 run.insert_same_part(&copy).unwrap_or_else(|e| panic!("{path} {slide} {t:?}: {e}"));
                 let new_run = run.path().to_vec();
-                let again = XmlDocument::parse(d.serialize().as_bytes()).unwrap();
+                let out = d.serialize();
+                // byte for byte: the source rPr's text appears exactly once more
+                let sp = base.lens_at::<RunProperties>(&t).unwrap().raw().span().expect("source span");
+                let text = &base.source()[sp.start..sp.end()];
+                assert_eq!(out.matches(text).count(), base.source().matches(text).count() + 1, "{path} {slide} {t:?}");
+                let again = XmlDocument::parse(out.as_bytes()).unwrap();
                 let a = again.lens_at::<RunProperties>(&t).unwrap();
                 let mut new_rpr = new_run.clone();
                 new_rpr.push(0);
