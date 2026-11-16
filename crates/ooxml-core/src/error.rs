@@ -122,6 +122,89 @@ pub enum Error {
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
+    /// The part is not well-formed XML in a way the underlying reader
+    /// (quick-xml) would let through. Refused at parse time so that the tree
+    /// never holds something a re-render could not write back, and element
+    /// spans are always exact.
+    #[error("XML at byte {position} is not well-formed: {reason}")]
+    NotWellFormed {
+        /// Byte offset in the part.
+        position: usize,
+        /// What is wrong.
+        reason: WellFormedness,
+    },
+    /// [`LensMut::set_attr`](crate::LensMut::set_attr) or
+    /// [`LensMut::remove_attr`](crate::LensMut::remove_attr) on a namespace
+    /// declaration (`xmlns`, `xmlns:*`). Declarations decide what every name
+    /// in the subtree means, so they are managed by ooxml-core, never written
+    /// through the lens.
+    #[error("{0} is a namespace declaration; the lens never writes namespace declarations")]
+    NamespaceDeclaration(QName),
+    /// A zip entry's stored data does not lie inside the archive (bogus
+    /// compressed size or local-header offsets). Copying it through would
+    /// write different bytes, so the package is refused at open.
+    #[error("zip entry {part:?} is truncated: its data ends at byte {end}, past the end of the archive ({len} bytes)")]
+    TruncatedEntry {
+        /// The entry name.
+        part: String,
+        /// Where its data would end (saturated at `u64::MAX`).
+        end: u64,
+        /// The archive length.
+        len: u64,
+    },
+    /// A part decompresses (or declares that it decompresses) to more than
+    /// [`ParseOptions::max_part_bytes`](crate::xml::ParseOptions::max_part_bytes).
+    #[error("part {part:?} decompresses to more than the limit of {limit} bytes")]
+    PartTooLarge {
+        /// The part.
+        part: String,
+        /// The limit in force.
+        limit: u64,
+    },
+    /// The parts' declared decompressed sizes add up to more than
+    /// [`ParseOptions::max_package_bytes`](crate::xml::ParseOptions::max_package_bytes).
+    #[error("the package's parts declare {size} decompressed bytes in total, more than the limit of {limit}")]
+    PackageTooLarge {
+        /// The sum of the declared sizes (saturated at `u64::MAX`).
+        size: u64,
+        /// The limit in force.
+        limit: u64,
+    },
+}
+
+/// Why a part is [`Error::NotWellFormed`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WellFormedness {
+    /// A byte order mark after the first one (only one, at byte 0, is a BOM;
+    /// U+FEFF is not allowed before the root element).
+    ByteOrderMark,
+    /// An XML declaration (`<?xml …?>`) anywhere but at the start of the
+    /// document.
+    XmlDeclarationNotAtStart,
+    /// An element or attribute with an empty local name or an empty prefix
+    /// (`< />`, `<:a/>`).
+    EmptyName,
+    /// A U+0000 character (not allowed anywhere in XML 1.0).
+    NullCharacter,
+    /// `xmlns:p=""`: Namespaces in XML 1.0 forbids undeclaring a prefix.
+    EmptyPrefixBinding,
+    /// The reader reported a construct at a position that does not match
+    /// the source text; refused rather than recording a wrong span.
+    PositionMismatch,
+}
+
+impl std::fmt::Display for WellFormedness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            WellFormedness::ByteOrderMark => "a byte order mark (U+FEFF) after the start of the document",
+            WellFormedness::XmlDeclarationNotAtStart => "an XML declaration that is not at the start of the document",
+            WellFormedness::EmptyName => "an empty element or attribute name or prefix",
+            WellFormedness::NullCharacter => "a U+0000 character",
+            WellFormedness::EmptyPrefixBinding => "a namespace prefix bound to the empty string",
+            WellFormedness::PositionMismatch => "the reader's position does not match the source",
+        })
+    }
 }
 
 /// `Result` with [`Error`].
