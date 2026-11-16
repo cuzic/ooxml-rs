@@ -176,6 +176,21 @@ pub trait ElementSpec: 'static {
 )]
 pub trait ChildOf<P: ElementSpec>: ElementSpec {}
 
+/// `Self` has the same schema type as `S`: a copy of an `S` subtree, renamed
+/// to `Self::QNAME`, is a valid `Self` (ADR-0002 post-acceptance note
+/// "detach/insert"). Every spec is `SameType` of itself (blanket impl);
+/// `ooxml-schema` generates the other pairs, for allowlisted entries with
+/// the same SDK complex type and the same resolved attributes and content
+/// (e.g. `a:endParaRPr` and `a:rPr`, both `a:CT_TextCharacterProperties`).
+/// Used by [`Lens::detach_as`](crate::Lens::detach_as).
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` does not have the same schema type as `{S}`",
+    note = "`SameType` is generated only for allowlisted elements sharing an SDK complex type"
+)]
+pub trait SameType<S: ElementSpec>: ElementSpec {}
+
+impl<S: ElementSpec> SameType<S> for S {}
+
 /// A generated enumeration of an attribute's known values.
 pub trait EnumType: Copy + Eq + fmt::Debug + 'static {
     /// Lexical values, indexed by [`Self::index`].

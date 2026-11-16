@@ -89,6 +89,36 @@
   primitive can write a part that is not well-formed (U+000B, other C0
   controls, U+FFFE/U+FFFF). Format crates still own their own line-break
   rules; this is the backstop.
+- **Post-acceptance note (2026-11-16, detach/insert — additive, no change
+  to the decisions; from the ADR-0005 round-2 review, Q2):** a copy-subtree
+  primitive in two steps, so the source is read through a `Lens` and no
+  `&mut` borrow is held while copying.
+  (1) `Lens::detach_as::<C: SameType<E>>(skip) -> Result<Detached<C>>`
+  takes an owned copy of the element's subtree with spans cleared and
+  **namespace URIs only** (no prefixes), renamed to `C::QNAME`; direct
+  children whose QName is in `skip` are left out. It refuses
+  (`Error::NotDetachable(DetachRefusal)`), before copying anything: any
+  Markup Compatibility element or attribute in the kept subtree
+  (`mc:AlternateContent` per §4.3; `mc:Ignorable` etc. name prefixes),
+  any attribute in the `r:` namespace (a second reference to a
+  relationship would be a Layer 3 change), and any namespace declaration
+  on a kept element (its scope would move).
+  (2) `LensMut::insert_detached[_by]::<C: ChildOf<E>>(d[, before])` places
+  the copy exactly as `insert_by::<C>` (same slot, limits and refusals) and
+  chooses **every** element and attribute prefix at the destination with the
+  §3 prefix rules — the copy declares nothing, so the parent's bindings hold
+  for all of it — before the tree changes (`NamespaceNotInScope` leaves it
+  untouched). Inserted nodes are created nodes (`own_dirty`, re-rendered);
+  the usual dirty duties apply. `Detached` is `Clone`.
+  (3) `SameType<S>` ("a renamed copy of an `S` is a valid `Self`") is
+  reflexive by a blanket impl in core; the generator emits it for every
+  pair of allowlisted entries with the same SDK complex type (the part of
+  the SDK Name before `/`) whose resolved attributes, content model and
+  children agree (else a `SameTypeMismatch` diagnostic, none today). Today:
+  `a:endParaRPr` ↔ `a:rPr`, `p:txBody` ↔ `a:txBody`, `p:spTree` ↔
+  `p:grpSp`, `x:is` ↔ `x:si`, `x:t` ↔ `x:v`. Tests:
+  `crates/ooxml-core/tests/detach.rs` (pure-insertion locality, renaming,
+  prefix re-selection across documents, refusals, slot rules).
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
