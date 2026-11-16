@@ -659,6 +659,31 @@ fn p2_named_and_preserving() -> Built {
     Ok((Some(input), wb.to_bytes()?))
 }
 
+/// XL (f) with a Japanese default font (`游ゴシック`, `charset="128"`; PR #50
+/// review M3): the inherited font and `with_default_font_of(..).set_bold()`.
+fn p2_japanese_default_font() -> Built {
+    let base = template()?;
+    let s = part_text(&base, "xl/styles.xml")?.replacen(
+        r#"<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>"#,
+        r#"<font><sz val="11"/><color theme="1"/><name val="游ゴシック"/><family val="2"/><charset val="128"/><scheme val="minor"/></font>"#,
+        1,
+    );
+    if !s.contains("游ゴシック") {
+        return Err("template styles.xml changed".into());
+    }
+    let input = with_part(&base, "xl/styles.xml", &s)?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    let bold = Format::with_default_font_of(&mut wb)?.set_bold();
+    {
+        let mut ws = wb.worksheet()?;
+        ws.cell_mut(0, 0)?.set_string("既定のフォント")?;
+        ws.cell_mut(0, 1)?.set_number_with_format(1234.5678, &Format::new().set_num_format("#,##0.000"))?;
+        ws.cell_mut(1, 0)?.set_string("太字（既定フォントのまま）")?;
+        ws.cell_mut(1, 1)?.set_number_with_format(1234.5678, &bold)?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
 const P2_CASES: &[P2Case] = &[
     P2Case {
         out: "22-p2-format-matrix.xlsx",
@@ -757,5 +782,12 @@ const P2_CASES: &[P2Case] = &[
         edits: "A1 `set_named_style(\"Good\")`; B1 `set_num_format(\"0.000\")`; C1 `set_font(italic blue)`; D1 `set_fill(pink)`; E1 `set_border(double bottom)`",
         look_for: "A1 green on green **and still 1,234.50** (Good does not apply a number format); Home > Cell Styles shows A1 as Good. B1 1234.500; C1 italic blue, D1 pink fill, E1 double bottom border; B1:E1 keep 1,234.50-style formatting except what changed, and stay right/top aligned.",
         build: p2_named_and_preserving,
+    },
+    P2Case {
+        out: "35-p2-japanese-default-font.xlsx",
+        input: "template whose default font is 游ゴシック 11 (`charset=\"128\"`)",
+        edits: "**XL (f), Japanese.** B1 = 1234.5678 with only a number format; B2 with `with_default_font_of(..).set_bold()`",
+        look_for: "B1 is 游ゴシック 11 like A1 and shows 1,234.568; B2 is **游ゴシック 11 bold** (not Calibri). No repair dialog.",
+        build: p2_japanese_default_font,
     },
 ];

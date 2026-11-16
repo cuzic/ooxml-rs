@@ -2,20 +2,19 @@
 //! 1900-02-29 (serial 60), and the 1904 system.
 
 /// A date and time (no time zone), as Excel stores it.
+///
+/// The fields are private: every value comes from a validating
+/// constructor, so a `set_datetime` can never write an impossible date or a
+/// non-finite serial (PR #50 review M1).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExcelDateTime {
-    /// 1899–9999 (1899 only for 1899-12-31, serial 0 in the 1900 system).
-    pub year: u16,
-    /// 1–12.
-    pub month: u8,
-    /// 1–31.
-    pub day: u8,
-    /// 0–23.
-    pub hour: u8,
-    /// 0–59.
-    pub minute: u8,
-    /// 0 ≤ seconds < 60.
-    pub second: f64,
+    /// 1899–9999; `0` marks a time-only value (crate-internal).
+    year: u16,
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+    second: f64,
 }
 
 impl ExcelDateTime {
@@ -42,6 +41,31 @@ impl ExcelDateTime {
         Some(ExcelDateTime { year: 0, ..t })
     }
 
+    /// The year (1899–9999), or `None` for a time-only value.
+    pub fn year(&self) -> Option<u16> {
+        (self.year != 0).then_some(self.year)
+    }
+    /// The month (1–12; 12 for a time-only value, whose date part is the epoch).
+    pub fn month(&self) -> u8 {
+        self.month
+    }
+    /// The day of the month.
+    pub fn day(&self) -> u8 {
+        self.day
+    }
+    /// The hour (0–23).
+    pub fn hour(&self) -> u8 {
+        self.hour
+    }
+    /// The minute (0–59).
+    pub fn minute(&self) -> u8 {
+        self.minute
+    }
+    /// The seconds (0 ≤ s < 60).
+    pub fn second(&self) -> f64 {
+        self.second
+    }
+
     fn time_fraction(&self) -> f64 {
         (f64::from(self.hour) * 3600.0 + f64::from(self.minute) * 60.0 + self.second) / 86_400.0
     }
@@ -50,6 +74,11 @@ impl ExcelDateTime {
     /// 1899-12-31 (serial 0) to 9999-12-31; 1904 system 1904-01-01 to
     /// 9999-12-31; a time-only value is valid in both.
     pub fn serial(&self, date1904: bool) -> Option<f64> {
+        let serial = self.serial_unchecked(date1904)?;
+        serial.is_finite().then_some(serial)
+    }
+
+    fn serial_unchecked(&self, date1904: bool) -> Option<f64> {
         if self.year == 0 {
             return Some(self.time_fraction());
         }
@@ -173,5 +202,17 @@ mod tests {
         assert_eq!(s(9999, 12, 31), Some(Some(2_957_003.0)));
         assert_eq!(s(1903, 12, 31), Some(None));
         assert_eq!(ExcelDateTime::from_serial(0.0, true), ExcelDateTime::from_ymd(1904, 1, 1));
+    }
+
+    #[test]
+    fn constructors_validate() {
+        assert!(ExcelDateTime::from_ymd(2026, 2, 31).is_none());
+        assert!(ExcelDateTime::from_ymd_hms(2026, 2, 1, 99, 0, 0.0).is_none());
+        assert!(ExcelDateTime::from_ymd_hms(2026, 2, 1, 0, 60, 0.0).is_none());
+        assert!(ExcelDateTime::from_ymd_hms(2026, 2, 1, 0, 0, f64::NAN).is_none());
+        assert!(ExcelDateTime::from_ymd_hms(2026, 2, 1, 0, 0, 60.0).is_none());
+        assert!(ExcelDateTime::from_ymd(10_000, 1, 1).is_none_or(|d| d.serial(false).is_none()));
+        let t = ExcelDateTime::from_hms(1, 2, 3.5).unwrap();
+        assert_eq!((t.year(), t.hour(), t.minute(), t.second()), (None, 1, 2, 3.5));
     }
 }

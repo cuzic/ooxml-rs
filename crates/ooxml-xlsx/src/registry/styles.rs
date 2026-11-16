@@ -17,6 +17,7 @@
 //!   `styles.xml`; apply swaps both in.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode, XmlDocument};
@@ -110,14 +111,21 @@ pub(crate) struct Styles {
     count_attr: HashSet<Which>,
     csx: Table,
     next_numfmt: u32,
-    custom_codes: HashMap<String, u32>,
-    redefined: HashSet<u32>,
-    pub(crate) codes: HashMap<u32, String>,
+    // The large members are `Arc`s: `plan` clones the registry for every
+    // write, and only a plan that appends copies them (`Arc::make_mut`;
+    // PR #50 review M5).
+    custom_codes: Arc<HashMap<String, u32>>,
+    redefined: Arc<HashSet<u32>>,
+    pub(crate) codes: Arc<HashMap<u32, String>>,
     custom_count: u32,
     pub(crate) default: Option<XfInfo>,
-    pub(crate) xfs: Vec<Option<XfInfo>>,
-    csx_infos: Vec<Option<XfInfo>>,
-    named: Vec<(String, u32)>,
+    /// The Normal style cannot be read (`cellStyleXfs` is not index-stable,
+    /// or its entry 0 is an `mc:AlternateContent`): a `Format` with an
+    /// unset group is refused instead of inheriting id 0 (review m6).
+    default_unreadable: bool,
+    pub(crate) xfs: Arc<Vec<Option<XfInfo>>>,
+    csx_infos: Arc<Vec<Option<XfInfo>>>,
+    named: Arc<Vec<(String, u32)>>,
     /// Largest existing reference into each table (cell/row `s`, column
     /// `style`, `xf` ids).
     max_ref: HashMap<Which, u32>,
@@ -192,12 +200,54 @@ fn max_numfmt_id(wb: &Workbook) -> Result<u32> {
             let Some(&q) = b.get(j).filter(|q| **q == b'"' || **q == b'\'') else { continue };
             let start = j + 1;
             let end = text[start..].find(q as char).map(|e| start + e).unwrap_or(start);
-            if let Ok(v) = text[start..end].trim().parse::<u64>() {
+            let raw = &text[start..end];
+            // a value with references (`&#49;70`) is decoded, never skipped:
+            // the scan must not under-estimate (ADR-0006 n6; PR #50 review m7)
+            let value = if raw.contains('&') {
+                std::borrow::Cow::Owned(decode_references(raw).ok_or_else(|| Error::Malformed(format!("{name}: cannot decode numFmtId value {raw:?}")))?)
+            } else {
+                std::borrow::Cow::Borrowed(raw)
+            };
+            let v = value.trim_matches([' ', '\t', '\r', '\n']);
+            if let Ok(v) = v.parse::<u64>() {
                 best = best.max(v.min(u64::from(u32::MAX)) as u32);
             }
         }
     }
     Ok(best)
+}
+
+/// Decodes the five predefined entities and numeric character references of
+/// an attribute value; `None` for anything else (an unknown entity, a bad
+/// reference).
+fn decode_references(raw: &str) -> Option<String> {
+    let mut out = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(i) = rest.find('&') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        let end = after.find(';')?;
+        let name = &after[..end];
+        let ch = match name {
+            "amp" => '&',
+            "lt" => '<',
+            "gt" => '>',
+            "quot" => '"',
+            "apos" => '\'',
+            _ => {
+                let n = if let Some(h) = name.strip_prefix("#x") {
+                    u32::from_str_radix(h, 16).ok()?
+                } else {
+                    name.strip_prefix('#')?.parse::<u32>().ok()?
+                };
+                char::from_u32(n)?
+            }
+        };
+        out.push(ch);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
 }
 
 fn decode_xml_text(b: &[u8]) -> Option<String> {
@@ -212,18 +262,19 @@ fn decode_xml_text(b: &[u8]) -> Option<String> {
     }
 }
 
+/// The workbook's styles part, if it has one (through the workbook
+/// relationship, as Phase0 locates it).
+pub(crate) fn styles_part(wb: &Workbook) -> Result<Option<String>> {
+    let rels = wb.pkg.relationships(&wb.workbook_part)?;
+    Ok(rels.by_type(REL_STYLES).next().and_then(|r| rels.resolve(r)).filter(|p| wb.pkg.contains(p)))
+}
+
 impl Styles {
     /// Activates the registry. [`Error::NoStylesPart`] without a styles
     /// part; [`Error::UnsupportedStylesPart`] when its root is not a
     /// SpreadsheetML `styleSheet`.
     pub(crate) fn activate(wb: &mut Workbook) -> Result<Styles> {
-        let rels = wb.pkg.relationships(&wb.workbook_part)?;
-        let part = rels
-            .by_type(REL_STYLES)
-            .next()
-            .and_then(|r| rels.resolve(r))
-            .filter(|p| wb.pkg.contains(p))
-            .ok_or(Error::NoStylesPart)?;
+        let part = styles_part(wb)?.ok_or(Error::NoStylesPart)?;
         let max_id = max_numfmt_id(wb)?;
         let mut sheet_max_s: Option<u32> = None;
         for p in super::census_sheet_parts(wb) {
@@ -248,14 +299,15 @@ impl Styles {
             count_attr: HashSet::new(),
             csx: Table::default(),
             next_numfmt: max_id.max(163) + 1,
-            custom_codes: HashMap::new(),
-            redefined: HashSet::new(),
-            codes: HashMap::new(),
+            custom_codes: Arc::default(),
+            redefined: Arc::default(),
+            codes: Arc::default(),
             custom_count: 0,
             default: None,
-            xfs: Vec::new(),
-            csx_infos: Vec::new(),
-            named: Vec::new(),
+            default_unreadable: false,
+            xfs: Arc::default(),
+            csx_infos: Arc::default(),
+            named: Arc::default(),
             max_ref: HashMap::new(),
         };
         let entry = |w: Which| match w {
@@ -279,24 +331,20 @@ impl Styles {
         // fills 0 and 1 are reserved; 0 is a reuse target only as canonical `none`
         let none_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &Fill::NoFill))?;
         let gray_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &gray125()))?;
-        st.tables
-            .get_mut(&Which::Fills)
-            .expect("read")
-            .reuse
-            .retain(|k, i| *i >= 2 || (*i == 0 && *k == none_key) || (*i == 1 && *k == gray_key));
+        Arc::make_mut(&mut st.tables.get_mut(&Which::Fills).expect("read").reuse).retain(|k, i| *i >= 2 || (*i == 0 && *k == none_key) || (*i == 1 && *k == gray_key));
         // number formats
         if let Some(n) = table_node(root, "numFmts") {
             for e in n.elements().filter(|e| e.is(sml::NumberingFormat::QNAME)) {
                 let (Some(id), Some(code)) = (e.attr(QName::new("", "numFmtId")).and_then(|v| v.trim().parse::<u32>().ok()), e.attr(QName::new("", "formatCode"))) else {
                     continue;
                 };
-                st.codes.insert(id, code.to_owned());
+                Arc::make_mut(&mut st.codes).insert(id, code.to_owned());
                 if id < 164 {
-                    st.redefined.insert(id);
+                    Arc::make_mut(&mut st.redefined).insert(id);
                 } else {
                     st.custom_count += 1;
                     if e.attrs().len() == 2 && e.elements().next().is_none() {
-                        st.custom_codes.entry(code.to_owned()).or_insert(id);
+                        Arc::make_mut(&mut st.custom_codes).entry(code.to_owned()).or_insert(id);
                     }
                 }
             }
@@ -307,11 +355,16 @@ impl Styles {
                 .map(|t| t.elements().map(|e| e.is(sml::CellFormat::QNAME).then(|| XfInfo::read(e))).collect())
                 .unwrap_or_default()
         };
-        st.xfs = xfs("cellXfs");
-        st.csx_infos = xfs("cellStyleXfs");
+        st.xfs = Arc::new(xfs("cellXfs"));
+        st.csx_infos = Arc::new(xfs("cellStyleXfs"));
         st.csx = Table::read(doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
-        st.default = if st.csx.count > 0 && st.csx.stable { st.csx_infos.first().cloned().flatten() } else { st.xfs.first().cloned().flatten() };
-        for x in st.xfs.iter().chain(&st.csx_infos).flatten() {
+        if st.csx.count > 0 {
+            st.default = if st.csx.stable { st.csx_infos.first().cloned().flatten() } else { None };
+            st.default_unreadable = st.default.is_none();
+        } else {
+            st.default = st.xfs.first().cloned().flatten();
+        }
+        for x in st.xfs.iter().chain(st.csx_infos.iter()).flatten() {
             for (k, w) in [("fontId", Which::Fonts), ("fillId", Which::Fills), ("borderId", Which::Borders)] {
                 if let Some(v) = x.get(k).and_then(|v| v.trim().parse::<u32>().ok()) {
                     let e = st.max_ref.entry(w).or_insert(0);
@@ -325,7 +378,7 @@ impl Styles {
         if let Some(cs) = table_node(root, "cellStyles") {
             for e in cs.elements().filter(|e| e.is(sml::CellStyle::QNAME)) {
                 if let (Some(n), Some(x)) = (e.attr(QName::new("", "name")), e.attr(QName::new("", "xfId")).and_then(|v| v.trim().parse().ok())) {
-                    st.named.push((n.to_owned(), x));
+                    Arc::make_mut(&mut st.named).push((n.to_owned(), x));
                 }
             }
         }
@@ -376,8 +429,7 @@ impl Styles {
                 if is_date_format(id, custom.as_deref()) && p.next.table(Which::CellXfs).stable {
                     current
                 } else {
-                    let nf = if p.next.redefined.contains(&14) { NumFormat::Code("yyyy-mm-dd".into()) } else { NumFormat::Builtin(14) };
-                    p.derive(wb, &Group::NumFormat(&nf), current)?
+                    p.derive(wb, &Group::NumFormat(&NumFormat::DefaultDate), current)?
                 }
             }
         };
@@ -487,7 +539,7 @@ impl Planner {
         }
         let t = self.next.tables.get_mut(&w).expect("read");
         t.count += 1;
-        t.reuse.entry(key).or_insert(index);
+        Arc::make_mut(&mut t.reuse).entry(key).or_insert(index);
         Ok(index)
     }
 
@@ -525,8 +577,9 @@ impl Planner {
                 }
                 let key = render::<sml::CellFormats>(self.next.prefix(w).as_deref(), |p| build_xf(p, &spec))?;
                 self.push_reserved::<sml::CellFormats>(wb, w, key, &|p| build_xf(p, &spec))?;
-                self.next.xfs.resize(1, None);
-                self.next.xfs[0] = Some(spec);
+                let xfs = Arc::make_mut(&mut self.next.xfs);
+                xfs.resize(1, None);
+                xfs[0] = Some(spec);
                 if self.next.default.is_none() {
                     self.next.default = self.next.xfs[0].clone();
                 }
@@ -538,8 +591,18 @@ impl Planner {
 
     fn num_fmt_id(&mut self, wb: &mut Workbook, nf: &NumFormat) -> Result<u32> {
         match nf {
-            NumFormat::General => Ok(0),
+            NumFormat::General => self.num_fmt_id(wb, &NumFormat::Builtin(0)),
+            NumFormat::DefaultDate => {
+                if self.next.redefined.contains(&14) {
+                    self.num_fmt_id(wb, &NumFormat::Code("yyyy-mm-dd".into()))
+                } else {
+                    Ok(14)
+                }
+            }
             NumFormat::Builtin(id) => {
+                if *id >= 164 {
+                    return Err(Error::InvalidFormat(format!("numFmtId {id} is not a built-in id (0-163)")));
+                }
                 let id = u32::from(*id);
                 if self.next.redefined.contains(&id) {
                     return Err(Error::BuiltinNumFormatRedefined { id });
@@ -547,7 +610,10 @@ impl Planner {
                 Ok(id)
             }
             NumFormat::Code(code) => {
-                if let Some((id, _)) = BUILTIN.iter().find(|(_, c)| c == code)
+                if code.is_empty() {
+                    return Err(Error::InvalidFormat("empty number format code".into()));
+                }
+                if let Some((id, _)) = BUILTIN.iter().find(|(id, c)| c == code && !super::format::LOCALE_DEPENDENT.contains(id))
                     && !self.next.redefined.contains(&u32::from(*id))
                 {
                     return Ok(u32::from(*id));
@@ -567,8 +633,8 @@ impl Planner {
                 self.push::<sml::NumberingFormats>(wb, Which::NumFmts, key, &|p| build_numfmt(p, id, &code_c))?;
                 self.next.next_numfmt += 1;
                 self.next.custom_count += 1;
-                self.next.custom_codes.insert(code.clone(), id);
-                self.next.codes.insert(id, code.clone());
+                Arc::make_mut(&mut self.next.custom_codes).insert(code.clone(), id);
+                Arc::make_mut(&mut self.next.codes).insert(id, code.clone());
                 Ok(id)
             }
         }
@@ -580,6 +646,10 @@ impl Planner {
 
     fn format(&mut self, wb: &mut Workbook, f: &Format) -> Result<u32> {
         f.validate()?;
+        let inherits = f.num_format.is_none() || f.font.is_none() || f.fill.is_none() || f.border.is_none() || f.alignment.is_none() || f.protection.is_none();
+        if inherits && self.next.default_unreadable {
+            return Err(Error::NotExpressible("the Normal style (cellStyleXfs[0]) is inside mc:AlternateContent; a Format with unset groups cannot inherit it".into()));
+        }
         let mut spec = XfInfo::default();
         let num = match &f.num_format {
             Some(nf) => self.num_fmt_id(wb, nf)?.to_string(),
@@ -660,8 +730,9 @@ impl Planner {
         self.ensure_reserved(wb, Which::CellXfs)?;
         let s = self.entry::<sml::CellFormats>(wb, Which::CellXfs, &|p| build_xf(p, &spec))?;
         if s as usize >= self.next.xfs.len() {
-            self.next.xfs.resize(s as usize + 1, None);
-            self.next.xfs[s as usize] = Some(spec);
+            let xfs = Arc::make_mut(&mut self.next.xfs);
+            xfs.resize(s as usize + 1, None);
+            xfs[s as usize] = Some(spec);
         }
         Ok(s)
     }
@@ -784,6 +855,12 @@ pub(crate) fn build_font(p: &mut LensMut<'_, sml::Fonts>, f: &Font) -> Result<()
     if f.strike {
         n.insert::<sml::Strike>()?;
     }
+    if f.condense {
+        n.insert::<sml::Condense>()?;
+    }
+    if f.extend {
+        n.insert::<sml::Extend>()?;
+    }
     if let Some(u) = f.underline {
         let mut e = n.insert::<sml::Underline>()?;
         match u {
@@ -793,6 +870,9 @@ pub(crate) fn build_font(p: &mut LensMut<'_, sml::Fonts>, f: &Font) -> Result<()
             Underline::DoubleAccounting => e.set_attr(QName::new("", "val"), "doubleAccounting")?,
         }
     }
+    if let Some(v) = f.vert_align {
+        n.insert::<sml::VerticalTextAlignment>()?.set_attr(QName::new("", "val"), v.as_str())?;
+    }
     n.insert::<sml::FontSize>()?.set_attr(QName::new("", "val"), &f.size.to_string())?;
     if let Some(c) = &f.color {
         color(&mut n.insert::<sml::Color>()?, c)?;
@@ -800,6 +880,9 @@ pub(crate) fn build_font(p: &mut LensMut<'_, sml::Fonts>, f: &Font) -> Result<()
     n.insert::<sml::FontName>()?.set_attr(QName::new("", "val"), &f.name)?;
     if let Some(fam) = f.family {
         n.insert::<sml::FontFamilyNumbering>()?.set_attr(QName::new("", "val"), &fam.to_string())?;
+    }
+    if let Some(cs) = f.charset {
+        n.insert::<sml::FontCharSet>()?.set_attr(QName::new("", "val"), &cs.to_string())?;
     }
     if let Some(s) = &f.scheme {
         n.insert::<sml::FontScheme>()?.set_attr(QName::new("", "val"), s)?;

@@ -49,8 +49,10 @@ pub(crate) struct Table {
     pub(crate) has_ac: bool,
     /// Every index can be computed (review n9).
     pub(crate) stable: bool,
-    /// Canonical bytes → smallest index, for exact-form reuse.
-    pub(crate) reuse: std::collections::HashMap<String, u32>,
+    /// Canonical bytes → smallest index, for exact-form reuse. Shared
+    /// (`Arc`) so that a plan's clone of the registry is cheap and the map
+    /// is copied only when the plan appends (PR #50 review M5).
+    pub(crate) reuse: std::sync::Arc<std::collections::HashMap<String, u32>>,
 }
 
 impl Table {
@@ -61,7 +63,7 @@ impl Table {
         for child in node.elements() {
             if child.is(entry) {
                 if let Some(span) = child.span() {
-                    t.reuse.entry(doc.source()[span.start..span.end()].to_owned()).or_insert(t.count);
+                    std::sync::Arc::make_mut(&mut t.reuse).entry(doc.source()[span.start..span.end()].to_owned()).or_insert(t.count);
                 }
                 t.count += 1;
             } else if child.is(MC_ALTERNATE_CONTENT) {

@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use ooxml_core::{ElementSpec, XmlDocument};
+use ooxml_core::{ElementSpec, QName, XmlDocument};
 use ooxml_schema::sml;
 
 use crate::census::{FCell, FKind, SheetKind};
@@ -148,6 +148,16 @@ impl Workbook {
     /// `GET.FORMULA`), or a function that is not on Phase1's allowlist
     /// (ADR-0006 §7)? Then a style-only write is handled like a value write.
     pub(crate) fn style_sensitive(&mut self) -> Result<bool> {
+        if let Some(v) = self.style_sensitive {
+            return Ok(v);
+        }
+        let v = self.scan_style_sensitive()?;
+        self.style_sensitive = Some(v);
+        Ok(v)
+    }
+
+    /// One pass over the census's formula texts and the defined names.
+    fn scan_style_sensitive(&mut self) -> Result<bool> {
         use crate::formula::lexer::{TokKind, lex};
         let sensitive = |text: &str| match lex(text) {
             Err(_) => true,
@@ -218,6 +228,8 @@ impl Workbook {
             CellOp::Formula(_) => target.is_none(),
             _ => target.is_some(),
         };
+        // a formula is written or removed: the style-sensitivity answer may change
+        let formulas_change = matches!(op, CellOp::Formula(_)) || target.is_some();
 
         // ---- shared-formula hand-off (§4.2) ----
         let handoff = match target.map(|f| (f, self.census.get(f).expect("alive").clone())) {
@@ -268,8 +280,11 @@ impl Workbook {
         }
 
         // ---- registries (ADR-0006) ----
-        let reg = self.plan_registries(&part, &mut target_plan, &op, extra, strip.shared_refs)?;
+        let reg = self.plan_registries(&part, at, &mut target_plan, &op, extra, strip.shared_refs)?;
 
+        if formulas_change {
+            self.style_sensitive = None;
+        }
         // ---- apply ----
         // Poisoned *before* apply and cleared only on success: a panic inside
         // apply (a bug) that a caller catches also leaves the workbook
@@ -329,7 +344,7 @@ impl Workbook {
         } else {
             (StripPlan::default(), None)
         };
-        let reg = self.plan_registries(part, &mut target_plan, &CellOp::StyleOnly, extra, strip.shared_refs)?;
+        let reg = self.plan_registries(part, at, &mut target_plan, &CellOp::StyleOnly, extra, strip.shared_refs)?;
         self.poisoned = Some("an edit was interrupted while being applied".into());
         let result = self.apply(sheet, part, at, &target_plan, &CellOp::StyleOnly, None, None, staged, &strip, None, reg);
         match result {
@@ -348,7 +363,7 @@ impl Workbook {
     /// Plans the registry side of an edit: the style (on a staged clone of
     /// `styles.xml`), the shared-string append (dry-run checked) and the
     /// change in `t="s"` cells. Changes nothing.
-    fn plan_registries(&mut self, part: &str, target_plan: &mut TargetPlan, op: &CellOp, extra: Extra, stripped_shared: i64) -> Result<RegistryApply> {
+    fn plan_registries(&mut self, part: &str, at: CellIndex, target_plan: &mut TargetPlan, op: &CellOp, extra: Extra, stripped_shared: i64) -> Result<RegistryApply> {
         let (old_t_s, current_s) = {
             let doc = self.pkg.xml_part(part)?;
             match located_cell(doc, &target_plan.loc) {
@@ -356,7 +371,7 @@ impl Workbook {
                     c.attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"),
                     c.attr(sml::Cell::ATTR_S).and_then(ooxml_core::value::parse_u32).unwrap_or(0),
                 ),
-                None => (false, 0),
+                None => (false, missing_cell_style(doc, &target_plan.loc, at)),
             }
         };
         let styles = match &extra.style {
@@ -673,4 +688,35 @@ fn strip_positions(
         return Err(Error::Malformed(format!("{part}: the formula census and the tree disagree about {c}")));
     }
     Ok((out, shared))
+}
+
+/// The style a missing cell shows (PR #50 review M4): its row's `s` when
+/// the row has `customFormat="1"`, else the `style` of the `col` range that
+/// covers the column, else 0. A preserving setter, `set_named_style` or
+/// `set_datetime` on a cell that does not exist yet starts from it, so the
+/// new cell keeps the look of its row or column.
+fn missing_cell_style(doc: &XmlDocument, loc: &Located, at: CellIndex) -> u32 {
+    let parse = ooxml_core::value::parse_u32;
+    let on = |v: Option<&str>| matches!(v.map(str::trim), Some("1" | "true"));
+    if let Some(ri) = loc.row
+        && let Some(sd) = sheet_data(doc)
+        && let Some(row) = sd.children().get(ri).and_then(|i| i.as_element())
+        && on(row.attr(QName::new("", "customFormat")))
+        && let Some(s) = row.attr(QName::new("", "s")).and_then(parse)
+    {
+        return s;
+    }
+    let col = at.col + 1;
+    doc.root()
+        .elements()
+        .filter(|e| e.name().ns() == crate::SML_NS && e.name().local() == "cols")
+        .flat_map(|cols| cols.elements())
+        .filter(|c| c.name().ns() == crate::SML_NS && c.name().local() == "col")
+        .find(|c| {
+            let min = c.attr(QName::new("", "min")).and_then(parse);
+            let max = c.attr(QName::new("", "max")).and_then(parse);
+            matches!((min, max), (Some(a), Some(b)) if a <= col && col <= b)
+        })
+        .and_then(|c| c.attr(QName::new("", "style")).and_then(parse))
+        .unwrap_or(0)
 }

@@ -285,6 +285,30 @@ impl ooxml_core::EnumType for VerticalAlignmentValues {
         self as usize
     }
 }
+/// `x:ST_VerticalAlignRun` — Vertical Alignment Run Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VerticalAlignmentRunValues {
+    /// `baseline`
+    Baseline,
+    /// `superscript`
+    Superscript,
+    /// `subscript`
+    Subscript,
+}
+impl ooxml_core::EnumType for VerticalAlignmentRunValues {
+    const VALUES: &'static [&'static str] = &["baseline", "superscript", "subscript"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Baseline),
+            1 => Some(Self::Superscript),
+            2 => Some(Self::Subscript),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_FontScheme` — Font scheme Styles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontSchemeValues {
@@ -619,6 +643,104 @@ impl<'a> BoldViewMut<'a> {
     /// Removes `val`.
     pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Bold::ATTR_VAL)
+    }
+}
+/// `x:CT_BooleanProperty/x:condense` — Condense.
+#[derive(Debug)]
+pub enum Condense {}
+impl Condense {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Condense {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "condense");
+    const SDK_NAME: &'static str = "x:CT_BooleanProperty/x:condense";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Condense::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Condense`].
+#[derive(Clone, Debug)]
+pub struct CondenseView<'a>(pub ooxml_core::Lens<'a, Condense>);
+impl<'a> CondenseView<'a> {
+    /// `val` — Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Condense::ATTR_VAL, "true", ooxml_core::value::parse_bool)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Condense`]. Reads go through [`CondenseViewMut::as_view`].
+#[derive(Debug)]
+pub struct CondenseViewMut<'a>(pub ooxml_core::LensMut<'a, Condense>);
+impl<'a> CondenseViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CondenseView<'_> {
+        CondenseView(self.0.as_lens())
+    }
+    /// Sets `val` — Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Condense::ATTR_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Condense::ATTR_VAL)
+    }
+}
+/// `x:CT_BooleanProperty/x:extend` — Extend.
+#[derive(Debug)]
+pub enum Extend {}
+impl Extend {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Extend {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extend");
+    const SDK_NAME: &'static str = "x:CT_BooleanProperty/x:extend";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extend::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Extend`].
+#[derive(Clone, Debug)]
+pub struct ExtendView<'a>(pub ooxml_core::Lens<'a, Extend>);
+impl<'a> ExtendView<'a> {
+    /// `val` — Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Extend::ATTR_VAL, "true", ooxml_core::value::parse_bool)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Extend`]. Reads go through [`ExtendViewMut::as_view`].
+#[derive(Debug)]
+pub struct ExtendViewMut<'a>(pub ooxml_core::LensMut<'a, Extend>);
+impl<'a> ExtendViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ExtendView<'_> {
+        ExtendView(self.0.as_lens())
+    }
+    /// Sets `val` — Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Extend::ATTR_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Extend::ATTR_VAL)
     }
 }
 /// `x:CT_BooleanProperty/x:i` — Italic.
@@ -1443,6 +1565,55 @@ impl<'a> BordersViewMut<'a> {
     /// Removes the first `x:border` child.
     pub fn remove_border(&mut self) -> bool {
         self.0.remove::<Border>()
+    }
+}
+/// `x:CT_ByteProperty/x:charset` — Character Set.
+#[derive(Debug)]
+pub enum FontCharSet {}
+impl FontCharSet {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for FontCharSet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "charset");
+    const SDK_NAME: &'static str = "x:CT_ByteProperty/x:charset";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontCharSet::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FontCharSet`].
+#[derive(Clone, Debug)]
+pub struct FontCharSetView<'a>(pub ooxml_core::Lens<'a, FontCharSet>);
+impl<'a> FontCharSetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FontCharSet::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FontCharSet`]. Reads go through [`FontCharSetViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontCharSetViewMut<'a>(pub ooxml_core::LensMut<'a, FontCharSet>);
+impl<'a> FontCharSetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontCharSetView<'_> {
+        FontCharSetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FontCharSet::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontCharSet::ATTR_VAL)
     }
 }
 /// `x:CT_CalcPr/x:calcPr` — Defines the CalculationProperties Class.
@@ -3989,14 +4160,18 @@ impl ooxml_core::ElementSpec for Font {
     );
 }
 impl ooxml_core::ChildOf<Font> for Bold {}
+impl ooxml_core::ChildOf<Font> for Condense {}
+impl ooxml_core::ChildOf<Font> for Extend {}
 impl ooxml_core::ChildOf<Font> for Italic {}
 impl ooxml_core::ChildOf<Font> for Strike {}
+impl ooxml_core::ChildOf<Font> for FontCharSet {}
 impl ooxml_core::ChildOf<Font> for Color {}
 impl ooxml_core::ChildOf<Font> for FontFamilyNumbering {}
 impl ooxml_core::ChildOf<Font> for FontName {}
 impl ooxml_core::ChildOf<Font> for FontScheme {}
 impl ooxml_core::ChildOf<Font> for FontSize {}
 impl ooxml_core::ChildOf<Font> for Underline {}
+impl ooxml_core::ChildOf<Font> for VerticalTextAlignment {}
 /// Read-only view of [`Font`].
 #[derive(Clone, Debug)]
 pub struct FontView<'a>(pub ooxml_core::Lens<'a, Font>);
@@ -4005,6 +4180,14 @@ impl<'a> FontView<'a> {
     pub fn bold(&self) -> Option<BoldView<'a>> {
         self.0.child::<Bold>().map(BoldView)
     }
+    /// First `x:condense` child.
+    pub fn condense(&self) -> Option<CondenseView<'a>> {
+        self.0.child::<Condense>().map(CondenseView)
+    }
+    /// First `x:extend` child.
+    pub fn extend(&self) -> Option<ExtendView<'a>> {
+        self.0.child::<Extend>().map(ExtendView)
+    }
     /// First `x:i` child.
     pub fn italic(&self) -> Option<ItalicView<'a>> {
         self.0.child::<Italic>().map(ItalicView)
@@ -4012,6 +4195,10 @@ impl<'a> FontView<'a> {
     /// First `x:strike` child.
     pub fn strike(&self) -> Option<StrikeView<'a>> {
         self.0.child::<Strike>().map(StrikeView)
+    }
+    /// First `x:charset` child.
+    pub fn font_char_set(&self) -> Option<FontCharSetView<'a>> {
+        self.0.child::<FontCharSet>().map(FontCharSetView)
     }
     /// First `x:color` child.
     pub fn color(&self) -> Option<ColorView<'a>> {
@@ -4037,6 +4224,10 @@ impl<'a> FontView<'a> {
     pub fn underline(&self) -> Option<UnderlineView<'a>> {
         self.0.child::<Underline>().map(UnderlineView)
     }
+    /// First `x:vertAlign` child.
+    pub fn vertical_text_alignment(&self) -> Option<VerticalTextAlignmentView<'a>> {
+        self.0.child::<VerticalTextAlignment>().map(VerticalTextAlignmentView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -4061,6 +4252,34 @@ impl<'a> FontViewMut<'a> {
     /// Removes the first `x:b` child.
     pub fn remove_bold(&mut self) -> bool {
         self.0.remove::<Bold>()
+    }
+    /// First `x:condense` child, mutably.
+    pub fn condense_mut(&mut self) -> Option<CondenseViewMut<'_>> {
+        self.0.child_mut::<Condense>().map(CondenseViewMut)
+    }
+    /// Existing `x:condense` child, or a new one in schema position.
+    pub fn get_or_insert_condense(
+        &mut self,
+    ) -> Result<CondenseViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Condense>().map(CondenseViewMut)
+    }
+    /// Removes the first `x:condense` child.
+    pub fn remove_condense(&mut self) -> bool {
+        self.0.remove::<Condense>()
+    }
+    /// First `x:extend` child, mutably.
+    pub fn extend_mut(&mut self) -> Option<ExtendViewMut<'_>> {
+        self.0.child_mut::<Extend>().map(ExtendViewMut)
+    }
+    /// Existing `x:extend` child, or a new one in schema position.
+    pub fn get_or_insert_extend(
+        &mut self,
+    ) -> Result<ExtendViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Extend>().map(ExtendViewMut)
+    }
+    /// Removes the first `x:extend` child.
+    pub fn remove_extend(&mut self) -> bool {
+        self.0.remove::<Extend>()
     }
     /// First `x:i` child, mutably.
     pub fn italic_mut(&mut self) -> Option<ItalicViewMut<'_>> {
@@ -4089,6 +4308,20 @@ impl<'a> FontViewMut<'a> {
     /// Removes the first `x:strike` child.
     pub fn remove_strike(&mut self) -> bool {
         self.0.remove::<Strike>()
+    }
+    /// First `x:charset` child, mutably.
+    pub fn font_char_set_mut(&mut self) -> Option<FontCharSetViewMut<'_>> {
+        self.0.child_mut::<FontCharSet>().map(FontCharSetViewMut)
+    }
+    /// Existing `x:charset` child, or a new one in schema position.
+    pub fn get_or_insert_font_char_set(
+        &mut self,
+    ) -> Result<FontCharSetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FontCharSet>().map(FontCharSetViewMut)
+    }
+    /// Removes the first `x:charset` child.
+    pub fn remove_font_char_set(&mut self) -> bool {
+        self.0.remove::<FontCharSet>()
     }
     /// First `x:color` child, mutably.
     pub fn color_mut(&mut self) -> Option<ColorViewMut<'_>> {
@@ -4175,6 +4408,22 @@ impl<'a> FontViewMut<'a> {
     /// Removes the first `x:u` child.
     pub fn remove_underline(&mut self) -> bool {
         self.0.remove::<Underline>()
+    }
+    /// First `x:vertAlign` child, mutably.
+    pub fn vertical_text_alignment_mut(
+        &mut self,
+    ) -> Option<VerticalTextAlignmentViewMut<'_>> {
+        self.0.child_mut::<VerticalTextAlignment>().map(VerticalTextAlignmentViewMut)
+    }
+    /// Existing `x:vertAlign` child, or a new one in schema position.
+    pub fn get_or_insert_vertical_text_alignment(
+        &mut self,
+    ) -> Result<VerticalTextAlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<VerticalTextAlignment>().map(VerticalTextAlignmentViewMut)
+    }
+    /// Removes the first `x:vertAlign` child.
+    pub fn remove_vertical_text_alignment(&mut self) -> bool {
+        self.0.remove::<VerticalTextAlignment>()
     }
 }
 /// `x:CT_FontFamilyNum/x:family` — Font Family.
@@ -6444,6 +6693,64 @@ impl<'a> UnderlineViewMut<'a> {
         self.0.remove_attr(Underline::ATTR_VAL)
     }
 }
+/// `x:CT_VerticalAlignFontProperty/x:vertAlign` — Vertical Alignment.
+#[derive(Debug)]
+pub enum VerticalTextAlignment {}
+impl VerticalTextAlignment {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for VerticalTextAlignment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "vertAlign");
+    const SDK_NAME: &'static str = "x:CT_VerticalAlignFontProperty/x:vertAlign";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: VerticalTextAlignment::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <VerticalAlignmentRunValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`VerticalTextAlignment`].
+#[derive(Clone, Debug)]
+pub struct VerticalTextAlignmentView<'a>(
+    pub ooxml_core::Lens<'a, VerticalTextAlignment>,
+);
+impl<'a> VerticalTextAlignmentView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, VerticalAlignmentRunValues>> {
+        self.0.attr_enum(VerticalTextAlignment::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`VerticalTextAlignment`]. Reads go through [`VerticalTextAlignmentViewMut::as_view`].
+#[derive(Debug)]
+pub struct VerticalTextAlignmentViewMut<'a>(
+    pub ooxml_core::LensMut<'a, VerticalTextAlignment>,
+);
+impl<'a> VerticalTextAlignmentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> VerticalTextAlignmentView<'_> {
+        VerticalTextAlignmentView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(
+        &mut self,
+        v: VerticalAlignmentRunValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(VerticalTextAlignment::ATTR_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(VerticalTextAlignment::ATTR_VAL)
+    }
+}
 /// `x:CT_Workbook/x:workbook` — Workbook.
 #[derive(Debug)]
 pub enum Workbook {}
@@ -7816,6 +8123,8 @@ impl<'a> CellValueViewMut<'a> {
     }
 }
 const _: () = ooxml_core::schema::assert_spec::<Bold>();
+const _: () = ooxml_core::schema::assert_spec::<Condense>();
+const _: () = ooxml_core::schema::assert_spec::<Extend>();
 const _: () = ooxml_core::schema::assert_spec::<Italic>();
 const _: () = ooxml_core::schema::assert_spec::<Strike>();
 const _: () = ooxml_core::schema::assert_spec::<Border>();
@@ -7836,6 +8145,7 @@ const _: () = ooxml_core::schema::assert_spec::<TopBorder>();
 const _: () = ooxml_core::schema::assert_child::<TopBorder, Color>();
 const _: () = ooxml_core::schema::assert_spec::<Borders>();
 const _: () = ooxml_core::schema::assert_child::<Borders, Border>();
+const _: () = ooxml_core::schema::assert_spec::<FontCharSet>();
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
@@ -7863,14 +8173,18 @@ const _: () = ooxml_core::schema::assert_spec::<Fills>();
 const _: () = ooxml_core::schema::assert_child::<Fills, Fill>();
 const _: () = ooxml_core::schema::assert_spec::<Font>();
 const _: () = ooxml_core::schema::assert_child::<Font, Bold>();
+const _: () = ooxml_core::schema::assert_child::<Font, Condense>();
+const _: () = ooxml_core::schema::assert_child::<Font, Extend>();
 const _: () = ooxml_core::schema::assert_child::<Font, Italic>();
 const _: () = ooxml_core::schema::assert_child::<Font, Strike>();
+const _: () = ooxml_core::schema::assert_child::<Font, FontCharSet>();
 const _: () = ooxml_core::schema::assert_child::<Font, Color>();
 const _: () = ooxml_core::schema::assert_child::<Font, FontFamilyNumbering>();
 const _: () = ooxml_core::schema::assert_child::<Font, FontName>();
 const _: () = ooxml_core::schema::assert_child::<Font, FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<Font, FontSize>();
 const _: () = ooxml_core::schema::assert_child::<Font, Underline>();
+const _: () = ooxml_core::schema::assert_child::<Font, VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<FontFamilyNumbering>();
 const _: () = ooxml_core::schema::assert_spec::<FontName>();
 const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
@@ -7917,6 +8231,7 @@ const _: () = ooxml_core::schema::assert_spec::<TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<TableParts>();
 const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<Underline>();
+const _: () = ooxml_core::schema::assert_spec::<VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<Workbook>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, CalculationProperties>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, DefinedNames>();
