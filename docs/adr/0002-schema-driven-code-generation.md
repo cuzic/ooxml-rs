@@ -193,6 +193,214 @@
   renaming, prefix rules per copied element, every refusal, slot rules,
   `check_insert_under`), `xtask` unit test of `SameTypeMismatch`,
   `ooxml-schema` doc tests (`compile_fail` for `p:sp` and `p:grpSp`).
+- **Post-acceptance note (2026-11-16, same-part copy — additive, no change
+  to the decisions; requested by ADR-0016 revision 2, review M2, and by
+  ADR-0013; shaped by the ADR-0016 round-2 review N1–N3):** a copy that
+  stays **in the part it comes from** (splitting a run, duplicating a
+  paragraph's formatting), defined as a **span-preserving clone**, not as a
+  variant of "detach/insert".
+  (1) `Lens::detach_same_part_as::<C>(skip, &SamePartOptions)` (same bounds
+  as `detach_as`: `E: Detachable, C: SameType<E> + Detachable`) clones the
+  subtree **with its spans**, so it is written byte for byte: prefixes,
+  namespace declarations and relationship ids unchanged (the ids stay valid
+  because the part's `.rels` is the same). Direct children named in `skip`
+  are left out (the copy's children are then re-rendered); renaming to
+  `C::QNAME` keeps the prefix and re-renders the root's tags; a rename into
+  another namespace is a compile-time error (PR #49 review m1). This is what
+  `ahyp:hlinkClr` needs: all 14 in the corpus declare `xmlns:ahyp` on the
+  element itself (N1), which `detach_as` refuses and could not re-prefix.
+  (2) *What is lifted and what stays (N3).* Lifted compared with
+  `detach_as`: `RelationshipAttribute`, `NamespaceDeclaration`, and
+  `ExtensionList` for allowed extensions; `IgnorableNamespace` and
+  `InheritedXmlSpace` move to the destination check. Still refused:
+  `UniqueAttribute` (a non-zero `smtId`; `a:effectDag`/`a:cont` `@name`,
+  ECMA-376 §20.1.8.20/25, PR #18 R3-1), Markup Compatibility
+  (`AlternateContent`, `MarkupCompatibility`: elements and attributes), and
+  an `extLst` unless **every** element child is an `ext` of the list's
+  namespace whose `uri` the caller allowed with
+  `SamePartOptions::keep_extension(uri)` (ASCII case-insensitive; N2). The
+  extension content still passes every other check. Reviewed:
+  `lens::ext_uri::HYPERLINK_COLOR` (`{A12FA001-AC4F-418D-AE19-62706E023703}`,
+  `ahyp:hlinkClr`). Without options every `extLst` is refused.
+  (3) *Destination check, exactly as a same-part move (PR #44), with its
+  helpers (`declarations`/`effective`, `ancestor_context`, the move's
+  `Usage`; review m2).* A copy out of or into an `mc:AlternateContent`
+  branch is refused (`NotDetachable { AlternateContent }`), as a move is
+  (review P49R2-M1): consumers that pick another branch would see the copy
+  without its branch's `Requires`. Whitespace-only text between child
+  elements is indentation, not content (#44 m3b). The copy records,
+  at the source, the binding of every prefix it uses **without declaring
+  it** (element and attribute prefixes; declarations inside the copy travel
+  with it), the `mc:Ignorable` status of every namespace its names use, and
+  the inherited `xml:space` if it has text that inherits it. Inserting is
+  refused unless the destination gives the same meaning:
+  `NotDetachable { NamespaceBinding | IgnorableNamespace | InheritedXmlSpace }`.
+  Prefixes inside attribute values (`mc:Ignorable`, `mc:Requires`) need no
+  check because MC is refused. Known limit, shared with the move: an
+  ancestor's `mc:ProcessContent` and `mc:MustUnderstand` are not compared
+  (review n2).
+  (4) *One document only.* Every `XmlDocument` has a process-unique
+  identity; **a clone gets a new one** (it may become another part).
+  Lenses from `XmlDocument::lens`/`lens_mut` and the new
+  `lens_at`/`lens_mut_at(path)` carry it; `Lens::root`, `Lens::at` and
+  `LensMut::root` do not. The copy is a `SamePartDetached<C>`, which
+  `insert_detached` does not accept (`compile_fail` doc test);
+  `LensMut::insert_same_part[_by]` places it exactly as `insert_by` places
+  a new `C` and returns `Error::WrongDocument` (nothing changed) unless the
+  lens is on the copy's document; taking a copy through a lens without a
+  document is also `WrongDocument`. `TooDeep` counts the copy's deepest
+  element. `SamePartDetached::check_insert_under(doc, parent_path, created)`
+  is the check twin (`WrongDocument` first, then depth and the destination
+  check). The document check does not see the package: removing the
+  relationship between taking and inserting the copy is the caller's
+  concern (PR #38 refuses removing a relationship an attribute names).
+  **In a transaction** (clone the parsed part, edit the clone through the
+  lens, `stage_part` it: ADR-0012, ADR-0016 §1), the copy is taken **from
+  the staged clone** and `check_insert_under` gets that clone; a copy taken
+  from the package's own tree is `WrongDocument` there (PR #49 review m2).
+  *Known limit:* a QName in an attribute value (`type="foo:T"`) is copied
+  verbatim and its prefix is not checked at the destination; MC values are
+  covered by the MC refusal, and DrawingML formatting has no other QName
+  values (review n3).
+  Tests: `crates/ooxml-core/tests/detach_same_part.rs`,
+  `crates/ooxml-schema/tests/detach_dml.rs` (real `a:rPr` with
+  `a:hlinkClick` and `ahyp:hlinkClr`; an ignored corpus run copies all 83
+  `a:rPr` **on slides** (layouts and masters not counted) that hold a
+  relationship id in the 619-presentation ADR-0008 corpus — 12 with
+  `ahyp:hlinkClr` (14 with layouts and masters) — into a new run of their
+  paragraph: the source bytes appear once more, verbatim, and the result
+  re-parses); a mutant set over `same_part.rs`. The round-2 review copied
+  **every** `a:r/a:rPr` on slides, layouts, masters and notes of that
+  corpus — 47,464, not only those with relationship ids — with T2 intact
+  and 0 refusals (review n6).
+  *Checklist addition for `[detach]` types* (review n3): besides holding no
+  document-unique value, a detachable type's subtree must have **no
+  attribute of type `xsd:QName`**, because a copy does not check prefixes
+  inside attribute values (today's types, `CT_TextCharacterProperties` and
+  `CT_TextParagraphProperties`, have none).
+- **Post-acceptance note (2026-11-16, same-part move — additive, no
+  change to the decisions; requested by ADR-0013 §2 for table-cell merges,
+  usable by any format crate; revised after the PR #44 round-1 review,
+  `docs/reviews/pr44-round1.md`):** `Lens::move_source()` captures an
+  element as a `MoveSource<S>` (a path plus its spec, reached through
+  `ChildOf` links); `LensMut::move_in[_by]::<C: ChildOf<E>>(&from, [before])`
+  with `S: SameType<C>` (as for `detach_as`, so a same-named element of
+  another complex type, e.g. `w:pPr/w:rPr` vs `w:r/w:rPr`, cannot be moved
+  into `C`'s slot) moves it and its subtree into the lens's element,
+  placed exactly as `insert_by::<C>` would place a new `C` (slot, caller
+  order, limits and refusals computed on the children **without** the
+  moved element when it is already one of them), and returns a lens on it;
+  `check_move_in_by` runs the same validation without changing anything
+  (`Ok` exactly when the move succeeds). The moved node keeps its source
+  span and flags, so its bytes are written unchanged: the output differs
+  from the input only by those bytes leaving the source and appearing at
+  the destination (plus a self-closing destination parent re-rendered when
+  it gains its first child). Because the bytes do not change, the move is
+  refused (`Error::NotMovable { reason: MoveRefusal, name }`, before any
+  change) when it would change their meaning: a prefix the subtree uses
+  **without declaring it** — in an element or attribute name, the default
+  namespace, or named in a Markup Compatibility attribute value
+  (`mc:Ignorable`, `mc:MustUnderstand`, `mc:ProcessContent`,
+  `mc:PreserveElements`, `mc:PreserveAttributes`, `mc:Choice/@Requires`)
+  — bound to another namespace or unbound at the destination
+  (`NamespaceBinding`; declarations inside the subtree travel with it and
+  are not compared with outer scopes); a namespace of the subtree
+  ignorable (`mc:Ignorable`) at one place only (`IgnorableNamespace`);
+  text that inherits `xml:space` from different values (`XmlSpace`;
+  whitespace-only text between child elements is indentation and does
+  not count). Also refused: the root (`Root`), a destination inside the
+  moved element (`IntoItself`), a source or destination inside
+  `mc:AlternateContent` (`AlternateContent`: a consumer reading the other
+  branch would see the element vanish or appear), a source path that no
+  longer leads to an `S::QNAME` element (`WrongElement`), and a subtree
+  whose deepest element would pass the part's depth limit (`TooDeep`).
+  Dirty duties: the source parent and the destination parent with their
+  ancestors get `subtree_dirty`; a source parent with a close tag keeps
+  its tags when emptied; only a self-closing destination parent gains
+  `own_dirty`. Adjacent whitespace text stays where it was (a move to the
+  end of a slot lands after trailing indentation). **Paths:** a move
+  shifts by one the later siblings of the source and the destination's
+  children from the insertion index on (with their descendants); a stale
+  `MoveSource` may name another element of the same name. Several children
+  of one parent are moved last-first or with sources re-taken. **Batches:**
+  `NamespaceBinding`, `IgnorableNamespace`, `XmlSpace`, `AlternateContent`
+  and `TooDeep` depend only on ancestor attributes and the subtree, which
+  moves do not change, so a batch can check them once up front; slot
+  limits, order and `IntoItself` depend on the current children (re-check,
+  or check the whole batch on a clone). The ancestor walk, path lookup,
+  binding lookup and subtree height are shared with detach/insert
+  (`ancestor_context`, `element_at`, `declarations`/`effective`,
+  `subtree_height`). Unlike `insert_detached`, which re-chooses prefixes
+  and so only refuses a `preserve` destination, a move keeps its bytes and
+  refuses an `xml:space` difference in both directions. Tests:
+  `crates/ooxml-core/tests/move_subtree.rs` (locality, dirty duties,
+  destination-path shift, every refusal, Markup Compatibility values,
+  self-declared prefixes, both directions of every meaning check, the
+  depth limit exactly, last-first batches, brute-force agreement of check
+  and move over two trees, one with differing contexts); 26 hand-made
+  mutants killed.
+
+- **Post-acceptance note (2026-11-16, namespace declarations on created
+  elements — additive, no change to the decisions; needed by ADR-0011 N1
+  and ADR-0013 M1):** §3's prefix rules can only use bindings already in
+  scope, so a primitive refused `NamespaceNotInScope` when a new element's
+  URI was not bound. Word cannot create `a:graphic`/`pic:pic` under
+  `wp:inline`, because the root lacks `a:` in about 99% of files, and
+  PowerPoint declares `a16` on each `a16:rowId`.
+  - **New API.** The insert primitives gain `*_with_ns` variants
+    (`insert_with_ns`, `insert_by_with_ns`, `insert_in_slot_with_ns`,
+    `insert_at_with_ns`, `get_or_insert_with_ns`). Each takes `NsDecl { prefix, uri }` requests to
+    be declared **on the new element**.
+  - **Choosing the prefix.**
+    - A URI that already has a prefixed binding in scope is not redeclared;
+      the existing binding is used.
+    - Otherwise the new element gets `xmlns:{p}`, where `p` is the requested
+      prefix if unbound in scope, else the first free `{prefix}N` (N = 1, 2,
+      …). Existing bindings are never shadowed. Requests are decided in
+      order, so an earlier request's fallback takes its suffix first.
+    - The new element's own prefix, and those of later descendants and
+      their attributes, then follow §3 with the new bindings in scope.
+  - **Refusals.** `InvalidNamespaceDeclaration` covers: an empty URI, the
+    `xml` or `xmlns` URI, a prefix that is not an NCName (by the XML 1.0
+    5th-edition `NameStartChar`/`NameChar` productions, not Unicode
+    "alphabetic", which admits `µ`, `ª`, `²` that strict parsers reject) or
+    starts with `xml` (any case), and a prefix or URI requested twice.
+    Requests are validated first, even when nothing would be declared. A URI with a character
+    XML cannot hold gives `InvalidXmlChar`. Every refusal comes before any
+    change.
+  - **Checks.** Every insert, plain and `_with_ns`, has a `check_*` twin
+    computed by the same planning function, so check and insert cannot
+    disagree (brute-force parity test). The `_with_ns` twins return the
+    declarations the insert would write, `(prefix, uri)` (ADR-0011 rev 3
+    asks for the prefixes actually used; the prefixes of later descendants
+    then follow §3 automatically). A check cannot dry-run an insert under a
+    parent that does not exist yet; a multi-level creation is validated by
+    running every step on a clone of the `XmlDocument` first.
+  - **`mc:Ignorable`.** Declaring a namespace does not make it ignorable,
+    and this API does not edit `mc:Ignorable` (the root's start tag stays
+    untouched). The ADR-0011/0013 users do not need it (`a`/`pic`/`r` are
+    standard namespaces; `a16:rowId` sits in an extension list, skipped by
+    `uri`). A caller that puts a namespace Office 2007 does not know
+    outside an extension list must handle compatibility itself, or refuse.
+  - **T2.** The declarations are inside the created element's start tag, so
+    T2 holds as for any insertion.
+  - **Interaction with attribute writes.** `set_attr` never creates a namespace
+    declaration. PR #40 refuses `xmlns` attributes there explicitly, so this
+    API is the only way to declare a namespace, and only on created elements.
+    Declarations on an original element would make its start tag dirty and
+    stay refused, as ADR-0011 §1.3 requires.
+  - **Extension points.**
+    - PR #26's `insert_at` and `check_insert_at` have `_with_ns` twins
+      (`insert_at_with_ns`, `check_insert_at_with_ns`) through the same plan.
+    - PR #18's `detach_as` refuses a subtree with `xmlns` declarations
+      (`DetachRefusal::NamespaceDeclaration`): a subtree created with these
+      inserts, or Office's own `a16:rowId` ext, cannot be copied; ADR-0013's
+      row copy skips `a:extLst` and recreates it with `insert_with_ns`.
+    - PR #18's `insert_detached` declares the requested namespaces on the
+      inserted subtree's root the same way. Its re-check of prefixes against
+      the destination scope then counts them, so a detached copy whose URIs
+      are unbound at the destination can be inserted with declarations instead
+      of being refused.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

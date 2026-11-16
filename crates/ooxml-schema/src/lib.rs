@@ -66,6 +66,32 @@ use ooxml_schema::pml::GroupShape;
 let doc = XmlDocument::parse(br#"<p:grpSp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>"#).unwrap();
 let _ = doc.lens::<GroupShape>().unwrap().detach_as::<GroupShape>(&[]);
 ```
+
+A **same-part** copy (note "same-part copy") keeps relationship ids, so it is
+another type, which `insert_detached` (the any-part insertion) does not take;
+only `insert_same_part` does, and it checks the document at run time:
+
+```
+use ooxml_core::{SamePartOptions, XmlDocument};
+use ooxml_schema::dml::{Paragraph, Run, RunProperties};
+
+let mut doc = XmlDocument::parse(br#"<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><a:r><a:rPr><a:hlinkClick r:id="rId2"/></a:rPr><a:t>x</a:t></a:r><a:r><a:t>y</a:t></a:r></a:p>"#).unwrap();
+let rpr = doc.lens::<Paragraph>().unwrap().child::<Run>().unwrap().child::<RunProperties>().unwrap();
+let copy = rpr.detach_same_part_as::<RunProperties>(&[], &SamePartOptions::default()).unwrap();
+let mut p = doc.lens_mut::<Paragraph>().unwrap();
+p.nth_child_mut::<Run>(1).unwrap().insert_same_part(&copy).unwrap();
+```
+
+```compile_fail
+use ooxml_core::{SamePartOptions, XmlDocument};
+use ooxml_schema::dml::{Paragraph, Run, RunProperties};
+
+let mut doc = XmlDocument::parse(br#"<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:r><a:rPr/></a:r><a:r/></a:p>"#).unwrap();
+let rpr = doc.lens::<Paragraph>().unwrap().child::<Run>().unwrap().child::<RunProperties>().unwrap();
+let copy = rpr.detach_same_part_as::<RunProperties>(&[], &SamePartOptions::default()).unwrap();
+let mut p = doc.lens_mut::<Paragraph>().unwrap();
+p.nth_child_mut::<Run>(1).unwrap().insert_detached(&copy); // SamePartDetached is not Detached
+```
 "##
 )]
 
