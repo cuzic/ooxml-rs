@@ -13,4 +13,5 @@ publish = false
 ooxml-core = { workspace = true }
 ooxml-xlsx = { path = "../ooxml-xlsx" }
 ooxml-pptx = { path = "../ooxml-pptx" }
+ooxml-docx = { path = "../ooxml-docx" }
 zip = { workspace = true }

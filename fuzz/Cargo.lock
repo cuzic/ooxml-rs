@@ -182,6 +182,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ooxml-docx"
+version = "0.1.0"
+dependencies = [
+ "ooxml-core",
+ "ooxml-schema",
+ "thiserror",
+]
+
+[[package]]
 name = "ooxml-fuzz"
 version = "0.0.0"
 dependencies = [
@@ -203,6 +212,7 @@ name = "ooxml-robustness"
 version = "0.1.0"
 dependencies = [
  "ooxml-core",
+ "ooxml-docx",
  "ooxml-pptx",
  "ooxml-xlsx",
  "zip",

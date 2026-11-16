@@ -6,8 +6,8 @@
 - ooxml-xlsx: `Workbook::from_bytes`、セルの読み取り、`set_number` / `set_string`、保存と再オープン
 - ooxml-pptx: `Presentation::from_bytes`、全スライドの読み取り、テキスト編集（本文・段落・ラン・表セル）、保存と再オープン
 
-ooxml-docx（#13 で main にマージ）はこの PR の base より後なので、ここでは対象外。`docx_edit` ターゲットは
-この PR に積む別 PR（`test/fuzz-docx`）で追加する。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
+ooxml-docx（#13 で main にマージ）は積み上げの PR（`test/fuzz-docx`）で `docx_edit` ターゲットを追加した（下の「ooxml-docx」の節）。
+xlsx Phase1（数式の経路、`impl/xlsx-phase1`）はまだ main にないので対象外。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
 「Err なら無変更」もまだ検査していない。
 
 ハーネスは `crates/ooxml-robustness`（publish しない dev 専用 crate）、cargo-fuzz のターゲットは `fuzz/`（ワークスペース外、nightly）。
@@ -79,6 +79,29 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
   `-max_total_time` は初期コーパスを一巡した後から数える点を README に書いた。
 - 変更後の確認: 6 ターゲットを各 5 分（4 並列、合成 seed を追加したコーパス）回して新しい失敗はなかった（xml_t1 92 万回、xml_t1b 41 万回、lens 67 万回、
   xlsx 4.4 万回、package 8 千回。pptx は初期コーパスの一巡で時間を使い切った）。stable スモークも通る。
+
+## ooxml-docx（`docx_edit`、PR #36 に積む PR で追加）
+
+対象: main @8c54366 の ooxml-docx Phase0（ADR-0004）。`Document::from_bytes`、書き込みゲート（`write_gate` / `write_gates`）、
+全段落・全ランの読み取り（`text`、`context`、`in_field`、`check_settable`）、`set_run_text`、`append_paragraph`、保存と再オープン。
+入力は xlsx / pptx と同じ形（fixture 1 個の part 1 個を payload で置き換え、続くバイトで操作を選ぶ）。fixture は
+`reference/fixtures/docx` の 26 ファイルで、XXE の検査用ファイル（`poi-ExternalEntityInText.docx`）も seed に入れた（DTD は open で拒否される）。
+
+不変条件:
+
+- 拒否（Err）なら、パッケージのバイト列は変わらない。
+- 成功した `set_run_text` は読み戻せる（`\r\n` / `\r` は `\n`）。`document.xml` は、そのランの元の span の中だけが変わる（T2）。
+- 成功した `append_paragraph` は新しい最後の段落の番号を返し、読み戻せる。`document.xml` は 1 か所への挿入だけで変わる
+  （`w:body` が自己終了タグだった場合は `w:body` の span の中）。
+- 編集が成功するたびに保存して開き直す。そのため、次の編集の T2 検査は現在のバイト列の span で行い、途中の出力もすべて再オープンを検査する。
+- 最後に、main part 以外は L1 一致で、再オープンした文書でも全編集が読み戻せる。
+
+`set_run_text` の対象は、半分の確率で `check_settable` が通るランから選ぶ（ゲートが掛かっていない fixture 19 個中 12 個に設定可能なランがある）。
+
+**結果: 所見なし。** 7 分（12 並列、53k 回）と 25 分（16 並列、19.4 万回、cov 6,558）回し、stable スモーク（release、`OOXML_SMOKE_ITERS=100`）も通った。
+1 回目に出た timeout 1 件はハーネスの負荷だった。最大の fixture（`poi-bug59058.docx`、document.xml 1.35 MB）で 12 回編集し、
+毎回開き直すと、release で 1.2 秒、ASan では 10 秒を超える。ライブラリ側はどれも速い（open 34 ms、全ランの `check_settable` 0.6 ms、
+`append_paragraph` 0.8 ms、保存 2 ms）。main part が 512 KiB を超える場合は編集回数を 4 回にした。
 
 ## 所見の詳細
 
