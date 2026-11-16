@@ -22,6 +22,10 @@ use std::marker::PhantomData;
 
 use std::sync::Arc;
 
+mod move_subtree;
+
+pub use move_subtree::MoveSource;
+
 use crate::error::{DetachRefusal, Error, Result};
 use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, RELATIONSHIP_ATTRIBUTES, XML_NS, XML_SPACE, XMLNS_NS, XName};
 use crate::schema::{ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot, UniqueAttr};
@@ -287,6 +291,12 @@ fn check_destination(copy: &RawNode, text_inherits_space: bool, root: &RawNode, 
 
 const MC_IGNORABLE: QName = QName::new(MC_NS, "Ignorable");
 
+/// Number of element levels of a subtree (1 for an element without element
+/// children). Shared by `Detached::height` and the same-part move.
+fn subtree_height(n: &RawNode) -> usize {
+    1 + n.elements().map(subtree_height).max().unwrap_or(0)
+}
+
 fn has_text(n: &RawNode) -> bool {
     n.children.iter().any(|c| match c {
         RawItem::Text(t) => !t.value.is_empty(),
@@ -342,10 +352,7 @@ impl<C: ElementSpec> Detached<C> {
     /// Number of element levels of the copy (1 for an element without
     /// element children).
     pub fn height(&self) -> usize {
-        fn h(n: &RawNode) -> usize {
-            1 + n.elements().map(h).max().unwrap_or(0)
-        }
-        h(&self.root)
+        subtree_height(&self.root)
     }
 
     /// Would [`LensMut::insert_detached`] succeed, as far as depth,
@@ -697,13 +704,30 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         slots: &[Slot],
         slot: usize,
         q: QName,
+        before: impl FnMut(usize, &RawNode) -> bool,
+    ) -> Result<Placement> {
+        self.place_skipping(slots, slot, q, before, None)
+    }
+
+    /// [`Self::place`] as if the child item at `skip` were absent (a child
+    /// being moved within the same parent); the returned index is still in
+    /// the current coordinates.
+    fn place_skipping(
+        &self,
+        slots: &[Slot],
+        slot: usize,
+        q: QName,
         mut before: impl FnMut(usize, &RawNode) -> bool,
+        skip: Option<usize>,
     ) -> Result<Placement> {
         let node = self.node();
         let mut cur = 0usize;
         let (mut same_q, mut same_slot, mut k) = (0u32, 0u32, 0usize);
         let mut at = None;
         for (i, child) in node.indexed_elements() {
+            if Some(i) == skip {
+                continue;
+            }
             if child.is(MC_ALTERNATE_CONTENT) {
                 return Err(Error::UnresolvedSibling(E::QNAME));
             }
