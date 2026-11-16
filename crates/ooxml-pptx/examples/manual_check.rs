@@ -332,7 +332,7 @@ fn main() -> R {
         });
     }
 
-    // 14–16. Cross-run find/replace (ADR-0008 §4; ADR still under review).
+    // 14–16. Cross-run find/replace (ADR-0008 §4).
     // Each pattern is picked from the fixture so that the case applies.
     {
         // 14: a match across two runs with different formatting
@@ -361,7 +361,7 @@ fn main() -> R {
             }
         }
         let (si, pat) = pick.ok_or("no cross-run pair")?;
-        let o = ooxml_pptx::ReplaceOptions { find: ooxml_pptx::FindOptions { scope: ooxml_pptx::Scope::Slide(si), ..Default::default() }, ..Default::default() };
+        let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Slide(si)));
         let rep = p.replace_all(&pat, "【置換】", &o)?;
         items.push(Item {
             file: save(&out, "14-replace-across-runs", &p)?,
@@ -388,7 +388,7 @@ fn main() -> R {
                     })
                 };
                 let Some(w) = word else { continue };
-                let o = ooxml_pptx::ReplaceOptions { find: ooxml_pptx::FindOptions { scope: ooxml_pptx::Scope::Slide(i), ..Default::default() }, ..Default::default() };
+                let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Slide(i)));
                 let rep = p.replace_all(&w, &format!("{w}\u{b}(new line)"), &o)?;
                 if !rep.replaced.is_empty() {
                     chosen = Some((f, i, w, rep.replaced.len(), p));
@@ -425,7 +425,7 @@ fn main() -> R {
             }
         }
         let (si, w) = pick.ok_or("no hyperlink run")?;
-        let o = ooxml_pptx::ReplaceOptions { find: ooxml_pptx::FindOptions { scope: ooxml_pptx::Scope::Slide(si), ..Default::default() }, ..Default::default() };
+        let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Slide(si)));
         let rep = p.replace_all(&w, &format!("[{w}]"), &o)?;
         items.push(Item {
             file: save(&out, "16-replace-in-hyperlink", &p)?,

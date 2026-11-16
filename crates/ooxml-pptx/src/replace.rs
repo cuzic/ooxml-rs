@@ -25,6 +25,22 @@
 //!
 //! `replace_all` plans every match of the scope before the first change;
 //! a refused match changes nothing ([`OnRefusal`]).
+//!
+//! Notes:
+//! - Matching is literal on the text as stored: no Unicode normalisation
+//!   (NFC/NFD) and, with `ascii_case_insensitive`, ASCII letters only, so
+//!   byte offsets stay valid.
+//! - A fully covered run that carried a hyperlink is removed with its
+//!   `a:hlinkClick`; the relationship stays in the slide's `.rels`,
+//!   unreferenced (harmless, as for Phase 0's `set_text`).
+//! - If applying fails (a bug: every check runs before the first change),
+//!   every slide changed by the call is restored and `Err` is returned.
+//!
+//! Differences from the API sketch of ADR-0008 §4: `Match` has no `items`
+//! range yet; [`Scope`] has no notes variants yet (notes editing, ADR-0008
+//! §2, is not implemented; `Scope` is `#[non_exhaustive]`);
+//! [`ReplaceReport::aborted`] is added; options are built with setters
+//! because the structs are `#[non_exhaustive]`.
 
 use std::ops::Range;
 
@@ -51,13 +67,29 @@ pub enum Scope {
     Slide(usize),
 }
 
-/// Options of [`crate::Presentation::find`].
+/// Options of [`crate::Presentation::find`]. Build with
+/// `FindOptions::default().scope(…).ascii_case_insensitive(…)` (the struct
+/// is `#[non_exhaustive]` so that options can be added).
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct FindOptions {
     /// The slides searched.
     pub scope: Scope,
     /// Fold ASCII letters only (byte offsets stay valid); otherwise exact.
     pub ascii_case_insensitive: bool,
+}
+
+impl FindOptions {
+    /// Sets [`Self::scope`].
+    pub fn scope(mut self, scope: Scope) -> Self {
+        self.scope = scope;
+        self
+    }
+    /// Sets [`Self::ascii_case_insensitive`].
+    pub fn ascii_case_insensitive(mut self, on: bool) -> Self {
+        self.ascii_case_insensitive = on;
+        self
+    }
 }
 
 /// What a match across visibly different runs does (ADR-0008 §4 rule 6).
@@ -81,8 +113,11 @@ pub enum OnRefusal {
     Abort,
 }
 
-/// Options of [`crate::Presentation::replace_all`].
+/// Options of [`crate::Presentation::replace_all`]. Build with
+/// `ReplaceOptions::default().find(…).mixed_format(…).on_refusal(…)`
+/// (`#[non_exhaustive]`).
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct ReplaceOptions {
     /// Scope and matching.
     pub find: FindOptions,
@@ -92,8 +127,27 @@ pub struct ReplaceOptions {
     pub on_refusal: OnRefusal,
 }
 
+impl ReplaceOptions {
+    /// Sets [`Self::find`] (scope, case folding).
+    pub fn find(mut self, find: FindOptions) -> Self {
+        self.find = find;
+        self
+    }
+    /// Sets [`Self::mixed_format`].
+    pub fn mixed_format(mut self, m: MixedFormat) -> Self {
+        self.mixed_format = m;
+        self
+    }
+    /// Sets [`Self::on_refusal`].
+    pub fn on_refusal(mut self, o: OnRefusal) -> Self {
+        self.on_refusal = o;
+        self
+    }
+}
+
 /// Where a paragraph is.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TextLocation {
     /// Slide index.
     pub slide: usize,
@@ -107,6 +161,7 @@ pub struct TextLocation {
 
 /// One match.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Match {
     /// The paragraph.
     pub location: TextLocation,
@@ -116,6 +171,7 @@ pub struct Match {
 
 /// Result of [`crate::Presentation::replace_all`].
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct ReplaceReport {
     /// Matches replaced (none if `aborted`).
     pub replaced: Vec<Match>,
@@ -184,6 +240,11 @@ fn has_link(rpr: Option<&RawNode>) -> bool {
 
 /// A canonical string of an `a:rPr` for rule 6: attributes sorted (proofing
 /// ones dropped at the top level), children in order.
+///
+/// Review #48 m2: a missing `a:rPr` equals one with no attributes (after
+/// dropping the proofing ones) and no children, so `<a:rPr lang="en-US"/>`
+/// and no `a:rPr` are the same format; whitespace-only text between child
+/// elements (pretty-printed files) is not content.
 fn canon(n: Option<&RawNode>, top: bool) -> String {
     let Some(n) = n else { return String::new() };
     let mut attrs: Vec<String> = n
@@ -193,15 +254,21 @@ fn canon(n: Option<&RawNode>, top: bool) -> String {
         .map(|at| format!("{{{}}}{}={:?}", at.name().ns(), at.name().local(), at.value()))
         .collect();
     attrs.sort();
-    let mut s = format!("<{{{}}}{} {}>", n.name().ns(), n.name().local(), attrs.join(" "));
+    let mut body = attrs.join(" ");
     for c in n.children() {
         match c {
-            RawItem::Element(e) => s.push_str(&canon(Some(e), false)),
-            RawItem::Text(t) => s.push_str(&format!("{:?}", t.value())),
+            RawItem::Element(e) => body.push_str(&canon(Some(e), false)),
+            RawItem::Text(t) if t.value().trim().is_empty() => {}
+            RawItem::Text(t) => body.push_str(&format!("{:?}", t.value())),
             RawItem::Markup(_) => {}
         }
     }
-    s
+    if top {
+        // the element's own name is not part of the format (a:rPr only)
+        body
+    } else {
+        format!("<{{{}}}{} {body}>", n.name().ns(), n.name().local())
+    }
 }
 
 /// The paragraph's text, as [`crate::ParagraphRef::text`].
@@ -418,7 +485,9 @@ pub(crate) fn plan_paragraph(
             Some(i) => {
                 if it.kind == Kind::Run {
                     let n = node_at(p, &[i]).expect("child of the paragraph");
-                    if item_text(n) != it.text || n.elements().all(|c| !c.is(Text::QNAME)) {
+                    // (review #48 m1: only a changed text is written; a run
+                    // without a:t outside every match stays byte-identical)
+                    if item_text(n) != it.text {
                         plan.texts.push((i, it.text.clone()));
                     }
                 }

@@ -60,13 +60,20 @@ struct Model {
     chars: Vec<(char, String)>,
     /// Per character: the run's `a:rPr` without links (for `\v` copies).
     nolink: Vec<String>,
+    /// Runs (`a:r`) with empty text, and all runs (rule 3/4 structure).
+    empty_runs: usize,
+    runs: usize,
 }
 
 fn model(p: ooxml_pptx::ParagraphRef<'_>) -> Model {
-    let mut m = Model { chars: Vec::new(), nolink: Vec::new() };
+    let mut m = Model { chars: Vec::new(), nolink: Vec::new(), empty_runs: 0, runs: 0 };
     for it in p.items() {
         match it {
             TextItem::Run(r) => {
+                m.runs += 1;
+                if r.text().is_empty() {
+                    m.empty_runs += 1;
+                }
                 for c in r.text().chars() {
                     m.chars.push((c, rpr(r.raw(), false)));
                     m.nolink.push(rpr(r.raw(), true));
@@ -96,7 +103,7 @@ fn text_of(m: &Model) -> String {
 fn expected(old: &Model, ranges: &[std::ops::Range<usize>], replacement: &str) -> Model {
     let text = text_of(old);
     let byte_to_char: BTreeMap<usize, usize> = text.char_indices().enumerate().map(|(ci, (b, _))| (b, ci)).chain([(text.len(), old.chars.len())]).collect();
-    let mut out = Model { chars: Vec::new(), nolink: Vec::new() };
+    let mut out = Model { chars: Vec::new(), nolink: Vec::new(), empty_runs: 0, runs: 0 };
     let mut pos = 0;
     for r in ranges {
         let (s, e) = (byte_to_char[&r.start], byte_to_char[&r.end]);
@@ -153,7 +160,7 @@ fn loc_key(l: &TextLocation) -> String {
 }
 
 fn opts(slide: usize) -> ReplaceOptions {
-    ReplaceOptions { find: FindOptions { scope: Scope::Slide(slide), ..FindOptions::default() }, ..ReplaceOptions::default() }
+    ReplaceOptions::default().find(FindOptions::default().scope(Scope::Slide(slide)))
 }
 
 #[derive(Default, Debug)]
@@ -191,6 +198,12 @@ fn check(bytes: &[u8], slide: usize, pattern: &str, replacement: &str, o: &Repla
         let got = &after[k];
         assert_eq!(text_of(got), text_of(&exp), "T: {k} {pattern:?} -> {replacement:?}");
         assert_eq!(got.chars, exp.chars, "F: {k} {pattern:?} -> {replacement:?}");
+        // Rules 3/4 (review #48 m3): an edit leaves no new empty run, except
+        // one run when nothing else remains in the paragraph.
+        if !ranges.is_empty() {
+            let allowance = usize::from(got.runs == got.empty_runs);
+            assert!(got.empty_runs <= old.empty_runs + allowance, "empty run left: {k} {pattern:?} -> {replacement:?} ({} -> {})", old.empty_runs, got.empty_runs);
+        }
     }
     // Only the slide part may differ.
     let (a, b) = (Package::from_bytes(bytes.to_vec()).unwrap(), Package::from_bytes(out).unwrap());
@@ -238,9 +251,15 @@ fn sweep(bytes: &[u8], probes_per_para: usize, st: &mut Stats) {
         let mut pats: Vec<String> = paras.values().flat_map(|m| probes(m, probes_per_para)).collect();
         pats.sort();
         pats.dedup();
-        for p in &pats {
+        for (n, p) in pats.iter().enumerate() {
             for r in ["\u{1E8C}", "", "Q\u{b}Z", "\u{b}"] {
                 check(bytes, slide, p, r, &opts(slide), st);
+            }
+            // a few non-default option sets (review #48 m3)
+            if n == 0 {
+                check(bytes, slide, p, "Q\u{b}Z", &opts(slide).mixed_format(MixedFormat::Refuse), st);
+                check(bytes, slide, &p.to_ascii_uppercase(), "\u{1E8C}", &ReplaceOptions::default().find(FindOptions::default().scope(Scope::Slide(slide)).ascii_case_insensitive(true)), st);
+                check(bytes, slide, p, "Q\u{b}Z", &opts(slide).on_refusal(OnRefusal::Abort), st);
             }
         }
     }
@@ -459,7 +478,7 @@ fn rule_5_link_split_by_break() {
     let runs2 = format!("{}{}", r("", link, "here"), r("", "", " x here y"));
     let input2 = deck(&runs2);
     let mut pres = Presentation::from_bytes(input2.clone()).unwrap();
-    let o = ReplaceOptions { on_refusal: OnRefusal::Abort, ..opts(0) };
+    let o = opts(0).on_refusal(OnRefusal::Abort);
     let rep = pres.replace_all("her", "H\u{b}", &o).unwrap();
     assert!(rep.aborted && rep.replaced.is_empty() && rep.skipped.len() == 1, "{rep:?}");
     assert_eq!(pres.to_bytes().unwrap(), input2);
@@ -472,7 +491,7 @@ fn rule_5_link_split_by_break() {
 #[test]
 fn rule_6_mixed_format() {
     let runs = format!("{}{}{}", r("", "", "ab"), r(" err=\"1\"", "", "cd"), r(" b=\"1\"", "", "ef"));
-    let o = ReplaceOptions { mixed_format: MixedFormat::Refuse, ..opts(0) };
+    let o = opts(0).mixed_format(MixedFormat::Refuse);
     // proofing-only difference: allowed
     let (mut p, rep) = replaced(&runs, "bc", "X", &o);
     assert!(rep.skipped.is_empty());
@@ -498,11 +517,11 @@ fn arguments_and_scope() {
     }
     assert_matches!(pres.replace_all("Lorem", "a\nb", &ReplaceOptions::default()), Err(Error::LineBreakInParagraph));
     assert_matches!(pres.replace_all("Lorem", "a\u{1}", &ReplaceOptions::default()), Err(Error::InvalidXmlChar { .. }));
-    let o = ReplaceOptions { find: FindOptions { scope: Scope::Slide(9), ..FindOptions::default() }, ..ReplaceOptions::default() };
+    let o = ReplaceOptions::default().find(FindOptions::default().scope(Scope::Slide(9)));
     assert_matches!(pres.replace_all("Lorem", "x", &o), Err(Error::SlideIndexOutOfRange { .. }));
     assert_eq!(pres.to_bytes().unwrap(), before);
     // find: case folding is ASCII only and never dirties
-    let found = pres.find("lorem", &FindOptions { ascii_case_insensitive: true, ..FindOptions::default() }).unwrap();
+    let found = pres.find("lorem", &FindOptions::default().ascii_case_insensitive(true)).unwrap();
     assert_eq!(found.len(), pres.find("Lorem", &FindOptions::default()).unwrap().len());
     assert!(!found.is_empty());
     assert!(pres.find("lorem", &FindOptions::default()).unwrap().is_empty());
@@ -524,7 +543,7 @@ fn locks_and_containers_are_refused() {
     pkg.set_part("ppt/slides/slide1.xml", format!("{}{ac}{}", &xml[..a0], &xml[a1..]).into_bytes()).unwrap();
     let input = pkg.to_bytes().unwrap();
     let mut pres = Presentation::from_bytes(input.clone()).unwrap();
-    let found = pres.find("Lorem", &FindOptions { scope: Scope::Slide(0), ..FindOptions::default() }).unwrap();
+    let found = pres.find("Lorem", &FindOptions::default().scope(Scope::Slide(0))).unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(pres.slide(0).unwrap().shapes().into_iter().find(|x| x.path() == found[0].location.shape).unwrap().kind(), &ShapeKind::AlternateContent);
     let rep = pres.replace_all("Lorem", "X", &opts(0)).unwrap();
@@ -545,7 +564,7 @@ fn locks_and_containers_are_refused() {
     let input = pkg.to_bytes().unwrap();
     let mut pres = Presentation::from_bytes(input.clone()).unwrap();
     let idx = pres.slides().position(|i| i.unwrap().part_name == part).unwrap();
-    let o = ReplaceOptions { on_refusal: OnRefusal::Abort, ..opts(idx) };
+    let o = opts(idx).on_refusal(OnRefusal::Abort);
     // (shape 584707's only text is three tabs)
     let rep = pres.replace_all("\t", " ", &o).unwrap();
     assert!(rep.aborted && rep.skipped.iter().any(|(_, e)| matches!(e, Error::AnimatedCharacters { .. })), "{rep:?}");
@@ -571,3 +590,75 @@ fn replacement_is_local_to_the_paragraph() {
     assert_eq!(&a[pre..a.len() - post], "ipsum");
     assert_eq!(&b[pre..b.len() - post], "IPSUM");
 }
+
+// ---------------------------------------------------------------------------
+// Review #48 round 1 (m1–m3).
+
+/// m1: a run without `a:t` outside every match stays byte-identical.
+#[test]
+fn runs_outside_matches_are_untouched() {
+    let runs = "<a:r><a:rPr lang=\"en-US\"/><a:t>abc</a:t></a:r><a:r><a:rPr lang=\"en-US\" b=\"1\"/></a:r>";
+    let input = deck(runs);
+    let mut pres = Presentation::from_bytes(input).unwrap();
+    pres.replace_all("b", "X", &opts(0)).unwrap();
+    let out = String::from_utf8(Package::from_bytes(pres.to_bytes().unwrap()).unwrap().read_part("ppt/slides/slide1.xml").unwrap()).unwrap();
+    assert!(out.contains("<a:t>aXc</a:t></a:r><a:r><a:rPr lang=\"en-US\" b=\"1\"/></a:r>"), "{out}");
+}
+
+/// m2: rule 6 compares formats, not markup: a missing `a:rPr` equals a
+/// proofing-only one, and pretty-printing whitespace is not content.
+#[test]
+fn rule_6_ignores_invisible_differences() {
+    let o = opts(0).mixed_format(MixedFormat::Refuse);
+    let runs = "<a:r><a:t>ab</a:t></a:r><a:r><a:rPr lang=\"en-US\" dirty=\"0\"/><a:t>cd</a:t></a:r>";
+    let (mut p, rep) = replaced(runs, "bc", "X", &o);
+    assert!(rep.skipped.is_empty(), "{rep:?}");
+    assert_eq!(subtitle(&mut p).1, "aXd");
+    let pretty = "<a:r><a:rPr lang=\"en-US\">\n  <a:solidFill>\n    <a:srgbClr val=\"FF0000\"/>\n  </a:solidFill>\n</a:rPr><a:t>ab</a:t></a:r>";
+    let compact = "<a:r><a:rPr lang=\"en-US\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:rPr><a:t>cd</a:t></a:r>";
+    let (mut p, rep) = replaced(&format!("{pretty}{compact}"), "bc", "X", &o);
+    assert!(rep.skipped.is_empty(), "{rep:?}");
+    assert_eq!(subtitle(&mut p).1, "aXd");
+}
+
+/// m3: rule 6 compares every adjacent pair, not just the ends.
+#[test]
+fn rule_6_three_runs() {
+    let runs = format!("{}{}{}", r("", "", "ab"), r(" b=\"1\"", "", "cd"), r("", "", "ef"));
+    let (_, rep) = replaced(&runs, "bcde", "X", &opts(0).mixed_format(MixedFormat::Refuse));
+    assert_matches!(rep.skipped[..], [(_, Error::MixedFormatInMatch)]);
+}
+
+/// m3: a partly covered last run whose rest is empty is removed (rule 3).
+#[test]
+fn rule_3_last_run_fully_consumed() {
+    let runs = format!("{}{}", r("", "", "ab"), r(" b=\"1\"", "", "cd"));
+    let (mut p, _) = replaced(&runs, "bcd", "X", &opts(0));
+    let (items, text) = subtitle(&mut p);
+    assert_eq!(text, "aX");
+    assert_eq!(items.len(), 1, "{items:?}");
+}
+
+/// m3: text anchored by a modern comment is refused (ADR-0005 §6).
+#[test]
+fn comment_anchored_text_is_refused() {
+    // SYNTHETIC: modern-comments.pptx with its anchor turned into a text range
+    // (as tests/refusals.rs)
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    let mut pkg = Package::from_bytes(cases::read_fixture("libreoffice/modern-comments.pptx")).unwrap();
+    let x = String::from_utf8(pkg.read_part(PART).unwrap()).unwrap();
+    let y = x.replacen("<ac:deMkLst ", "<ac:txMkLst ", 1).replacen("</ac:deMkLst>", "<ac:txMk cp=\"0\" len=\"5\"/></ac:txMkLst>", 1);
+    assert_ne!(x, y);
+    pkg.set_part(PART, y.into_bytes()).unwrap();
+    let input = pkg.to_bytes().unwrap();
+    let mut pres = Presentation::from_bytes(input.clone()).unwrap();
+    let text = {
+        let s = pres.slide(0).unwrap();
+        s.shape_by_id(2).unwrap().unwrap().text_body().unwrap().text()
+    };
+    let pat: String = text.chars().take(2).collect();
+    let rep = pres.replace_all(&pat, "Z", &opts(0).on_refusal(OnRefusal::Abort)).unwrap();
+    assert!(rep.aborted && rep.skipped.iter().any(|(_, e)| matches!(e, Error::CommentAnchoredText { shape_id: 2 })), "{rep:?}");
+    assert_eq!(pres.to_bytes().unwrap(), input);
+}
+

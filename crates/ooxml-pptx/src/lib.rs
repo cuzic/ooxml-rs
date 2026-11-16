@@ -17,7 +17,7 @@
 //! ```
 //!
 //! [`Presentation::find`] / [`Presentation::replace_all`] search and replace
-//! across runs ([ADR-0008] §4, under review).
+//! across runs ([ADR-0008] §4).
 //!
 //! Every edit that would break a reference into the text (animations,
 //! modern comments), touch a field, an `mc:AlternateContent` branch or a

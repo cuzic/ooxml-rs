@@ -268,18 +268,85 @@ impl Presentation {
             report.aborted = true;
             return Ok(report);
         }
-        for (i, ps) in plans {
+        // Apply. Every check ran above, so a failure here is a bug; it is
+        // still made harmless (review #48 m4): each slide's tree is cloned
+        // before it is changed, and on any error every changed slide is
+        // restored, so `Err` leaves the package byte-identical.
+        let mut backups: Vec<(String, XmlDocument)> = Vec::new();
+        let mut failure = None;
+        'apply: for (i, ps) in plans {
             if !ps.iter().any(|(_, _, _, p)| p.changes()) {
                 continue;
             }
-            let mut slide = self.slide_mut(i)?;
+            let part = match self.entry(i) {
+                Ok((_, part)) => part,
+                Err(e) => {
+                    failure = Some(e);
+                    break 'apply;
+                }
+            };
+            match self.pkg.xml_part(&part) {
+                Ok(doc) => backups.push((part, doc.clone())),
+                Err(e) => {
+                    failure = Some(e.into());
+                    break 'apply;
+                }
+            }
+            let mut slide = match self.slide_mut(i) {
+                Ok(s) => s,
+                Err(e) => {
+                    failure = Some(e);
+                    break 'apply;
+                }
+            };
             for (body, pc, loc, plan) in ps {
-                replace::apply_plan(&mut slide, &body, pc, &plan)?;
+                if let Err(e) = replace::apply_plan(&mut slide, &body, pc, &plan) {
+                    failure = Some(e);
+                    break 'apply;
+                }
                 for range in plan.accepted {
                     report.replaced.push(Match { location: loc.clone(), range });
                 }
             }
+            #[cfg(test)]
+            if fault::FAIL_AFTER_SLIDE.get() == Some(i) {
+                failure = Some(Error::UnsupportedContent("injected fault (test)".into()));
+                break 'apply;
+            }
+        }
+        if let Some(e) = failure {
+            for (part, doc) in backups {
+                *self.pkg.xml_part_mut(&part)? = doc;
+            }
+            return Err(e);
         }
         Ok(report)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod fault {
+    use std::cell::Cell;
+
+    thread_local! {
+        /// Fault injection for `replace_all`'s apply loop (review #48 m4).
+        pub(crate) static FAIL_AFTER_SLIDE: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+
+    #[test]
+    fn a_failure_while_applying_restores_every_slide() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/sample.pptx");
+        let input = std::fs::read(path).unwrap();
+        let mut pres = super::Presentation::from_bytes(input).unwrap();
+        let before = pres.to_bytes().unwrap(); // the package as written without any change
+        // "e" occurs on both slides: slide 0 is changed, then the fault hits after slide 1
+        FAIL_AFTER_SLIDE.set(Some(1));
+        let r = pres.replace_all("e", "E", &crate::ReplaceOptions::default());
+        FAIL_AFTER_SLIDE.set(None);
+        assert!(r.is_err());
+        assert_eq!(pres.to_bytes().unwrap(), before, "a failed replace_all must leave the package byte-identical");
+        // and without the fault the same call changes both slides
+        let rep = pres.replace_all("e", "E", &crate::ReplaceOptions::default()).unwrap();
+        assert!(rep.replaced.iter().any(|m| m.location.slide == 0) && rep.replaced.iter().any(|m| m.location.slide == 1));
     }
 }
