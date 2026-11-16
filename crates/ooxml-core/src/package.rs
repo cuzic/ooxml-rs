@@ -28,7 +28,12 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 use crate::error::{Error, Result};
 use crate::name::{CONTENT_TYPES_NS, PACKAGE_RELATIONSHIPS_NS, QName, STRICT_NS_PREFIX};
 use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relationships, normalize_part_name, rels_part_name, same_part_name, xml_trim};
-use crate::xml::XmlDocument;
+use crate::xml::{ParseOptions, XmlDocument};
+
+/// `[Content_Types].xml` or a relationships part.
+fn is_opc_metadata(name: &str) -> bool {
+    name == CONTENT_TYPES_PART || name.ends_with(".rels")
+}
 
 /// OLE/CFB compound file signature (encrypted or legacy binary Office files).
 const CFB_MAGIC: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
@@ -178,6 +183,7 @@ pub struct Package {
     parts: Vec<Part>,
     content_types: ContentTypes,
     package_rels: Relationships,
+    parse_options: ParseOptions,
 }
 
 impl Package {
@@ -191,6 +197,24 @@ impl Package {
 
     /// Opens a package from bytes.
     pub fn from_bytes(data: impl Into<Arc<[u8]>>) -> Result<Self> {
+        Self::from_bytes_with(data, ParseOptions::default())
+    }
+
+    /// [`Self::open`] with explicit XML [`ParseOptions`].
+    pub fn open_with(path: impl AsRef<Path>, options: ParseOptions) -> Result<Self> {
+        Self::from_bytes_with(fs::read(path)?, options)
+    }
+
+    /// [`Self::from_bytes`] with explicit XML [`ParseOptions`], used for
+    /// the parts parsed through [`Self::xml_part`] / [`Self::xml_part_mut`].
+    ///
+    /// OPC metadata (`[Content_Types].xml` and `.rels` parts) is never
+    /// parsed with a limit below [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH):
+    /// the open-time readers and [`Self::relationships`] use
+    /// [`ParseOptions::default`], and `xml_part` on a metadata part uses
+    /// the larger of the default and `options.max_depth`. A lowered limit
+    /// therefore never turns valid package metadata into an error.
+    pub fn from_bytes_with(data: impl Into<Arc<[u8]>>, options: ParseOptions) -> Result<Self> {
         let data: Arc<[u8]> = data.into();
         if data.starts_with(&CFB_MAGIC) {
             return Err(Error::EncryptedPackage);
@@ -212,6 +236,7 @@ impl Package {
             parts,
             content_types: ContentTypes::default(),
             package_rels: Relationships::empty(None),
+            parse_options: options,
         };
         pkg.content_types = ContentTypes::parse(&pkg.read_part(CONTENT_TYPES_PART)?)?;
         let rels_name = rels_part_name(None);
@@ -230,6 +255,11 @@ impl Package {
 
     fn get(&self, name: &str) -> Result<&Part> {
         self.find(name).map(|i| &self.parts[i]).ok_or_else(|| Error::PartNotFound(name.into()))
+    }
+
+    /// The XML parse options this package uses.
+    pub fn parse_options(&self) -> ParseOptions {
+        self.parse_options
     }
 
     /// Part (zip entry) names in original order.
@@ -276,7 +306,11 @@ impl Package {
         match self.parts[i].state {
             PartState::Parsed(_) => {}
             PartState::Raw => {
-                let doc = XmlDocument::parse(&self.read_original(self.parts[i].index)?)?;
+                let mut options = self.parse_options;
+                if is_opc_metadata(name) {
+                    options.max_depth = options.max_depth.max(crate::xml::DEFAULT_MAX_DEPTH);
+                }
+                let doc = XmlDocument::parse_with(&self.read_original(self.parts[i].index)?, &options)?;
                 self.parts[i].state = PartState::Parsed(doc);
             }
             PartState::Replaced(_) => {

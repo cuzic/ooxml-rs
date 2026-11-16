@@ -174,18 +174,25 @@ fn para_shape(p: &RawNode) -> Result<ParaShape> {
     Ok(s)
 }
 
-/// Child indices of the paragraphs of a well-formed text body.
+/// Child indices of the paragraphs of a well-formed text body
+/// (`a:bodyPr [a:lstStyle] a:p+`; a body without `a:p` violates the schema
+/// and is `UnsupportedContent`, review R2-1).
 fn body_paragraphs(b: &RawNode) -> Result<Vec<usize>> {
     ordered(b, &[(a("bodyPr"), 0, true), (a("lstStyle"), 1, true), (Paragraph::QNAME, 2, false)], "text body")?;
-    Ok(b.indexed_elements().filter(|(_, c)| c.is(Paragraph::QNAME)).map(|(i, _)| i).collect())
+    let paras: Vec<usize> = b.indexed_elements().filter(|(_, c)| c.is(Paragraph::QNAME)).map(|(i, _)| i).collect();
+    if paras.is_empty() {
+        return Err(Error::UnsupportedContent("text body without a:p".into()));
+    }
+    Ok(paras)
 }
 
 // ---------------------------------------------------------------------------
 // Format sources (review M1). A new run copies the attributes of the
 // paragraph's first `a:rPr` (or of `a:endParaRPr` when it has no run); a new
 // paragraph in `TextBody::set_text` copies the last paragraph's `a:pPr`
-// attributes. Only attribute-only elements are copied; one with child
-// elements needs a subtree copy (Phase 2): `FormatNotCopyable`.
+// attributes and gets an `a:endParaRPr` copying its run format source
+// (review R2-5). Only attribute-only elements are copied; one with child
+// elements needs a subtree copy: `FormatNotCopyable`.
 
 type Fmt = Option<Vec<(QName, String)>>;
 
@@ -280,12 +287,41 @@ fn apply_paragraph(p: &mut LensMut<'_, Paragraph>, plan: &ParaPlan, segments: &[
     Ok(())
 }
 
-fn fill_new_paragraph(p: &mut LensMut<'_, Paragraph>, ppr: &Fmt, run_fmt: &Fmt, segments: &[impl AsRef<str>]) -> Result<()> {
+/// Fills a new, empty `a:p`: `a:pPr` from `ppr`, runs from `segments` with
+/// `run_fmt`, and an `a:endParaRPr` from `end` (each omitted when `None`).
+fn fill_new_paragraph(
+    p: &mut LensMut<'_, Paragraph>,
+    ppr: &Fmt,
+    run_fmt: &Fmt,
+    end: &Fmt,
+    segments: &[impl AsRef<str>],
+) -> Result<()> {
     if let Some(f) = ppr {
         set_attrs(&mut p.insert::<ParagraphProperties>()?, f)?;
     }
-    apply_paragraph(p, &ParaPlan { first_run: false, remove: Vec::new(), fmt: run_fmt.clone() }, segments)
+    apply_paragraph(p, &ParaPlan { first_run: false, remove: Vec::new(), fmt: run_fmt.clone() }, segments)?;
+    if let Some(f) = end {
+        set_attrs(&mut p.insert::<EndParagraphRunProperties>()?, f)?;
+    }
+    Ok(())
 }
+
+// Review R2-6: `set_attr` refuses elements whose generated attribute list
+// is incomplete (`IncompleteSpec`), and Phase 0 calls it only after an
+// insertion. Every element Phase 0 inserts or writes attributes/text on
+// must therefore have a complete list; checked at compile time.
+const _: () = assert!(
+    !RunProperties::ATTRS_INCOMPLETE
+        && !ParagraphProperties::ATTRS_INCOMPLETE
+        && !EndParagraphRunProperties::ATTRS_INCOMPLETE
+        && !Run::ATTRS_INCOMPLETE
+        && !Text::ATTRS_INCOMPLETE
+        && !Break::ATTRS_INCOMPLETE
+        && !Paragraph::ATTRS_INCOMPLETE
+        && !pml::TextBody::ATTRS_INCOMPLETE
+        && !dml::TextBody::ATTRS_INCOMPLETE,
+    "an element Phase 0 writes has an incomplete attribute list (ADR-0005 §3, review R2-6)"
+);
 
 // ---------------------------------------------------------------------------
 // Guards: references into the text (ADR-0005 §6).
@@ -514,7 +550,7 @@ impl TextBodyMut<'_> {
         let mut body = body_lens(self.doc, &self.path)?;
         with_body!(&mut body, l => {
             let mut p = append_paragraph(l)?;
-            fill_new_paragraph(&mut p, &None, &None, &segments)?;
+            fill_new_paragraph(&mut p, &None, &None, &None, &segments)?;
         });
         Ok(ParagraphMut {
             doc: &mut *self.doc,
@@ -547,7 +583,8 @@ impl TextBodyMut<'_> {
     /// goes into the existing paragraph with the same index through
     /// [`ParagraphMut::set_text`] (keeping its `a:pPr` and first run's
     /// `a:rPr`); surplus paragraphs are removed; missing ones are appended
-    /// with a copy of the last paragraph's `a:pPr` attributes and run format.
+    /// with a copy of the last paragraph's `a:pPr` attributes, and of its
+    /// run format source for their runs and their `a:endParaRPr`.
     ///
     /// Errors: those of [`ParagraphMut::set_text`] for every line, plus
     /// [`Error::FieldInParagraph`] if any paragraph has a field (it would be
@@ -575,13 +612,15 @@ impl TextBodyMut<'_> {
             }
         }
         let extra = &lines[paras.len().min(lines.len())..];
+        // New paragraphs: `a:pPr` from the last paragraph, and its run
+        // format source for both the runs and `a:endParaRPr` (review R2-5),
+        // so the source is consulted for every new paragraph.
         let (ppr, run_fmt) = if extra.is_empty() {
             (None, None)
         } else {
-            let last = node_at(node, &[*paras.last().expect("minOccurs 1")]).expect("found");
+            let last = node_at(node, &[*paras.last().expect("body_paragraphs: a:p+")]).expect("found");
             let shape = para_shape(last)?;
-            let needs_run = extra.iter().any(|segs| segs.iter().any(|s| !s.is_empty()));
-            (para_format(last)?, if needs_run { run_format(last, &shape)? } else { None })
+            (para_format(last)?, run_format(last, &shape)?)
         };
         // Apply: appends first (the only primitive that could still be
         // refused by the core, before anything else changed), then rewrite,
@@ -590,7 +629,7 @@ impl TextBodyMut<'_> {
         with_body!(&mut body, l => {
             for segs in extra {
                 let mut p = append_paragraph(l)?;
-                fill_new_paragraph(&mut p, &ppr, &run_fmt, segs)?;
+                fill_new_paragraph(&mut p, &ppr, &run_fmt, &run_fmt, segs)?;
             }
         });
         for (k, plan) in plans.iter().enumerate() {

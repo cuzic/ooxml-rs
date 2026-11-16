@@ -1,6 +1,7 @@
 //! [`Worksheet`], [`CellRef`] (read) and [`CellMut`] (write).
 
-use ooxml_core::{ElementSpec, EnumValue, RawNode, XmlDocument};
+use ooxml_core::name::MC_ALTERNATE_CONTENT;
+use ooxml_core::{Content, ElementSpec, EnumValue, QName, RawNode, XmlDocument};
 use ooxml_schema::sml::{self, CellValues, TextView};
 
 use crate::error::{Error, Result};
@@ -43,14 +44,17 @@ pub struct CellRef<'a> {
     ctx: &'a SheetContext,
 }
 
-/// Concatenates `t` texts (rich runs included) the way Excel and calamine
-/// read them: a `t` without `xml:space="preserve"` in effect has its outer
-/// ASCII whitespace removed; `_xHHHH_` escapes are decoded.
+/// Concatenates `t` texts (rich runs included) the way calamine reads them:
+/// a `t` that does not itself carry `xml:space="preserve"` has its outer
+/// ASCII whitespace (space, tab, CR, LF) removed. Like calamine, only the
+/// `t`'s own attribute counts: an `xml:space` inherited from `si`/`is`/`r`
+/// is ignored (review round 1, F4). `_xHHHH_` escapes are decoded.
 pub(crate) fn text_of<'a>(t: Option<TextView<'a>>, runs: impl Iterator<Item = Option<TextView<'a>>>) -> String {
     let mut out = String::new();
     for t in t.into_iter().chain(runs.flatten()) {
         let raw = t.text();
-        let raw = if t.0.xml_space_preserve() { &raw[..] } else { raw.trim_matches([' ', '\t', '\r', '\n']) };
+        let preserve = t.0.raw().xml_space_preserve() == Some(true);
+        let raw = if preserve { &raw[..] } else { raw.trim_matches([' ', '\t', '\r', '\n']) };
         out.push_str(&escape::decode(raw));
     }
     out
@@ -129,6 +133,89 @@ fn row_number(n: &RawNode) -> Option<&str> {
     n.attr(sml::Row::ATTR_R)
 }
 
+/// `Err(UnresolvedSibling(parent))` if `n` has an `mc:AlternateContent`
+/// child: what it wraps (rows, cells, values) cannot be located without
+/// MCE processing, so neither a read nor a write can be answered honestly.
+fn refuse_alternate_content(n: &RawNode, parent: QName) -> Result<()> {
+    if n.elements().any(|c| c.is(MC_ALTERNATE_CONTENT)) {
+        return Err(ooxml_core::Error::UnresolvedSibling(parent).into());
+    }
+    Ok(())
+}
+
+/// Dry run of `LensMut::insert_by::<C>` on a parent `E` whose element
+/// children would be `children` (ooxml-core's `place`, ADR-0002 §4.1, without
+/// mutating anything): `Err` exactly when that insertion would be refused
+/// (an `mc:AlternateContent` sibling, listed children out of schema order,
+/// or the slot already full). Unlisted children are skipped, as in `place`.
+///
+/// The new child's namespace prefix cannot be refused: it is always
+/// SpreadsheetML main, the namespace of `E` itself, so the parent's own
+/// prefix is bound to it.
+fn check_insertable<'n, E: ElementSpec>(children: impl Iterator<Item = &'n RawNode>, q: QName) -> Result<()> {
+    let Content::Slots(slots) = E::CONTENT else {
+        return Err(ooxml_core::Error::UnsupportedContentModel(E::QNAME).into());
+    };
+    let named = |n: &RawNode| -> Vec<usize> {
+        let v: Vec<usize> = slots.iter().enumerate().filter(|(_, s)| s.names.iter().any(|x| n.is(*x))).map(|(i, _)| i).collect();
+        if !v.is_empty() {
+            return v;
+        }
+        slots.iter().enumerate().filter(|(_, s)| s.wildcard.is_some_and(|w| w.matches(n.name().ns()))).map(|(i, _)| i).collect()
+    };
+    let Some(slot) = slots.iter().position(|s| s.names.contains(&q)) else {
+        return Err(ooxml_core::Error::NotAllowed { parent: E::QNAME, child: q }.into());
+    };
+    let (mut cur, mut same_q, mut same_slot) = (0usize, 0u32, 0u32);
+    for child in children {
+        if child.is(MC_ALTERNATE_CONTENT) {
+            return Err(ooxml_core::Error::UnresolvedSibling(E::QNAME).into());
+        }
+        let cands = named(child);
+        if cands.is_empty() {
+            continue;
+        }
+        let Some(&rank) = cands.iter().find(|&&r| r >= cur) else {
+            return Err(ooxml_core::Error::UnresolvedSibling(E::QNAME).into());
+        };
+        cur = rank;
+        if rank == slot {
+            same_slot += 1;
+            same_q += u32::from(child.is(q));
+        }
+    }
+    let s = slots[slot];
+    if s.max_each.is_some_and(|m| same_q >= m) || s.max_total.is_some_and(|m| same_slot >= m) {
+        return Err(ooxml_core::Error::AlreadyPresent(q).into());
+    }
+    Ok(())
+}
+
+/// The new content of a cell, already encoded and checked.
+enum NewValue {
+    /// `<v>` text; `t` is removed.
+    Number(String),
+    /// `<is><t>` text (`_xHHHH_`-encoded); `t="inlineStr"`.
+    Text(String),
+}
+
+impl NewValue {
+    fn text(&self) -> &str {
+        match self {
+            NewValue::Number(t) | NewValue::Text(t) => t,
+        }
+    }
+}
+
+/// A write, completely decided and validated by [`Worksheet::plan`] before
+/// anything changes (review round 2, N1: plan → validate → apply).
+struct Plan {
+    loc: Located,
+    value: NewValue,
+    /// The new `dimension/@ref`, if `dimension` exists and must grow.
+    dimension: Option<String>,
+}
+
 impl<'wb> Worksheet<'wb> {
     pub(crate) fn new(doc: &'wb mut XmlDocument, ctx: &'wb SheetContext) -> Self {
         Self { doc, ctx }
@@ -151,9 +238,18 @@ impl<'wb> Worksheet<'wb> {
     /// Finds the row and cell, enforcing ADR-0002 §4.2's `MissingReference`
     /// rule (any `row` without `r`, or any `c` without `r` in the row
     /// concerned) and checking the order that insertion relies on.
+    ///
+    /// An `mc:AlternateContent` child of `sheetData`, of the row concerned,
+    /// of the cell or its `is`, or of `worksheet` when `sheetData` is absent
+    /// could hold the cell or its value, so it is refused rather than
+    /// answered with "absent" or "empty" (review round 1 F6, round 2 N3).
     fn locate(&self, at: CellIndex) -> Result<Located> {
         let ws = self.view()?;
-        let Some(sd) = ws.sheet_data() else { return Ok(Located { row: None, cell: None }) };
+        let Some(sd) = ws.sheet_data() else {
+            refuse_alternate_content(ws.raw(), sml::Worksheet::QNAME)?;
+            return Ok(Located { row: None, cell: None });
+        };
+        refuse_alternate_content(sd.raw(), sml::SheetData::QNAME)?;
         let part = &self.ctx.sheet_part;
         let missing = |what: String| Error::MissingReference { part: part.clone(), what };
         let want_row = at.row + 1;
@@ -172,6 +268,7 @@ impl<'wb> Worksheet<'wb> {
         }
         let Some(ri) = found_row else { return Ok(Located { row: None, cell: None }) };
         let row = sd.raw().children()[ri].as_element().expect("row index");
+        refuse_alternate_content(row, sml::Row::QNAME)?;
         let mut found_cell = None;
         let mut prev: Option<u32> = None;
         for (i, c) in row.indexed_elements().filter(|(_, n)| n.is(sml::Cell::QNAME)) {
@@ -188,6 +285,14 @@ impl<'wb> Worksheet<'wb> {
                 found_cell = Some(i);
             }
         }
+        if let Some(ci) = found_cell {
+            // an AC inside the cell or its `is` may hold the value (N3)
+            let c = row.children()[ci].as_element().expect("cell index");
+            refuse_alternate_content(c, sml::Cell::QNAME)?;
+            for is in c.elements().filter(|n| n.is(sml::InlineString::QNAME)) {
+                refuse_alternate_content(is, sml::InlineString::QNAME)?;
+            }
+        }
         Ok(Located { row: Some(ri), cell: found_cell })
     }
 
@@ -195,7 +300,11 @@ impl<'wb> Worksheet<'wb> {
     ///
     /// Errors: [`Error::MissingReference`] if the sheet has a `row` without
     /// `r`, or the row has a `c` without `r` (ADR-0002 §4.2: a silent `None`
-    /// could hide a value); [`Error::OutOfRange`].
+    /// could hide a value); [`Error::OutOfOrder`] if rows or the row's
+    /// cells are not ascending; core `UnresolvedSibling` if `sheetData`, the
+    /// row, the cell or its `is` has an `mc:AlternateContent` child (or
+    /// `worksheet` has one and no `sheetData`), for the same reason;
+    /// [`Error::OutOfRange`].
     pub fn cell(&self, row: u32, col: u32) -> Result<Option<CellRef<'_>>> {
         let at = CellIndex::new(row, col)?;
         let Located { row: Some(ri), cell: Some(ci) } = self.locate(at)? else { return Ok(None) };
@@ -231,8 +340,13 @@ impl<'wb> Worksheet<'wb> {
         self.cell_mut(row, col)?.set_number(value)
     }
 
-    /// Every check that can refuse a write, before anything is changed.
-    fn preflight(&self, at: CellIndex) -> Result<Located> {
+    /// Decides the whole write without changing anything: every refusal,
+    /// where the row and cell go, what the cell will contain, and the new
+    /// `dimension/@ref`. Each insertion [`Self::apply`] will make is
+    /// dry-run here against the children it will actually have
+    /// ([`check_insertable`]), and the value's characters are checked, so
+    /// once this returns `Ok`, `apply` cannot fail (review round 2, N1).
+    fn plan(&self, at: CellIndex, value: NewValue) -> Result<Plan> {
         if let Some(block) = &self.ctx.edit_block {
             return Err(block.to_error());
         }
@@ -243,28 +357,79 @@ impl<'wb> Worksheet<'wb> {
         if let Some(t) = self.ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
             return Err(Error::TableHeaderCell { cell, table: t.name.clone() });
         }
-        let loc = self.locate(at)?;
-        if let Some(c) = self.cell(at.row, at.col)? {
-            if c.view.cell_formula().is_some() {
-                return Err(Error::FormulaPresent { part: self.ctx.sheet_part.clone() });
-            }
-            if c.raw().attr(sml::Cell::ATTR_VM).is_some() {
-                return Err(Error::RichValueCell { cell });
-            }
+        if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(value.text()) {
+            return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
         }
-        Ok(loc)
+        let loc = self.locate(at)?;
+        let ws = self.view()?;
+        let new_child = match value {
+            NewValue::Number(_) => sml::CellValue::QNAME,
+            NewValue::Text(_) => sml::InlineString::QNAME,
+        };
+        match ws.sheet_data() {
+            None => check_insertable::<sml::Worksheet>(ws.raw().elements(), sml::SheetData::QNAME)?,
+            Some(sd) => match loc.row {
+                None => check_insertable::<sml::SheetData>(sd.raw().elements(), sml::Row::QNAME)?,
+                Some(ri) => {
+                    let row = sd.raw().children()[ri].as_element().expect("located row");
+                    match loc.cell {
+                        None => check_insertable::<sml::Row>(row.elements(), sml::Cell::QNAME)?,
+                        Some(ci) => {
+                            let c = row.children()[ci].as_element().expect("located cell");
+                            if c.elements().any(|n| n.is(sml::CellFormula::QNAME)) {
+                                return Err(Error::FormulaPresent { part: self.ctx.sheet_part.clone() });
+                            }
+                            if c.attr(sml::Cell::ATTR_VM).is_some() {
+                                return Err(Error::RichValueCell { cell });
+                            }
+                            // `apply` removes every `v` and `is` (duplicates
+                            // included), then inserts the new one
+                            let kept = c.elements().filter(|n| !n.is(sml::CellValue::QNAME) && !n.is(sml::InlineString::QNAME));
+                            check_insertable::<sml::Cell>(kept, new_child)?;
+                        }
+                    }
+                }
+            },
+        }
+        // a `dimension` that cannot be kept up to date is refused (round 1, F7)
+        let dimension = match ws.sheet_dimension() {
+            None => None,
+            Some(dim) => {
+                let r = dim.reference();
+                let Some(Ok(range)) = r.map(CellRange::parse) else {
+                    return Err(Error::Malformed(format!(
+                        "{}: dimension/@ref {:?} is not a cell range; it could not be kept up to date",
+                        self.ctx.sheet_part,
+                        r.unwrap_or_default()
+                    )));
+                };
+                (!range.contains(at)).then(|| range.union(at).to_string())
+            }
+        };
+        Ok(Plan { loc, value, dimension })
     }
 
-    /// Creates the row and cell if needed and hands the cell lens to `f`;
-    /// then grows `dimension` if it exists (never inserts one).
-    fn write(&mut self, at: CellIndex, f: impl FnOnce(&mut sml::CellViewMut<'_>) -> Result<()>) -> Result<()> {
-        let loc = self.preflight(at)?;
+    /// Plans the write, then applies it. An `Err` from `apply` would mean
+    /// `plan` let through a write it should have refused (and the tree may
+    /// be half-changed): a bug, so debug builds (the test suite) panic.
+    fn write(&mut self, at: CellIndex, value: NewValue) -> Result<()> {
+        let plan = self.plan(at, value)?;
+        let r = self.apply(at, plan);
+        debug_assert!(r.is_ok(), "plan() let through a write that apply() failed: {r:?}");
+        r
+    }
+
+    /// Carries out a validated [`Plan`]. None of the `?` below can fire:
+    /// each insertion was dry-run by `plan` against the same children, the
+    /// text was checked for XML characters, and the attribute writes are on
+    /// `Cell`/`Row`/`SheetDimension`, whose attribute lists are complete.
+    fn apply(&mut self, at: CellIndex, plan: Plan) -> Result<()> {
         let row_no = at.row + 1;
         let col = at.col;
+        let mut ws = sml::WorksheetViewMut(self.doc.lens_mut::<sml::Worksheet>()?);
         {
-            let mut ws = sml::WorksheetViewMut(self.doc.lens_mut::<sml::Worksheet>()?);
             let mut sd = ws.get_or_insert_sheet_data()?;
-            let mut row = match loc.row {
+            let mut row = match plan.loc.row {
                 Some(i) => sml::RowViewMut(sd.0.into_child_at::<sml::Row>(i).expect("located row")),
                 None => {
                     let mut r = sd.insert_row_by(|_, n| {
@@ -274,7 +439,7 @@ impl<'wb> Worksheet<'wb> {
                     r
                 }
             };
-            let mut cell = match loc.cell {
+            let mut cell = match plan.loc.cell {
                 Some(i) => sml::CellViewMut(row.0.into_child_at::<sml::Cell>(i).expect("located cell")),
                 None => {
                     let mut c = row.insert_cell_by(|_, n| {
@@ -284,14 +449,23 @@ impl<'wb> Worksheet<'wb> {
                     c
                 }
             };
-            f(&mut cell)?;
+            // every `v` and `is`, not just the first: a schema-invalid
+            // duplicate would otherwise survive and be read by others
+            while cell.remove_cell_value() {}
+            while cell.remove_inline_string() {}
+            match &plan.value {
+                NewValue::Number(text) => {
+                    cell.remove_data_type()?;
+                    cell.get_or_insert_cell_value()?.set_text(text)?;
+                }
+                NewValue::Text(text) => {
+                    cell.set_data_type(CellValues::InlineString)?;
+                    cell.get_or_insert_inline_string()?.get_or_insert_text()?.set_text(text)?;
+                }
+            }
         }
-        let mut ws = sml::WorksheetViewMut(self.doc.lens_mut::<sml::Worksheet>()?);
-        if let Some(mut dim) = ws.sheet_dimension_mut()
-            && let Some(Ok(range)) = dim.as_view().reference().map(CellRange::parse)
-            && !range.contains(at)
-        {
-            dim.set_reference(&range.union(at).to_string())?;
+        if let Some(r) = &plan.dimension {
+            ws.sheet_dimension_mut().expect("planned with a dimension").set_reference(r)?;
         }
         Ok(())
     }
@@ -328,7 +502,8 @@ impl CellMut<'_, '_> {
     }
 
     /// Writes a number: `<v>` holds it, a stale `t` (`b`, `s`,
-    /// `inlineStr`, …) and any `<is>` are removed, `s` is kept.
+    /// `inlineStr`, …) and every `<is>` are removed (as is every old `<v>`,
+    /// a schema-invalid duplicate included), `s` is kept.
     ///
     /// Errors (nothing is changed): [`Error::InvalidNumber`] for NaN or
     /// infinities, and the refusals listed on [`Self::set_string`].
@@ -336,47 +511,67 @@ impl CellMut<'_, '_> {
         if !value.is_finite() {
             return Err(Error::InvalidNumber(value));
         }
-        let text = format_number(value);
-        self.ws.write(self.at, |c| {
-            c.remove_data_type()?;
-            c.remove_inline_string();
-            c.get_or_insert_cell_value()?.set_text(&text)?;
-            Ok(())
-        })
+        self.ws.write(self.at, NewValue::Number(format_number(value)))
     }
 
     /// Writes a string as an inline string (`t="inlineStr"`,
     /// `<is><t>…</t></is>`; ADR-0001 Phase0 never touches the shared-string
     /// table). `xml:space="preserve"` is set when the value has leading or
     /// trailing whitespace; characters XML cannot carry are written as
-    /// `_xHHHH_`. `s` is kept. At most 32,767 UTF-16 code units
+    /// `_xHHHH_`. `s` is kept; every old `<v>` and `<is>` (a schema-invalid
+    /// duplicate included) is removed. At most 32,767 UTF-16 code units
     /// ([`Error::StringTooLong`]).
     ///
     /// Errors (nothing is changed): [`Error::FormulaPresent`] /
     /// [`Error::FormulaScanFailed`] (workbook-wide), [`Error::MergedCell`],
     /// [`Error::TableHeaderCell`], [`Error::RichValueCell`],
-    /// [`Error::MissingReference`], [`Error::OutOfOrder`]; core refusals
-    /// such as `UnresolvedSibling` if `sheetData` itself must be inserted
-    /// next to an `mc:AlternateContent`.
+    /// [`Error::MissingReference`], [`Error::OutOfOrder`],
+    /// [`Error::Malformed`] if `dimension/@ref` is not a cell range;
+    /// core `UnresolvedSibling` if `sheetData`, the row, the cell or its
+    /// `is` has an `mc:AlternateContent` child, or if the new `sheetData`,
+    /// row, cell, `v` or `is` has no schema-order position among its
+    /// siblings (e.g. a row's `extLst` before its cells); core
+    /// `InvalidXmlChar` for text XML cannot carry even when escaped.
+    /// Every refusal is decided before anything changes.
     pub fn set_string(self, value: &str) -> Result<()> {
         let units = value.encode_utf16().count();
         if units > MAX_STRING_LEN {
             return Err(Error::StringTooLong(units));
         }
-        let text = escape::encode(value);
-        self.ws.write(self.at, |c| {
-            c.remove_cell_value();
-            c.remove_inline_string();
-            c.set_data_type(CellValues::InlineString)?;
-            c.get_or_insert_inline_string()?.get_or_insert_text()?.set_text(&text)?;
-            Ok(())
-        })
+        self.ws.write(self.at, NewValue::Text(escape::encode(value).into_owned()))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::format_number;
+    use super::{check_insertable, format_number};
+    use ooxml_core::{ElementSpec, XmlDocument};
+    use ooxml_schema::sml;
+
+    /// `check_insertable` agrees with ooxml-core's real insertion (its
+    /// `place`) on every shape: ordered, out of order, AC sibling, slot full.
+    #[test]
+    fn dry_run_matches_core() {
+        const NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
+        let ac = "<mc:AlternateContent/>";
+        for (inner, ok) in [
+            ("", true),
+            ("<extLst/>", true),
+            ("<v>1</v><extLst/>", false),       // slot full (AlreadyPresent)
+            ("<is/><v>1</v>", false),           // out of order
+            ("<extLst/><is/>", false),          // out of order
+            (ac, false),                        // AC sibling
+            ("<foo xmlns=\"urn:x\"/>", true), // unlisted: skipped
+        ] {
+            let xml = format!("<c {NS} r=\"A1\">{inner}</c>");
+            let doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+            let dry = check_insertable::<sml::Cell>(doc.root().elements(), sml::CellValue::QNAME);
+            let mut doc2 = XmlDocument::parse(xml.as_bytes()).unwrap();
+            let real = doc2.lens_mut::<sml::Cell>().unwrap().insert::<sml::CellValue>().map(|_| ());
+            assert_eq!(dry.is_ok(), ok, "{inner}: {dry:?}");
+            assert_eq!(dry.is_ok(), real.is_ok(), "{inner}: dry {dry:?} vs core {real:?}");
+        }
+    }
 
     #[test]
     fn numbers() {

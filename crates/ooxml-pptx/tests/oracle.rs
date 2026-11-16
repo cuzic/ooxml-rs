@@ -1,9 +1,11 @@
 //! T3 (ADR-0005 §7), the in-cargo half: for every case, ooxml-pptx's read of
 //! the edited output must equal `apply(edits, read(input))`, computed on
-//! the whole deck model. A write to the wrong shape, cell, paragraph or run
-//! shows up as a difference somewhere else in the deck. The independent
-//! half (python-pptx reads input and output) is `tests/oracle/check.py`,
-//! run by the `pptx-readback` CI job.
+//! the whole deck model, including the full subtree of every `a:rPr`,
+//! `a:pPr` and `a:endParaRPr` (review R2-2). A write to the wrong shape,
+//! cell, paragraph or run, or a lost formatting child, shows up as a
+//! difference. The independent half (python-pptx reads input and output and
+//! applies the edits to its own tree) is `tests/oracle/check.py`, run by
+//! the `pptx-readback` CI job.
 
 #[path = "oracle/cases.rs"]
 mod cases;
@@ -100,8 +102,10 @@ fn apply(model: &mut Value, e: &Value) {
                 if i < n {
                     para_set(&mut paras[i], line);
                 } else {
-                    let items = build(&segs(line), None, &run_fmt(&last));
-                    paras.push(json!({"ppr": last["ppr"], "end": null, "items": items}));
+                    // R2-5: the run format source also becomes `a:endParaRPr`
+                    let fmt = run_fmt(&last);
+                    let items = build(&segs(line), None, &fmt);
+                    paras.push(json!({"ppr": last["ppr"], "end": fmt, "items": items}));
                 }
             }
             paras.truncate(lines.len());
@@ -133,14 +137,27 @@ fn t3_expected_model_after_edits() {
     assert!(total > 300, "the sweep should exercise many edits, got {total}");
 }
 
+fn expected_after(case: &cases::Case, edits: &[Value]) -> Value {
+    let mut input = Presentation::from_bytes(cases::read_fixture(&case.fixture)).unwrap();
+    let mut expected = model::dump(&mut input);
+    for e in edits {
+        apply(&mut expected, e);
+    }
+    expected
+}
+
+fn actual(case: &cases::Case) -> Value {
+    model::dump(&mut Presentation::from_bytes(case.output.clone()).unwrap())
+}
+
 /// The oracle must notice an edit on the wrong target: pretend the first
 /// edit of a sweep went to another shape and check the models differ.
 #[test]
-fn t3_detects_wrong_target() {
+fn t3_detects_wrong_shape() {
     let case = cases::sweep_case("poi/sample.pptx");
-    let mut input = Presentation::from_bytes(cases::read_fixture(&case.fixture)).unwrap();
-    let mut expected = model::dump(&mut input);
     let mut edits: Vec<Value> = case.edits.iter().map(cases::Edit::to_json).collect();
+    let expected = expected_after(&case, &edits);
+    assert_eq!(actual(&case), expected);
     let other = expected["slides"][0]["shapes"]
         .as_array()
         .unwrap()
@@ -149,9 +166,84 @@ fn t3_detects_wrong_target() {
         .find(|id| *id != edits[0]["shape_id"])
         .unwrap();
     edits[0]["shape_id"] = other;
-    for e in &edits {
-        apply(&mut expected, e);
+    assert_ne!(actual(&case), expected_after(&case, &edits));
+}
+
+/// Review R2-2: retargeting an edit to another paragraph, or to another
+/// run of the same paragraph, must also be noticed. The edits come from
+/// the multi-edit sweeps, which address paragraphs and runs past index 0;
+/// each is replayed alone on a fresh copy of its fixture.
+#[test]
+fn t3_detects_wrong_paragraph_and_run() {
+    let (mut para, mut run) = (false, false);
+    for f in cases::FIXTURES {
+        let case = cases::multi_case(f);
+        let input = expected_after(&case, &[]);
+        for e in &case.edits {
+            if para && run {
+                return;
+            }
+            let j = e.to_json();
+            let Some(body) = input["slides"][e.slide]["shapes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|s| s["shape_id"] == j["shape_id"] && s["cell"] == j["cell"])
+            else {
+                continue;
+            };
+            let paras = body["paragraphs"].as_array().unwrap();
+            let p = j["args"]["p"].as_u64().map(|p| p as usize);
+            let mut changed = j.clone();
+            match &e.op {
+                cases::Op::ParaSetText { .. } if !para && paras.len() > 1 && p.unwrap() < paras.len() => {
+                    changed["args"]["p"] = json!(if p.unwrap() == 0 { 1 } else { 0 });
+                }
+                cases::Op::RunSetText { r, .. }
+                    if !run
+                        && p.unwrap() < paras.len()
+                        && paras[p.unwrap()]["items"].as_array().unwrap().iter().filter(|i| i[0] == "r").count() > (*r).max(1) =>
+                {
+                    changed["args"]["r"] = json!(if *r == 0 { 1 } else { 0 });
+                }
+                _ => continue,
+            }
+            let single = cases::run_case(format!("{}-single", case.name), f, |_| vec![e.clone()]);
+            if single.edits.is_empty() {
+                continue; // refused on the fresh copy
+            }
+            assert_eq!(actual(&single), expected_after(&single, std::slice::from_ref(&j)));
+            assert_ne!(actual(&single), expected_after(&single, &[changed]), "{}: retarget of {j} unnoticed", case.name);
+            match e.op {
+                cases::Op::ParaSetText { .. } => para = true,
+                _ => run = true,
+            }
+        }
     }
-    let mut output = Presentation::from_bytes(case.output.clone()).unwrap();
-    assert_ne!(model::dump(&mut output), expected);
+    assert!(para && run, "no edit to retarget (paragraph: {para}, run: {run})");
+}
+
+/// Review R2-2: an output that lost the child elements of a kept `a:rPr`
+/// (here: the first run of the title in `sample.pptx`, whose `a:rPr` has an
+/// `a:sym`) must fail T3. The round-2 model compared attributes only and
+/// could not tell; the attribute-only projection below shows that.
+#[test]
+fn t3_detects_dropped_format_children() {
+    let case = cases::named_cases().into_iter().find(|c| c.name == "title-and-body").unwrap();
+    let edits: Vec<Value> = case.edits.iter().map(cases::Edit::to_json).collect();
+    let expected = expected_after(&case, &edits);
+    assert_eq!(actual(&case), expected);
+    // the mutation: drop every child of the first non-empty a:rPr of slide 1
+    let mut pkg = ooxml_core::Package::from_bytes(case.output.clone()).unwrap();
+    let part = "ppt/slides/slide1.xml";
+    let xml = String::from_utf8(pkg.read_part(part).unwrap()).unwrap();
+    let start = xml.find("<a:rPr ").unwrap();
+    let open_end = start + xml[start..].find('>').unwrap();
+    assert_ne!(&xml[open_end - 1..open_end], "/", "the first a:rPr has children");
+    let close = start + xml[start..].find("</a:rPr>").unwrap();
+    let mutated = format!("{}/>{}", &xml[..open_end], &xml[close + "</a:rPr>".len()..]);
+    pkg.set_part(part, mutated.into_bytes()).unwrap();
+    let mutant = model::dump(&mut Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap());
+    assert_ne!(mutant, expected, "T3 must notice the lost a:sym");
+    assert_eq!(model::attrs_only(&mutant), model::attrs_only(&expected), "an attribute-only model would not");
 }

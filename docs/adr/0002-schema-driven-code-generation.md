@@ -89,6 +89,23 @@
   primitive can write a part that is not well-formed (U+000B, other C0
   controls, U+FFFE/U+FFFF). Format crates still own their own line-break
   rules; this is the backstop.
+- **Post-acceptance note (2026-11-16, parser depth limit — no change to
+  the decisions; from the ADR-0004 round-2 review, N1, and the PR #16
+  round-1 review, M1):** the Layer 2 parser refuses element nesting deeper
+  than `ParseOptions::max_depth` with `Error::TooDeep { limit, position }`,
+  checked at the start tag before the node is allocated. The default is
+  **256** (root = depth 1); the deepest real part measured is 33 (POI
+  `bug59058`), median 9 over 1,641 parts. The limit bounds every recursive
+  operation on the tree (`Clone`, `Drop`, `Debug`, dirty serialization,
+  `structurally_eq`, format-crate walks) and path-based lens addressing: at
+  1024 a debug-build `clone()` needed about 1.7 MiB of stack; at 256 all of
+  them are tested on a 1 MiB thread in a debug build. The parsed document
+  remembers its limit and `XmlDocument::lens_mut` refuses inserts beyond it,
+  so edited output always reparses. `XmlDocument::parse_with` and
+  `Package::{from_bytes_with, open_with}` take the options; OPC metadata
+  parts are never parsed below the default. Raising the limit needs a
+  proportionally larger stack (documented on `max_depth`). Format crates
+  map the error to their own open-time refusal (ooxml-docx: O5).
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

@@ -160,6 +160,89 @@ fn e11_pivot_and_table() {
     assert_eq!(refused, 3 * 3);
 }
 
+/// Review round 1, F3: table-header variants. `ExcelPivotTableSample` with
+/// (a) a second table `T2` (`J5:K8`, `headerRowCount="2"`) added to the
+/// sheet (table part, sheet relationship, `tablePart`, content-type
+/// override): both of its header rows are refused in every column, the
+/// first table is still guarded, body cells are Ok; (b) the original table
+/// with `headerRowCount="0"`: its top row is writable.
+#[test]
+fn e11b_table_header_variants() {
+    let name = "poi/ExcelPivotTableSample.xlsx";
+    let input = read(name);
+    let s1 = text(&input, "xl/worksheets/sheet1.xml");
+    let tp = s1.find("<tableParts").unwrap()..s1.find("</tableParts>").unwrap() + "</tableParts>".len();
+    let rid = {
+        let seg = &s1[tp.clone()];
+        let i = seg.find("r:id=\"").unwrap() + 6;
+        seg[i..i + seg[i..].find('"').unwrap()].to_owned()
+    };
+    let s1 = format!(
+        r#"{}<tableParts count="2"><tablePart r:id="{rid}"/><tablePart r:id="rId99"/></tableParts>{}"#,
+        &s1[..tp.start],
+        &s1[tp.end..]
+    );
+    let rels = patched(
+        &input,
+        "xl/worksheets/_rels/sheet1.xml.rels",
+        "</Relationships>",
+        r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table2.xml"/></Relationships>"#,
+    );
+    let ct = patched(
+        &input,
+        "[Content_Types].xml",
+        "</Types>",
+        r#"<Override PartName="/xl/tables/table2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/></Types>"#,
+    );
+    let t2 = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="2" name="T2" displayName="T2" ref="J5:K8" headerRowCount="2"><tableColumns count="2"><tableColumn id="1" name="a"/><tableColumn id="2" name="b"/></tableColumns></table>"#;
+    let bytes = rebuild(
+        &input,
+        &[
+            ("xl/worksheets/sheet1.xml", s1.into_bytes()),
+            ("xl/worksheets/_rels/sheet1.xml.rels", rels),
+            ("xl/tables/table2.xml", t2.to_vec()),
+            ("[Content_Types].xml", ct),
+        ],
+    );
+    for (cell, table) in [("E1", Some("Tabelle1")), ("J5", Some("T2")), ("K5", Some("T2")), ("J6", Some("T2")), ("K6", Some("T2")), ("J7", None), ("K8", None), ("E2", None), ("J4", None)] {
+        let (wb, r) = apply(&bytes, a1(cell), &W::Num(1.0));
+        match table {
+            Some(t) => {
+                assert_matches!(r, Err(Error::TableHeaderCell { ref table, .. }) if table == t, "{cell}");
+                assert_unchanged(&wb, &bytes);
+            }
+            None => r.unwrap_or_else(|e| panic!("{cell}: {e}")),
+        }
+    }
+    // headerRowCount="0": no header row at all
+    let t1 = patched(&input, "xl/tables/table1.xml", r#"totalsRowShown="0""#, r#"totalsRowShown="0" headerRowCount="0""#);
+    let bytes = rebuild(&input, &[("xl/tables/table1.xml", t1)]);
+    for cell in ["E1", "F1", "G1"] {
+        apply(&bytes, a1(cell), &W::Num(1.0)).1.unwrap_or_else(|e| panic!("{cell}: {e}"));
+    }
+}
+
+/// Review round 2, N2: insertion order. `fixture_minimal` with A2 removed
+/// (row 2 starts at B2), a row 4 added after row 2 and `dimension` A1:D4.
+/// A2 goes in front of B2, C3 becomes a new row between rows 2 and 4, and
+/// E1 is appended to row 1; each write passes T2 (byte locality at the
+/// expected insertion point, rows and cells ascending) and CR.
+#[test]
+fn e16_insert_in_the_middle() {
+    let input = read("minimal");
+    let s = text(&input, "xl/worksheets/sheet1.xml")
+        .replacen("<c r=\"A2\" t=\"s\"><v>1</v></c>\n", "", 1)
+        .replacen("</row>\n</sheetData>", "</row>\n<row r=\"4\"><c r=\"A4\"><v>4</v></c></row>\n</sheetData>", 1)
+        .replacen(r#"<dimension ref="A1:D2"/>"#, r#"<dimension ref="A1:D4"/>"#, 1);
+    assert!(!s.contains(r#"r="A2""#) && s.contains(r#"<row r="4">"#) && s.contains("A1:D4"));
+    let bytes = rebuild(&input, &[("xl/worksheets/sheet1.xml", s.into_bytes())]);
+    let out = check_edit("minimal-gaps", &bytes, a1("A2"), &W::Str("first".into()));
+    assert!(sheet_xml(&out).contains("<row r=\"2\">\n<c r=\"A2\" t=\"inlineStr\"><is><t>first</t></is></c><c r=\"B2\">"));
+    let out = check_edit("minimal-gaps", &bytes, a1("C3"), &W::Num(3.0));
+    assert!(sheet_xml(&out).contains("</row>\n<row r=\"3\"><c r=\"C3\"><v>3</v></c></row><row r=\"4\">"));
+    check_edit("minimal-gaps", &bytes, a1("E1"), &W::Num(5.0));
+}
+
 /// P0-E12: images in cells (`vm`) are refused; a neighbour is Ok.
 #[test]
 fn e12_rich_value_cells() {

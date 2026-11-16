@@ -47,6 +47,28 @@ its `ElementSpan` in the source, and `own_dirty` / `subtree_dirty`.
 bytes). Any `<!DOCTYPE>` is refused (`Error::DtdNotAllowed`): no entity
 expansion, no XXE.
 
+Element nesting is limited. An element deeper than `ParseOptions::max_depth` makes the parse
+fail with `Error::TooDeep { limit, position }` before the element is built. The default is
+`DEFAULT_MAX_DEPTH` = 256, and the root is depth 1. The deepest real part measured is 33 (1,641
+parts of POI, Open XML SDK, calamine, LibreOffice and python-pptx test files; median 9), so the
+default leaves a 7x margin.
+
+The limit is what bounds the recursive operations on a tree: `Clone`, `Drop`, `Debug`, dirty
+serialization, `structurally_eq` and format-crate walks. At depth 1024, a debug-build `clone()`
+needed about 1.7 MiB of stack. At 256, `tests/depth_limit.rs` runs every one of these operations
+on a 1 MiB thread. Without a limit, a few kilobytes of nested tables cost gigabytes in
+path-addressed format-crate code and overflow the stack (ADR-0004 round-2 review N1, PR #16
+review M1).
+
+- `XmlDocument::parse_with`, `Package::from_bytes_with` and `Package::open_with` take the
+  options.
+- **Raising the limit** raises stack use in proportion, by about 1.7 KiB per level for a
+  debug-build clone. Above the default, run the tree operations on a thread with a larger stack.
+- **Metadata:** `[Content_Types].xml` and `.rels` parts are never parsed with a limit below the
+  default, so a lowered limit never breaks package metadata.
+- **Edits:** a lens insert that would nest deeper than the document's limit returns `TooDeep`, so
+  edited output always parses again with the same options.
+
 Nodes are read-only from outside the crate; **all mutation goes through
 `LensMut`**, which owns the dirty-flag duties. Test helpers:
 `XmlDocument::force_rerender()` and `RawNode::structurally_eq()` (T1b).
