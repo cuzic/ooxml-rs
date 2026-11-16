@@ -33,10 +33,23 @@ node text == its one drawing shape text (1:1): 305
 node text is part of its drawing shape (shape aggregates children): 50
 node text not in the drawing (stale or hidden): 1
 nodes phldr=1 without text (placeholder prompt): 37
+nodes without dgm:t: 12
+paragraph pairs with different run counts: 3
+paragraph pairs with equal run counts: 429
+run pairs: data attrs subset of cache attrs: 431
+shared horizontal edges DIFFERENT: 3
+shared horizontal edges equal: 427
+shared horizontal edges one side only: 134
+shared vertical edges DIFFERENT: 2
+shared vertical edges equal: 423
+shared vertical edges one side only: 41
 tableStyleId defined in tableStyles.xml: 84
 tableStyleId not in tableStyles.xml (built-in by GUID): 8
 tableStyles.xml with tblStyle entries: 122
 tables: 119
+tables not well-formed (ADR-0013 rev 2 §2): 1
+tables well-formed (ADR-0013 rev 2 §2): 118
+tables whose max a16:rowId >= 2^31: 32
 tables with a row whose a:tc count != gridCol count: 1
 tables with a16:colId: 50
 tables with a16:rowId: 50
@@ -46,6 +59,8 @@ text shapes != concat of presOf sources: 5
 text shapes == concat of presOf sources (destOrd): 321
 unreadable: 12
 vMerge cells that also carry gridSpan (python-pptx/LibreOffice edge form): 3
+2-D merge form: edge=3, short row=1
+aggregate shape paragraph levels: 1,1=6, 0,1,1=5, 1,1,1=4, 1,1,1,1=2, 1,1,1,1,1=1, 0,1,1,1=1
 cxn types: presParOf=1848, presOf=992, parOf=650
 layout uniqueId: default=14, hierarchy4=10, orgChart1=6, lProcess2=4, vList5=4, hProcess9=3, vList3=3, hList1=3, pList2=3, list1=3, AlternatingHexagons=2, venn1=2, arrow5=2, chevron1=2, vList4=2, hProcess3=2, pyramid1=2, venn2=2, HexagonCluster=2, BarList=1, BulletTimeline=1, HorizontalOrganizationChart=1, cycle8=1, target3=1, cycle3=1
 pt types: pres=1953, parTrans=650, sibTrans=650, node=646, doc=105, asst=3
@@ -58,4 +73,5 @@ tcPr children: solidFill=617, lnT=586, lnL=577, lnR=577, lnB=574, lnTlToBr=56, l
 undefined tableStyleId: {5C22544A-7EE6-4342-B048-85BDC9FD1C3A}=3, {2D5ABB26-0587-4C30-8999-92F81FD0307C}=1, {073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}=1, {5940675A-B579-460E-94D1-54222C63F5DA}=1, {793D81CF-94F2-401A-BA57-92F5A7B2D0C5}=1, {3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}=1
 example inconsistent merges: ['LIBRE_OFFICE-100610-0.pptx']
 example node text not in drawing: [('tdf131553.pptx', ['\xa0'])]
+example not well-formed: [('LIBRE_OFFICE-100610-0.pptx', 'short row')]
 example shape != concat: [('Segmented_Cycle_oneColor.pptx', ['One', 'Eleven', 'Twelve'], []), ('Segmented_Cycle_oneColor.pptx', ['Two', 'Twenty-one', 'Twenty-two'], []), ('Segmented_Cycle_oneColor.pptx', ['Three'], []), ('Segmented_Cycle_oneColor.pptx', ['Four', 'Forty-one', 'Forty-two'], []), ('Segmented_Cycle_oneColor.pptx', ['Five'], [])]

@@ -89,6 +89,7 @@ def main():
     hist = collections.defaultdict(collections.Counter)
     ex = collections.defaultdict(list)
     seen = set()
+    sha_list = []
     for f in files(sys.argv[1:]):
         data = open(f, 'rb').read()
         h = hashlib.sha256(data).hexdigest()
@@ -97,6 +98,7 @@ def main():
             continue
         seen.add(h)
         name = os.path.basename(f)
+        sha_list.append((h, name))
         try:
             z = zipfile.ZipFile(f)
             names = set(z.namelist())
@@ -132,6 +134,10 @@ def main():
                     diagram(c, hist, ex, name, z, names, gd, srels)
         c['files with tables'] += file_has_table
         c['files with SmartArt'] += file_has_dgm
+    if os.environ.get('P1B_SHA_LIST'):
+        with open(os.environ['P1B_SHA_LIST'], 'w') as fh:
+            for h_, n in sorted(sha_list, key=lambda x: x[1]):
+                fh.write(f'{h_}  {n}\n')
     for k in sorted(c):
         print(f'{k}: {c[k]}')
     for k, v in sorted(hist.items()):
@@ -190,6 +196,9 @@ def table(c, hist, ex, name, gd, ts_ids, sx):
         c['tables with a16:colId'] += 1
     if any(r.find('a:extLst/a:ext/a16:rowId', NS) is not None for r in rows):
         c['tables with a16:rowId'] += 1
+        ids = [int(x.get('val')) for x in tbl.iter('{%s}rowId' % NS['a16']) if (x.get('val') or '').isdigit()]
+        if ids and max(ids) >= 2 ** 31:
+            c['tables whose max a16:rowId >= 2^31'] += 1
     # cells
     bad_count = False
     merged = False
@@ -258,6 +267,101 @@ def table(c, hist, ex, name, gd, ts_ids, sx):
         else:
             c['merged tables with inconsistent span/flags'] += 1
             ex['inconsistent merges'].append(name)
+    wf, form = well_formed(occ, nrow, ncol, bad_count)
+    c['tables well-formed (ADR-0013 rev 2 §2)' if wf else 'tables not well-formed (ADR-0013 rev 2 §2)'] += 1
+    if not wf:
+        ex['not well-formed'].append((name, form))
+    if form:
+        hist['2-D merge form'][form] += 1
+    borders(c, rows, ncol)
+
+
+def well_formed(occ, nrow, ncol, bad_count):
+    """ADR-0013 rev 2 §2: every row full; every origin's rectangle in the
+    grid; every other cell of the rectangle covered exactly once, with
+    hMerge iff it is not in the origin's column and vMerge iff it is not in
+    the origin's row; cells outside any rectangle carry no flag; edge spans
+    (covered cells in the origin's row carrying rowSpan, in its column
+    carrying gridSpan) either all present with the origin's values (edge
+    form) or all absent (flag form) per 2-D merge. Returns (ok, form of the
+    2-D merges: 'edge' | 'flag' | 'mixed' | None)."""
+    if bad_count:
+        return False, 'short row'
+    owner = [[None] * ncol for _ in range(nrow)]
+    forms = set()
+    for ri in range(nrow):
+        for ci in range(ncol):
+            gs, rs, hm, vm = occ[ri][ci]
+            if hm or vm:
+                continue
+            if gs == 1 and rs == 1:
+                continue
+            if ri + rs > nrow or ci + gs > ncol:
+                return False, 'span outside grid'
+            edge_ok = edge_absent = True
+            for dr in range(rs):
+                for dc in range(gs):
+                    if dr == dc == 0:
+                        continue
+                    if owner[ri + dr][ci + dc] is not None:
+                        return False, 'overlap'
+                    owner[ri + dr][ci + dc] = (ri, ci)
+                    g2, r2, h2, v2 = occ[ri + dr][ci + dc]
+                    if h2 != (dc > 0) or v2 != (dr > 0):
+                        return False, 'flag kind'
+                    if dr == 0 and rs > 1:
+                        edge_ok &= r2 == rs
+                        edge_absent &= r2 == 1
+                    elif dc == 0 and gs > 1:
+                        edge_ok &= g2 == gs
+                        edge_absent &= g2 == 1
+                    elif g2 != 1 or r2 != 1:
+                        return False, 'interior span'
+            if gs > 1 and rs > 1:
+                forms.add('edge' if edge_ok else 'flag' if edge_absent else 'mixed')
+            elif not edge_absent:
+                return False, 'span on a 1-D covered cell'
+    for ri in range(nrow):
+        for ci in range(ncol):
+            gs, rs, hm, vm = occ[ri][ci]
+            if (hm or vm) and owner[ri][ci] is None:
+                return False, 'flag outside any merge'
+    form = None if not forms else forms.pop() if len(forms) == 1 else 'mixed'
+    if form == 'mixed':
+        return False, 'mixed edge/flag form'
+    return True, form
+
+
+def canon(e):
+    return (e.tag, tuple(sorted(e.attrib.items())), tuple(canon(x) for x in e))
+
+
+def ln_key(tc, side):
+    pr = tc.find('a:tcPr', NS)
+    if pr is None:
+        return None
+    ln = pr.find('a:' + side, NS)
+    # compare the line, not its element name (lnR vs lnL)
+    return None if ln is None else canon(ln)[1:]
+
+
+def borders(c, rows, ncol):
+    """Shared edges: left cell's lnR vs right cell's lnL, upper lnB vs lower lnT (review M4)."""
+    grid = [r.findall('a:tc', NS) for r in rows]
+    for ri, r in enumerate(grid):
+        for ci in range(len(r) - 1):
+            a, b = ln_key(r[ci], 'lnR'), ln_key(r[ci + 1], 'lnL')
+            if a is None and b is None:
+                continue
+            k = 'equal' if a == b else 'one side only' if a is None or b is None else 'DIFFERENT'
+            c['shared vertical edges ' + k] += 1
+
+    for ri in range(len(grid) - 1):
+        for ci in range(min(len(grid[ri]), len(grid[ri + 1]))):
+            a, b = ln_key(grid[ri][ci], 'lnB'), ln_key(grid[ri + 1][ci], 'lnT')
+            if a is None and b is None:
+                continue
+            c['shared horizontal edges ' + ('equal' if a == b else 'one side only' if a is None or b is None else 'DIFFERENT')] += 1
 
 
 def diagram(c, hist, ex, name, z, names, gd, srels):
@@ -339,6 +443,34 @@ def diagram(c, hist, ex, name, z, names, gd, srels):
     for cx in cxns:
         if cx.get('type') == 'presOf':
             srcs[cx.get('destId')].append((int(cx.get('destOrd', 0)), int(cx.get('srcOrd', 0)), cx.get('srcId')))
+    for dest, lst in srcs.items():
+        ords = [d for d, _, _ in lst]
+        if len(ords) != len(set(ords)):
+            c['presOf destOrd ties'] += 1
+    for mid, pt in nodes.items():
+        if pt.find('dgm:t', NS) is None:
+            c['nodes without dgm:t'] += 1
+    # run-level invariant: per paragraph of a shape that equals the concat,
+    # run counts equal and data run attributes subset of drawing run attributes
+    for mid, shp in dsp.items():
+        order = [sid for _, _, sid in sorted(srcs.get(mid, []))]
+        dparas = [p for sid in order for p in (nodes[sid].findall('dgm:t/a:p', NS) if sid in nodes else [])]
+        cparas = shp.findall('dsp:txBody/a:p', NS)
+        if not dparas or len(dparas) != len(cparas):
+            continue
+        for dp, cp in zip(dparas, cparas):
+            dr, cr = dp.findall('a:r', NS), cp.findall('a:r', NS)
+            if len(dr) != len(cr):
+                c['paragraph pairs with different run counts'] += 1
+                continue
+            c['paragraph pairs with equal run counts'] += 1
+            for x, y in zip(dr, cr):
+                xa = {k: v for k, v in (x.find('a:rPr', NS).attrib.items() if x.find('a:rPr', NS) is not None else []) if k not in ('lang', 'altLang', 'dirty', 'err', 'smtClean')}
+                ya = dict(y.find('a:rPr', NS).attrib) if y.find('a:rPr', NS) is not None else {}
+                c['run pairs: data attrs subset of cache attrs' if all(ya.get(k) == v for k, v in xa.items()) else 'run pairs: data attr missing/different in cache'] += 1
+        if len(order) > 1:
+            levels = [p.find('a:pPr', NS).get('lvl', '0') if p.find('a:pPr', NS) is not None else '0' for p in cparas]
+            hist['aggregate shape paragraph levels'][','.join(levels[:5])] += 1
     for mid, shp in dsp.items():
         shown = text_of(shp.find('dsp:txBody', NS))
         if not any(shown):
