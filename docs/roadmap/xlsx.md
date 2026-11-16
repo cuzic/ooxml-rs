@@ -453,6 +453,8 @@ Revision 2 also:
 
 ### Phase5 — drawing-layer objects and table/chart creation
 
+Design: [ADR-0017](../adr/0017-xlsx-phase5-objects.md) (Proposed).
+
 - **Scope:** images (anchors, `cNvPr/@id` allocation), notes (comments + VML), threaded comments
   (+ persons + fallback note), tables (create; header sync replacing P1's guard), sparklines,
   charts (DrawingML chart allowlist growth, `ChartPart` creation, cache refresh), header/footer
