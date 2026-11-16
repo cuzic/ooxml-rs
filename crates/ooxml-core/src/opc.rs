@@ -2,7 +2,8 @@
 //! (ADR-0001). Read-only for now; the append-only invariant governs any
 //! future write API (existing entries are never renumbered or removed). The
 //! one exception is [`crate::Package::remove_part`], which removes entries
-//! only together with the part they register (ADR-0003 §4.3).
+//! only together with the part they register (ADR-0001 interim
+//! post-acceptance note of 2026-11-16; ADR-0003 §4.3 when accepted).
 //!
 //! Part names in this crate are zip entry names: no leading `/`
 //! (`xl/workbook.xml`). OPC's `/`-prefixed names are converted on input.
@@ -79,6 +80,14 @@ impl ContentTypes {
         self.defaults.iter().find(|(e, _)| e.eq_ignore_ascii_case(ext)).map(|(_, t)| t.as_str())
     }
 }
+
+/// The calcChain relationship type (Transitional): the type xlsx Phase1
+/// allows [`crate::Package::remove_part`] to drop.
+pub const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
+
+/// The calcChain relationship type (Strict). `allowed_rel_types` is an exact
+/// string match, so a caller that accepts Strict packages passes both.
+pub const REL_CALC_CHAIN_STRICT: &str = "http://purl.oclc.org/ooxml/officeDocument/relationships/calcChain";
 
 /// Is a relationship's target inside or outside the package?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

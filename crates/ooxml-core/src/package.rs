@@ -329,7 +329,10 @@ impl Package {
     /// have one of these types. A part found by relationship **type** (styles,
     /// shared strings, theme, calcChain, …) is referenced implicitly, which no
     /// scan can see, so the caller states which types it knows to be safe to
-    /// drop (xlsx Phase1 passes only the calcChain type).
+    /// drop (xlsx Phase1 passes only [`crate::opc::REL_CALC_CHAIN`]). The
+    /// match is exact: Strict types (e.g.
+    /// [`crate::opc::REL_CALC_CHAIN_STRICT`]) are separate entries. An empty
+    /// slice still removes a part that no relationship points at.
     ///
     /// Refusals, all decided by the same validation as
     /// [`Self::check_remove_part`] before anything changes (no part changes
@@ -349,8 +352,11 @@ impl Package {
     ///   wholesale or cannot be parsed (a relationships part that cannot be
     ///   parsed and does not mention the part's file name is ignored).
     ///
-    /// Part names are compared ASCII case-insensitively, as in OPC. After a
-    /// successful validation the removal itself cannot fail.
+    /// Part names follow OPC equivalence: ASCII case-insensitive (the part,
+    /// `_rels` folders, its own `.rels`), and relationship targets match
+    /// after percent-decoding. Only the root `_rels/.rels` holds package
+    /// relationships. After a successful validation the removal itself
+    /// cannot fail.
     pub fn remove_part(&mut self, name: &str, allowed_rel_types: &[&str]) -> Result<RemovedPart> {
         let plan = self.plan_removal(name, allowed_rel_types)?;
         Ok(self.apply_removal(plan))
@@ -394,7 +400,7 @@ impl Package {
         let mut package_ids = Vec::new();
         for (pi, p) in self.parts.iter().enumerate().filter(|(_, p)| is_rels_part(&p.name)) {
             let rels_name = p.name.clone();
-            let source = source_of_rels_part(&rels_name);
+            let Some(source) = source_of_rels_part(&rels_name) else { continue };
             let not_editable = |reason: String| refuse(RemoveRefusal::RegistryNotEditable { part: rels_name.clone(), reason });
             // Whether an unreadable relationships part might refer to the part.
             let mentions = || {
@@ -435,7 +441,7 @@ impl Package {
                     continue;
                 }
                 let Some(target) = get("Target") else { continue };
-                if !crate::opc::resolve_target(source.as_deref(), target).eq_ignore_ascii_case(&name) {
+                if !same_part_name(&crate::opc::resolve_target(source.base().as_deref(), target), &name) {
                     continue;
                 }
                 let id = get("Id").unwrap_or_default().to_owned();
@@ -456,7 +462,7 @@ impl Package {
             if matches!(p.state, PartState::Replaced(_)) {
                 return Err(not_editable("replaced wholesale; cannot be edited in place".into()));
             }
-            if let Some(src) = &source
+            if let Some(src) = source.part()
                 && let Some(si) = self.find_ci(src)
             {
                 let src_name = self.parts[si].name.clone();
@@ -471,7 +477,7 @@ impl Package {
                     }
                 }
             }
-            if source.is_none() {
+            if source == RelsSource::Package {
                 package_ids.extend(ids.iter().cloned());
             }
             relationships.extend(ids.into_iter().map(|id| (rels_name.clone(), id)));
@@ -495,7 +501,7 @@ impl Package {
             .indexed_elements()
             .filter(|(_, e)| {
                 e.is(QName::new(CONTENT_TYPES_NS, "Override"))
-                    && e.attr(QName::new("", "PartName")).is_some_and(|p| p.trim_start_matches('/').eq_ignore_ascii_case(&name))
+                    && e.attr(QName::new("", "PartName")).is_some_and(|p| same_part_name(p, &name))
             })
             .map(|(i, _)| i)
             .collect();
@@ -632,18 +638,85 @@ impl Package {
 /// `…/_rels/….rels` (or the package's `_rels/.rels`).
 fn is_rels_part(name: &str) -> bool {
     let (dir, file) = name.rsplit_once('/').unwrap_or(("", name));
-    file.to_ascii_lowercase().ends_with(".rels") && (dir == "_rels" || dir.ends_with("/_rels"))
+    let dir_last = dir.rsplit('/').next().unwrap_or(dir);
+    file.to_ascii_lowercase().ends_with(".rels") && dir_last.eq_ignore_ascii_case("_rels")
 }
 
-/// The source part of a relationships part (`None` = the package).
-fn source_of_rels_part(rels: &str) -> Option<String> {
-    let (dir, file) = rels.rsplit_once('/')?;
-    let parent = dir.strip_suffix("_rels")?.trim_end_matches('/');
-    let stem = &file[..file.len() - ".rels".len()];
-    if stem.is_empty() {
-        return None;
+/// Who a relationships part belongs to (`_rels` matched ASCII
+/// case-insensitively, as OPC part names are).
+#[derive(Debug, PartialEq, Eq)]
+enum RelsSource {
+    /// The root `_rels/.rels` (and only it).
+    Package,
+    /// `dir/_rels/name.rels` → `dir/name`.
+    Part(String),
+    /// `dir/_rels/.rels` below the root: no part can own it; relative targets
+    /// still resolve against `dir`.
+    Orphan(String),
+}
+
+impl RelsSource {
+    /// The base that relative targets resolve against (as a source part name).
+    fn base(&self) -> Option<String> {
+        match self {
+            RelsSource::Package => None,
+            RelsSource::Part(p) => Some(p.clone()),
+            RelsSource::Orphan(dir) => Some(format!("{dir}/")),
+        }
     }
-    Some(if parent.is_empty() { stem.to_owned() } else { format!("{parent}/{stem}") })
+
+    fn part(&self) -> Option<&str> {
+        match self {
+            RelsSource::Part(p) => Some(p),
+            _ => None,
+        }
+    }
+}
+
+fn source_of_rels_part(rels: &str) -> Option<RelsSource> {
+    let (dir, file) = rels.rsplit_once('/')?;
+    let parent = if dir.eq_ignore_ascii_case("_rels") {
+        ""
+    } else {
+        let cut = dir.len().checked_sub("/_rels".len())?;
+        if !dir.is_char_boundary(cut) || !dir[cut..].eq_ignore_ascii_case("/_rels") {
+            return None;
+        }
+        &dir[..cut]
+    };
+    let stem = &file[..file.len().checked_sub(".rels".len())?];
+    Some(match (parent.is_empty(), stem.is_empty()) {
+        (true, true) => RelsSource::Package,
+        (false, true) => RelsSource::Orphan(parent.to_owned()),
+        (true, false) => RelsSource::Part(stem.to_owned()),
+        (false, false) => RelsSource::Part(format!("{parent}/{stem}")),
+    })
+}
+
+/// OPC part-name equivalence for matching a relationship target to a part:
+/// percent-decoded (so an IRI target and a `%`-encoded zip entry name, or
+/// the reverse, are the same part), then ASCII case-insensitive.
+fn same_part_name(a: &str, b: &str) -> bool {
+    fn norm(s: &str) -> String {
+        let s = s.trim_start_matches('/');
+        let b = s.as_bytes();
+        let mut out = Vec::with_capacity(b.len());
+        let mut i = 0;
+        while i < b.len() {
+            if b[i] == b'%'
+                && let Some(h) = b.get(i + 1..i + 3)
+                && let Ok(v) = u8::from_str_radix(std::str::from_utf8(h).unwrap_or("zz"), 16)
+            {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+            out.push(b[i]);
+            i += 1;
+        }
+        String::from_utf8_lossy(&out).to_ascii_lowercase()
+    }
+    norm(a) == norm(b)
 }
 
 /// Does any attribute, in any namespace (`r:id`, VML `o:relid`, Strict
@@ -693,13 +766,26 @@ mod tests {
     fn rels_part_names() {
         assert!(is_rels_part("_rels/.rels"));
         assert!(is_rels_part("xl/_rels/workbook.xml.rels"));
+        assert!(is_rels_part("xl/_RELS/workbook.xml.RELS"));
         assert!(!is_rels_part("xl/workbook.xml"));
         assert!(!is_rels_part("xl/foo.rels"));
-        assert_eq!(source_of_rels_part("_rels/.rels"), None);
-        assert_eq!(source_of_rels_part("xl/_rels/workbook.xml.rels").as_deref(), Some("xl/workbook.xml"));
-        assert_eq!(source_of_rels_part("_rels/top.xml.rels").as_deref(), Some("top.xml"));
+        assert!(!is_rels_part("xl/my_rels/foo.rels"));
+        assert_eq!(source_of_rels_part("_rels/.rels"), Some(RelsSource::Package));
+        assert_eq!(source_of_rels_part("_RELS/.rels"), Some(RelsSource::Package));
+        assert_eq!(source_of_rels_part("foo/_rels/.rels"), Some(RelsSource::Orphan("foo".into())));
+        assert_eq!(source_of_rels_part("xl/_RELS/workbook.xml.rels"), Some(RelsSource::Part("xl/workbook.xml".into())));
+        assert_eq!(source_of_rels_part("_rels/top.xml.rels"), Some(RelsSource::Part("top.xml".into())));
         for s in ["xl/workbook.xml", "top.xml", "a/b/c.xml"] {
-            assert_eq!(source_of_rels_part(&rels_part_name(Some(s))).as_deref(), Some(s));
+            assert_eq!(source_of_rels_part(&rels_part_name(Some(s))), Some(RelsSource::Part(s.into())));
         }
+    }
+
+    #[test]
+    fn part_name_equivalence() {
+        assert!(same_part_name("xl/calc%E7%94%BB.xml", "xl/calc画.xml"));
+        assert!(same_part_name("/XL/CalcChain.xml", "xl/calcchain.xml"));
+        assert!(same_part_name("xl/calc%43hain.xml", "xl/calcChain.xml"));
+        assert!(!same_part_name("xl/a.xml", "xl/b.xml"));
+        assert!(!same_part_name("xl/a%2", "xl/a"));
     }
 }
