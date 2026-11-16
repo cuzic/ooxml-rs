@@ -165,7 +165,17 @@ impl<'m, 'a> Ctx<'m, 'a> {
             let mut taken = BTreeSet::new();
             for e in &in_group {
                 let base = pascal(&e.class_name);
-                let name = if count[e.class_name.as_str()] > 1 { format!("{}{base}", pascal(&e.prefix)) } else { base };
+                // On a collision the entry in the group's own namespace keeps
+                // the plain name (adding `dgm:t`/`dsp:txBody` must not rename
+                // `a:txBody`'s `dml::TextBody`); the others get their prefix.
+                let home = match g {
+                    "dml" => "a",
+                    "pml" => "p",
+                    "wml" => "w",
+                    "sml" => "x",
+                    _ => "",
+                };
+                let name = if count[e.class_name.as_str()] > 1 && e.prefix != home { format!("{}{base}", pascal(&e.prefix)) } else { base };
                 if !taken.insert(name.clone()) {
                     return Err(format!("type name collision {name} in group {g}").into());
                 }

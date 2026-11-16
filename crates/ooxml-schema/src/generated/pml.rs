@@ -353,11 +353,25 @@ impl ooxml_core::ElementSpec for TextBody {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBody> for super::dml::BodyProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBody> for super::dml::ListStyle {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TextBody> for super::dml::Paragraph {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
 impl<'a> TextBodyView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<super::dml::BodyPropertiesView<'a>> {
+        self.0.child::<super::dml::BodyProperties>().map(super::dml::BodyPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<super::dml::ListStyleView<'a>> {
+        self.0.child::<super::dml::ListStyle>().map(super::dml::ListStyleView)
+    }
     #[cfg(feature = "dml")]
     /// `a:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = super::dml::ParagraphView<'a>> {
@@ -375,6 +389,46 @@ impl<'a> TextBodyViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> TextBodyView<'_> {
         TextBodyView(self.0.as_lens())
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(
+        &mut self,
+    ) -> Option<super::dml::BodyPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<super::dml::BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<super::dml::BodyProperties>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<super::dml::ListStyleViewMut<'_>> {
+        self.0.child_mut::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<super::dml::ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<super::dml::ListStyle>()
     }
     #[cfg(feature = "dml")]
     /// First `a:p` child matching `pred`, mutably.
@@ -2014,6 +2068,10 @@ impl<'a> SlideIdView<'a> {
 }
 const _: () = ooxml_core::schema::assert_spec::<NonVisualDrawingProperties>();
 const _: () = ooxml_core::schema::assert_spec::<TextBody>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::BodyProperties>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::ListStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::Paragraph>();
 const _: () = ooxml_core::schema::assert_spec::<ApplicationNonVisualDrawingProperties>();
