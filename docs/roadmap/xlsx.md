@@ -360,20 +360,26 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 
 - **Goal:** rust_xlsxwriter-level cell formatting for from-scratch files and for new cells in
   existing files; dates.
-- **Design:** [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md). Measurements:
-  [`spikes/xlsx-phase2/`](../../spikes/xlsx-phase2/README.md) (342 POI packages + 24 fixtures).
+- **Design:** [ADR-0006](../adr/0006-xlsx-phase2-shared-strings-and-styles.md) (revision 2).
+  Measurements: [`spikes/xlsx-phase2/`](../../spikes/xlsx-phase2/README.md) (342 POI packages +
+  24 fixtures). A throwaway prototype on branch `spike/xlsx-phase2-proto` ran the edit-mode
+  registry on all of them (330 POI packages pass every check, 0 failures).
 - **Scope:**
   - append-only shared-string registry: `t="s"` when the workbook has an sst, inline fallback
     otherwise (28% of the corpus has none); rich strings; existing `si` opaque, except
-    byte-exact reuse of plain items (owner Q1);
+    byte-exact reuse (proposed default for Q1);
   - style registry over `numFmts`, `fonts`, `fills`, `borders` and `cellXfs` (and the `dxfs`
     shape for Phase4), with a value-typed `Format` (raw theme/tint/indexed colours);
-  - from-scratch mode dedups against the template's entries; edit mode dedups only among new
-    entries. The spike shows why: 75/340 packages have distinct existing `xf`s that a `Format`
-    projection would merge;
+  - from-scratch mode dedups against the template's entries. Edit mode dedups among new entries,
+    and against existing ones only by exact form: the whole bottom-up chain must be
+    byte-identical to what would be appended, so repeated runs stop growing the tables
+    (revision 2, review M2). Matching by value is rejected: 75/340 packages have distinct
+    existing `xf`s that a `Format` projection would merge;
+  - unset `Format` groups inherit the workbook's default style by index, not Calibri 11 (40% of
+    files use another default font; review M1); Excel's table limits are guarded;
   - number formats: built-in ids only when the file does not redefine them (32 packages
-    redefine ids < 164); new custom ids above every existing id; `numFmts` inserted when absent
-    (234/340);
+    redefine ids < 164); new custom ids above every `numFmtId` used anywhere in the package
+    (dxf, pivot, extLst; review M3); `numFmts` inserted when absent (234/340);
   - `sst/@count` recomputed from Phase1's census, `uniqueCount` set (7% of files have a wrong
     `count`);
   - applying an existing style by index or by unique named style; `set_datetime` (1900/1904,

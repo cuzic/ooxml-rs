@@ -32,7 +32,7 @@ POI `test-data/spreadsheet` @ `47dcff76`: 367 listed, 366 downloaded, 346 open a
 | with `styles.xml` | 340 | 24 |
 | `fills[0]` = `none` and `fills[1]` = `gray125` | 325/340 (96%) | 22/24 |
 | `numFmts` absent (a new custom format must insert the element) | 234/340 | 16/24 |
-| a `count` attribute that does not match its children (any table) | ≤ 2 per table | 1 (Hancom `fonts`, see below) |
+| a `count` attribute that does not match its children (any table) | ≤ 2 per table | 2 (Hancom `fonts` and `cellXfs`, see below) |
 | `cellXfs` entries: median / p90 / max | 2 / 31 / 482 | 2 / 22 / 201 |
 | custom `numFmt` with id < 164 (packages) | 32 | 2 |
 | custom `numFmt` whose code equals a built-in code (packages) | 16 | 3 |
@@ -46,7 +46,7 @@ POI `test-data/spreadsheet` @ `47dcff76`: 367 listed, 366 downloaded, 346 open a
 | exact-duplicate `cellXfs` / `font` entries already present | 41 / 53 packages | 4 / 6 |
 | `styles.xml` with `x14ac:knownFonts` / `mc:Ignorable` | 172 / 188 | 12 / 13 |
 | `styleSheet/extLst` (`{EB79DEF2…}` x14 slicer styles / `{9260A510…}` x15 timeline styles) | 186 / 94 | 14 / 11 |
-| `mc:AlternateContent` inside `styles.xml` | 1 | 1 (`style-alternate-content.xlsx`: Hancom wraps a `font` *entry* inside `fonts`) |
+| `mc:AlternateContent` inside `styles.xml` | 1 | 1 (`style-alternate-content.xlsx`: Hancom wraps whole entries, 6 in `fonts`, 7 in `cellXfs`, 11 in `dxfs`) |
 | custom `indexedColors` palette | 13 | 1 |
 | custom named styles (`cellStyle` without `builtinId`) / duplicate style names | 35 / 4 | 2 / 0 |
 | distinct `tint` spellings; not in rust_xlsxwriter's `Theme(color, shade)` table | 21; 8 (e.g. `0.399975585192419` vs `0.39997558519241921`) | 4; 0 |
@@ -69,6 +69,8 @@ Notes:
   `apply*` flags. A group of distinct existing indices with the same projection is what a
   dedup-against-existing policy would merge silently. The 115 groups that differ in `xfId`
   differ in meaning: the cell is attached to a different named style.
-- The `fonts` count mismatch in `style-alternate-content.xlsx` is an artefact of counting only
-  direct `font` children. Hancom puts one entry inside `mc:AlternateContent`, which counts as
-  one entry after MCE processing.
+- The `count` mismatches of `fonts` and `cellXfs` in the fixture column come from
+  `style-alternate-content.xlsx`, and are an artefact of counting only direct entry children.
+  Its `mc:AlternateContent` children are entries too: each has a `Choice` and a `Fallback`
+  with one entry each, so after MCE `fonts` and `cellXfs` (22 `xf` + 7 AC = 29) match their
+  `count` attributes (ADR-0006 review round 1, M4/m10).

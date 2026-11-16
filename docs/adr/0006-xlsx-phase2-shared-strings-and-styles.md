@@ -1,13 +1,40 @@
 # ADR-0006: xlsx Phase2 — shared-string and style registries
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (Layer 3, "two seed
   modes"), [ADR-0002](0002-schema-driven-code-generation.md) (lens, allowlist, §4.3 insertion),
   [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) (plan → validate → apply, dependency
   invalidation)
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.3 (B1–B5), §2.5 (D1–D7), §6 Phase2
-- Evidence: [`spikes/xlsx-phase2/`](../../spikes/xlsx-phase2/README.md)
+- Evidence: [`spikes/xlsx-phase2/`](../../spikes/xlsx-phase2/README.md) (corpus survey), and the
+  throwaway Rust prototype `spikes/xlsx-phase2/proto/` on branch `spike/xlsx-phase2-proto`
+  (draft PR, not for merge as code)
+- Review: [round 1](0006-opus-review-round1.md)
+
+## Revision history
+
+- **Revision 1**: initial draft.
+- **Revision 2** (after `0006-opus-review-round1.md`, and checked against the prototype):
+  - **M1:** a `Format` group the caller does not set is *inherited* from the workbook's default
+    style by index (`cellStyleXfs[0]`, else `cellXfs[0]`), not filled with rust_xlsxwriter's
+    Calibri 11 (§3, §5.5).
+  - **M2:** exact-form reuse applies to styles as well as strings, bottom-up over the whole
+    chain (`numFmt`, `font`, `fill`, `border`, `xf`), so repeated sessions stop growing the
+    tables. Excel's table limits are guarded (§2, §5.10).
+  - **M3:** a new custom `numFmtId` is above every `numFmtId` used anywhere in the package, not
+    only in `numFmts` (§5.3).
+  - **M4:** the `mc:AlternateContent` facts are corrected (the Hancom file has AC entries in
+    `fonts`, `cellXfs` and `dxfs`). The counting rule is stated precisely, index-dependent
+    operations on tables it does not cover are refused, and oracle 6 is fixed (§2).
+  - **M5:** style-only writes are value writes for invalidation purposes whenever any cell
+    formula or defined name calls a formatting-reading function (§7.3).
+  - **Minor findings m1–m10** are folded in where they apply (missing tables and foreign
+    namespaces, dangling references, named-style `apply*`, date ranges, the calamine-visible
+    projection, `count` maintenance, prefixes, absent `count`, `Tint`/size equality, the spike
+    README).
+  - The reviewer's recommendations for Q1–Q6 are recorded as proposed defaults pending the
+    owner's confirmation.
 
 ## Context
 
@@ -104,12 +131,78 @@ fixtures (full table in the spike README). The facts that drive decisions:
    - `x14ac:knownFonts` (172/340) and `mc:Ignorable` (188).
    - x14/x15 `styleSheet/extLst` (186/94).
    - Custom `indexedColors` palettes (13), which change the meaning of `indexed` colours.
-   - One Hancom file wraps a `font` *entry* in `mc:AlternateContent` inside `fonts`, so font
-     indices there depend on MCE processing.
+   - One Hancom file (`style-alternate-content.xlsx`) wraps whole *entries* in
+     `mc:AlternateContent`: 6 inside `fonts`, 7 inside `cellXfs` (22 `xf` + 7 AC = `count`
+     29) and 11 inside `dxfs`. Every one has a `Choice` and a `Fallback` with exactly one entry
+     each (review M4). Indices in those tables depend on MCE processing.
 8. `fills[0]` = `none` / `fills[1]` = `gray125` hold in 96% of packages. The rest are POI- or
    unknown-produced files (two have no `fills` at all).
 9. 95 of 342 packages (28%) have **no `sharedStrings.xml`**. 20 use the 1904 date system (19
    written by Excel).
+10. **`numFmtId` is a package-wide id space** (review M3).
+    - `ConditionalFormattingSamples.xlsx` (Excel): `numFmts` ends at 173, `dxfs/dxf/numFmt`
+      uses 174–177 with other codes.
+    - `LIBRE_OFFICE-128382-0.xlsx`: `numFmts` holds 160 and 161, while `pivotTable1.xml` and
+      `pivotCacheDefinition1.xml` refer to `numFmtId="165"`, which is not defined anywhere.
+    - A new id allocated from `numFmts` alone would collide in the first file, and in the
+      second it would give a dangling pivot reference a meaning.
+11. **The workbook's default font is not Calibri 11 in 135/340 packages** (40%; Arial 10 in 47,
+    Verdana 10 in 19, Arial 11 in 13, Calibri 12 in 11, East Asian fonts in others; review M1).
+    Excel formats a cell from its cell `xf` alone ("In Office, only the cell xf record defines
+    the formatting applied to a cell", MS-OE376, quoted in LibreOffice's
+    `sc/source/filter/oox/stylesbuffer.cxx`), so a new `xf` with a Calibri 11 font *looks*
+    different in such a workbook.
+12. **`styles.xml` is not always complete.**
+    - `47889.xlsx`: an empty `<styleSheet …/>` with no tables at all.
+    - `sample-beta.xlsx`: the Excel 2007 beta namespace
+      (`http://schemas.microsoft.com/office/excel/2006/2`), not SpreadsheetML.
+    - `52348.xlsx` and `renamed_workbook_part.xlsx`: no `cellStyleXfs`, so `xfId="0"` would
+      dangle. `no_drawing_patriarch.xlsx` already has a dangling `xfId`.
+    - `fixture_minimal`: one fill only (index 1 missing).
+
+### Prototype results
+
+A throwaway prototype (`spikes/xlsx-phase2/proto/`, branch `spike/xlsx-phase2-proto`) runs the
+edit-mode registry on every fixture and the POI corpus. It uses `ooxml-core`'s lens with
+hand-written specs for the style elements. Per package it:
+
+- appends one shared string and one style chain (`numFmt`, `font`, `fill`, `border`, `xf`);
+- writes them to a new last row;
+- adds a second `xf` that sets only the number format and inherits font, fill and border from
+  the default style (M1);
+- saves.
+
+It then checks (a) index stability, (b) T2-append byte locality, (c) calamine values,
+number-format codes, bold font, fill colour and CR of every other cell, and (d) `count` /
+`uniqueCount`. It also replays the same edit in a second session to see whether exact-form
+reuse would hit (M2).
+
+| Result | Fixtures (26 files) | POI (366 files) |
+|---|---|---|
+| all checks (a)–(d), L1, CR pass | 21 | 330 |
+| refused before any change | 3 (2 rows without `r`, `style-alternate-content`: AC in `fonts`) | 5 (4 rows without `r`, `style-alternate-content`) |
+| skipped (not a readable Transitional package: Strict, encrypted, corrupt zip, DTD, beta namespace) | 2 | 31 |
+| failures | 0 | 0 |
+| `numFmts` had to be inserted | 14 | 228 |
+| M1: inherited-font `xf` reads (calamine) the workbook default font, not Calibri 11 | 21/21 | 329/329 (default font ≠ Calibri 11 in 121 of them) |
+| M2: a second session serialises byte-identical `font`/`fill`/`border` and id-only-different `numFmt`/`xf` | 21/21 | 329/329 |
+| M3: a `numFmtId` above the `styles.xml` maximum is used elsewhere (dxf or pivot) | 0 | 3 (`ConditionalFormattingSamples` dxf 177 > 173; `dataValidationTableRange` dxf 165, no `numFmts`; `LIBRE_OFFICE-128382-0` pivot 165 > 161) |
+| table empty or absent, so a default entry must come first (index 0) | 1 (`fixture_minimal`: fill 1) | 1 (`47889`: fonts, fills, borders, cellXfs) |
+| no `cellStyleXfs`: the new `xf` must omit `xfId` | 2 | 2 |
+
+Counterexamples the prototype found to revision 1, beyond the review:
+
+- **An empty table makes the first new entry index 0, the default.** In `47889.xlsx` the first
+  appended `xf` became index 0: the style of every cell without `s`. Revision 1 only padded
+  fills 0/1. Revision 2 pads every table whose index 0 has a fixed meaning (§5.4).
+- **Exact-form reuse cannot compare `numFmt` and `xf` bytes directly.** Their bytes contain ids
+  allocated in the session (a new `numFmtId`; the `fontId` etc. of new entries). Reuse has to
+  run bottom-up: first find the reused `font`/`fill`/`border`/`numFmt` ids, then compare the
+  `xf` built from them (§2).
+- **Row placement in a full sheet.** `style-alternate-content.xlsx` uses row 1,048,576, so a
+  "new last row" does not exist. The registries do not care, but the test harness must pick
+  free cells, not "last row + 1".
+
 
 ### `x14ac:knownFonts`
 
@@ -167,49 +260,115 @@ Out of scope (later phases):
   - No existing entry is moved, removed, reparsed into a typed value or re-serialised.
   - Indices handed out are `existing_len + k`.
 - **Existing entries are opaque** in both modes. A registry knows how many there are and their
-  raw XML, and nothing else. The only exception is the *exact-form reuse* rule for shared
-  strings (§4.3), which compares bytes, not meaning.
+  raw XML, and nothing else. They are never parsed into values and never matched by meaning.
+  The one comparison allowed is *exact-form reuse* (below), which compares bytes against our
+  own serialisation.
 - **Two seed modes.**
   - **From scratch** (`Workbook::new()`): the template's entries are seeded *as values*. The
     template is ours, and its `styles.xml` is built from `Format::default()`. Any new `Format`
     equal to one of them reuses its index, which is full rust_xlsxwriter-style dedup.
-  - **Edit** (opened file): the existing entries are seeded as opaque and never matched. New
-    entries are deduplicated among themselves by value.
+  - **Edit** (opened file): the existing entries are seeded as opaque. New entries are
+    deduplicated among themselves by value, and against existing entries only by exact form.
   - The mode is fixed at open and is not a user option.
-- **Index lookups are per table.**
-  - A new `Format` resolves to a font index, fill index, border index and `numFmtId`, each
-    deduplicated in its own table, then to an `xf` built from those ids, deduplicated in
+- **Index lookups are per table, bottom-up.**
+  - A new `Format` resolves first to a `numFmtId`, a font index, a fill index and a border
+    index, each in its own table. Only then is the `xf` built from those ids and resolved in
     `cellXfs`.
-  - A new `xf` may reference a new font *or an existing one*. "Existing" here means only the
-    from-scratch seeds. In edit mode a new `xf` always references new or built-in parts, never
-    an opaque existing font.
-- **Counting entries.**
-  - The index of a new entry is the number of *entries* already in the table. An
-    `mc:AlternateContent` child counts as one entry, because MCE selects exactly one branch.
-  - Appending into a table that has an `mc:AlternateContent` child is refused with
-    `Err(UnresolvedSibling)`, the same rule as ADR-0002 §4.3 and the Phase0 dry run. The index
-    arithmetic would depend on a reader's MCE support. This affects one corpus file, and only
-    its `fonts`.
+  - A group the caller did not set is not resolved at all: the new `xf` takes the default
+    style's id for it (§3 "inherit", review M1).
+- **Exact-form reuse** (review M2; Q1). An existing entry is reused, instead of appending, when
+  it is byte-for-byte what the registry would append:
+  - `font`, `fill`, `border`, `si`: the entry's source bytes equal the canonical serialisation
+    of the value. The prefix and namespace declarations are those the entry would get in that
+    table (§5.11).
+  - `numFmt`: an entry with id ≥ 164 whose `formatCode` attribute equals the canonical code
+    and that has no other attributes or children. The id itself is an identity, not content.
+  - `xf`: the bytes equal the canonical `xf` built from the ids resolved above. So an `xf` is
+    reused only when its whole chain is reused.
+  - Excel-written entries rarely match, because Excel's `apply*` patterns and attribute order
+    differ from the canonical form. So this does not merge entries that differ in anything a
+    reader sees (Context fact 2 still holds).
+  - Entries an earlier ooxml-rs session appended *do* match: the serialisation is
+    deterministic. The prototype confirms this on 329/329 POI packages. Repeated batch runs
+    therefore stop growing the tables.
+  - Cost: one pass over each table on activation, building a `HashMap<bytes, index>`.
+- **Counting entries and `mc:AlternateContent`** (review M4).
+  - A table is *index-stable* when every `mc:AlternateContent` child has a `Fallback`, and every
+    branch (`Choice` and `Fallback`) contains exactly one element of the table's entry type
+    and nothing else. In an index-stable table each AC child counts as one entry, whichever
+    branch a reader picks. Every corpus AC is of this shape.
+  - In any other table with AC children, no index can be computed. Every index-dependent
+    operation on it is refused with `Err(UnresolvedSibling)`: reuse, range checks
+    (`set_style_index`), `count`/`uniqueCount` maintenance, and the dangling-reference check.
+  - **Appending** to a table with *any* AC child is refused (`Err(UnresolvedSibling)`), as the
+    ADR-0002 §4.3 insertion rule and Phase0's dry run already do. Range checks and reuse in an
+    index-stable table are allowed.
+  - In `style-alternate-content.xlsx` this means:
+    - any new `Format` is refused, because `cellXfs` has AC children whatever groups the
+      `Format` sets;
+    - `set_style_index(n)` succeeds for `n < 29` (22 `xf` + 7 AC);
+    - shared strings are unaffected (its sst has no AC).
+- **Dangling references** (review m2).
+  - An existing reference at or beyond a table's end would silently start pointing at the new
+    entry once something is appended. Examples: a cell `s`, an `xf`'s `fontId`, a
+    `cellStyle/@xfId`, a pivot `numFmtId`.
+  - Before the first append to a table, the registry checks the references it can see:
+    - `s` on every cell, row and column, via the Phase1 census;
+    - the id attributes inside `styles.xml`;
+    - pivot `numFmtId`s, which are avoided by §5.3's id allocation anyway.
+  - If any of them is out of range, the append is refused with
+    `Err(DanglingReference { table, index })`. Reuse and range checks are still allowed.
+  - The prototype found no out-of-range cell `s` or `fontId` in the corpus. `xfId` in
+    `no_drawing_patriarch.xlsx` dangles, but `cellStyleXfs` never grows in Phase2.
 
 ### 3. Value types
 
 ```rust
-pub struct Format {            // Hash + Eq; builder methods as rust_xlsxwriter
-    pub num_format: NumFormat, // General | Builtin(u16) | Code(String)
-    pub font: Font,            // name, size, bold, italic, underline, strike, vert_align,
-                               // color, family, charset, scheme, condense, extend
-    pub fill: Fill,            // None | Pattern { pattern, fg: Color, bg: Color }
-    pub border: Border,        // left/right/top/bottom/diagonal: (style, Color); diag up/down
-    pub alignment: Alignment,  // horizontal, vertical, rotation, wrap, indent, shrink,
-                               // reading_order
-    pub protection: Protection,// locked (default true), hidden
+pub struct Format {                    // Hash + Eq; builder methods as rust_xlsxwriter
+    pub num_format: Option<NumFormat>, // None = inherit; General | Builtin(u16) | Code(String)
+    pub font: Option<Font>,            // None = inherit; name, size, bold, italic, underline,
+                                       // strike, vert_align, color, family, charset, scheme,
+                                       // condense, extend
+    pub fill: Option<Fill>,            // None = inherit; NoFill | Pattern { pattern, fg, bg }
+    pub border: Option<Border>,        // None = inherit; sides (style, Color); diag up/down
+    pub alignment: Option<Alignment>,  // None = inherit
+    pub protection: Option<Protection>,// None = inherit
     pub quote_prefix: bool,
 }
 pub enum Color { Default, Auto, Rgb(u32 /*ARGB*/), Indexed(u8), Theme { index: u8, tint: Tint } }
-pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the normalised value
+pub struct Tint(f64);   // finite, in [-1, 1], -0.0 stored as 0.0; Eq/Hash on the bits
+pub struct FontSize(f64); // finite, 1..=409, Eq/Hash on the bits; serialised shortest round-trip
 ```
 
-- **Model.** The model is rust_xlsxwriter's feature set, with three deliberate differences:
+- **Inherit** (review M1).
+  - Every group is optional. `Format::new()` sets nothing: a cell written with it looks like
+    the workbook's default style.
+  - Builders set a whole group, starting from the inherited value where that is known:
+    - from scratch, the template's default (Calibri 11, as rust_xlsxwriter);
+    - in edit mode, the group is opaque. `set_bold()` therefore starts from
+      `Font::default()` (rust_xlsxwriter's), not from the workbook font.
+  - `Format::with_default_font_of(&Workbook)` copies the workbook's default font into a value
+    when it is expressible, so that a bold font can keep the workbook's face and size.
+  - **Resolution of an unset group.** The new `xf` takes the corresponding id (`numFmtId`,
+    `fontId`, `fillId`, `borderId`) and child (`alignment`, `protection`) **by index** from the
+    default style: `cellStyleXfs[0]`, or `cellXfs[0]` when there is no `cellStyleXfs`. No
+    existing entry is parsed or matched; the id is copied, as `xfId` already is.
+  - Its `apply*` flag stays unset, as in an Excel-written `xf` that follows its style.
+  - The prototype checks that calamine reads such an `xf`'s font as the default font. It did in
+    329/329 POI packages, of which 121 have a default other than Calibri 11.
+  - Excel and LibreOffice format a cell from the cell `xf`, so the copied id is what they show
+    (Context fact 11).
+- **Equality** (review m9).
+  - `Tint` and `FontSize` reject NaN, infinities and out-of-range values at construction. They
+    normalise `-0.0` to `0.0` and compare bits. Two tints that print differently in Excel's
+    files (`0.39997558519241921` vs `0.399975585192419`) are different values, which is
+    harmless: they are never compared with existing entries except byte-wise.
+  - `NumFormat::Code("0.00")` and `NumFormat::Builtin(2)` are different `Format` values. They
+    resolve to the same `numFmtId` (§5.3), so they produce one `xf`: `xf` dedup is on resolved
+    ids.
+
+- **Model.** The model is rust_xlsxwriter's feature set, with four deliberate differences
+  (the fourth being "inherit", above):
   1. **Colours are raw.** `Theme { index, tint }` takes any tint, not only rust_xlsxwriter's
      `shade` table. Excel writes at least 21 spellings (8 outside that table). `Indexed(n)` is
      kept as a number, because 13 corpus files redefine the palette.
@@ -241,38 +400,45 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
 
 1. **Activation.** The first `set_string`/`set_rich_string` on a workbook that has a
    `sharedStrings.xml` part (located through the workbook relationship, as Phase0 does).
+   - **Behaviour change** (review m6): Phase0's `set_string` writes `inlineStr`. In Phase2 it
+     writes `t="s"` when the workbook has an sst. The new `set_string_inline` keeps Phase0's
+     behaviour (it does not exist yet; Phase2 adds it).
+   - Other writes that only *remove* a `t="s"` reference (`set_number` over a shared-string
+     cell) do **not** activate the registry. The part stays L1 and its `count` may become
+     stale by one. This is tolerated: 7% of the corpus already has a wrong `count`, and no
+     reader we know of uses it.
 2. **Keys.**
    - A plain string is keyed by its text: the caller's string, before `_xHHHH_` escaping.
    - A rich string is keyed by its run list `[(Font-subset, text)]`. Its XML is `si/r/rPr` +
      `t`, where `rPr` (`CT_RPrElt`) uses `rFont` for the font name, as Excel writes it.
    - Plain and rich never collide, even if the flattened text is equal.
-3. **Exact-form reuse in edit mode.**
-   - A new *plain* string may reuse an existing `si` only if that `si` is byte-for-byte the
-     canonical form the registry would write for it: a single `t` child, `xml:space="preserve"`
-     iff the text has outer whitespace, the same `_xHHHH_` escaping, and no `r`/`rPh`/
-     `phoneticPr`/attributes.
+3. **Exact-form reuse** (§2; Q1). A new string reuses an existing `si` only if that `si` is
+   byte-for-byte the canonical form the registry would write for it.
+   - For a plain string that means a single `t` child, `xml:space="preserve"` iff the text has
+     outer whitespace, the same `_xHHHH_` escaping, and no `r`/`rPh`/`phoneticPr`/attributes.
+   - For a rich string it means the same runs and the same canonical `rPr`.
    - This is a byte comparison against our own serialisation, not a semantic match. It cannot
-     merge two entries that differ in anything a reader could see.
-   - Rich and phonetic existing items are never reused.
-   - It deviates from ADR-0001's literal "dedup only newly-added entries". The justification:
-     reusing an entry that is exactly what we would have appended changes no meaning, saves
-     table growth on repeated values, and never renumbers anything.
-   - Open question Q1 asks the owner to confirm. The fallback is to switch it off, a one-line
-     policy.
-   - Building the index costs one pass over the existing `si`. Phase0 already decodes every
-     `si` for reading.
+     merge two entries that differ in anything a reader could see. Phonetic existing items
+     never match, because we never write phonetic runs.
+   - It refines ADR-0001's "dedup only newly-added entries". Reusing an entry that is exactly
+     what we would have appended changes no meaning, and it never renumbers anything.
+   - The reviewer's caveat: most items in Japanese Excel files carry `phoneticPr`, so the gain
+     there is small.
+   - It needs an index-stable sst (§2).
 4. **Whitespace and escapes.** The Phase0 rules apply:
    - `xml:space="preserve"` iff outer whitespace;
    - `_xHHHH_` for characters XML cannot carry;
    - `_x005F_` protection;
    - at most 32,767 UTF-16 units.
 5. **`uniqueCount` and `count`.**
-   - `uniqueCount` is set to the number of `si` entries after the append, counting an
-     `mc:AlternateContent` child as one.
-   - `count` is recomputed as the number of `t="s"` cells in all worksheets. This can be done
-     because Phase1's census already scans every worksheet once at open. The census counts
-     `t="s"` cells as well, and the registry adjusts the number by each write's delta (+1 for a
-     new `t="s"` cell, −1 for a `t="s"` cell overwritten with something else).
+   - `uniqueCount` is set to the number of `si` entries after the append (§2 counting).
+   - `count` is recomputed as the number of `t="s"` cells in all worksheets.
+     - Phase1's census already scans every worksheet once at open. Phase2 adds `t="s"`
+       counting to that scan (`census.rs` on `impl/xlsx-phase1` does not count them yet).
+     - The registry then adjusts the number by each write's delta: +1 for a new `t="s"` cell,
+       −1 for a `t="s"` cell overwritten with something else.
+     - The prototype recomputes from all sheets and finds `count` exact after every append, in
+       all 241 POI packages where it appended a string.
    - Recomputing rather than adding a delta to the stored value corrects the 7% of files whose
      `count` is already wrong, instead of carrying the error forward.
    - An absent attribute stays absent (8 and 7 corpus files): adding it is not needed and would
@@ -284,8 +450,7 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
    - When Phase3 can add parts, an opt-in `create_shared_strings()` creates the part.
    - The from-scratch template ships an empty `sharedStrings.xml` (`count="0"
      uniqueCount="0"`), so from-scratch files always use shared strings.
-   - Open question Q2: should the template do this, or stay inline as rust_xlsxwriter's
-     `constant_memory` mode does?
+   - This is the proposed default for Q2, subject to XL item 10(e).
 7. **Old strings are never removed.**
    - Overwriting a `t="s"` cell leaves its `si` in place. Unreferenced items are valid
      (nothing in §18.4 requires every item to be referenced). Whether Excel drops them on its
@@ -301,24 +466,46 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
      `border`, then `xf` in `cellXfs`. Each is deduplicated per table (§2).
    - `count` on every table that grew is set to its new entry count. Tables that did not grow
      are untouched, including a `count` that was already wrong (≤ 2 corpus files per table).
+   - A grown table **without** a `count` attribute keeps it absent (review m8), as for the sst.
+     A table the registry inserts gets one.
 3. **Number formats.**
    - `NumFormat::Builtin(id)` is written as that id, *unless the file redefines that id* in
      `numFmts`. Then it is `Err(BuiltinNumFormatRedefined { id })` (32 corpus files redefine
      some id below 164).
    - `NumFormat::Code(s)` uses the built-in id when `s` is exactly a locale-independent
      built-in code (ECMA-376 §18.8.30 table, as openpyxl's `BUILTIN_FORMATS`) *and the file
-     does not redefine that id*. Otherwise it gets a new custom id:
-     `max(163, largest numFmtId in the file, largest id handed out) + 1`.
+     does not redefine that id*. Otherwise it gets a new custom id.
+   - **The new id is above every `numFmtId` used anywhere in the package** (review M3):
+     `max(163, every numFmtId="N" attribute in any XML part, every id handed out) + 1`.
+     - "Any XML part" covers everywhere ids are used outside `numFmts`: `styles.xml` (`xf`,
+       `dxf/numFmt`, x14 `dxfs` in `extLst`), pivot tables and pivot cache definitions, and
+       worksheet `extLst` (x14 conditional formats).
+     - A byte scan for the attribute is enough for a maximum, because an over-estimate is
+       harmless. The scan runs once on activation.
+     - The prototype does exactly this. It found 3 POI packages where a package-only scan would
+       have collided or given a dangling pivot reference a meaning (Context fact 10).
    - Custom codes are deduplicated among new entries only. An existing custom `numFmt` with the
      same code is not reused (16 files define built-in codes as customs, 3 have duplicate
      codes). This is the edit-mode rule again.
    - If `numFmts` is absent (234/340), it is inserted as the first child of `styleSheet`
      through the ADR-0002 insertion primitive. An `mc:AlternateContent` sibling there makes the
      write `Err(UnresolvedSibling)`.
-4. **Fills 0 and 1.**
-   - When a new fill would get index 0 or 1, because the file has fewer than two fills (2
-     corpus files have none), the missing mandatory `none` / `gray125` entries are appended
-     first. This keeps rust_xlsxwriter's invariant without touching existing entries.
+4. **Reserved leading entries** (revision 2, from the prototype).
+   - Index 0 has a fixed meaning in `fonts` (the default font), `borders` (no border), `cellXfs`
+     (the style of every cell without `s`) and `fills`. `fills` index 1 is fixed as well
+     (`gray125`).
+   - When a table is empty or absent, its reserved entries are appended first: a default font
+     copied from the template, an empty border, an `xf` with all ids 0, and `none` /
+     `gray125` fills. Only then is the new entry appended. Otherwise the first new entry would
+     *become* the default.
+     - `47889.xlsx` (no tables at all) hit this for four tables.
+     - `fixture_minimal` has one fill only, so `gray125` is appended first.
+   - Missing tables are inserted in schema order through the ADR-0002 insertion primitive
+     (review m1). The prototype inserted `numFmts` in 228 POI packages and all four tables in
+     `47889.xlsx`.
+   - A `styleSheet` whose root is not SpreadsheetML (`sample-beta.xlsx`, Excel 2007 beta
+     namespace) makes format writes `Err(UnsupportedStylesPart)`. Reads ignore its styles, as
+     today.
    - Existing non-canonical entries at 0/1 (13 files written by POI, ONLYOFFICE or an unnamed
      producer) are left alone.
    - A `Format` whose fill is `None` maps to index 0 only in from-scratch mode. In edit mode,
@@ -328,6 +515,9 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
    - `xfId="0"`: the first `cellStyleXfs` entry, which is `Normal` in every corpus file that has
      `cellStyles` (`builtinId="0"`). A file whose `xfId=0` is not `Normal` is still valid; the
      cell is then attached to that style.
+   - When `cellStyleXfs` is empty or absent (`52348.xlsx`, `renamed_workbook_part.xlsx`),
+     `xfId` is omitted instead of written dangling (review m1).
+   - Unset groups copy the default style's ids (§3 "inherit").
    - `apply*` flags in rust_xlsxwriter's pattern.
    - No `x14ac`, `xr` or other extension attributes. They are optional (`mc:Ignorable`).
    - `fonts/@x14ac:knownFonts` is left as it is. See Context; this is XL-check item 10(c) under "Test oracles".
@@ -338,16 +528,27 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
    - **By named style:** `CellMut::set_named_style("Good")` finds `cellStyles/cellStyle[@name]`.
      - The name must be unique: duplicates (4 corpus files) give `Err(AmbiguousStyleName)`, a
        missing name gives `Err(NoSuchStyle)`.
-     - It then appends one `xf` that copies the style's `cellStyleXfs` entry ids (`numFmtId`,
-       `fontId`, `fillId`, `borderId`, alignment, protection) with `xfId` = that entry's index
-       and no `apply*` flags: the cell shows the style unchanged, as Excel does when a style is
-       applied.
+     - It then appends one `xf` with `xfId` = the style's `cellStyleXfs` index.
+     - Each group (number format, font, fill, border, alignment, protection) comes from the
+       style **only if the style's entry applies it**. That is the case when its `apply*`
+       attribute is absent or `1`.
+     - A group the style does not apply (`apply*="0"`, e.g. Good/Bad/Neutral with
+       `applyNumberFormat="0"` in 6 corpus files) keeps the cell's current id for that group,
+       copied from the cell's existing `xf` by index (review m3). That is how Excel applies a
+       style: it does not touch the cell's number format.
+     - `apply*` flags are written for the groups taken from the style.
      - These `xf` entries are deduplicated per style name among new entries.
-     - Named style + overrides (`Format` on top of a style) is open question Q3.
-   - **Number format only:** `CellMut::set_num_format(code)` is a convenience for
-     `Format::default().set_num_format(code)`. In edit mode it does **not** inherit the cell's
-     current font or fill, because the existing `xf` is opaque. The docs say so, and
-     `set_format_preserving` (copy the existing `xf` with one id changed) is open question Q4.
+     - Named style + overrides (`Format` on top of a style) is deferred to Phase4 (Q3, proposed
+       default).
+   - **Preserving edits** (Q4, adopted as proposed default): `CellMut::set_num_format(code)`,
+     `set_font(…)`, `set_fill(…)`, `set_border(…)` derive a new `xf` from the cell's
+     **current** `xf`.
+     - They copy its bytes and replace only the changed id attribute and the matching
+       `apply*` attribute.
+     - The rest of its look is kept losslessly, including features a `Format` cannot express.
+     - It is the same kind of derivation as `set_named_style`: ids are copied by index, and
+       nothing is parsed into a value.
+     - Exact-form reuse applies to the derived bytes.
 7. **Interaction with `s` on writes.**
    - `set_number`/`set_string` (Phase0) keep `s`.
    - `set_*_with_format(value, &Format)` replaces it.
@@ -358,6 +559,19 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
    `DxfFormat` value type. No Phase2 API uses it; Phase4 (conditional formats, D5) does. It is
    specified here so that Phase4 does not invent a second registry.
 9. **No `styles.xml`** (2 corpus files). Format writes return `Err(NoStylesPart)` until Phase3.
+10. **Excel's limits** (review M2). Appending is refused with
+    `Err(StyleTableFull { table, limit })` past Excel's documented limits:
+    - 65,490 unique cell formats (`cellXfs`);
+    - 256 fill styles and 256 line styles (`fills`, `borders`);
+    - 512 fonts per workbook;
+    - 200 number formats (conservative: Excel's documented limit is 200–250 depending on the
+      language version).
+
+    Exact-form reuse keeps repeated runs below them.
+11. **Prefixes** (review m7). New nodes take the namespace and prefix of the table they are
+    appended to, by ADR-0002 §3's prefix rules as applied by the insertion primitive. For
+    example, `x:font` in an `x:`-prefixed `styles.xml`. The canonical bytes used for
+    exact-form reuse are computed in that context.
 
 ### 6. Dates and times
 
@@ -367,9 +581,12 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
     60);
   - 1904 epoch when `workbookPr/@date1904` is `1`/`true` (20 corpus files);
   - the time as a fraction of a day.
-  - Dates before the epoch, and serials ≥ 2958466 (after 9999-12-31), are
-    `Err(DateOutOfRange)`. openpyxl's `to_excel` uses the same 60-day adjustment
-    (`utils/datetime.py`).
+  - The range is defined by date, not serial (review m4):
+    - 1900 system: 1899-12-31 (serial 0, which rust_xlsxwriter accepts) to 9999-12-31;
+    - 1904 system: 1904-01-01 to 9999-12-31 (serial 2957003);
+    - a time-only value (serial in [0, 1)) is allowed in both systems.
+    - Anything else is `Err(DateOutOfRange)`.
+  - openpyxl's `to_excel` uses the same 60-day adjustment (`utils/datetime.py`).
 - **Default format.** rust_xlsxwriter has none: the caller passes a `Format`. Phase2 offers
   `Format::date()` = `NumFormat::Builtin(14)` (`mm-dd-yy`), which Excel localises to the
   user's short-date format. It falls back to `Code("yyyy-mm-dd")` when the file redefines
@@ -383,6 +600,8 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
       table.
   - `CellValue::Number` is unchanged, and `CellRef::datetime()` converts using the workbook's
     epoch.
+  - In the 1900 system, serial 60 (Excel's nonexistent 1900-02-29) converts to
+    `Err(NonexistentDate)`. The number stays readable through `value()`.
   - `t="d"` cells (ISO strings) keep reading as `CellValue::Date` (Phase0).
 
 ### 7. Interaction with Phase1 (ADR-0003)
@@ -398,13 +617,20 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
    a format) are value writes in ADR-0003 §3.2. Their dependents lose their cached values
    exactly as for `set_number`. The shared-string index is not a value; what matters is the
    cell's text.
-3. **Style-only writes** (`set_format`, `set_style_index`, `set_named_style`) do not change a
-   value, so they seed no invalidation. The exception is any formula that reads formatting:
-   `CELL(…)` with `"format"`, `"color"`, `"parentheses"`, `"prefix"`, or with no info type.
-   - Phase1's tokenizer marks `CELL` as not on its precise allowlist.
-   - Phase2 adds one rule: a style-only write seeds invalidation of every formula whose text
-     calls `CELL` or `INFO`, as if the cell's value had changed.
-   - This is conservative and costs nothing in workbooks without `CELL`.
+3. **Style-only writes** (`set_format`, `set_style_index`, `set_named_style`, the preserving
+   setters) do not change a value. They may still change a formula result through functions
+   that read formatting:
+   - `CELL` with `"format"`, `"color"`, `"parentheses"`, `"prefix"` or no info type;
+   - XLM `GET.CELL` and relatives, typically inside a defined name in an `.xlsm`;
+   - `INFO` is kept on the list conservatively.
+
+   Rule (review M5, following ADR-0003 §2's "not proven safe ⇒ depends on everything"):
+   - If **any** cell formula **or any `definedName`** in the workbook contains one of `CELL`,
+     `INFO`, `GET.CELL` or `GET.FORMULA` (a token scan of the census texts), a style-only write
+     is treated exactly like a value write to that cell. Phase1's dependency analysis then
+     follows names as it already does (`precedents.rs`, `name_def`).
+   - Otherwise a style-only write seeds no invalidation.
+   - The check is one pass over texts the census already holds.
 4. **`calcChain.xml`** is unaffected: Phase2 never creates or removes formula cells.
 5. **`fullCalcOnLoad`** is set only when Phase1 invalidates something.
 
@@ -419,7 +645,8 @@ pub struct Tint(f64);          // in [-1, 1]; Eq/Hash on the bit pattern of the 
   - `cellStyleXfs`, `cellStyles`.
 - New entries carry no extension markup.
 - A table with an `mc:AlternateContent` child cannot grow (§2). Other tables in the same part
-  can.
+  can, but a new `Format` always needs a `cellXfs` entry, so it is refused when `cellXfs` has
+  one.
 
 ### 9. API sketch
 
@@ -439,9 +666,9 @@ match ws.cell(0, 0)?.unwrap().format()? { FormatRead::Expressible(f) => …, For
 
 Oracle names as in the roadmap §6. Every write test runs on fixtures from both seed modes.
 
-1. **L1** for every part other than the edited sheet, `styles.xml` and `sharedStrings.xml`.
-   A registry part that did not grow (e.g. a value write whose `Format` dedups to an entry
-   added earlier in the session) is L1 as well.
+1. **L1** for every part other than the edited sheet and an *active* registry part. A registry
+   that was never activated leaves its part L1. An active one may change only by T2-append,
+   which can mean only its `count` changed, when every entry was reused (review m6).
 2. **T2-append (new; byte locality for registry parts).** The diff between the original and
    output registry part is confined to:
    - (a) one insertion region per grown table, at that table's original close tag (or, for a
@@ -453,15 +680,32 @@ Oracle names as in the roadmap §6. Every write test runs on fixtures from both 
    Every other byte is identical and in the same relative place, by the same algorithm as
    Phase0's `assert_t2`. In particular every existing entry's span is byte-identical, which
    *is* the append-only invariant.
-3. **Index stability.** Every `s` attribute and every `t="s"` cell index in every sheet of the
-   input still refers to an entry whose bytes are unchanged. This is checked by resolving each
-   index in input and output and comparing the entry XML.
+3. **Index stability.**
+   - Every `s` attribute and every `t="s"` cell index in every sheet of the input still refers
+     to an entry whose bytes are unchanged. This is checked by resolving each index in input
+     and output and comparing the entry XML.
+   - A reference that was out of range in the input is still out of range in the output
+     (review m2). An append that would end that, by giving it a meaning, must have been
+     refused.
+   - (Prototype check (a).)
 4. **CR (values and styles) with calamine 0.38.**
    - `worksheet_range`: every edited cell reads the new value, and dates read as
      `Data::DateTime` with the right serial under both epochs.
-   - `worksheet_style`: every edited cell's `Style` (font bold/italic/size/name/colour as ARGB
-     after calamine's theme and tint resolution, fill pattern and colour, borders, number
-     format code, alignment) equals the `Format`.
+   - `worksheet_style`: every edited cell's `Style` equals the **projection** of the `Format`
+     onto what calamine exposes (review m5):
+     - font bold/italic/underline/strike/size/name/colour (ARGB after calamine's theme and tint
+       resolution);
+     - fill pattern and colours;
+     - borders;
+     - number format code;
+     - horizontal/vertical alignment, wrap, indent, rotation, shrink;
+     - protection.
+   - Not covered by calamine, so covered by T2-append's byte check of the canonical form and by
+     RX instead: `vertAlign`, `scheme`, `charset`, `condense`/`extend`, `readingOrder`,
+     `quotePrefix`, and theme vs RGB.
+   - Colours are not compared in files with a custom `indexedColors` palette (13 corpus files).
+     calamine resolves `indexed` against the default palette (`style_parser.rs`).
+   - Inherited groups must read like the default style's (prototype: 329/329).
    - Every other cell's `Style` is unchanged.
 5. **From scratch vs rust_xlsxwriter (RX).** A format matrix is written twice: by ooxml-xlsx
    from the template, and by rust_xlsxwriter 0.102 (dev-dependency, like calamine).
@@ -469,14 +713,20 @@ Oracle names as in the roadmap §6. Every write test runs on fixtures from both 
    - `styles.xml` is also compared after normalising attribute order (rust_xlsxwriter's own
      `compare_xlsx_files` approach). Differences are allowed only where the template
      legitimately differs (the template's theme and `x14ac` declarations), listed in the test.
-6. **Edit-mode growth bound.** On `61605.xlsx`, `style-alternate-content.xlsx` (its `fonts`
-   cannot grow: expect `Err(UnresolvedSibling)` for a new font and success for a fill-only
-   format), `52348.xlsx` (redefined ids 0–2), `ExcelPivotTableSample.xlsx` and
-   `fixture_minimal`:
+6. **Edit-mode growth bound.** On `61605.xlsx`, `52348.xlsx` (redefined ids 0–2, no
+   `cellStyleXfs`: `xfId` omitted), `ExcelPivotTableSample.xlsx`, `47889.xlsx` (empty
+   `styleSheet`: reserved entries first) and `fixture_minimal` (one fill: `gray125` first):
    - one new `Format` adds exactly one `xf`, and at most one each of `numFmt`, `font`, `fill`,
-     `border`;
+     `border`, plus the reserved entries of §5.4 where a table was empty;
    - writing the same `Format` again adds nothing;
+   - **save, reopen, and write the same `Format` again: nothing is added** (exact-form reuse
+     across sessions, review M2);
    - a second, different `Format` sharing the font adds no font.
+
+   On `style-alternate-content.xlsx` (review M4):
+   - every new `Format` is `Err(UnresolvedSibling)`, because `cellXfs` has AC entries;
+   - `set_style_index(n)` succeeds for `n < 29` and fails for `n ≥ 29`;
+   - `set_string` still appends to its sst.
 7. **Dedup collision regressions** (from the spike). On synthetic copies of fixtures with two
    existing `xf`s that differ only in `xfId` or `apply*` flags, a new `Format` equal to their
    projection must create a *new* entry, never reuse either. A new plain string equal to an
@@ -484,17 +734,38 @@ Oracle names as in the roadmap §6. Every write test runs on fixtures from both 
    must reuse it.
 8. **Refusals leave everything unchanged.** After each `Err` in §5 and §4, `save` is L1 for
    every entry, as in Phase0.
-9. **Mutation testing**, as in Phase0 review rounds 1–2. Mutants include: dedup against
-   existing entries; built-in id without the redefinition check; custom id starting at 164
-   regardless of existing ids; `count` delta instead of recompute; `uniqueCount` not updated;
-   rich vs plain key collision; tint compared lexically; fills 0/1 padding removed; `Builtin`
-   numFmt mapping on a redefined id. Every mutant must be killed or argued equivalent.
+8a. **`numFmtId` collisions** (review M3).
+    - `ConditionalFormattingSamples.xlsx`: a new custom format gets id 178, not 174.
+    - `LIBRE_OFFICE-128382-0.xlsx`: never 165.
+    - In both, every pre-existing `numFmtId` reference resolves to the same code before and
+      after (pivot references stay undefined).
+9. **Mutation testing**, as in Phase0 review rounds 1–2. Every mutant must be killed or argued
+   equivalent. Mutants include:
+   - dedup against existing entries by value;
+   - exact-form reuse switched off (killed by the reopen oracle in 6);
+   - reuse comparing `xf` bytes before resolving ids;
+   - built-in id without the redefinition check;
+   - custom id starting at 164 regardless of existing ids;
+   - id maximum over `numFmts` only (killed by 8a);
+   - `count` delta instead of recompute;
+   - `uniqueCount` not updated;
+   - rich vs plain key collision;
+   - tint compared lexically;
+   - reserved-entry padding removed (killed by `47889`, `fixture_minimal`);
+   - `xfId="0"` written without `cellStyleXfs`;
+   - an unset group resolved to Calibri 11 instead of inherited;
+   - the AC index-stability check removed;
+   - the style-only invalidation rule ignoring `definedName`s.
 10. **XL (owner).** Outputs of 5 and 6, plus:
     - (a) a 1904 workbook with dates;
     - (b) a file with `numFmts` inserted;
     - (c) a `knownFonts="1"` workbook after adding a font and a row (does Excel complain or
       recompute descent?);
-    - (d) shared strings appended to a file whose `count` was wrong.
+    - (d) shared strings appended to a file whose `count` was wrong;
+    - (e) a from-scratch file whose template carries an empty
+      `<sst count="0" uniqueCount="0"/>` before any string is written (Q2);
+    - (f) the inherited-font `xf` in an Arial 10 workbook (61605 or 62272): looks like its
+      neighbours.
 
 ## Alternatives considered
 
@@ -510,10 +781,15 @@ Oracle names as in the roadmap §6. Every write test runs on fixtures from both 
   It is rejected as the default because rust_xlsxwriter parity and file size favour shared
   strings, and Excel stores strings in the sst itself. It is kept as `set_string_inline`, and
   as the fallback when there is no sst part.
-- **Reuse existing entries by exact form for styles too.** This is possible with the same
-  byte-comparison rule as §4.3. Not adopted: Excel's `apply*` patterns rarely match a
-  canonical form, so the benefit is small, and it would require canonicalising every existing
-  font/fill/border. It stays available as a later optimisation (Q1 covers both).
+- **Never reuse existing entries (revision 1 for styles).** This is rejected (review M2): every
+  session would append a new chain, and a daily batch would reach Excel's 256-fill/border
+  limit in under a year. Exact-form reuse (§2) prevents that without matching anything Excel
+  wrote.
+- **Fill unset groups with rust_xlsxwriter's defaults (revision 1).** This is rejected (review
+  M1): 121 of 329 prototype packages have another default font. Copying the default style's
+  ids is lossless and needs no parsing.
+- **Allocate `numFmtId`s above `numFmts` only (revision 1).** This is rejected (review M3):
+  dxf and pivot ids share the id space (Context fact 10).
 - **Tint as rust_xlsxwriter's enumerated shades only.** This is rejected: it cannot express
   8 of the 21 tints in the corpus. `Theme(color, shade)` survives as a constructor.
 - **Adjust `sst/@count` by delta.** This is rejected in favour of recompute (§4.5): delta
@@ -522,42 +798,58 @@ Oracle names as in the roadmap §6. Every write test runs on fixtures from both 
 
 ## Consequences
 
-- Existing entries are never matched, so in edit mode the registries can grow by one entry per
-  distinct new `Format`/string per session, even when an equivalent entry already exists.
-  Excel tolerates this (41 corpus files already contain exact duplicates) and compacts on its
-  own save.
+- Excel-written entries are never matched by meaning. A new `Format` equivalent to an existing
+  Excel-written entry still appends once, because the bytes differ.
+  - Excel tolerates such duplicates: 41 corpus files already contain exact duplicates.
+  - Entries ooxml-rs appended are reused across sessions, so growth is bounded by the number
+    of *distinct* formats ever written.
+  - Excel's limits are guarded (§5.10).
 - `styles.xml` and `sharedStrings.xml` become Layer 2 parts once a registry is active. The
   allowlist grows by:
   - the `numFmts`/`fonts`/`fills`/`borders`/`cellXfs`/`dxfs` tables and their entry types;
   - `rPr`/`r` under `si`.
 
-  All are write entries for creating new nodes. Existing nodes are never edited, only counted
-  and, for §4.3, compared.
+  All are write entries for creating new nodes. The prototype's hand-written specs
+  (`proto/src/specs.rs`) list the minimal set: `styleSheet`, `numFmts`/`numFmt`, `fonts`/`font`
+  with `b`/`sz`/`color`/`name`, `fills`/`fill`/`patternFill`/`fgColor`,
+  `borders`/`border`/`left`…`diagonal`, `cellXfs`/`xf`. Existing nodes are never edited. They
+  are only counted, compared byte-wise for exact-form reuse (§2), and byte-copied by the
+  preserving setters (§5.6).
 - `count`/`uniqueCount` maintenance depends on Phase1's census. If Phase2 lands first, the
   census must include `t="s"` counting (a few lines in the same scan).
-- Callers that want "same look as before, different number format" have no lossless one-liner
-  in edit mode until Q4 is decided.
+- The preserving setters (§5.6) derive from opaque existing `xf`s by copying bytes. Their
+  T2-append regions therefore contain bytes that come from an existing entry, which is still
+  append-only.
+- The writer needs the Phase1 census for `t="s"` counts, cell-`s` range checks (§2 dangling
+  references) and the formatting-function scan (§7.3). If Phase2 lands first, those additions
+  go into the census.
 
 ## Open questions for the project owner
 
-- **Q1 (exact-form reuse).** In edit mode, may a new plain string reuse an existing `si` that
-  is byte-identical to what would be appended (§4.3)? Default proposed: yes for shared strings,
-  no for styles.
+Each question carries the reviewer's recommendation (round 1) as the **proposed default**,
+pending the owner's confirmation.
+
+- **Q1 (exact-form reuse).** May a new entry reuse an existing one that is byte-identical to
+  what would be appended?
+  - *Proposed default: yes, for strings and for styles.* For styles the whole bottom-up chain
+    must match (§2). Reuse is off in tables that are not index-stable.
 - **Q2 (template sst).** Should `Workbook::new()`'s template carry an empty
-  `sharedStrings.xml`, so that from-scratch strings are shared (proposed), or stay inline?
-- **Q3 (named style + overrides).** Should `set_named_style_with(name, &Format)` exist in
-  Phase2 (an `xf` with `xfId` = style, `apply*` = 1 for the overridden groups), or wait for
-  Phase4's named-style work?
-- **Q4 (preserving edits).** Should `set_num_format`/`set_font_color` on a cell in edit mode
-  copy the cell's *existing* `xf` (opaque) and change one id, so the rest of its look is kept?
-  This needs a raw `xf` clone with one attribute changed: lossless, but it is the first time a
-  registry would derive a new entry from an existing one.
-- **Q5 (`knownFonts`).** If the XL check ("Test oracles" 10(c)) shows Excel relies on `x14ac:knownFonts` +
-  `dyDescent`, should new rows get `x14ac:dyDescent` copied from a neighbour, or should
-  `knownFonts` be removed when rows are added? This also affects Phase0.
-- **Q6 (phonetic runs).** Japanese workbooks carry `rPh`/`phoneticPr` (29 corpus sst). New
-  strings get none, so furigana-based sorting in Excel treats them as unread. Acceptable for
-  Phase2?
+  `sharedStrings.xml`?
+  - *Proposed default: yes.* It matches rust_xlsxwriter's default and Excel's own behaviour.
+  - XL item 10(e) checks that Excel opens an empty sst cleanly. If not, the template gets no
+    sst until Phase3 can create the part on the first string.
+- **Q3 (named style + overrides).** *Proposed default: defer to Phase4.* The `apply*="0"`
+  rule for plain `set_named_style` (§5.6) is in Phase2.
+- **Q4 (preserving edits).** *Proposed default: in Phase2*, as `set_num_format` /
+  `set_font` / `set_fill` / `set_border` deriving from the cell's current `xf` by byte copy
+  (§5.6).
+- **Q5 (`knownFonts`).** *Proposed default: leave the attribute untouched*, also when rows are
+  added, until XL item 10(c) says otherwise.
+  - If a fix is needed, copying `x14ac:dyDescent` from a neighbouring row is preferred over
+    removing `knownFonts`, which could change rendering in other tools.
+  - This also affects Phase0.
+- **Q6 (phonetic runs).** *Proposed default: accepted for Phase2*, documented: new strings
+  carry no reading, so furigana-based sorting in Excel treats them as unset.
 
 ## Sources
 
@@ -598,4 +890,12 @@ Oracle names as in the roadmap §6. Every write test runs on fixtures from both 
   - `src/formats.rs` (`builtin_format_by_code`, `detect_custom_number_format`).
 - Apache POI `test-data/spreadsheet` @ `47dcff769bb395034dddfd59c4609659b6dbc6a4` (Apache-2.0),
   and the committed fixtures in `reference/fixtures/xlsx/`. Measured with
-  `spikes/xlsx-phase2/registry_survey.py`.
+  `spikes/xlsx-phase2/registry_survey.py` and the prototype `spikes/xlsx-phase2/proto/`
+  (branch `spike/xlsx-phase2-proto`).
+- Microsoft, "Excel specifications and limits" (unique cell formats 65,490; fill styles 256;
+  line weight and styles 256; 512 fonts per workbook; 200–250 number formats):
+  <https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3>.
+- LibreOffice `sc/source/filter/oox/stylesbuffer.cxx` (`Xf::importXf`, quoting MS-OE376: "only
+  the cell xf record defines the formatting applied to a cell"):
+  <https://github.com/LibreOffice/core/blob/master/sc/source/filter/oox/stylesbuffer.cxx>
+  (cited from review round 1).
