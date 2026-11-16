@@ -199,6 +199,13 @@ impl<'m, 'a> Ctx<'m, 'a> {
         format!("ooxml_core::QName::new({}, {})", Self::ns_const(prefix), lit(local))
     }
 
+    /// What must agree for two entries to be `SameType`: resolved
+    /// attributes (name, type, default), content model and children.
+    fn shape(e: &Entry) -> String {
+        let attrs: Vec<_> = e.attrs.iter().map(|a| (&a.ns, &a.local, &a.ty, &a.default)).collect();
+        format!("{attrs:?} {} {:?} {:?}", e.attrs_incomplete, e.content, e.child_names)
+    }
+
     fn type_path(&self, from_group: &str, sdk_name: &str) -> String {
         let (a, _) = &self.entries[sdk_name];
         let n = &self.type_names[sdk_name];
@@ -423,6 +430,25 @@ impl<'m, 'a> Ctx<'m, 'a> {
                     checks,
                     "{cfg} const _: () = ooxml_core::schema::assert_child::<{ty}, {cp}>();"
                 );
+            }
+
+            // ---- SameType (ADR-0002 post-acceptance note "detach/insert") ----
+            // Another allowlisted entry with the same SDK complex type (the
+            // part of the SDK Name before `/`) and the same resolved
+            // attributes, content and children: a copy of its subtree is a
+            // valid `ty`. The reflexive case is a blanket impl in core.
+            let ct = e.name.split_once('/').map_or(e.name.as_str(), |(t, _)| t);
+            for (other, (oa, oe)) in &self.entries {
+                if *other == e.name || other.split_once('/').map(|(t, _)| t) != Some(ct) {
+                    continue;
+                }
+                if Self::shape(e) != Self::shape(oe) {
+                    diags.push(format!("SameTypeMismatch {} {other}: same complex type, different resolved shape; no SameType", e.name));
+                    continue;
+                }
+                let cfg = if oa.group == group { String::new() } else { format!("#[cfg(all(feature = \"{group}\", feature = \"{}\"))]", oa.group) };
+                let op = self.type_path(group, other);
+                let _ = writeln!(body, "{cfg} impl ooxml_core::SameType<{op}> for {ty} {{}}");
             }
 
             // ---- views ----
