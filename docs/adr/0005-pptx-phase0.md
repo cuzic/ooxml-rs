@@ -69,6 +69,13 @@
   sources", "Hyperlinks", the prefix rule; §6 rows `FormatNotCopyable`,
   `Core(NamespaceNotInScope)`; §7 T2/T3/T4/Manual figures; §8; Alternative
   4; coordinator default "copy-subtree in Phase 2" (overridden); Q2.
+  Also folds in the round-3 review (`0005-opus-review-round3.md`, converged):
+  N3-1 the source of a new paragraph's `a:endParaRPr` is the last
+  paragraph's own `a:endParaRPr` when it has a format (§3 "Edits"); N3-2 T4
+  covers the last three sub-conditions (§7); N3-3 stale "Phase 2" /
+  "Proposed" wording fixed (here and `docs/roadmap/pptx.md`). And the PR #16
+  review's m4: unreadable comment parts fail closed (§6, already so in code;
+  now explicit and tested).
 
 ## Context
 
@@ -256,10 +263,14 @@ models, in schema order: `a:p` = `[a:pPr] (a:r | a:br | a:fld)* [a:endParaRPr]`,
   paragraph *i* through `ParagraphMut::set_text` (so `a:pPr`, the first
   run's `a:rPr` and `a:endParaRPr` stay); surplus paragraphs are removed;
   missing ones are appended after the last `a:p`, each with a copy of the
-  last existing paragraph's `a:pPr` attributes, runs formatted from its run
-  format source, and an `a:endParaRPr` copying that same source (review
-  R2-5: PowerPoint's Enter carries the end-of-paragraph format over, and an
-  empty line's height comes from it).
+  last existing paragraph's `a:pPr`, runs formatted from its run format
+  source, and an `a:endParaRPr` (review R2-5: an empty line's height comes
+  from it). Its source (review N3-1, decided in revision 4): the last
+  paragraph's **own** `a:endParaRPr` when it has a format (attributes or
+  non-link children) — the end-of-paragraph format that PowerPoint's Enter
+  carries over — else the run format source. (Revision 3 always used the
+  run format source, which contradicted that rationale: a first run's
+  `err="1"` or size was carried instead of the paragraph-end format.)
 - `add_run`, `add_paragraph`: the **explicitly unformatted** path — no
   `a:rPr`/`a:pPr`; the text takes the list/placeholder style, as
   python-pptx's `add_run`/`add_paragraph`. Inserted before `a:endParaRPr` /
@@ -274,8 +285,9 @@ paragraph's first `a:rPr`, or of `a:endParaRPr` when the paragraph has no
 run (what PowerPoint does when one types into an empty paragraph), without
 its `a:hlinkClick`/`a:hlinkMouseOver` children; a paragraph created by
 `TextBody::set_text` gets a copy of the last paragraph's `a:pPr` and an
-`a:endParaRPr` copied (the same way) from the last paragraph's run format
-source. Copies are made with `Lens::detach_as::<C>(skip)` and inserted
+`a:endParaRPr` copied (the same way, links skipped) from the last
+paragraph's own `a:endParaRPr` if that has a format, else from its run
+format source (N3-1). Copies are made with `Lens::detach_as::<C>(skip)` and inserted
 with `LensMut::insert_detached` (ADR-0002 note "detach/insert";
 `a:endParaRPr` ↔ `a:rPr` are generated `SameType`). The edit is refused
 with `FormatNotCopyable(element)` only where `detach_as` refuses: a
@@ -387,8 +399,9 @@ elements in the SDK data). Classification:
   locked (shape, group or graphic frame id); if it has none, **every**
   shape of the slide is locked;
 - a `p188:cm` without an anchor, an unknown child of `p188:cmLst`, a
-  comment relationship whose part is missing, or a comment part that does
-  not parse: **every** shape of the slide is locked.
+  comment relationship whose part is missing, or a comment part that cannot
+  be read or does not parse (for any reason, including the XML layer's
+  resource limits): **every** shape of the slide is locked (fail closed).
 
 | Error | Raised when |
 |---|---|
@@ -510,7 +523,12 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   `a:p`, an `a:endParaRPr` before a run (out of order), a group without
   `cNvPr@id` (`InvalidShapeId` for its member), an unknown `p:txEl` child,
   a non-numeric `spid` (locks another shape), a comment relationship to a
-  missing part, and a `p188:cm` without anchor. Character rules are tested
+  missing part, and a `p188:cm` without anchor; and (review N3-2) an
+  unknown child of `p188:cmLst`, an `ac:deMkLst` with `cp`/`len` but no
+  `txMk` (locks that shape only), a non-numeric `cNvPr@id`; plus comment
+  parts that cannot be read or parsed (binary, empty, not UTF-8, nested
+  1,500 deep), which lock every shape (fail closed; PR #16 review m4).
+  Character rules are tested
   per setter × (`\v`, `\n`, `\r`, U+0000, U+0001, U+001F, U+FFFE).
 - **Manual (owner decision):** `cargo run -p ooxml-pptx --example
   manual_check -- <outdir>` writes thirteen named outputs (title/body, autofit,
@@ -576,7 +594,7 @@ for allowlisted pairs sharing an SDK complex type (`a:endParaRPr` ↔
 |---|---|---|---|
 | new run's `a:rPr` | first `a:rPr`, else `a:endParaRPr` | `a:hlinkClick`, `a:hlinkMouseOver` | `FormatNotCopyable("a:rPr" / "a:endParaRPr")` |
 | new paragraph's `a:pPr` | last paragraph's `a:pPr` | — | `FormatNotCopyable("a:pPr")` |
-| new paragraph's `a:endParaRPr` | last paragraph's run format source | links | as for `a:rPr` |
+| new paragraph's `a:endParaRPr` | last paragraph's `a:endParaRPr` if it has a format (N3-1), else its run format source | links | `FormatNotCopyable("a:endParaRPr")` or as for `a:rPr` |
 
 All copies of one edit are made during planning (before any change), and
 their namespaces are checked against the paragraph/body scope (§3), so a
@@ -641,7 +659,7 @@ would need a new relationship or a shared one (Layer 3) — later phase.
 
 - **Q1** (resolved: no `DmlPercent`/override in Phase 0.)
 - **Q2** (answered by the round-2 review: yes, as Phase 0.1 — §9, with its
-  own core PR #18.) Given §8's counts (47 % / 38 % / 19 % of format sources have child
+  own core PR #18; historical wording below.) Given §8's counts (47 % / 38 % / 19 % of format sources have child
   elements), should the copy-subtree primitive (`LensMut::insert_copy`,
   sketched in the core README) move from Phase 2 into a Phase 0.1, so that
   `\v`, multi-line body text and empty-paragraph fill copy formatting the
