@@ -92,6 +92,16 @@ pub enum Error {
     /// No usable prefix is bound to the namespace at this point.
     #[error("namespace {0:?} is not in scope with a usable prefix")]
     NamespaceNotInScope(String),
+    /// A text or attribute value contains a character that XML 1.0 does not
+    /// allow (`Char` production: C0 controls other than tab/LF/CR,
+    /// U+FFFE, U+FFFF). Writing it would make the part not well-formed.
+    #[error("character U+{:04X} at byte {offset} is not allowed in XML 1.0", u32::from(*ch))]
+    InvalidXmlChar {
+        /// The offending character.
+        ch: char,
+        /// Its byte offset in the value.
+        offset: usize,
+    },
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),

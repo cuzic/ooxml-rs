@@ -286,6 +286,46 @@ pub const fn content_contains(content: Content, q: QName) -> bool {
     }
 }
 
+/// Like [`content_contains`], but also true when a wildcard slot admits
+/// `q`'s namespace (children of a wildcard parent such as `a:graphicData`,
+/// ADR-0002 post-acceptance note "wildcard parents").
+pub const fn content_admits(content: Content, q: QName) -> bool {
+    if content_contains(content, q) {
+        return true;
+    }
+    let Content::Slots(slots) = content else {
+        return false;
+    };
+    let mut i = 0;
+    while i < slots.len() {
+        if let Some(w) = slots[i].wildcard
+            && wildcard_admits(w, q.ns)
+        {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+/// `const` form of [`Wildcard::matches`].
+pub const fn wildcard_admits(w: Wildcard, ns: &str) -> bool {
+    match w {
+        Wildcard::Any => true,
+        Wildcard::Other(tns) => !ns.is_empty() && !const_str_eq(ns, tns),
+        Wildcard::List(l) => {
+            let mut i = 0;
+            while i < l.len() {
+                if const_str_eq(l[i], ns) {
+                    return true;
+                }
+                i += 1;
+            }
+            false
+        }
+    }
+}
+
 /// No QName appears twice within one slot. (A QName in two *different*
 /// slots is allowed, ADR-0002 §4.1.)
 pub const fn no_duplicate_within_slot(content: Content) -> bool {
@@ -422,14 +462,34 @@ pub const fn assert_spec<E: ElementSpec>() {
 }
 
 /// Checked for every generated `impl ChildOf<P> for C`: `C::QNAME` is listed
-/// in `P::CONTENT`. Fails the build (E0080) otherwise.
+/// in `P::CONTENT`, or admitted by one of its wildcard slots. Fails the
+/// build (E0080) otherwise.
 pub const fn assert_child<P: ElementSpec, C: ElementSpec>() {
-    assert!(content_contains(P::CONTENT, C::QNAME), "ChildOf impl for a name the parent's content does not list");
+    assert!(content_admits(P::CONTENT, C::QNAME), "ChildOf impl for a name the parent's content does not admit");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wildcard_admission() {
+        const OTHER: Content = Content::Slots(&[Slot {
+            names: &[QName::new("urn:t", "a")],
+            wildcard: Some(Wildcard::Other("urn:t")),
+            max_each: None,
+            max_total: None,
+        }]);
+        const { assert!(content_admits(OTHER, QName::new("urn:t", "a"))) };
+        const { assert!(content_admits(OTHER, QName::new("urn:x", "b"))) };
+        const { assert!(!content_admits(OTHER, QName::new("urn:t", "b"))) };
+        const { assert!(!content_admits(OTHER, QName::new("", "b"))) };
+        const LIST: Wildcard = Wildcard::List(&["", "urn:y"]);
+        const { assert!(wildcard_admits(LIST, "") && wildcard_admits(LIST, "urn:y") && !wildcard_admits(LIST, "urn:z")) };
+        for ns in ["", "urn:y", "urn:z"] {
+            assert_eq!(wildcard_admits(LIST, ns), LIST.matches(ns));
+        }
+    }
 
     #[test]
     fn double_lexical() {

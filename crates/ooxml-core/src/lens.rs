@@ -23,7 +23,19 @@ use std::marker::PhantomData;
 use crate::error::{Error, Result};
 use crate::name::{MC_ALTERNATE_CONTENT, QName, XML_NS, XML_SPACE, XMLNS_NS, XName};
 use crate::schema::{ChildOf, Content, ElementSpec, EnumType, EnumValue, AttrError, Slot};
-use crate::value::has_edge_ws;
+use crate::value::{first_invalid_xml_char, has_edge_ws};
+
+/// Refuses a value that XML 1.0 cannot represent (ADR-0002 post-acceptance
+/// note, "XML characters").
+fn check_xml_chars(value: &str) -> Result<()> {
+    match first_invalid_xml_char(value) {
+        None => Ok(()),
+        Some((offset, ch)) => {
+            core::hint::cold_path();
+            Err(Error::InvalidXmlChar { ch, offset })
+        }
+    }
+}
 use crate::xml::{RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
 
 fn check_root<E: ElementSpec>(root: &RawNode) -> Result<()> {
@@ -454,8 +466,11 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// Sets attribute `q` (untyped). An existing attribute keeps its position
     /// and prefix; a new one is appended. A namespaced attribute needs a
     /// non-empty prefix bound to its URI ([`Error::NamespaceNotInScope`]).
+    /// A value with a character outside XML 1.0 `Char` is refused
+    /// ([`Error::InvalidXmlChar`]) before anything changes.
     pub fn set_attr(&mut self, q: QName, value: &str) -> Result<()> {
         self.check_attr_write()?;
+        check_xml_chars(value)?;
         let existing = self.node().attrs.iter().position(|a| a.name.is(q));
         let prefix = match existing {
             Some(_) => None,
@@ -493,11 +508,14 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     /// Replaces the text content of a `Content::Text` element. If `value` has
     /// leading or trailing whitespace and `E::ATTRS` declares `xml:space`,
-    /// also sets `xml:space="preserve"` (never removes it).
+    /// also sets `xml:space="preserve"` (never removes it). A value with a
+    /// character outside XML 1.0 `Char` is refused ([`Error::InvalidXmlChar`])
+    /// before anything changes.
     pub fn set_text(&mut self, value: &str) -> Result<()> {
         if !matches!(E::CONTENT, Content::Text(_)) {
             return Err(Error::NotText(E::QNAME));
         }
+        check_xml_chars(value)?;
         if has_edge_ws(value) && E::attr_spec(XML_SPACE).is_some() && self.node().attr(XML_SPACE) != Some("preserve") {
             self.set_attr(XML_SPACE, "preserve")?;
         }

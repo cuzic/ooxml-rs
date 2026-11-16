@@ -74,6 +74,21 @@
   `ooxml-core::Package` consumes it and cannot depend on `ooxml-schema`.
   The generator also writes `codegen/report.txt` (lowering and default-join
   totals, all diagnostics), checked by `--check` like the code.
+- **Post-acceptance note (2026-11-16, two additive rules — no change to
+  the decisions; from the ADR-0005 round-1 review, M5 and B2):**
+  (1) *Wildcard parents.* A parent whose content model has a wildcard slot
+  (`a:graphicData` is `xsd:any`) has no named children, so the rule
+  "`ChildOf` between allowlisted entries" produced none. The generator now
+  also treats the SDK `Children` list of such a parent as children when the
+  wildcard admits their namespace; `ChildOf` is then generated for the
+  allowlisted ones (e.g. `impl ChildOf<GraphicData> for Table`). Named
+  content models are unchanged. Note: `Lens::cast` only re-types a node
+  with the *same* QName and does not replace this. (2) *XML characters.*
+  `LensMut::set_text` and `LensMut::set_attr` refuse a value containing a
+  character outside XML 1.0 `Char` (`Error::InvalidXmlChar`), so no
+  primitive can write a part that is not well-formed (U+000B, other C0
+  controls, U+FFFE/U+FFFF). Format crates still own their own line-break
+  rules; this is the backstop.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

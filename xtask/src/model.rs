@@ -91,6 +91,11 @@ pub fn type_part(name: &str) -> &str {
     name.split('/').next().unwrap_or(name)
 }
 
+/// The element QName part of an SDK Name (`a:CT_Table/a:tbl` → `a:tbl`).
+pub fn element_part(name: &str) -> &str {
+    name.rsplit('/').next().unwrap_or(name)
+}
+
 impl<'a> Model<'a> {
     pub fn new(sdk: &'a Sdk, xsd: &'a Xsd, overrides: &'a [Override], diags: &mut Diagnostics) -> Self {
         let mut index = BTreeMap::new();
@@ -353,6 +358,22 @@ impl<'a> Model<'a> {
             .map(|d| d.value.clone())
     }
 
+    /// Does a wildcard with SDK `Namespace` `any_ns` (`None` = `##any`),
+    /// declared in schema file `file`, admit an element in namespace `ns`?
+    pub fn wildcard_admits(&self, any_ns: Option<&str>, file: usize, ns: &str) -> bool {
+        let tns = self.tns(file);
+        let toks: Vec<&str> = any_ns.map(|n| n.split_whitespace().collect()).unwrap_or_default();
+        match toks.as_slice() {
+            [] | ["##any"] => true,
+            ["##other"] => !ns.is_empty() && ns != tns,
+            list => list.iter().any(|t| match *t {
+                "##local" => ns.is_empty(),
+                "##targetNamespace" => ns == tns,
+                u => u == ns,
+            }),
+        }
+    }
+
     /// Fully resolves one (non-abstract or abstract) entry.
     pub fn resolve(&self, name: &str, diags: &mut Diagnostics) -> Option<Entry> {
         let &at = self.index.get(name)?;
@@ -366,6 +387,7 @@ impl<'a> Model<'a> {
         let mut leaf_text = false;
         let mut validators = Vec::new();
         let mut child_props = BTreeMap::new();
+        let mut sdk_children: Vec<String> = Vec::new();
         for &c in &chain {
             let ct = self.ty(c);
             for a in &ct.attributes {
@@ -384,6 +406,7 @@ impl<'a> Model<'a> {
                 validators.clone_from(&ct.validators);
             }
             for ch in &ct.children {
+                sdk_children.push(ch.name.clone());
                 if let Some(p) = &ch.property_name {
                     child_props.insert(ch.name.clone(), p.clone());
                 }
@@ -480,6 +503,20 @@ impl<'a> Model<'a> {
         } else {
             ContentModel::Empty
         };
+        // Children admitted by a wildcard slot (e.g. `a:graphicData`, whose
+        // content is `xsd:any`): the SDK `Children` list names the elements
+        // the SDK knows to occur there; those whose namespace the wildcard
+        // admits are children too, so `ChildOf` is generated for the
+        // allowlisted ones (ADR-0002 post-acceptance note "wildcard parents").
+        if let ContentModel::Slots(sl) = &content {
+            let wild: Vec<&LSlot> = sl.iter().filter(|s| s.names.iter().any(|(n, _)| n == lower::ANY)).collect();
+            for c in &sdk_children {
+                let Some((ns, _, _)) = self.resolve_qname(element_part(c)) else { continue };
+                if wild.iter().any(|s| self.wildcard_admits(s.any_ns.as_deref(), at.0, &ns)) {
+                    child_names.insert(c.clone());
+                }
+            }
+        }
         Some(Entry {
             name: name.to_owned(),
             file: at.0,
@@ -629,6 +666,26 @@ mod tests {
         let ws = m.resolve("x:CT_Worksheet/x:worksheet", &mut d).unwrap();
         assert!(!ws.child_names.contains("x:CT_LegacyDrawing/x:legacyDrawing"));
         assert!(d.lines.iter().all(|l| !l.starts_with("OverrideError")), "{:?}", d.lines);
+    }
+
+    /// A wildcard parent (`a:graphicData`, content `xsd:any`) gets the
+    /// SDK-listed children its wildcard admits; named content models are
+    /// unchanged by the rule.
+    #[test]
+    fn wildcard_parent_children() {
+        let (sdk, xsd) = load();
+        let mut d = Diagnostics::default();
+        let m = Model::new(&sdk, &xsd, &[], &mut d);
+        let gd = m.resolve("a:CT_GraphicalObjectData/a:graphicData", &mut d).unwrap();
+        assert!(gd.child_names.contains("a:CT_Table/a:tbl"));
+        let tr = m.resolve("a:CT_TableRow/a:tr", &mut d).unwrap();
+        assert!(!tr.child_names.contains("a:CT_Table/a:tbl"));
+        assert!(m.wildcard_admits(None, 0, "urn:x"));
+        let tns = m.tns(0).to_owned();
+        assert!(!m.wildcard_admits(Some("##other"), 0, &tns));
+        assert!(m.wildcard_admits(Some("##other"), 0, "urn:x"));
+        assert!(m.wildcard_admits(Some("##local urn:y"), 0, ""));
+        assert!(!m.wildcard_admits(Some("##local urn:y"), 0, "urn:x"));
     }
 
     #[test]
