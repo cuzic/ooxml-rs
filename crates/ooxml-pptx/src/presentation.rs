@@ -314,33 +314,6 @@ impl Presentation {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod fault {
-    use std::cell::Cell;
-
-    thread_local! {
-        /// Fault injection for `replace_all`'s apply loop (review #48 m4).
-        pub(crate) static FAIL_AFTER_SLIDE: Cell<Option<usize>> = const { Cell::new(None) };
-    }
-
-    #[test]
-    fn a_failure_while_applying_restores_every_slide() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/sample.pptx");
-        let input = std::fs::read(path).unwrap();
-        let mut pres = super::Presentation::from_bytes(input).unwrap();
-        let before = pres.to_bytes().unwrap(); // the package as written without any change
-        // "e" occurs on both slides: slide 0 is changed, then the fault hits after slide 1
-        FAIL_AFTER_SLIDE.set(Some(1));
-        let r = pres.replace_all("e", "E", &crate::ReplaceOptions::default());
-        FAIL_AFTER_SLIDE.set(None);
-        assert!(r.is_err());
-        assert_eq!(pres.to_bytes().unwrap(), before, "a failed replace_all must leave the package byte-identical");
-        // and without the fault the same call changes both slides
-        let rep = pres.replace_all("e", "E", &crate::ReplaceOptions::default()).unwrap();
-        assert!(rep.replaced.iter().any(|m| m.location.slide == 0) && rep.replaced.iter().any(|m| m.location.slide == 1));
-    }
-}
-
 /// The slide list of the presentation part (`p:sldIdLst`, `r:id`s resolved).
 pub(crate) fn scan_slides(pkg: &mut Package, main: &str) -> Result<Vec<SlideEntry>> {
     let rels = pkg.relationships(main)?;
@@ -368,4 +341,31 @@ pub(crate) fn scan_slides(pkg: &mut Package, main: &str) -> Result<Vec<SlideEntr
         })
         .collect();
     Ok(slides)
+}
+
+#[cfg(test)]
+pub(crate) mod fault {
+    use std::cell::Cell;
+
+    thread_local! {
+        /// Fault injection for `replace_all`'s apply loop (review #48 m4).
+        pub(crate) static FAIL_AFTER_SLIDE: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+
+    #[test]
+    fn a_failure_while_applying_restores_every_slide() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/sample.pptx");
+        let input = std::fs::read(path).unwrap();
+        let mut pres = super::Presentation::from_bytes(input).unwrap();
+        let before = pres.to_bytes().unwrap(); // the package as written without any change
+        // "e" occurs on both slides: slide 0 is changed, then the fault hits after slide 1
+        FAIL_AFTER_SLIDE.set(Some(1));
+        let r = pres.replace_all("e", "E", &crate::ReplaceOptions::default());
+        FAIL_AFTER_SLIDE.set(None);
+        assert!(r.is_err());
+        assert_eq!(pres.to_bytes().unwrap(), before, "a failed replace_all must leave the package byte-identical");
+        // and without the fault the same call changes both slides
+        let rep = pres.replace_all("e", "E", &crate::ReplaceOptions::default()).unwrap();
+        assert!(rep.replaced.iter().any(|m| m.location.slide == 0) && rep.replaced.iter().any(|m| m.location.slide == 1));
+    }
 }
