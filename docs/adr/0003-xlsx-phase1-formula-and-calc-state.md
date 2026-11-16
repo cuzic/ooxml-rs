@@ -755,10 +755,11 @@ that a corrupting edit to those would be caught.
     volatile function in any formula text, shared masters included, or `ca="1"`) are skipped
     entirely, which excludes every transitive dependent of a volatile cell without using the
     dependency code under test (R3-m5).
-  - Until the data is committed, the test is `#[ignore]` with the reason "needs
-    reference/fixtures/xlsx/o3/expected.tsv (run the o3_inputs example, then
-    spikes/xlsx/o3_recalc.py with LibreOffice)".
-    Run with `--ignored` and no data, it fails with that message.
+  - The data is committed (`reference/fixtures/xlsx/o3/expected.tsv`, from workflow run
+    43821205800, LibreOffice 25.2.7.2; provenance in the README there), so the test runs in plain
+    `cargo test`. Without the data it fails with instructions to regenerate it. Each row carries a
+    hash of its workbook, so a change to the O3 inputs fails the test until the data is
+    regenerated.
   - Licence: the expected values are facts computed from the Apache-2.0 POI fixtures and from
     synthetic workbooks; LibreOffice's (MPL-2.0) output is not covered by the MPL. They sit
     next to the fixtures' `NOTICE`, with the generating script and commit recorded.
