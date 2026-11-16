@@ -1,5 +1,7 @@
-//! The body walk: paragraphs and runs of the main document's body flow, in
-//! document order, with their wrappers and complex-field state (ADR-0004 §3).
+//! The story walk: paragraphs and runs of a story's flow, in document order,
+//! with their wrappers and complex-field state (ADR-0004 §3, ADR-0007 §2.1).
+//! A story is the main document's body, a header or footer part, or the
+//! notes or comments of a notes or comments part.
 //!
 //! Body flow means: `w:body`, descending into `w:tbl`/`w:tr`/`w:tc`,
 //! `w:sdt`/`w:sdtContent` and `w:customXml` (block, row and cell level),
@@ -17,12 +19,12 @@
 
 use ooxml_core::RawNode;
 use ooxml_schema::wml::{
-    Body, DeletedRun, FieldChar, Hyperlink, InsertedRun, MoveFromRun, MoveToRun, Paragraph, Run, SimpleField, Table,
+    Body, Comment, DeletedRun, Endnote, FieldChar, Footnote, Hyperlink, InsertedRun, MoveFromRun, MoveToRun, Paragraph, Run, SimpleField, Table,
     TableCell, TableRow,
 };
 
 use crate::RunContext;
-use crate::names::{BDO, CUSTOM_XML, DIR, RUBY, RUBY_BASE, SDT, SDT_CONTENT, SMART_TAG, is};
+use crate::names::{W_ID, W_TYPE, BDO, CUSTOM_XML, DIR, RUBY, RUBY_BASE, SDT, SDT_CONTENT, SMART_TAG, is};
 
 /// An element between `w:body` and a run (other than `w:p`, `w:tbl`,
 /// `w:tr`, `w:tc`, `w:sdtContent`, `w:rubyBase`, which add nothing).
@@ -130,6 +132,19 @@ pub(crate) struct RunInfo {
 pub(crate) struct ParaInfo {
     pub frame: u32,
     pub runs: Vec<RunInfo>,
+    /// Index in [`BodyIndex::notes`] of the note or comment holding the
+    /// paragraph (notes and comments parts only).
+    pub note: Option<u32>,
+}
+
+/// A `w:footnote`, `w:endnote` or `w:comment` of a notes or comments part.
+#[derive(Clone, Debug)]
+pub(crate) struct NoteInfo {
+    /// Its `w:id`, as written.
+    pub id: Option<String>,
+    /// A footnote or endnote whose `w:type` is `separator`,
+    /// `continuationSeparator` or `continuationNotice` (ADR-0007 §2.2).
+    pub separator: bool,
 }
 
 /// Result of the walk.
@@ -138,6 +153,7 @@ pub(crate) struct BodyIndex {
     /// Child index of `w:body` under `w:document`.
     pub body: Option<usize>,
     pub paragraphs: Vec<ParaInfo>,
+    pub notes: Vec<NoteInfo>,
     /// Complex fields still open after the last run of the body.
     pub open_fields_at_end: usize,
     frames: Vec<Frame>,
@@ -180,6 +196,9 @@ impl BodyIndex {
 pub(crate) enum Mode {
     /// `w:document`: only `w:body` is descended into.
     Document,
+    /// `w:footnotes`, `w:endnotes`, `w:comments`: only their notes or
+    /// comments are descended into (ADR-0007 §2.1).
+    Notes,
     /// Body, cells, block/row/cell SDTs and custom XML.
     Block,
     /// Paragraph-level content.
@@ -197,6 +216,7 @@ pub(crate) enum Mode {
 pub(crate) fn descend(mode: Mode, child: &RawNode) -> Option<(Mode, Option<Wrapper>)> {
     match mode {
         Mode::Document if is::<Body>(child) => Some((Mode::Block, None)),
+        Mode::Notes if is_note(child) => Some((Mode::Block, None)),
         Mode::Block if is::<Paragraph>(child) => Some((Mode::Inline, None)),
         Mode::Block
             if is::<Table>(child) || is::<TableRow>(child) || is::<TableCell>(child) || child.is(SDT_CONTENT) =>
@@ -213,27 +233,57 @@ pub(crate) fn descend(mode: Mode, child: &RawNode) -> Option<(Mode, Option<Wrapp
     }
 }
 
+/// `w:footnote`, `w:endnote` or `w:comment`.
+fn is_note(node: &RawNode) -> bool {
+    is::<Footnote>(node) || is::<Endnote>(node) || is::<Comment>(node)
+}
+
+/// Note types that are Word's note-area furniture (ADR-0007 §2.2).
+const SEPARATOR_TYPES: &[&str] = &["separator", "continuationSeparator", "continuationNotice"];
+
 /// The first element child of `node` at or after child index `from`.
 pub(crate) fn next_element(node: &RawNode, from: usize) -> Option<(usize, &RawNode)> {
     node.children().get(from..)?.iter().enumerate().find_map(|(k, c)| c.as_element().map(|e| (from + k, e)))
 }
 
-/// Walks the body of a `w:document` root. Iterative: the depth of the part
-/// costs heap, not stack.
+/// Walks the main document's body (a `w:document` root).
 pub(crate) fn index(root: &RawNode) -> BodyIndex {
-    let Some((b, body)) = root.indexed_elements().find(|(_, n)| is::<Body>(n)) else {
-        return BodyIndex::default();
-    };
-    let mut out = BodyIndex { body: Some(b), ..BodyIndex::default() };
+    match root.indexed_elements().find(|(_, n)| is::<Body>(n)) {
+        Some((b, body)) => {
+            let mut out = walk(body, Some(b), Mode::Block);
+            out.body = Some(b);
+            out
+        }
+        None => BodyIndex::default(),
+    }
+}
+
+/// Walks a story part's root (ADR-0007 §2.1): `w:hdr`/`w:ftr` hold
+/// paragraphs directly (`Mode::Block`); notes and comments parts hold them
+/// in each note or comment (`Mode::Notes`).
+pub(crate) fn index_root(root: &RawNode, mode: Mode) -> BodyIndex {
+    walk(root, None, mode)
+}
+
+/// Walks `top`, the child `top_index` of the part root (or the root itself
+/// when `None`), whose children are read in `top_mode`. Iterative: the
+/// depth of the part costs heap, not stack. The complex-field depth is one
+/// counter for the whole story.
+fn walk(top: &RawNode, top_index: Option<usize>, top_mode: Mode) -> BodyIndex {
+    let mut out = BodyIndex::default();
     let new_frame = |out: &mut BodyIndex, parent: u32, index: usize, wrapper: Option<Wrapper>| -> u32 {
         let id = u32::try_from(out.frames.len()).expect("fewer than 2^32 elements");
         out.frames.push(Frame { parent, index: u32::try_from(index).expect("child index fits u32"), wrapper });
         id
     };
-    let body_frame = new_frame(&mut out, NO_FRAME, b, None);
+    let top_frame = match top_index {
+        Some(i) => new_frame(&mut out, NO_FRAME, i, None),
+        None => NO_FRAME,
+    };
     let mut depth = 0usize;
+    let mut note: Option<u32> = None;
     // (element, its frame, mode, index of the next child to look at)
-    let mut stack: Vec<(&RawNode, u32, Mode, usize)> = vec![(body, body_frame, Mode::Block, 0)];
+    let mut stack: Vec<(&RawNode, u32, Mode, usize)> = vec![(top, top_frame, top_mode, 0)];
     while let Some((node, frame, mode, next)) = stack.last_mut() {
         let (node, frame, mode) = (*node, *frame, *mode);
         let Some((i, child)) = next_element(node, *next) else {
@@ -243,8 +293,14 @@ pub(crate) fn index(root: &RawNode) -> BodyIndex {
         *next = i + 1;
         let Some((child_mode, wrapper)) = descend(mode, child) else { continue };
         let f = new_frame(&mut out, frame, i, wrapper);
+        if mode == Mode::Notes {
+            let id = u32::try_from(out.notes.len()).expect("fewer than 2^32 notes");
+            let separator = child.attr(W_TYPE).is_some_and(|t| SEPARATOR_TYPES.contains(&t));
+            out.notes.push(NoteInfo { id: child.attr(W_ID).map(str::to_owned), separator });
+            note = Some(id);
+        }
         if mode == Mode::Block && is::<Paragraph>(child) {
-            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new() });
+            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new(), note });
         }
         if child_mode == Mode::Run {
             let before = depth;
