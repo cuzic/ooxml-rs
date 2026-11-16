@@ -422,15 +422,23 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     /// Inserts a new `C` child at child item index `index` (an index into
     /// [`RawNode::children`], `0..=len`), for callers that already know the
-    /// position among same-slot siblings (e.g. from their own row index), in
-    /// O(1) apart from the `Vec` insertion — where [`Self::insert_by`] scans
-    /// every child.
+    /// position among same-slot siblings (e.g. from their own row index).
+    /// For a slot **without limits** the checks look only at the nearest
+    /// listed neighbours (plus any unlisted children between them), so the
+    /// cost is O(1) apart from the `Vec` insertion — where [`Self::insert_by`]
+    /// scans every child. A slot with limits is counted over all children,
+    /// as `insert_by` does.
     ///
-    /// Schema order is checked **locally**: the nearest listed element
-    /// before `index` must fit a slot not after `C`'s, the nearest listed
-    /// element after it a slot not before `C`'s, and neither may be an
-    /// `mc:AlternateContent` ([`Error::UnresolvedSibling`]); slot limits are
-    /// enforced as by `insert_by` ([`Error::AlreadyPresent`]). Unlisted
+    /// Schema order is checked **locally**: every slot the nearest listed
+    /// element before `index` could belong to must not come after `C`'s, every
+    /// slot of the nearest listed element after it must not come before
+    /// `C`'s (so an ambiguous neighbour such as a name listed in two slots is
+    /// refused unless every reading is in order: use `insert_by` or
+    /// `insert_in_slot` there), and neither may be an `mc:AlternateContent`
+    /// ([`Error::UnresolvedSibling`]). Disorder elsewhere in the parent is not
+    /// examined (where `insert_by` refuses the whole parent). Slot limits are
+    /// enforced exactly as by `insert_by` ([`Error::AlreadyPresent`]; an
+    /// `mc:AlternateContent` anywhere then refuses). Unlisted
     /// children are skipped, as in `insert_by`. The caller owns the order
     /// within the slot. Dirty duties, depth limit and prefix choice are those
     /// of `insert_by`. [`Self::check_insert_at`] runs the same checks without
@@ -478,7 +486,9 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             if let Some(n) = item.as_element()
                 && let Some(c) = listed(n)?
             {
-                if !c.iter().any(|&r| r <= slot) {
+                // every candidate: an ambiguous neighbour's actual slot depends
+                // on the greedy assignment of the children before it (review F1)
+                if !c.iter().all(|&r| r <= slot) {
                     return Err(Error::UnresolvedSibling(E::QNAME));
                 }
                 break;
@@ -488,24 +498,19 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             if let Some(n) = item.as_element()
                 && let Some(c) = listed(n)?
             {
-                if !c.iter().any(|&r| r >= slot) {
+                if !c.iter().all(|&r| r >= slot) {
                     return Err(Error::UnresolvedSibling(E::QNAME));
                 }
                 break;
             }
         }
+        // A slot with limits is counted exactly as `insert_by` counts it: the
+        // full greedy assignment, which also refuses an `mc:AlternateContent`
+        // anywhere in the parent (reviews F2, F3). O(children); unlimited
+        // slots (rows, cells) never take this path.
         let s = slots[slot];
         if s.max_each.is_some() || s.max_total.is_some() {
-            let (mut same_q, mut same_slot) = (0u32, 0u32);
-            for n in self.node().elements() {
-                if Self::candidates(slots, &n.name).contains(&slot) {
-                    same_slot += 1;
-                    same_q += u32::from(n.is(C::QNAME));
-                }
-            }
-            if s.max_each.is_some_and(|m| same_q >= m) || s.max_total.is_some_and(|m| same_slot >= m) {
-                return Err(Error::AlreadyPresent(C::QNAME));
-            }
+            self.place(slots, slot, C::QNAME, |_, _| false)?;
         }
         choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
         Ok(())
