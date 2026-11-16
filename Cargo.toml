@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ooxml-core",
+    "crates/ooxml-xlsx",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cuzic/ooxml-rs"
+authors = ["Tomoya Kawanishi"]
+
+[workspace.dependencies]
+ooxml-core = { path = "crates/ooxml-core", version = "0.1.0" }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+quick-xml = "0.42"
+thiserror = "2"
