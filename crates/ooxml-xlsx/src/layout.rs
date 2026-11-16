@@ -435,6 +435,10 @@ struct NewCol {
     min: u32,
     max: u32,
     attrs: Vec<(QName, String)>,
+    /// A piece of a split col: its attributes are the original's, in the
+    /// original order, and the setter's edit is applied after (as on an
+    /// edited col), so the bytes stay as close to Excel's as they can.
+    edit_after: bool,
 }
 
 fn col_attr_name(a: &ooxml_core::RawAttr) -> Option<QName> {
@@ -535,7 +539,7 @@ impl Workbook {
                 // a gap before this col
                 let mut at = vec![(q("min"), cursor.to_string()), (q("max"), (m - 1).to_string()), (q("width"), num(default_width))];
                 apply_edit(&mut at, edit);
-                ops.push(Op::InsertBefore(i, NewCol { min: cursor, max: m - 1, attrs: ordered(at) }));
+                ops.push(Op::InsertBefore(i, NewCol { min: cursor, max: m - 1, attrs: ordered(at), edit_after: false }));
             }
             if m >= a && n <= b {
                 ops.push(Op::Edit(i));
@@ -544,13 +548,15 @@ impl Workbook {
                     return Err(Error::AmbiguousColumns(format!("col {m}-{n} has an attribute this crate cannot copy when splitting")));
                 }
                 let piece = |lo: u32, hi: u32, edited: bool| {
-                    let mut at: Vec<(QName, String)> = attrs.iter().filter(|(k, _)| k.local != "min" && k.local != "max").cloned().collect();
-                    at.push((q("min"), lo.to_string()));
-                    at.push((q("max"), hi.to_string()));
-                    if edited {
-                        apply_edit(&mut at, edit);
-                    }
-                    NewCol { min: lo, max: hi, attrs: ordered(at) }
+                    let at: Vec<(QName, String)> = attrs
+                        .iter()
+                        .map(|(k, v)| match k.local {
+                            "min" => (*k, lo.to_string()),
+                            "max" => (*k, hi.to_string()),
+                            _ => (*k, v.clone()),
+                        })
+                        .collect();
+                    NewCol { min: lo, max: hi, attrs: at, edit_after: edited }
                 };
                 let mut parts = Vec::new();
                 if m < a {
@@ -568,7 +574,7 @@ impl Workbook {
             let next = existing.iter().find(|e| e.1 > b).map(|e| e.0);
             let mut at = vec![(q("min"), cursor.to_string()), (q("max"), b.to_string()), (q("width"), num(default_width))];
             apply_edit(&mut at, edit);
-            let col = NewCol { min: cursor, max: b, attrs: ordered(at) };
+            let col = NewCol { min: cursor, max: b, attrs: ordered(at), edit_after: false };
             ops.push(match next {
                 Some(i) => Op::InsertBefore(i, col),
                 None => Op::Append(col),
@@ -602,6 +608,9 @@ impl Workbook {
                 for (k, v) in &c.attrs {
                     e.set_attr(*k, v)?;
                 }
+                if c.edit_after {
+                    edit_col(&mut e, edit)?;
+                }
                 Ok(())
             };
             // descending item order keeps the earlier indices valid
@@ -616,19 +625,7 @@ impl Workbook {
                         let at = cols.node().children().len();
                         new_col(&mut cols, at, c)?;
                     }
-                    Op::Edit(i) => {
-                        let mut e = cols.child_mut_at(*i)?;
-                        let mut at: Vec<(QName, String)> = Vec::new();
-                        apply_edit(&mut at, edit);
-                        match edit {
-                            ColEdit::Width(_) => {
-                                e.set_attr(q("width"), &at[0].1)?;
-                                e.set_attr(q("customWidth"), "1")?;
-                            }
-                            ColEdit::Hidden(h) => put(&mut e, "hidden", h.then_some("1"))?,
-                            ColEdit::Outline(l) => put(&mut e, "outlineLevel", (l > 0).then(|| l.to_string()).as_deref())?,
-                        }
-                    }
+                    Op::Edit(i) => edit_col(&mut cols.child_mut_at(*i)?, edit)?,
                     Op::Replace(i, parts) => {
                         cols.remove_at(*i);
                         for (k, c) in parts.iter().enumerate() {
@@ -707,6 +704,21 @@ impl Workbook {
             Ok(())
         })
     }
+}
+
+/// A column setter's change on an existing (or split-off) `col`.
+fn edit_col(e: &mut LensMut<'_, sml::Column>, edit: ColEdit) -> Result<()> {
+    let mut at: Vec<(QName, String)> = Vec::new();
+    apply_edit(&mut at, edit);
+    match edit {
+        ColEdit::Width(_) => {
+            e.set_attr(q("width"), &at[0].1)?;
+            e.set_attr(q("customWidth"), "1")?;
+        }
+        ColEdit::Hidden(h) => put(e, "hidden", h.then_some("1"))?,
+        ColEdit::Outline(l) => put(e, "outlineLevel", (l > 0).then(|| l.to_string()).as_deref())?,
+    }
+    Ok(())
 }
 
 /// What a row setter changes.
