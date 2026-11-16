@@ -79,6 +79,18 @@
   rather than the `attrs: Vec<(String, String)>` raw pairs sketched in
   Layer 2 above. Serialization is unaffected: untouched spans are still
   emitted verbatim, and re-rendered tags use the original prefix.
+- **Post-acceptance note (2026-11-16, interim — registry removal):** Layer
+  3's "may never remove or renumber an existing one" gets one narrow,
+  interim exception so that `ooxml-core` can provide
+  `Package::remove_part` (PR #14) ahead of ADR-0003 (xlsx Phase1,
+  **Proposed**). The only intended caller is xlsx Phase1 removing a stale
+  `calcChain.xml`. A registry entry may be removed only together with the
+  part it registers; only if the caller explicitly allows each removed
+  relationship's type (parts found by relationship type are referenced
+  implicitly); and only if no attribute of the relationship's source part
+  carries the removed `Id`. No remaining entry is ever renumbered. If
+  ADR-0003 is accepted, its §4.3 text replaces this note; if it is
+  rejected, `remove_part` is removed again.
 
 ## Context
 
