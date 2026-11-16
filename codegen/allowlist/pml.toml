@@ -7,6 +7,31 @@
 [write]
 names = [
     "a:CT_TextBody/p:txBody",
+    # Phase 2 (ADR-0012 §11): the slide list, sections, creationId,
+    # viewProps outline entries and docProps/app.xml counts.
+    "p:CT_Presentation/p:presentation",
+    "p:CT_SlideIdList/p:sldIdLst",
+    "p:CT_SlideIdListEntry/p:sldId",
+    "p:CT_PresentationExtensionList/p:extLst",
+    "p:CT_PresentationExtension/p:ext",
+    "p14:CT_SectionList/p14:sectionLst",
+    "p14:CT_Section/p14:section",
+    "p14:CT_SectionSlideIdList/p14:sldIdLst",
+    "p14:CT_SectionSlideIdListEntry/p14:sldId",
+    "p:CT_Slide/p:sld",
+    "p:CT_CommonSlideData/p:cSld",
+    "p:CT_CommonSlideDataExtensionList/p:extLst",
+    "p:CT_CommonSlideDataExtension/p:ext",
+    "p:CT_NotesSlide/p:notes",
+    "p14:CT_RandomId/p14:creationId",
+    "p:CT_ViewProperties/p:viewPr",
+    "p:CT_OutlineViewProperties/p:outlineViewPr",
+    "p:CT_OutlineViewSlideList/p:sldLst",
+    "p:CT_OutlineViewSlideEntry/p:sld",
+    "ap:CT_Properties/ap:Properties",
+    "xsd:int/ap:Slides",
+    "xsd:int/ap:Notes",
+    "xsd:int/ap:HiddenSlides",
 ]
 
 # Phase0 read-only: slide list, shape tree, shape ids/names, placeholders.
@@ -14,11 +39,6 @@ names = [
 # reachable for the duplicate-id check (review M5).
 [read]
 names = [
-    "p:CT_Presentation/p:presentation",
-    "p:CT_SlideIdList/p:sldIdLst",
-    "p:CT_SlideIdListEntry/p:sldId",
-    "p:CT_Slide/p:sld",
-    "p:CT_CommonSlideData/p:cSld",
     "p:CT_GroupShape/p:spTree",
     "p:CT_GroupShape/p:grpSp",
     "p:CT_GroupShapeNonVisual/p:nvGrpSpPr",
