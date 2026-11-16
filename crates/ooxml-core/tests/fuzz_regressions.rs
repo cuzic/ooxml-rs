@@ -22,16 +22,24 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 // ---- allocation probe (F-6, zip bomb) ----
 
-/// Records the largest single allocation request while `ARMED` is set.
+/// Records the largest single allocation request made by the measuring
+/// thread while it is armed. Allocations by other test threads running in
+/// parallel are not counted (they made this test flaky).
 struct Peak;
 static LARGEST: AtomicUsize = AtomicUsize::new(0);
-static ARMED: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    static ARMED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn armed() -> bool {
+    ARMED.try_with(std::cell::Cell::get).unwrap_or(false)
+}
 /// Serializes the tests that measure allocations.
 static MEASURE: Mutex<()> = Mutex::new(());
 
 unsafe impl GlobalAlloc for Peak {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
-        if ARMED.load(Ordering::Relaxed) != 0 {
+        if armed() {
             LARGEST.fetch_max(l.size(), Ordering::Relaxed);
         }
         unsafe { System.alloc(l) }
@@ -40,7 +48,7 @@ unsafe impl GlobalAlloc for Peak {
         unsafe { System.dealloc(p, l) }
     }
     unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
-        if ARMED.load(Ordering::Relaxed) != 0 {
+        if armed() {
             LARGEST.fetch_max(n, Ordering::Relaxed);
         }
         unsafe { System.realloc(p, l, n) }
@@ -53,9 +61,9 @@ static GLOBAL: Peak = Peak;
 fn peak_alloc<T>(f: impl FnOnce() -> T) -> (T, usize) {
     let _g = MEASURE.lock().unwrap_or_else(|e| e.into_inner());
     LARGEST.store(0, Ordering::Relaxed);
-    ARMED.store(1, Ordering::Relaxed);
+    ARMED.with(|a| a.set(true));
     let r = f();
-    ARMED.store(0, Ordering::Relaxed);
+    ARMED.with(|a| a.set(false));
     (r, LARGEST.load(Ordering::Relaxed))
 }
 

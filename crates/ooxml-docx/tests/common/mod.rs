@@ -158,3 +158,54 @@ pub fn diff_range(a: &[u8], b: &[u8]) -> Option<(usize, usize, usize)> {
     let suf = a.iter().rev().zip(b.iter().rev()).take(max_suf).take_while(|(x, y)| x == y).count();
     Some((pre, a.len() - suf, b.len() - suf))
 }
+
+/// A package with `word/document.xml` (`document` is the whole part) and
+/// extra parts related from it: `(relationship type suffix, target, whole
+/// part XML)`, e.g. `("footnotes", "footnotes.xml", "<w:footnotes …>")`.
+/// Content types are generic (`application/xml`); ooxml-docx finds parts by
+/// relationship.
+pub fn package(document: &str, related: &[(&str, &str, &str)]) -> Vec<u8> {
+    let mut w = ZipWriter::new(Cursor::new(Vec::new()));
+    let o = SimpleFileOptions::default();
+    let mut put = |name: &str, s: &str| {
+        w.start_file(name, o).unwrap();
+        w.write_all(s.as_bytes()).unwrap();
+    };
+    put(
+        "[Content_Types].xml",
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#,
+    );
+    put(
+        "_rels/.rels",
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#,
+    );
+    let rels: String = related
+        .iter()
+        .enumerate()
+        .map(|(i, (t, target, _))| {
+            format!(r#"<Relationship Id="rIdX{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/{t}" Target="{target}"/>"#)
+        })
+        .collect();
+    put(
+        "word/_rels/document.xml.rels",
+        &format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{rels}</Relationships>"#),
+    );
+    put("word/document.xml", document);
+    for (_, target, xml) in related {
+        put(&format!("word/{target}"), xml);
+    }
+    w.finish().unwrap().into_inner()
+}
+
+/// A `w:document` with `body` as the body's inner XML.
+pub fn document_xml(body: &str) -> String {
+    format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>{body}</w:body></w:document>"#)
+}
+
+/// A story part's XML: `root` (`hdr`, `ftr`, `footnotes`, `endnotes`,
+/// `comments`) with `inner` as its inner XML.
+pub fn story_xml(root: &str, inner: &str) -> String {
+    format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:{root} xmlns:w="{W_NS}">{inner}</w:{root}>"#)
+}
