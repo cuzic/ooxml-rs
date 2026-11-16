@@ -1,6 +1,6 @@
 # ADR-0013: PowerPoint Phase 1b — table structure and SmartArt text
 
-- Status: **Proposed** (revision 2)
+- Status: **Proposed** (revision 3)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md),
   [ADR-0002](0002-schema-driven-code-generation.md) (lens, allowlist and
@@ -15,7 +15,8 @@
   ShapeCrawler); python-pptx 1.0.2, Apache POI `47dcff76` and LibreOffice
   `2e885d0b` source, cited in §6.
 
-- Review: [round 1](0013-opus-review-round1.md)
+- Review: [round 1](0013-opus-review-round1.md),
+  [round 2](0013-opus-review-round2.md)
 
 ## Revision history
 
@@ -40,6 +41,21 @@
   | m7 frame size | graphic frames in groups: group extents not updated; `cy` may stay larger than the text-grown rows | §2 |
   | m8 placeholders | `phldr` not restored on empty text; `dgm:t` created with `a:bodyPr`/`a:lstStyle` | §4 |
   | Q1–Q4 | the review's recommendations recorded as proposed defaults | Open questions |
+
+- **Revision 3** (after `0013-opus-review-round2.md`, not converged: one
+  Major, N1; N2–N9 Minor):
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | N1 a row inserted inside a vertical merge copied the merge attributes from the cell above (a second origin at `at = r0 + 1`) | merge attributes come from the **existing row at the insert position** (the cell below after insertion); formatting still from above; columns: from the right (0 mismatches against the logical oracle in the reviewer's 80,165 random cases, 8,759 with the old rule) | §2 |
+  | N2 `drop_drawing_cache` allowed types | `[diagramDrawing]` only (types of relationships **into** the set from remaining parts); `SmartArtCacheShared` checked first through `incoming_relationships`; images reached only from the drawing removed with it; data part edit through `stage_part` | §4 |
+  | N3 namespace primitive and references | create-with-declaration (`core/insert-with-ns`, PR #45) and `core/move-subtree` (PR #44); `a:ext` URIs and `[write]` entries named; session defined; separate row/column id spaces | §2, §3 |
+  | N4 run children in SmartArt | formatting children mapped like attributes; runs with `r:*` (hyperlinks) refused; 193 of 431 runs have data attributes | §4 |
+  | N5 table anchors | all five `*MkLst` names; a whole-frame `deMkLst` anchor does not lock; any `rowId`/`colId` or `tcMk`/`trMk`/`gridColMk`/`tblMk` under an anchor locks | §2 |
+  | N6 span reaching 1 | the span attribute is removed from origin and edge cells | §2 |
+  | N7 `[detach]` review, move checks | reachable complex types listed in the follow-up; PR #44's checks named | §2 |
+  | N8 empty slices, empty data runs | "empty slice" folded into `SmartArtCacheInconsistent`; empty data runs ignored by the run mapping | §4 |
+  | N9 border API details | covered cell → its merged range; outside neighbours paired; oracle limited to written edges; GUIDs compared case-insensitively | §3, §7 |
 
 ## Context
 
@@ -139,15 +155,26 @@ flag-only form is read and edited as found, converted to the edge form by
 any operation that touches it); mixing is not well-formed.
 
 **Span arithmetic** applies to the origin **and its edge cells** together;
-a newly created covered cell copies the merge attributes of its neighbour
-in the same merge (the cell above for a new row, left for a new column),
-and edge spans are recomputed from the origin's.
+a newly created covered cell copies the **merge attributes** of the
+existing cell **at the insert position** — the cell that will be below
+it for a new row (row `at`), right of it for a new column (column `at`)
+(review N1). Inside a merge (`r0 < at ≤ r0 + R − 1`) that cell is always
+a covered cell of the same merge, so the copy is `vMerge` + `gridSpan`
+in the origin's column and `hMerge` + `vMerge` elsewhere — never the
+origin's own `rowSpan` (copying from the cell above at `at = r0 + 1`
+would create a second origin; every corpus vertical merge has
+`rowSpan="2"`, so `r0 + 1` is the only inside position there). Its
+**formatting** (`a:tcPr`, text body, paragraph) still comes from the
+cell above (left), a separate source. Edge spans are recomputed from the
+origin's. When a span drops to 1 (a delete), the attribute is
+**removed** from the origin and the edge cells alike, not written as
+`"1"` (review N6).
 
 | Operation | Rule |
 |---|---|
-| `insert_row(at)` | the new `a:tr` copies `@h` from the row above (`at − 1`, else the row below); each new `a:tc` copies the cell above's (else below's) `a:tcPr`, and gets a text body with that cell's `a:bodyPr`/`a:lstStyle` copies and one empty paragraph whose `a:pPr`/`a:endParaRPr` copy that cell's first paragraph (ADR-0005 §3 format sources); `p:xfrm` `cy` grows by `@h`. **Inside a vertical merge** (strictly after its origin row, up to its last covered row) the new cells in the merged columns are covered (attributes copied from the cell above, so `vMerge`, plus `hMerge`/`gridSpan` as that cell has them) and the origin's `rowSpan` — and the edge cells' — grow by 1; at a merge's boundary the new row is outside it. |
-| `delete_row(r)` | removes the `a:tr`; `cy` shrinks by its `@h` (it may stay larger than the text-grown rows; PowerPoint corrects it on open, review m7); a covered row shrinks its merge (origin and edge `rowSpan − 1`; a 2-D merge reduced to one row drops its edge `rowSpan`s); a row holding the **origin** of a merge with `rowSpan > 1` is refused (`MergeOriginInRow`: unmerge first). Never the last row. |
-| `insert_column(at)`, `delete_column(c)` | the same with `a:gridCol` (`@w` copied from the column left, else right; `cx` adjusted), `gridSpan`, `hMerge`; `MergeOriginInColumn`; never the last column. |
+| `insert_row(at)` | the new `a:tr` copies `@h` from the row above (`at − 1`, else the row below); each new `a:tc` copies the cell above's (else below's) `a:tcPr`, and gets a text body with that cell's `a:bodyPr`/`a:lstStyle` copies and one empty paragraph whose `a:pPr`/`a:endParaRPr` copy that cell's first paragraph (ADR-0005 §3 format sources); `p:xfrm` `cy` grows by `@h`. **Inside a vertical merge** (strictly after its origin row, up to its last covered row) the new cells in the merged columns are covered — merge attributes copied from the cell **below** (the existing row `at`), formatting from the cell above — and the origin's `rowSpan` — and the edge cells' — grow by 1; at a merge's boundary the new row is outside it. |
+| `delete_row(r)` | removes the `a:tr`; `cy` shrinks by its `@h` (it may stay larger than the text-grown rows; PowerPoint corrects it on open, review m7); a covered row shrinks its merge (origin and edge `rowSpan − 1`; a span reaching 1 is removed from the origin and every edge cell, review N6); a row holding the **origin** of a merge with `rowSpan > 1` is refused (`MergeOriginInRow`: unmerge first). Never the last row. |
+| `insert_column(at)`, `delete_column(c)` | the same with `a:gridCol` (`@w` copied from the column left, else right; `cx` adjusted), `gridSpan`, `hMerge`: merge attributes from the cell **right** of the new column (column `at`), formatting from the left; spans reaching 1 removed; `MergeOriginInColumn`; never the last column. |
 | `merge(r1, c1, r2, c2)` | refused when the rectangle contains any merged cell (python-pptx's rule) or leaves the grid. Written in the edge form. The **paragraphs of the other cells move to the origin** in row-major order, empty cells skipped; when the origin holds a single empty paragraph it is replaced, not kept (python-pptx `append_ps_from`, review m4); each covered cell keeps one empty paragraph (its first paragraph's `a:pPr`/`a:endParaRPr`). |
 | `unmerge(r, c)` | on an origin: spans (origin and edges) and flags removed; text stays in the origin (python-pptx `split`). |
 | `set_column_width(c, w)`, `set_row_height(r, h)` | `gridCol@w` / `tr@h`, `p:xfrm` `cx`/`cy` adjusted by the difference. |
@@ -157,10 +184,19 @@ A graphic frame inside a group: the frame's `a:ext` changes, the group's
 
 **Comment anchors (review B2).** ADR-0005 §6's comment lock refuses only
 *text* edits. Structural operations — `insert_*`, `delete_*`, `merge`,
-`unmerge` — on a graphic frame that §6 locks for comments (an anchor
-naming the frame, a cell, row or column of it: `ac:tcMkLst`, `trMkLst`,
-`gridColMkLst`, or an unverifiable anchor) are refused with
-`CommentAnchoredTable { shape_id }`: deleting an anchored row or column
+`unmerge` — on a graphic frame that has a comment anchor **inside** the
+table are refused with `CommentAnchoredTable { shape_id }`. Inside
+means (review N5): a list of the table kinds (`oac:tblMkLst`,
+`tcMkLst`, `trMkLst`, `gridColMkLst`; `graphicFrameMkLst` when it
+nests one of them — all five are `xsd:any` in the Open XML SDK
+schema), or, **whatever the list's name** (including a `deMkLst`), any
+`rowId`/`colId` attribute or `tcMk`/`trMk`/`gridColMk`/`tblMk` element
+under the anchor, or an anchor ADR-0005 §6 cannot verify. A
+whole-frame anchor (`deMkLst` with only a `graphicFrameMk`, which §6
+does not lock) does **not** lock structural edits: no row, column or
+text offset of it can dangle. Corpus: 0 table-anchored comments (one
+file has modern comments), so T4 uses synthetic inputs. The refusal is
+needed because deleting an anchored row or column
 leaves the anchor dangling, and moving paragraphs invalidates
 `txMk@cp/len`. Cell properties, widths and heights are allowed (they move
 no anchor). A finer rule (only rows/columns whose ids no anchor names) can
@@ -169,30 +205,49 @@ come later, provided every `tcMk`/`trMk`/`gridColMk` resolves.
 **Row and column ids (review M1).** When the table carries
 `a16:rowId`/`a16:colId` (50 of 119), a new row/column needs one, and
 PowerPoint declares `a16` on that element itself (0 of 33 slides declare
-it on `p:sld`). Creating it needs a core primitive that **declares a
-namespace on a created element** (`declare_namespace(prefix, uri)` on a
-node created in the same edit; refused on original nodes) — the same need
-as ADR-0011 §1.3, requested from the core PR on `core/add-part` as one
-ADR-0002 addition, with the allowed URIs listed (here
-`http://schemas.microsoft.com/office/drawing/2014/main`). Until it exists,
+it on `p:sld`). A create-then-declare order cannot work: core's
+`LensMut::insert` refuses an unbound namespace (`NamespaceNotInScope`)
+at creation. It needs **creation with the declaration** in one step,
+the core PR `core/insert-with-ns` (PR #45: `insert_with_ns` with
+`NsDecl { prefix: "a16", uri: "http://schemas.microsoft.com/office/drawing/2014/main" }`
+and check twins; review N3). The elements created are
+`a:tr/a:extLst/a:ext[@uri="{0D108BD9-81ED-4DB2-BD59-A6C34878D82A}"]/a16:rowId@val`
+and
+`a:gridCol/a:extLst/a:ext[@uri="{9D8B030D-6E8A-4147-A177-3AD203B41FA5}"]/a16:colId@val`
+(the URIs of all 152 / 135 corpus ids). Until #45 is merged,
 `insert_row`/`insert_column` on such a table are `RowIdNotSupported`
-(deletion, merge and properties are unaffected). The new id is unused in
-the table and not deleted earlier in the session: `max + 1` when that
-fits `u32` (`xsd:unsignedInt`), else the smallest unused value ≥ 1 (32
-tables already hold ids ≥ 2³¹; PowerPoint's ids look random). A table
-where only some rows/columns carry ids is `TableNotWellFormed`.
+(deletion, merge and properties are unaffected). **Ids:** `rowId` and
+`colId` are separate value spaces. A new id is unused in its space in
+the table and not deleted from that table earlier in the session:
+`max + 1` when that fits `u32` (`xsd:unsignedInt`), else the smallest
+unused value ≥ 1 (32 tables already hold ids ≥ 2³¹; PowerPoint's ids
+look random). The **session** is the lifetime of the `Presentation`
+value (as ADR-0012 §3); deleted ids are recorded per graphic frame. A
+table where only some rows/columns carry ids is `TableNotWellFormed`.
 
 **Copies and moves (review M2).** The cell copies above need
 `Detachable` for `a:tcPr`, `a:bodyPr` and `a:lstStyle` — an addition to
 `dml.toml`'s `[detach]` reviewed like ADR-0002's note "detach/insert"
 (corpus `a:tcPr`: no `extLst`, no `r:*`; their unique attributes, if any,
-listed in `unique_attrs`). `merge` **moves** whole `a:p` subtrees inside
-one part; a copy would wrongly refuse links (`r:id`), `smtId` and fields
-that a move keeps unique. It needs a core `move_subtree(from, to)` on
-`LensMut` (same part; namespaces and depth checked at the destination
-before the change) — requested with the core PR. Until both exist,
-`insert_*` and `merge` are not implemented (the ADR is not accepted
-without them).
+listed in `unique_attrs`). The follow-up that adds them lists, as
+ADR-0002's note requires, every complex type they reach — e.g.
+`a:cell3D`, `a:headers`, `a:bodyPr`'s `a:scene3d`/`a:sp3d`/
+`a:normAutofit`, the nine levels of `a:lstStyle` — and their unique
+attributes (review N7). The `a16` ids live in `a:tr`/`a:gridCol`, not in
+`a:tcPr`, and §2 copies only `a:tr@h`, so no id is duplicated;
+`detach_as`'s refusals of `r:embed` in a `blipFill`, `hlinkClick` in
+`a:lstStyle`, `buBlip` and `extLst` are sound refusals
+(`FormatNotCopyable`). `merge` **moves** whole `a:p` subtrees inside one
+part; a copy would wrongly refuse links (`r:id`), `smtId` and fields
+that a move keeps unique. It uses the core same-part move of
+`core/move-subtree` (PR #44: `LensMut::move_in_by` / `check_move_in_by`),
+which refuses a destination inside the moved element, a prefix bound
+differently at the destination, a namespace ignorable at one place only,
+text whose inherited `xml:space` differs, and the depth limit, all
+before any change; it keeps the moved paragraph's bytes (no re-render),
+and paths into the parts it changed are stale afterwards (each move is
+planned on the current tree). Until both exist, `insert_*` and `merge`
+are not implemented (the ADR is not accepted without them).
 
 **Atomicity.** Plan → validate → apply as in ADR-0005: the
 well-formedness check, the merge arithmetic, every copy and move check
@@ -204,7 +259,9 @@ the first change; a refusal leaves the package byte-identical.
 On `TableMut`/`CellMut` (typed setters on `a:tcPr`, `a:tblPr`; the
 allowlist moves `a:tcPr`, `a:tblPr`, `a:tableStyleId`, `a:lnL/R/T/B`,
 `a:solidFill`, `a:noFill`, `a:srgbClr`, `a:schemeClr` (read today) to
-`[write]` in `dml.toml`):
+`[write]` in `dml.toml`; the structural edits of §2 add `a:tbl`,
+`a:tblGrid`, `a:gridCol`, `a:tr`, `a:tc`, `a:txBody`, `a:p`,
+`a:extLst`/`a:ext` and `a16:rowId`/`a16:colId`, review N3):
 
 - margins `marL/marR/marT/marB` (EMU), `anchor` (`t/ctr/b`), `anchorCtr`,
   `vert`, `horzOverflow`;
@@ -217,14 +274,18 @@ allowlist moves `a:tcPr`, `a:tblPr`, `a:tableStyleId`, `a:lnL/R/T/B`,
   (`lnR` of the left cell and `lnL` of the right one; `lnB`/`lnT`) to the
   same value, as PowerPoint does (0 different shared edges in
   PowerPoint-made tables; 5 in other producers' tables are read as
-  found). On a merged cell the edge means the merged range's outline, and
-  every cell along it (covered ones included) gets the line. An existing
+  found). On a merged origin **or a covered cell** the edge means the
+  merged range's outline (a covered cell names its range, it is not
+  `MergedCell`), and every cell along it (covered ones included) gets the
+  line, as does the paired line of each neighbour **outside** the range
+  along that edge (review N9). An existing
   `a:ln*` is replaced as a whole. `table.set_borders(Line)` sets all
   edges. Diagonals are not written;
 - table style: `set_style(Some(id))` to a `styleId` defined in
   `ppt/tableStyles.xml`, or to one of PowerPoint's **built-in** style ids
   (the closed list of 74 that LibreOffice ships in
-  `predefined-table-styles.cxx`, which includes the usual `@def`), else
+  `predefined-table-styles.cxx`, which includes the usual `@def`;
+  compared case-insensitively, as GUID text), else
   `TableStyleNotDefined` (adding a definition: ADR-0016 §9, Phase 3); a
   built-in id without a definition renders in PowerPoint and LibreOffice,
   not in POI — the same as `@def`, which most files leave undefined
@@ -267,38 +328,61 @@ Additionally:
     destination of the node; in each, the node's **slice** is its
     paragraphs within the concatenation of the shape's sources (in
     `destOrd` order; a source without `dgm:t` counts as one empty
-    paragraph). **Invariants checked before the edit** (else
+    paragraph, so a slice always has at least one paragraph; data runs
+    with empty text, `<a:r><a:t/></a:r>`, are ignored by the run
+    mapping, review N8). **Invariants checked before the edit** (else
     `SmartArtCacheInconsistent`; 5 shapes in one corpus file): (1) the
     shape's paragraphs equal that concatenation (321 of 326); (2) no two
     sources share a `destOrd` (0 ties in the corpus); (3) per paired
     paragraph, equal run counts and every data run's `a:rPr` attribute
     (proofing attributes `lang`, `altLang`, `dirty`, `err`, `smtClean`
     aside) present with the same value on the paired cache run (429/432
-    paragraphs, 431/431 runs).
+    paragraphs, 431/431 runs, of which 193 have data attributes; review
+    N4). Ignoring empty data runs admits the two `tdf152606.pptx`
+    paragraphs the round-2 count refused (an empty node, the typical one
+    to fill in).
   - **Mapping the edit (review M3).** Paragraph and run edits map by
     index into the slice. A changed run text or a run/paragraph removal
     applies to the paired cache run/paragraph; a data `a:rPr` attribute
     change is written onto the paired cache run as well (the cache keeps
-    its layout-computed `sz` unless the data sets `sz`). **New**
+    its layout-computed `sz` unless the data sets `sz`), and so is a
+    change of a formatting **child** (`a:solidFill`, `a:latin`, …; 148 of
+    149 data runs with children have the same children in the cache).
+    A run whose `a:rPr` holds an `r:*` attribute (a hyperlink: its `r:id`
+    differs between the data and the drawing part's relationships, 1 in
+    the corpus) is refused (`FormatNotCopyable`) for SmartArt edits. **New**
     paragraphs and runs in the cache take their format sources from the
     node's **own slice** (its last paragraph's `a:pPr`/`a:endParaRPr`,
     its first run's `a:rPr`, by the Phase 0.1 rules) — never from another
     node's paragraphs, whose level and bullets differ (aggregate shapes
-    have levels `0,1,1`, …). An **empty slice** (a node with no shown
-    paragraph) takes them from the preceding sibling slice's last
-    paragraph in the same shape; with none, `SmartArtCacheInconsistent`.
+    have levels `0,1,1`, …). A slice with no paragraph cannot occur on
+    a schema-valid input (`CT_TextBody` has at least one `a:p`, and a
+    missing `dgm:t` counts as one); any such case is
+    `SmartArtCacheInconsistent` (review N8).
     The cache keeps its own formatting otherwise; layout-computed sizes
     and autofit are not recomputed (cosmetic, Q2), and
     `docProps/thumbnail.jpeg` stays as it was.
-  - **explicit alternative:** `SmartArtMut::drop_drawing_cache()` removes,
-    in one registry transaction (ADR-0012 §2), the `a:ext` holding
-    `dsp:dataModelExt` (and `dgm:extLst` if it becomes empty, staged
-    data part), the **slide's** `diagramDrawing` relationship, and the
-    drawing part with its own relationships (`remove_parts` with the
-    allowed types `…/2007/relationships/diagramDrawing`, `image`,
-    `hyperlink`; the plain `remove_part` of PR #14 refuses parts with own
-    relationships, review m2). A drawing referenced by another frame
-    (0 in the corpus) is `SmartArtCacheShared`. Never done implicitly.
+  - **explicit alternative:** `SmartArtMut::drop_drawing_cache()`, one
+    registry transaction (ADR-0012 §2; review N2):
+    1. `Package::incoming_relationships(drawing)` must be exactly the
+       one `diagramDrawing` relationship of this slide (75/75 drawing
+       parts in the corpus), else `SmartArtCacheShared` — checked first,
+       because `remove_parts` would silently drop another slide's
+       relationship too;
+    2. the data part, edited on a clone without the `a:ext` holding
+       `dsp:dataModelExt` (and `dgm:extLst` if it becomes empty), is
+       staged with `RegistryPlan::stage_part`;
+    3. `remove_parts` with the drawing part **plus** each part it
+       targets that nothing outside the set references (images used only
+       by the cache), and `allowed_rel_types = [diagramDrawing]`: the
+       allowed types are those of relationships **into** the set from
+       remaining parts (only the slide's); the drawing's own
+       relationships (`image` 7, `hyperlink` 1 in the corpus) go with it
+       unchecked. The slide's relationship is removed by `remove_parts`
+       (no separate step). Targets still used elsewhere stay; the
+       returned `kept_targets` are therefore parts still referenced, and
+       nothing is left orphaned.
+    Never done implicitly.
 - **locks:** a frame inside `mc:AlternateContent` (Phase 0 rule), a
   missing data part, an unresolved `dataModelExt` relationship
   (3 frames: `SmartArtCacheUnresolved`), comment anchors on the graphic
@@ -326,7 +410,7 @@ declines it; the edit-both rule needs no layout knowledge.
 | `TableStyleNotDefined` | §3 |
 | `NotSmartArt`, `SmartArtNodeNotFound` | model access |
 | `SmartArtCacheInconsistent`, `SmartArtCacheUnresolved`, `SmartArtCacheShared` | §4 |
-| `FormatNotCopyable`, `Core(…)` (`TooDeep`, `NamespaceNotInScope`) | format copies and inserts, all checked before the first change |
+| `FormatNotCopyable`, `Core(…)` (`TooDeep`, `NamespaceNotInScope`, `NotMovable`) | format copies, inserts and moves, all checked before the first change; SmartArt runs with hyperlinks (§4) |
 | Phase 0 guards | `InsideAlternateContent`, `AnimatedCharacters`, `CommentAnchoredText`, … |
 
 ### 6. Reference implementations (source-verified)
@@ -358,12 +442,19 @@ declines it; the edit-both rule needs no layout knowledge.
 - **T4 refusals:** every row of §5, byte-identical; synthetic inputs for
   inconsistent merges, mixed edge/flag spans, partial `a16` ids, an
   inconsistent cache, a `destOrd` tie, a table with a `tcMkLst` comment
-  (`delete_row` and `merge` refused, review B2).
+  (`delete_row` and `merge` refused, review B2), a `deMkLst` anchor
+  holding a `trMk` (refused) and one holding only a `graphicFrameMk`
+  (allowed, review N5), a shared drawing part on `drop_drawing_cache`.
 - **Edge-form oracle (review B1):** on PowerPoint's `tbl-cell.pptx` and
-  `sc066-001.pptx`, insert and delete rows/columns through 2-D merges; the
-  output is well-formed in the edge form, and python's independent model
-  agrees.
-- **Borders:** after any `set_border`, no shared edge differs.
+  `sc066-001.pptx`, insert and delete rows/columns through 2-D merges —
+  every insert position, `at = r0 + 1` included; the output is
+  well-formed in the edge form, and python's independent model agrees;
+  plus the reviewer's random generator (1–5 × 1–5 grids, up to four
+  non-overlapping merges, every insert position) as a property test
+  (review N1).
+- **Borders:** after a `set_border`, every shared edge it wrote is equal
+  on both sides; other edges are as in the input (5 already differ in
+  other producers' tables, review N9).
 - **Manual (owner):** PowerPoint opens edited tables (rows inserted into
   1-D and 2-D vertical merges, merged ranges, borders) without repair;
   for Q1, three decks opened, closed without saving and then saved: (a)
@@ -412,7 +503,8 @@ Each has a **proposed default** (the round-1 review's recommendation).
   manual check; recomputing autofit stays out of scope either way
   (as ADR-0005 §6).
 - **Q3** Rows inserted inside a vertical merge join it. *Default:* yes, in
-  the edge form (§2); the manual-check deck has 1-D and 2-D merges.
+  the edge form, merge attributes from the row below (§2); the
+  manual-check deck has 1-D and 2-D merges.
 - **Q4** Borders and fills in Phase 1b. *Default:* yes, with the
   edge-level border API (§3); table styles accept the closed list of
   built-in ids.
