@@ -106,6 +106,15 @@ pub enum Error {
     /// The element's spec is marked `attrs_incomplete` (unresolved base class).
     #[error("{0}'s attribute list is incomplete in the schema data; writes are refused")]
     IncompleteSpec(QName),
+    /// [`LensMut::move_in_by`](crate::LensMut::move_in_by) refused the move
+    /// (ADR-0002 post-acceptance note "same-part move").
+    #[error("cannot move {name}: {reason}")]
+    NotMovable {
+        /// Why.
+        reason: MoveRefusal,
+        /// The element, prefix or namespace concerned.
+        name: String,
+    },
     /// No usable prefix is bound to the namespace at this point.
     #[error("namespace {0:?} is not in scope with a usable prefix")]
     NamespaceNotInScope(String),
@@ -119,10 +128,209 @@ pub enum Error {
         /// Its byte offset in the value.
         offset: usize,
     },
+    /// [`Lens::detach_as`](crate::Lens::detach_as) refused the subtree
+    /// (ADR-0002 post-acceptance note "detach/insert").
+    #[error("cannot detach: {reason} ({name})")]
+    NotDetachable {
+        /// Why.
+        reason: DetachRefusal,
+        /// The offending element or attribute, in Clark notation (`{ns}local`;
+        /// just `local` without a namespace).
+        name: String,
+    },
+    /// [`LensMut::insert_at`](crate::LensMut::insert_at): the child index is
+    /// beyond the parent's children.
+    #[error("insertion index {index} is beyond the {len} children")]
+    InsertIndexOutOfRange {
+        /// The requested index.
+        index: usize,
+        /// The number of child items.
+        len: usize,
+    },
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
+    /// [`Package::remove_part`](crate::Package::remove_part) refused: a
+    /// precondition does not hold (nothing was changed).
+    #[error("cannot remove part {part:?}: {reason}")]
+    RemovePartRefused {
+        /// The part.
+        part: String,
+        /// Which precondition failed.
+        reason: crate::package::RemoveRefusal,
+    },
+    /// The part is not well-formed XML in a way the underlying reader
+    /// (quick-xml) would let through. Refused at parse time so that the tree
+    /// never holds something a re-render could not write back, and element
+    /// spans are always exact.
+    #[error("XML at byte {position} is not well-formed: {reason}")]
+    NotWellFormed {
+        /// Byte offset in the part.
+        position: usize,
+        /// What is wrong.
+        reason: WellFormedness,
+    },
+    /// [`LensMut::set_attr`](crate::LensMut::set_attr) or
+    /// [`LensMut::remove_attr`](crate::LensMut::remove_attr) on a namespace
+    /// declaration (`xmlns`, `xmlns:*`). Declarations decide what every name
+    /// in the subtree means, so they are managed by ooxml-core, never written
+    /// through the lens.
+    #[error("{0} is a namespace declaration; the lens never writes namespace declarations")]
+    NamespaceDeclaration(QName),
+    /// A zip entry's stored data does not lie inside the archive (bogus
+    /// compressed size or local-header offsets). Copying it through would
+    /// write different bytes, so the package is refused at open.
+    #[error("zip entry {part:?} is truncated: its data ends at byte {end}, past the end of the archive ({len} bytes)")]
+    TruncatedEntry {
+        /// The entry name.
+        part: String,
+        /// Where its data would end (saturated at `u64::MAX`).
+        end: u64,
+        /// The archive length.
+        len: u64,
+    },
+    /// A part decompresses (or declares that it decompresses) to more than
+    /// [`ParseOptions::max_part_bytes`](crate::xml::ParseOptions::max_part_bytes).
+    #[error("part {part:?} decompresses to more than the limit of {limit} bytes")]
+    PartTooLarge {
+        /// The part.
+        part: String,
+        /// The limit in force.
+        limit: u64,
+    },
+    /// The parts' declared decompressed sizes add up to more than
+    /// [`ParseOptions::max_package_bytes`](crate::xml::ParseOptions::max_package_bytes).
+    #[error("the package's parts declare {size} decompressed bytes in total, more than the limit of {limit}")]
+    PackageTooLarge {
+        /// The sum of the declared sizes (saturated at `u64::MAX`).
+        size: u64,
+        /// The limit in force.
+        limit: u64,
+    },
+}
+
+/// Why a part is [`Error::NotWellFormed`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WellFormedness {
+    /// A byte order mark after the first one (only one, at byte 0, is a BOM;
+    /// U+FEFF is not allowed before the root element).
+    ByteOrderMark,
+    /// An XML declaration (`<?xml …?>`) anywhere but at the start of the
+    /// document.
+    XmlDeclarationNotAtStart,
+    /// An element or attribute with an empty local name or an empty prefix
+    /// (`< />`, `<:a/>`).
+    EmptyName,
+    /// A U+0000 character (not allowed anywhere in XML 1.0).
+    NullCharacter,
+    /// `xmlns:p=""`: Namespaces in XML 1.0 forbids undeclaring a prefix.
+    EmptyPrefixBinding,
+    /// The reader reported a construct at a position that does not match
+    /// the source text; refused rather than recording a wrong span.
+    PositionMismatch,
+}
+
+impl std::fmt::Display for WellFormedness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            WellFormedness::ByteOrderMark => "a byte order mark (U+FEFF) after the start of the document",
+            WellFormedness::XmlDeclarationNotAtStart => "an XML declaration that is not at the start of the document",
+            WellFormedness::EmptyName => "an empty element or attribute name or prefix",
+            WellFormedness::NullCharacter => "a U+0000 character",
+            WellFormedness::EmptyPrefixBinding => "a namespace prefix bound to the empty string",
+            WellFormedness::PositionMismatch => "the reader's position does not match the source",
+        })
+    }
 }
 
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Why a same-part move was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MoveRefusal {
+    /// The part's root element cannot be moved.
+    Root,
+    /// The destination is the moved element or inside it.
+    IntoItself,
+    /// A prefix the subtree uses without declaring it (on an element or
+    /// attribute, the default namespace, or named in a Markup Compatibility
+    /// attribute value such as `mc:Ignorable` or `mc:Choice/@Requires`)
+    /// means another namespace, or nothing, at the destination; the moved
+    /// bytes would change meaning.
+    NamespaceBinding,
+    /// A namespace the subtree uses is ignorable (`mc:Ignorable`) at one
+    /// place and not at the other.
+    IgnorableNamespace,
+    /// The subtree has text that inherits `xml:space`, and the inherited
+    /// value differs at the destination.
+    XmlSpace,
+    /// The source or the destination is inside `mc:AlternateContent` (a
+    /// `mc:Choice` / `mc:Fallback` branch): consumers reading the other
+    /// branch would see the element vanish or appear.
+    AlternateContent,
+}
+
+impl std::fmt::Display for MoveRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MoveRefusal::Root => "the root element",
+            MoveRefusal::IntoItself => "into itself",
+            MoveRefusal::NamespaceBinding => "a prefix is bound differently at the destination",
+            MoveRefusal::IgnorableNamespace => "a namespace is ignorable at only one place",
+            MoveRefusal::XmlSpace => "inherited xml:space differs",
+            MoveRefusal::AlternateContent => "inside mc:AlternateContent",
+        })
+    }
+}
+
+/// Why [`Lens::detach_as`](crate::Lens::detach_as) refused a subtree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DetachRefusal {
+    /// An `mc:AlternateContent` element in the subtree (ADR-0002 §4.3:
+    /// branches are not edited).
+    AlternateContent,
+    /// Another Markup Compatibility element or attribute (`mc:Ignorable`
+    /// and friends name prefixes, which a copy re-chooses).
+    MarkupCompatibility,
+    /// An attribute that holds a relationship id (`r:id`, `r:embed`, the
+    /// Strict `r:` namespace, VML `o:relid`; `name::RELATIONSHIP_ATTRIBUTES`):
+    /// a copy would add a second reference to a relationship (Layer 3).
+    RelationshipAttribute,
+    /// A namespace declaration on an element of the subtree.
+    NamespaceDeclaration,
+    /// An element or attribute in a namespace that an ancestor's
+    /// `mc:Ignorable` lists, at the source (`detach_as`) or at the
+    /// destination (`insert_detached`): the copy would lose or gain
+    /// ignorability.
+    IgnorableNamespace,
+    /// `xml:space` in effect differs between source and destination
+    /// (inherited from ancestors) and the subtree has text: whitespace would
+    /// change meaning.
+    InheritedXmlSpace,
+    /// An attribute listed in [`crate::Detachable::UNIQUE_ATTRS`] (a
+    /// document-unique id such as DrawingML `smtId`) has a non-default
+    /// value: a copy would duplicate it.
+    UniqueAttribute,
+    /// An extension list (`extLst`, any namespace) in the kept subtree: its
+    /// content is open, so ids or references inside cannot be reviewed.
+    ExtensionList,
+}
+
+impl std::fmt::Display for DetachRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DetachRefusal::AlternateContent => "mc:AlternateContent in the subtree",
+            DetachRefusal::MarkupCompatibility => "markup-compatibility element or attribute in the subtree",
+            DetachRefusal::RelationshipAttribute => "relationship (r:) attribute in the subtree",
+            DetachRefusal::NamespaceDeclaration => "namespace declaration in the subtree",
+            DetachRefusal::IgnorableNamespace => "namespace made ignorable by an ancestor's mc:Ignorable",
+            DetachRefusal::InheritedXmlSpace => "text under a different inherited xml:space",
+            DetachRefusal::UniqueAttribute => "a document-unique id attribute with a non-default value",
+            DetachRefusal::ExtensionList => "an extension list (extLst) in the subtree",
+        })
+    }
+}

@@ -106,6 +106,154 @@
   parts are never parsed below the default. Raising the limit needs a
   proportionally larger stack (documented on `max_depth`). Format crates
   map the error to their own open-time refusal (ooxml-docx: O5).
+- **Post-acceptance note (2026-11-16, detach/insert — additive, no change
+  to the decisions; from the ADR-0005 round-2 review, Q2; revised after the
+  PR #18 round-1 review, `docs/reviews/pr18-round1.md`):** a copy-subtree
+  primitive in two steps, so the source is read through a `Lens` and no
+  `&mut` borrow is held while copying.
+  (1) *Opt-in types.* `ooxml_core::Detachable` is generated only for the
+  entries listed in a new, optional `[detach]` section of an allowlist file
+  (they must also be in its `[write]` or `[read]`). An entry is listed only
+  after review that its subtree holds **no document-unique value and no
+  reference to one** (shape ids `cNvPr@id`, `p:ph@idx`, connector
+  `a:stCxn/@id`, `w14:paraId`, …): copying such a subtree would duplicate
+  an id. **Id-bearing subtrees (shapes, groups, shape trees, text bodies)
+  are not detachable in Phase 0.1**; today only `a:rPr`, `a:endParaRPr`
+  and `a:pPr` (`dml.toml`). Attributes of a reviewed type that still hold
+  a document-unique value are listed in `[detach] unique_attrs`
+  (`"<complex type>@<attribute>"`); the generator turns each into a
+  `UniqueAttr { element, attr, default }` for **every** SDK element of that
+  type (`Detachable::UNIQUE_ATTRS`), and `detach_as` refuses a subtree in
+  which one is present with a non-default value (`UniqueAttribute`).
+  Today: `a:CT_TextCharacterProperties@smtId` — ECMA-376 Part 1
+  §21.1.2.3.9 (`rPr`), §21.1.2.2.3 (`endParaRPr`), §21.1.2.3.2 (`defRPr`,
+  which also occurs below `a:pPr`): "smtId (SmartTag ID) … This ID is
+  unique throughout the presentation" (PR #18 review round 2, R2-1);
+  elements `a:rPr`, `a:endParaRPr`, `a:defRPr`, `cs:defRPr`; and
+  `a:CT_EffectContainer@name` — §20.1.8.20 (`cont`), §20.1.8.25
+  (`effectDag`), reached from the text formatting types through
+  `EG_EffectProperties`: "Shall be unique across all effect trees and
+  effect containers" (round 3, R3-1; no default, so any value refuses).
+  Reviewed (the 90 complex types reachable from the three detachable
+  types) and not unique: `bmk` (a bookmark target name, a reference),
+  `a:effect@ref` (a reference to a name), `a:snd@name`. The review
+  covers schema-known content only: an extension list (`extLst`, any
+  namespace) is open content and is refused unless skipped
+  (`ExtensionList`; 0 of 6,036 formatting elements with children in the
+  83-file corpus have one). `Detachable` has a `#[doc(hidden)]`
+  supertrait implemented by generated code; this is not a seal (the
+  module must be public for `ooxml-schema`), so other crates can
+  implement both, which is unsupported: the guarantee covers generated
+  impls only. `SameType<S>` ("a renamed copy of an `S` is
+  schema-valid as `Self`") is reflexive by a blanket impl and generated
+  only between detachable entries with the same SDK complex type (the part
+  of the SDK Name before `/`) whose resolved attributes, completeness,
+  content model and children agree (else a `SameTypeMismatch`
+  diagnostic): today `a:endParaRPr` ↔ `a:rPr`. It is a schema-type
+  guarantee, not a semantic one, and assumes the lens's spec is right for
+  the node (`Lens::cast` only checks the QName).
+  (2) `Lens::detach_as::<C>(skip) -> Result<Detached<C>>` with
+  `E: Detachable, C: SameType<E> + Detachable` takes an owned copy with
+  spans cleared and **namespace URIs only** (no prefixes), renamed to
+  `C::QNAME`; *direct* children whose QName is in `skip` are left out. It
+  refuses (`Error::NotDetachable { reason: DetachRefusal, name }`), before
+  copying anything, when the kept subtree has: a Markup Compatibility
+  element or attribute (`AlternateContent`, `MarkupCompatibility`); an
+  attribute holding a relationship id — Transitional or Strict
+  relationships namespace, VML `o:relid` (`RelationshipAttribute`; a copy
+  would add a Layer 3 reference); a namespace declaration
+  (`NamespaceDeclaration`); an element or attribute in a namespace that an
+  **ancestor's** `mc:Ignorable` lists (`IgnorableNamespace`: the copy would
+  change its ignorability); or text while `xml:space="preserve"` is
+  inherited from an ancestor (`InheritedXmlSpace`; carrying the attribute
+  could add one the schema type does not declare); an attribute listed in
+  `UNIQUE_ATTRS` with a non-default value (`UniqueAttribute`); an
+  extension list (`ExtensionList`). Ancestors are visible
+  through lenses from `XmlDocument::lens` or the new `Lens::at(root,
+  path)`; `Lens::root` on an inner node sees none.
+  (3) `LensMut::insert_detached[_by]::<C: ChildOf<E>>(&d[, before])`
+  (by reference: one copy can be inserted many times) places the copy
+  exactly as `insert_by::<C>` (same slot, limits and refusals) and chooses
+  **every** element and attribute prefix at the destination with the §3
+  prefix rules — the copy declares nothing, so the parent's bindings hold
+  for all of it — before the tree changes (`NamespaceNotInScope` leaves it
+  untouched). The destination is checked symmetrically to the source: a
+  namespace of the copy that the destination's ancestors make ignorable
+  (`IgnorableNamespace`), or text that relied on the default `xml:space`
+  going under an inherited `preserve` (`InheritedXmlSpace`), is refused.
+  The whole copy obeys the parser depth limit (note "parser
+  depth limit"): its deepest element counts, `TooDeep` before any change.
+  Inserted nodes are created nodes (`own_dirty`, re-rendered).
+  `Detached::check_insert_under(doc, parent_path, created)` answers the
+  `TooDeep`, destination and `NamespaceNotInScope` questions without
+  changing anything (an invalid path is `WrongElement`, never a panic),
+  for a copy placed `created` new elements below that element, so a format
+  crate can check a multi-insert edit before its first change.
+  Tests: `crates/ooxml-core/tests/detach.rs` (pure-insertion locality,
+  renaming, prefix rules per copied element, every refusal, slot rules,
+  `check_insert_under`), `xtask` unit test of `SameTypeMismatch`,
+  `ooxml-schema` doc tests (`compile_fail` for `p:sp` and `p:grpSp`).
+- **Post-acceptance note (2026-11-16, same-part move — additive, no
+  change to the decisions; requested by ADR-0013 §2 for table-cell merges,
+  usable by any format crate; revised after the PR #44 round-1 review,
+  `docs/reviews/pr44-round1.md`):** `Lens::move_source()` captures an
+  element as a `MoveSource<S>` (a path plus its spec, reached through
+  `ChildOf` links); `LensMut::move_in[_by]::<C: ChildOf<E>>(&from, [before])`
+  with `S: SameType<C>` (as for `detach_as`, so a same-named element of
+  another complex type, e.g. `w:pPr/w:rPr` vs `w:r/w:rPr`, cannot be moved
+  into `C`'s slot) moves it and its subtree into the lens's element,
+  placed exactly as `insert_by::<C>` would place a new `C` (slot, caller
+  order, limits and refusals computed on the children **without** the
+  moved element when it is already one of them), and returns a lens on it;
+  `check_move_in_by` runs the same validation without changing anything
+  (`Ok` exactly when the move succeeds). The moved node keeps its source
+  span and flags, so its bytes are written unchanged: the output differs
+  from the input only by those bytes leaving the source and appearing at
+  the destination (plus a self-closing destination parent re-rendered when
+  it gains its first child). Because the bytes do not change, the move is
+  refused (`Error::NotMovable { reason: MoveRefusal, name }`, before any
+  change) when it would change their meaning: a prefix the subtree uses
+  **without declaring it** — in an element or attribute name, the default
+  namespace, or named in a Markup Compatibility attribute value
+  (`mc:Ignorable`, `mc:MustUnderstand`, `mc:ProcessContent`,
+  `mc:PreserveElements`, `mc:PreserveAttributes`, `mc:Choice/@Requires`)
+  — bound to another namespace or unbound at the destination
+  (`NamespaceBinding`; declarations inside the subtree travel with it and
+  are not compared with outer scopes); a namespace of the subtree
+  ignorable (`mc:Ignorable`) at one place only (`IgnorableNamespace`);
+  text that inherits `xml:space` from different values (`XmlSpace`;
+  whitespace-only text between child elements is indentation and does
+  not count). Also refused: the root (`Root`), a destination inside the
+  moved element (`IntoItself`), a source or destination inside
+  `mc:AlternateContent` (`AlternateContent`: a consumer reading the other
+  branch would see the element vanish or appear), a source path that no
+  longer leads to an `S::QNAME` element (`WrongElement`), and a subtree
+  whose deepest element would pass the part's depth limit (`TooDeep`).
+  Dirty duties: the source parent and the destination parent with their
+  ancestors get `subtree_dirty`; a source parent with a close tag keeps
+  its tags when emptied; only a self-closing destination parent gains
+  `own_dirty`. Adjacent whitespace text stays where it was (a move to the
+  end of a slot lands after trailing indentation). **Paths:** a move
+  shifts by one the later siblings of the source and the destination's
+  children from the insertion index on (with their descendants); a stale
+  `MoveSource` may name another element of the same name. Several children
+  of one parent are moved last-first or with sources re-taken. **Batches:**
+  `NamespaceBinding`, `IgnorableNamespace`, `XmlSpace`, `AlternateContent`
+  and `TooDeep` depend only on ancestor attributes and the subtree, which
+  moves do not change, so a batch can check them once up front; slot
+  limits, order and `IntoItself` depend on the current children (re-check,
+  or check the whole batch on a clone). The ancestor walk, path lookup,
+  binding lookup and subtree height are shared with detach/insert
+  (`ancestor_context`, `element_at`, `declarations`/`effective`,
+  `subtree_height`). Unlike `insert_detached`, which re-chooses prefixes
+  and so only refuses a `preserve` destination, a move keeps its bytes and
+  refuses an `xml:space` difference in both directions. Tests:
+  `crates/ooxml-core/tests/move_subtree.rs` (locality, dirty duties,
+  destination-path shift, every refusal, Markup Compatibility values,
+  self-declared prefixes, both directions of every meaning check, the
+  depth limit exactly, last-first batches, brute-force agreement of check
+  and move over two trees, one with differing contexts); 26 hand-made
+  mutants killed.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.

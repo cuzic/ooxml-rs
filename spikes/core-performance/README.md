@@ -1,0 +1,157 @@
+# Spike: compact Layer 2 tree and lazy `sheetData` (ADR-0010)
+
+This is a standalone crate with its own `[workspace]`. The main workspace never builds it. It
+depends on `ooxml-core` by path, for comparison only, and changes no crate.
+
+```sh
+cd spikes/core-performance && cargo run --release
+```
+
+## What it prototypes
+
+- **`src/compact.rs`** is a Layer 2 tree with the same observable model as
+  `ooxml_core::XmlDocument`. Names are resolved and keep their original prefix. Attributes stay
+  in order, `xmlns` declarations included. Text is merged across entity references, comments and
+  PIs are kept verbatim, element spans are recorded, and serialization follows the same rule. It
+  changes three things:
+  1. **Interned names.** `Name` is one thin `Arc` holding `(ns, local, prefix)`, interned per
+     parse, so elements and attributes allocate nothing for their names.
+  2. **Span-backed values.** Attribute values, text and markup are `SStr`: an `Arc<str>` of the
+     whole source plus a `u32` range. Only a value whose decoded form differs from its source
+     bytes gets an owned copy: entities, or line-ending or attribute-whitespace normalization.
+     `as_str()` still returns `&str`, so core's accessor signatures (`attr() -> Option<&str>`,
+     `RawText::value() -> &str`) can stay as they are. The `Arc` also keeps a value valid in a
+     subtree copied to another document (`detach_as`, PR #18).
+  3. **Smaller nodes and exact-size vectors.** Spans are `u32` offsets. Attributes go in a boxed
+     slice. Children collect in per-depth scratch vectors and move into an exact-capacity `Vec`
+     once the element closes.
+- **`src/rows.rs`** is a lazy `sheetData`. A quick-xml scan, with no tree, records
+  `(r, start, end)` for each `row`. A row is built from its source slice only when it is read or
+  edited. Saving splices the re-rendered rows into the original bytes.
+
+## Correctness checks (run on every start)
+
+These cover every XML part of every fixture under `reference/fixtures/` (docx, xlsx and pptx,
+1,589 parts that core accepts), plus three adversarial inputs: entities, CDATA, a comment, a PI,
+a default namespace, a BOM, CRLF, and `xmlns=""`.
+
+- **T1:** the compact tree serializes, unedited, to exactly the input bytes.
+- **Same tree:** same names (namespace, local, prefix), attributes, child items, text values and
+  markup as core's `RawNode`.
+- **T1b equivalence:** after `force_rerender`, the compact serialization is byte-identical to
+  core's.
+- **Lazy sheet:** 1,000 rows of the 1M-cell sheet are edited. The output parses with core, every
+  edited cell reads back the new value, and every byte outside the edited rows' spans is
+  unchanged (T2).
+
+## Results (2026-11-16, release, rustc 1.99.1)
+
+These were measured on the same shared AMD EPYC 7313P as
+`docs/testing/performance-baseline-2026-11.md`.
+
+- **Runs.** Three repeated runs at a 1-minute load average of 6–7 (ADR-0010 rev 2, review
+  round 1 m2). The table is run 3; the ranges over all three runs are given below it.
+- **Timing.** Parse excludes the drop of the tree: the tree is dropped after the clock stops,
+  and Drop is measured on its own (PR #24 review M1). Times are best of 2–5.
+- **Exact figures.** Allocation counts and heap sizes are exact. Fresh allocations and
+  reallocations are counted separately.
+- **Interner fix (ADR-0010 rev 2, round-1 m1).** These numbers are after the fix. The
+  interner now keys on `(prefix, local)` borrowed from the source plus the interned namespace
+  URI's address. Revision 1 formatted a key string with the namespace URI for every lookup and
+  hashed it with SipHash, which made `word/document.xml` 30–38% slower than core (21.0 ms
+  against 15.2 ms in one session).
+- **Keyed hasher, front cache, intern cap (ADR-0010 rev 3 N1; rev 4 R3-1).**
+  - Revision 2 hashed the interner key with **unkeyed FNV-1a**. Crafted element names made the
+    parse quadratic: 65,536 names took 1.11 s against 49 ms for random names, and 18.8 MiB took
+    111 s in the reviewer's run.
+  - Revision 4 (`compact.rs` `Interner`): std's `RandomState` (SipHash-1-3, per-instance keys)
+    behind a **256-slot direct-mapped front cache** (a hit is confirmed by comparing the key, so
+    crafted names can only cause misses), and an **intern cap** of 16,384 names (past it a new
+    name is built without inserting; duplicate names are harmless). No dependency beyond std.
+    Revision 3's foldhash is withdrawn.
+  - `KEY_EQ_CALLS` counts the interner key's equality calls, the load-independent collision
+    measure of stage 1's acceptance.
+  - `cargo run --release --bin hashdos -- dos <blocks>` compares unkeyed FNV, std alone and
+    std + front cache with core on colliding and random names (time and equality calls per
+    name); `-- distinct <n>` measures `n` distinct names; `-- docx` the largest
+    `word/document.xml`. The results are in ADR-0010 §1.
+  - The table below is revision 4's run (2026-11-16, load 26–32 on 32 cores). The correctness
+    check (1,589 fixture parts: T1, same tree, re-render) passes.
+
+| Input | XML | Tree | Parse (no drop) | Allocations (+ reallocations) | Allocs/element (+ reallocs) | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sheet1.xml, 10k cells | 0.3 MiB | core `XmlDocument` | 7.0 ms | 111064 (+ 2015) | 5.29 (+ 0.10) | 14.6 MiB | 50.3 | 2.3 ms | 0.0 ms | 1.3 ms |
+| | | compact (spike) | 4.4 ms | 43090 (+ 19) | 2.05 (+ 0.00) | 2.8 MiB | 9.7 | 0.7 ms | 0.0 ms | 1.4 ms |
+| sheet1.xml, 100k cells | 3.1 MiB | core `XmlDocument` | 80.7 ms | 1110064 (+ 20019) | 5.29 (+ 0.10) | 147.5 MiB | 47.5 | 65.1 ms | 0.1 ms | 16.0 ms |
+| | | compact (spike) | 44.3 ms | 430090 (+ 23) | 2.05 (+ 0.00) | 28.4 MiB | 9.1 | 10.5 ms | 0.1 ms | 14.8 ms |
+| sheet1.xml, 1000k cells | 33.1 MiB | core `XmlDocument` | 1189.9 ms | 11100064 (+ 200022) | 5.29 (+ 0.10) | 1474.6 MiB | 44.6 | 814.9 ms | 20.5 ms | 290.8 ms |
+| | | compact (spike) | 457.8 ms | 4300090 (+ 26) | 2.05 (+ 0.00) | 285.6 MiB | 8.6 | 152.4 ms | 2.5 ms | 167.0 ms |
+| pptx slide (ppt/slides/slide12.xml) | 0.0 MiB | core `XmlDocument` | 0.2 ms | 2564 (+ 88) | 4.89 (+ 0.17) | 0.2 MiB | 16.8 | 0.0 ms | 0.0 ms | 0.0 ms |
+| | | compact (spike) | 0.2 ms | 1393 (+ 48) | 2.66 (+ 0.09) | 0.1 MiB | 5.9 | 0.0 ms | 0.0 ms | 0.0 ms |
+| largest fixture word/document.xml | 1.3 MiB | core `XmlDocument` | 15.4 ms | 319805 (+ 1345) | 8.69 (+ 0.04) | 15.2 MiB | 11.8 | 7.2 ms | 0.0 ms | 5.4 ms |
+| | | compact (spike) | 13.8 ms | 153640 (+ 162) | 4.17 (+ 0.00) | 5.6 MiB | 4.3 | 1.3 ms | 0.0 ms | 5.4 ms |
+
+Ranges over the three earlier runs (revisions 2–3, load 6–7; core against compact, parse without drop):
+
+| Input | core parse | compact parse | core drop | compact drop |
+|---|---|---|---|---|
+| sheet, 10k cells | 6.9–8.0 ms | 5.1 ms | 2.5 ms | 0.7 ms |
+| sheet, 100k cells | 79.1–86.1 ms | 50.5–51.1 ms | 58.3–67.0 ms | 9.9–10.8 ms |
+| sheet, 1M cells | 852–908 ms | 504–520 ms | 764–792 ms | 152–154 ms |
+| largest `word/document.xml` | 14.8–15.5 ms | 14.6–14.8 ms | 6.1–8.1 ms | 1.2–1.4 ms |
+
+Heap retained includes the source text: core keeps a `Box<str>` copy, compact an `Arc<str>`.
+
+Node sizes:
+
+| | core | compact |
+|---|---|---|
+| Node (`RawNode` / `Node`) | 144 B | 72 B |
+| Item (`RawItem` / `Item`) | 144 B | 72 B |
+| Attribute (`RawAttr` / `Attr`) | 72 B | 32 B |
+| Name (`XName` / `Name`) | 48 B | 8 B |
+| `SStr` | — | 24 B |
+
+**Lazy `sheetData`** (1M cells, 100k rows):
+
+| Step | Time | Heap | Allocations |
+|---|---|---|---|
+| Index the rows (quick-xml scan, no tree, **no validation**) | 165–171 ms (344 ms in an earlier run at load ≈ 48) | 1.5 MiB | 200,031 |
+| Find, materialize, edit and re-render 1,000 rows | 9–10 ms | — | — |
+| Splice into the source (save, before deflate) | 3.7–4.0 ms | — | — |
+
+The index scan does **not** validate. A validating skip, run as the same parser loop in a mode
+that builds nothing (ADR-0010 rev 2 §2.2), was measured by the round-1 reviewer at 312–320 ms.
+The spike's 1.5 MiB counts only `(r, start, end)` per row. Deferred row nodes as ADR-0010 §2.4
+describes them cost about 150–250 B per row.
+
+**Deflate level for a rewritten part** (the re-rendered 33.1 MiB sheet):
+
+| Level | Time | Compressed size |
+|---|---|---|
+| 1 | 72 ms | 5.8 MiB |
+| 3 | 217 ms | 3.3 MiB |
+| 6 (zip default, today) | 1,079 ms | 3.2 MiB |
+| 9 | 1,709 ms | 3.1 MiB |
+
+For comparison, the 2026-11 baseline (run 3) measures the same workload on today's tree end to end:
+
+- Open: 3.5 s, peak heap 1.61 GiB, drop included.
+- 1,000 edits: about 20 ms each.
+
+## Reading the numbers
+
+- **Sheets.**
+  - About 5× less memory (8.6–9.7 heap bytes per XML byte instead of 45–50) and 2.6× fewer
+    allocations.
+  - Parse 1.35–1.8× faster and drop 3.5–6× faster.
+  - Most of the gain is memory and drop; parse speed is secondary.
+- **Text-heavy documents.** 2.7× less memory and parse time equal to core's. Before the interner
+  fix this was 30–38% slower.
+- **The lazy sheet is the real step change for large sheets.** The tree no longer grows with
+  untouched cells, and an edit expands only the rows it touches. The source text (33 MiB) is
+  still retained (ADR-0010 rev 2, Targets).
+- **Not measured here:**
+  - lens mutation on the compact tree;
+  - atomic reference-count traffic under threads;
+  - the validating skip, which the round-1 reviewer's probe measured.
