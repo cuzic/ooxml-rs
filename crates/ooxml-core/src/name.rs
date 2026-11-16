@@ -22,6 +22,16 @@ pub const XMLNS_NS: &str = "http://www.w3.org/2000/xmlns/";
 pub const MC_NS: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 /// Office document relationships (`r:`), used for `r:id`-style attributes.
 pub const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+/// Strict (ECMA-376 Part 1, Strict) counterpart of [`R_NS`].
+pub const R_NS_STRICT: &str = "http://purl.oclc.org/ooxml/officeDocument/relationships";
+/// VML Office namespace (`o:`), whose `o:relid` is a relationship id.
+pub const VML_O_NS: &str = "urn:schemas-microsoft-com:office:office";
+/// Attributes that hold a relationship id: every attribute in a
+/// relationships namespace (`(ns, None)`), plus single names elsewhere
+/// (`(ns, Some(local))`). Used by `Lens::detach_as` to refuse copies that
+/// would duplicate a reference into Layer 3.
+pub const RELATIONSHIP_ATTRIBUTES: &[(&str, Option<&str>)] =
+    &[(R_NS, None), (R_NS_STRICT, None), (VML_O_NS, Some("relid"))];
 /// OPC package relationships (`_rels/*.rels` root namespace).
 pub const PACKAGE_RELATIONSHIPS_NS: &str =
     "http://schemas.openxmlformats.org/package/2006/relationships";
