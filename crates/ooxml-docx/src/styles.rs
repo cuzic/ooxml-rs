@@ -149,6 +149,14 @@ impl Document {
             let name = self.styles_part.clone().expect("checked");
             XmlDocument::parse(&self.pkg.read_part(&name)?)?;
         }
+        if self.styles_ambiguous {
+            return Err(Error::AmbiguousStylesPart);
+        }
+        // the target first, also for a no-op (review of PR #59, M1)
+        match target {
+            StyleTarget::Para(p) => self.check_formattable_paragraph(p)?,
+            StyleTarget::Run(r) => self.check_formattable_run(r)?,
+        }
         if let Some(id) = id {
             self.resolve_style(id, expected)?;
         }
@@ -194,13 +202,15 @@ impl Document {
                 .map(str::to_owned)
         };
         let by_id = |id: &str| self.style_nodes().find(|s| s.attr(w("styleId")) == Some(id));
-        let mut cur = match style {
-            Some(id) => by_id(id),
-            None => self.style_nodes().find(|s| {
+        let default = || {
+            self.style_nodes().find(|s| {
                 let i = style_info(s);
                 i.kind == StyleKind::Paragraph && i.is_default
-            }),
+            })
         };
+        // an undefined pStyle falls back to the default paragraph style, as Word
+        // applies it (review of PR #59, m1)
+        let mut cur = style.and_then(by_id).or_else(default);
         let mut seen = BTreeSet::new();
         while let Some(s) = cur {
             let id = s.attr(w("styleId")).unwrap_or("");

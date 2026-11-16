@@ -88,8 +88,8 @@
   - **m11** — every settings relationship is read, and any part that turns W1 or W3 on turns it
     on. `writeProtection` and `updateFields` are merged over the parts. The same applies to
     custom-properties parts (§6).
-  - Corpus check: gate outcomes are unchanged for all 643 files in the POI, SDK and docx4j
-    corpora.
+  - Corpus check: gate outcomes are unchanged for all 643 Word files (560 `.docx`, 80 `.dotx`, 3
+    `.docm`) in the POI, SDK and docx4j corpora.
 - **Revision 5** (after acceptance; the Minor findings of `0004-opus-review-round4.md`, all fail
   closed, status stays Accepted):
   - **m12** — `DOCPROPERTY` matching: a custom property linked to content is checked **before**
@@ -113,7 +113,7 @@
     (the container check of `separate`) stay as **defence in depth**: the container rule already
     refuses every form they catch in which result runs could reach R1 (§6 W2).
   - Corpus check: gate outcomes and settable-run maps unchanged for all 737 scanned files (643
-    `.docx`).
+    Word files: 560 `.docx`, 80 `.dotx`, 3 `.docm`).
 
 ## Context
 
@@ -532,7 +532,10 @@ the first gate (W1, W3, W2 order); `write_gates()` lists all:
   literal file and an item argument (`INCLUDETEXT`'s bookmark, `LINK`'s third argument) the key is
   `<CODE> (item <ITEM>)`, which is refused as `<CODE> (self reference)` when `<ITEM>` names a
   `w:bookmarkStart` of the document (main part or scanned story), and safe otherwise (revision 5,
-  m13). A calculated text form field (`w:ffData/w:textInput/
+  m13). Post-acceptance (review of PR #34, m15): `<ITEM>` lists **every** token after the ProgID
+  and the file argument (after switches too, and the pieces of an unquoted path), and any of them
+  naming a bookmark refuses, so a self-reference fails closed whichever token Word reads as the
+  item *(u)*. A calculated text form field (`w:ffData/w:textInput/
   w:type w:val="calculated"` on its `begin`) has the key `FORMTEXT (calculated)`. Keys are what
   `StaleFieldRisk { codes }` reports.
 - **Malformed markup fails closed (revision 3, review round 2 m1).** `<malformed field>` is

@@ -95,6 +95,8 @@ pub struct Document {
     pub(crate) settings_parts: Vec<String>,
     /// The part named by the main part's styles relationship (ADR-0007 §5).
     pub(crate) styles_part: Option<String>,
+    /// More than one styles relationship: style setters refuse.
+    pub(crate) styles_ambiguous: bool,
     /// [`Document::enable_update_fields_on_open`] was called: W2 is lifted
     /// for every operation (ADR-0007 §6.3).
     pub(crate) fields_opt_in: bool,
@@ -160,7 +162,11 @@ impl Document {
         // part that turns a gate on turns it on, review round 3, m11).
         let settings = target(SETTINGS_RELATIONSHIP);
         let settings_parts = settings.clone();
-        let styles_part = target(STYLES_RELATIONSHIP).into_iter().next();
+        // two styles relationships: the style operations fail closed (review of
+        // PR #59, n3), as settings do with AmbiguousSettings
+        let styles_targets = target(STYLES_RELATIONSHIP);
+        let styles_ambiguous = styles_targets.len() > 1;
+        let styles_part = styles_targets.into_iter().next();
         let story_parts: Vec<(StoryKind, String)> = STORY_KINDS
             .iter()
             .zip(STORY_RELATIONSHIPS)
@@ -257,6 +263,7 @@ impl Document {
             marked_final: custom.marked_final,
             settings_parts,
             styles_part,
+            styles_ambiguous,
             fields_opt_in: false,
         })
     }
