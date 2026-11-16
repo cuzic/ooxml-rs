@@ -1,0 +1,61 @@
+# Development process
+
+This is how work on ooxml-rs is actually done. It describes current practice, not a policy
+wish-list.
+
+## Units of work
+
+- **One PR per milestone.** A design (ADR plus spike), an implementation phase, or a single core
+  primitive (e.g. `remove_part`, `insert_at`, the depth limit). Core changes needed by a format
+  phase go in their own PR, so they are reviewed on their own.
+- **Several agents work in parallel**, each in its own `git worktree` and branch
+  (`plan/…`, `impl/…`, `core/…`, `perf/…`, `fix/…`, `docs/…`). Shared checkouts are not
+  switched between branches.
+- **Stacked PRs** say so in their title ("stacked on #14, merge after #14").
+
+## Design first
+
+- A phase starts with an **ADR** (`docs/adr/`, status Proposed) and a **spike**
+  (`spikes/<area>/`): throwaway scripts or crates that measure the fixtures and real-world
+  corpora (Apache POI, Open XML SDK, docx4j, template engines, LibreOffice, python-pptx test
+  files). Numbers in an ADR come from a spike or a cited source.
+- **Third-party files are untrusted input.** Spikes read them only (Python with `-I`,
+  `zipfile` + ElementTree, no entity resolution, DTD-carrying parts skipped) and never execute
+  anything downloaded.
+- **Library comparisons** (python-docx, Apache POI, docx-rs, openpyxl, rust_xlsxwriter, …) cite
+  source files and lines at pinned revisions.
+- Claims that depend on Office behaviour that could not be checked are marked *(u)*.
+
+## Adversarial review rounds
+
+- Every ADR and every implementation PR is reviewed by an independent Opus reviewer that tries
+  to break it: probes, mutation tests, corpus scans, and the actual code of the branches it
+  interacts with.
+- Findings are graded **Blocker / Major / Minor**. The author fixes them in a new revision, with
+  a revision-history entry mapping finding → fix, and a new round follows.
+- Rounds continue until a round finds **no Blocker or Major**. The ADR is then marked Accepted,
+  or the implementation PR is merged. Remaining Minors may go to a follow-up PR.
+- **Review files are committed** with the work they review: `docs/adr/NNNN-opus-review-roundK.md`
+  for ADRs, and `docs/reviews/prNN-roundK.md` or `<area>-impl-roundK.md` for implementation PRs.
+- The project owner decides open questions; reviewers' recommendations are recorded as proposed
+  answers until then.
+
+## Verification
+
+- **CI** (`.github/workflows/ci.yml`): `cargo test --workspace --all-features`,
+  `cargo clippy --workspace --all-targets --all-features -- -D warnings`, and
+  `cargo xtask codegen --check`, plus the PowerPoint reader oracle (python-pptx).
+- **Oracles** from ADR-0001 (T1/T1b/T2/T3 and per-format ones) run over the fixtures under
+  `reference/fixtures/`.
+- **Manual Microsoft 365 checks** are done by the owner. Each format crate's `manual_check`
+  example writes named outputs and a checklist. There is no Office in CI, and this gap is stated
+  in each ADR.
+- **Recalculation** for xlsx Phase1 is checked with a manually triggered, pinned LibreOffice
+  workflow (`.github/workflows/o3-recalc.yml`).
+
+## Git conventions
+
+- **Merge, not rebase.** Branches are brought up to date by merging `origin/main` and pushing
+  normally. No force-pushes to PR branches; generated files are regenerated on conflict.
+- **Small commits.** Commits written by agents carry a `Co-Authored-By` trailer.
+- **The owner merges PRs.** Agents open PRs and update them, but do not merge.
