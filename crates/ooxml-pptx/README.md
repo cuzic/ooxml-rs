@@ -34,6 +34,35 @@ does not model, need a formatting copy that holds a relationship reference or ma
 contain characters XML 1.0 cannot hold. Only direct values are read
 (placeholder inheritance is Phase 1).
 
+## Usage example
+
+`examples/replace_text.rs` is a runnable walk-through on a committed fixture. It:
+
+- lists every slide's shapes and their text;
+- replaces a whole text body, one paragraph and one run;
+- saves to `OUT_DIR/replace_text.pptx`;
+- shows two refusals: paragraphs referenced by animations, and a line break in paragraph text.
+
+```sh
+cargo run -p ooxml-pptx --example replace_text -- [OUT_DIR]   # default: <temp dir>/ooxml-rs-examples
+```
+
+```rust,no_run
+use ooxml_pptx::{Error, Presentation};
+
+let mut pres = Presentation::open("deck.pptx")?;
+let id = pres.slide(0)?.placeholders()[0].id()?;
+let mut slide = pres.slide_mut(0)?;
+let mut shape = slide.shape_mut_by_id(id)?;
+let mut body = shape.text_body_mut()?;
+match body.paragraph_mut(0)?.set_text("New title") {
+    Err(e @ Error::AnimatedParagraphs { .. }) => eprintln!("refused, nothing changed: {e}"),
+    other => other?,
+}
+pres.save("deck-edited.pptx")?;
+# Ok::<(), Error>(())
+```
+
 Development:
 
 - `cargo test -p ooxml-pptx` — L1/T1/T1b (`tests/roundtrip.rs`), T2

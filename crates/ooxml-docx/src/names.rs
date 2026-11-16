@@ -25,6 +25,8 @@ pub(crate) const FF_DATA: QName = w("ffData");
 pub(crate) const TEXT_INPUT: QName = w("textInput");
 pub(crate) const TEXT_INPUT_TYPE: QName = w("type");
 pub(crate) const VAL: QName = w("val");
+pub(crate) const BOOKMARK_START: QName = w("bookmarkStart");
+pub(crate) const NAME: QName = w("name");
 pub(crate) const WRITE_PROTECTION: QName = w("writeProtection");
 pub(crate) const RECOMMENDED: QName = w("recommended");
 
