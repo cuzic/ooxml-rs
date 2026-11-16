@@ -364,7 +364,7 @@ the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions 
 
 ### Phase2: structure
 
-Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The evidence is in
+Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Accepted, revision 4). The evidence is in
 `spikes/docx-phase2/`.
 
 **Scope.**
