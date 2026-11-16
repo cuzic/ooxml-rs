@@ -1,0 +1,4 @@
+# wml allowlist (feature `wml`), ADR-0002 §5. Empty until the format plan adds entries.
+# See sml.toml for the format.
+write = []
+read = []

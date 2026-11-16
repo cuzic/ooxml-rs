@@ -1,0 +1,17 @@
+# Corrections to the vendored inputs (ADR-0002 §1.3). The vendored data is
+# never edited; every change lives here, with a reason and evidence.
+#
+# Operations (`op`): add_attribute, add_child, add_enum_value, set_default,
+# mce_wrapped, set_content, set_type. An override `on` an abstract entry
+# (`w:CT_OnOff/`) is inherited by every entry with the same complex-type part,
+# across schema files; an override on the entry itself takes precedence.
+#
+# Example (not active):
+#
+# [[override]]
+# op = "set_default"
+# on = "w:CT_OnOff/"
+# attribute = "w:val"
+# value = "true"
+# reason = "<w:b/> means on; the XSD leaves this to prose"
+# evidence = "ECMA-376 Part 1, 17.17.4 (ST_OnOff)"
