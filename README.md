@@ -52,3 +52,12 @@ break it.
 
 Word (`ooxml-docx`) and PowerPoint (`ooxml-pptx`) are out of scope until
 `ooxml-core`'s design is validated against Excel.
+
+## Third-party test fixtures
+
+Files under `reference/fixtures/**` are third-party test documents
+(Apache POI, python-pptx, Open XML SDK, LibreOffice, calamine, …) kept
+under **their own licences**, which are recorded next to them (each
+directory's `README.md` and the licence files it names). They are not covered by
+this repository's `MIT OR Apache-2.0` licence and are never packaged into a
+published crate; tests read them by path.

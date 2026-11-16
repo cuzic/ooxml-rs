@@ -1,7 +1,10 @@
-//! Edit cases for the T3 oracle (ADR-0005 §7): one case per fixture that
-//! edits **every** editable text body on every slide with a rotating set of
-//! operations (so an edit that lands on the wrong shape, paragraph, run or
-//! cell changes the model somewhere it should not), plus named cases.
+//! Edit cases for the T3 oracle (ADR-0005 §7): per fixture one *sweep* that
+//! edits **every** editable text body on every slide once with a rotating
+//! set of operations (so an edit that lands on the wrong shape, paragraph,
+//! run or cell changes the model somewhere it should not), one *multi*
+//! sweep that applies three successive edits to every body, addressing
+//! paragraphs and runs past index 0 from the body's state after the
+//! previous edit (review R2-3: stale indices), plus named cases.
 //! Edits that ooxml-pptx refuses are dropped (their refusals are tested in
 //! `tests/refusals.rs`); the list of applied edits is what the oracles
 //! check.
@@ -111,14 +114,42 @@ pub fn apply_edit(pres: &mut Presentation, e: &Edit) -> Result<(), Error> {
     run_op(&mut body, &e.op)
 }
 
-/// One editable target and a summary of its first paragraphs.
+/// One editable target and a summary of its paragraphs.
 struct Target {
     slide: usize,
     shape_id: u32,
     cell: Option<(usize, usize)>,
     paragraphs: usize,
-    /// (paragraph index, run count, field count) of each paragraph
+    /// (run count, field count) of each paragraph
     shape: Vec<(usize, usize)>,
+}
+
+fn summary(b: ooxml_pptx::TextBodyRef<'_>) -> (usize, Vec<(usize, usize)>) {
+    let paras = b.paragraphs();
+    let shape = paras
+        .iter()
+        .map(|p| {
+            let items = p.items();
+            (
+                items.iter().filter(|i| matches!(i, TextItem::Run(_))).count(),
+                items.iter().filter(|i| matches!(i, TextItem::Field(_))).count(),
+            )
+        })
+        .collect();
+    (paras.len(), shape)
+}
+
+/// The current summary of one target (after earlier edits).
+fn reread(pres: &mut Presentation, t: &Target) -> Target {
+    let slide = pres.slide(t.slide).expect("slide");
+    let s = slide.shape_by_id(t.shape_id).expect("unique id").expect("shape");
+    let b = match t.cell {
+        None => s.text_body(),
+        Some((r, c)) => s.table().and_then(|tb| tb.cell(r, c)).and_then(|c| c.text_body()),
+    }
+    .expect("body");
+    let (paragraphs, shape) = summary(b);
+    Target { slide: t.slide, shape_id: t.shape_id, cell: t.cell, paragraphs, shape }
 }
 
 fn targets(pres: &mut Presentation) -> Vec<Target> {
@@ -133,18 +164,8 @@ fn targets(pres: &mut Presentation) -> Vec<Target> {
                 continue;
             }
             let mut push = |cell, b: ooxml_pptx::TextBodyRef<'_>| {
-                let paras = b.paragraphs();
-                let shape = paras
-                    .iter()
-                    .map(|p| {
-                        let items = p.items();
-                        (
-                            items.iter().filter(|i| matches!(i, TextItem::Run(_))).count(),
-                            items.iter().filter(|i| matches!(i, TextItem::Field(_))).count(),
-                        )
-                    })
-                    .collect();
-                out.push(Target { slide: si, shape_id: id, cell, paragraphs: paras.len(), shape });
+                let (paragraphs, shape) = summary(b);
+                out.push(Target { slide: si, shape_id: id, cell, paragraphs, shape });
             };
             match s.kind() {
                 ShapeKind::Shape => {
@@ -198,6 +219,36 @@ fn op_for(k: usize, t: &Target) -> Op {
     }
 }
 
+/// The `j`-th of three successive edits of target `k` in a multi sweep,
+/// chosen from the body's current state; indices are mostly the last
+/// paragraph/run so that an off-by-one or stale index shows.
+fn op_multi(k: usize, j: usize, t: &Target) -> Op {
+    let last = t.paragraphs.saturating_sub(1);
+    let with_runs: Vec<usize> = (0..t.paragraphs).filter(|&p| t.shape[p].0 > 0).collect();
+    match (k + 3 * j) % 8 {
+        0 => match with_runs.last() {
+            Some(&p) => Op::RunSetText { p, r: t.shape[p].0 - 1, text: format!("m{k}.{j} last run") },
+            None => Op::ParaSetText { p: last, text: format!("m{k}.{j} filled") },
+        },
+        1 => Op::ParaSetText { p: last, text: format!("m{k}.{j}\u{b}tail{j}") },
+        2 => Op::BodySetText { text: (0..=t.paragraphs).map(|i| format!("m{k}.{j} line {i}")).collect::<Vec<_>>().join("\n") },
+        3 => Op::AddParagraph { text: format!("m{k}.{j} added") },
+        4 => match with_runs.iter().rev().find(|&&p| t.shape[p].0 > 1) {
+            Some(&p) => Op::RemoveRun { p, r: t.shape[p].0 - 1 },
+            None => Op::AddRun { p: last, text: format!(" m{k}.{j}") },
+        },
+        5 => {
+            if t.paragraphs > 1 {
+                Op::RemoveParagraph { p: last - 1 }
+            } else {
+                Op::AddBreak { p: 0 }
+            }
+        }
+        6 => Op::AddRun { p: last / 2, text: format!(" mid{k}.{j}") },
+        _ => Op::ParaSetText { p: last / 2, text: format!("m{k}.{j} middle") },
+    }
+}
+
 /// A case: a fixture and the edits that were applied to it.
 pub struct Case {
     pub name: String,
@@ -208,7 +259,7 @@ pub struct Case {
     pub output: Vec<u8>,
 }
 
-fn run_case(name: String, fixture: &str, plan: impl FnOnce(&mut Presentation) -> Vec<Edit>) -> Case {
+pub fn run_case(name: String, fixture: &str, plan: impl FnOnce(&mut Presentation) -> Vec<Edit>) -> Case {
     let mut pres = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
     let planned = plan(&mut pres);
     let (mut edits, mut refused) = (Vec::new(), Vec::new());
@@ -232,6 +283,26 @@ pub fn sweep_case(fixture: &str) -> Case {
             .map(|(k, t)| Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, op: op_for(k, t) })
             .collect()
     })
+}
+
+/// The "three successive edits per body" case of one fixture (review R2-3).
+/// Each edit is chosen after the previous one was applied (or refused).
+pub fn multi_case(fixture: &str) -> Case {
+    let name = format!("multi-{}", fixture.replace(['/', '.'], "-"));
+    let mut pres = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
+    let (mut edits, mut refused) = (Vec::new(), Vec::new());
+    for (k, t0) in targets(&mut pres).iter().enumerate() {
+        for j in 0..3 {
+            let t = reread(&mut pres, t0);
+            let e = Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, op: op_multi(k, j, &t) };
+            match apply_edit(&mut pres, &e) {
+                Ok(()) => edits.push(e),
+                Err(err) => refused.push((e, format!("{err:?}"))),
+            }
+        }
+    }
+    let output = pres.to_bytes().expect("save");
+    Case { name, fixture: fixture.to_owned(), edits, refused, output }
 }
 
 /// Named cases with hand-picked targets (ids from the fixtures).
@@ -258,9 +329,10 @@ pub fn named_cases() -> Vec<Case> {
     ]
 }
 
-/// All cases: one sweep per fixture plus the named ones.
+/// All cases: one sweep and one multi sweep per fixture, plus the named ones.
 pub fn all_cases() -> Vec<Case> {
     let mut v: Vec<Case> = FIXTURES.iter().map(|f| sweep_case(f)).collect();
+    v.extend(FIXTURES.iter().map(|f| multi_case(f)));
     v.extend(named_cases());
     v
 }
