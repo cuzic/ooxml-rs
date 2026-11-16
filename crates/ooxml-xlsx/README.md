@@ -2,7 +2,7 @@
 
 Lossless Excel (`.xlsx`/`.xlsm`) editing on [`ooxml-core`](../ooxml-core): Phase0 of
 [ADR-0001](../../docs/adr/0001-lossless-round-trip-architecture.md) and Phase1 of
-[ADR-0003](../../docs/adr/0003-xlsx-phase1-formula-and-calc-state.md) (Proposed, revision 3),
+[ADR-0003](../../docs/adr/0003-xlsx-phase1-formula-and-calc-state.md) (Accepted, revision 5),
 with the typed lens of [ADR-0002](../../docs/adr/0002-schema-driven-code-generation.md). The
 Phase0 acceptance tests are specified in [`docs/roadmap/xlsx.md`](../../docs/roadmap/xlsx.md) §7,
 the Phase1 ones in ADR-0003 §7.
@@ -50,6 +50,8 @@ wb.save("new.xlsx")?;
 | `Workbook::open` / `from_bytes` / `from_package` | Locates the workbook through the `officeDocument` relationship and "sheet1" through `<sheets>` + relationships (no hard-coded part names). Parses the first worksheet, `workbook.xml`, `sharedStrings.xml` and the sheet's table parts for reading; all of them are still raw-copied on save unless edited. Scans every sheet part for formulas once. |
 | "sheet1" | The **first visible worksheet in workbook order**: hidden/very hidden sheets, chartsheets, macro sheets and dialog sheets are skipped (owner decision 2026-11-16). `Err(NoVisibleWorksheet)` if there is none. |
 | `Worksheet::cell(row, col)` | `Ok(None)` if absent. Shared strings resolved; inline strings with rich runs concatenated; phonetic runs ignored; a `t` that does not itself carry `xml:space="preserve"` has its outer ASCII whitespace (space, tab, CR, LF) trimmed, as calamine reads it: an `xml:space` inherited from `si`/`is`/`r` is ignored; `_xHHHH_` escapes decoded. A formula cell returns its cached value (`formula()` gives the text). |
+| `Worksheet::cells()` | Every existing cell in document order (row by row, left to right), in one pass over the sheet's row/cell index: the bulk read (1M cells ≈ 0.6 s). A row whose cells cannot be located yields its error; a sheet-level problem yields one error. |
+| Row/cell index | Built once per worksheet when it is opened. It is one validating pass with the same rules as before. `mc:AlternateContent` is recorded apart: the target cell's read or write refuses it, but stripping dependents' caches does not, as before. Lookups are binary searches. The target write keeps the index valid: new rows and new cells are placed with ooxml-core's `insert_at` at the indexed position, checked by `check_insert_at` in the plan. Appending a row or cell is O(1). Inserting before existing rows or cells costs time in proportion to the items after it, as the tree's own insertion does. Reads, writes and Phase1 stripping no longer rescan every row. |
 | `cell_mut(row, col)` | A handle; nothing is created or dirtied until a setter runs. |
 | `set_number(f64)` | `<v>` gets the number; a stale `t` and every `<is>` are removed; `s` kept. NaN/∞ refused. |
 | `set_string(&str)` | `t="inlineStr"`, `<is><t>…</t></is>`; `xml:space="preserve"` iff outer whitespace; control characters as `_xHHHH_`, a literal `_xHHHH_` protected as `_x005F_xHHHH_`; at most 32,767 UTF-16 units. Never touches `sharedStrings.xml`. |
@@ -70,6 +72,36 @@ wb.save("new.xlsx")?;
 | `CalcPolicy::KeepStaleCaches` | Opt-in, Excel only: keep stale caches, only set `fullCalcOnLoad`. |
 | Atomicity | Every edit is planned and validated without changing anything (only `workbook.xml` is cloned), then applied in place; a failure while applying (a bug) poisons the workbook (`Err(Poisoned)` for every later edit and save). |
 | Cost | Proportional to the dependent set: 2.0 ms per edit on a 200,000-formula, 9.7 MB sheet; 6.7 ms in the worst case where every formula is a dependent (`examples/phase1_bench.rs`, `WORST=1`). |
+
+## Usage example
+
+`examples/edit_cells.rs` is a runnable walk-through on a committed fixture. It:
+
+- opens a workbook;
+- prints the first visible sheet's cells;
+- sets a number and a string;
+- saves the result to `OUT_DIR/edit_cells.xlsx` and re-reads it;
+- edits a formula workbook (dependents lose their cached values);
+- shows a refusal: a Strict package refused at open.
+
+```sh
+cargo run -p ooxml-xlsx --example edit_cells -- [OUT_DIR]   # default: <temp dir>/ooxml-rs-examples
+```
+
+```rust,no_run
+use ooxml_xlsx::{Error, Workbook};
+
+let mut wb = Workbook::open("book.xlsx")?;
+if let Some(why) = wb.edit_refusal() {
+    eprintln!("not editable: {why}"); // e.g. a poisoned workbook; nothing changed
+} else {
+    let mut ws = wb.worksheet()?;
+    ws.cell_mut(1, 1)?.set_number(42.5)?;
+    ws.cell_mut(5, 0)?.set_string("written by ooxml-rs")?;
+    wb.save("book-edited.xlsx")?;
+}
+# Ok::<(), Error>(())
+```
 
 ## Refusals (`Err`, nothing changed)
 

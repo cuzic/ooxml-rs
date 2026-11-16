@@ -60,6 +60,7 @@ mod error;
 mod escape;
 mod formula;
 mod graph;
+mod index;
 mod reference;
 mod sheet_ops;
 mod workbook;

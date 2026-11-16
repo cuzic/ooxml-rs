@@ -176,6 +176,70 @@ pub trait ElementSpec: 'static {
 )]
 pub trait ChildOf<P: ElementSpec>: ElementSpec {}
 
+/// `Self` has the same schema type as `S`: a copy of an `S` subtree, renamed
+/// to `Self::QNAME`, is schema-valid as a `Self` (ADR-0002 post-acceptance
+/// note "detach/insert"). The guarantee is about the schema type only (not
+/// about meaning that depends on context), and it assumes the lens's spec is
+/// right for the node: [`Lens::cast`](crate::Lens::cast) can re-type a node
+/// to another spec with the same QName, and is the caller's responsibility.
+/// Every spec is `SameType` of itself (blanket impl); `ooxml-schema`
+/// generates the other pairs, only between [`Detachable`] entries with the
+/// same SDK complex type and the same resolved attributes and content
+/// (e.g. `a:endParaRPr` and `a:rPr`, both `a:CT_TextCharacterProperties`).
+/// Used by [`Lens::detach_as`](crate::Lens::detach_as).
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` does not have the same schema type as `{S}`",
+    note = "`SameType` is generated only for detachable elements sharing an SDK complex type"
+)]
+pub trait SameType<S: ElementSpec>: ElementSpec {}
+
+/// The element may be copied with [`Lens::detach_as`](crate::Lens::detach_as)
+/// (ADR-0002 post-acceptance note "detach/insert"). Generated only for the
+/// entries a format crate lists in the `[detach]` section of its allowlist
+/// file, after review of what their subtrees can hold: no shape ids,
+/// `p:ph@idx`, `w14:paraId` or references to such ids, and every remaining
+/// attribute that must be unique in the document listed in
+/// [`Self::UNIQUE_ATTRS`] (refused when set to a non-default value).
+/// Phase 0.1 opts in DrawingML formatting only (`a:rPr`, `a:endParaRPr`,
+/// `a:pPr`; unique: `smtId`, ECMA-376 Part 1 §21.1.2.3.9, and the effect
+/// container `name`, §20.1.8.20/§20.1.8.25).
+///
+/// Its supertrait lives in a `#[doc(hidden)]` module for generated code.
+/// This is **not** a seal: `ooxml-schema` is another crate, so the module
+/// must be public, and any crate can implement both traits (the core tests
+/// do). Doing so is unsupported: the guarantee above covers the generated
+/// impls only, and a hand-written impl is its author's responsibility.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not detachable",
+    note = "list it in the `[detach]` section of its `codegen/allowlist/*.toml` (only for subtrees without ids or id references)"
+)]
+pub trait Detachable: ElementSpec + __private::Sealed {
+    /// Attributes, on any element of a copied subtree, whose value must be
+    /// unique in the document; `detach_as` refuses a copy where one has a
+    /// value other than its default.
+    const UNIQUE_ATTRS: &'static [UniqueAttr] = &[];
+}
+
+/// An attribute that holds a document-unique value (an id), on elements
+/// named `element` (see [`Detachable::UNIQUE_ATTRS`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UniqueAttr {
+    /// Element name.
+    pub element: QName,
+    /// Attribute name.
+    pub attr: QName,
+    /// XSD default; a present value equal to it is not an id.
+    pub default: Option<&'static str>,
+}
+
+#[doc(hidden)]
+pub mod __private {
+    /// Seal of [`super::Detachable`]; implemented by generated code only.
+    pub trait Sealed {}
+}
+
+impl<S: ElementSpec> SameType<S> for S {}
+
 /// A generated enumeration of an attribute's known values.
 pub trait EnumType: Copy + Eq + fmt::Debug + 'static {
     /// Lexical values, indexed by [`Self::index`].

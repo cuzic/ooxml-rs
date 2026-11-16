@@ -121,10 +121,34 @@ pub struct Ctx<'m, 'a> {
     pub type_names: BTreeMap<String, String>,
     /// (group, enum at) → Rust enum name
     pub enum_names: BTreeMap<(&'static str, (usize, usize)), String>,
+    /// `[detach] unique_attrs`, resolved: (element `prefix:local`, attribute
+    /// `(ns, prefix, local)`, XSD default), for every SDK entry of the type.
+    pub unique_attrs: Vec<UniqueAttrSpec>,
 }
 
+/// A resolved `[detach] unique_attrs` entry: element `prefix:local`,
+/// attribute `(ns, prefix, local)`, XSD default.
+pub type UniqueAttrSpec = (String, (String, String, String), Option<String>);
+
 impl<'m, 'a> Ctx<'m, 'a> {
-    pub fn new(model: &'m Model<'a>, allow: &BTreeMap<String, Allowed>, diags: &mut Diagnostics) -> Res<Self> {
+    pub fn new(model: &'m Model<'a>, allow: &BTreeMap<String, Allowed>, unique: &[String], diags: &mut Diagnostics) -> Res<Self> {
+        let mut unique_attrs = Vec::new();
+        for u in unique {
+            let (ct, attr) = u.split_once('@').ok_or_else(|| format!("unique_attrs entry {u:?}: expected \"<complex type>@<attribute>\""))?;
+            let prefix = format!("{ct}/");
+            let mut n = 0;
+            // concrete entries only (`<type>/` is the abstract one)
+            for name in model.index.keys().filter(|k| k.starts_with(&prefix) && k.len() > prefix.len()) {
+                let e = model.resolve(name, diags).ok_or_else(|| format!("unique_attrs: {name} does not resolve"))?;
+                let a = e.attrs.iter().find(|a| a.local == attr && a.ns.is_empty() || format!("{}:{}", a.prefix, a.local) == attr)
+                    .ok_or_else(|| format!("unique_attrs entry {u:?}: {name} has no attribute {attr}"))?;
+                unique_attrs.push((format!("{}:{}", e.prefix, e.local), (a.ns.clone(), a.prefix.clone(), a.local.clone()), a.default.clone()));
+                n += 1;
+            }
+            if n == 0 {
+                return Err(format!("unique_attrs entry {u:?}: no SDK entry of type {ct}").into());
+            }
+        }
         let mut entries = BTreeMap::new();
         for (name, a) in allow {
             let e = model.resolve(name, diags).ok_or_else(|| format!("allowlisted {name:?} is not in the SDK data"))?;
@@ -196,7 +220,7 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 enum_names.insert((g, at), name);
             }
         }
-        Ok(Ctx { model, entries, type_names, enum_names })
+        Ok(Ctx { model, entries, type_names, enum_names, unique_attrs })
     }
 
     fn ns_const(prefix: &str) -> String {
@@ -444,6 +468,39 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 );
             }
 
+            // ---- Detachable / SameType (ADR-0002 note "detach/insert") ----
+            // Only entries opted in with `[detach]`; SameType only between
+            // them (the reflexive case is a blanket impl in core).
+            if allowed.detach {
+                // An element prefix that does not resolve is an error: a
+                // uniqueness declaration must never drop out silently.
+                let list: Vec<String> = self
+                    .unique_attrs
+                    .iter()
+                    .map(|(el, (ans, ap, al), def)| {
+                        let eq = self.qname_expr(el, &mut used).ok_or_else(|| format!("unique_attrs: element {el}: unknown prefix"))?;
+                        let aq = self.attr_qname_expr(ans, ap, al, &mut used);
+                        Ok(format!(
+                            "ooxml_core::UniqueAttr {{ element: {eq}, attr: {aq}, default: {} }}",
+                            def.as_ref().map_or("None".into(), |d| format!("Some({})", lit(d)))
+                        ))
+                    })
+                    .collect::<Res<_>>()?;
+                let _ = writeln!(
+                    body,
+                    "impl ooxml_core::schema::__private::Sealed for {ty} {{}}\nimpl ooxml_core::Detachable for {ty} {{ const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[{}]; }}",
+                    list.join(", ")
+                );
+                let others = self.entries.iter().filter(|(_, (a, _))| a.detach).map(|(n, (a, oe))| (n.as_str(), a.group, oe));
+                let (partners, mismatches) = same_type_partners(e, others);
+                diags.lines.extend(mismatches);
+                for (other, ogroup) in partners {
+                    let cfg = if ogroup == group { String::new() } else { format!("#[cfg(all(feature = \"{group}\", feature = \"{ogroup}\"))]") };
+                    let op = self.type_path(group, other);
+                    let _ = writeln!(body, "{cfg} impl ooxml_core::SameType<{op}> for {ty} {{}}");
+                }
+            }
+
             // ---- views ----
             let view = format!("{ty}View");
             let view_mut = format!("{ty}ViewMut");
@@ -668,4 +725,77 @@ pub fn format_rust(src: &str) -> Res<String> {
         format!("generated code does not parse: {e} (source written to {})", dump.display())
     })?;
     Ok(format!("{HEADER}{}", prettyplease::unparse(&file)))
+}
+
+/// What must agree for two entries to be `SameType`: resolved attributes
+/// (name, type, default), attribute completeness, content model and children.
+fn shape(e: &Entry) -> String {
+    let attrs: Vec<_> = e.attrs.iter().map(|a| (&a.ns, &a.local, &a.ty, &a.default)).collect();
+    format!("{attrs:?} {} {:?} {:?}", e.attrs_incomplete, e.content, e.child_names)
+}
+
+/// The `SameType` partners of `e` among `others` (SDK Name, group, entry):
+/// a different entry with the same SDK complex type (the part of the SDK
+/// Name before `/`) and the same [`shape`]. Same type but different shape
+/// gives a `SameTypeMismatch` diagnostic and no impl.
+fn same_type_partners<'o>(
+    e: &Entry,
+    others: impl Iterator<Item = (&'o str, &'static str, &'o Entry)>,
+) -> (Vec<(&'o str, &'static str)>, Vec<String>) {
+    let ct = e.name.split_once('/').map_or(e.name.as_str(), |(t, _)| t);
+    let (mut partners, mut diags) = (Vec::new(), Vec::new());
+    for (other, group, oe) in others {
+        if other == e.name || other.split_once('/').map(|(t, _)| t) != Some(ct) {
+            continue;
+        }
+        if shape(e) == shape(oe) {
+            partners.push((other, group));
+        } else {
+            diags.push(format!("SameTypeMismatch {} {other}: same complex type, different resolved shape; no SameType", e.name));
+        }
+    }
+    (partners, diags)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Attr;
+
+    fn entry(name: &str, attr: &str) -> Entry {
+        Entry {
+            name: name.into(),
+            file: 0,
+            class_name: "C".into(),
+            summary: None,
+            prefix: "a".into(),
+            local: name.rsplit(':').next().unwrap().into(),
+            attrs: vec![Attr {
+                ns: String::new(),
+                local: attr.into(),
+                prefix: String::new(),
+                ty: Ty::Simple("String"),
+                default: None,
+                property: None,
+                comment: None,
+            }],
+            attrs_incomplete: false,
+            content: ContentModel::Empty,
+            child_names: Default::default(),
+            child_props: Default::default(),
+        }
+    }
+
+    #[test]
+    fn same_type_needs_same_complex_type_and_same_shape() {
+        let rpr = entry("a:CT_T/a:rPr", "lang");
+        let end = entry("a:CT_T/a:endParaRPr", "lang");
+        let odd = entry("a:CT_T/a:defRPr", "other"); // same CT, different resolved attributes
+        let ppr = entry("a:CT_P/a:pPr", "lang"); // same shape, other CT
+        let all = [&rpr, &end, &odd, &ppr];
+        let (partners, diags) = same_type_partners(&rpr, all.iter().map(|e| (e.name.as_str(), "dml", *e)));
+        assert_eq!(partners, [("a:CT_T/a:endParaRPr", "dml")]);
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].starts_with("SameTypeMismatch a:CT_T/a:rPr a:CT_T/a:defRPr"), "{diags:?}");
+    }
 }

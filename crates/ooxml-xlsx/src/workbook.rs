@@ -13,6 +13,7 @@ use crate::census::{self, Census, EditBlock, SheetEntry, SheetKind};
 use crate::error::{Error, Result};
 use crate::formula::precedents::{Env, NameDef, Scope, fold};
 use crate::graph::Graph;
+use crate::index::SheetIndex;
 use crate::reference::{CellIndex, CellRange};
 use crate::worksheet::{Worksheet, text_of};
 use crate::core_props;
@@ -101,6 +102,26 @@ pub(crate) type ApplyStepHook = ApplyStep;
 /// Phase0's "sheet1" is the **first visible worksheet in workbook order**
 /// ([`Self::worksheet`]); Phase1 opens any worksheet by name or index.
 /// Every part that is not edited is copied through unchanged on save.
+///
+/// # Examples
+///
+/// ```no_run
+/// use ooxml_xlsx::{CellValue, Error, Workbook};
+///
+/// let mut wb = Workbook::open("book.xlsx")?;
+/// if let Some(why) = wb.edit_refusal() {
+///     return Err(why); // e.g. Error::Poisoned: nothing was changed
+/// }
+/// let mut ws = wb.worksheet()?;
+/// if let Some(CellValue::Number(n)) = ws.cell_a1("B2")?.map(|c| c.value()).transpose()? {
+///     ws.cell_mut(1, 1)?.set_number(n + 1.0)?;
+/// }
+/// ws.cell_mut(0, 0)?.set_string("total")?;
+/// wb.save("book.xlsx")?; // temp file + rename: same path is safe
+/// # Ok::<(), Error>(())
+/// ```
+///
+/// A complete, runnable version is `examples/edit_cells.rs`.
 #[derive(Debug)]
 pub struct Workbook {
     pub(crate) pkg: Package,
@@ -109,6 +130,9 @@ pub struct Workbook {
     first_visible: usize,
     pub(crate) shared_strings: Option<Vec<String>>,
     pub(crate) contexts: HashMap<usize, SheetContext>,
+    /// Row/cell position index per worksheet (built once, kept valid by
+    /// every structural write; see `index.rs`).
+    pub(crate) indexes: HashMap<usize, SheetIndex>,
     pub(crate) census: Census,
     pub(crate) env: Env,
     pub(crate) graph: Option<Graph>,
@@ -163,6 +187,7 @@ impl Workbook {
             first_visible: l.first_visible,
             shared_strings: l.shared_strings,
             contexts: HashMap::new(),
+            indexes: HashMap::new(),
             census: l.census,
             env: l.env,
             graph: None,
@@ -197,6 +222,7 @@ impl Workbook {
             self.calc = l.calc;
             self.calc_chain = l.calc_chain;
             self.contexts.clear();
+            self.indexes.clear();
             self.graph = None;
             self.load_context(self.first_visible)
         });
@@ -230,6 +256,17 @@ impl Workbook {
             .collect();
         let tables = load_tables(&mut self.pkg, &part, &sheet_rels, &table_parts)?;
         self.contexts.insert(sheet, SheetContext { merges, tables });
+        self.ensure_index(sheet)?;
+        Ok(())
+    }
+
+    /// Parses a worksheet (once) and builds its row/cell index (once).
+    pub(crate) fn ensure_index(&mut self, sheet: usize) -> Result<()> {
+        if !self.indexes.contains_key(&sheet) {
+            let part = self.sheets[sheet].part.clone().expect("worksheet part");
+            let index = SheetIndex::build(self.pkg.xml_part(&part)?);
+            self.indexes.insert(sheet, index);
+        }
         Ok(())
     }
 

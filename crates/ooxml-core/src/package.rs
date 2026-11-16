@@ -226,11 +226,11 @@ impl Package {
         let len = data.len() as u64;
         let mut archive = ZipArchive::new(Cursor::new(data))?;
         let mut parts = Vec::with_capacity(archive.len());
+        let mut declared: u64 = 0;
         // OPC part-name equivalence (ASCII case-insensitive, an IRI entry
         // name equals its percent-encoded form; review N8): each name is
         // normalized once, so the check is linear (review N11).
         let mut seen = std::collections::HashSet::with_capacity(archive.len());
-        let mut declared: u64 = 0;
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index)?;
             let name = file.name()?.into_owned();
@@ -540,11 +540,12 @@ impl Package {
 
     /// Relationships of a part (empty if it has no relationships part).
     pub fn relationships(&self, source: &str) -> Result<Relationships> {
-        let name = rels_part_name(Some(source));
-        if !self.contains(&name) {
+        // OPC equivalence, as the registry operations look it up (review of
+        // PR #38 round 2, n5: `Sheet1.xml` with `_rels/sheet1.xml.rels`)
+        let Some(i) = self.find_ci(&rels_part_name(Some(source))) else {
             return Ok(Relationships::empty(Some(source)));
-        }
-        Relationships::parse(Some(source), &self.read_part(&name)?)
+        };
+        Relationships::parse(Some(source), &self.read_part(&self.parts[i].name)?)
     }
 
     /// The main document part (target of the package's `officeDocument`

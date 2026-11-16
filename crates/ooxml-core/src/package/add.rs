@@ -97,13 +97,16 @@ impl From<XmlDocument> for PartContent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartNameRequest {
     /// This name (zip form; a leading `/` is dropped). Refused if anything
-    /// uses it (see [`Package::part_name_in_use`]).
+    /// uses it (see [`Package::part_name_in_use`]). A name removed earlier
+    /// in the plan or session may be reused (a part replaced in one plan);
+    /// its relationships part then continues above the removed `Id`s.
     Exact(String),
     /// A template with one `{}`, e.g. `xl/worksheets/sheet{}.xml`: the
     /// number is **one more than the largest number in use** for the
     /// template, compared under OPC equivalence, among existing parts,
     /// `Override`s, relationship targets (dangling ones included), names
-    /// removed in this session and names planned earlier; `1` when none.
+    /// removed in this session or plan and names planned earlier; `1` when
+    /// none.
     /// Gaps are never filled (see the crate README for why).
     Numbered(String),
 }
@@ -996,11 +999,12 @@ impl RegistryPlan {
             }
         };
         let rels_name = rels_part_name(source.as_deref());
-        // Ids removed by this plan are still in the planned-against tree
-        // (read below); Ids removed earlier in the session are not.
+        // Ids removed earlier in the session, and by this plan (including
+        // those of a relationships part removed with its part), stay used.
         let mut used: Vec<String> = self
             .new_ids
             .iter()
+            .chain(&self.removed_ids)
             .chain(&pkg.removed_rel_ids)
             .filter(|(r, _)| same_part_name(r, &rels_name))
             .map(|(_, id)| id.clone())
@@ -1177,16 +1181,21 @@ impl RegistryPlan {
             if !ok {
                 return Err(RegistryRefusal::InvalidTarget);
             }
-            if !external && let Some(p) = part_target(source.as_deref(), target) {
+            // An internal target naming a part is written as `add_relationship`
+            // writes it: the canonical name relative to the source (fragment
+            // kept); registry parts are refused (review round 2, n3).
+            let written;
+            let target = if !external && let Some(p) = part_target(source.as_deref(), target) {
                 let path = target.split(['#', '?']).next().unwrap_or_default();
                 if path.contains('\\') {
                     return Err(RegistryRefusal::InvalidTarget);
                 }
-                plan.view_part(pkg, &p).map_err(|e| match e {
-                    RegistryRefusal::PartNotFound => RegistryRefusal::TargetNotFound { resolved: p.clone() },
-                    e => e,
-                })?;
-            }
+                let suffix = target.find(['#', '?']).map_or("", |k| &target[k..]);
+                written = plan.internal_target(pkg, source.as_deref(), &p, suffix)?;
+                written.as_str()
+            } else {
+                target
+            };
             let set = |n: &mut RawNode| {
                 if let Some(a) = n.attrs.iter_mut().find(|a| a.name.is(QName::new("", "Target"))) {
                     a.value = target.to_owned();
@@ -1710,6 +1719,7 @@ impl RegistryPlan {
         }
         // Own relationships parts go with their parts.
         let mut gone = idx.clone();
+        let mut gone_ids: Vec<(String, String)> = Vec::new();
         let mut kept_targets = Vec::new();
         for &i in &idx {
             let name = pkg.parts[i].name.clone();
@@ -1728,6 +1738,10 @@ impl RegistryPlan {
                 {
                     kept_targets.push((name.clone(), t, r.rel_type.clone()));
                 }
+                // The Ids of a relationships part that goes stay used: a part
+                // re-created with the same name continues above them, and
+                // content staged for it may not name them (review round 2, n4).
+                gone_ids.push((r.rels.clone(), r.id.clone()));
             }
             gone.push(ri);
         }
@@ -1772,7 +1786,10 @@ impl RegistryPlan {
                 if edit.removes.contains(&i) || attr(e, "TargetMode") == Some("External") {
                     continue; // removed earlier in the plan, or external
                 }
-                let Some(target) = attr(e, "Target") else { continue };
+                // the target in the plan's view: a `set_relationship_target`
+                // earlier in the plan wins (review round 2, N2)
+                let retarget = edit.set_attrs.iter().rev().find(|(j, a, _)| *j == i && *a == "Target").map(|(_, _, t)| t.as_str());
+                let Some(target) = retarget.or_else(|| attr(e, "Target")) else { continue };
                 let Some(resolved) = part_target(base.as_deref(), target) else { continue };
                 if !in_set(&resolved) {
                     // Safety net (PR #14 N7, N12, N13): a target whose last
@@ -1843,6 +1860,7 @@ impl RegistryPlan {
         }
         self.gone.extend(&gone);
         self.gone_names.extend(gone_names.iter().cloned());
+        self.removed_ids.extend(gone_ids);
         Ok(RemovedParts { parts: gone_names, relationships, overrides, kept_targets })
     }
 
@@ -1894,10 +1912,15 @@ impl RegistryPlan {
             }
             match plan.live(pkg, &canonical) {
                 Some(i) => {
+                    // Not detached only when the tree is exactly the part's
+                    // ORIGINAL zip entry, because an un-detached, clean tree
+                    // saves that entry (review round 2, N1: comparing with the
+                    // current content let a re-parse of a `set_part` or
+                    // `xml_part_mut` change pass as unedited).
                     let detach = match &content {
                         PartContent::Bytes(_) => false,
                         PartContent::Xml(d) => {
-                            d.is_dirty() || pkg.read_part(&pkg.parts[i].name).map_or(true, |cur| cur != d.source().as_bytes())
+                            d.is_dirty() || pkg.read_original(&pkg.parts[i]).map_or(true, |o| o != d.source().as_bytes())
                         }
                     };
                     plan.staged.retain(|s| s.part != i);
@@ -1979,17 +2002,16 @@ impl RegistryPlan {
                 let (target, mode) = if r.external {
                     (r.target.clone(), TargetMode::External)
                 } else {
-                    let verbatim = |plan: &RegistryPlan| -> R<String> {
+                    let verbatim = || -> R<String> {
                         if same_folder {
                             Ok(r.target.clone())
                         } else {
                             let resolved = part_target(Some(&src), &r.target).unwrap_or_else(|| r.target.clone());
-                            let _ = plan;
                             Err(RegistryRefusal::TargetNotFound { resolved })
                         }
                     };
                     match part_target(Some(&src), &r.target) {
-                        None => (verbatim(plan)?, TargetMode::Internal),
+                        None => (verbatim()?, TargetMode::Internal),
                         Some(resolved) => {
                             let suffix = r.target.find(['#', '?']).map_or("", |k| &r.target[k..]);
                             let mapped = target_map.iter().find(|(from, _)| same_part_name(from, &resolved)).map(|(_, to)| (*to).to_owned());
@@ -1997,9 +2019,9 @@ impl RegistryPlan {
                             match plan.internal_target(pkg, Some(&dst), &dest, suffix) {
                                 Ok(t) => (t, TargetMode::Internal),
                                 Err(RegistryRefusal::TargetNotFound { .. } | RegistryRefusal::ConflictsWithPlan) if mapped.is_none() => {
-                                    (verbatim(plan)?, TargetMode::Internal)
+                                    (verbatim()?, TargetMode::Internal)
                                 }
-                                Err(RegistryRefusal::InvalidTarget) if mapped.is_none() => (verbatim(plan)?, TargetMode::Internal),
+                                Err(RegistryRefusal::InvalidTarget) if mapped.is_none() => (verbatim()?, TargetMode::Internal),
                                 Err(e) => return Err(e),
                             }
                         }
