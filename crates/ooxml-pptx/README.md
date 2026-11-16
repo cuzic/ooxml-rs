@@ -46,6 +46,7 @@ Development:
   with python-pptx from `tests/oracle/requirements.txt`
   (`--site DIR` if it is installed into a directory).
 - Manual check in PowerPoint:
-  `cargo run -p ooxml-pptx --example manual_check -- OUT` writes edited
-  files and `OUT/CHECKLIST.md`.
+  `cargo run -p ooxml-pptx --example pptx_manual_check -- OUT` writes edited
+  files and `OUT/CHECKLIST.md`. `cargo xtask manual-check <outdir>` runs the
+  Excel, PowerPoint and Word checks together into one bundle with a zip.
 - `cargo run -p ooxml-pptx --example dump -- deck.pptx` prints the text model.
