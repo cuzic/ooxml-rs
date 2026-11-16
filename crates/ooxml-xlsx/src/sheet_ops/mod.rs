@@ -29,12 +29,11 @@ use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, REL_WORKSHEET, Workbook};
 use app_xml::Listed;
 use names::{PrefixEdit, Unrewritable, rewrite_formula, rewrite_location, validate_sheet_name};
-use scan::{PartKind, scan_part};
+use scan::{C15_NS, CHART_NS, PartKind, scan_part};
 
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 const REL_REVISIONS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/revisionHeaders";
 const CT_CHART: &str = "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
-const CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const CT_ACTIVEX: &str = "application/vnd.ms-office.activeX";
 const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
@@ -362,7 +361,14 @@ impl Workbook {
 
     /// `activeTab`/`firstSheet` of every `workbookView`, remapped; an active
     /// tab that is not visible moves to the next visible sheet.
+    /// `firstSheet` (the first tab shown in the tab strip, not a sheet
+    /// reference) is mapped with `first_map`, kept at most `activeTab`, and
+    /// never written when absent (review of PR #53 m5).
     fn remap_views(doc: &mut XmlDocument, map: &dyn Fn(u32) -> u32, visible: &[bool]) -> Result<Option<u32>> {
+        Self::remap_views_with(doc, map, map, visible)
+    }
+
+    fn remap_views_with(doc: &mut XmlDocument, map: &dyn Fn(u32) -> u32, first_map: &dyn Fn(u32) -> u32, visible: &[bool]) -> Result<Option<u32>> {
         let wb = doc.lens_mut::<sml::Workbook>()?;
         let Some(mut bv) = wb.into_child_by::<sml::BookViews>(|_| true) else { return Ok(None) };
         let n = bv.node().elements().filter(|e| e.is(sml::WorkbookViewElement::QNAME)).count();
@@ -371,17 +377,18 @@ impl Workbook {
             let mut v = sml::WorkbookViewElementViewMut(bv.nth_child_mut::<sml::WorkbookViewElement>(k).expect("counted"));
             let view = v.as_view();
             let (active, first) = (view.active_tab().unwrap_or(0), view.first_sheet().unwrap_or(0));
+            let has_first = view.0.raw().attr(ooxml_core::QName::new("", "firstSheet")).is_some();
             let mut na = map(active).min(visible.len().saturating_sub(1) as u32);
             if !visible.get(na as usize).copied().unwrap_or(false) {
                 let fwd = (na as usize..visible.len()).find(|&i| visible[i]);
                 let back = (0..na as usize).rev().find(|&i| visible[i]);
                 na = fwd.or(back).unwrap_or(0) as u32;
             }
-            let nf = map(first).min(na);
+            let nf = first_map(first).min(na);
             if na != active {
                 v.set_active_tab(na)?;
             }
-            if nf != first {
+            if has_first && nf != first {
                 v.set_first_sheet(nf)?;
             }
             first_active.get_or_insert(na);
@@ -476,6 +483,10 @@ impl Workbook {
     /// part `max + 1`, `localSheetId`/`activeTab`/`firstSheet` renumbered,
     /// formulas with 3-D references, `SHEET`/`SHEETS` and every
     /// `Everything` formula lose their cached values.
+    ///
+    /// `docProps/app.xml` is not updated by this version (ADR-0009
+    /// implementation note: §11 follows in a later change); it stays
+    /// byte-identical and may list stale sheet titles.
     pub fn add_sheet(&mut self, name: &str, position: usize) -> Result<()> {
         self.structural_guard()?;
         self.check_new_name(name, None)?;
@@ -602,7 +613,12 @@ impl Workbook {
     /// `<sheet>` element keeps its bytes; positions in `localSheetId`,
     /// `activeTab` and `firstSheet` follow. A move that changes the order of
     /// a 3-D reference's endpoints is refused
-    /// ([`Error::ReversesThreeDReference`]).
+    /// ([`Error::ReversesThreeDReference`]). `firstSheet` (the first tab
+    /// shown in the tab strip) stays, clamped to the active tab.
+    ///
+    /// `docProps/app.xml` is not updated by this version (ADR-0009
+    /// implementation note: §11 follows in a later change); it stays
+    /// byte-identical and may list stale sheet titles.
     pub fn move_sheet(&mut self, from: usize, to: usize) -> Result<()> {
         self.structural_guard()?;
         let n = self.sheets.len();
@@ -629,14 +645,18 @@ impl Workbook {
         {
             let doc = change.doc(&mut self.pkg, &wb_part)?;
             let kids = sheet_children(doc)?;
+            let sheets_ix = doc.root().indexed_elements().find(|(_, e)| e.is(sml::Sheets::QNAME)).map(|(i, _)| i).expect("checked");
+            let src = ooxml_core::Lens::<sml::Sheet>::at(doc.root(), &[sheets_ix, kids[from]])?.move_source();
             {
+                // core's checked same-part move (#44): slot and order checks,
+                // the element keeps its bytes
                 let mut sheets = sheets_lens(doc)?;
-                if !sheets.move_child(kids[from], kids[to]) {
-                    return Err(malformed("sheet move"));
-                }
+                sheets.move_in_by::<sml::Sheet>(&src, |k, _| k == to)?;
             }
             remap_local_names(doc, &|i| Some(newpos.get(i as usize).copied().unwrap_or(i)))?;
-            Self::remap_views(doc, &|i| newpos.get(i as usize).copied().unwrap_or(i), &visible)?;
+            // the tab strip's first tab is a position, not a sheet: kept
+            // (clamped to the active tab), as POI's setSheetOrder does
+            Self::remap_views_with(doc, &|i| newpos.get(i as usize).copied().unwrap_or(i), &|f| f, &visible)?;
         }
         let before = self.listed()?;
         let after: Vec<Listed> = perm.iter().map(|&o| before[o].clone()).collect();
@@ -681,6 +701,10 @@ impl Workbook {
     /// sheet is [`Error::LastVisibleSheet`]; hiding the active sheet moves
     /// the active tab to the next visible sheet; a hidden sheet is never
     /// `tabSelected`.
+    ///
+    /// `docProps/app.xml` is not updated by this version (ADR-0009
+    /// implementation note: §11 follows in a later change); it stays
+    /// byte-identical and may list stale sheet titles.
     pub fn set_sheet_state(&mut self, sheet: &str, state: SheetState) -> Result<()> {
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
@@ -750,11 +774,18 @@ impl Workbook {
 
     /// Renames a sheet and rewrites every reference to it that this version
     /// knows (ADR-0009 §6): cell formulas on every worksheet, defined names,
-    /// `hyperlink/@location`, and `#Sheet!…` relationship targets. Any other
-    /// mention of the old name in sheet-prefix form (charts, data
-    /// validation, conditional formatting, pivot sources, …) refuses the
+    /// chart `c:f`/`c15:f`, `hyperlink/@location`, `#Sheet!…` relationship
+    /// targets and a pivot cache's `worksheetSource/@sheet`. Any other
+    /// mention of the old name in sheet-prefix form (data validation,
+    /// conditional formatting, x14 `xm:f`, table formulas, form controls,
+    /// `[0]Sheet!` self-references, parts that do not parse, …) refuses the
     /// rename ([`Error::UnrewritableReference`]) instead of leaving a broken
-    /// reference. Returns what was rewritten.
+    /// reference, as does a consolidation `rangeSet`/`dataRef` naming the
+    /// sheet. Returns what was rewritten.
+    ///
+    /// `docProps/app.xml` is not updated by this version (ADR-0009
+    /// implementation note: §11 follows in a later change); it stays
+    /// byte-identical and may list stale sheet titles.
     pub fn rename_sheet(&mut self, sheet: &str, new_name: &str) -> Result<Vec<RewrittenLocation>> {
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
@@ -771,6 +802,7 @@ impl Workbook {
         let mut change = Change::default();
         let mentions = |t: &str| names::mentions_prefix(t, &old);
         self.rewrite_everywhere(&mut change, &edit, &mentions, &[], &[])?;
+        self.rewrite_raw_sheet_names(&mut change, &old, new_name)?;
         // Phase1: CELL/INFO callers and Everything (ADR-0009 §6)
         let seeds = self.formulas_where(&|t| {
             lex(t).is_ok_and(|toks| toks.iter().any(|k| matches!(&k.kind, TokKind::Func(f) if f == "CELL" || f == "INFO")))
@@ -853,7 +885,12 @@ impl Workbook {
         let wb_part = self.workbook_part.clone();
         let dn = defined_names(self.pkg.xml_part(&wb_part)?);
         let mut name_edits = Vec::new();
-        for (ci, name, _, text) in &dn {
+        for (ci, name, local, text) in &dn {
+            // a name local to a deleted sheet goes with it: not a rewrite
+            // (review of PR #53, m2)
+            if local.is_some_and(|l| skip.contains(&(l as usize))) {
+                continue;
+            }
             if let Some(new) = rewrite_formula(text, edit, mentions).map_err(refuse(&wb_part, format!("definedName {name}")))? {
                 name_edits.push((*ci, name.clone(), text.clone(), new));
             }
@@ -934,13 +971,20 @@ impl Workbook {
             .collect();
         for part in charts {
             let bytes = self.pkg.read_part(&part)?;
-            let Ok(doc) = XmlDocument::parse(&bytes) else { continue }; // the scan refuses on a hit
+            let Ok(doc) = XmlDocument::parse(&bytes) else {
+                // quick-xml may read what the tree parser refuses (DTD, depth):
+                // a mention there cannot be rewritten
+                if mentions(&String::from_utf8_lossy(&bytes)) {
+                    return Err(Error::UnrewritableReference { part, location: "a chart this version cannot parse".into() });
+                }
+                continue;
+            };
             let src = doc.source();
             let mut edits: Vec<(std::ops::Range<usize>, String, String)> = Vec::new();
             let mut stack = vec![doc.root()];
             while let Some(n) = stack.pop() {
                 stack.extend(n.elements());
-                if !(n.name().local() == "f" && n.name().ns() == CHART_NS) {
+                if !(n.name().local() == "f" && (n.name().ns() == CHART_NS || n.name().ns() == C15_NS)) {
                     continue;
                 }
                 let text = n.text().into_owned();
@@ -975,6 +1019,64 @@ impl Workbook {
             change.bytes.insert(part, out.into_bytes());
         }
         change.rewritten.extend(done);
+        Ok(())
+    }
+
+    /// Raw-name locations (no `!`, so the scan cannot see them; ADR-0009 §6
+    /// table, review of PR #53 B2): a pivot cache's `worksheetSource/@sheet`
+    /// is rewritten; a consolidation `rangeSet/@sheet` or `dataRef/@sheet`
+    /// naming the sheet refuses. A source with `r:id` is another workbook.
+    fn rewrite_raw_sheet_names(&mut self, change: &mut Change, old: &str, new: &str) -> Result<()> {
+        let of = fold(old);
+        let parts: Vec<String> = self
+            .pkg
+            .part_names()
+            .filter(|p| self.pkg.content_type(p).is_some_and(|ct| ct.to_ascii_lowercase().ends_with("xml")))
+            .map(str::to_owned)
+            .collect();
+        for p in parts {
+            let bytes = self.pkg.read_part(&p)?;
+            if !fold(&String::from_utf8_lossy(&bytes)).contains(&of) {
+                continue;
+            }
+            let pivot = self.pkg.content_type(&p).is_some_and(|ct| ct.ends_with("pivotCacheDefinition+xml"));
+            let Ok(d) = XmlDocument::parse(&bytes) else {
+                if pivot {
+                    return Err(Error::UnrewritableReference { part: p, location: "a pivot cache this version cannot parse".into() });
+                }
+                continue;
+            };
+            let mut rewrite = None;
+            let mut stack = vec![(d.root(), Vec::<usize>::new())];
+            while let Some((n, path)) = stack.pop() {
+                for (i, c) in n.indexed_elements() {
+                    let mut pp = path.clone();
+                    pp.push(i);
+                    stack.push((c, pp));
+                }
+                let local = n.name().local();
+                if !matches!(local, "worksheetSource" | "rangeSet" | "dataRef") || n.name().ns() != crate::SML_NS {
+                    continue;
+                }
+                let Some(sheet) = n.attr(ooxml_core::QName::new("", "sheet")) else { continue };
+                if fold(sheet) != of || n.attrs().iter().any(|a| a.name().local() == "id" && a.name().ns() == R_NS) {
+                    continue;
+                }
+                let at_source = local == "worksheetSource" && pivot && path.len() == 2;
+                if !at_source {
+                    return Err(Error::UnrewritableReference { part: p, location: format!("<{local}> attribute sheet") });
+                }
+                rewrite = Some(sheet.to_owned());
+            }
+            if let Some(before) = rewrite {
+                let doc = change.doc(&mut self.pkg, &p)?;
+                let def = doc.lens_mut::<sml::PivotCacheDefinition>()?;
+                let src = def.into_child_by::<sml::CacheSource>(|_| true).ok_or_else(|| malformed("cacheSource"))?;
+                let ws = src.into_child_by::<sml::WorksheetSource>(|_| true).ok_or_else(|| malformed("worksheetSource"))?;
+                sml::WorksheetSourceViewMut(ws).set_sheet(new)?;
+                change.rewritten.push(RewrittenLocation { part: p, location: "worksheetSource sheet".into(), before, after: new.to_owned() });
+            }
+        }
         Ok(())
     }
 
@@ -1025,13 +1127,21 @@ impl Workbook {
     /// 3-D endpoints move inward; names local to it are removed;
     /// `calcChain.xml` is removed. Refused for the last visible sheet,
     /// pivot sources, tables used elsewhere, sheets with parts outside the
-    /// cascade table, and references this version cannot rewrite.
+    /// cascade table, and references this version cannot rewrite. Names
+    /// local to the sheet go with it and are not reported as rewritten.
+    ///
+    /// `docProps/app.xml` is not updated by this version (ADR-0009
+    /// implementation note: §11 follows in a later change); it stays
+    /// byte-identical and may list stale sheet titles.
     pub fn delete_sheet(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
         self.delete(sheet, false)
     }
 
     /// [`Self::delete_sheet`], but refused ([`Error::SheetInUse`]) when
-    /// anything still refers to the sheet.
+    /// anything outside the sheet still refers to it: a reference the
+    /// lenient delete would rewrite, a 3-D span through it, a
+    /// `hyperlink/@location` or a `#Sheet!` target. Its own local names
+    /// (e.g. a print area) do not count.
     pub fn delete_sheet_strict(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
         self.delete(sheet, true)
     }
@@ -1077,8 +1187,14 @@ impl Workbook {
         let ename = entry.name.clone();
         let mentions = move |t: &str| names::mentions_prefix(t, &ename);
         self.rewrite_everywhere(&mut change, &edit, &mentions, &[d], &skip)?;
-        if strict && !change.rewritten.is_empty() {
-            return Err(Error::SheetInUse { sheet: entry.name.clone(), count: change.rewritten.len() });
+        if strict {
+            // everything that refers to the sheet counts, including what
+            // the lenient delete leaves alone: 3-D spans through it,
+            // hyperlink locations and `#Sheet!` targets (review of PR #53, m2)
+            let count = change.rewritten.len() + self.other_references(d, &entry.name)?;
+            if count > 0 {
+                return Err(Error::SheetInUse { sheet: entry.name.clone(), count });
+            }
         }
         // Phase1: everything that read the sheet, 3-D/SHEET callers, Everything
         let whole = Rect { sheet: d, r1: 0, c1: 0, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 };
@@ -1118,6 +1234,45 @@ impl Workbook {
         })?;
         self.removed_sheet_ids.push(sheet_id);
         Ok(out)
+    }
+
+    /// References to sheet `d` that a delete does not rewrite: formulas and
+    /// names with a 3-D span strictly through it, hyperlink locations and
+    /// `#Sheet!` relationship targets.
+    fn other_references(&mut self, d: usize, name: &str) -> Result<usize> {
+        let f = fold(name);
+        let pos_of = |s: &str| self.sheets.iter().position(|x| fold(&x.name) == fold(s));
+        let mut n = 0;
+        let texts: Vec<String> = self.census.alive().filter(|(_, c)| c.sheet != d).map(|(_, c)| c.text.clone()).chain(self.env_texts()).collect();
+        for t in &texts {
+            let Ok(toks) = lex(t) else { continue };
+            for k in toks {
+                let p = match &k.kind {
+                    TokKind::Ref(r) => &r.prefix,
+                    TokKind::Name { prefix, .. } => prefix,
+                    _ => continue,
+                };
+                if let Prefix::Sheets(a, z) = p
+                    && let (Some(pa), Some(pz)) = (pos_of(a), pos_of(z))
+                    && pa.min(pz) < d
+                    && d < pa.max(pz)
+                {
+                    n += 1;
+                }
+            }
+        }
+        for (i, s) in self.sheets.clone().iter().enumerate() {
+            if i == d || s.kind != SheetKind::Worksheet {
+                continue;
+            }
+            let Some(part) = &s.part else { continue };
+            let doc = self.pkg.xml_part(part)?;
+            if let Some(hl) = doc.root().elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
+                n += hl.elements().filter_map(|h| h.attr(ooxml_core::QName::new("", "location"))).filter(|l| names::mentions_prefix(l, name)).count();
+            }
+        }
+        n += self.hyperlink_targets(&PrefixEdit::Rename { old: f, new: "x" }).len();
+        Ok(n)
     }
 
     fn sheet_id_of(&mut self, pos: usize) -> Result<u32> {
@@ -1184,45 +1339,81 @@ impl Workbook {
     }
 
     /// `TableInUse` / `SheetIsPivotSource` (ADR-0009 §5).
+    ///
+    /// A table of the closed set is in use when a part outside the set
+    /// names it in a structured reference (`Name[`, any text or attribute:
+    /// cell formulas, names, other tables' formulas, data validation, …) or
+    /// an x15 table slicer cache points at its id; uses on the deleted sheet
+    /// itself go with it (review of PR #53, m3). A pivot cache that takes its
+    /// data from the sheet — `worksheetSource/@sheet`, or `@name` naming one
+    /// of its tables or a defined name that refers to it (M2) — refuses; so
+    /// does a consolidation `rangeSet`/`dataRef` naming it.
     fn check_tables_and_pivots(&self, sheet_name: &str, set: &[String]) -> Result<()> {
-        let mut tables = Vec::new();
+        let mut tables: Vec<(String, Option<String>)> = Vec::new();
         for p in set {
             if self.pkg.content_type(p).is_some_and(|ct| ct.ends_with("table+xml"))
                 && let Ok(d) = XmlDocument::parse(&self.pkg.read_part(p)?)
             {
+                let id = d.root().attr(ooxml_core::QName::new("", "id")).map(str::to_owned);
                 for a in ["name", "displayName"] {
                     if let Some(n) = d.root().attr(ooxml_core::QName::new("", a)) {
-                        tables.push(n.to_owned());
+                        tables.push((n.to_owned(), id.clone()));
                     }
                 }
-            }
-        }
-        let texts: Vec<String> = self.census.alive().map(|(_, c)| c.text.clone()).chain(self.env_texts()).collect();
-        for t in &tables {
-            let tf = fold(t);
-            let used = texts.iter().any(|x| {
-                lex(x).is_ok_and(|toks| toks.iter().any(|k| k.kind == TokKind::Opaque && fold(&x[k.start..k.end]).starts_with(&format!("{tf}["))))
-            });
-            if used {
-                return Err(Error::TableInUse(t.clone()));
             }
         }
         let sf = fold(sheet_name);
-        for p in self.pkg.part_names() {
-            if !self.pkg.content_type(p).is_some_and(|ct| ct.ends_with("pivotCacheDefinition+xml")) {
+        let wb_names = self.pkg.parsed_part(&self.workbook_part).map(defined_names).unwrap_or_default();
+        let names_on_sheet: Vec<String> = wb_names.iter().filter(|(_, _, _, t)| names::mentions_prefix(t, sheet_name)).map(|(_, n, _, _)| fold(n)).collect();
+        let parts: Vec<String> = self.pkg.part_names().filter(|p| !set.iter().any(|x| x == p)).map(str::to_owned).collect();
+        for p in parts {
+            let ct = self.pkg.content_type(&p).unwrap_or_default().to_ascii_lowercase();
+            let xmlish = ct.ends_with("xml") || p.ends_with(".rels");
+            if !xmlish || p.to_ascii_lowercase().starts_with("docprops/") || ct.contains("sharedstrings") || ct.contains("comments") {
                 continue;
             }
-            let Ok(d) = XmlDocument::parse(&self.pkg.read_part(p)?) else { return Err(Error::SheetIsPivotSource(sheet_name.to_owned())) };
+            let bytes = self.pkg.read_part(&p)?;
+            let Ok(d) = XmlDocument::parse(&bytes) else {
+                let text = fold(&String::from_utf8_lossy(&bytes));
+                if let Some((t, _)) = tables.iter().find(|(t, _)| text.contains(&format!("{}[", fold(t)))) {
+                    return Err(Error::TableInUse(t.clone()));
+                }
+                if ct.ends_with("pivotcachedefinition+xml") && text.contains(&sf) {
+                    return Err(Error::SheetIsPivotSource(sheet_name.to_owned()));
+                }
+                continue;
+            };
             let mut stack = vec![d.root()];
             while let Some(n) = stack.pop() {
-                if n.name().local() == "worksheetSource" {
-                    let s = n.attr(ooxml_core::QName::new("", "sheet")).map(fold);
-                    let nm = n.attr(ooxml_core::QName::new("", "name")).map(fold);
-                    if s.as_deref() == Some(sf.as_str()) || nm.is_some_and(|nm| tables.iter().any(|t| fold(t) == nm)) {
-                        return Err(Error::SheetIsPivotSource(sheet_name.to_owned()));
+                stack.extend(n.elements());
+                let attr = |a: &'static str| n.attr(ooxml_core::QName::new("", a));
+                let texts = std::iter::once(n.text().into_owned()).chain(n.attrs().iter().map(|a| a.value().to_owned()));
+                for t in texts {
+                    let ft = fold(&t);
+                    if let Some((name, _)) = tables.iter().find(|(name, _)| ft.contains(&format!("{}[", fold(name)))) {
+                        return Err(Error::TableInUse(name.clone()));
                     }
                 }
-                stack.extend(n.elements());
+                match n.name().local() {
+                    "tableSlicerCache" => {
+                        if let Some((name, _)) = tables.iter().find(|(_, id)| id.is_some() && attr("tableId") == id.as_deref()) {
+                            return Err(Error::TableInUse(name.clone()));
+                        }
+                    }
+                    "worksheetSource" => {
+                        let s = attr("sheet").map(fold);
+                        let nm = attr("name").map(fold);
+                        let by_table = nm.as_ref().is_some_and(|nm| tables.iter().any(|(t, _)| fold(t) == *nm));
+                        let by_name = nm.as_ref().is_some_and(|nm| names_on_sheet.contains(nm));
+                        if s.as_deref() == Some(sf.as_str()) || by_table || by_name {
+                            return Err(Error::SheetIsPivotSource(sheet_name.to_owned()));
+                        }
+                    }
+                    "rangeSet" | "dataRef" if attr("sheet").map(fold).as_deref() == Some(sf.as_str()) => {
+                        return Err(Error::UnrewritableReference { part: p.clone(), location: format!("<{}> attribute sheet", n.name().local()) });
+                    }
+                    _ => {}
+                }
             }
         }
         Ok(())

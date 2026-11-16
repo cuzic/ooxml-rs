@@ -10,6 +10,38 @@ pub const NS_X14AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/20
 pub const NS_X15AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+/// `x:ST_SourceType` — PivotCache Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SourceValues {
+    /// `worksheet`
+    Worksheet,
+    /// `external`
+    External,
+    /// `consolidation`
+    Consolidation,
+    /// `scenario`
+    Scenario,
+}
+impl ooxml_core::EnumType for SourceValues {
+    const VALUES: &'static [&'static str] = &[
+        "worksheet",
+        "external",
+        "consolidation",
+        "scenario",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Worksheet),
+            1 => Some(Self::External),
+            2 => Some(Self::Consolidation),
+            3 => Some(Self::Scenario),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_CellFormulaType` — Formula Type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CellFormulaValues {
@@ -844,6 +876,119 @@ impl<'a> BookViewsViewMut<'a> {
     /// Removes the first `x:workbookView` child.
     pub fn remove_workbook_view(&mut self) -> bool {
         self.0.remove::<WorkbookViewElement>()
+    }
+}
+/// `x:CT_CacheSource/x:cacheSource` — Defines the CacheSource Class.
+#[derive(Debug)]
+pub enum CacheSource {}
+impl CacheSource {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `connectionId`
+    pub const ATTR_CONNECTION_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "connectionId",
+    );
+}
+impl ooxml_core::ElementSpec for CacheSource {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "cacheSource");
+    const SDK_NAME: &'static str = "x:CT_CacheSource/x:cacheSource";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CacheSource::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SourceValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CacheSource::ATTR_CONNECTION_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X, "worksheetSource"),
+                    ooxml_core::QName::new(NS_X, "consolidation"),
+                    ooxml_core::QName::new(NS_X, "extLst"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CacheSource> for WorksheetSource {}
+/// Read-only view of [`CacheSource`].
+#[derive(Clone, Debug)]
+pub struct CacheSourceView<'a>(pub ooxml_core::Lens<'a, CacheSource>);
+impl<'a> CacheSourceView<'a> {
+    /// `type` — type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, SourceValues>> {
+        self.0.attr_enum(CacheSource::ATTR_TYPE)
+    }
+    /// `connectionId` — connectionId (default `0`)
+    pub fn connection_id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CacheSource::ATTR_CONNECTION_ID,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// First `x:worksheetSource` child.
+    pub fn worksheet_source(&self) -> Option<WorksheetSourceView<'a>> {
+        self.0.child::<WorksheetSource>().map(WorksheetSourceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CacheSource`]. Reads go through [`CacheSourceViewMut::as_view`].
+#[derive(Debug)]
+pub struct CacheSourceViewMut<'a>(pub ooxml_core::LensMut<'a, CacheSource>);
+impl<'a> CacheSourceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CacheSourceView<'_> {
+        CacheSourceView(self.0.as_lens())
+    }
+    /// Sets `type` — type
+    pub fn set_type(&mut self, v: SourceValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CacheSource::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CacheSource::ATTR_TYPE)
+    }
+    /// Sets `connectionId` — connectionId (default `0`)
+    pub fn set_connection_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(CacheSource::ATTR_CONNECTION_ID, s),
+        )
+    }
+    /// Removes `connectionId`.
+    pub fn remove_connection_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CacheSource::ATTR_CONNECTION_ID)
+    }
+    /// First `x:worksheetSource` child, mutably.
+    pub fn worksheet_source_mut(&mut self) -> Option<WorksheetSourceViewMut<'_>> {
+        self.0.child_mut::<WorksheetSource>().map(WorksheetSourceViewMut)
+    }
+    /// Existing `x:worksheetSource` child, or a new one in schema position.
+    pub fn get_or_insert_worksheet_source(
+        &mut self,
+    ) -> Result<WorksheetSourceViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<WorksheetSource>().map(WorksheetSourceViewMut)
+    }
+    /// Removes the first `x:worksheetSource` child.
+    pub fn remove_worksheet_source(&mut self) -> bool {
+        self.0.remove::<WorksheetSource>()
     }
 }
 /// `x:CT_CalcPr/x:calcPr` — Defines the CalculationProperties Class.
@@ -3182,6 +3327,683 @@ impl<'a> MergeCellsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `x:CT_PivotCacheDefinition/x:pivotCacheDefinition` — PivotCache Definition.
+#[derive(Debug)]
+pub enum PivotCacheDefinition {}
+impl PivotCacheDefinition {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `invalid`
+    pub const ATTR_INVALID: ooxml_core::QName = ooxml_core::QName::new("", "invalid");
+    /// `saveData`
+    pub const ATTR_SAVE_DATA: ooxml_core::QName = ooxml_core::QName::new("", "saveData");
+    /// `refreshOnLoad`
+    pub const ATTR_REFRESH_ON_LOAD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshOnLoad",
+    );
+    /// `optimizeMemory`
+    pub const ATTR_OPTIMIZE_MEMORY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "optimizeMemory",
+    );
+    /// `enableRefresh`
+    pub const ATTR_ENABLE_REFRESH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "enableRefresh",
+    );
+    /// `refreshedBy`
+    pub const ATTR_REFRESHED_BY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedBy",
+    );
+    /// `refreshedDateIso`
+    pub const ATTR_REFRESHED_DATE_ISO: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedDateIso",
+    );
+    /// `refreshedDate`
+    pub const ATTR_REFRESHED_DATE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedDate",
+    );
+    /// `backgroundQuery`
+    pub const ATTR_BACKGROUND_QUERY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "backgroundQuery",
+    );
+    /// `missingItemsLimit`
+    pub const ATTR_MISSING_ITEMS_LIMIT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "missingItemsLimit",
+    );
+    /// `createdVersion`
+    pub const ATTR_CREATED_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "createdVersion",
+    );
+    /// `refreshedVersion`
+    pub const ATTR_REFRESHED_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedVersion",
+    );
+    /// `minRefreshableVersion`
+    pub const ATTR_MIN_REFRESHABLE_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minRefreshableVersion",
+    );
+    /// `recordCount`
+    pub const ATTR_RECORD_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "recordCount",
+    );
+    /// `upgradeOnRefresh`
+    pub const ATTR_UPGRADE_ON_REFRESH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "upgradeOnRefresh",
+    );
+    /// `tupleCache`
+    pub const ATTR_TUPLE_CACHE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "tupleCache",
+    );
+    /// `supportSubquery`
+    pub const ATTR_SUPPORT_SUBQUERY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "supportSubquery",
+    );
+    /// `supportAdvancedDrill`
+    pub const ATTR_SUPPORT_ADVANCED_DRILL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "supportAdvancedDrill",
+    );
+}
+impl ooxml_core::ElementSpec for PivotCacheDefinition {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_X,
+        "pivotCacheDefinition",
+    );
+    const SDK_NAME: &'static str = "x:CT_PivotCacheDefinition/x:pivotCacheDefinition";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_INVALID,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_SAVE_DATA,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESH_ON_LOAD,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_ENABLE_REFRESH,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_BY,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_DATE,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_BACKGROUND_QUERY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_CREATED_VERSION,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_VERSION,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_RECORD_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_TUPLE_CACHE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cacheSource")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cacheFields")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cacheHierarchies")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "kpis")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tupleCache")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "calculatedItems")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "calculatedMembers")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "dimensions")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "measureGroups")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "maps")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PivotCacheDefinition> for CacheSource {}
+/// Read-only view of [`PivotCacheDefinition`].
+#[derive(Clone, Debug)]
+pub struct PivotCacheDefinitionView<'a>(pub ooxml_core::Lens<'a, PivotCacheDefinition>);
+impl<'a> PivotCacheDefinitionView<'a> {
+    /// `r:id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(PivotCacheDefinition::ATTR_R_ID)
+    }
+    /// `invalid` — invalid (default `false`)
+    pub fn invalid(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_INVALID,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `saveData` — saveData (default `true`)
+    pub fn save_data(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_SAVE_DATA,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `refreshOnLoad` — refreshOnLoad (default `false`)
+    pub fn refresh_on_load(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_REFRESH_ON_LOAD,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `optimizeMemory` — optimizeMemory (default `false`)
+    pub fn optimize_memory(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `enableRefresh` — enableRefresh (default `true`)
+    pub fn enable_refresh(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_ENABLE_REFRESH,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `refreshedBy` — refreshedBy
+    pub fn refreshed_by(&self) -> Option<&'a str> {
+        self.0.attr(PivotCacheDefinition::ATTR_REFRESHED_BY)
+    }
+    /// `refreshedDateIso` — refreshedDateIso
+    pub fn last_refreshed_date_iso(&self) -> Option<&'a str> {
+        self.0.attr(PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO)
+    }
+    /// `refreshedDate` — refreshedDate
+    pub fn refreshed_date(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                PivotCacheDefinition::ATTR_REFRESHED_DATE,
+                ooxml_core::value::parse_f64,
+            )
+    }
+    /// `backgroundQuery` — backgroundQuery (default `false`)
+    pub fn background_query(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_BACKGROUND_QUERY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `missingItemsLimit` — missingItemsLimit
+    pub fn missing_items_limit(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `createdVersion` — createdVersion (default `0`)
+    pub fn created_version(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_CREATED_VERSION,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `refreshedVersion` — refreshedVersion (default `0`)
+    pub fn refreshed_version(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_REFRESHED_VERSION,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `minRefreshableVersion` — minRefreshableVersion (default `0`)
+    pub fn min_refreshable_version(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `recordCount` — recordCount
+    pub fn record_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                PivotCacheDefinition::ATTR_RECORD_COUNT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `upgradeOnRefresh` — upgradeOnRefresh (default `false`)
+    pub fn upgrade_on_refresh(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `tupleCache` — tupleCache (default `false`)
+    pub fn is_tuple_cache(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_TUPLE_CACHE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `supportSubquery` — supportSubquery (default `false`)
+    pub fn support_subquery(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `supportAdvancedDrill` — supportAdvancedDrill (default `false`)
+    pub fn support_advanced_drill(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `x:cacheSource` child.
+    pub fn cache_source(&self) -> Option<CacheSourceView<'a>> {
+        self.0.child::<CacheSource>().map(CacheSourceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PivotCacheDefinition`]. Reads go through [`PivotCacheDefinitionViewMut::as_view`].
+#[derive(Debug)]
+pub struct PivotCacheDefinitionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, PivotCacheDefinition>,
+);
+impl<'a> PivotCacheDefinitionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PivotCacheDefinitionView<'_> {
+        PivotCacheDefinitionView(self.0.as_lens())
+    }
+    /// Sets `r:id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PivotCacheDefinition::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_R_ID)
+    }
+    /// Sets `invalid` — invalid (default `false`)
+    pub fn set_invalid(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_INVALID,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `invalid`.
+    pub fn remove_invalid(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_INVALID)
+    }
+    /// Sets `saveData` — saveData (default `true`)
+    pub fn set_save_data(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_SAVE_DATA,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `saveData`.
+    pub fn remove_save_data(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_SAVE_DATA)
+    }
+    /// Sets `refreshOnLoad` — refreshOnLoad (default `false`)
+    pub fn set_refresh_on_load(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_REFRESH_ON_LOAD,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `refreshOnLoad`.
+    pub fn remove_refresh_on_load(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESH_ON_LOAD)
+    }
+    /// Sets `optimizeMemory` — optimizeMemory (default `false`)
+    pub fn set_optimize_memory(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `optimizeMemory`.
+    pub fn remove_optimize_memory(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY)
+    }
+    /// Sets `enableRefresh` — enableRefresh (default `true`)
+    pub fn set_enable_refresh(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_ENABLE_REFRESH,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `enableRefresh`.
+    pub fn remove_enable_refresh(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_ENABLE_REFRESH)
+    }
+    /// Sets `refreshedBy` — refreshedBy
+    pub fn set_refreshed_by(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PivotCacheDefinition::ATTR_REFRESHED_BY, v)
+    }
+    /// Removes `refreshedBy`.
+    pub fn remove_refreshed_by(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_BY)
+    }
+    /// Sets `refreshedDateIso` — refreshedDateIso
+    pub fn set_last_refreshed_date_iso(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO, v)
+    }
+    /// Removes `refreshedDateIso`.
+    pub fn remove_last_refreshed_date_iso(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO)
+    }
+    /// Sets `refreshedDate` — refreshedDate
+    pub fn set_refreshed_date(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_REFRESHED_DATE,
+                &ooxml_core::value::format_f64(v),
+            )
+    }
+    /// Removes `refreshedDate`.
+    pub fn remove_refreshed_date(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_DATE)
+    }
+    /// Sets `backgroundQuery` — backgroundQuery (default `false`)
+    pub fn set_background_query(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_BACKGROUND_QUERY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `backgroundQuery`.
+    pub fn remove_background_query(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_BACKGROUND_QUERY)
+    }
+    /// Sets `missingItemsLimit` — missingItemsLimit
+    pub fn set_missing_items_limit(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT, s),
+        )
+    }
+    /// Removes `missingItemsLimit`.
+    pub fn remove_missing_items_limit(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT)
+    }
+    /// Sets `createdVersion` — createdVersion (default `0`)
+    pub fn set_created_version(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_CREATED_VERSION, s),
+        )
+    }
+    /// Removes `createdVersion`.
+    pub fn remove_created_version(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_CREATED_VERSION)
+    }
+    /// Sets `refreshedVersion` — refreshedVersion (default `0`)
+    pub fn set_refreshed_version(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_REFRESHED_VERSION, s),
+        )
+    }
+    /// Removes `refreshedVersion`.
+    pub fn remove_refreshed_version(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_VERSION)
+    }
+    /// Sets `minRefreshableVersion` — minRefreshableVersion (default `0`)
+    pub fn set_min_refreshable_version(
+        &mut self,
+        v: u8,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION, s),
+        )
+    }
+    /// Removes `minRefreshableVersion`.
+    pub fn remove_min_refreshable_version(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION)
+    }
+    /// Sets `recordCount` — recordCount
+    pub fn set_record_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_RECORD_COUNT, s),
+        )
+    }
+    /// Removes `recordCount`.
+    pub fn remove_record_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_RECORD_COUNT)
+    }
+    /// Sets `upgradeOnRefresh` — upgradeOnRefresh (default `false`)
+    pub fn set_upgrade_on_refresh(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `upgradeOnRefresh`.
+    pub fn remove_upgrade_on_refresh(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH)
+    }
+    /// Sets `tupleCache` — tupleCache (default `false`)
+    pub fn set_is_tuple_cache(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_TUPLE_CACHE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `tupleCache`.
+    pub fn remove_is_tuple_cache(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_TUPLE_CACHE)
+    }
+    /// Sets `supportSubquery` — supportSubquery (default `false`)
+    pub fn set_support_subquery(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `supportSubquery`.
+    pub fn remove_support_subquery(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY)
+    }
+    /// Sets `supportAdvancedDrill` — supportAdvancedDrill (default `false`)
+    pub fn set_support_advanced_drill(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `supportAdvancedDrill`.
+    pub fn remove_support_advanced_drill(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL)
+    }
+    /// First `x:cacheSource` child, mutably.
+    pub fn cache_source_mut(&mut self) -> Option<CacheSourceViewMut<'_>> {
+        self.0.child_mut::<CacheSource>().map(CacheSourceViewMut)
+    }
+    /// Existing `x:cacheSource` child, or a new one in schema position.
+    pub fn get_or_insert_cache_source(
+        &mut self,
+    ) -> Result<CacheSourceViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CacheSource>().map(CacheSourceViewMut)
+    }
+    /// Removes the first `x:cacheSource` child.
+    pub fn remove_cache_source(&mut self) -> bool {
+        self.0.remove::<CacheSource>()
     }
 }
 /// `x:CT_RElt/x:r` — Rich Text Run.
@@ -6545,6 +7367,112 @@ impl<'a> WorksheetViewMut<'a> {
         self.0.remove::<SheetViews>()
     }
 }
+/// `x:CT_WorksheetSource/x:worksheetSource` — Defines the WorksheetSource Class.
+#[derive(Debug)]
+pub enum WorksheetSource {}
+impl WorksheetSource {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `sheet`
+    pub const ATTR_SHEET: ooxml_core::QName = ooxml_core::QName::new("", "sheet");
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for WorksheetSource {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "worksheetSource");
+    const SDK_NAME: &'static str = "x:CT_WorksheetSource/x:worksheetSource";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_SHEET,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`WorksheetSource`].
+#[derive(Clone, Debug)]
+pub struct WorksheetSourceView<'a>(pub ooxml_core::Lens<'a, WorksheetSource>);
+impl<'a> WorksheetSourceView<'a> {
+    /// `ref` — Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_REF)
+    }
+    /// `name` — Named Range
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_NAME)
+    }
+    /// `sheet` — Sheet Name
+    pub fn sheet(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_SHEET)
+    }
+    /// `r:id` — Relationship Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorksheetSource`]. Reads go through [`WorksheetSourceViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorksheetSourceViewMut<'a>(pub ooxml_core::LensMut<'a, WorksheetSource>);
+impl<'a> WorksheetSourceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorksheetSourceView<'_> {
+        WorksheetSourceView(self.0.as_lens())
+    }
+    /// Sets `ref` — Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_REF)
+    }
+    /// Sets `name` — Named Range
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_NAME)
+    }
+    /// Sets `sheet` — Sheet Name
+    pub fn set_sheet(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_SHEET, v)
+    }
+    /// Removes `sheet`.
+    pub fn remove_sheet(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_SHEET)
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_R_ID)
+    }
+}
 /// `x:CT_Xstring/x:t` — Text.
 #[derive(Debug)]
 pub enum Text {}
@@ -6682,6 +7610,8 @@ impl<'a> CellValueViewMut<'a> {
 const _: () = ooxml_core::schema::assert_spec::<WorkbookViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<BookViews>();
 const _: () = ooxml_core::schema::assert_child::<BookViews, WorkbookViewElement>();
+const _: () = ooxml_core::schema::assert_spec::<CacheSource>();
+const _: () = ooxml_core::schema::assert_child::<CacheSource, WorksheetSource>();
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
@@ -6704,6 +7634,8 @@ const _: () = ooxml_core::schema::assert_child::<Hyperlinks, Hyperlink>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
+const _: () = ooxml_core::schema::assert_spec::<PivotCacheDefinition>();
+const _: () = ooxml_core::schema::assert_child::<PivotCacheDefinition, CacheSource>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
 const _: () = ooxml_core::schema::assert_spec::<Row>();
@@ -6747,5 +7679,6 @@ const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetDimension>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProperties>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetViews>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, TableParts>();
+const _: () = ooxml_core::schema::assert_spec::<WorksheetSource>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
 const _: () = ooxml_core::schema::assert_spec::<CellValue>();

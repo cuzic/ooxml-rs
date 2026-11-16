@@ -191,6 +191,14 @@ pub(crate) fn rewrite_formula(text: &str, edit: &PrefixEdit<'_>, mentions: &dyn 
     let mut changed = false;
     for t in &tokens {
         let tok = &text[t.start..t.end];
+        // `[0]Sheet!A1` is this workbook; not rewritten here, so refused
+        // when it names the sheet (review of PR #53, nit)
+        if let TokKind::Ref(crate::formula::lexer::RefTok { prefix: Prefix::External, .. }) | TokKind::Name { prefix: Prefix::External, .. } = &t.kind
+            && (tok.starts_with("[0]") || tok.starts_with("'[0]"))
+            && mentions(&tok.replacen("[0]", "", 1))
+        {
+            return Err(Unrewritable("a [0] self-reference"));
+        }
         // (prefix length in the token, whole token may become #REF!)
         let region = match &t.kind {
             TokKind::Ref(r) if !matches!(r.prefix, Prefix::None | Prefix::External) => Some((r.area_offset - 1, true)),

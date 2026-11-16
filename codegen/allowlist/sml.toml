@@ -35,6 +35,10 @@ names = [
     "x:CT_SheetView/x:sheetView",
     "x:CT_Hyperlinks/x:hyperlinks",
     "x:CT_Hyperlink/x:hyperlink",
+    # Phase3 rename: a pivot cache's worksheetSource/@sheet (a raw sheet name).
+    "x:CT_PivotCacheDefinition/x:pivotCacheDefinition",
+    "x:CT_CacheSource/x:cacheSource",
+    "x:CT_WorksheetSource/x:worksheetSource",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
