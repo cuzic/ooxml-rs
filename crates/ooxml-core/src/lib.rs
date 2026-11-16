@@ -24,7 +24,7 @@ pub mod schema;
 pub mod value;
 pub mod xml;
 
-pub use error::{Error, Result};
+pub use error::{Error, MoveRefusal, Result};
 pub use lens::{Lens, LensMut};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind};

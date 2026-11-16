@@ -101,6 +101,7 @@ Write primitives (ADR-0002 §4.2):
 | `insert_in_slot::<C>(slot, before)` | For a QName that is in two slots (otherwise `AmbiguousSlot`). |
 | `get_or_insert::<C>()` | First existing `C`, or insert. |
 | `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
+| `move_in[_by]::<C>(from, [before])`, `check_move_in_by` | Move the element at path `from` (same part) and its subtree into this element, placed like `insert_by::<C>`; its bytes are kept (pure move). Refused before any change (`NotMovable`: root, into itself, a prefix bound differently, an ignorable namespace at one place only, inherited `xml:space` differing for its text; `WrongElement`; `TooDeep`; the `insert_by` refusals). ADR-0002 note "same-part move". |
 | `set_attr(q, value)`, `remove_attr(q)` | Untyped; typed setters are generated. Setting the current value is not a change. |
 | `set_text(value)` | `Content::Text` elements only; sets `xml:space="preserve"` for edge whitespace when the spec declares `xml:space`; never removes it. |
 

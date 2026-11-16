@@ -20,6 +20,8 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
 
+mod move_subtree;
+
 use crate::error::{Error, Result};
 use crate::name::{MC_ALTERNATE_CONTENT, QName, XML_NS, XML_SPACE, XMLNS_NS, XName};
 use crate::schema::{ChildOf, Content, ElementSpec, EnumType, EnumValue, AttrError, Slot};
@@ -340,13 +342,30 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         slots: &[Slot],
         slot: usize,
         q: QName,
+        before: impl FnMut(usize, &RawNode) -> bool,
+    ) -> Result<Placement> {
+        self.place_skipping(slots, slot, q, before, None)
+    }
+
+    /// [`Self::place`] as if the child item at `skip` were absent (a child
+    /// being moved within the same parent); the returned index is still in
+    /// the current coordinates.
+    fn place_skipping(
+        &self,
+        slots: &[Slot],
+        slot: usize,
+        q: QName,
         mut before: impl FnMut(usize, &RawNode) -> bool,
+        skip: Option<usize>,
     ) -> Result<Placement> {
         let node = self.node();
         let mut cur = 0usize;
         let (mut same_q, mut same_slot, mut k) = (0u32, 0u32, 0usize);
         let mut at = None;
         for (i, child) in node.indexed_elements() {
+            if Some(i) == skip {
+                continue;
+            }
             if child.is(MC_ALTERNATE_CONTENT) {
                 return Err(Error::UnresolvedSibling(E::QNAME));
             }
