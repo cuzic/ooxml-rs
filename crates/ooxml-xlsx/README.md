@@ -44,6 +44,35 @@ wb.save("new.xlsx")?;
 | `Workbook::new` | Opens `template/blank.xlsx` (built by `template/build.py` from `template/blank/`) through the same code path; `docProps/core.xml` is regenerated (created/modified = now) with `Package::set_part`. |
 | `add_worksheet()` | First call on a `new()` workbook returns the template's sheet; every other call, and any call on an opened file, `Err(SheetAdditionUnsupported)`. `add_worksheet_with_name` is always `Err(SheetNamingUnsupported)`. |
 
+## Usage example
+
+`examples/edit_cells.rs` is a runnable walk-through on a committed fixture. It:
+
+- opens a workbook;
+- prints the first visible sheet's cells;
+- sets a number and a string;
+- saves the result to `OUT_DIR/edit_cells.xlsx` and re-reads it;
+- shows two refusals: `FormulaPresent`, and a Strict package refused at open.
+
+```sh
+cargo run -p ooxml-xlsx --example edit_cells -- [OUT_DIR]   # default: <temp dir>/ooxml-rs-examples
+```
+
+```rust,no_run
+use ooxml_xlsx::{Error, Workbook};
+
+let mut wb = Workbook::open("book.xlsx")?;
+if let Some(why) = wb.edit_refusal() {
+    eprintln!("not editable: {why}"); // e.g. formulas present; nothing changed
+} else {
+    let mut ws = wb.worksheet()?;
+    ws.cell_mut(1, 1)?.set_number(42.5)?;
+    ws.cell_mut(5, 0)?.set_string("written by ooxml-rs")?;
+    wb.save("book-edited.xlsx")?;
+}
+# Ok::<(), Error>(())
+```
+
 ## Refusals (`Err`, nothing changed)
 
 Every write is planned first: all refusals, the row/cell insertion points,
