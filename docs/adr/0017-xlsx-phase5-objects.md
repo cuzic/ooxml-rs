@@ -1,6 +1,6 @@
 # ADR-0017: xlsx Phase5 — drawing-layer and object features
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 1–3, T1/T1b/T2, append-only
@@ -20,6 +20,47 @@
     the per-edit allowed-diff lists, worksheet `extLst` handling.
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.7 (F3–F7, F10, E9), §6 Phase5.
 - Evidence: [`spikes/xlsx-phase5/`](../../spikes/xlsx-phase5/README.md) (corpus survey).
+- Review: [round 1](0017-opus-review-round1.md)
+
+## Revision history
+
+- **Revision 1**: initial draft.
+- **Revision 2** (after `0017-opus-review-round1.md`: 2 Blocker, 4 Major, 11 Minor). The
+  owner decided Q1–Q7 on 2026-11-16 (all proposed defaults).
+  - **B1:** everything that can refuse is decided before the first change.
+    - A new **Phase1 `CellWritePlan`** (an ADR-0003 addendum, PR P5-pre) validates all cell
+      writes of an operation at once, accumulating the census.
+    - The calcChain removal and the `calcPr` change are folded into the operation's
+      `RegistryPlan`.
+    - Every `xml_part_mut` check runs before `RegistryPlan::new`.
+    - After `apply` only checked insertions remain, with fault injection at each step.
+    - §2.1 has a table per operation (§2.1).
+  - **B2:** one **per-sheet shape-number allocator** over drawing `cNvPr` (all branches), VML
+    `id` **and `o:spid`**, and `control`/`oleObject` `shapeId`. It is used for both drawing
+    and VML shapes and moves into P5a. VML blocks are read from the bytes when the part is not
+    XML (§2.2). The spike now counts `o:spid`: revision 1's rule would have collided in 3
+    corpus files.
+  - **M1:** deleting a table that refers to itself (totals, calculated columns), a non-default
+    `tableType`, or a table with its own `.rels` is refused (§6.4).
+  - **M2:** one function builds structured-reference column specifiers, with `'` escapes and
+    the double-bracket form for edge whitespace; `ColumnInUse` matches every spelling on lexer
+    tokens (§6.1, §6.3).
+  - **M3:** the fallback note declares `xr`, `mc` and `mc:Ignorable="xr"` locally (§5).
+  - **M4:** non-empty header, totals or calculated-column cells refuse unless
+    `overwrite(true)`; `vm`/`cm` cells and shared masters in the range refuse (§6.1).
+  - **Minor fixes, each in its section:**
+    - m1: only table removal stages the sheet, as the plan's last step;
+    - m2: `x15:tableSlicerCache/@tableId` counts for table ids;
+    - m3: `metadata.xml` additions go into schema slots;
+    - m4: image header rules;
+    - m5: the allowed-diff table is complete;
+    - m6: header sync is refused on query/XML/pivot/slicer-source tables and for empty names;
+    - m7: `[@Col]` is converted on tokens, and `#`/`@` operators are refused;
+    - m8: more `ChartNotRefreshable` cases, and the category-axis rule;
+    - m9: the POI citation is fixed, and a removal with several matching note shapes is
+      refused;
+    - m10: GUID collision check, and `dT` as an XL item;
+    - m11: sparkline ext order as an XL item.
 
 ## Context
 
@@ -81,7 +122,7 @@ Each kind has an **id space** that a new object must fit into:
 | `cNvPr/@id` | **No duplicate within any drawing** (0 of 101). Ids **repeat across drawings** in 8 files: the scope is the drawing part. In 44 drawings `max − count = 1` (Excel numbers from 2). 15 drawings have ids ≥ 1,025 that mirror VML shape ids (form controls). **`id="0"` in 4 drawings** (written by POI: `Diagramm0`, `Apache POI`; and by LibreOffice). |
 | Media | png 54, jpeg 10, jpg 9, wmf 2, emf 2. One media part shared by several drawings in 3 files; identical bytes under two names in 1 file. No `r:link` (external) images, no SVG. |
 | Notes | 31 comments parts in 27 files, 204 comments, 33 authors, no duplicate author, no bad `authorId`. Every `Note` VML shape has its comment and vice versa. 5 notes are visible. |
-| VML | 42 parts in 37 files. **1 is not well-formed XML** (`BrNotClosed.xlsx`). Shapes: `Note` 204, `Pict` 93 (7 files), `Checkbox` 162 (1), `Button` 4, `Text` 1. **`o:idmap` blocks are unique across each workbook** (e.g. `45544`: 13, 16; `57181`: 5, 6, 7), and **every `_x0000_sN` id lies in its sheet's block(s)** (218 of 218). Form controls also use named ids (`CheckBox12`, …). No `legacyDrawingHF` (header/footer images) in the corpus. |
+| VML | 42 parts in 37 files. **1 is not well-formed XML** (`BrNotClosed.xlsx`). Shapes: `Note` 204, `Pict` 93 (7 files), `Checkbox` 162 (1), `Button` 4, `Text` 1. **`o:idmap` blocks are unique across each workbook**, comma lists split (e.g. `45544`: 13, 16; `57181`: 5, 6, 7). Shape numbers come from `id="…_sN"` and from **`o:spid`** (243 `o:spid`s in 4 files; named form controls such as `CheckBox12` carry their number only there): 466 numbers, every non-negative one inside its sheet's blocks (2 are negative, `_x0000_s-1`). Sheets also hold 264 `control`/`oleObject` `shapeId`s, and drawing `cNvPr` and VML numbers coincide (mirrored controls) on 6 sheets in 5 files. No `legacyDrawingHF` (header/footer images) in the corpus. |
 | Threaded comments | 3 files, 4 threads, no replies, no mentions; each has a `persons` part with one person (GUID id). The fallback note's author is `tc={thread id}` and its `xr:uid` is the thread id (`64759.xlsx`). |
 | Tables | 61 tables in 29 files. **`id` unique workbook-wide in every file**; ids have gaps in 7 files (max − count from 1 to 22): ids are not compacted. `name ≠ displayName` in 1. No header row: 2. Totals row: 9 tables (6 files), 24 `totalsRowFunction`s. `calculatedColumnFormula` 16 (8 files). `tableType="queryTable"` 13, `"xml"` 5. Column ids not `1..N` in 14 tables. No two tables share a display name (case-insensitive); none equals a defined name. |
 | Header cells | Every header cell's text equals its `tableColumn/@name`, **except 3 where the name is the ST_Xstring form**: header text `Handle⏎Bars`, name `Handle_x000a_Bars` (`ConditionalFormattingSamples.xlsx`). No header cell is a formula or missing. |
@@ -170,53 +211,116 @@ Out of scope:
 
 ### 2. Common machinery
 
-#### 2.1 One plan per object operation
+#### 2.1 One plan per object operation (review B1)
 
-Every operation follows ADR-0003 §3.1 plan → validate → apply, with PR #38's transaction for
-the package structure:
+Every operation follows ADR-0003 §3.1 plan → validate → apply. **Everything that can refuse is
+decided before the first change**, and the only things left after `Package::apply` are
+in-place insertions that were checked in step 1:
 
-1. **Plan, read-only.** Parse what is needed (sheet, drawing, comments, VML, table parts,
-   `metadata.xml`), compute ids and names (§2.2), build the new XML trees, and check every
-   in-place insertion with the lens's `check_insert_*` twins.
-2. **Registry plan.** Build one `RegistryPlan`: `add_part` (`Numbered`), `add_relationship`,
-   `add_default_content_type` (media), `stage_part` for every *existing* small part whose
-   content changes (drawing, comments, VML, table, `metadata.xml`, `persons`), and
-   `remove_parts` for removals. Each step is validated against the virtual view.
-3. **Apply.** `Package::apply(plan)` (infallible except `StalePlan`), then the validated
-   in-place edits of the **sheet part** (insert `<drawing>`, `<legacyDrawing>`,
-   `<tableParts>`/`<tablePart>`, cells, `extLst` content), then the Phase1/Phase2 effects.
+1. **Validate (read-only, before `RegistryPlan::new`).** Parse what is needed (sheet, drawing,
+   comments, VML, table parts, `metadata.xml`). Compute ids and names (§2.2). Build the new XML
+   trees. Check every in-place insertion with the lens's `check_insert_*` twins. For
+   operations that write cells, build a **Phase1 multi-cell write plan** (`CellWritePlan`,
+   below) for all of them at once. Every check that needs `xml_part_mut` (the lens's
+   `check_insert_at` is only on `LensMut` today; Phase1 and Phase2 checks included) runs here,
+   because `xml_part_mut` makes a `RegistryPlan` stale (PR #38).
+2. **Registry plan.** Build one `RegistryPlan` containing:
+   - `add_part` (`Numbered`), `add_relationship`, `add_default_content_type` (media);
+   - `stage_part` for every existing **small** part whose content changes (drawing, comments,
+     VML, table, `metadata.xml`, `persons`), and for `workbook.xml` when `calcPr` changes;
+   - `remove_parts` for removals, **including `calcChain.xml`** when the cell writes require
+     it (ADR-0003 §4.3 policy; `remove_parts(&[calcChain], &[REL_CALC_CHAIN])`, the same shape
+     as ADR-0009 §2).
 
-The sheet part is edited in place, not staged, because staging clones the tree (289 ms for a
-200k-formula sheet, ADR-0003) and every Phase5 sheet edit is an insertion the plan already
-validated. The order matters: `xml_part_mut` makes a `RegistryPlan` stale (PR #38), so all
-sheet checks happen in step 1, before the plan exists, and the sheet is changed only after
-`apply`. A failure after `apply` is impossible by construction; if one happens anyway the
-workbook is **poisoned** as in ADR-0003 §3.1 (fault-injection test points after each step).
+   Each step is validated against the virtual view. A refusal drops the plan: nothing changed.
+3. **Apply.** `Package::apply(plan)` (infallible except `StalePlan`), then the in-place edits
+   of the **sheet part** validated in step 1, in a fixed order:
+   1. element insertions (`<drawing>`, `<legacyDrawing>`, `<tableParts>`/`<tablePart>`,
+      `extLst` content);
+   2. the `CellWritePlan`'s cell writes and cache strips (sheetData, and the `sst` appends of
+      Phase2);
+   3. the census and index updates.
 
-Removals (picture, note, thread, table) **stage** the sheet part, because PR #38's reference
-scan must see the sheet without the `r:id` it removes. Removals are rare and the staging cost
-is ADR-0009's.
+   A failure here is a bug by construction. The workbook is poisoned as in ADR-0003 §3.1:
+   poisoned before apply, cleared on success, so a panic also poisons. **Fault injection**
+   before each of these steps is tested for table creation, dynamic arrays and header sync.
+
+| Operation | Step 1 validates | Plan contains | In place after apply |
+|---|---|---|---|
+| image | anchor, media, `<drawing>` slot | drawing (new/staged), media, rels, CT | `<drawing>` (new drawing only) |
+| note / thread | VML parseable, ids, `<legacyDrawing>` slot | comments, VML, threaded part, persons, rels, CT | `<legacyDrawing>` (new VML only) |
+| table | range rules (§6.1), names, `CellWritePlan` of header, totals and column cells | table part, rels, CT, staged `workbook.xml` (`calcPr`), calcChain removal | `tableParts`, cell writes, census |
+| header sync | `CellWritePlan` of one string cell, column rules (§6.3) | staged table part, `workbook.xml`/calcChain if dependents | the cell, census |
+| chart | refs resolve, caches computed | chart part, drawing, rels, CT | `<drawing>` (new drawing only) |
+| sparkline | refs lex and resolve, `extLst` slot | — | `extLst` content |
+| dynamic array | `CellWritePlan` of the anchor, `metadata.xml` blocks | staged/new `metadata.xml`, rels, CT, `workbook.xml`, calcChain removal | the cell, census |
+| removals | references (§3.2, §4.1, §5, §6.4) | `remove_parts`, staged parts, staged sheet (table only) | — |
+
+**Prerequisite: Phase1 multi-cell write plan (an ADR-0003 addendum and its own PR, before P5b
+and P5d).**
+- ADR-0003 §3.1 plans one cell at a time and says "a batch API is not needed for Phase1".
+  Phase5 needs one. `CellWritePlan::new(&workbook, writes: &[(cell, op)])` validates every
+  guard of §3.1 for **all** the cells.
+- The census changes are accumulated **inside** the plan: cell k is planned against the
+  census as cells 1..k−1 leave it. Examples: a calculated column's cells, and the totals row's
+  `SUBTOTAL(109,T[Col])` over that column.
+- The plan returns the strip set, the hand-offs, the `calcPr` change and the calcChain
+  decision. These go into the `RegistryPlan` as staged parts and removals, and the cell edits
+  are applied after it.
+- The usual refusals (`RichValueCell`, `UnknownCellMetadata`, `SharedFormulaMaster`, an
+  `mc:AlternateContent` next to `calcPr`, …) therefore happen in step 1, with every byte
+  unchanged. Regression tests cover a `vm` cell, a `cm` cell and a shared-formula master
+  inside a new table's range.
+
+**Removals.** Only table removal changes the sheet (its `tablePart`), so only it stages the
+sheet part (review m1). Staging clones the tree (289 ms for a 200k-formula sheet, ADR-0003).
+PR #38 clones the plan at each step, so the sheet is staged as the plan's **last** step.
+Picture, note and thread removals stage only the small parts they change.
 
 Core follow-up (requested, not blocking): a read-only `Lens::check_insert_at`/
 `check_insert_by`, so step 1 does not need `xml_part_mut` (also PR #29 review nit).
 
 #### 2.2 Ids and names
 
-Rules shared by every object; the scans run once per workbook and are kept as high-waters for
-the session (an id removed in the session is never handed out again):
+Rules shared by every object. The scans run once per workbook, and the results are kept as
+high-waters for the session: an id removed in the session is never handed out again.
+
+**One shape-number allocator per sheet (review B2, part of P5a).**
+- The drawing's `cNvPr/@id`s and the VML shape numbers share one number space per sheet.
+  Excel mirrors a form control's VML `o:spid` in the drawing. `ExcelWithAttachments.xlsm`
+  continues one counter from the drawing (1025–1031) into the VML (1032–1038).
+- Shapes with a name for an `id` (`CheckBox28`) carry their number only in **`o:spid`**.
+- The allocator's next number is 1 + the maximum of:
+  - every `cNvPr/@id` in the sheet's drawing, inside groups and in every
+    `mc:Choice`/`mc:Fallback` branch;
+  - every number in a VML `id="…_sN"` **or `o:spid="…_sN"`** on any VML element of the
+    sheet;
+  - the sheet's `control/@shapeId` and `oleObject/@shapeId`;
+  - the session high-water.
+- Numbers that do not parse are ignored for the maximum (negative `_x0000_s-1`, a trailing
+  space in LibreOffice's `id="_x0000_s1026 "`). A new id string must also not equal any
+  existing one.
+- The allocator is used for both new `cNvPr`s and new VML shapes. A VML number is then moved
+  up into the sheet's `o:idmap` block range (§4.2). Never 0, at least 2 in a new drawing.
+- Corpus (spike re-run, `o:spid` included): 466 VML shape numbers. Every non-negative one is
+  inside its sheet's blocks; 2 negative ones (`right-to-left.xlsx`) are not. 264
+  `control`/`oleObject` `shapeId`s. Drawing and VML share numbers on 6 sheets in 5 files.
+- Revision 1's rule (1 + max over `id="…_sN"` only, as POI's `XSSFVMLDrawing` L161-172) would
+  have collided with an existing number in 3 files: `45540_form_Footer`/`_Header` (2139) and
+  `mv-calculator-final-2-20-2013.xlsm` (1133).
 
 | Id | Rule | Why |
 |---|---|---|
-| `cNvPr/@id` | 1 + max over **every** `cNvPr` in the drawing (inside groups and every `mc:Choice`/`mc:Fallback` branch) **and every VML shape number of the same sheet**; at least 2 in a new drawing | per-drawing scope (corpus: ids repeat across drawings, never within); Excel starts at 2; form controls pair a drawing id with the VML id, so we do not take a number the VML side uses. Never 0 (POI's chart counter writes 0). |
-| `cNvPr/@name` | `Picture {id−1}`, `Chart {id−1}` unless the caller names it | Excel's and RX's form; names need not be unique |
+| `cNvPr/@id` | the sheet's shape-number allocator (above) | one number space per sheet; never 0 (POI's chart counter writes 0) |
+| `cNvPr/@name` | `Picture {n}`, `Chart {n}` (n = id − 1) unless the caller names it | Excel's and RX's form; names need not be unique |
 | media part | `Numbered("xl/media/image{}.{ext}")` (PR #38: max + 1) | package scope |
-| `table/@id` | 1 + max over every table part in the package, and every id removed in the session | workbook scope; corpus gaps show Excel never compacts; POI's count-based rule can collide |
+| `table/@id` | 1 + max over every table part's `id`, every `x15:tableSlicerCache/@tableId` (review m2) and every id removed in the session | workbook scope; corpus gaps show Excel never compacts; slicer caches refer to table ids |
 | table part | `Numbered("xl/tables/table{}.xml")` (need not equal the id) | PR #38 |
 | table name | §6.2 | |
 | comment author | exact string match among existing authors, else append | ADR-0006 exact-form reuse; RX and POI do the same |
-| VML block | a sheet without VML gets **1 + max** over every `o:idmap/@data` block in the workbook; a sheet whose blocks are full (1,024 shapes each) gets a new block appended to its `data` list | corpus: blocks unique per workbook, ids inside them; OP and POI write `data="1"` everywhere, which collides on the second sheet |
-| VML shape | `_x0000_s{1024·b + k}` with 1 + max over the sheet's existing shape numbers in its blocks | corpus 218/218 |
-| GUIDs (threads, persons) | random v4, upper-case, braced; a test hook injects a deterministic source (Q4) | Excel's form |
+| VML block | a sheet without VML gets **1 + max** over every block of every `o:idmap/@data` in the workbook (comma lists split). A VML part that is not XML has its `data` read from the bytes; if even that fails, allocating a new block is `Err(PartNotEditable)`. A sheet whose blocks are full gets a new block appended to its `data` list. | corpus: blocks unique per workbook; OP and POI write `data="1"` everywhere |
+| VML shape | the allocator's number, raised to the first free number inside the sheet's blocks (`1024·b + 1 … 1024·b + 1023`) | corpus: every non-negative number lies in its sheet's blocks |
+| GUIDs (threads, persons) | random v4, upper-case, braced; checked against every existing thread and person id (review m10); a test hook injects a deterministic source (Q4) | Excel's form |
 | `metadata.xml` indices | §9 | |
 
 #### 2.3 Allowlist growth
@@ -257,7 +361,18 @@ ws.insert_image(Anchor::two_cell(from, to).edit_as(EditAs::OneCell), &img.alt_te
 - **Format** from the magic bytes (PNG, JPEG, GIF, BMP, EMF, WMF; SVG needs a PNG fallback
   passed by the caller, stored as `a:blip` + `asvg:svgBlip` ext). Size and DPI from the header;
   unknown size → `Err(ImageSize)`. Bytes are never re-encoded (unlike OP).
-- **Anchor default: `oneCellAnchor`** with `ext` from the image's natural size (Q1). It needs
+- **Header parsing** (review m4). It is bounds-checked and never panics; it is a fuzz target.
+  - DPI: a zero or absurdly small DPI, a PNG `pHYs` unit of 0 and a JFIF density unit of 0
+    fall back to 96 dpi.
+  - JPEG: every SOF marker (SOF0–SOF15 except DHT, JPG and DAC) is scanned; a height of 0
+    (DNL) is `ImageSize`.
+  - BMP: a negative height means top-down and its absolute value is used.
+  - EMF: the size comes from `rclFrame` (0.01 mm).
+  - WMF: only the placeable header is read; its units per inch are used.
+  - EXIF orientation is not applied.
+  - An `ext` above ST_PositiveCoordinate (27,273,042,316,900 EMU) is refused.
+- **Anchor default: `oneCellAnchor`** with `ext` from the image's natural size (Owner
+  decision 2026-11-16, Q1). It needs
   no column widths or row heights, so the size is exact. `twoCellAnchor` when the caller gives
   both cells (with `editAs`, default `oneCell` as Excel and RX); `absoluteAnchor` with EMU.
   The anchor cell must be inside the sheet's limits.
@@ -268,7 +383,9 @@ ws.insert_image(Anchor::two_cell(from, to).edit_as(EditAs::OneCell), &img.alt_te
   - identical bytes (SHA-256, then a byte compare) to an image added in this session → the
     same media part;
   - identical bytes to an **existing** media part that some drawing already embeds → reuse it
-    (exact-form reuse, ADR-0006; corpus: 3 files share media between drawings) (Q2);
+    (exact-form reuse, ADR-0006; corpus: 3 files share media between drawings), only for an
+    internal target with an image content type and the same extension; hashes are computed
+    lazily on the first insert (Owner decision 2026-11-16, Q2);
   - otherwise a new `xl/media/image{}.{ext}`. The extension's `Default` is added only when
     PR #38 allows it; otherwise the part gets an `Override`.
   - The drawing reuses its existing relationship to the same media part (POI does too).
@@ -325,6 +442,8 @@ VML is not schema-driven, and Excel's VML is not always XML. The rules:
   other notes) are not touched. The note shape type `_x0000_t202` is added once if no
   `v:shapetype` with `o:spt="202"` exists; a shape type of another `spt` is never reused.
 - `o:shapelayout/o:idmap/@data` gets a block per §2.2; a new VML part declares its block.
+  The shape's `id` (and `o:spid`, which Excel writes for notes since 2010; XL item whether a
+  note needs it) is `_x0000_s{N}` with N from the sheet's shape-number allocator (§2.2).
 - The shape follows RX's note template (`vml.rs` L364-599): `v:shape id type="#_x0000_t202"`,
   style with `margin-left/top`, size 128×74 px, `visibility:hidden` (or `visible` + `x:Visible`),
   `fillcolor="#ffffe1"`, `v:fill`, `v:shadow`, `v:path`, `v:textbox`, and `x:ClientData
@@ -332,7 +451,9 @@ VML is not schema-driven, and Excel's VML is not always XML. The rules:
   placement rule, `note.rs` L649-726), `x:AutoFill`, `x:Row`, `x:Column`.
 - Removal removes the `comment` and **the `Note` shape whose `x:Row`/`x:Column` match** (POI's
   `removeCellComment` does both; its `removeRow` forgets the shape). If no shape matches, the
-  comment alone goes. The comments part and VML part stay even when empty.
+  comment alone goes; if **more than one** `Note` shape matches, the removal is refused
+  (`Err(PartNotEditable)`: we cannot tell which one is the note's; review m9). The comments
+  part and VML part stay even when empty.
 - Content type: all 37 corpus packages with VML declare a `vml` `Default`; when it is absent,
   PR #38 adds it (or an `Override`, under its safety condition).
 
@@ -357,7 +478,16 @@ ws.remove_comment_thread(at)?;
 - **Fallback note** (required: Excel versions without threaded comments show it, and Excel
   pairs the two): a legacy note on the same cell (§4) whose author is `tc={thread id}` and whose
   `comment/@xr:uid` is the thread id (corpus `64759.xlsx`); its text is
-  `"[Threaded comment]\n\n" + the thread's texts` (Q3). Each reply updates the note text.
+  `"[Threaded comment]\n\n" + the thread's texts` (Q3, a constant). Each reply updates the
+  note text.
+- **`xr` declarations** (review M3). 26 of the 31 corpus comments parts declare neither `xr`
+  nor `mc:Ignorable`. The new `comment` element therefore declares **locally**
+  `xmlns:mc`, `xmlns:xr` and `mc:Ignorable="xr"` (MCE allows `Ignorable` on any element), unless
+  the root already declares `xr` with that URI and lists it in `mc:Ignorable`. The root is not
+  changed (as for sparklines, §8). If `xr` is bound to another URI in scope, `add_comment` is
+  refused (`Err(PartNotEditable)`). XL item: an Excel 2010-class reader opens the result.
+- `dT` is written as Excel does (no zone); XL item: whether Excel treats it as UTC or local
+  time (review m10).
 - A cell that already has a legacy note but no thread refuses `add_comment`
   (`Err(NoteExists)`): converting a note is Excel's UI action, not ours.
 - Removal removes the thread's comments and the fallback note together (one plan).
@@ -377,7 +507,16 @@ Refused (`Err(TableRange { reason })`) when the range:
 - overlaps another table (any part), a merged range, a sheet `autoFilter`, a pivot table's
   location, or crosses the boundary of an array formula or a dynamic-array potential spill
   area (ADR-0003);
+- contains a `vm` (rich value) or `cm` cell, or a shared-formula master (review M4);
 - has fewer rows than header + totals + 1 data row, or is outside the sheet's limits.
+
+**Existing content** (review M4). A header, totals or calculated-column position that holds
+anything (value, formula, inline string) is refused with
+`TableRange { reason: "cell not empty" }`. The one exception is a header cell whose string is
+already the column's name. With `Table::overwrite(true)`, those cells are cleared and
+rewritten through the `CellWritePlan` instead. Their dependents (a formula reading a header
+cell by A1 reference) lose their caches as for any Phase1 write. Every cell write of the
+operation is validated in step 1 (§2.1).
 
 What is written:
 
@@ -393,10 +532,24 @@ What is written:
   column name, **decoded** from ST_Xstring (§6.3).
 - **Totals row**: a function writes `SUBTOTAL(10x,Table[Col])` into the cell (109 sum, 101
   average, 103 count, 102 countNums, 104 max, 105 min, 107 stdDev, 110 var; RX's codes) through
-  Phase1's `set_formula`; a label writes the string.
-- **Calculated column**: `[@Col]` is written in the file form `Table[[#This Row],[Col]]` (the
-  table name included, unlike RX), stored in `calculatedColumnFormula` and in every data cell.
-  Every formula lexes with Phase1's lexer (tested).
+  the `CellWritePlan`; a label writes the string.
+- **Calculated column**: the caller's text is lexed with Phase1's lexer.
+  - Each `[@Col]` **token** becomes the file form `Table[[#This Row],[Col]]`, with the table
+    name included (unlike RX). This is not a character-level replacement as RX does, so `@` in
+    string literals and names is untouched (review m7).
+  - A spill operator (`A1#`) or an implicit-intersection `@` outside a structured reference is
+    refused. The file forms are `_xlfn.ANCHORARRAY`/`_xlfn.SINGLE`, which the caller may write.
+  - The result is stored in `calculatedColumnFormula` and in every data cell.
+- **Structured-reference specifiers** (review M2). One function builds every column
+  specifier that we write:
+  - `'`, `#`, `[` and `]` in a column name are escaped with a leading `'` (RX `table.rs`
+    L2021-2026);
+  - a name with leading or trailing whitespace is written in the double-bracket form
+    `Table[[ Sum for Q2 ]]`, as LibreOffice writes it (`LIBRE_OFFICE-128382-0.xlsx`,
+    `63934.xlsx`).
+
+  Totals, calculated columns and the `ColumnInUse` match (§6.3) all use it. Every generated
+  formula round-trips through Phase1's lexer (tested, with names from those two files).
 - **Phase1**: the new formula cells are census entries; structured references are
   `Everything` precedents (ADR-0003 §2.4). Because a new table name can make a previously
   unresolved name resolve, every `Everything` formula is seeded (as ADR-0009 M3 for new
@@ -421,23 +574,46 @@ What is written:
   engine, so they are **refused**: `Err(HeaderNotText)`), or `Column{n}` for empty cells.
 - **Unique case-insensitively** (`Err(DuplicateColumnName)`; Q5): never suffixed silently.
 - **Encoding**: `tableColumn/@name` is the ST_Xstring encoding of the header text
-  (`_x000a_` for a newline, `_x005f_` for a literal `_x`…`_` sequence), as the corpus and POI
-  show. A header text containing control characters other than tab/newline/carriage return
+  (`_x000a_` for a newline, `_x005f_` for a literal `_x`…`_` sequence). The corpus shows the
+  newline form. POI escapes only `\n` and `\r` (`XSSFTable.java` L837-838); the `_x005f_`
+  rule is ECMA-376's (review m9). A header text containing control characters other than tab/newline/carriage return
   is refused.
 - **Header sync** (replaces `Err(TableHeaderCell)` for strings): `set_string` on a header
   cell updates the cell **and** `tableColumn/@name` in one plan (validated unique; the table
   part staged). Writing a number, formula or blank into a header cell stays refused
   (`TableHeaderCell`), since Excel would turn it into text and rename the column. A column
   name change does **not** rewrite structured references that use the old name: refused with
-  `Err(ColumnInUse)` when any formula location (ADR-0009 §6 table) mentions
-  `Table[OldName]` in any spelling; renaming referenced columns is Phase7.
+  `Err(ColumnInUse)` when any formula location (ADR-0009 §6 table) mentions the column.
+  - Every spelling counts: escaped, double-bracketed, with or without the table name, `[@Col]`,
+    and RX's table-less `[[#This Row],Col]` inside the table's own range.
+  - The match is made on lexer tokens, with the specifier function's decoding.
+  - Renaming referenced columns is Phase7.
+- **Not synced** (review m6):
+  - tables with `tableType="queryTable"` (13 in the corpus) or `"xml"` (5), whose columns are
+    bound to `queryTableField`/`xmlColumnPr`;
+  - tables that are the source of a pivot cache or a slicer;
+  - a change to the empty string (Excel would rename the column to `ColumnN`).
+
+  Each is refused (`TableHeaderCell`).
 
 #### 6.4 Deleting a table
 
-`ws.remove_table(name)`: refused with `Err(TableInUse)` when any formula location, pivot
-source, slicer cache or data validation uses it (ADR-0009 §5's check). Otherwise the table part
-goes (`remove_parts`, staged sheet), the `tablePart` element goes (and `tableParts` with its
-last child), the cells stay as plain cells, and the id goes into the session high-water.
+`ws.remove_table(name)` is refused with `Err(TableInUse)` in any of these cases:
+
+- any formula location, pivot source, slicer cache or data validation uses it (ADR-0009 §5's
+  check), **including the table's own cells** (review M1). Totals rows (`SUBTOTAL(109,T[Q])`)
+  and calculated columns (`T[[#This Row],[Q]]`, `T[[#Totals],[Total]]`, `bug66215.xlsx`) refer
+  to their own table. Excel's "convert to range" rewrites them to A1 references, which is an
+  XL item and a later option; leaving them would dangle;
+- `tableType` is not the default `worksheet` (`queryTable`, `xml`);
+- the table part has its own `.rels` (a query table).
+
+Otherwise:
+
+- the table part goes (`remove_parts`, with the sheet staged as the plan's last step);
+- the `tablePart` element goes, and `tableParts` with its last child;
+- the cells stay as plain cells;
+- the id goes into the session high-water.
 
 ### 7. Charts
 
@@ -464,6 +640,8 @@ wb.add_chart_sheet("Chart1", &c, position)?;
   a formula cell **without** a cache (stripped by Phase1) and any non-numeric value in a
   number series is written as a missing point (`ptCount` covers it, no `pt`), never as 0
   (RX writes 0). `formatCode` `General`.
+- **Category axis** (review m8): `c:cat` is a `c:numRef` when every category cell is a number
+  (or a date), otherwise a `c:strRef`. Scatter X values are always `c:numRef`.
 - The chart XML is built from a fixed template per type (RX's element order), validated by
   the allowlist's typed views.
 
@@ -475,9 +653,13 @@ can read, on staged chart parts, under §7.1's rules. It is **explicit, not auto
 
 - Excel recomputes linked caches on open (believed, XL item), so automatic refresh would
   rewrite chart parts on every edit for a benefit only to other readers;
-- a refresh changes only `c:pt`/`c:ptCount`/`c:v` inside the cache elements (allowed-diff list
-  §12), and refuses (`Err(ChartNotRefreshable)`) charts with `c:externalData`, pivot sources,
-  `c15:` filtered series, or references to other workbooks.
+- a refresh changes only `c:pt`/`c:ptCount`/`c:v` inside the cache elements (allowed-diff
+  list, Test oracles 1). It refuses (`Err(ChartNotRefreshable)`) a chart with any of:
+  - `c:externalData`, a pivot source, `c15:` filtered series, references to other workbooks;
+  - a cache inside `mc:AlternateContent` (16 corpus charts have AC) (review m8);
+  - a `c15:datalabelsRange` cache;
+  - a `c:multiLvlStrRef`;
+  - a `c:f` that is a defined name, a table reference or a whole column/row.
 
 #### 7.3 chartEx
 
@@ -500,6 +682,9 @@ ws.add_sparklines(SparklineGroup::new(SparklineType::Line).add("G3", "'Basic fea
   `x14:sparklineGroups`. An existing ext with that uri gets the new group **appended**;
   otherwise a new `ext` is appended at the end of `extLst` (`extLst` created in its slot if
   absent). Existing exts and their order are untouched (ADR-0014's x14 rule).
+  - Appending at the end is valid by the schema. Excel writes its exts in the order
+    CF → DV → sparklines → slicers. XL item: whether Excel cares where a new sparkline ext
+    sits among existing ones (review m11).
 - **Namespaces are declared on the new `ext`** (`xmlns:x14`) and on `x14:sparklineGroups`
   (`xmlns:xm`), as LibreOffice (corpus) and RX do. The worksheet root, its `mc:Ignorable` and
   its declarations are not changed: T2 confined to `extLst`.
@@ -525,14 +710,27 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
     one `cellMetadata` block), and `cm="1"`;
   - present → reuse an existing `cellMetadata` block whose `rc` points at the XLDAPR
     `metadataType` and at a `futureMetadata` block with `fDynamic="1"`, `fCollapsed="0"`
-    (ADR-0003's anchor test) and use its index as `cm`; otherwise append the missing type,
-    future block and cell block, keeping existing indices (`count` attributes updated).
-- **Future-function prefixes**: the text is the file form. `set_dynamic_formula` (and, from
-  now on, `set_formula`) **refuses** a call to a known future function without its prefix
-  (`Err(MissingFunctionPrefix { name, prefix })`), from a fixed table of `_xlfn.`,
-  `_xlfn._xlws.` (FILTER, SORT) and `_xlpm.` rules taken from RX's `future_functions`
-  (`formula.rs` L1020-1191), so Excel never shows `#NAME?`. An opt-in helper
-  `formula::add_future_prefixes(text)` applies them (Q7).
+    (ADR-0003's anchor test), and use its index as `cm`;
+  - otherwise add the missing type, future block and cell block, keeping existing indices
+    and updating the `count` attributes.
+
+  Additions go into **schema slots** through the lens (review m3), not at the end:
+  - `futureMetadata name="XLDAPR"` after the existing `futureMetadata`;
+  - `cellMetadata` **before** an existing `valueMetadata`. The calamine rich-value fixture has
+    `valueMetadata` and no `cellMetadata`, and is a test case.
+
+  `xmlns:xda` is declared on the new `ext`; the root is not changed.
+- **Future-function prefixes** (Owner decision 2026-11-16, Q7).
+  - The text is the file form.
+  - `set_dynamic_formula` (and, from now on, `set_formula`) **refuses** a call to a known
+    future function written without its prefix: `Err(MissingFunctionPrefix { name, prefix })`.
+    So Excel never shows `#NAME?`.
+  - The prefix table (`_xlfn.`, `_xlfn._xlws.` for FILTER and SORT, `_xlpm.`) is a fixed copy
+    of RX's `future_functions` (`formula.rs` L1020-1191).
+  - An opt-in helper `formula::add_future_prefixes(text)` applies the prefixes.
+  - Applying the check to `set_formula` changes Phase1's contract, so it is an ADR-0003
+    addendum together with the `CellWritePlan` (§2.1). The spill (`#`) and implicit-intersection
+    (`@`) operators are refused there too (review m7).
 - **Phase1**: the new anchor is a dynamic anchor in the census; its potential spill area
   (anchor to the sheet's end) is seeded; writes into it keep `Err(ArrayResultCell)` only for
   existing cached spill ranges (ADR-0003). A spill blocked by existing values is Excel's
@@ -542,7 +740,7 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
 
 | Phase | Effect |
 |---|---|
-| Phase1 (ADR-0003) | Totals, calculated columns and dynamic arrays go through `set_formula`'s plan (census, dependents, `fullCalcOnLoad`, calcChain policy). A new table name seeds every `Everything` formula. Images, notes, threads and sparklines do not touch formulas. |
+| Phase1 (ADR-0003) | Header, totals and calculated-column cells and dynamic arrays go through the `CellWritePlan` (§2.1; an ADR-0003 addendum): census, dependents, `fullCalcOnLoad`, and the calcChain removal folded into the `RegistryPlan`. A new table name seeds every `Everything` formula. Images, notes, threads and sparklines do not touch formulas. |
 | Phase2 (ADR-0006) | Header and label strings use the shared-string registry. No style is created by Phase5, except a table's cells keep their existing `s`. |
 | Phase3 (ADR-0009) | Delete/rename cover every Phase5 part through the cascade and location tables; Phase5 adds to ADR-0009's table-id high-water and `TableInUse` check. Chart sheets use §4. |
 | Phase4 (ADR-0014) | A table refuses an overlapping sheet `autoFilter` and merges; ADR-0014's merge and autofilter operations refuse table ranges. `extLst` handling is shared (§8). |
@@ -558,7 +756,7 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
 | `ChartNotRefreshable { part, reason }`, `NoSuchSheet` | §7 |
 | `MissingFunctionPrefix { name, prefix }` | §9 |
 | `UnresolvedRichValue { step }` | §3.3 |
-| `TableHeaderCell` | non-string write into a header cell (kept) |
+| `TableHeaderCell` | non-string write into a header cell (kept), or header sync refused (§6.3) |
 | `RegistryRefused { reason }` | from PR #38 |
 
 ## Test oracles
@@ -568,26 +766,50 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
 
    | Operation | Sheet part | Other parts |
    |---|---|---|
-   | image | `<drawing>` inserted (new drawing only) | drawing (new, or one anchor appended), drawing `.rels`, media part, `[Content_Types].xml` (`Default`/`Override` appended) |
+   | image | `<drawing>` inserted (new drawing only) | drawing (new, or one anchor appended), drawing `.rels`, media part, CT (`Default`/`Override` appended); **sheet `.rels`** for a new drawing (review m5) |
    | note | `<legacyDrawing>` inserted (new VML only) | comments (one `comment`, maybe one `author`), VML (one shape, maybe shapetype and idmap), sheet `.rels`, CT |
-   | thread | as note | + threaded-comment part, `persons` (one person), workbook `.rels` |
-   | table | `tableParts`/`tablePart`, header/totals/column cells, `sst` per Phase2 | table part, sheet `.rels`, CT, Phase1's dependents |
+   | thread | as note | + threaded-comment part, `persons` (one person), workbook `.rels`, **two CT `Override`s** |
+   | table | `tableParts`/`tablePart`, header/totals/column cells and their dependents' caches, `sst` per Phase2 | table part, sheet `.rels`, CT, **`workbook.xml` `calcPr`, calcChain removed** (when formula cells are written) |
+   | header sync | the header cell, its dependents' caches | the table part (`tableColumn/@name`), `workbook.xml`/calcChain if there are dependents |
    | chart | as image | chart part, drawing, rels, CT |
+   | chart sheet | — | chartsheet part, drawing, chart, **`workbook.xml`, workbook `.rels`, `app.xml`**, CT |
    | sparkline | `extLst` only | — |
-   | dynamic array | the cell | `metadata.xml` (appended blocks), workbook `.rels`, CT, Phase1's dependents |
+   | dynamic array | the cell, its dependents' caches | `metadata.xml` (blocks in their slots), workbook `.rels`, CT, **`workbook.xml`, calcChain removed** |
    | cache refresh | — | `c:numCache`/`c:strCache` content of the refreshed charts |
+   | remove image | — | the drawing (one anchor gone), its `.rels` and the media part when unreferenced, CT `Override`s of removed parts |
+   | remove note / thread | — | comments (one `comment`), VML (one shape), threaded part (the thread's comments) |
+   | remove table | `tablePart` (and `tableParts`) | the table part and its CT `Override`, sheet `.rels` |
 
    Appended registry entries are checked as "original bytes + appended entries", as PR #38's
    tests do.
-2. **Id-space checker**, independent of the allocators (written from §2.2's *invariants*, not
-   its algorithms): per drawing `cNvPr` unique and ≠ 0; table ids unique workbook-wide and new
-   ones above every pre-existing id; table display names unique with defined names; VML blocks
-   unique per workbook and every shape number in its sheet's blocks; every `personId`
-   resolves; every thread has its fallback note with matching `xr:uid`; every `cm`/`vm`
-   resolves in `metadata.xml`.
-3. **Corpus sweep**: for every readable POI package: add one of each object to the first
-   worksheet (on a free range), save, reopen, run (1) and (2). A refusal leaves every byte
-   unchanged. The VML-not-XML file and the AC-anchor files are explicit cases.
+2. **Id-space checker**, independent of the allocators: it is written from §2.2's
+   *invariants*, not from its algorithms. It checks that:
+   - per drawing, `cNvPr` ids are unique and ≠ 0;
+   - **per sheet, `cNvPr` ∪ VML numbers (`id` and `o:spid`) are unique** (review B2), except
+     for an existing mirrored pair;
+   - table ids are unique workbook-wide, and new ones are above every pre-existing id and
+     slicer `tableId`;
+   - table display names are unique together with defined names;
+   - VML blocks are unique per workbook, and every new shape number lies in its sheet's
+     blocks;
+   - every `personId` resolves, and every thread has its fallback note with a matching
+     `xr:uid` **whose `xr` is declared and ignorable** (review M3);
+   - every generated structured reference round-trips through the lexer;
+   - every `cm`/`vm` resolves in `metadata.xml`, and `metadata.xml`'s children are in schema
+     order.
+3. **Corpus sweep**: for every readable POI package, add one of each object to the first
+   worksheet (on a free range), save, reopen, and run (1) and (2). A refusal leaves every byte
+   unchanged. Explicit cases:
+   - the VML that is not XML, and the AC-anchor files;
+   - `mv-calculator-final-2-20-2013.xlsm`, `45540_form_*.xlsx` and `ExcelWithAttachments.xlsm`
+     (B2);
+   - `bug66215.xlsx` (M1);
+   - `LIBRE_OFFICE-128382-0.xlsx` and `63934.xlsx` (M2);
+   - the calamine rich-value fixture (m3).
+   - **Failure atomicity** (review B1): fault injection before each in-place step after
+     `apply` (table creation, dynamic array, header sync) poisons. A `vm` cell, a `cm` cell or
+     a shared-formula master in a new table's range is refused **before** apply, with every
+     byte unchanged.
 4. **Independent readers**: calamine 0.38 reads back tables (`load_tables`, `table_by_name`:
    name, columns, data range) and pictures (`pictures`); `ooxmlsdk`'s parse of every created
    part (roadmap Phase5 acceptance); created parts compared structurally with RX's output for
@@ -605,10 +827,13 @@ ws.cell_mut(r, c)?.set_dynamic_formula("SORT(A2:A10)")?;
 
 ## Delivery
 
-Five PRs, each with its oracles; the first two unblock most users:
+A prerequisite PR plus five PRs, each with its oracles:
 
-1. **P5a**: §2 machinery (allocators, plan order, allowlist growth), images (§3), images in
-   cells (read).
+0. **P5-pre** (an ADR-0003 addendum and its implementation): the Phase1 `CellWritePlan` that
+   folds the calcChain removal and the `calcPr` change into the caller's `RegistryPlan`, and the
+   future-function prefix check (Q7). Needed before P5b and P5d.
+1. **P5a**: §2 machinery, including the **per-sheet shape-number allocator** (B2), the plan
+   order and the allowlist growth; images (§3); images in cells (read).
 2. **P5b**: tables and header sync (§6).
 3. **P5c**: notes and threaded comments (§4, §5).
 4. **P5d**: sparklines and dynamic arrays (§8, §9).
@@ -625,7 +850,7 @@ Five PRs, each with its oracles; the first two unblock most users:
 3. **`twoCellAnchor` by default** (Excel, RX, POI): needs column widths and row heights,
    which depend on `cols`, `sheetFormatPr`, the default font's metrics and hidden rows; an
    approximation misplaces the picture's bottom-right corner. Kept as an option when the
-   caller gives both cells (Q1).
+   caller gives both cells (Q1, decided).
 4. **Automatic chart cache refresh on every cell edit**: rewrites chart parts on every edit;
    the parts are no longer L1 after an unrelated value change. Rejected for now (Q6).
 5. **Writing images in cells now** (RX can): the rich-value parts are five interlinked
@@ -647,23 +872,25 @@ Five PRs, each with its oracles; the first two unblock most users:
 - Threaded comments and dynamic arrays depend on Excel checks more than the other features,
   because the corpus has few examples.
 
-## Open questions for the project owner
+## Open questions for the project owner (decided)
 
-- **Q1. Default picture anchor.** `oneCellAnchor` with the natural size (proposed: exact, no
-  width model) or `twoCellAnchor editAs="oneCell"` like Excel (needs a column-width and
-  row-height model, approximate).
-- **Q2. Reusing an existing media part** with identical bytes (proposed: yes, exact-form reuse;
-  saves space, and removal is reference-counted by PR #38's `incoming_relationships`).
-- **Q3. Fallback note text** for threaded comments: `[Threaded comment]` + the texts
-  (proposed), or Excel's longer English paragraph (`64759.xlsx`). XL item: whether Excel
-  rewrites it on save.
-- **Q4. GUIDs**: random v4 (proposed) with a deterministic source for tests, or deterministic
-  by default (reproducible output, but two sessions could produce the same id).
-- **Q5. Duplicate column names**: refuse (proposed) or suffix like Excel's UI (`Name2`).
-- **Q6. Chart cache refresh**: explicit `refresh_chart_caches()` (proposed) or automatic on
-  every edit of a referenced cell.
-- **Q7. Future-function prefixes**: refuse unprefixed known functions and offer an opt-in
-  helper (proposed), or prefix automatically as RX does.
+**Owner decision 2026-11-16:** every proposed default below is accepted.
+
+- **Q1. Default picture anchor:** `oneCellAnchor` at the natural size. It is exact and needs
+  no width model. `twoCellAnchor` is used when the caller gives both cells.
+- **Q2. Reusing an existing media part** with identical bytes: yes, as exact-form reuse.
+  - Only for an internal target whose content type is an image type and whose extension
+    matches.
+  - The hash is computed lazily on the first insert.
+  - Removal counts references on the plan's view (`incoming_relationships`).
+- **Q3. Fallback note text:** the short `[Threaded comment]` + the texts, as a constant. XL
+  item: whether Excel rewrites it on save.
+- **Q4. GUIDs:** random v4 with a deterministic source for tests, checked against existing
+  ids.
+- **Q5. Duplicate column names:** refused.
+- **Q6. Chart cache refresh:** explicit `refresh_chart_caches()`, with §7.2's refusals.
+- **Q7. Future-function prefixes:** refuse unprefixed known functions and offer an opt-in
+  helper. The `set_formula` part belongs to the ADR-0003 addendum (P5-pre).
 
 ## Sources
 

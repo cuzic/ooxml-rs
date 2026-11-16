@@ -182,6 +182,13 @@ def survey(path):
             continue
         srels = p.rels(part)
         byid = {i: (t, tgt) for i, t, tgt, _ in srels}
+        # shape numbers of this sheet (review B2): drawing cNvPr, VML id and
+        # o:spid, control/oleObject shapeId
+        sheet_draw_ids, sheet_vml_id_nums, sheet_vml_all_nums, sheet_blocks = set(), set(), set(), set()
+        for e in sx.iter():
+            if local(e.tag) in ("control", "oleObject") and (e.get("shapeId") or "").isdigit():
+                sheet_vml_all_nums.add(int(e.get("shapeId")))
+                res["sheet_control_ole_shapeids"] += 1
         # ---- drawing
         for d in sx.findall(q("s", "drawing")):
             t, dp = byid.get(d.get(R + "id"), (None, None))
@@ -198,6 +205,8 @@ def survey(path):
                 k = local(anc.tag)
                 if anc.tag == q("mc", "AlternateContent"):
                     res["drawing_ac_anchor"] += 1
+                    # ids in every branch count for uniqueness (review B2)
+                    ids += [e.get("id") for e in anc.iter(q("xdr", "cNvPr"))]
                     continue
                 res["anchor_" + k] += 1
                 if anc.get("editAs"):
@@ -233,6 +242,7 @@ def survey(path):
                     res["pic_hlink"] += 1
             ints = [int(i) for i in ids if i and i.isdigit()]
             all_drawing_ids.update(set(ints))
+            sheet_draw_ids.update(ints)
             if len(ints) != len(set(ints)):
                 res["drawings_dup_cnvpr"] += 1
             if 0 in ints:
@@ -306,6 +316,14 @@ def survey(path):
                 res["vml_not_wellformed"] += 1
             for m in re.finditer(r'<o:idmap[^>]*\bdata="([^"]*)"', v):
                 idmaps.append(m.group(1))
+                sheet_blocks.update(int(x) for x in m.group(1).split(",") if x.strip().isdigit())
+            # every VML element's shape number: id="..._sN" (any element) and o:spid
+            for m in re.finditer(r'\bid="[^"]*_s(-?\d+)\s*"', v):
+                sheet_vml_id_nums.add(int(m.group(1)))
+                sheet_vml_all_nums.add(int(m.group(1)))
+            for m in re.finditer(r'\bo:spid="[^"]*_s(-?\d+)\s*"', v):
+                sheet_vml_all_nums.add(int(m.group(1)))
+                res["vml_spid_attrs"] += 1
             shapes = re.findall(r"<v:shape\b[^>]*>.*?</v:shape>", v, re.S)
             for sh in shapes:
                 ot = re.search(r'ObjectType="([^"]+)"', sh)
@@ -331,6 +349,19 @@ def survey(path):
                     if "visibility:visible" in sh.replace(" ", ""):
                         res["vml_note_visible"] += 1
             res["vml_shapetypes"] += len(re.findall(r"<v:shapetype\b", v))
+        # B2 checks per sheet
+        if sheet_vml_all_nums or sheet_draw_ids:
+            nums = {n for n in sheet_vml_all_nums if n >= 0}
+            res["vml_numbers"] += len(nums)
+            res["vml_numbers_outside_blocks"] += sum(1 for n in nums if sheet_blocks and n // 1024 not in sheet_blocks)
+            res["vml_negative_numbers"] += sum(1 for n in sheet_vml_all_nums if n < 0)
+            # rev 1 rule: VML = 1 + max over id="…_sN" only
+            if sheet_vml_id_nums:
+                nxt = max(sheet_vml_id_nums) + 1
+                if nxt in sheet_vml_all_nums or nxt in sheet_draw_ids:
+                    res["sheets_rev1_vml_rule_collides"] += 1
+                    lists["sheets_rev1_vml_rule_collides"].append(f"{sname}:{nxt}")
+            res["sheets_drawing_and_vml_share_numbers"] += bool(sheet_draw_ids & sheet_vml_all_nums)
         # ---- threaded comments
         for _, t, tgt, _ in srels:
             if t == T_THREADED:
@@ -420,6 +451,9 @@ def survey(path):
     res["drawing_ids_repeated_across_drawings"] += sum(1 for v in all_drawing_ids.values() if v > 1)
     if len(idmaps) != len(set(idmaps)):
         res["vml_idmap_dup"] += 1
+    blocks = [int(x) for d in idmaps for x in d.split(",") if x.strip().isdigit()]
+    if len(blocks) != len(set(blocks)):
+        res["vml_idmap_block_dup"] += 1
     lists["vml_idmaps"] = idmaps
     res["media_parts_shared"] += sum(1 for m, u in media_users.items() if len(u) > 1)
     res["media_dup_bytes"] += sum(len(v) - 1 for v in media_hash.values() if len(v) > 1)
