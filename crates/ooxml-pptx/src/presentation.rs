@@ -9,7 +9,11 @@ use crate::error::{Error, Result};
 use crate::names::MODERN_COMMENTS_REL;
 use crate::read::{Slide, SlideInfo};
 use crate::refs::SlideRefs;
-use crate::write::SlideMut;
+use crate::replace::{self, BodyCtx, FindOptions, Match, OnRefusal, ParaPlan, ReplaceOptions, ReplaceReport, Scope, TextLocation};
+use crate::write::{SlideMut, node_at};
+
+/// (text body path, paragraph child index, location, plan) of one paragraph.
+type PlannedParagraph = (Vec<usize>, usize, TextLocation, ParaPlan);
 
 #[derive(Clone, Debug)]
 struct SlideEntry {
@@ -132,5 +136,120 @@ impl Presentation {
         }
         refs.scan_timing(doc.root());
         Ok(SlideMut { doc, info, refs })
+    }
+
+    fn scope_indices(&self, scope: Scope) -> Result<Vec<usize>> {
+        match scope {
+            Scope::Slides => Ok((0..self.slides.len()).collect()),
+            Scope::Slide(i) => {
+                self.entry(i)?;
+                Ok(vec![i])
+            }
+        }
+    }
+
+    /// Every literal match of `pattern` in the paragraphs of the slides in
+    /// scope (ADR-0008 §4): text bodies of `p:sp` (groups included), table
+    /// cells (merged ones too) and the representative shape of an
+    /// `mc:AlternateContent`. Matches never cross paragraphs; byte ranges
+    /// refer to [`crate::ParagraphRef::text`]. Never marks anything dirty.
+    ///
+    /// Errors: [`Error::InvalidPattern`], [`Error::DanglingSlide`],
+    /// [`Error::SlideIndexOutOfRange`], parse errors.
+    pub fn find(&mut self, pattern: &str, opts: &FindOptions) -> Result<Vec<Match>> {
+        replace::check_pattern(pattern)?;
+        let mut out = Vec::new();
+        for i in self.scope_indices(opts.scope)? {
+            let slide = self.slide(i)?;
+            let root = slide.doc.root();
+            for t in replace::targets(slide.doc) {
+                let body = node_at(root, &t.body).expect("target path");
+                for (k, pc) in replace::paragraphs(body).into_iter().enumerate() {
+                    let text = replace::paragraph_text(node_at(body, &[pc]).expect("paragraph"));
+                    for range in replace::find_in(&text, pattern, opts.ascii_case_insensitive) {
+                        out.push(Match {
+                            location: TextLocation { slide: i, shape: t.shape.clone(), cell: t.cell, paragraph: k },
+                            range,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Replaces every match of `pattern` (as [`Self::find`]) with
+    /// `replacement`, by the rules of ADR-0008 §4 (see the `replace`
+    /// module): the run where a match starts keeps its format, covered runs
+    /// are removed or trimmed, fields and line breaks inside a match are
+    /// refused, a `\v` in the replacement becomes `a:br`. Every match of
+    /// the scope is checked before the first change; refused matches are
+    /// reported in [`ReplaceReport::skipped`] ([`OnRefusal::Skip`]) or stop
+    /// the whole call without any change ([`OnRefusal::Abort`]).
+    ///
+    /// Errors (nothing changed): [`Error::InvalidPattern`],
+    /// [`Error::LineBreakInParagraph`] and [`Error::InvalidXmlChar`] for the
+    /// replacement, [`Error::DanglingSlide`], [`Error::SlideIndexOutOfRange`],
+    /// parse errors.
+    pub fn replace_all(&mut self, pattern: &str, replacement: &str, opts: &ReplaceOptions) -> Result<ReplaceReport> {
+        replace::check_pattern(pattern)?;
+        let segs: Vec<String> = replace::segments(replacement)?.into_iter().map(String::from).collect();
+        let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
+        let indices = self.scope_indices(opts.find.scope)?;
+        let mut report = ReplaceReport::default();
+        // (slide, [(body path, paragraph child, location, plan)])
+        let mut plans: Vec<(usize, Vec<PlannedParagraph>)> = Vec::new();
+        for &i in &indices {
+            let mut slide = self.slide_mut(i)?;
+            let mut slide_plans = Vec::new();
+            for t in replace::targets(slide.doc) {
+                let body_ctx: std::result::Result<_, Error> = slide.shape_mut(&t.shape).and_then(|mut sh| match t.cell {
+                    None => sh.text_body_mut().map(|b| b.guard().clone()),
+                    Some((r, c)) => sh.table_cell_mut(r, c).map(|b| b.guard().clone()),
+                });
+                let root = slide.doc.root();
+                let body = node_at(root, &t.body).expect("target path");
+                let blocked_err = body_ctx.as_ref().err();
+                let blocked = || blocked_err.expect("blocked").duplicate();
+                for (k, pc) in replace::paragraphs(body).into_iter().enumerate() {
+                    let ctx = BodyCtx {
+                        blocked: blocked_err.map(|_| &blocked as &dyn Fn() -> Error),
+                        guard: body_ctx.as_ref().ok(),
+                    };
+                    let p = node_at(body, &[pc]).expect("paragraph");
+                    let plan = replace::plan_paragraph(p, pattern, &segs, opts, &ctx);
+                    if plan.accepted.is_empty() && plan.refused.is_empty() {
+                        continue;
+                    }
+                    let loc = TextLocation { slide: i, shape: t.shape.clone(), cell: t.cell, paragraph: k };
+                    slide_plans.push((t.body.clone(), pc, loc, plan));
+                }
+            }
+            plans.push((i, slide_plans));
+        }
+        for (_, ps) in &mut plans {
+            for (_, _, loc, plan) in ps.iter_mut() {
+                for (range, e) in plan.refused.drain(..) {
+                    report.skipped.push((Match { location: loc.clone(), range }, e));
+                }
+            }
+        }
+        if opts.on_refusal == OnRefusal::Abort && !report.skipped.is_empty() {
+            report.aborted = true;
+            return Ok(report);
+        }
+        for (i, ps) in plans {
+            if !ps.iter().any(|(_, _, _, p)| p.changes()) {
+                continue;
+            }
+            let mut slide = self.slide_mut(i)?;
+            for (body, pc, loc, plan) in ps {
+                replace::apply_plan(&mut slide, &body, pc, &plan)?;
+                for range in plan.accepted {
+                    report.replaced.push(Match { location: loc.clone(), range });
+                }
+            }
+        }
+        Ok(report)
     }
 }

@@ -17,7 +17,7 @@ use crate::read::{self, ShapePath, Slide, SlideInfo, TextBodyRef, find_by_id, ra
 use crate::refs::SlideRefs;
 use crate::text;
 
-fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {
+pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {
     path.iter().try_fold(root, |n, &i| n.children().get(i).and_then(RawItem::as_element))
 }
 
@@ -102,6 +102,13 @@ fn body_lens<'d>(doc: &'d mut XmlDocument, path: &[usize]) -> Result<BodyLens<'d
     }
 }
 
+/// A typed lens on the `a:p` at child index `para_child` of the text body
+/// at `body` (a node path from the slide root).
+pub(crate) fn paragraph_lens<'d>(doc: &'d mut XmlDocument, body: &[usize], para_child: usize) -> Result<LensMut<'d, Paragraph>> {
+    let b = body_lens(doc, body)?;
+    with_body!(b, l => paragraph_at(l, para_child))
+}
+
 fn paragraph_at<'d, B: ElementSpec>(l: LensMut<'d, B>, child: usize) -> Result<LensMut<'d, Paragraph>>
 where
     Paragraph: ChildOf<B>,
@@ -142,13 +149,13 @@ fn ordered(n: &RawNode, ranks: &[(QName, u8, bool)], what: &str) -> Result<()> {
 }
 
 /// Child indices of a well-formed `a:p`.
-struct ParaShape {
+pub(crate) struct ParaShape {
     runs: Vec<usize>,
     breaks: Vec<usize>,
     fields: Vec<usize>,
 }
 
-fn para_shape(p: &RawNode) -> Result<ParaShape> {
+pub(crate) fn para_shape(p: &RawNode) -> Result<ParaShape> {
     ordered(
         p,
         &[
@@ -194,9 +201,9 @@ fn body_paragraphs(b: &RawNode) -> Result<Vec<usize>> {
 // (review R2-5). Only attribute-only elements are copied; one with child
 // elements needs a subtree copy: `FormatNotCopyable`.
 
-type Fmt = Option<Vec<(QName, String)>>;
+pub(crate) type Fmt = Option<Vec<(QName, String)>>;
 
-fn copy_attrs<D: ElementSpec>(src: Option<&RawNode>, what: &'static str) -> Result<Fmt> {
+pub(crate) fn copy_attrs<D: ElementSpec>(src: Option<&RawNode>, what: &'static str) -> Result<Fmt> {
     let Some(src) = src else { return Ok(None) };
     if src.elements().next().is_some() {
         return Err(Error::FormatNotCopyable(what));
@@ -230,7 +237,7 @@ fn para_format(p: &RawNode) -> Result<Fmt> {
     copy_attrs::<ParagraphProperties>(p.elements().find(|c| c.is(ParagraphProperties::QNAME)), "a:pPr")
 }
 
-fn set_attrs<E: ElementSpec>(l: &mut LensMut<'_, E>, fmt: &[(QName, String)]) -> Result<()> {
+pub(crate) fn set_attrs<E: ElementSpec>(l: &mut LensMut<'_, E>, fmt: &[(QName, String)]) -> Result<()> {
     for (q, v) in fmt {
         l.set_attr(*q, v)?;
     }
@@ -327,7 +334,7 @@ const _: () = assert!(
 // Guards: references into the text (ADR-0005 §6).
 
 #[derive(Clone, Debug)]
-struct Guard {
+pub(crate) struct Guard {
     shape_id: u32,
     paragraphs: bool,
     characters: bool,
@@ -344,7 +351,7 @@ impl Guard {
         }
     }
     /// Any change to the text of this body.
-    fn text(&self) -> Result<()> {
+    pub(crate) fn text(&self) -> Result<()> {
         if self.characters {
             return Err(Error::AnimatedCharacters { shape_id: self.shape_id });
         }
@@ -508,6 +515,11 @@ pub struct TextBodyMut<'a> {
 impl TextBodyMut<'_> {
     fn node(&self) -> &RawNode {
         node_at(self.doc.root(), &self.path).expect("checked on creation")
+    }
+
+    /// The references guarding this body (ADR-0005 §6).
+    pub(crate) fn guard(&self) -> &Guard {
+        &self.guard
     }
 
     /// Read access to the current content.

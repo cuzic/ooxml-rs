@@ -26,6 +26,7 @@ pres.save("deck.pptx")?;
 | `TextBodyMut::set_text` | line *i* → paragraph *i* (formats kept); surplus removed; new ones copy the last paragraph's `a:pPr` attributes and its run format (runs and `a:endParaRPr`) |
 | `add_run`, `add_paragraph` | explicitly unformatted (inherit the list/placeholder style) |
 | `add_break`, `remove_run`, `remove_paragraph`, `remove_field` | as named |
+| `Presentation::find`, `Presentation::replace_all` | cross-run find/replace on the slides ([ADR-0008](../../docs/adr/0008-pptx-phase1-deck-reading.md) §4, under review): the run where a match starts keeps its format, covered runs are removed or trimmed, `\v` in the replacement → `a:br` + a run copying the start run's format; a match over a field, an animated/comment-anchored text, an AC shape or a merged cell is refused; all matches are checked before the first change (`OnRefusal::Skip`/`Abort`) |
 
 Refused with a typed `Error`, before anything changes: edits that would
 shift animated or comment-anchored text, remove a field implicitly, touch
@@ -38,7 +39,9 @@ Development:
 
 - `cargo test -p ooxml-pptx` — L1/T1/T1b (`tests/roundtrip.rs`), T2
   locality (`tests/locality.rs`), T3 expected model (`tests/oracle.rs`),
-  T4 refusals (`tests/refusals.rs`) over `reference/fixtures/pptx/`
+  T4 refusals (`tests/refusals.rs`), find/replace invariants and rules
+  (`tests/replace.rs`; `OOXML_PPTX_CORPUS=dir:dir … -- --ignored` sweeps a
+  local corpus) over `reference/fixtures/pptx/`
   (third-party files, read by path, never packaged).
 - Independent read-back (CI job `pptx-readback`):
   `cargo run -p ooxml-pptx --example oracle_cases -- OUT` then

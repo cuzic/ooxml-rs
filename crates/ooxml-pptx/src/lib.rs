@@ -16,18 +16,23 @@
 //! # Ok::<(), ooxml_pptx::Error>(())
 //! ```
 //!
+//! [`Presentation::find`] / [`Presentation::replace_all`] search and replace
+//! across runs ([ADR-0008] §4, under review).
+//!
 //! Every edit that would break a reference into the text (animations,
 //! modern comments), touch a field, an `mc:AlternateContent` branch or a
 //! merged cell, or emit a character XML cannot hold, is refused with a
 //! typed [`Error`] **before** anything changes.
 //!
 //! [ADR-0005]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0005-pptx-phase0.md
+//! [ADR-0008]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0008-pptx-phase1-deck-reading.md
 
 mod error;
 mod names;
 mod presentation;
 mod read;
 mod refs;
+mod replace;
 mod text;
 mod write;
 
@@ -36,5 +41,8 @@ pub use presentation::Presentation;
 pub use read::{
     CellRef, FieldRef, ParagraphRef, PlaceholderRef, RunRef, ShapeKind, ShapePath, ShapeRef, Slide, SlideInfo,
     TableRef, TextBodyRef, TextItem,
+};
+pub use replace::{
+    FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
 pub use write::{ParagraphMut, RunMut, ShapeMut, SlideMut, TextBodyMut};
