@@ -210,6 +210,89 @@ pub enum Error {
     /// `workbook.xml` and `docProps/app.xml` together).
     #[error("naming or renaming a sheet is not supported in Phase0")]
     SheetNamingUnsupported,
+
+    /// A format or style write needs `styles.xml` and the workbook has none
+    /// (ADR-0006 §5.1; creating the part is out of scope).
+    #[error("the workbook has no styles part")]
+    NoStylesPart,
+
+    /// The styles part's root is not a SpreadsheetML `styleSheet`.
+    #[error("unsupported styles part: {0}")]
+    UnsupportedStylesPart(String),
+
+    /// A style table would exceed Excel's limit (ADR-0006 §5.10).
+    #[error("the {table} table is full (Excel limit {limit})")]
+    StyleTableFull {
+        /// The table (`cellXfs+cellStyleXfs`, `fonts`, `fills`, `borders`,
+        /// `custom numFmts`).
+        table: String,
+        /// The limit.
+        limit: u32,
+    },
+
+    /// No custom number format id is left (`numFmtId` would exceed 65,535).
+    #[error("no free custom numFmtId (ids are 16-bit)")]
+    NumFmtIdExhausted,
+
+    /// A built-in number format id the workbook redefines in `numFmts`;
+    /// its meaning in this file is not the built-in one.
+    #[error("built-in number format {id} is redefined by this workbook")]
+    BuiltinNumFormatRedefined {
+        /// The id.
+        id: u32,
+    },
+
+    /// A [`crate::Format`] value outside its schema enumeration or range
+    /// (fill pattern, border style, alignment, font scheme, …).
+    #[error("invalid format value: {0}")]
+    InvalidFormat(String),
+
+    /// A number format code XML cannot carry.
+    #[error("invalid number format code {0:?}")]
+    InvalidNumFormat(String),
+
+    /// `set_style_index` beyond `cellXfs`.
+    #[error("style index {index} is out of range (cellXfs has {count} entries)")]
+    StyleIndexOutOfRange {
+        /// The index.
+        index: u32,
+        /// Entries in `cellXfs`.
+        count: u32,
+    },
+
+    /// No named cell style with that name.
+    #[error("no cell style named {0:?}")]
+    NoSuchStyle(String),
+
+    /// An existing reference (a cell `s`, an `xf`'s `fontId`, …) points at
+    /// or past the end of a table; appending would give it a meaning
+    /// (ADR-0006 §2).
+    #[error("an existing reference to {table}[{index}] is out of range; appending would give it a meaning")]
+    DanglingReference {
+        /// The table.
+        table: String,
+        /// The largest out-of-range index.
+        index: u32,
+    },
+
+    /// Serial 60 in the 1900 date system: Excel's nonexistent 1900-02-29.
+    #[error("serial 60 is Excel's nonexistent 1900-02-29")]
+    NonexistentDate,
+
+    /// Several cell styles have that name (compared case-insensitively).
+    #[error("several cell styles are named {0:?}")]
+    AmbiguousStyleName(String),
+
+    /// The requested change cannot be expressed without losing content the
+    /// registry does not model (extension attributes or children).
+    #[error("cannot express the style change: {0}")]
+    NotExpressible(String),
+
+    /// The date does not exist in the workbook's date system or is outside
+    /// its range (1900 system: 1899-12-31 to 9999-12-31, never the false
+    /// 1900-02-29; 1904 system: from 1904-01-01).
+    #[error("date out of range for the workbook's date system")]
+    DateOutOfRange,
 }
 
 /// `Result` with [`Error`].
