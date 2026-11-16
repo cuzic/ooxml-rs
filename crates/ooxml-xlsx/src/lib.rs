@@ -71,5 +71,15 @@ pub use workbook::ApplyStep;
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
 
+/// Test hook (not API): does `text` lex and parse, and does translating it
+/// by one row and column either succeed or fail cleanly? Never panics.
+#[doc(hidden)]
+pub fn __formula_parses(text: &str) -> bool {
+    let ok = formula::parse::parse(text).is_ok();
+    let _ = formula::translate::translate(text, 1, 1, &|_| false);
+    let _ = formula::translate::translate(text, -1, -1, &|_| false);
+    ok
+}
+
 /// The SpreadsheetML main namespace (Transitional).
 pub const SML_NS: &str = ooxml_schema::sml::NS_X;

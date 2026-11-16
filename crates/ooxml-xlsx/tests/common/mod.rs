@@ -15,6 +15,7 @@ use ooxml_schema::sml;
 use ooxml_xlsx::{CellIndex, CellValue, Workbook};
 use zip::ZipArchive;
 
+pub mod o2gen;
 pub mod p1;
 
 pub const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference");

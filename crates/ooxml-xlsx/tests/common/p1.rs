@@ -243,11 +243,23 @@ pub fn assert_no_stale(input: &[u8], output: &[u8], e: &Expected<'_>, target: Op
 /// Writes `value` into `sheet!at`, checks the computed dependents equal
 /// `expected` (hand-written), then every oracle. Returns the output.
 pub fn value_edit(input: &[u8], sheet: &str, at: &str, value: f64, expected: &[&str]) -> Vec<u8> {
+    value_edit_with(input, sheet, at, value, expected, true)
+}
+
+/// As [`value_edit`]; with `exact == false` the computed set only has to
+/// contain `expected` (real fixtures, where `Everything` formulas add more).
+pub fn value_edit_with(input: &[u8], sheet: &str, at: &str, value: f64, expected: &[&str], exact: bool) -> Vec<u8> {
     let at = CellIndex::parse(at).unwrap();
     let mut wb = Workbook::from_bytes(input.to_vec()).unwrap();
-    let want = cells(expected);
     let got: BTreeSet<_> = wb.dependents(sheet, at).unwrap().into_iter().collect();
-    assert_eq!(got, want, "dependents of {sheet}!{at}");
+    let want = if exact {
+        let want = cells(expected);
+        assert_eq!(got, want, "dependents of {sheet}!{at}");
+        want
+    } else {
+        assert!(got.is_superset(&cells(expected)), "dependents of {sheet}!{at}: {got:?}");
+        got
+    };
     let had_full = String::from_utf8(part(input, wb.workbook_part())).unwrap().contains("fullCalcOnLoad=\"1\"");
     let manual = String::from_utf8(part(input, wb.workbook_part())).unwrap().contains("calcMode=\"manual\"");
     wb.worksheet_by_name(sheet).unwrap().cell_mut(at.row, at.col).unwrap().set_number(value).unwrap();
@@ -266,4 +278,32 @@ pub fn value_edit(input: &[u8], sheet: &str, at: &str, value: f64, expected: &[&
     let again = Workbook::from_bytes(out.clone()).unwrap();
     assert!(again.edit_refusal().is_none());
     out
+}
+
+/// calamine's formula text per sheet and cell (shared formulas expanded by
+/// calamine: an independent translator).
+pub fn calamine_formulas(bytes: &[u8]) -> BTreeMap<String, BTreeMap<(u32, u32), String>> {
+    use calamine::{Reader, Xlsx};
+    let mut wb: Xlsx<_> = Xlsx::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
+    let names = wb.sheet_names().to_vec();
+    let mut out = BTreeMap::new();
+    for n in names {
+        let Ok(r) = wb.worksheet_formula(&n) else { continue };
+        let (r0, c0) = r.start().unwrap_or((0, 0));
+        let mut m = BTreeMap::new();
+        for (r_, c_, f) in r.used_cells() {
+            if !f.is_empty() {
+                m.insert((r0 + r_ as u32, c0 + c_ as u32), f.clone());
+            }
+        }
+        out.insert(n, m);
+    }
+    out
+}
+
+/// Replaces one part of a package (test set-up only).
+pub fn with_part(bytes: &[u8], name: &str, xml: &str) -> Vec<u8> {
+    let mut pkg = ooxml_core::Package::from_bytes(bytes.to_vec()).unwrap();
+    pkg.set_part(name, xml.as_bytes().to_vec()).unwrap();
+    pkg.to_bytes().unwrap()
 }
