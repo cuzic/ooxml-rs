@@ -356,7 +356,8 @@ other than `ooxml-core` is rejected by rustc (E0116) *(spike)*; local
 `View` suffix keeps the names from colliding.
 
 **Enumerated values are never lossy.** A typed read of an enum
-attribute yields the known variant or the raw string (`Unknown(&str)`);
+attribute yields `EnumValue::Known(variant)` or `EnumValue::Unknown(raw)`
+(see Resolved questions);
 the enum is not made fallible in a way that tempts callers into
 rewriting the attribute. Writing an arbitrary string is always possible
 through the untyped `set_attr`, so a value the pinned data lacks (e.g.
@@ -736,15 +737,18 @@ differ; it is identified by relationship type.)
   recorded then. (`ooxmlsdk`'s generated `schemas/` alone is about 112k
   lines, for comparison of order of magnitude only.)
 
-## Open questions (for review)
+## Resolved questions (decided by the project owner, 2026-11-16)
 
-1. Vendor all SDK `data/schemas` and all XSDs, or only the namespaces
-   the allowlist touches (smaller repository, but allowlist growth may
-   need a data refresh)?
-2. `Unknown(&str)`: a variant of each generated enum, or a wrapper
-   type (`EnumValue<E>`) so a `match` on the known-values enum stays
-   exhaustive?
-3. ~~Ecma redistribution terms~~ — settled in revision 5 (§1.2).
+1. **Vendoring scope: everything.** All SDK `data/schemas`, `data/parts`,
+   `namespaces.json` and all Transitional XSDs are vendored, about 12 MB.
+   Growing the allowlist then never needs a data refresh, and the
+   generator's checks (default join, ECMA-order cross-check) run over the
+   whole schema, not just the allowlisted part.
+2. **Unknown enum values: a wrapper type.** Typed enum reads return
+   `EnumValue<'a, E> { Known(E), Unknown(&'a str) }`. Each generated `E`
+   lists only known values, so a `match` on `E` stays exhaustive, and the
+   type forces callers to decide what to do with unknown values.
+3. **Ecma redistribution terms:** settled in revision 5 (§1.2).
 
 ## Sources
 
