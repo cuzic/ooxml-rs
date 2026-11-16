@@ -32,7 +32,7 @@ pub(crate) fn shift(c: Comp, delta: i64, max: u32) -> Option<Comp> {
         return Some(c);
     }
     let v = i64::from(c.idx) + delta;
-    (0..i64::from(max)).contains(&v).then(|| Comp { idx: v as u32, abs: false })
+    (0..i64::from(max)).contains(&v).then_some(Comp { idx: v as u32, abs: false })
 }
 
 /// Shifts an area by (rows, cols); `None` if any component leaves the sheet.

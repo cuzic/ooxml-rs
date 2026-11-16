@@ -143,7 +143,7 @@ fn col_at(s: &[u8]) -> Option<(Comp, usize)> {
         return None;
     }
     let v = s[i..i + n].iter().fold(0u32, |acc, b| acc * 26 + u32::from(b.to_ascii_uppercase() - b'A' + 1));
-    (v >= 1 && v <= MAX_COLS).then_some((Comp { idx: v - 1, abs }, i + n))
+    (1..=MAX_COLS).contains(&v).then_some((Comp { idx: v - 1, abs }, i + n))
 }
 
 /// Parses `$?DIGITS` at `s`; returns (component, bytes used).
@@ -155,7 +155,7 @@ fn row_at(s: &[u8]) -> Option<(Comp, usize)> {
         return None;
     }
     let v: u32 = std::str::from_utf8(&s[i..i + n]).ok()?.parse().ok()?;
-    (v >= 1 && v <= MAX_ROWS).then_some((Comp { idx: v - 1, abs }, i + n))
+    (1..=MAX_ROWS).contains(&v).then_some((Comp { idx: v - 1, abs }, i + n))
 }
 
 fn cell_at(s: &[u8]) -> Option<(Comp, Comp, usize)> {
@@ -389,7 +389,7 @@ pub(crate) fn lex(text: &str) -> Result<Vec<Token>, LexError> {
             }
             _ if is_name_start(c) => {
                 // Unquoted sheet prefix?  Name chars up to '!' (or a 3-D 'A:B!').
-                let k = rest.find(|ch: char| !(is_name_char(ch) || ch == ':')).map_or(rest.len(), |k| k);
+                let k = rest.find(|ch: char| !(is_name_char(ch) || ch == ':')).unwrap_or(rest.len());
                 if rest.as_bytes().get(k) == Some(&b'!') && !rest[..k].starts_with(':') {
                     let sheet = &rest[..k];
                     let prefix = match sheet.split_once(':') {

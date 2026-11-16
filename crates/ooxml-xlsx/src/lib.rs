@@ -1,18 +1,26 @@
 //! # ooxml-xlsx
 //!
-//! Lossless Excel (`.xlsx`/`.xlsm`) editing on the `ooxml-core` foundation,
-//! Phase0 of [ADR-0001](https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0001-lossless-round-trip-architecture.md):
-//! open a workbook written by anyone, overwrite or create cell values on
-//! its first visible worksheet, save, and lose nothing else. Untouched parts
-//! are copied through with their original compressed bytes; inside the
-//! edited worksheet, untouched elements are written back byte for byte.
+//! Lossless Excel (`.xlsx`/`.xlsm`) editing on the `ooxml-core` foundation:
+//! open a workbook written by anyone, overwrite or create cell values and
+//! formulas on any worksheet, save, and lose nothing else. Untouched parts
+//! are copied through with their original compressed bytes; inside an
+//! edited part, untouched elements are written back byte for byte.
+//!
+//! - Phase0 ([ADR-0001](https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0001-lossless-round-trip-architecture.md)):
+//!   value edits, refusals, a from-scratch template.
+//! - Phase1 ([ADR-0003](https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0003-xlsx-phase1-formula-and-calc-state.md)):
+//!   edits in workbooks with formulas. Every formula that may depend on an
+//!   edited cell loses its cached value (so no reader sees a stale one),
+//!   `fullCalcOnLoad` is set, and `calcChain.xml` is removed when the set of
+//!   formula cells changes. Formulas can be written and removed.
 //!
 //! ```no_run
 //! # fn main() -> ooxml_xlsx::Result<()> {
 //! let mut wb = ooxml_xlsx::Workbook::open("book.xlsx")?;
-//! let mut ws = wb.worksheet()?;
-//! ws.cell_mut(1, 1)?.set_number(42.0)?;         // B2
+//! let mut ws = wb.worksheet_by_name("Inputs")?;
+//! ws.cell_mut(1, 1)?.set_number(42.0)?;         // B2; dependents lose their caches
 //! ws.cell_mut(0, 0)?.set_string("  padded ")?;  // A1, inline string
+//! ws.cell_mut(2, 1)?.set_formula("B2*2")?;      // B3
 //! wb.save("book.xlsx")?;                         // same path is safe
 //! # Ok(()) }
 //! ```
@@ -29,11 +37,13 @@
 //! # assert!(!bytes.is_empty()); Ok(()) }
 //! ```
 //!
-//! ## What Phase0 refuses (`Err`, nothing changed)
+//! ## What is refused (`Err`, nothing changed)
 //!
-//! - any value edit in a workbook containing a cell formula anywhere
-//!   (SpreadsheetML `f` element in any sheet part) or a `calcChain.xml`:
-//!   [`Error::FormulaPresent`];
+//! - every edit when the formula census is incomplete or the workbook has
+//!   cell metadata Phase1 does not model ([`Workbook::edit_refusal`]);
+//! - writes into array/data-table/spill ranges, edits that would invalidate
+//!   macro-sheet formulas, edits with dependents under iterative
+//!   calculation, shared-formula hand-offs whose translation fails;
 //! - writes into a merged range (top-left cell included), into a table's
 //!   header row, or into a cell with a rich value (`vm`);
 //! - reads and writes where `row`/`c` elements lack `r`
@@ -43,18 +53,22 @@
 //!
 //! See `README.md` for the full contract.
 
+mod census;
 mod core_props;
+mod edit;
 mod error;
 mod escape;
 mod formula;
+mod graph;
 mod reference;
-mod scan;
 mod workbook;
 mod worksheet;
 
 pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
-pub use workbook::Workbook;
+#[doc(hidden)]
+pub use workbook::ApplyStep;
+pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
 
 /// The SpreadsheetML main namespace (Transitional).

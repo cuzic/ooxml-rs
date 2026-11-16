@@ -10,6 +10,10 @@ description = "Lossless Excel (.xlsx) editing on top of ooxml-core: Phase0 value
 readme = "README.md"
 include = ["src/**/*.rs", "template/blank.xlsx", "Cargo.toml", "README.md"]
 
+[features]
+# Test hook for ADR-0003 §7.3: make an edit fail inside its apply phase.
+fault-injection = []
+
 [dependencies]
 ooxml-core = { workspace = true }
 ooxml-schema = { workspace = true, features = ["sml"] }

@@ -9,27 +9,11 @@ use common::*;
 use ooxml_core::PartStateKind;
 use ooxml_xlsx::{CellValue, Error, Workbook};
 
-fn refuse_everywhere(name: &str, check: impl Fn(&Error) -> bool) {
-    let input = read(name);
-    let wb = Workbook::from_bytes(input.clone()).unwrap();
-    assert!(wb.edit_refusal().is_some_and(|e| check(&e)), "{name}");
-    // every 5th cell keeps the debug-build run short; all cells are refused alike
-    let mut cells: Vec<_> = existing_cells(&input).into_iter().step_by(5).collect();
-    cells.push(a1("Z99"));
-    for at in cells {
-        for w in [W::Num(1.0), W::Str("x".into())] {
-            let (wb, r) = apply(&input, at, &w);
-            let e = r.expect_err(name);
-            assert!(check(&e), "{name} {at}: {e:?}");
-            assert_unchanged(&wb, &input);
-        }
-    }
-}
-
-/// P0-R1..R3: any formula anywhere → every write refused, with or without
-/// `calcChain.xml`; reads still work (cached values).
+/// P0-R1..R3 superseded by Phase1 (ADR-0003): formula-bearing workbooks are
+/// no longer refused workbook-wide; reads still return cached values and
+/// formula text. (Phase1 behaviour is tested in `phase1_*.rs`.)
 #[test]
-fn r1_to_r3_formula_present() {
+fn r1_to_r3_formula_workbooks_are_editable_in_phase1() {
     for name in [
         "poi/shared_formulas.xlsx",
         "poi/70005-countifs.xlsx",
@@ -37,18 +21,14 @@ fn r1_to_r3_formula_present() {
         "poi/xlookup.xlsx",
         "poi/NewStyleConditionalFormattings.xlsx",
     ] {
-        refuse_everywhere(name, |e| matches!(e, Error::FormulaPresent { .. }));
+        let wb = Workbook::from_bytes(read(name)).unwrap();
+        assert!(wb.edit_refusal().is_none(), "{name}: {:?}", wb.edit_refusal());
     }
-    // the calcChain-less one is caught by the element scan, not the fast path
-    let wb = Workbook::from_bytes(read("poi/70005-countifs.xlsx")).unwrap();
-    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/worksheets/sheet1.xml");
-    // reads: a formula cell's cached string result and its formula text
     let mut wb = Workbook::from_bytes(read("poi/shared_formulas.xlsx")).unwrap();
     let ws = wb.worksheet().unwrap();
     let c = ws.cell(1, 0).unwrap().unwrap();
     assert_eq!(c.formula().as_deref(), Some("B2"));
     assert_eq!(c.value().unwrap(), CellValue::String("ProductionOrderConfirmation".into()));
-    assert_matches!(c.value().unwrap(), CellValue::String(_));
 }
 
 /// P0-R4, R5: rows/cells without `r` → reads and writes refused.
@@ -144,7 +124,7 @@ fn malformed_shapes() {
     let fill = with_sheet(&format!(r#"{WS_OPEN}<sheetData/><filterColumn/><formula/></worksheet>"#));
     assert!(Workbook::from_bytes(fill).unwrap().edit_refusal().is_none());
     let f = with_sheet(&format!(r#"{WS_OPEN}<sheetData><row r="1"><c r="A1"><f>1</f></c></row></sheetData></worksheet>"#));
-    assert_matches!(apply(&f, a1("C3"), &W::Num(1.0)).1, Err(Error::FormulaPresent { .. }));
+    assert_matches!(apply(&f, a1("C3"), &W::Num(1.0)).1, Ok(()), "no dependent: a Phase1 value edit");
     let dtd = with_sheet(&format!(r#"<!DOCTYPE x>{WS_OPEN}<sheetData/></worksheet>"#));
     assert_matches!(Workbook::from_bytes(dtd), Err(Error::Core(ooxml_core::Error::DtdNotAllowed { .. })));
 }
