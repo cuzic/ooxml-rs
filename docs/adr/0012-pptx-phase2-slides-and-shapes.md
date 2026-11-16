@@ -1,6 +1,6 @@
 # ADR-0012: PowerPoint Phase 2 — slides and shapes as units
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (Layer 1
   passthrough, Layer 3 append-only registries, From-scratch path),
@@ -8,16 +8,49 @@
   insertion; post-acceptance note "detach/insert", PR #18),
   [ADR-0005](0005-pptx-phase0.md) (Phase 0/0.1: references into slide text,
   refusals, oracles); ADR-0008 (Phase 1, deck reading and inheritance,
-  in progress on `plan/pptx-phase1`) is **not** a prerequisite: Phase 2
-  needs only direct values, and where it reads a layout it reads it
-  directly (§4.1).
+  PR #28) is **not** a prerequisite for its rules, but Phase 2 reuses its
+  read APIs (`layouts()` → `LayoutRef`, `sections()`, `notes_mut`) instead
+  of defining parallel ones (§11, review m8).
 - Background: [`docs/roadmap/pptx.md`](../roadmap/pptx.md) §3.5, §3.6,
   §4 Phase 2
 - Evidence: [`spikes/pptx-phase2/`](../../spikes/pptx-phase2/README.md)
-  (`units.py`, 91 distinct files, 522 slides); python-pptx 1.0.2 and Apache
-  POI (commit `47dcff76`) source, cited per rule in §10
-- Core prerequisites: PR #14 (`Package::remove_part`, open) and the new
-  core primitives of §2 (a separate core PR)
+  (`units.py`, 91 distinct files, 522 slides; corpus pinned by content in
+  `results/corpus-sha256.txt`, output in `results/units-91.txt`);
+  python-pptx 1.0.2 and Apache POI (commit `47dcff76`) source, cited per
+  rule in §10
+- Review: [round 1](0012-opus-review-round1.md)
+- Core prerequisite: the registry transaction of the core PR built on
+  branch `core/add-part` (`RegistryPlan`, `Package::apply`; §2), which also
+  carries the single ADR-0001 note "registry writes"
+
+## Revision history
+
+- **Revision 1:** initial draft.
+- **Revision 2** (after `0012-opus-review-round1.md`, not converged:
+  B1, M1–M4, m1–m13). The coordinator decided that the core PR on
+  `core/add-part` is the single source of truth for package-level
+  writes; §2 now refers to its API instead of defining C1–C6.
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | B1 validate-before-change impossible with separate primitives | every operation builds its tree edits on clones, stages them (`stage_part`) in **one** `RegistryPlan` with the additions/removals, and applies once; the core's reference scans read the staged content | §2, §4 |
+  | M1 duplicate with the same `Id`s | `RegistryPlan::copy_relationships` (same `Id`s, targets re-relativized, `target_map` for the copied notes/tags) | §2, §4.4 |
+  | M2 narrow reference check on delete | generalized through `incoming_relationships` (`SlideIsReferenced { from_part, rel_type }`), `viewProps` outline entries removed with their relationship, `sldId` value references (sections updated; Slide Zoom and unknown numeric `sldId` attributes refuse) | §4.2 |
+  | M3 ADR-0001 note | one note, in the core PR; this ADR lists its requirements only | §2 |
+  | M4 C1–C6 vs the core API | replaced by the core API names | §2, §3 |
+  | m1 shape-id maximum | includes numeric `@spid` (incl. `_x0000_s####`) and `ac:*Mk@id` of the slide's comment parts; cap `i32::MAX` | §3 |
+  | m2 `sldId` reuse in a session | session high-water mark | §3 |
+  | m3 external/unresolvable targets | relationship-only removal | §6 |
+  | m4, m5 comments and tags on duplicate | comments dropped (relationship removed in the plan), tags copied | §4.4 |
+  | m6 show range | add/duplicate refused too | §4 |
+  | m7 placeholder rules | stated | §4.1 |
+  | m8 ADR-0008 overlap | `ensure_notes_slide()` only; text through ADR-0008's `NotesMut`; `LayoutRef` | §4.6, §11 |
+  | m9 `app.xml` | `Notes` 86/86 and `HiddenSlides` 86/86 measured; `show="false"`; created notes count; unreadable → untouched | §7 |
+  | m10 template | `--check` by part content; injectable `core.xml` time; authored without copying; `p:notesSz`, `notesMasterIdLst` | §8 |
+  | m11 position 0 | joins the section of the slide now at position 0 | §5 |
+  | m12 corpus pin | SHA-256 list committed | spike |
+  | m13 comment part template | removed | §3 |
+  | Q1–Q4 | the review's recommendations recorded as proposed defaults | Open questions |
 
 ## Context
 
@@ -77,8 +110,8 @@ lossless model promised to keep.
 4. `duplicate_slide(index, at)` — within the same presentation.
 5. On a slide: `add_text_box(rect, text)` and `add_picture(rect, bytes)`
    (PNG, JPEG, GIF).
-6. Notes: `notes_text()` / `set_notes_text(text)`, creating the notes
-   slide when the presentation has a notes master.
+6. Notes: `ensure_notes_slide(slide)` when the presentation has a notes
+   master; notes text through ADR-0008's `NotesMut`.
 7. `Presentation::new()` from an embedded, repository-authored template
    (§8).
 8. Section membership (`p14:sectionLst`) on add, delete, move, duplicate;
@@ -92,45 +125,62 @@ range (only respected), modern comments (only respected), SVG and other
 image types, renaming or reordering sections, `Presentation::new()` with
 a caller's template other than through `open`.
 
-### 2. Prerequisites in `ooxml-core` (separate core PR)
+### 2. Prerequisites in `ooxml-core`: the registry transaction
 
-Phase 2 is a client of four package-level operations that do not exist
-yet, plus PR #14. Each comes as `check_*(&self, …)` + the mutating call,
-with **one** shared validation, so that a format crate can check every
-step of a multi-part edit before the first change (the plan → validate →
-apply discipline of ADR-0003 and the `check_insert_under` pattern of
-PR #18):
+All package-level writes go through the core registry transaction of the
+PR built on `core/add-part` (the single source of truth; links to the PR
+replace these names once it is up). Phase 2 uses:
 
-| Id | Operation | Rules |
-|---|---|---|
-| C1 | `add_part(name, content_type, bytes)` | `name` absent under OPC part-name equivalence (ASCII case-insensitive, percent-decoded; the rule of PR #14); content type registered by an existing `Default` for the extension when that `Default` carries exactly `content_type`, else by a new `Override` appended to `[Content_Types].xml`. Never edits or removes an existing `Default`/`Override`. |
-| C2 | `add_default_content_type(ext, content_type)` | only if no `Default` for `ext` exists **and** no existing part with that extension lacks an `Override` (adding the `Default` would otherwise change an existing part's type): refused otherwise. |
-| C3 | `add_relationship(source, rel_type, target, mode) -> Id` | appends to the source's `.rels` (creating it as a new part when absent); the new `Id` is `rId{max N + 1}` over the source's `rIdN` ids (other ids ignored, never reused); `Internal` targets must exist. |
-| C4 | `remove_relationship(source, id)` | refused when any attribute of the source part, after XML unescaping, equals `id` (the any-attribute rule of PR #14 M1). |
-| C5 | `unused_part_name(template)` | `template` like `/ppt/slides/slide{}.xml`; returns the name with **the largest existing index + 1** among names equivalent to the template's pattern (never reuses an index present in the input or removed in this session). POI's lowest-unused rule (bug 55791) is collision-free too; `max + 1` additionally never reuses a name whose part was removed earlier in the same session (a zip entry may still be pending). |
-| C6 | `remove_part_with_relationships(name, allowed_rel_types)` | PR #14's `remove_part` without the `HasOwnRelationships` refusal: the part's own `.rels` goes with it, and the call returns the internal targets it referenced so the caller can decide (§6). Same refusals otherwise. |
+| Core API (`RegistryPlan`, applied by `Package::apply`) | Phase 2 use |
+|---|---|
+| `add_part(pkg, PartNameRequest::Numbered("ppt/slides/slide{}.xml"), ct, content)` | new slide, notes slide, media, tags parts; numbering is **one more than the largest number in use** (existing parts, `Override`s, relationship targets including dangling ones, names removed in this session, names planned earlier); gaps never filled |
+| `add_default_content_type(pkg, ext, ct)` | media extensions (`DefaultExists`, `WouldRetypePart` refusals) |
+| `add_relationship(pkg, source, type, Target::Part \| External)` | presentation → slide, slide → layout/notes/media, notes → master/slide; `rId{max+1}`, gaps not reused |
+| `copy_relationships(pkg, src, dst, target_map)` | duplicate: the copy's relationships with the **same `Id`s**, internal targets re-relativized for the new part, `target_map` sending `notesSlide`/`tags` to their copies (review M1) |
+| `remove_relationship(pkg, source, id)` | the presentation → slide relationship; refused while any attribute of the (staged) source still carries the `Id` |
+| `remove_parts(pkg, names, allowed_rel_types)` | the deleted slide and its cascade (§6) **as one set**; the caller lists the relationship types it allows (the interim note's type allowlist) |
+| `stage_part(pkg, name, content)` | the edited `presentation.xml`, `app.xml`, `viewProps.xml` (and new slide XML) as trees cloned from the parsed parts and edited through the lens; later steps' reference scans read the staged content (review B1) |
+| `Package::incoming_relationships(name)`, `part_name_in_use(name)` | the pre-delete reference check (§4.2) |
 
-ADR-0001's interim note (PR #14) allows removing a registry entry only
-together with its part, for one named caller. Phase 2 needs the same for
-slides, notes, comments and media. This ADR therefore asks for a
-**post-acceptance note to ADR-0001** that replaces the interim one:
-*a registry entry (`[Content_Types]` `Override`, relationship,
-`p:sldId`, section entry) may be removed only together with the thing it
-registers, only after it is shown that nothing remaining refers to it
-(by relationship `Id`, any attribute, or a format-level id such as
-`sldId`), and no remaining entry is ever renumbered or reused.* The
-append-only rule for **allocation** stays absolute.
+**Transaction shape (every operation, §4).** (1) Clone the parsed trees
+that change (`presentation.xml`, sections live in it, `app.xml`,
+`viewProps.xml`, the slide itself for shape edits) and edit the clones
+through the lens; build new parts as `XmlDocument`s. (2) Run every
+ADR-0012 refusal (§9) and record every step in one `RegistryPlan`:
+`stage_part` for each edited clone, `add_part`/`add_relationship`/
+`copy_relationships` for additions, `remove_relationship`/`remove_parts`
+for removals — the plan only reads `&Package`. (3) `Package::apply(plan)`,
+which cannot fail after the plan validated. Every refusal, ADR-0012's or
+the core's, happens in (1)–(2); the package is then byte-identical,
+including `presentation.xml` (T4, §10).
+
+**Requirements on the core PR's ADR-0001 note "registry writes"** (one
+note, written there, replacing PR #14's interim note; review M3): a
+registry entry is removed only together with the part it registers, or
+as a relationship no remaining attribute refers to; removals of parts are
+validated **as a set** (relationships from inside the set to inside the
+set go with it; any relationship from outside refuses); the caller must
+allow each removed relationship's **type** (implicit references by type
+stay protected); reference scans read the **staged** content of the same
+transaction; no remaining entry is ever renumbered or reused. Format-level
+ids (`sldId`, shape ids) are pptx rules (§3, §4.2), not part of the note.
+
+**Requested from the core PR** (beyond what the branch has at the time of
+writing): `copy_relationships` should copy an internal target that
+resolves to no part (e.g. `Target="#_ftn1"` hyperlinks, 4 in
+`with_japanese.pptx`) **verbatim** instead of refusing, so such slides can
+be duplicated; until then they are `Core(…)` refusals.
 
 ### 3. Registries and allocation rules
 
 | Registry | Owner | New value | Never |
 |---|---|---|---|
-| part names | core (C5) | `max index + 1` per template (`slide`, `notesSlide`, `image`, `media`, `comment`) | rename an existing part (python-pptx's `rename_slide_parts`) |
-| content types | core (C1, C2) | `Override` per new part; `Default` per new media extension (C2 conditions) | edit or remove a `Default` |
-| relationship ids | core (C3) | `rId{max + 1}` per source part | reuse a gap (python-pptx `_next_rId`) |
-| `p:sldId@id` | `ooxml-pptx` | `max(existing, 255) + 1`; above 2,147,483,647: `SlideIdsExhausted` | search for a gap (python-pptx's fallback reuses a deleted slide's id, which modern comments `pc:sldMk@sldId` and sections may still name) |
-| shape ids (`cNvPr@id`) | `ooxml-pptx`, per slide part | `max(every numeric unprefixed @id in the part) + 1` — includes ids inside `mc:AlternateContent` branches and `a:graphicData` (python-pptx's `max_shape_id` reads `//@id`); above `u32::MAX`: `ShapeIdsExhausted` | the lowest free id (POI `allocateShapeId`): a freed id may still be named by an animation, connector or comment |
-| `p14:creationId@val` | `ooxml-pptx` | for a duplicated slide: `max(over all slides) + 1` (u32, wrapping refused) | copy the original's (modern comments anchor by `sldId` + `creationId`) |
+| part names | core (`PartNameRequest::Numbered`) | largest number in use + 1 per template (`slide`, `notesSlide`, `media/image`, `media/media`, `tags/tag`); the reason is that a stale reference (a dangling relationship, an external tool's history) to a removed or gap name must never resolve to a new, unrelated part | rename an existing part (python-pptx's `rename_slide_parts`) |
+| content types | core | `Override` per new XML part; `Default` per new media extension (core conditions) | edit or remove a `Default` |
+| relationship ids | core | `rId{max+1}` per source part; duplicated parts keep the original `Id`s (`copy_relationships`) | reuse a gap (python-pptx `_next_rId`) |
+| `p:sldId@id` | `ooxml-pptx` | `max(existing, **every id allocated or removed in this session**, 255) + 1` (session high-water mark, review m2); refused above `ST_SlideId`'s maximum 2,147,483,647 (`SlideIdsExhausted`). Reuse across sessions (an id deleted and saved, then allocated by a later session) cannot be prevented; the new slide's `p14:creationId` differs, so modern comments (`pc:sldMk` carries both) still do not attach to it | search for a gap (python-pptx's fallback) |
+| shape ids (`cNvPr@id`) | `ooxml-pptx`, per slide part | `max + 1` over: every numeric unprefixed `@id` in the part (python-pptx's `//@id`, which covers ids inside `mc:AlternateContent` and `a:graphicData`), every numeric `@spid` and the number of `_x0000_s####` `@spid`s (timing, `p:control`, `p:oleObj`), and every `ac:*Mk@id` in the slide's modern comment parts (review m1: on 11 corpus slides these exceed every `@id`, e.g. `p:control spid="3074"`); refused above `i32::MAX` (`ShapeIdsExhausted`; POI reads ids as `int`) | the lowest free id (POI `allocateShapeId`) |
+| `p14:creationId@val` | `ooxml-pptx` | for a duplicated slide: `max(over all slides) + 1` (u32; refused on overflow) | copy the original's |
 | sections | `ooxml-pptx` | membership only (§5) | create, rename or reorder sections |
 
 Existing duplicate shape ids (none outside AC in the corpus, id 7 in both
@@ -139,35 +189,56 @@ ids are above all of them.
 
 ### 4. Operations
 
-All operations run **plan → validate → apply**: every refusal of §9 and
-every core `check_*` of §2 for every step happens before the first change;
-the package is byte-identical after a refusal (tested like ADR-0005 T4).
-Each is one call; there is no partially-applied state visible to the
-caller.
+Every operation is **one** registry transaction (§2): clones edited,
+every refusal of §9 and every core step recorded in one `RegistryPlan`,
+one `Package::apply`. The package is byte-identical after a refusal,
+`presentation.xml` included (tested like ADR-0005 T4). There is no
+partially-applied state visible to the caller.
 
-#### 4.1 `add_slide(layout: LayoutRef, at: Option<usize>) -> SlideMut`
+**Positional show range.** When `presProps` has `p:showPr/p:sldRg` (a
+slide show range by position; 0 in the corpus), every operation that
+changes positions — add, delete, move, duplicate — is refused with
+`ShowRangeByPosition` (review m6).
 
-`Presentation::layouts()` lists `(master index, layout part, p:cSld@name,
-p:sldLayout@type)` for every master in `p:sldMasterIdLst`; the caller
-picks one (by name, type or index). Steps:
+#### 4.1 `add_slide(layout: &LayoutRef, at: Option<usize>) -> SlideMut`
 
-1. part `/ppt/slides/slide{N}.xml` (C5), `Override` (C1);
-2. slide `.rels`: one `slideLayout` relationship (C3);
-3. presentation relationship (C3) and a `p:sldId` (§3) inserted into
-   `p:sldIdLst` at `at` (the list is created in schema order if absent:
-   `insert_by` on `p:presentation`);
+The layout comes from ADR-0008's `layouts()` (`LayoutRef`: master, part,
+`p:cSld@name`, `p:sldLayout@type`), reached from a master in
+`p:sldMasterIdLst` through the master's `p:sldLayoutIdLst`
+(`LayoutNotFound` otherwise). Steps:
+
+1. part `ppt/slides/slide{}.xml` (`add_part`, `Numbered`; `Override`);
+2. one `slideLayout` relationship from it (`add_relationship`);
+3. presentation relationship (`add_relationship`) and a `p:sldId` (§3)
+   inserted into the cloned `presentation.xml`'s `p:sldIdLst` at `at`
+   (the list is created in schema order if absent: `insert_by` on
+   `p:presentation`), staged (`stage_part`);
 4. slide XML: `p:sld/p:cSld/p:spTree` with the group's `nvGrpSpPr` (id 1)
-   and `grpSpPr`, then **one placeholder per layout placeholder except
-   `dt`, `ftr`, `sldNum`** (both libraries skip these), each with
-   `p:nvSpPr` (`p:cNvPr id name`, `p:cNvSpPr` with `a:spLocks
-   noGrp="1"`, `p:nvPr/p:ph` copying only `type`, `orient`, `sz`, `idx`),
-   an empty `p:spPr` (position inherited), and for text-bearing types a
-   `p:txBody` with `a:bodyPr`, `a:lstStyle` and one empty `a:p` —
-   python-pptx's shape, **not** POI's full copy (which carries the
-   layout's prompt text "Click to add title" into the slide as real text);
-   then `p:clrMapOvr/a:masterClrMapping`. Ids `2, 3, …`; names
-   "Title 1", "Content Placeholder 2", … (PowerPoint's scheme, as
-   python-pptx);
+   and `grpSpPr`, then the placeholders, then
+   `p:clrMapOvr/a:masterClrMapping`. **Placeholder rules** (review m7):
+   - one per placeholder **directly** in the layout's `p:spTree`
+     (placeholders in groups or inside `mc:AlternateContent` are not
+     cloned), in layout order, **except `dt`, `ftr`, `sldNum`** (both
+     libraries skip these; PowerPoint adds them to new slides of a deck
+     where "apply to all" footers are on — not reproduced, Q5);
+   - each `p:sp` has `p:nvSpPr` (`p:cNvPr id name`, `p:cNvSpPr` with
+     `a:spLocks noGrp="1"`, `p:nvPr/p:ph` copying only `type`, `orient`,
+     `sz`, `idx`) and an empty `p:spPr` (position inherited);
+   - a `p:txBody` (`a:bodyPr`, `a:lstStyle`, one empty `a:p`) only for
+     the types python-pptx gives one: `title`, `ctrTitle`, `subTitle`,
+     `body`, `obj` (including the implicit `obj` of a `p:ph` without
+     `type`); pictures, charts, tables, media placeholders get none;
+   - ids `2, 3, …`; names in PowerPoint's scheme as python-pptx
+     ("Title 1", "Content Placeholder 2", …), prefixed "Vertical " when
+     `orient="vert"`;
+   - layouts with several placeholders of one type and idx (ADR-0008's
+     `IdxTie*` cases) are cloned as found; each clone keeps its own
+     `type`/`idx` pair, so ADR-0008 matches it to the same layout
+     placeholder.
+
+   This is python-pptx's shape, **not** POI's full copy (which carries the
+   layout's prompt text "Click to add title" into the slide as real
+   text);
 5. section membership (§5); `app.xml` (§7).
 
 The new slide is returned as a Phase 0 `SlideMut`, so its placeholders are
@@ -175,38 +246,65 @@ filled with the Phase 0/0.1 text API.
 
 #### 4.2 `delete_slide(index)`
 
-Validate (all before any change): the slide is not a jump-link target of
-another slide (`SlideIsLinkTarget`), not in a custom show
-(`SlideInCustomShow`), the presentation has no `p:showPr/p:sldRg`
-(`ShowRangeByPosition`), and every relationship type of the slide is in
-the cascade set of §6 (`UnsupportedSlidePart(type)`). Then remove its
-`p:sldId`, its section entry (the section stays, possibly empty: 12 of 17
-sections in the corpus are empty), the presentation relationship (C4),
-and the slide part with its relationships and orphaned targets (§6);
-update `app.xml` (§7).
+Validate (all inside the transaction, before `apply`):
+
+- **References by relationship** (review M2): every internal relationship
+  that resolves to the slide part (`Package::incoming_relationships`) must
+  come from `presentation.xml` (removed by this operation), from the
+  slide's own notes slide (removed with it), or from another part of the
+  cascade (§6); `viewProps.xml`'s outline entry
+  (`p:outlineViewPr/p:sldLst/p:sld r:id`, view state only) is removed
+  together with its relationship (staged `viewProps.xml`). Any other
+  source — another slide's jump link, a layout's or master's action
+  button, another slide's notes, a SmartArt `diagramData` hyperlink — is
+  `SlideIsReferenced { from_part, rel_type }`.
+- **References by `sldId` value:** the section lists are updated (§5);
+  Slide Zoom objects (`pslz:sldZmObj@sldId`, any slide) and any other
+  numeric `sldId` attribute equal to the slide's id found in a slide's or
+  the presentation's `p:extLst` or inside `mc:AlternateContent` are
+  `SlideIsReferenced` (fail closed).
+- custom shows (`SlideInCustomShow`), the show range (§4 intro), and the
+  cascade types of §6 (`UnsupportedSlidePart(type)`).
+
+Then, in the same plan: stage `presentation.xml` without the `p:sldId`
+and the section entry (the section stays, possibly empty: 12 of 17
+corpus sections are empty), `remove_relationship` for presentation →
+slide, `remove_parts` for the slide and its cascade (§6) with the allowed
+types, stage `app.xml` (§7) and `viewProps.xml` if changed; apply.
 
 #### 4.3 `move_slide(from, to)`
 
 Reorders `p:sldId` elements (the only change to `presentation.xml`
-besides sections). Refused with `ShowRangeByPosition` when a positional
-show range exists. Sections: §5.
+besides sections), staged as one edit. Sections: §5.
 
 #### 4.4 `duplicate_slide(index, at) -> SlideMut`
 
 Allowed when the slide's relationship types are all in `slideLayout`,
-`notesSlide`, `image`, `media`, `audio`, `video`, `hdphoto`, `hyperlink`
-(external), `slide` (jump links), `tags` (457/522 slides); anything else
-(charts, diagrams, OLE, comments, controls, …) is `UnsupportedSlidePart`
-(their parts would need cloning with their own trees). The new slide part
-is a byte copy of the original with: `p14:creationId` (if present) set to
-a new value (§3); its `.rels` a copy of the original's with the same
-`Id`s (relationship ids are per source part, so the copied XML stays
-valid), pointing at the **same** layout, media and tag parts (shared, as
-in 15 corpus files), except the `notesSlide` relationship, which points at
-a copy of the notes slide (new part, its `slide` back-relationship to the
-new slide, the same notes master). Modern and legacy comments are not
-copied (they are about the original). Shape ids are per slide, so they
-stay; animations in the copy keep referring to the copy's shapes.
+`notesSlide`, `image`, `media`, `audio`, `video`, `hdphoto`, `hyperlink`,
+`slide` (jump links), `tags`, `comments` (457/522 corpus slides without
+`comments`); anything else (charts, diagrams, OLE, controls, …) is
+`UnsupportedSlidePart` (their parts would need cloning with their own
+trees). In one plan:
+
+1. the new slide part: the original's XML (cloned tree), with
+   `p14:creationId` (if present) set to a new value (§3);
+2. a copy of the notes slide (new part; its own `p14:creationId`, if any,
+   renewed the same way) and a copy of each `tags` part (PowerPoint
+   duplicates tags; add-ins key them per slide, review m5);
+3. `copy_relationships(original, new, target_map)` with the notes and
+   tags copies in `target_map`: the copy keeps every `Id`, so its XML's
+   `r:id`/`r:embed`/`r:link` stay valid; layout and media stay **shared**
+   (15 shared media in the corpus); then the same for the notes copy
+   (notes master shared, its `slide` relationship mapped to the new
+   slide);
+4. **comments are not copied** (they are about the original): their
+   relationships are removed from the copy in the same plan
+   (`remove_relationship`; the copied XML does not reference them, review
+   m4);
+5. presentation relationship, `p:sldId` at `at`, sections (§5), `app.xml`.
+
+Shape ids are per slide, so they stay; animations in the copy keep
+referring to the copy's shapes.
 
 #### 4.5 `add_text_box(rect, text)` and `add_picture(rect, bytes)`
 
@@ -220,8 +318,10 @@ On a `SlideMut`, appended at the end of `p:spTree` (top of z-order):
   else `UnsupportedImage`); **dedup by SHA-256** against every existing
   part with an image content type (python-pptx `_find_by_sha1`, POI
   `findPictureData` by checksum + bytes), else a new
-  `/ppt/media/image{N}.{ext}` (C5) with a `Default` for the extension
-  (C2) or an `Override`; an `image` relationship from the slide (C3); a
+  `ppt/media/image{}.{ext}` (`add_part`, `Numbered`) with a `Default` for
+  the extension (`add_default_content_type`) or an `Override`; an `image`
+  relationship from the slide (`add_relationship`); the slide's edited
+  clone staged in the same plan; a
   `p:pic` with `p:blipFill/a:blip r:embed`, `a:stretch/a:fillRect`,
   `a:xfrm` from `rect` (when `rect` has no size: the pixel size at 96 dpi
   from the image header, the python-pptx rule).
@@ -231,13 +331,18 @@ scheme).
 
 #### 4.6 Notes
 
-`notes_text()` reads the notes slide's body placeholder (`p:ph type="body"`).
-`set_notes_text(text)` writes it with the Phase 0 `TextBody::set_text`
-rules; when the slide has no notes slide it creates one from the notes
-master (part `notesSlide{N}`, relationships to the notes master and back
-to the slide, placeholders `sldImg`, `body`, `sldNum` cloned like §4.1,
-the python-pptx set), refused with `NoNotesMaster` when the presentation
-has none (36 of 91 files have one; the template of §8 does).
+Phase 2 adds only `ensure_notes_slide(slide)`: when the slide has no notes
+slide, it creates one from the notes master (part `notesSlide{N}`,
+relationships to the notes master and back to the slide, slide → notes,
+placeholders `sldImg`, `body`, `sldNum` cloned like §4.1 — the
+python-pptx set; unlike §4.1, `sldNum` **is** cloned there, as notes pages
+show it by default) and increments `app.xml` `Notes` (§7). Text is read
+and written through ADR-0008's `notes_mut` / `NotesMut` (review m8); a
+created notes slide always has a body placeholder, so ADR-0008's
+`NoNotesBody` cannot occur on it. A presentation without a notes master
+(36 of 91 files have one; the template of §8 does) is `NoNotesMaster` in
+Phase 2; creating a notes master is specified in ADR-0016 §8 (Phase 3),
+which supersedes this refusal when implemented.
 
 ### 5. Sections (`p14:sectionLst`)
 
@@ -249,23 +354,32 @@ and kept after every operation: **the concatenation of the sections'
 `p14:sldId` lists equals `p:sldIdLst`** (true in all 4 files; a deck
 violating it is refused with `SectionsInconsistent`).
 
-- add / duplicate at position *i*: the new id joins the section of the
-  slide at *i − 1*; at position 0, the first section (PowerPoint's
-  "add slide" behaviour); with no sections, nothing.
+- add / duplicate at position *i* > 0: the new id joins the section of
+  the slide at *i − 1* (PowerPoint's "new slide after the selection");
+  at position 0: the section of the slide **now** at position 0, i.e.
+  the following slide's (review m11: an empty first section is never
+  filled implicitly); with no slides or no sections, nothing.
 - delete: the id leaves its section; the section stays, even if empty.
-- move: the id leaves its section and joins the section of its new
-  predecessor (first section at position 0).
+- move: the id leaves its section and joins, by the same rule, the
+  section of its new predecessor (of its new successor at position 0).
+- Position alone cannot say "first slide of section *k*"; a later
+  `move_slide_to_section` can add that.
 
 What PowerPoint does with a slide outside every section was owner question
 ADR-0005 Q4b (manual check pending); the rules above never create one.
 
 ### 6. Orphan removal on delete (cascade)
 
-`delete_slide` removes the slide part with its own relationships (C6) and
-then, for every internal target it referenced, removes the target **only
-if no remaining relationship anywhere in the package resolves to it**
-(scan of every `.rels`, OPC equivalence) and its relationship type is in
-the cascade set; recursively for the removed targets' own targets:
+`delete_slide` passes to `remove_parts` (one set) the slide and every
+part it reaches, recursively through their own internal relationships,
+whose relationship type is in the cascade set **and** to which no
+relationship from outside the set points (`incoming_relationships`, OPC
+equivalence); `allowed_rel_types` is that set, so implicit references by
+type stay protected (§2). Only **internal** targets that resolve to a part
+cascade; external targets (`image`/`video`/`oleObject` links with
+`TargetMode="External"`, 1 + 7 in `56812.pptx`) and internal targets that
+resolve to no part (`#_ftn1` hyperlinks) go away as relationships only
+(review m3):
 
 | Type | Removed when orphaned | Notes |
 |---|---|---|
@@ -274,27 +388,28 @@ the cascade set; recursively for the removed targets' own targets:
 | `image`, `media`, `audio`, `video`, `hdphoto` | yes, only when unreferenced (15 shared) | never a part also used by a layout/master |
 | `chart` (+ its `package`, `chartStyle`, `chartColorStyle`, `chartUserShapes`), `diagram*`, `oleObject`, `package`, `vmlDrawing`, `tags`, `themeOverride` | yes, as a tree | their own internal targets follow the same rule |
 | `slideLayout` | never (layouts are kept even when unused: 959 unused layouts in the corpus) | |
-| `hyperlink` (external), `slide` (jump links out of the deleted slide) | relationship only | |
+| `hyperlink` (any mode), `slide` (jump links out of the deleted slide), any external target | relationship only | |
 | anything else (`control`, `chartEx`, unknown) | — | `UnsupportedSlidePart(type)`: 3 of 522 slides |
 
-The whole cascade is planned (C6 + `check_*` for each step) before the
-first removal. `Default` content types are never removed (other parts may
-use them).
+The whole cascade is one `remove_parts` call in the operation's plan.
+`Default` content types are never removed (other parts may use them).
 
 ### 7. `docProps/app.xml`
 
 Phase 2 is the first writer of `app.xml` (Phase 0: untouched, may be
 stale). It updates, when present, only the language-independent counts
-that PowerPoint keeps exact (86/86 files): `Slides`, `Notes` (slides with
-a notes slide), `HiddenSlides` (`p:sld@show="0"`, 3 slides in the corpus).
-`TitlesOfParts`/`HeadingPairs` are **left unchanged**: the "slide titles"
-group is identifiable only by a localized label (`Slide Titles`,
-`Folientitel`, `Bildrubriker`, `幻灯片标题`, …) or by position, and a wrong
-guess would corrupt the font/theme lists in the same vector. They may
-become stale, as `Words`/`Paragraphs` already may after Phase 0 edits —
-owner question Q2 (manual check: does PowerPoint care; ADR-0005 Q4c is
-the same question for text). A missing `app.xml` or element is not
-created.
+that PowerPoint keeps exact — measured on the 86 files that have them
+(4 lack `Slides`, 1 has no `app.xml`): `Slides` = slide count in 86/86,
+`Notes` = notes slides in 86/86, `HiddenSlides` = slides with
+`p:sld@show` `0` or `false` in 86/86 (review m9). Add/duplicate/delete
+adjust `Slides`, `Notes` (a slide with notes; `ensure_notes_slide` adds
+one) and `HiddenSlides`. `TitlesOfParts`/`HeadingPairs` are **left
+unchanged**: the "slide titles" group is identifiable only by a localized
+label (`Slide Titles`, `Folientitel`, `Bildrubriker`, `幻灯片标题`, …) or
+by position, and a wrong guess would corrupt the font/theme lists in the
+same vector; untouched, the two vectors stay consistent with each other.
+A missing `app.xml` or element is not created; an `app.xml` that cannot
+be read or parsed is left untouched (not a refusal).
 
 ### 8. `Presentation::new()` — the built-in template
 
@@ -302,19 +417,27 @@ As ADR-0001's From-scratch path: an embedded template `.pptx` opened
 through the same `Package::open` → edit path; no separate writer.
 
 - **Authored in this repository**, not copied from python-pptx's
-  `default.pptx` or POI: the template's XML parts are committed as text
-  under `crates/ooxml-pptx/template/` (license: the repository's), and the
-  `.pptx` bytes are built from them by an `xtask` command with a
-  `--check` mode, like codegen (CI fails when the bytes drift from the
-  sources).
-- Content: one master with a theme ("Office"-like, fonts `+mj-lt`/
-  `+mn-lt`), seven layouts (`title`, `obj` "Title and Content",
-  `secHead`, `twoObj`, `titleOnly`, `blank`, `objTx`), a notes master
-  with its theme, `presProps`, `viewProps`, `tableStyles` (empty list),
-  `docProps/core.xml` and `app.xml`, 16:9 (`12192000 × 6858000`), **zero
-  slides** (`p:sldIdLst` absent), no sections.
-- `core.xml` is regenerated wholesale on `new()` (created/modified now,
-  no creator), as in ADR-0001 for xlsx.
+  `default.pptx`, POI or Microsoft's theme files: the XML parts are
+  written by hand under `crates/ooxml-pptx/template/` (license: the
+  repository's); colour values and font names are factual choices, not
+  copied markup. The `.pptx` bytes are built from them by an `xtask`
+  command whose `--check` compares **part content** (names, order and
+  uncompressed bytes), not zip bytes, so a deflate implementation update
+  does not fail CI (review m10).
+- Content (proposed default, Q4): 16:9 (`12192000 × 6858000`), one master
+  with its theme, **PowerPoint's standard 11 layouts in the standard
+  order** — Title Slide, Title and Content, Section Header, Two Content,
+  Comparison, Title Only, Blank, Content with Caption, Picture with
+  Caption, Title and Vertical Text, Vertical Title and Text — so that
+  index-based code (`layouts()[6]` = Blank) behaves as with python-pptx's
+  default template; a notes master with its theme, `p:notesMasterIdLst`,
+  `p:notesSz`, `presProps`, `viewProps`, `tableStyles` (empty list),
+  `docProps/core.xml` and `app.xml`, **zero slides** (`p:sldIdLst`
+  absent), no sections.
+- `core.xml` is regenerated wholesale on `new()` (created/modified, no
+  creator), as in ADR-0001 for xlsx; the time is injectable
+  (`Presentation::new_with(NewOptions { created })`) so tests and
+  reproducible builds get byte-identical output.
 - Acceptance: python-pptx opens it and its outputs; LibreOffice (the
   pinned O3 workflow) converts it; the owner opens it in PowerPoint
   without repair (manual check, §10).
@@ -326,15 +449,15 @@ through the same `Package::open` → edit path; no separate writer.
 | `LayoutNotFound` | the layout is not reachable from a master in `p:sldMasterIdLst` |
 | `SlideIndexOutOfRange` (Phase 0) | bad `index`/`at` |
 | `SlideIdsExhausted`, `ShapeIdsExhausted` | §3 |
-| `SlideIsLinkTarget { from_slide }` | delete of a slide another slide links to |
+| `SlideIsReferenced { from_part, rel_type }` | delete of a slide that another part references (relationship from outside the cascade, Slide Zoom, unknown numeric `sldId` reference; §4.2) |
 | `SlideInCustomShow` | delete of a slide named in `p:custShowLst` |
-| `ShowRangeByPosition` | delete/move with `presProps` `p:showPr/p:sldRg` |
+| `ShowRangeByPosition` | add/delete/move/duplicate with `presProps` `p:showPr/p:sldRg` |
 | `UnsupportedSlidePart(rel_type)` | delete/duplicate with a relationship type outside §6 / §4.4 |
 | `UnsupportedSections`, `SectionsInconsistent` | §5 |
 | `NoNotesMaster` | §4.6 |
 | `UnsupportedImage` | §4.5 |
 | `InsideAlternateContent`, `InvalidShapeId`, … (Phase 0) | the target slide's own checks |
-| `Core(…)` | any C1–C6 refusal (name collision, content type conflict, a remaining reference, …) — all from `check_*`, before any change |
+| `Core(…)` | any refusal of the registry transaction (name collision, content type conflict, a remaining reference, a relationship type not allowed, …) — all before `apply` |
 
 ### 10. Test oracles and evidence
 
@@ -358,9 +481,12 @@ through the same `Package::open` → edit path; no separate writer.
   in Rust and independently in python (python-pptx cannot delete or
   move slides, so the python side edits `sldIdLst` and relationships with
   lxml directly, as `check.py` does for text).
-- **T4 refusals:** every row of §9, byte-identical afterwards; synthetic
-  inputs for custom shows, show ranges, inconsistent sections, exhausted
-  ids, a `control` relationship.
+- **T4 refusals:** every row of §9, byte-identical afterwards (all parts,
+  `presentation.xml` included); synthetic inputs for custom shows, show
+  ranges, inconsistent sections, exhausted ids, a `control` relationship,
+  a layout action button linking to the slide, a Slide Zoom, and a case
+  the **core** refuses inside the transaction after the pptx edits were
+  staged (review B1).
 - **Manual (owner):** a deck built with `Presentation::new()` and each
   operation applied to `sample.pptx`, `slide-sections.pptx` and
   `airplane-transition.pptx` (only `slide2.xml`), opened in Microsoft 365
@@ -371,10 +497,10 @@ through the same `Package::open` → edit path; no separate writer.
 
 | Rule | python-pptx 1.0.2 | POI `47dcff76` | ADR-0012 |
 |---|---|---|---|
-| slide id | `max(256−1, used) + 1`, gap search above 2³¹−1 (`oxml/presentation.py` `_next_id`) | `max(maxId, 255) + 1` (`XMLSlideShow.createSlide`) | `max + 1`, refuse above 2³¹−1 |
+| slide id | `max(256−1, used) + 1`, gap search above 2³¹−1 (`oxml/presentation.py` `_next_id`) | `max(maxId, 255) + 1` (`XMLSlideShow.createSlide`) | session high-water + 1, refuse above 2³¹−1 |
 | slide part name | `slide{len(sldIdLst)+1}` (`parts/presentation.py` `_next_slide_partname`) **and renames all slide parts** (`rename_slide_parts`) | lowest unused index (`OPCPackage.getUnusedPartIndex`, `PackagePartCollection.getUnusedPartIndex` = `nextClearBit(1)`, bug 55791) | `max index + 1`, never rename |
 | rId | first unused `rIdN` from `len+1` downward, reuses gaps (`opc/package.py` `_next_rId`) | `POIXMLDocumentPart` relation counter | `max + 1`, no reuse |
-| shape id | `max(//@id) + 1` (`oxml/shapes/groupshape.py` `max_shape_id`) | lowest free id (`XSLFSheet.allocateShapeId`, `nextClearBit(1)`) | `max(every @id) + 1` |
+| shape id | `max(//@id) + 1` (`oxml/shapes/groupshape.py` `max_shape_id`) | lowest free id (`XSLFSheet.allocateShapeId`, `nextClearBit(1)`) | max over `@id`, `@spid`, comment monikers, + 1 |
 | placeholders of a new slide | `type`/`orient`/`sz`/`idx` only, no `spPr`; skips date/footer/slide number (`shapes/shapetree.py` `clone_layout_placeholders`, `slide.py` `iter_cloneable_placeholders`) | full XML copy of layout text shapes incl. prompt text; skips the same three (`XSLFSlideLayout.copyLayout`) | python-pptx's shape |
 | delete slide | not available | removes sldId, notes, charts, pictures (by relation counter), not sections/custom shows/links (`XMLSlideShow.removeSlide`) | §4.2, §6 |
 | move slide | not available | reorders `sldIdLst` only (`setSlideOrder`) | + sections |
@@ -386,27 +512,27 @@ through the same `Package::open` → edit path; no separate writer.
 
 ```rust
 impl Presentation {
-    pub fn new() -> Result<Self>;                                   // §8
-    pub fn layouts(&self) -> Result<Vec<LayoutInfo>>;                // master, part, name, type
-    pub fn add_slide(&mut self, layout: &LayoutInfo, at: Option<usize>) -> Result<SlideMut<'_>>;
+    pub fn new() -> Result<Self>;                                    // §8
+    pub fn new_with(options: NewOptions) -> Result<Self>;            // injectable core.xml time
+    // layouts(): ADR-0008 (`Vec<LayoutRef>`); sections(): ADR-0008
+    pub fn add_slide(&mut self, layout: &LayoutRef<'_>, at: Option<usize>) -> Result<SlideMut<'_>>;
     pub fn delete_slide(&mut self, index: usize) -> Result<()>;
     pub fn move_slide(&mut self, from: usize, to: usize) -> Result<()>;
     pub fn duplicate_slide(&mut self, index: usize, at: Option<usize>) -> Result<SlideMut<'_>>;
+    pub fn ensure_notes_slide(&mut self, slide: usize) -> Result<()>; // text: ADR-0008 notes_mut
 }
 impl SlideMut<'_> {
-    pub fn add_text_box(&mut self, rect: Emu4, text: &str) -> Result<ShapeMut<'_>>;
+    pub fn add_text_box(&mut self, rect: Rect, text: &str) -> Result<ShapeMut<'_>>;
     pub fn add_picture(&mut self, rect: Rect, bytes: &[u8]) -> Result<ShapeMut<'_>>;
-    pub fn notes_text(&self) -> Option<String>;
-    pub fn set_notes_text(&mut self, text: &str) -> Result<()>;
 }
 ```
 
 The allowlist grows by the elements written (`p:sldIdLst`/`p:sldId` →
 `[write]`, `p:pic` and its non-visual/blip children, `p:clrMapOvr`,
 `p14:sectionLst`/`p14:section`/`p14:sldIdLst`/`p14:sldId`, notes slide
-elements); Phase 2 creates whole new slide parts as complete XML
-documents (not through the lens: a new part has no original to preserve)
-and edits existing parts only through the lens.
+elements); new slide parts are built as complete `XmlDocument`s (no
+original to preserve) and existing parts are edited only through the lens
+on clones staged in the transaction.
 
 ## Consequences
 
@@ -416,10 +542,11 @@ and edits existing parts only through the lens.
   slides stay valid by construction.
 - Positive: every package-level step is checked before the first change;
   a refused operation leaves the file byte-identical.
-- Negative: four new core primitives (C1–C4, C6) and an ADR-0001 note are
-  prerequisites; Phase 2 cannot start before them.
-- Negative: deleting a slide that another slide links to, or that is in a
-  custom show, is refused rather than repaired; duplicating slides with
+- Negative: the core registry transaction (with `stage_part` and
+  `copy_relationships`) and its ADR-0001 note are prerequisites; Phase 2
+  cannot start before that PR is merged.
+- Negative: deleting a slide that another part references, or that is in
+  a custom show, is refused rather than repaired; duplicating slides with
   charts/diagrams/OLE is refused (65 of 522 slides).
 - Negative: `app.xml` title lists can become stale (§7).
 - Negative: `max + 1` allocation makes ids and part numbers grow
@@ -447,19 +574,33 @@ and edits existing parts only through the lens.
 
 ## Open questions for the project owner
 
-- **Q1** Section placement of a new or moved slide (§5: the predecessor's
-  section) — PowerPoint's behaviour is assumed; confirm in the manual
-  check.
-- **Q2** Stale `TitlesOfParts`/`HeadingPairs` after add/delete (§7): does
-  PowerPoint care (ADR-0005 Q4c is the same question for text)?
-- **Q3** Is refusing delete of a jump-link target (instead of removing
-  the link) acceptable for Phase 2?
-- **Q4** Template content (§8): the seven layouts listed, 16:9 — or 4:3,
-  or the full eleven-layout set?
+Each has a **proposed default** (the round-1 review's recommendation),
+used unless the owner decides otherwise.
+
+- **Q1** Section placement (§5). *Default:* the predecessor's section;
+  at position 0 the following slide's section; empty sections stay empty;
+  confirm with ADR-0005 Q4b in the manual check.
+- **Q2** Stale `TitlesOfParts`/`HeadingPairs` (§7). *Default:* accepted
+  (python-pptx never updates `app.xml` and its output opens in
+  PowerPoint, which rebuilds `app.xml` on save); counts only; manual check
+  together with ADR-0005 Q4c.
+- **Q3** Deleting a referenced slide. *Default:* refuse
+  (`SlideIsReferenced`); an explicit `delete_slide_unlinking` can come in
+  a later phase.
+- **Q4** Template. *Default:* 16:9 with PowerPoint's standard 11 layouts in
+  the standard order (§8).
+- **Q5** Footers on new slides in decks with "apply to all" footers
+  (§4.1): not reproduced in Phase 2; confirm acceptable.
 
 ## Sources
 
-- Spike: `spikes/pptx-phase2/units.py` (this ADR's tables), roadmap §3.5.
+- Spike: `spikes/pptx-phase2/units.py` (this ADR's tables;
+  `results/units-91.txt`, corpus by content in
+  `results/corpus-sha256.txt`), roadmap §3.5.
+- Core: the registry transaction on branch `core/add-part`
+  (`crates/ooxml-core/src/package/add.rs`: `RegistryPlan`,
+  `PartNameRequest`, `stage_part`, `copy_relationships`, `remove_parts`,
+  `incoming_relationships`; PR to come).
 - python-pptx 1.0.2: `pptx/oxml/presentation.py` (`_next_id`),
   `pptx/parts/presentation.py` (`add_slide`, `_next_slide_partname`,
   `rename_slide_parts`), `pptx/opc/package.py` (`next_partname`,
