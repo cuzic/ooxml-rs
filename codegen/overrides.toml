@@ -15,3 +15,13 @@
 # value = "true"
 # reason = "<w:b/> means on; the XSD leaves this to prose"
 # evidence = "ECMA-376 Part 1, 17.17.4 (ST_OnOff)"
+
+# ---- wml (ADR-0004 §4) ----
+
+[[override]]
+op = "set_default"
+on = "w:CT_OnOff/"
+attribute = "w:val"
+value = "true"
+reason = "WML on/off elements mean 'on' when val is omitted (<w:trackRevisions/>); the XSD (CT_OnOff, ST_OnOff) gives no default and leaves it to prose. ADR-0004's TrackRevisionsOn gate depends on it."
+evidence = "reference/fixtures/docx/poi-delins.docx (word/settings.xml: <w:trackRevisions/>); ECMA-376 Part 1, 17.17.4 ST_OnOff and the val description of each on/off property (e.g. 17.3.2.1 b)"

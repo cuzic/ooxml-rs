@@ -14,7 +14,11 @@
   - 隣り合うテキストランの組の 60〜76% は書式（`w:rPr`）が同一で、rsid が違うだけで分かれている。ランをまたぐ置換は Phase1 で「書式が同じランの並びの中だけ」許す。
   - `w14:paraId` の重複は 8 ファイルにあった。実ファイルは ID の一意性を守っていないので、読み込みで一意性を前提にしない。
   - ブックマーク ID の重複、変更履歴 ID とブックマーク ID の衝突は 0 件だった。
-- Phase0 の詳細は ADR-0004（`docs/adr/0004-docx-phase0.md`）。
+- Phase0 の詳細は ADR-0004（`docs/adr/0004-docx-phase0.md`、revision 2）。実装は `crates/ooxml-docx`。
+- 2026-11-16 の更新（ADR-0004 revision 2 と同時）: 文書保護（`w:documentProtection` の強制）も書き込み拒否に加えた。入れ子のフィールドはスタックで全階層を判定する。`Document::new()`（新規作成）は Phase0 から外した（所有者の判断）。
+- Phase1（テンプレートへの差し込み）の設計は ADR-0007（`docs/adr/0007-docx-phase1-template-filling.md`、Accepted、revision 3）。ランをまたぐ置換、ヘッダー・フッター・脚注・文末脚注・コメントの編集、表のセル、直接書式の一部、既存スタイルの適用、フィールドの操作別判定と `updateFields` を扱う。根拠は `spikes/docx-phase1/`。
+  - テンプレートエンジンのテスト用テンプレート 212 個にあるプレースホルダー 517 個のうち 511 個（98.8%）を置換できる。204 個はランをまたいでいる。
+  - スマートタグ内の編集は Phase1 でも拒否する。SDK のデータに `w:smartTag` が無く、型付きで降りられないため。
 
 ## 1. Method and status legend
 
@@ -76,13 +80,13 @@ A "✓" means the API exists. It does not mean the library round-trips the featu
 | 18 | **Math (OMML)** | `m:oMath`/`m:oMathPara` inside `w:p` (shared-math schema, `m:` on/off types) | none | H (structure is large) | ✗ | ✗ | ✗ | ✗ (CT only) *(u)* | 4 (passthrough is Phase0) |
 | 19 | **Charts** | `w:drawing/…/c:chart r:id` → `charts/chartN.xml` (+ `colors`/`style` parts, embedded `.xlsx` package); `cx:` chartex | chart part chain + embedded workbook; shared DrawingML/chart with ooxml-xlsx/pptx | XH | ✗ | ✗ | ✗ | ✓ (`XWPFChart`) | 4 (shared with PowerPoint/Excel ADRs) |
 | 20 | **Settings, rsids, `w14:paraId`/`textId`** | `settings.xml` (103 single-QName slots: `trackRevisions`, `updateFields`, `documentProtection`, `rsids`, `compat`, `w14/w15:docId`); `w:rsidR`/`rsidRPr`/`rsidP` on p/r; `w14:paraId`/`textId` on p/tr | **rsid registry** (settings/rsids, optional); **paraId registry**: values < 0x80000000, uniqueness **not** held by real files (§3 Q4) | M | partial | ✓ (docId, paraId) | ✓ | ✓ (`XWPFSettings`) | 0 (read 2 flags), 2 |
-| 21 | **Document protection** | `settings/w:documentProtection` (hash), `w:permStart/End` | none | M | ✗ | ✗ *(u)* | ✗ *(u)* | ✓ | 4 |
+| 21 | **Document protection** | `settings/w:documentProtection` (hash), `w:permStart/End` | none | M | ✗ | ✗ *(u)* | ✗ *(u)* | ✓ | 0 (enforced protection refuses writes: `DocumentProtected`), 4 |
 | 22 | **Glossary document** (building blocks) | `glossary/document.xml` + its own styles/numbering/settings (a second main-like story tree) | its own registries | H | ✗ | ✗ | ✗ | ✗ *(u)* | passthrough only |
 | 23 | **altChunk** (imported HTML/RTF/docx) | `w:altChunk r:id` → `AlternativeFormatImportPart` | rel + part | M (create), passthrough (read) | ✗ | ✗ | ✗ | ✗ *(u)* | 4 (no fixture yet) |
-| 24 | **Smart tags, `customXml` markup** | `w:smartTag` (ECMA Transitional; **not in SDK `CT_P`**: an unlisted child), `w:customXml` (5 SDK entries with `attrs_incomplete`) | none | M | ✗ | ✗ | ✗ | R (smartTag runs flattened) | 1 (text inside via an `add_child` override) |
+| 24 | **Smart tags, `customXml` markup** | `w:smartTag` (ECMA Transitional; **not in SDK `CT_P`**: an unlisted child), `w:customXml` (5 SDK entries with `attrs_incomplete`) | none | M | ✗ | ✗ | ✗ | R (smartTag runs flattened) | later (no SDK entry exists for `w:smartTag`, so no typed descent; ADR-0007 §2.5) |
 | 25 | **Legacy form fields** | complex fields `FORMTEXT`/`FORMCHECKBOX` with `w:ffData` | bookmark names | M | ✗ | ✗ | ✗ | ✗ *(u)* | 4 |
 | 26 | **Package-level**: macro/template variants, Strict, encryption | main-part content type (`.docx`/`.docm`/`.dotx`/`.dotm`); Strict namespaces (`purl.oclc.org`); CFB-encrypted packages | OPC | M–H | ✓/✗/✗ | ✗ Strict (panics on `Strict01.docx`) | ✗ | ✓ / ✗ / ✓ (decrypt) | 0 (accept all four main types; Err for Strict and encrypted) |
-| 27 | **From scratch** (`Document::new()`) | template package (main, styles, settings, fontTable, theme, docProps) | as Excel: same edit path, seeded from an embedded template | L | ✓ (default template) | W | W | ✓ | 0 |
+| 27 | **From scratch** (`Document::new()`) | template package (main, styles, settings, fontTable, theme, docProps) | as Excel: same edit path, seeded from an embedded template | L | ✓ (default template) | W | W | ✓ | 1 (deferred from Phase0 by the owner, 2026-11-16) |
 
 Coverage observations:
 
@@ -109,7 +113,7 @@ All numbers come from `spikes/docx/design_facts.py` and `phase0_gate.py`. "POI" 
 
 **Decision.**
 
-- **Phase0** exposes only per-run text replacement: `Run::set_text`, plus a read-only `Paragraph::text()`.
+- **Phase0** exposes only per-run text replacement: `Document::set_run_text(paragraph, run, text)`, plus a read-only `Paragraph::text()`.
 - **Phase1** adds `Paragraph::replace(needle, replacement)` with this rule:
   - The match is computed over the concatenated text of a **run group**: maximal sequences of direct text runs of one parent (`w:p` or `w:hyperlink`), separated only by nothing, `w:proofErr`, or `w:bookmarkStart`/`End`.
   - A match that crosses anything else (a hyperlink boundary, a field character, `ins`/`del`, `sdt`, a comment marker, a non-text child such as `w:drawing`) is `Err(MatchCrossesBoundary)`. It is never silently skipped.
@@ -117,6 +121,12 @@ All numbers come from `spikes/docx/design_facts.py` and `phase0_gate.py`. "POI" 
   - If the matched runs' `w:rPr` differ, the result takes the first run's formatting. This is opt-in (`ReplaceMode::FirstRunFormat`). The default is `Err(MixedFormatting)`, because 24–40% of splits are real formatting changes.
   - Bookmark markers inside a match stay at their original positions relative to the surviving text. A marker would end up inside the replaced span → `Err(MatchCrossesBoundary)`.
 - POI's `searchText` and python-docx do the naive, direct-runs-only version. Neither handles the boundaries above.
+- **Refined by ADR-0007 §1** (2026-11-16):
+  - collapsed bookmarks are transparent;
+  - other anchors are allowed at a match's edges but not inside it;
+  - differences only in `w:noProof`, `w:lang/@w:val` or `w:rFonts/@w:hint` do not count as mixed formatting by default (27.4% of SDK run pairs differ only in `w:hint`);
+  - emptied runs keep their element;
+  - the opt-in is `RunFormatting::FirstRun`.
 
 ### Q2. Fields and their cached results (the Excel formula-cache analogue)
 
@@ -137,12 +147,13 @@ All numbers come from `spikes/docx/design_facts.py` and `phase0_gate.py`. "POI" 
 **Decision.**
 
 - **Phase0 refuses** writes inside a field (between `begin` and `end`, or inside `w:fldSimple`).
-- Phase0 also refuses **every write** to a document that has a content-dependent field in **any** story part: `Err(StaleFieldRisk { codes })`. This is checked by a cheap event scan at open, like ADR-0001's formula scan. The scan reassembles split `instrText` before classifying.
+- Phase0 also refuses **every write** to a document that has a content-dependent field in **any** story part: `Err(StaleFieldRisk { codes })`. This is checked by a scan at open, like ADR-0001's formula scan. The scan reassembles split `instrText` before classifying, tracks fields with a stack and classifies every nesting level (ADR-0004 rev 2, §6 W2).
 - Measured cost: 30 of 444 SDK files and 1 of 114 POI files (which uses `M:USERCONTENT`, a code we cannot classify) are refused for this reason.
 - **Phase1** adds the opt-in alternative: `Document::set_update_fields_on_open(true)` writes `<w:updateFields w:val="true"/>` into `settings.xml`, which brings that part into Layer 2. This lifts `StaleFieldRisk`. It is POI's `enforceUpdateFields`.
   - Cost to the user: Word asks "This document contains fields that may refer to other files. Update?" on open *(u: Word behaviour, owner to confirm)*.
   - Non-Word readers still see stale results, so the API documents this.
 - Evaluating fields ourselves (TOC generation, PAGEREF) needs layout and is XH, out of the plan.
+- **Phase1 design: ADR-0007 §6 (revision 2).** It adds the per-operation table with text, append and format columns; the style column was dropped because `SEQ \s` depends on headings. The `IF` rule is deferred. The opt-in is `enable_update_fields_on_open()`. It is required even when the file already has `updateFields` on, so the caller accepts the stale-for-other-readers cost explicitly.
 
 ### Q3. Edits inside `w:ins` / `w:del`
 
@@ -260,43 +271,92 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 ### Phase0 (ADR-0004)
 
+Implemented in `crates/ooxml-docx` (ADR-0004 revision 4, still Proposed).
+
 **Scope.**
 
-- `Document::open`/`from_bytes`/`new` (embedded template) and `save`.
-- Read: `paragraphs()`, `Paragraph::text()` and `runs()`.
-- Write: `Run::set_text`, and `append_paragraph(text)` before `sectPr`.
-- Gates: `EncryptedPackage`, `DtdNotAllowed`, `StrictNotSupported`, `TrackRevisionsOn`, `StaleFieldRisk`.
-- Per-run refusals: `InsideField`, `InsideRevision`, `UnsupportedContext` (SDT, smartTag, text box, AC), `RunNotTextOnly`.
+- `Document::open`/`from_bytes` and `save`/`to_bytes`. `Document::new()` (from scratch) is
+  deferred to Phase1 by the owner's decision of 2026-11-16.
+- Read: `paragraphs()`, `Paragraph::text()` and `runs()`, each run with a `RunContext` and
+  `in_field()`.
+- Write: `Document::set_run_text(paragraph, run, text)`, and `append_paragraph(text)` before
+  `sectPr`.
+- Gates: `EncryptedPackage`, `DtdNotAllowed`, `StrictNotSupported`, `TooDeep` (core's nesting
+  limit, O5), `TrackRevisionsOn`, `DocumentProtected`, `StaleFieldRisk` (fields classified with
+  their arguments for `INFO`/`DOCPROPERTY`; malformed field markup refused).
+- Append refusal `SectionBreakAtEnd` when the last section's `sectPr` sits in the last paragraph.
+- Reported only: `writeProtection`, Mark as Final, `updateFields`.
+- Per-run refusals: `InsideField`, `InsideRevision`, `UnsupportedContext` (SDT, smartTag,
+  customXml, bidi, ruby), `RunNotTextOnly`.
 
-**Acceptance.**
+**Acceptance** (all automated in `crates/ooxml-docx/tests/`, except the manual check).
 
-- **T1/T1b:** pass on every XML part of the 22 openable fixtures. T1 includes BOM and pretty-printed parts.
-- **T2 (locality):** for every settable run in every Editable fixture (3,110 runs), `set_text(same)` and `set_text(other)` change bytes only inside that run's span. Append changes bytes only at the insertion point.
+- **T1/T1b:** pass on every XML part of the 23 openable fixtures. T1 includes BOM and
+  pretty-printed parts.
+- **T2 (locality):** for every settable run in every writable fixture (3,423 runs),
+  `set_run_text(own text)` and `set_run_text(other)` change bytes only inside that run's span;
+  own text on a canonical run changes nothing. Append changes bytes only at the insertion point.
 - **T3:** every other part is (name, method, CRC, payload) identical, directory entries included.
 - **T4:** each refusing fixture returns its documented `Err` and writes nothing.
-- **T5:** `docx-rs` read-back shows the new text, and every other `w:t` text is unchanged.
+- **T5:** `docx-rs` read-back of `document.children` shows the new text in place of the run's
+  pieces, and every other text unchanged.
 - **T6:** child order of every edited parent satisfies the generated slots.
-- **Manual:** the owner opens a sample of outputs in Word and gets no repair dialog. This is an explicit gap, as in ADR-0001.
+- **Manual:** the owner opens the outputs of
+  `cargo run -p ooxml-docx --example docx_manual_check -- <outdir>` in Word and gets no repair dialog.
+  This is an explicit gap, as in ADR-0001.
 
 **Oracle independence:** T5 uses docx-rs (justification in ADR-0004 §7).
 
 ### Phase1: template filling
 
+Designed in ADR-0007 (`docs/adr/0007-docx-phase1-template-filling.md`, **Accepted**, revision 3 after the round-2 review), with the
+evidence in `spikes/docx-phase1/`. This section supersedes the earlier Phase1 list, including
+the additions recorded by ADR-0004 revisions 2–4 (PR #13), whose dispositions are given below.
+
 **Scope.**
 
-- `Paragraph::replace` with the run-group rule (Q1).
-- Story iteration over `header*`/`footer*`/`footnotes`/`endnotes`/`comments`, found via rels.
-- Text in `w:tc`, `w:smartTag` (with an `add_child` override for `w:smartTag` in `CT_P`) and `w:fldSimple` results, still under the field gate.
-- Direct run and paragraph properties (`b`, `i`, `u`, `color`, `sz`, `jc`, …; the `Option<bool>` on/off model).
-- `pStyle`/`rStyle` set to an **existing** style ID, read from `styles.xml`, else `Err(UnknownStyle)`.
-- `set_update_fields_on_open`.
+- **Cross-run find/replace** (ADR-0007 §1), refining Q1:
+  - matching runs on `Paragraph::text()`;
+  - runs group across `w:proofErr`, range markers and collapsed bookmarks (`_GoBack`);
+  - the replacement takes the first matched run's formatting;
+  - by default runs that differ only in `w:noProof`, `w:lang/@w:val` or `w:rFonts/@w:hint` count as equal;
+  - anchors strictly inside a match, wrapper edges, and runs that fail R1–R4 refuse;
+  - only the content children that hold matched characters are edited, so everything outside the match stays byte-identical (revision 2);
+  - calls are atomic: every insertion is dry-run before the first write (revision 2), with an opt-in `Skip` that reports;
+  - a stale `Match` is refused (`StaleMatch`).
 
-**Acceptance.**
+  Measured: 511 of 517 placeholders in 212 Word-authored templates (docxtpl, docxtemplater test suites) are accepted, 204 of them cross-run.
+- **All stories** (§2): headers, footers, footnotes, endnotes and comments, found by relationship.
+  - Separator notes are refused.
+  - `w:smartTag` stays refused. The SDK has no entry for it, so the planned `add_child` override is dropped (§2.5).
+  - `w:fldSimple` results stay refused (R1).
+- **Paragraph and cell text** (§3): `set_paragraph_text`; `set_cell_text` for single-paragraph cells; and a new run in an empty paragraph that copies the paragraph mark's run properties. That copy needs one additive generator rule, `SameType` modulo required skips, on top of PR #18's detach/insert.
+- **Direct formatting subset** (§4):
+  - run: `b`, `bCs`, `i`, `iCs`, `strike`, `u`, `color`, `sz`, `szCs`, `highlight`, `vertAlign`, `rFonts` slots;
+  - paragraph: `jc`, spacing before/after/line, indents, `keepNext`, `keepLines`;
+  - writing a value removes the attributes that would override it (theme colour and font, `*Chars`, `*Lines`, `*Autospacing`).
+- **Existing styles by id** (§5): `pStyle`/`rStyle`, with name lookup on `w:name` because localized Word derives ids from UI names. Unknown, latent-only and wrong-type ids are refused, and `styles.xml` is never written.
+- **Fields** (§6):
+  - the per-operation W2 table with text, append and format columns, adding `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM` and `AUTONUM*` as the planned direction said. Every switch was audited. The style column was dropped in revision 2 because `SEQ \s` depends on headings;
+  - the `IF` operand rule is deferred (revision 2), as no corpus `IF` passes it;
+  - `enable_update_fields_on_open()` as the explicit opt-in that lifts W2.
+  - Measured yield of the table: 1 of 33 refused files for text edits; `TOC`+`PAGEREF` (19 files) need the opt-in.
+- **Out of Phase1** (dispositions of ADR-0004's additions):
+  - `Document::new()` goes to its own ADR;
+  - the enforced-protection opt-in and lifting A2 (moving the last `sectPr`) stay open questions for the owner;
+  - formatting part of a run (run splitting) is Phase2.
 
-- Phase0 oracles extended to all story parts.
-- Replace tests on `poi-bug59058` (38 words split across runs), `poi-table-alignment` and `sdk-Field-more-field`, including the refusal cases: crossing a hyperlink, a field or mixed formatting.
-- docx-rs read-back of headers and footers.
-- A python-docx cross-check on the paragraph texts python-docx can see. It is optional, run only if the CI image has Python.
+**Acceptance** (ADR-0007 §9).
+
+- **T1–T6** over every story:
+  - T2 covers replace, formatting, cell and settings edits;
+  - T3: only the touched parts differ, never `styles.xml`;
+  - T4: every new error, plus atomicity of refused calls.
+- **T5:** docx-rs read-back of the main story, the headers/footers referenced from the body-level `sectPr`, and comments. Measured agreement on unedited files: headers 57/57 POI, 114/117 SDK; comments 1,153/1,153.
+- **T5b:** footnotes, endnotes and the other headers are read back with `roxmltree`, since docx-rs has no note reader.
+- **T7 (find/replace differential oracle):** the production classifier and a reference classifier written in the tests must agree on every boundary needle, word and placeholder of the fixtures. Each accepted match must also satisfy the string and per-character formatting oracle.
+- **T8 (cells, styles)** and **T9 (fields table, `IF`, opt-in).**
+- **Manual:** `manual_check` outputs for each operation, the `updateFields` prompt, and the unpreserved-whitespace question.
 
 ### Phase2: structure
 

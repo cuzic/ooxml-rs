@@ -8,11 +8,16 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
 use super::{ElementSpan, ParseOptions, MarkupKind, RawAttr, RawItem, RawMarkup, RawNode, RawText, XmlDocument};
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, WellFormedness};
 use crate::name::{XML_NS, XMLNS_NS, XName};
 
 fn xml_err(position: usize, message: impl Into<String>) -> Error {
     Error::Xml { position, message: message.into() }
+}
+
+fn not_wf(position: usize, reason: WellFormedness) -> Error {
+    core::hint::cold_path();
+    Error::NotWellFormed { position, reason }
 }
 
 /// Namespace bindings in scope, innermost last.
@@ -57,6 +62,16 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
     let source: Box<str> = std::str::from_utf8(bytes)
         .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?
         .into();
+    // Only a BOM at byte 0 is a BOM. quick-xml silently skips one at the
+    // start of what it is given without counting it in its positions, so a
+    // second one would shift every span by 3 bytes (fuzz finding F-1).
+    let bom = if source.starts_with('\u{feff}') { 3 } else { 0 };
+    if source[bom..].starts_with('\u{feff}') {
+        return Err(not_wf(bom, WellFormedness::ByteOrderMark));
+    }
+    if let Some(p) = source.find('\0') {
+        return Err(not_wf(p, WellFormedness::NullCharacter));
+    }
     let root = Parser::new(&source, options.max_depth).run()?;
     Ok(XmlDocument { source, root, max_depth: options.max_depth, token: super::DocToken::new() })
 }
@@ -97,6 +112,12 @@ impl<'s> Parser<'s> {
             match event {
                 Event::Eof => break,
                 Event::Decl(d) => {
+                    // Only at the very start (after a BOM). quick-xml reports
+                    // `<?xml …?>` anywhere; inside the root it would be
+                    // dropped from the tree (fuzz finding F-4).
+                    if before != self.base {
+                        return Err(not_wf(before, WellFormedness::XmlDeclarationNotAtStart));
+                    }
                     if let Some(enc) = d.encoding() {
                         let enc = enc.map_err(|e| xml_err(before, e.to_string()))?;
                         if !enc.eq_ignore_ascii_case("utf-8") && !enc.eq_ignore_ascii_case("utf8") {
@@ -116,6 +137,9 @@ impl<'s> Parser<'s> {
                     self.attach(RawItem::Element(node), before)?;
                 }
                 Event::End(_) => {
+                    if !self.src.get(before..after).is_some_and(|t| t.starts_with("</")) {
+                        return Err(not_wf(before, WellFormedness::PositionMismatch));
+                    }
                     let (mut node, mark) =
                         self.stack.pop().ok_or_else(|| xml_err(before, "unmatched close tag"))?;
                     self.scope.bindings.truncate(mark);
@@ -217,14 +241,24 @@ impl<'s> Parser<'s> {
             return Err(xml_err(before, "more than one root element"));
         }
         // `<` precedes the borrowed tag content; locate it via substr_range.
+        // The two must agree, or every span recorded from the reader's
+        // positions would be wrong (fuzz finding F-1); refuse instead.
         let start = self.src.substr_range(e).map_or(before, |r| r.start - 1);
-        debug_assert_eq!(start, before);
+        if start != before || !self.src.get(before..after).is_some_and(|t| t.starts_with('<')) {
+            return Err(not_wf(before, WellFormedness::PositionMismatch));
+        }
         let xmlns: Arc<str> = self.scope.intern(XMLNS_NS);
         let mut raw_attrs: Vec<(Option<&str>, &str, String)> = Vec::new();
         for a in e.attributes().with_checks(true) {
             let a = a.map_err(|err| xml_err(before, err.to_string()))?;
             let value = a.normalized_value(XmlVersion::Implicit1_0).map_err(|err| xml_err(before, err.to_string()))?;
             let (prefix, local) = split_qname(a.key.into_inner());
+            if local.is_empty() || prefix == Some("") {
+                return Err(not_wf(before, WellFormedness::EmptyName));
+            }
+            if prefix == Some("xmlns") && value.is_empty() {
+                return Err(not_wf(before, WellFormedness::EmptyPrefixBinding));
+            }
             raw_attrs.push((prefix, local, value.into_owned()));
         }
         // Declarations first, so they apply to this element's own names.
@@ -256,6 +290,9 @@ impl<'s> Parser<'s> {
             attrs.push(RawAttr { name: XName::new(ns, local, prefix), value });
         }
         let (prefix, local) = split_qname(e.name().into_inner());
+        if local.is_empty() || prefix == Some("") {
+            return Err(not_wf(before, WellFormedness::EmptyName));
+        }
         let ns = match prefix {
             None => self.scope.lookup(None).unwrap_or_else(|| self.scope.empty.clone()),
             Some("xml") => self.scope.intern(XML_NS),
