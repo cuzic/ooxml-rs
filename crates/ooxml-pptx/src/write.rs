@@ -284,15 +284,21 @@ fn run_format(p: ParaAt<'_>, shape: &ParaShape) -> Result<RunFmt> {
 /// `a:endParaRPr` (N3-1: `p`'s own `a:endParaRPr` if it has any format,
 /// which is the end-of-paragraph format PowerPoint carries over on Enter;
 /// else the run format source).
-fn new_para_format(p: ParaAt<'_>) -> Result<(Option<Detached<ParagraphProperties>>, RunFmt)> {
+/// The run format source is consulted only when it is used (review #19
+/// N3): for new runs (`needs_run`), or for `a:endParaRPr` when the last
+/// paragraph has no own end format.
+fn new_para_format(p: ParaAt<'_>, needs_run: bool) -> Result<(Option<Detached<ParagraphProperties>>, RunFmt)> {
     let shape = para_shape(p.node)?;
     let ppr = detach::<ParagraphProperties, _>(p.root, p.find(None, ParagraphProperties::QNAME), &[], "a:pPr")?;
-    let mut fmt = run_format(p, &shape)?;
-    if p.node.elements().find(|c| c.is(EndParagraphRunProperties::QNAME)).is_some_and(has_format) {
-        let src = p.find(None, EndParagraphRunProperties::QNAME);
-        fmt.end = detach::<EndParagraphRunProperties, _>(p.root, src, &LINKS, "a:endParaRPr")?;
-    }
-    Ok((ppr, fmt))
+    let own_end = p.node.elements().find(|c| c.is(EndParagraphRunProperties::QNAME)).is_some_and(has_format);
+    let source = if needs_run || !own_end { run_format(p, &shape)? } else { RunFmt::default() };
+    let rpr = if needs_run { source.rpr } else { None };
+    let end = if own_end {
+        detach::<EndParagraphRunProperties, _>(p.root, p.find(None, EndParagraphRunProperties::QNAME), &LINKS, "a:endParaRPr")?
+    } else {
+        source.end
+    };
+    Ok((ppr, RunFmt { rpr, end }))
 }
 
 /// `NamespaceNotInScope` / `TooDeep` before any change (ADR-0005 §3): every
@@ -353,9 +359,20 @@ fn plan_paragraph(p: ParaAt<'_>, index: usize, segments: &[impl AsRef<str>]) -> 
     let first_run = !shape.runs.is_empty();
     let needs_fmt = (!first_run && !segments[0].as_ref().is_empty()) || segments[1..].iter().any(|s| !s.as_ref().is_empty());
     let fmt = if needs_fmt { run_format(p, &shape)?.rpr } else { None };
-    // the new runs go into this paragraph
-    // new runs (`a:r` + `a:t`, `a:br`) and their `a:rPr` copy go into this paragraph
-    check_depth(p.doc, p.path, 2)?;
+    // What this paragraph gains, checked against the depth limit before any
+    // change: new runs (`a:r` + `a:t`, or an `a:t` added to the first run)
+    // reach 2 levels below it, breaks 1; nothing when only text changes.
+    let first_lacks_t = shape.runs.first().is_some_and(|&r| {
+        let run = p.node.children()[r].as_element().expect("index of an element");
+        !run.elements().any(|c| c.is(Text::QNAME))
+    });
+    let levels = if needs_fmt || first_lacks_t {
+        2
+    } else {
+        usize::from(segments.len() > 1)
+    };
+    check_depth(p.doc, p.path, levels)?;
+    // the new runs' `a:rPr` copies go under a new `a:r` in this paragraph
     check_copies(p.doc, p.path, 1, fmt.iter().map(|d| d as &dyn CheckInsert))?;
     let mut remove: Vec<usize> = shape.runs.iter().skip(1).chain(&shape.breaks).copied().collect();
     remove.sort_unstable();
@@ -721,7 +738,8 @@ impl TextBodyMut<'_> {
             (None, RunFmt::default())
         } else {
             let path = para_path(*paras.last().expect("body_paragraphs: a:p+"));
-            new_para_format(ParaAt::new(doc, &path))?
+            let needs_run = extra.iter().any(|segs| segs.iter().any(|s| !s.is_empty()));
+            new_para_format(ParaAt::new(doc, &path), needs_run)?
         };
         if !extra.is_empty() {
             // new paragraphs under the body: a:p / a:r / a:t; a:pPr and
