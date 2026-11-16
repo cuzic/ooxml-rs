@@ -85,6 +85,11 @@ pub(crate) enum EditBlock {
     ScanFailed { part: String, reason: String },
     MissingReference { part: String },
     UnknownCellMetadata { part: String, cell: String },
+    /// A cell whose `r` names another row than its `row/@r` (fuzz finding
+    /// F-8): the census (keyed by `c/@r`) and the row index (keyed by row)
+    /// would disagree about where the cell is, and a write could add a
+    /// second cell with the same reference.
+    RowMismatch { part: String, cell: String, row: u32 },
 }
 
 impl EditBlock {
@@ -100,6 +105,7 @@ impl EditBlock {
             EditBlock::UnknownCellMetadata { part, cell } => {
                 Error::UnknownCellMetadata { part: part.clone(), cell: cell.clone() }
             }
+            EditBlock::RowMismatch { part, cell, row } => Error::InvalidReference(format!("{part}: {cell} in row {row}")),
         }
     }
 }
@@ -222,6 +228,10 @@ pub(crate) fn scan_sheet(
     let mut vm_cells = Vec::new();
     let mut unknown_cm: Option<String> = None;
     let mut bx = false;
+    // The number of the row being read (`row/@r`), and the first cell
+    // naming another row (F-8).
+    let mut row_number: Option<u32> = None;
+    let mut row_mismatch: Option<(String, u32)> = None;
     loop {
         let pos = reader.buffer_position();
         let (ns, ev) = reader.read_resolved_event().map_err(|e| format!("XML error after byte {pos}: {e}"))?;
@@ -233,15 +243,23 @@ pub(crate) fn scan_sheet(
                 let parent = stack.last().map(String::as_str);
                 match local.as_str() {
                     "row" if parent == Some("sheetData") => {
-                        if attr(e, "r")?.is_none() {
+                        let r = attr(e, "r")?;
+                        if r.is_none() {
                             missing_r = true;
                         }
+                        row_number = r.and_then(|r| r.parse().ok());
                     }
                     "c" if parent == Some("row") => {
                         let mut c = CellScan { r: attr(e, "r")?, t: attr(e, "t")?, cm: attr(e, "cm")?, ..Default::default() };
                         c.vm = attr(e, "vm")?.is_some();
                         if c.r.is_none() {
                             missing_r = true;
+                        }
+                        if row_mismatch.is_none()
+                            && let (Some(row), Some(at)) = (row_number, c.r.as_deref().and_then(|r| CellIndex::parse(r).ok()))
+                            && at.row + 1 != row
+                        {
+                            row_mismatch = Some((at.to_string(), row));
                         }
                         cell = Some(c);
                     }
@@ -326,6 +344,12 @@ pub(crate) fn scan_sheet(
     }
     if let Some(cell) = unknown_cm {
         census.block(EditBlock::UnknownCellMetadata { part: part.to_owned(), cell });
+    }
+    // Any sheet, with or without formulas: a write to the named cell would
+    // not find it through the row index and add a duplicate, and a formula
+    // anywhere may read it. Fail closed for every edit (reads still work).
+    if let Some((cell, row)) = row_mismatch {
+        census.block(EditBlock::RowMismatch { part: part.to_owned(), cell, row });
     }
     census.bx_any |= bx;
     let mut masters: HashMap<u32, usize> = HashMap::new();
@@ -553,6 +577,15 @@ mod tests {
         assert!(matches!(c.block, Some(EditBlock::UnknownCellMetadata { .. })), "cm without f");
         let (c, _) = scan(r#"<row><c><f>1</f></c></row>"#, &[]);
         assert!(matches!(c.block, Some(EditBlock::MissingReference { .. })));
+        // F-8: a cell naming another row, with or without a formula
+        let (c, _) = scan(r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f></c></row>"#, &[]);
+        assert!(matches!(&c.block, Some(EditBlock::RowMismatch { cell, row: 1, .. }) if cell == "B2"));
+        let (c, _) = scan(r#"<row r="3"><c r="A2"><v>1</v></c></row>"#, &[]);
+        assert!(matches!(c.block, Some(EditBlock::RowMismatch { row: 3, .. })), "values only");
+        let (c, _) = scan(r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B2"><f>A1*2</f></c></row>"#, &[]);
+        assert!(c.block.is_none(), "cells in their own rows");
+        let (c, _) = scan(r#"<row><c r="B2"><v>1</v></c></row>"#, &[]);
+        assert!(c.block.is_none(), "a row without r cannot disagree (Phase0's MissingReference covers it)");
         let (c, _) = scan(r#"<row><c><v>1</v></c></row>"#, &[]);
         assert!(c.block.is_none(), "no formulas: only that sheet's own edits are refused (Phase0)");
         let mut c = Census::default();
