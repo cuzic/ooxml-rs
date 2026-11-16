@@ -255,9 +255,11 @@ pub enum MoveRefusal {
     Root,
     /// The destination is the moved element or inside it.
     IntoItself,
-    /// A prefix the subtree uses (on an element or attribute, or the
-    /// default namespace) means another namespace, or nothing, at the
-    /// destination; the moved bytes would change meaning.
+    /// A prefix the subtree uses without declaring it (on an element or
+    /// attribute, the default namespace, or named in a Markup Compatibility
+    /// attribute value such as `mc:Ignorable` or `mc:Choice/@Requires`)
+    /// means another namespace, or nothing, at the destination; the moved
+    /// bytes would change meaning.
     NamespaceBinding,
     /// A namespace the subtree uses is ignorable (`mc:Ignorable`) at one
     /// place and not at the other.
@@ -265,6 +267,10 @@ pub enum MoveRefusal {
     /// The subtree has text that inherits `xml:space`, and the inherited
     /// value differs at the destination.
     XmlSpace,
+    /// The source or the destination is inside `mc:AlternateContent` (a
+    /// `mc:Choice` / `mc:Fallback` branch): consumers reading the other
+    /// branch would see the element vanish or appear.
+    AlternateContent,
 }
 
 impl std::fmt::Display for MoveRefusal {
@@ -275,6 +281,7 @@ impl std::fmt::Display for MoveRefusal {
             MoveRefusal::NamespaceBinding => "a prefix is bound differently at the destination",
             MoveRefusal::IgnorableNamespace => "a namespace is ignorable at only one place",
             MoveRefusal::XmlSpace => "inherited xml:space differs",
+            MoveRefusal::AlternateContent => "inside mc:AlternateContent",
         })
     }
 }

@@ -24,6 +24,8 @@ use std::sync::Arc;
 
 mod move_subtree;
 
+pub use move_subtree::MoveSource;
+
 use crate::error::{DetachRefusal, Error, Result};
 use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, RELATIONSHIP_ATTRIBUTES, XML_NS, XML_SPACE, XMLNS_NS, XName};
 use crate::schema::{ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot, UniqueAttr};
@@ -289,6 +291,12 @@ fn check_destination(copy: &RawNode, text_inherits_space: bool, root: &RawNode, 
 
 const MC_IGNORABLE: QName = QName::new(MC_NS, "Ignorable");
 
+/// Number of element levels of a subtree (1 for an element without element
+/// children). Shared by `Detached::height` and the same-part move.
+fn subtree_height(n: &RawNode) -> usize {
+    1 + n.elements().map(subtree_height).max().unwrap_or(0)
+}
+
 fn has_text(n: &RawNode) -> bool {
     n.children.iter().any(|c| match c {
         RawItem::Text(t) => !t.value.is_empty(),
@@ -344,10 +352,7 @@ impl<C: ElementSpec> Detached<C> {
     /// Number of element levels of the copy (1 for an element without
     /// element children).
     pub fn height(&self) -> usize {
-        fn h(n: &RawNode) -> usize {
-            1 + n.elements().map(h).max().unwrap_or(0)
-        }
-        h(&self.root)
+        subtree_height(&self.root)
     }
 
     /// Would [`LensMut::insert_detached`] succeed, as far as depth,
