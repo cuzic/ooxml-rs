@@ -119,6 +119,15 @@ pub enum Error {
         /// Its byte offset in the value.
         offset: usize,
     },
+    /// [`LensMut::insert_at`](crate::LensMut::insert_at): the child index is
+    /// beyond the parent's children.
+    #[error("insertion index {index} is beyond the {len} children")]
+    InsertIndexOutOfRange {
+        /// The requested index.
+        index: usize,
+        /// The number of child items.
+        len: usize,
+    },
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
