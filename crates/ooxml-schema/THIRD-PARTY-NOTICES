@@ -1,0 +1,106 @@
+THIRD-PARTY NOTICES for ooxml-schema
+====================================
+
+The generated code in src/generated/ embeds names, summaries, content-model
+data and enumeration values derived from the Open XML SDK schema data, and
+attribute default values taken from the ECMA-376 Transitional XML Schemas.
+See ADR-0002 (docs/adr/0002-schema-driven-code-generation.md) §1-§2.
+
+
+1. Open XML SDK schema data
+---------------------------
+
+Source: https://github.com/dotnet/Open-XML-SDK, directory data/
+(schemas/*.json, parts/*.json, namespaces.json), commit
+431ab05cf160248cc3885a4a766026d4f8243792. Per-file SHA-256:
+reference/openxml-sdk-data/PROVENANCE.md in the ooxml-rs repository.
+
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+2. ECMA-376 Transitional XML Schemas
+------------------------------------
+
+Source: Ecma International, ECMA-376 Part 4, 5th edition (December 2016),
+OfficeOpenXML-XMLSchema-Transitional.zip inside
+https://ecma-international.org/wp-content/uploads/ECMA-376-4_5th_edition_december_2016.zip
+(SHA-256 bd25da1109f73762356596918bf5ff8b74a1331642dba5f1c1d1dfc6bed34ecd;
+inner archive d34187520749998af306faf1b730e568b0ca6d88ad24638a407c0a9bb4ca04fc).
+Only attribute default values are used (implementing the specification in
+a conformant product, item (iv) below). The schemas themselves are vendored
+unmodified in reference/ecma-376-transitional-xsd/ of the ooxml-rs
+repository; per-file SHA-256 in its PROVENANCE.md.
+
+That edition carries no copyright page. Per Ecma's text copyright policy
+(Version 3, December 2025) the Ecma default copyright notice applies; its
+full text follows.
+
+COPYRIGHT NOTICE
+
+© Ecma International
+
+By obtaining and/or copying this work, you (the licensee) agree that you
+have read, understood, and will comply with the following terms and
+conditions.
+
+This document may be copied, published and distributed to others, and
+certain derivative works of it may be prepared, copied, published, and
+distributed, in whole or in part, provided that the above copyright notice
+and this Copyright License and Disclaimer are included on all such copies
+and derivative works. The only derivative works that are permissible under
+this Copyright License and Disclaimer are:
+
+(i)   works which incorporate all or portion of this document for the
+      purpose of providing commentary or explanation (such as an annotated
+      version of the document),
+
+(ii)  works which incorporate all or portion of this document for the
+      purpose of incorporating features that provide accessibility,
+
+(iii) translations of this document into languages other than English and
+      into different formats and
+
+(iv)  works by making use of this specification in standard conformant
+      products by implementing (e.g. by copy and paste wholly or partly)
+      the functionality therein.
+
+However, the content of this document itself may not be modified in any
+way, including by removing the copyright notice or references to Ecma
+International, except as required to translate it into languages other
+than English or into a different format.
+
+The official version of an Ecma International document is the English
+language version on the Ecma International website. In the event of
+discrepancies between a translated version and the official version, the
+official version shall govern.
+
+The limited permissions granted above are perpetual and will not be
+revoked by Ecma International or its successors or assigns.
+
+This document and the information contained herein is provided on an
+"AS IS" basis and ECMA INTERNATIONAL DISCLAIMS ALL WARRANTIES, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
+INFORMATION HEREIN WILL NOT INFRINGE ANY OWNERSHIP RIGHTS OR ANY IMPLIED
+WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.

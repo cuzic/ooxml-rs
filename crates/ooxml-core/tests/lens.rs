@@ -139,6 +139,9 @@ fn a_qname_in_two_slots_needs_an_explicit_slot_and_is_assigned_greedily() {
     t.insert_in_slot::<Mark>(0, |_, _| false).unwrap();
     assert_matches!(t.insert_in_slot::<Pr>(0, |_, _| false), Err(Error::NotAllowed { .. }));
     assert_eq!(names(&d), ["mark", "mark", "pr", "row", "mark"]);
+    let mut t = d.lens_mut::<Tbl>().unwrap();
+    t.insert::<Row>().unwrap(); // `row` is in one slot only: no ambiguity
+    assert_eq!(names(&d), ["mark", "mark", "pr", "row", "mark", "row"]);
 
     // leading marker is slot 0, so a new `pr` goes after it, not in front
     let mut d = doc(r#"<tbl xmlns="urn:t"><mark/><row/></tbl>"#);

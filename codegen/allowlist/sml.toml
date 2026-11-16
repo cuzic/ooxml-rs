@@ -2,10 +2,13 @@
 # Entries are SDK `Name`s ((complex type, element) pairs). Growing the typed
 # surface = adding entries here and reviewing the generated diff.
 #
-# write: `*View` + `*ViewMut` are generated; read: `*View` only.
+# [write]: `*View` + `*ViewMut` (typed setters, insert/remove helpers).
+# [read]:  `*View` only. `ChildOf` impls exist between any two allowlisted
+#          entries, so generic `LensMut` primitives still accept read entries.
 
 # Phase0 write path (ADR-0001 / ADR-0002 §5).
-write = [
+[write]
+names = [
     "x:CT_Worksheet/x:worksheet",
     "x:CT_SheetDimension/x:dimension",
     "x:CT_SheetData/x:sheetData",
@@ -18,7 +21,8 @@ write = [
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
 # first sheet, shared/rich strings, merged ranges.
-read = [
+[read]
+names = [
     "x:CT_CellFormula/x:f",
     "x:CT_Workbook/x:workbook",
     "x:CT_Sheets/x:sheets",

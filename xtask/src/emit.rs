@@ -59,10 +59,12 @@ pub fn snake(s: &str) -> String {
     if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit()) {
         out.insert_str(0, "v_");
     }
-    if KEYWORDS.contains(&out.as_str()) {
-        out.push('_');
-    }
     out
+}
+
+/// Escapes a Rust keyword by appending `_`.
+fn ident(s: &str) -> String {
+    if KEYWORDS.contains(&s) { format!("{s}_") } else { s.to_owned() }
 }
 
 fn upper(s: &str) -> String {
@@ -86,8 +88,9 @@ impl Names {
     fn new(reserved: &[&str]) -> Self {
         Names(reserved.iter().map(|s| (*s).to_owned()).collect())
     }
+    /// Claims a unique method name (keyword-escaped).
     fn claim(&mut self, base: &str, suffix: &str) -> String {
-        let mut n = base.to_owned();
+        let mut n = ident(base);
         while self.0.contains(&n) {
             n.push_str(suffix);
         }
@@ -460,8 +463,9 @@ impl<'m, 'a> Ctx<'m, 'a> {
                     };
                     let _ = writeln!(r, "#[doc = {}] {getter}", lit(&adoc));
                     if allowed.access == Access::Write {
-                        let sm = wn.claim(&format!("set_{m}"), "_attr");
-                        let rm = wn.claim(&format!("remove_{m}"), "_attr");
+                        let mb = m.trim_end_matches('_');
+                        let sm = wn.claim(&format!("set_{mb}"), "_attr");
+                        let rm = wn.claim(&format!("remove_{mb}"), "_attr");
                         let set = match &info.format {
                             Fmt::Str => format!("pub fn {sm}(&mut self, v: &str) -> Result<(), ooxml_core::Error> {{ self.0.set_attr({ty}::{c}, v) }}"),
                             Fmt::Static(f) => format!("pub fn {sm}(&mut self, v: {}) -> Result<(), ooxml_core::Error> {{ self.0.set_attr({ty}::{c}, ooxml_core::value::{f}(v)) }}", info.rust),

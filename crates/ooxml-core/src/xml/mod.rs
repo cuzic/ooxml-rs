@@ -13,7 +13,7 @@
 //! Bytes before and after the root element (XML declaration, BOM, comments)
 //! are always emitted verbatim.
 //!
-//! The tree is only mutated through [`LensMut`](crate::LensMut), which owns
+//! The tree is only mutated through [`LensMut`], which owns
 //! the dirty-flag duties (ADR-0002 §4.2).
 
 mod parse;

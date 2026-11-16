@@ -10,15 +10,32 @@ use crate::Res;
 /// Feature groups, in feature order. Each has `codegen/allowlist/<group>.toml`.
 pub const GROUPS: &[&str] = &["sml", "wml", "pml", "dml"];
 
+/// One `codegen/allowlist/<group>.toml`:
+///
+/// ```toml
+/// [write]          # `*View` + `*ViewMut` (typed setters, insert/remove helpers)
+/// names = ["x:CT_Row/x:row"]
+/// [read]           # `*View` only
+/// names = ["x:CT_Workbook/x:workbook"]
+/// ```
+///
+/// `ChildOf` impls are generated between any two allowlisted entries
+/// (read or write), so the generic `LensMut` primitives stay available for
+/// read entries; only the generated typed write surface depends on `[write]`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AllowlistFile {
-    /// Entries with typed write access (`*ViewMut` generated).
     #[serde(default)]
-    pub write: Vec<String>,
-    /// Read-only entries (`*View` only).
+    pub write: Section,
     #[serde(default)]
-    pub read: Vec<String>,
+    pub read: Section,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Section {
+    #[serde(default)]
+    pub names: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,7 +56,7 @@ pub fn load_allowlists(dir: &Path) -> Res<BTreeMap<String, Allowed>> {
     for &g in GROUPS {
         let p = dir.join(format!("{g}.toml"));
         let f: AllowlistFile = toml::from_str(&std::fs::read_to_string(&p)?).map_err(|e| format!("{}: {e}", p.display()))?;
-        for (list, access) in [(&f.write, Access::Write), (&f.read, Access::Read)] {
+        for (list, access) in [(&f.write.names, Access::Write), (&f.read.names, Access::Read)] {
             for n in list {
                 if n.ends_with('/') {
                     return Err(format!("{}: {n:?} is an abstract entry; allowlist concrete SDK Names", p.display()).into());

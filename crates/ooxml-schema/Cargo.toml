@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "Generated OOXML schema tables and typed views over ooxml-core's lossless XML tree"
+readme = "README.md"
 include = ["src/**/*.rs", "Cargo.toml", "README.md", "THIRD-PARTY-NOTICES"]
 
 [dependencies]

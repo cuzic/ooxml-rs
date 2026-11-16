@@ -552,3 +552,99 @@ fn xsd_simple(t: &str) -> Option<&'static str> {
     })
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::parse_overrides;
+
+    fn load() -> (Sdk, Xsd) {
+        let root = crate::root();
+        (Sdk::load(&root.join(crate::SDK_DIR)).unwrap(), Xsd::load(&root.join(crate::XSD_DIR)).unwrap())
+    }
+
+    fn default_of(e: &Entry, local: &str) -> Option<String> {
+        e.attrs.iter().find(|a| a.local == local).and_then(|a| a.default.clone())
+    }
+
+    /// ADR-0002 §1.3: an override on an abstract entry is inherited by every
+    /// entry with the same complex-type part; the entry's own override wins.
+    #[test]
+    fn override_inheritance_and_precedence() {
+        let (sdk, xsd) = load();
+        let ov = parse_overrides(
+            r#"
+            [[override]]
+            op = "set_default"
+            on = "w:CT_OnOff/"
+            attribute = "w:val"
+            value = "true"
+            reason = "on/off semantics"
+            evidence = "ECMA-376 Part 1 17.17.4"
+
+            [[override]]
+            op = "set_default"
+            on = "w:CT_OnOff/w:i"
+            attribute = "w:val"
+            value = "false"
+            reason = "precedence test"
+            evidence = "test"
+
+            [[override]]
+            op = "add_attribute"
+            on = "x:CT_Row/x:row"
+            name = "xr:uid"
+            type = "StringValue"
+            reason = "Office writes it"
+            evidence = "[MS-XLSX]"
+
+            [[override]]
+            op = "add_enum_value"
+            enum = "x:ST_CellType"
+            value = "future"
+            reason = "test"
+            evidence = "test"
+
+            [[override]]
+            op = "mce_wrapped"
+            parent = "x:CT_Worksheet/x:worksheet"
+            children = ["x:CT_LegacyDrawing/x:legacyDrawing"]
+            reason = "only seen inside mc:AlternateContent"
+            evidence = "test"
+            "#,
+        )
+        .unwrap();
+        let mut d = Diagnostics::default();
+        let m = Model::new(&sdk, &xsd, &ov, &mut d);
+        let n = m.index.keys().filter(|k| k.starts_with("w:CT_OnOff/") && !k.ends_with('/')).count();
+        assert_eq!(n, 191, "ADR-0002 §1.3 counts 191 w:CT_OnOff entries");
+        let b = m.resolve("w:CT_OnOff/w:b", &mut d).unwrap();
+        assert_eq!(default_of(&b, "val").as_deref(), Some("true"));
+        let i = m.resolve("w:CT_OnOff/w:i", &mut d).unwrap();
+        assert_eq!(default_of(&i, "val").as_deref(), Some("false"));
+        let row = m.resolve("x:CT_Row/x:row", &mut d).unwrap();
+        assert!(row.attrs.iter().any(|a| a.local == "uid" && a.prefix == "xr"));
+        let at = m.enums_by_type["x:ST_CellType"];
+        assert!(m.enum_values(at).iter().any(|(v, _)| v == "future"));
+        let ws = m.resolve("x:CT_Worksheet/x:worksheet", &mut d).unwrap();
+        assert!(!ws.child_names.contains("x:CT_LegacyDrawing/x:legacyDrawing"));
+        assert!(d.lines.iter().all(|l| !l.starts_with("OverrideError")), "{:?}", d.lines);
+    }
+
+    #[test]
+    fn phase0_entries_and_inheritance() {
+        let (sdk, xsd) = load();
+        let mut d = Diagnostics::default();
+        let m = Model::new(&sdk, &xsd, &[], &mut d);
+        let c = m.resolve("x:CT_Cell/x:c", &mut d).unwrap();
+        let attrs: Vec<_> = c.attrs.iter().map(|a| (a.local.as_str(), a.default.as_deref())).collect();
+        assert_eq!(
+            attrs,
+            [("r", None), ("s", Some("0")), ("t", Some("n")), ("cm", Some("0")), ("vm", Some("0")), ("ph", Some("false"))]
+        );
+        let t = m.resolve("x:CT_Xstring/x:t", &mut d).unwrap();
+        assert!(t.attrs.iter().any(|a| a.ns == XML_NS && a.local == "space"), "xml:space from x:CT_Xstring/");
+        let sdt = m.resolve("w:CT_SdtBlock/w:sdt", &mut d).unwrap();
+        assert!(sdt.attrs_incomplete);
+    }
+}

@@ -56,6 +56,24 @@
   `.gitattributes` for unmodified XSDs, full notice in
   `THIRD-PARTY-NOTICES` (R4-m5); override inheritance keyed on the
   complex-type part, 191 entries, precedence (R4-m6).
+- **Post-acceptance note (2026-11-16, implementation layout — no change
+  to the decisions):** the first implementation (`foundation-v0`) fixes
+  three layout details this ADR left open or stated differently.
+  (1) The allowlist is one file per feature group,
+  `codegen/allowlist/{sml,wml,pml,dml}.toml`, instead of a single
+  `codegen/allowlist.toml`, so each format workstream edits only its own
+  file. Each file has a `[write]` and a `[read]` section (`names = [...]`):
+  write entries get `*View` + `*ViewMut`, read entries `*View` only.
+  `ChildOf` impls exist between any two allowlisted entries, so the generic
+  `LensMut` primitives still accept read-only children; only the generated
+  typed write surface depends on `[write]`. The feature group of an entry is
+  the file it is listed in. (2) Generated files are one per feature group
+  (`src/generated/<group>.rs` plus a generated `mod.rs` with the
+  `cfg_select!` switches), not one per namespace. (3) The §6 parts table is
+  generated into `ooxml-core` (`src/generated/parts.rs`), because
+  `ooxml-core::Package` consumes it and cannot depend on `ooxml-schema`.
+  The generator also writes `codegen/report.txt` (lowering and default-join
+  totals, all diagnostics), checked by `--check` like the code.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
