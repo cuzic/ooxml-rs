@@ -28,6 +28,18 @@
   are valid Excel content rather than merely self-consistent (R2-M5).
   Every fix is folded directly into the sections below rather than
   listed separately; see the two review files for the full findings.
+- **Post-acceptance note (2026-11-16, MSRV only — no design change):**
+  the workspace `rust-version` was raised from 1.88 (the floor `zip` 9
+  imposes, per round-1 B4) to **1.99**. The project is unpublished, so
+  no downstream user is affected, and the newer std APIs map directly
+  onto this ADR's own mechanisms: `str::substr_range` /
+  `[T]::subslice_range` (1.98) compute Layer 2's `ElementSpan` offsets
+  from quick-xml's borrowed slices without hand-written pointer
+  arithmetic; `Vec::insert_mut` (1.95) returns the inserted child so
+  `cell_mut().set_*` can mark it dirty in one step; `fmt::from_fn`
+  (1.93) and `<integer>::format_into` (1.98) render dirty tags and
+  numeric attributes without intermediate allocation; `cfg_select!`
+  (1.95) gates per-namespace generated code.
 
 ## Context
 
