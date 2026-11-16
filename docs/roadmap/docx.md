@@ -15,6 +15,10 @@
   - `w14:paraId` の重複は 8 ファイルにあった。実ファイルは ID の一意性を守っていないので、読み込みで一意性を前提にしない。
   - ブックマーク ID の重複、変更履歴 ID とブックマーク ID の衝突は 0 件だった。
 - Phase0 の詳細は ADR-0004（`docs/adr/0004-docx-phase0.md`）。
+- Phase2（構造の追加）の設計は ADR-0011（`docs/adr/0011-docx-phase2-structure.md`、Proposed）。Word で初めてパーツと ID を追加するフェーズで、次の 2 つからなる。
+  - `ooxml-core` 側：パーツを追加する API（パーツ名、関係 ID、Content Types）。xlsx Phase3 と共通にする。
+  - `ooxml-docx` 側：追記のみの ID レジストリ（描画 ID、注釈 ID、ブックマーク名、番号付け、スタイル）。
+  - 根拠は `spikes/docx-phase2/`。
 
 ## 1. Method and status legend
 
@@ -300,18 +304,45 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 ### Phase2: structure
 
+Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The evidence is in
+`spikes/docx-phase2/`.
+
 **Scope.**
 
-- Registries: OPC part/rel/content-type (from the foundation `Package`), style IDs, numbering, annotation IDs, paraId, `wp:docPr/@id`, bookmark names.
-- APIs: insert paragraph or run anywhere with properties; create tables (`tblGrid` consistent with cells, `gridSpan`/`vMerge`); lists (new `w:num` per list, `lvlOverride` restart); inline images (media part + rel + content-type `Default`); hyperlinks (external rel / anchor); bookmarks; section breaks; new header/footer parts; new styles (two seed modes as in ADR-0001: from scratch dedups by value, edit appends only).
+- **Core OPC part-adding API**, shared with xlsx Phase3:
+  - a `PartPlan` that validates every addition before applying any;
+  - part names: smallest free `nameN.ext` under OPC equivalence;
+  - relationship ids: `rId` + (max numeric suffix + 1), never a gap;
+  - content types: a `Default` for new media extensions, an `Override` for XML parts;
+  - appended registry entries only.
+- **Two more additive core changes:** namespace declarations on created elements (`a:` and `pic:` are declared locally by Word, almost never on the root), and `SameType` modulo required skips, as in ADR-0007.
+- **Word registries:**
+  - drawing ids: max + 1 over all stories and both AC branches;
+  - annotation ids: max + 1 over the union of bookmarks, comments, revisions and permissions;
+  - bookmark names: checked, case-insensitive;
+  - `numId`/`abstractNumId`: max + 1, with `numId` 0 reserved, plus a fresh `nsid`;
+  - style ids.
+
+  Phase2 writes no `w14:paraId`/`textId`; that registry is deferred to Phase3.
+- **Operations:**
+  - inline images (PNG/JPEG/GIF, deduplicated package-wide by content);
+  - hyperlinks (one external relationship per link; internal anchors);
+  - bookmarks;
+  - lists: create, apply, restart (new `num` with `startOverride`), remove;
+  - section breaks: a copy of the `sectPr` with its header references rewritten (this lifts ADR-0004's A2);
+  - tables: insert/delete rows and columns, merge or split cells, on a consistent grid only;
+  - new paragraphs and run splitting;
+  - new paragraph and character styles: latent built-in names are refused, and `stylesWithEffects.xml` is left unchanged.
+- **Refused until a move primitive exists:** merging non-empty cells, wrapping existing runs into a hyperlink, and deleting rows that hold half of a range.
 
 **Acceptance.**
 
-- Registry property tests: existing IDs never change.
-- The new ID is absent from every part, including both AC branches.
-- docx-rs read-back of tables, lists and images.
-- `ooxmlsdk` (ADR-0002's suggested oracle) parses the output without error. It is evaluated when Phase2 starts.
-- Owner check in Word.
+- T1–T6 on every changed part.
+- **T-OPC**, shared with xlsx Phase3: every target exists; every part has exactly one content type; ids are unique; there are no orphans. An independent implementation of it runs over `roxmltree`.
+- **T-REG:** every allocated value is fresh in its whole scope, and existing values and duplicates are unchanged. Corpus property tests check this.
+- **docx-rs read-back** of tables, numbering, drawings, hyperlinks, bookmarks and sections.
+- **`ooxmlsdk` parse:** evaluated at the start of the implementation.
+- **Owner check in Word.**
 
 ### Phase3: review and semantics
 
@@ -346,14 +377,14 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 | Registry | Owner (proposed) | Keys | Phase | Rule |
 |---|---|---|---|---|
-| OPC content types / rels | `ooxml-core::Package` | part names, rIds | 2 | as ADR-0001 |
+| OPC content types / rels | `ooxml-core::Package` | part names, rIds | 2 | ADR-0011 §1 (`PartPlan`; shared with xlsx Phase3) |
 | Style IDs | `ooxml-docx::Styles` | `w:styleId` | 1 read, 2 append | never rename; refs to unknown IDs are Err |
 | Numbering | `ooxml-docx::Numbering` | `numId`, `abstractNumId` | 2 | append-only; never reuse a freed ID |
-| Annotation IDs | `ooxml-docx::Annotations` | `w:id` of bookmarks, comments, ins/del/move, perm | 2 | max+1 over the union of all story parts |
+| Annotation IDs | `ooxml-docx::Annotations` | `w:id` of bookmarks, comments, ins/del/move, perm | 2 | max+1 over the union of all story parts and `comments.xml` (ADR-0011 §2; cross-category collisions: 0 in POI/SDK) |
 | Note IDs | `ooxml-docx::Notes` | footnote / endnote `w:id` (+ separator IDs in settings) | 3 | per kind |
-| paraId / textId / durableId | `ooxml-docx::ParaIds` | `w14:paraId`, `w14:textId`, `w16cid:durableId` | 2/3 | random < 0x80000000, absent everywhere; never fix duplicates |
+| paraId / textId / durableId | `ooxml-docx::ParaIds` | `w14:paraId`, `w14:textId`, `w16cid:durableId` | 3 (deferred from 2 by ADR-0011) | random < 0x80000000, absent everywhere; never fix duplicates |
 | Bookmark names | `ooxml-docx::Annotations` | `w:name` | 2 | unique (case rule to be confirmed) |
-| Drawing IDs | `ooxml-docx::Drawings` | `wp:docPr/@id` | 2 | max+1 over all stories |
+| Drawing IDs | `ooxml-docx::Drawings` | `wp:docPr/@id` | 2 | max+1 over all stories, both AC branches (ADR-0011 §2); `pic:cNvPr/@id` written as 0 |
 | rsids | (none) | `settings/w:rsids` | — | never created; Word adds its own |
 | Custom XML store | `ooxml-docx::CustomXml` | `ds:itemID` ↔ `w:dataBinding/@storeItemID` | 3 | edits keep both sides in sync |
 
