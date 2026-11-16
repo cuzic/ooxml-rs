@@ -247,7 +247,11 @@ pub(crate) fn scan_sheet(
                         if r.is_none() {
                             missing_r = true;
                         }
-                        row_number = r.and_then(|r| r.parse().ok());
+                        // Read exactly as the row index reads it (XML whitespace
+                        // trimmed, row 0 invalid), or the two disagree again
+                        // (review of PR #67, M1/m1). A row the index cannot read
+                        // is its own refusal (`BadRowR`), not a mismatch.
+                        row_number = r.as_deref().and_then(ooxml_core::value::parse_u32).filter(|r| *r >= 1);
                     }
                     "c" if parent == Some("row") => {
                         let mut c = CellScan { r: attr(e, "r")?, t: attr(e, "t")?, cm: attr(e, "cm")?, ..Default::default() };
@@ -540,6 +544,38 @@ mod tests {
 
     const NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
 
+    /// Corpus check for F-8 (review of PR #67, n2): no sheet part of any
+    /// fixture has a cell naming another row, checked on each part on its
+    /// own (so an earlier block of another kind cannot hide it).
+    #[test]
+    fn no_fixture_sheet_has_a_row_mismatch() {
+        fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    collect(&p, out);
+                } else if p.extension().is_some_and(|x| x == "xlsx" || x == "xlsm") {
+                    out.push(p);
+                }
+            }
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference");
+        let mut files = Vec::new();
+        collect(&root.join("fixtures/xlsx"), &mut files);
+        collect(&root.join("round_trip_corpus"), &mut files);
+        let mut sheets = 0;
+        for f in &files {
+            let Ok(pkg) = ooxml_core::Package::from_bytes(std::fs::read(f).unwrap()) else { continue };
+            for part in pkg.part_names().filter(|n| (n.contains("worksheets/") || n.contains("macrosheets/")) && n.ends_with(".xml")) {
+                let mut c = Census::default();
+                let _ = scan_sheet(&pkg.read_part(part).unwrap(), part, 0, &HashSet::new(), &mut c);
+                assert!(!matches!(c.block, Some(EditBlock::RowMismatch { .. })), "{} {part}: {:?}", f.display(), c.block);
+                sheets += 1;
+            }
+        }
+        assert!(sheets >= 60, "{sheets} sheet parts checked");
+    }
+
     fn scan(body: &str, dynamic: &[u32]) -> (Census, Result<(), String>) {
         let mut c = Census::default();
         let xml = format!("<worksheet {NS}><sheetData>{body}</sheetData></worksheet>");
@@ -586,6 +622,15 @@ mod tests {
         assert!(c.block.is_none(), "cells in their own rows");
         let (c, _) = scan(r#"<row><c r="B2"><v>1</v></c></row>"#, &[]);
         assert!(c.block.is_none(), "a row without r cannot disagree (Phase0's MissingReference covers it)");
+        // row/@r read like the row index reads it (review of PR #67, M1, m1)
+        for r in [" 1", "\t1", "1 ", "\n1\r"] {
+            let (c, _) = scan(&format!(r#"<row r="{r}"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f></c></row>"#), &[]);
+            assert!(matches!(&c.block, Some(EditBlock::RowMismatch { cell, row: 1, .. }) if cell == "B2"), "row r={r:?}: {:?}", c.block);
+        }
+        let (c, _) = scan(r#"<row r=" 2 "><c r="B2"><f>1</f></c></row>"#, &[]);
+        assert!(c.block.is_none(), "padded row number, cell in its own row");
+        let (c, _) = scan(r#"<row r="0"><c r="A1"><v>1</v></c></row>"#, &[]);
+        assert!(c.block.is_none(), "row 0 is the row index's BadRowR for that sheet, not a mismatch");
         let (c, _) = scan(r#"<row><c><v>1</v></c></row>"#, &[]);
         assert!(c.block.is_none(), "no formulas: only that sheet's own edits are refused (Phase0)");
         let mut c = Census::default();

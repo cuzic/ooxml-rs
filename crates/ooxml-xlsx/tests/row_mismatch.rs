@@ -84,9 +84,9 @@ fn cells_in_their_own_rows_still_edit() {
     assert!(sheet.contains("<f>A1*3</f>"), "{sheet}");
 }
 
-/// Corpus check: no fixture has a cell naming another row, so the new
-/// refusal changes nothing for them (each opens with the same
-/// `edit_refusal` as before this change, i.e. never `InvalidReference`).
+/// Corpus check through the public API: no fixture is refused with
+/// `InvalidReference` (the per-part check of the census itself is the unit
+/// test `census::tests::no_fixture_sheet_has_a_row_mismatch`).
 #[test]
 fn no_fixture_is_refused_by_the_row_check() {
     let mut names = all_zip_fixtures();
@@ -105,4 +105,28 @@ fn no_fixture_is_refused_by_the_row_check() {
         assert!(!matches!(wb.edit_refusal(), Some(Error::InvalidReference(_))), "{name}: {:?}", wb.edit_refusal());
     }
     assert!(opened >= 40, "{opened} fixtures opened");
+}
+
+/// `row/@r` is read as the row index reads it: XML whitespace around the
+/// number does not hide a mismatch (review of PR #67, M1), and row 0 stays
+/// the index's own refusal of that sheet, not a workbook-wide mismatch (m1).
+#[test]
+fn padded_row_numbers_and_row_zero() {
+    for r in [" 1", "\t1", "1 "] {
+        let input = book(&[("Sheet1", &format!(r#"<row r="{r}"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#))], "", "");
+        let mut wb = Workbook::from_bytes(input).expect("opens");
+        assert_matches!(wb.edit_refusal(), Some(Error::InvalidReference(_)), "row r={r:?}");
+        let before = wb.to_bytes().unwrap();
+        assert_matches!(wb.worksheet().unwrap().cell_mut(1, 1).unwrap().set_formula("A1*3"), Err(Error::InvalidReference(_)));
+        assert_eq!(wb.to_bytes().unwrap(), before);
+    }
+    let input = book(
+        &[("Sheet1", r#"<row r="0"><c r="A1"><v>1</v></c></row>"#), ("Sheet2", r#"<row r="1"><c r="A1"><v>1</v></c></row>"#)],
+        "",
+        "",
+    );
+    let mut wb = Workbook::from_bytes(input).expect("opens");
+    assert!(wb.edit_refusal().is_none(), "{:?}", wb.edit_refusal());
+    assert_matches!(wb.worksheet_by_name("Sheet1").unwrap().cell_mut(0, 0).unwrap().set_number(2.0), Err(Error::InvalidReference(ref m)) if m == "0");
+    wb.worksheet_by_name("Sheet2").unwrap().cell_mut(0, 0).unwrap().set_number(2.0).expect("another sheet still edits");
 }
