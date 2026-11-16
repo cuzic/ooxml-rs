@@ -234,3 +234,66 @@ fn data_validation_add_and_remove() {
     r.unwrap();
     assert!(out_xml(&wb).contains("<extLst></extLst>") || !out_xml(&wb).contains("CCE6A557"), "{}", out_xml(&wb));
 }
+
+// ---- hyperlinks (§4) ----
+
+#[test]
+fn hyperlinks_external_internal_and_removal() {
+    use ooxml_xlsx::{Link, LinkOptions};
+    let input = Workbook::new().unwrap().to_bytes().unwrap();
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        ws.set_hyperlink("A1", &Link::Url("https://example.com/a b?x=[1]#top".into()), &LinkOptions { tooltip: Some("Go".into()), text: Some("Example".into()), ..LinkOptions::default() }).unwrap();
+        ws.set_hyperlink("B2:C3", &Link::Location("Sheet1!D4".into()), &LinkOptions { display: Some("there".into()), ..LinkOptions::default() }).unwrap();
+        ws.set_hyperlink("A5", &Link::File("..\\docs\\x#1.xlsx".into()), &LinkOptions::default()).unwrap();
+        let links = ws.hyperlinks().unwrap();
+        assert_eq!(links.len(), 3);
+        assert_eq!(links[0].target.as_deref(), Some("https://example.com/a%20b?x=%5B1%5D"));
+        assert_eq!(links[0].location.as_deref(), Some("top"));
+        assert_eq!(links[2].target.as_deref(), Some("..\\docs\\x%231.xlsx"));
+    }
+    let out = wb.to_bytes().unwrap();
+    let xml = sheet_xml(&out);
+    assert!(xml.contains(r#"<hyperlinks><hyperlink ref="A1" r:id="rId1" location="top" tooltip="Go"/><hyperlink ref="B2:C3" location="Sheet1!D4" display="there"/><hyperlink ref="A5" r:id="rId2"/></hyperlinks>"#), "{xml}");
+    let rels = text(&out, "xl/worksheets/_rels/sheet1.xml.rels");
+    assert!(rels.contains(r#"Target="https://example.com/a%20b?x=%5B1%5D" TargetMode="External""#), "{rels}");
+    assert_cr(&input, &out, "Sheet1", a1("A1"), &ooxml_xlsx::CellValue::String("Example".into()));
+    // removal keeps the relationship; the last removal drops the container
+    let mut wb = Workbook::from_bytes(out).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        ws.remove_hyperlink("A1").unwrap();
+        ws.remove_hyperlink("B2:C3").unwrap();
+        ws.remove_hyperlink("A5").unwrap();
+        assert_matches!(ws.remove_hyperlink("A5"), Err(Error::NoSuchRule { .. }));
+    }
+    let out2 = wb.to_bytes().unwrap();
+    assert!(!sheet_xml(&out2).contains("hyperlink"));
+    assert!(text(&out2, "xl/worksheets/_rels/sheet1.xml.rels").contains("example.com"), "the relationship stays");
+    // refusals
+    let with = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap().to_bytes().unwrap();
+    let cases: Vec<(&str, Link, fn(&Error) -> bool)> = vec![
+        ("A1", Link::Url("example.com".into()), |e| matches!(e, Error::InvalidUrl(_))),
+        ("A1", Link::Url(format!("https://x/{}", "a".repeat(2100))), |e| matches!(e, Error::InvalidUrl(_))),
+        ("A1", Link::Location("Nope!A1".into()), |e| matches!(e, Error::UnknownSheet(_))),
+    ];
+    for (r, l, ok) in cases {
+        let (_, res) = try_on(&with, |ws| ws.set_hyperlink(r, &l, &LinkOptions::default()));
+        let e = res.unwrap_err();
+        assert!(ok(&e), "{e}");
+    }
+    let mut wb = Workbook::from_bytes(with.clone()).unwrap();
+    wb.worksheet().unwrap().set_hyperlink("A1:B2", &Link::Location("Sheet1!Z9".into()), &LinkOptions::default()).unwrap();
+    let twice = wb.to_bytes().unwrap();
+    let (_, res) = try_on(&twice, |ws| ws.set_hyperlink("B2", &Link::Location("Sheet1!Z9".into()), &LinkOptions::default()));
+    assert_matches!(res, Err(Error::HyperlinkOverlap { .. }));
+    // a merged range: anchor only
+    let mut wb = Workbook::from_bytes(with.clone()).unwrap();
+    wb.worksheet().unwrap().merge("D1:E2").unwrap();
+    let merged_in = wb.to_bytes().unwrap();
+    let (_, res) = try_on(&merged_in, |ws| ws.set_hyperlink("E2", &Link::Location("Sheet1!A1".into()), &LinkOptions::default()));
+    assert_matches!(res, Err(Error::MergedCell { .. }));
+    let (_, res) = try_on(&merged_in, |ws| ws.set_hyperlink("D1", &Link::Location("Sheet1!A1".into()), &LinkOptions::default()));
+    res.unwrap();
+}

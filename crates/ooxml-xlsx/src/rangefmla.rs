@@ -53,7 +53,7 @@ impl Workbook {
     }
 }
 
-fn walk(e: &Expr, f: &mut impl FnMut(&Prefix)) {
+pub(crate) fn walk(e: &Expr, f: &mut impl FnMut(&Prefix)) {
     match e {
         Expr::Ref(r) => f(&r.prefix),
         Expr::Name { prefix, .. } => f(prefix),

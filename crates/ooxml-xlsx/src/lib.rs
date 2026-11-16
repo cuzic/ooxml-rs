@@ -60,6 +60,7 @@ mod error;
 mod escape;
 mod formula;
 mod graph;
+mod hyperlink;
 mod index;
 mod layout;
 mod protect;
@@ -78,6 +79,7 @@ pub use workbook::ApplyStep;
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
 pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
+pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
 pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
 pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, Protection, WorkbookProtection};
 
