@@ -37,6 +37,34 @@ impl ooxml_core::EnumType for CellFormulaValues {
         self as usize
     }
 }
+/// `x:ST_SheetViewType` — Sheet View Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SheetViewValues {
+    /// `normal`
+    Normal,
+    /// `pageBreakPreview`
+    PageBreakPreview,
+    /// `pageLayout`
+    PageLayout,
+}
+impl ooxml_core::EnumType for SheetViewValues {
+    const VALUES: &'static [&'static str] = &[
+        "normal",
+        "pageBreakPreview",
+        "pageLayout",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Normal),
+            1 => Some(Self::PageBreakPreview),
+            2 => Some(Self::PageLayout),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_TableType` — Table Type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TableValues {
@@ -61,6 +89,82 @@ impl ooxml_core::EnumType for TableValues {
         self as usize
     }
 }
+/// `x:ST_Visibility` — Visibility Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VisibilityValues {
+    /// `visible`
+    Visible,
+    /// `hidden`
+    Hidden,
+    /// `veryHidden`
+    VeryHidden,
+}
+impl ooxml_core::EnumType for VisibilityValues {
+    const VALUES: &'static [&'static str] = &["visible", "hidden", "veryHidden"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Visible),
+            1 => Some(Self::Hidden),
+            2 => Some(Self::VeryHidden),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_Comments` — Comment Display Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CommentsValues {
+    /// `commNone`
+    CommentNone,
+    /// `commIndicator`
+    CommentIndicator,
+    /// `commIndAndComment`
+    CommentIndicatorAndComment,
+}
+impl ooxml_core::EnumType for CommentsValues {
+    const VALUES: &'static [&'static str] = &[
+        "commNone",
+        "commIndicator",
+        "commIndAndComment",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::CommentNone),
+            1 => Some(Self::CommentIndicator),
+            2 => Some(Self::CommentIndicatorAndComment),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_Objects` — Object Display Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ObjectDisplayValues {
+    /// `all`
+    All,
+    /// `placeholders`
+    Placeholders,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for ObjectDisplayValues {
+    const VALUES: &'static [&'static str] = &["all", "placeholders", "none"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::All),
+            1 => Some(Self::Placeholders),
+            2 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_SheetState` — Sheet Visibility Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SheetStateValues {
@@ -78,6 +182,30 @@ impl ooxml_core::EnumType for SheetStateValues {
             0 => Some(Self::Visible),
             1 => Some(Self::Hidden),
             2 => Some(Self::VeryHidden),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_UpdateLinks` — Update Links Behavior Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UpdateLinksBehaviorValues {
+    /// `userSet`
+    UserSet,
+    /// `never`
+    Never,
+    /// `always`
+    Always,
+}
+impl ooxml_core::EnumType for UpdateLinksBehaviorValues {
+    const VALUES: &'static [&'static str] = &["userSet", "never", "always"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::UserSet),
+            1 => Some(Self::Never),
+            2 => Some(Self::Always),
             _ => None,
         }
     }
@@ -214,6 +342,508 @@ impl ooxml_core::EnumType for SpaceProcessingModeValues {
     }
     fn index(self) -> usize {
         self as usize
+    }
+}
+/// `x:CT_BookView/x:workbookView` — Workbook View.
+#[derive(Debug)]
+pub enum WorkbookViewElement {}
+impl WorkbookViewElement {
+    /// `visibility`
+    pub const ATTR_VISIBILITY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "visibility",
+    );
+    /// `minimized`
+    pub const ATTR_MINIMIZED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minimized",
+    );
+    /// `showHorizontalScroll`
+    pub const ATTR_SHOW_HORIZONTAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showHorizontalScroll",
+    );
+    /// `showVerticalScroll`
+    pub const ATTR_SHOW_VERTICAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showVerticalScroll",
+    );
+    /// `showSheetTabs`
+    pub const ATTR_SHOW_SHEET_TABS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showSheetTabs",
+    );
+    /// `xWindow`
+    pub const ATTR_X_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "xWindow");
+    /// `yWindow`
+    pub const ATTR_Y_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "yWindow");
+    /// `windowWidth`
+    pub const ATTR_WINDOW_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowWidth",
+    );
+    /// `windowHeight`
+    pub const ATTR_WINDOW_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowHeight",
+    );
+    /// `tabRatio`
+    pub const ATTR_TAB_RATIO: ooxml_core::QName = ooxml_core::QName::new("", "tabRatio");
+    /// `firstSheet`
+    pub const ATTR_FIRST_SHEET: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "firstSheet",
+    );
+    /// `activeTab`
+    pub const ATTR_ACTIVE_TAB: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activeTab",
+    );
+    /// `autoFilterDateGrouping`
+    pub const ATTR_AUTO_FILTER_DATE_GROUPING: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoFilterDateGrouping",
+    );
+}
+impl ooxml_core::ElementSpec for WorkbookViewElement {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "workbookView");
+    const SDK_NAME: &'static str = "x:CT_BookView/x:workbookView";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_VISIBILITY,
+            ty: ooxml_core::SimpleType::Enum(
+                <VisibilityValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("visible"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_MINIMIZED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_SHOW_SHEET_TABS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_X_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_Y_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_WINDOW_WIDTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_WINDOW_HEIGHT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_TAB_RATIO,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("600"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_FIRST_SHEET,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_ACTIVE_TAB,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`WorkbookViewElement`].
+#[derive(Clone, Debug)]
+pub struct WorkbookViewElementView<'a>(pub ooxml_core::Lens<'a, WorkbookViewElement>);
+impl<'a> WorkbookViewElementView<'a> {
+    /// `visibility` — Visibility (default `visible`)
+    pub fn visibility(&self) -> ooxml_core::EnumValue<'a, VisibilityValues> {
+        self.0.attr_enum_or(WorkbookViewElement::ATTR_VISIBILITY, "visible")
+    }
+    /// `minimized` — Minimized (default `false`)
+    pub fn minimized(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_MINIMIZED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showHorizontalScroll` — Show Horizontal Scroll (default `true`)
+    pub fn show_horizontal_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showVerticalScroll` — Show Vertical Scroll (default `true`)
+    pub fn show_vertical_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showSheetTabs` — Show Sheet Tabs (default `true`)
+    pub fn show_sheet_tabs(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_SHOW_SHEET_TABS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xWindow` — Upper Left Corner (X Coordinate)
+    pub fn x_window(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_X_WINDOW,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `yWindow` — Upper Left Corner (Y Coordinate)
+    pub fn y_window(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_Y_WINDOW,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `windowWidth` — Window Width
+    pub fn window_width(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_WINDOW_WIDTH,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `windowHeight` — Window Height
+    pub fn window_height(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_WINDOW_HEIGHT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `tabRatio` — Sheet Tab Ratio (default `600`)
+    pub fn tab_ratio(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_TAB_RATIO,
+                "600",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `firstSheet` — First Sheet (default `0`)
+    pub fn first_sheet(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_FIRST_SHEET,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `activeTab` — Active Sheet Index (default `0`)
+    pub fn active_tab(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_ACTIVE_TAB,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `autoFilterDateGrouping` — AutoFilter Date Grouping (default `true`)
+    pub fn auto_filter_date_grouping(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorkbookViewElement`]. Reads go through [`WorkbookViewElementViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorkbookViewElementViewMut<'a>(
+    pub ooxml_core::LensMut<'a, WorkbookViewElement>,
+);
+impl<'a> WorkbookViewElementViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorkbookViewElementView<'_> {
+        WorkbookViewElementView(self.0.as_lens())
+    }
+    /// Sets `visibility` — Visibility (default `visible`)
+    pub fn set_visibility(
+        &mut self,
+        v: VisibilityValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_VISIBILITY,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `visibility`.
+    pub fn remove_visibility(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_VISIBILITY)
+    }
+    /// Sets `minimized` — Minimized (default `false`)
+    pub fn set_minimized(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_MINIMIZED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `minimized`.
+    pub fn remove_minimized(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_MINIMIZED)
+    }
+    /// Sets `showHorizontalScroll` — Show Horizontal Scroll (default `true`)
+    pub fn set_show_horizontal_scroll(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showHorizontalScroll`.
+    pub fn remove_show_horizontal_scroll(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL)
+    }
+    /// Sets `showVerticalScroll` — Show Vertical Scroll (default `true`)
+    pub fn set_show_vertical_scroll(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showVerticalScroll`.
+    pub fn remove_show_vertical_scroll(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL)
+    }
+    /// Sets `showSheetTabs` — Show Sheet Tabs (default `true`)
+    pub fn set_show_sheet_tabs(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_SHOW_SHEET_TABS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showSheetTabs`.
+    pub fn remove_show_sheet_tabs(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_SHOW_SHEET_TABS)
+    }
+    /// Sets `xWindow` — Upper Left Corner (X Coordinate)
+    pub fn set_x_window(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_X_WINDOW, s),
+        )
+    }
+    /// Removes `xWindow`.
+    pub fn remove_x_window(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_X_WINDOW)
+    }
+    /// Sets `yWindow` — Upper Left Corner (Y Coordinate)
+    pub fn set_y_window(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_Y_WINDOW, s),
+        )
+    }
+    /// Removes `yWindow`.
+    pub fn remove_y_window(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_Y_WINDOW)
+    }
+    /// Sets `windowWidth` — Window Width
+    pub fn set_window_width(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_WINDOW_WIDTH, s),
+        )
+    }
+    /// Removes `windowWidth`.
+    pub fn remove_window_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_WINDOW_WIDTH)
+    }
+    /// Sets `windowHeight` — Window Height
+    pub fn set_window_height(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_WINDOW_HEIGHT, s),
+        )
+    }
+    /// Removes `windowHeight`.
+    pub fn remove_window_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_WINDOW_HEIGHT)
+    }
+    /// Sets `tabRatio` — Sheet Tab Ratio (default `600`)
+    pub fn set_tab_ratio(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_TAB_RATIO, s),
+        )
+    }
+    /// Removes `tabRatio`.
+    pub fn remove_tab_ratio(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_TAB_RATIO)
+    }
+    /// Sets `firstSheet` — First Sheet (default `0`)
+    pub fn set_first_sheet(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_FIRST_SHEET, s),
+        )
+    }
+    /// Removes `firstSheet`.
+    pub fn remove_first_sheet(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_FIRST_SHEET)
+    }
+    /// Sets `activeTab` — Active Sheet Index (default `0`)
+    pub fn set_active_tab(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_ACTIVE_TAB, s),
+        )
+    }
+    /// Removes `activeTab`.
+    pub fn remove_active_tab(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_ACTIVE_TAB)
+    }
+    /// Sets `autoFilterDateGrouping` — AutoFilter Date Grouping (default `true`)
+    pub fn set_auto_filter_date_grouping(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `autoFilterDateGrouping`.
+    pub fn remove_auto_filter_date_grouping(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING)
+    }
+}
+/// `x:CT_BookViews/x:bookViews` — Defines the BookViews Class.
+#[derive(Debug)]
+pub enum BookViews {}
+impl ooxml_core::ElementSpec for BookViews {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "bookViews");
+    const SDK_NAME: &'static str = "x:CT_BookViews/x:bookViews";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "workbookView")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BookViews> for WorkbookViewElement {}
+/// Read-only view of [`BookViews`].
+#[derive(Clone, Debug)]
+pub struct BookViewsView<'a>(pub ooxml_core::Lens<'a, BookViews>);
+impl<'a> BookViewsView<'a> {
+    /// `x:workbookView` children in document order.
+    pub fn workbook_view_iter(
+        &self,
+    ) -> impl Iterator<Item = WorkbookViewElementView<'a>> {
+        self.0.children::<WorkbookViewElement>().map(WorkbookViewElementView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BookViews`]. Reads go through [`BookViewsViewMut::as_view`].
+#[derive(Debug)]
+pub struct BookViewsViewMut<'a>(pub ooxml_core::LensMut<'a, BookViews>);
+impl<'a> BookViewsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BookViewsView<'_> {
+        BookViewsView(self.0.as_lens())
+    }
+    /// First `x:workbookView` child matching `pred`, mutably.
+    pub fn workbook_view_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<WorkbookViewElementViewMut<'_>> {
+        self.0.child_mut_by::<WorkbookViewElement>(pred).map(WorkbookViewElementViewMut)
+    }
+    /// Inserts a `x:workbookView` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_workbook_view_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<WorkbookViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<WorkbookViewElement>(before).map(WorkbookViewElementViewMut)
+    }
+    /// Appends a `x:workbookView` at the end of its slot.
+    pub fn insert_workbook_view(
+        &mut self,
+    ) -> Result<WorkbookViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<WorkbookViewElement>().map(WorkbookViewElementViewMut)
+    }
+    /// Removes the first `x:workbookView` child.
+    pub fn remove_workbook_view(&mut self) -> bool {
+        self.0.remove::<WorkbookViewElement>()
     }
 }
 /// `x:CT_CalcPr/x:calcPr` — Defines the CalculationProperties Class.
@@ -1212,6 +1842,613 @@ impl<'a> CellFormulaViewMut<'a> {
         self.0.set_text(v)
     }
 }
+/// `x:CT_Color/x:tabColor` — Sheet Tab Color.
+#[derive(Debug)]
+pub enum TabColor {}
+impl TabColor {
+    /// `auto`
+    pub const ATTR_AUTO: ooxml_core::QName = ooxml_core::QName::new("", "auto");
+    /// `indexed`
+    pub const ATTR_INDEXED: ooxml_core::QName = ooxml_core::QName::new("", "indexed");
+    /// `rgb`
+    pub const ATTR_RGB: ooxml_core::QName = ooxml_core::QName::new("", "rgb");
+    /// `theme`
+    pub const ATTR_THEME: ooxml_core::QName = ooxml_core::QName::new("", "theme");
+    /// `tint`
+    pub const ATTR_TINT: ooxml_core::QName = ooxml_core::QName::new("", "tint");
+}
+impl ooxml_core::ElementSpec for TabColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tabColor");
+    const SDK_NAME: &'static str = "x:CT_Color/x:tabColor";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_AUTO,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_INDEXED,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_RGB,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_THEME,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_TINT,
+            ty: ooxml_core::SimpleType::Double,
+            default: Some("0.0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TabColor`].
+#[derive(Clone, Debug)]
+pub struct TabColorView<'a>(pub ooxml_core::Lens<'a, TabColor>);
+impl<'a> TabColorView<'a> {
+    /// `auto` — Automatic
+    pub fn auto(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabColor::ATTR_AUTO, ooxml_core::value::parse_bool)
+    }
+    /// `indexed` — Index
+    pub fn indexed(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabColor::ATTR_INDEXED, ooxml_core::value::parse_u32)
+    }
+    /// `rgb` — Alpha Red Green Blue Color Value
+    pub fn rgb(&self) -> Option<&'a str> {
+        self.0.attr(TabColor::ATTR_RGB)
+    }
+    /// `theme` — Theme Color
+    pub fn theme(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabColor::ATTR_THEME, ooxml_core::value::parse_u32)
+    }
+    /// `tint` — Tint (default `0.0`)
+    pub fn tint(&self) -> Result<f64, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(TabColor::ATTR_TINT, "0.0", ooxml_core::value::parse_f64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TabColor`]. Reads go through [`TabColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct TabColorViewMut<'a>(pub ooxml_core::LensMut<'a, TabColor>);
+impl<'a> TabColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TabColorView<'_> {
+        TabColorView(self.0.as_lens())
+    }
+    /// Sets `auto` — Automatic
+    pub fn set_auto(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabColor::ATTR_AUTO, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `auto`.
+    pub fn remove_auto(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_AUTO)
+    }
+    /// Sets `indexed` — Index
+    pub fn set_indexed(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(TabColor::ATTR_INDEXED, s))
+    }
+    /// Removes `indexed`.
+    pub fn remove_indexed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_INDEXED)
+    }
+    /// Sets `rgb` — Alpha Red Green Blue Color Value
+    pub fn set_rgb(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabColor::ATTR_RGB, v)
+    }
+    /// Removes `rgb`.
+    pub fn remove_rgb(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_RGB)
+    }
+    /// Sets `theme` — Theme Color
+    pub fn set_theme(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(TabColor::ATTR_THEME, s))
+    }
+    /// Removes `theme`.
+    pub fn remove_theme(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_THEME)
+    }
+    /// Sets `tint` — Tint (default `0.0`)
+    pub fn set_tint(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabColor::ATTR_TINT, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `tint`.
+    pub fn remove_tint(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_TINT)
+    }
+}
+/// `x:CT_CustomWorkbookView/x:customWorkbookView` — Custom Workbook View.
+#[derive(Debug)]
+pub enum CustomWorkbookView {}
+impl CustomWorkbookView {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `guid`
+    pub const ATTR_GUID: ooxml_core::QName = ooxml_core::QName::new("", "guid");
+    /// `autoUpdate`
+    pub const ATTR_AUTO_UPDATE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoUpdate",
+    );
+    /// `mergeInterval`
+    pub const ATTR_MERGE_INTERVAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "mergeInterval",
+    );
+    /// `changesSavedWin`
+    pub const ATTR_CHANGES_SAVED_WIN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "changesSavedWin",
+    );
+    /// `onlySync`
+    pub const ATTR_ONLY_SYNC: ooxml_core::QName = ooxml_core::QName::new("", "onlySync");
+    /// `personalView`
+    pub const ATTR_PERSONAL_VIEW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "personalView",
+    );
+    /// `includePrintSettings`
+    pub const ATTR_INCLUDE_PRINT_SETTINGS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "includePrintSettings",
+    );
+    /// `includeHiddenRowCol`
+    pub const ATTR_INCLUDE_HIDDEN_ROW_COL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "includeHiddenRowCol",
+    );
+    /// `maximized`
+    pub const ATTR_MAXIMIZED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "maximized",
+    );
+    /// `minimized`
+    pub const ATTR_MINIMIZED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minimized",
+    );
+    /// `showHorizontalScroll`
+    pub const ATTR_SHOW_HORIZONTAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showHorizontalScroll",
+    );
+    /// `showVerticalScroll`
+    pub const ATTR_SHOW_VERTICAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showVerticalScroll",
+    );
+    /// `showSheetTabs`
+    pub const ATTR_SHOW_SHEET_TABS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showSheetTabs",
+    );
+    /// `xWindow`
+    pub const ATTR_X_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "xWindow");
+    /// `yWindow`
+    pub const ATTR_Y_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "yWindow");
+    /// `windowWidth`
+    pub const ATTR_WINDOW_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowWidth",
+    );
+    /// `windowHeight`
+    pub const ATTR_WINDOW_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowHeight",
+    );
+    /// `tabRatio`
+    pub const ATTR_TAB_RATIO: ooxml_core::QName = ooxml_core::QName::new("", "tabRatio");
+    /// `activeSheetId`
+    pub const ATTR_ACTIVE_SHEET_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activeSheetId",
+    );
+    /// `showFormulaBar`
+    pub const ATTR_SHOW_FORMULA_BAR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showFormulaBar",
+    );
+    /// `showStatusbar`
+    pub const ATTR_SHOW_STATUSBAR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showStatusbar",
+    );
+    /// `showComments`
+    pub const ATTR_SHOW_COMMENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showComments",
+    );
+    /// `showObjects`
+    pub const ATTR_SHOW_OBJECTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showObjects",
+    );
+}
+impl ooxml_core::ElementSpec for CustomWorkbookView {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "customWorkbookView");
+    const SDK_NAME: &'static str = "x:CT_CustomWorkbookView/x:customWorkbookView";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_GUID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_AUTO_UPDATE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_MERGE_INTERVAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_CHANGES_SAVED_WIN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_ONLY_SYNC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_PERSONAL_VIEW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_INCLUDE_PRINT_SETTINGS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_INCLUDE_HIDDEN_ROW_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_MAXIMIZED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_MINIMIZED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_HORIZONTAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_VERTICAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_SHEET_TABS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_X_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_Y_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_WINDOW_WIDTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_WINDOW_HEIGHT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_TAB_RATIO,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("600"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_ACTIVE_SHEET_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_FORMULA_BAR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_STATUSBAR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_COMMENTS,
+            ty: ooxml_core::SimpleType::Enum(
+                <CommentsValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("commIndicator"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_OBJECTS,
+            ty: ooxml_core::SimpleType::Enum(
+                <ObjectDisplayValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("all"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`CustomWorkbookView`].
+#[derive(Clone, Debug)]
+pub struct CustomWorkbookViewView<'a>(pub ooxml_core::Lens<'a, CustomWorkbookView>);
+impl<'a> CustomWorkbookViewView<'a> {
+    /// `name` — Custom View Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(CustomWorkbookView::ATTR_NAME)
+    }
+    /// `guid` — Custom View GUID
+    pub fn guid(&self) -> Option<&'a str> {
+        self.0.attr(CustomWorkbookView::ATTR_GUID)
+    }
+    /// `autoUpdate` — Auto Update (default `false`)
+    pub fn auto_update(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_AUTO_UPDATE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `mergeInterval` — Merge Interval
+    pub fn merge_interval(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_MERGE_INTERVAL,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `changesSavedWin` — Changes Saved Win (default `false`)
+    pub fn changes_saved_win(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_CHANGES_SAVED_WIN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `onlySync` — Only Synch (default `false`)
+    pub fn only_sync(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_ONLY_SYNC,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `personalView` — Personal View (default `false`)
+    pub fn personal_view(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_PERSONAL_VIEW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `includePrintSettings` — Include Print Settings (default `true`)
+    pub fn include_print_settings(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_INCLUDE_PRINT_SETTINGS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `includeHiddenRowCol` — Include Hidden Rows and Columns (default `true`)
+    pub fn include_hidden_row_column(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_INCLUDE_HIDDEN_ROW_COL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `maximized` — Maximized (default `false`)
+    pub fn maximized(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_MAXIMIZED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `minimized` — Minimized (default `false`)
+    pub fn minimized(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_MINIMIZED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showHorizontalScroll` — Show Horizontal Scroll (default `true`)
+    pub fn show_horizontal_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_HORIZONTAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showVerticalScroll` — Show Vertical Scroll (default `true`)
+    pub fn show_vertical_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_VERTICAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showSheetTabs` — Show Sheet Tabs (default `true`)
+    pub fn show_sheet_tabs(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_SHEET_TABS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xWindow` — Top Left Corner (X Coordinate) (default `0`)
+    pub fn x_window(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_X_WINDOW,
+                "0",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `yWindow` — Top Left Corner (Y Coordinate) (default `0`)
+    pub fn y_window(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_Y_WINDOW,
+                "0",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `windowWidth` — Window Width
+    pub fn window_width(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_WINDOW_WIDTH,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `windowHeight` — Window Height
+    pub fn window_height(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_WINDOW_HEIGHT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `tabRatio` — Sheet Tab Ratio (default `600`)
+    pub fn tab_ratio(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_TAB_RATIO,
+                "600",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `activeSheetId` — Active Sheet in Book View
+    pub fn active_sheet_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_ACTIVE_SHEET_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `showFormulaBar` — Show Formula Bar (default `true`)
+    pub fn show_formula_bar(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_FORMULA_BAR,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showStatusbar` — Show Status Bar (default `true`)
+    pub fn show_statusbar(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_STATUSBAR,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showComments` — Show Comments (default `commIndicator`)
+    pub fn show_comments(&self) -> ooxml_core::EnumValue<'a, CommentsValues> {
+        self.0.attr_enum_or(CustomWorkbookView::ATTR_SHOW_COMMENTS, "commIndicator")
+    }
+    /// `showObjects` — Show Objects (default `all`)
+    pub fn show_objects(&self) -> ooxml_core::EnumValue<'a, ObjectDisplayValues> {
+        self.0.attr_enum_or(CustomWorkbookView::ATTR_SHOW_OBJECTS, "all")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_CustomWorkbookViews/x:customWorkbookViews` — Defines the CustomWorkbookViews Class.
+#[derive(Debug)]
+pub enum CustomWorkbookViews {}
+impl ooxml_core::ElementSpec for CustomWorkbookViews {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "customWorkbookViews");
+    const SDK_NAME: &'static str = "x:CT_CustomWorkbookViews/x:customWorkbookViews";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "customWorkbookView")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CustomWorkbookViews> for CustomWorkbookView {}
+/// Read-only view of [`CustomWorkbookViews`].
+#[derive(Clone, Debug)]
+pub struct CustomWorkbookViewsView<'a>(pub ooxml_core::Lens<'a, CustomWorkbookViews>);
+impl<'a> CustomWorkbookViewsView<'a> {
+    /// `x:customWorkbookView` children in document order.
+    pub fn custom_workbook_view_iter(
+        &self,
+    ) -> impl Iterator<Item = CustomWorkbookViewView<'a>> {
+        self.0.children::<CustomWorkbookView>().map(CustomWorkbookViewView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `x:CT_DefinedName/x:definedName` — Defined Name.
 #[derive(Debug)]
 pub enum DefinedName {}
@@ -1466,6 +2703,154 @@ impl<'a> DefinedNameView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`DefinedName`]. Reads go through [`DefinedNameViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefinedNameViewMut<'a>(pub ooxml_core::LensMut<'a, DefinedName>);
+impl<'a> DefinedNameViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefinedNameView<'_> {
+        DefinedNameView(self.0.as_lens())
+    }
+    /// Sets `name` — Defined Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_NAME)
+    }
+    /// Sets `comment` — Comment
+    pub fn set_comment(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_COMMENT, v)
+    }
+    /// Removes `comment`.
+    pub fn remove_comment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_COMMENT)
+    }
+    /// Sets `customMenu` — Custom Menu Text
+    pub fn set_custom_menu(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_CUSTOM_MENU, v)
+    }
+    /// Removes `customMenu`.
+    pub fn remove_custom_menu(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_CUSTOM_MENU)
+    }
+    /// Sets `description` — Description
+    pub fn set_description(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_DESCRIPTION, v)
+    }
+    /// Removes `description`.
+    pub fn remove_description(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_DESCRIPTION)
+    }
+    /// Sets `help` — Help
+    pub fn set_help(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_HELP, v)
+    }
+    /// Removes `help`.
+    pub fn remove_help(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_HELP)
+    }
+    /// Sets `statusBar` — Status Bar
+    pub fn set_status_bar(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_STATUS_BAR, v)
+    }
+    /// Removes `statusBar`.
+    pub fn remove_status_bar(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_STATUS_BAR)
+    }
+    /// Sets `localSheetId` — Local Name Sheet Id
+    pub fn set_local_sheet_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefinedName::ATTR_LOCAL_SHEET_ID, s),
+        )
+    }
+    /// Removes `localSheetId`.
+    pub fn remove_local_sheet_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_LOCAL_SHEET_ID)
+    }
+    /// Sets `hidden` — Hidden Name (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_HIDDEN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_HIDDEN)
+    }
+    /// Sets `function` — Function (default `false`)
+    pub fn set_function(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_FUNCTION, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `function`.
+    pub fn remove_function(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_FUNCTION)
+    }
+    /// Sets `vbProcedure` — Procedure (default `false`)
+    pub fn set_vb_procedure(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(DefinedName::ATTR_VB_PROCEDURE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `vbProcedure`.
+    pub fn remove_vb_procedure(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_VB_PROCEDURE)
+    }
+    /// Sets `xlm` — External Function (default `false`)
+    pub fn set_xlm(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_XLM, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `xlm`.
+    pub fn remove_xlm(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_XLM)
+    }
+    /// Sets `functionGroupId` — Function Group Id
+    pub fn set_function_group_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefinedName::ATTR_FUNCTION_GROUP_ID, s),
+        )
+    }
+    /// Removes `functionGroupId`.
+    pub fn remove_function_group_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_FUNCTION_GROUP_ID)
+    }
+    /// Sets `shortcutKey` — Shortcut Key
+    pub fn set_shortcut_key(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_SHORTCUT_KEY, v)
+    }
+    /// Removes `shortcutKey`.
+    pub fn remove_shortcut_key(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_SHORTCUT_KEY)
+    }
+    /// Sets `publishToServer` — Publish To Server (default `false`)
+    pub fn set_publish_to_server(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefinedName::ATTR_PUBLISH_TO_SERVER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `publishToServer`.
+    pub fn remove_publish_to_server(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_PUBLISH_TO_SERVER)
+    }
+    /// Sets `workbookParameter` — Workbook Parameter (Server) (default `false`)
+    pub fn set_workbook_parameter(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefinedName::ATTR_WORKBOOK_PARAMETER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `workbookParameter`.
+    pub fn remove_workbook_parameter(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_WORKBOOK_PARAMETER)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
 /// `x:CT_DefinedNames/x:definedNames` — Defines the DefinedNames Class.
 #[derive(Debug)]
 pub enum DefinedNames {}
@@ -1496,6 +2881,229 @@ impl<'a> DefinedNamesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`DefinedNames`]. Reads go through [`DefinedNamesViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefinedNamesViewMut<'a>(pub ooxml_core::LensMut<'a, DefinedNames>);
+impl<'a> DefinedNamesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefinedNamesView<'_> {
+        DefinedNamesView(self.0.as_lens())
+    }
+    /// First `x:definedName` child matching `pred`, mutably.
+    pub fn defined_name_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DefinedNameViewMut<'_>> {
+        self.0.child_mut_by::<DefinedName>(pred).map(DefinedNameViewMut)
+    }
+    /// Inserts a `x:definedName` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_defined_name_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DefinedNameViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DefinedName>(before).map(DefinedNameViewMut)
+    }
+    /// Appends a `x:definedName` at the end of its slot.
+    pub fn insert_defined_name(
+        &mut self,
+    ) -> Result<DefinedNameViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DefinedName>().map(DefinedNameViewMut)
+    }
+    /// Removes the first `x:definedName` child.
+    pub fn remove_defined_name(&mut self) -> bool {
+        self.0.remove::<DefinedName>()
+    }
+}
+/// `x:CT_Hyperlink/x:hyperlink` — Hyperlink.
+#[derive(Debug)]
+pub enum Hyperlink {}
+impl Hyperlink {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `location`
+    pub const ATTR_LOCATION: ooxml_core::QName = ooxml_core::QName::new("", "location");
+    /// `tooltip`
+    pub const ATTR_TOOLTIP: ooxml_core::QName = ooxml_core::QName::new("", "tooltip");
+    /// `display`
+    pub const ATTR_DISPLAY: ooxml_core::QName = ooxml_core::QName::new("", "display");
+}
+impl ooxml_core::ElementSpec for Hyperlink {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "hyperlink");
+    const SDK_NAME: &'static str = "x:CT_Hyperlink/x:hyperlink";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_LOCATION,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_TOOLTIP,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_DISPLAY,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Hyperlink`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkView<'a>(pub ooxml_core::Lens<'a, Hyperlink>);
+impl<'a> HyperlinkView<'a> {
+    /// `ref` — Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_REF)
+    }
+    /// `r:id` — Relationship Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_R_ID)
+    }
+    /// `location` — Location
+    pub fn location(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_LOCATION)
+    }
+    /// `tooltip` — Tool Tip
+    pub fn tooltip(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_TOOLTIP)
+    }
+    /// `display` — Display String
+    pub fn display(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_DISPLAY)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Hyperlink`]. Reads go through [`HyperlinkViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkViewMut<'a>(pub ooxml_core::LensMut<'a, Hyperlink>);
+impl<'a> HyperlinkViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkView<'_> {
+        HyperlinkView(self.0.as_lens())
+    }
+    /// Sets `ref` — Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_REF)
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_R_ID)
+    }
+    /// Sets `location` — Location
+    pub fn set_location(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_LOCATION, v)
+    }
+    /// Removes `location`.
+    pub fn remove_location(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_LOCATION)
+    }
+    /// Sets `tooltip` — Tool Tip
+    pub fn set_tooltip(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_TOOLTIP, v)
+    }
+    /// Removes `tooltip`.
+    pub fn remove_tooltip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_TOOLTIP)
+    }
+    /// Sets `display` — Display String
+    pub fn set_display(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_DISPLAY, v)
+    }
+    /// Removes `display`.
+    pub fn remove_display(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_DISPLAY)
+    }
+}
+/// `x:CT_Hyperlinks/x:hyperlinks` — Defines the Hyperlinks Class.
+#[derive(Debug)]
+pub enum Hyperlinks {}
+impl ooxml_core::ElementSpec for Hyperlinks {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "hyperlinks");
+    const SDK_NAME: &'static str = "x:CT_Hyperlinks/x:hyperlinks";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "hyperlink")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Hyperlinks> for Hyperlink {}
+/// Read-only view of [`Hyperlinks`].
+#[derive(Clone, Debug)]
+pub struct HyperlinksView<'a>(pub ooxml_core::Lens<'a, Hyperlinks>);
+impl<'a> HyperlinksView<'a> {
+    /// `x:hyperlink` children in document order.
+    pub fn hyperlink_iter(&self) -> impl Iterator<Item = HyperlinkView<'a>> {
+        self.0.children::<Hyperlink>().map(HyperlinkView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Hyperlinks`]. Reads go through [`HyperlinksViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinksViewMut<'a>(pub ooxml_core::LensMut<'a, Hyperlinks>);
+impl<'a> HyperlinksViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinksView<'_> {
+        HyperlinksView(self.0.as_lens())
+    }
+    /// First `x:hyperlink` child matching `pred`, mutably.
+    pub fn hyperlink_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HyperlinkViewMut<'_>> {
+        self.0.child_mut_by::<Hyperlink>(pred).map(HyperlinkViewMut)
+    }
+    /// Inserts a `x:hyperlink` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hyperlink_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hyperlink>(before).map(HyperlinkViewMut)
+    }
+    /// Appends a `x:hyperlink` at the end of its slot.
+    pub fn insert_hyperlink(
+        &mut self,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hyperlink>().map(HyperlinkViewMut)
+    }
+    /// Removes the first `x:hyperlink` child.
+    pub fn remove_hyperlink(&mut self) -> bool {
+        self.0.remove::<Hyperlink>()
     }
 }
 /// `x:CT_MergeCell/x:mergeCell` — Merged Cell.
@@ -2159,6 +3767,47 @@ impl<'a> SheetView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Sheet`]. Reads go through [`SheetViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetViewMut<'a>(pub ooxml_core::LensMut<'a, Sheet>);
+impl<'a> SheetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetView<'_> {
+        SheetView(self.0.as_lens())
+    }
+    /// Sets `name` — Sheet Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Sheet::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_NAME)
+    }
+    /// Sets `sheetId` — Sheet Tab Id
+    pub fn set_sheet_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Sheet::ATTR_SHEET_ID, s))
+    }
+    /// Removes `sheetId`.
+    pub fn remove_sheet_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_SHEET_ID)
+    }
+    /// Sets `state` — Visible State (default `visible`)
+    pub fn set_state(&mut self, v: SheetStateValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Sheet::ATTR_STATE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `state`.
+    pub fn remove_state(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_STATE)
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Sheet::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_R_ID)
+    }
+}
 /// `x:CT_SheetData/x:sheetData` — Sheet Data.
 #[derive(Debug)]
 pub enum SheetData {}
@@ -2271,6 +3920,1042 @@ impl<'a> SheetDimensionViewMut<'a> {
         self.0.remove_attr(SheetDimension::ATTR_REF)
     }
 }
+/// `x:CT_SheetPr/x:sheetPr` — Sheet Properties.
+#[derive(Debug)]
+pub enum SheetProperties {}
+impl SheetProperties {
+    /// `syncHorizontal`
+    pub const ATTR_SYNC_HORIZONTAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncHorizontal",
+    );
+    /// `syncVertical`
+    pub const ATTR_SYNC_VERTICAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncVertical",
+    );
+    /// `syncRef`
+    pub const ATTR_SYNC_REF: ooxml_core::QName = ooxml_core::QName::new("", "syncRef");
+    /// `transitionEvaluation`
+    pub const ATTR_TRANSITION_EVALUATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "transitionEvaluation",
+    );
+    /// `transitionEntry`
+    pub const ATTR_TRANSITION_ENTRY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "transitionEntry",
+    );
+    /// `published`
+    pub const ATTR_PUBLISHED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "published",
+    );
+    /// `codeName`
+    pub const ATTR_CODE_NAME: ooxml_core::QName = ooxml_core::QName::new("", "codeName");
+    /// `filterMode`
+    pub const ATTR_FILTER_MODE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "filterMode",
+    );
+    /// `enableFormatConditionsCalculation`
+    pub const ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "enableFormatConditionsCalculation",
+    );
+}
+impl ooxml_core::ElementSpec for SheetProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetPr");
+    const SDK_NAME: &'static str = "x:CT_SheetPr/x:sheetPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_HORIZONTAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_VERTICAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_TRANSITION_EVALUATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_TRANSITION_ENTRY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_PUBLISHED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_CODE_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_FILTER_MODE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tabColor")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "outlinePr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pageSetUpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SheetProperties> for TabColor {}
+/// Read-only view of [`SheetProperties`].
+#[derive(Clone, Debug)]
+pub struct SheetPropertiesView<'a>(pub ooxml_core::Lens<'a, SheetProperties>);
+impl<'a> SheetPropertiesView<'a> {
+    /// `syncHorizontal` — Synch Horizontal (default `false`)
+    pub fn sync_horizontal(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_SYNC_HORIZONTAL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `syncVertical` — Synch Vertical (default `false`)
+    pub fn sync_vertical(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_SYNC_VERTICAL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `syncRef` — Synch Reference
+    pub fn sync_reference(&self) -> Option<&'a str> {
+        self.0.attr(SheetProperties::ATTR_SYNC_REF)
+    }
+    /// `transitionEvaluation` — Transition Formula Evaluation (default `false`)
+    pub fn transition_evaluation(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_TRANSITION_EVALUATION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `transitionEntry` — Transition Formula Entry (default `false`)
+    pub fn transition_entry(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_TRANSITION_ENTRY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `published` — Published (default `true`)
+    pub fn published(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_PUBLISHED,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `codeName` — Code Name
+    pub fn code_name(&self) -> Option<&'a str> {
+        self.0.attr(SheetProperties::ATTR_CODE_NAME)
+    }
+    /// `filterMode` — Filter Mode (default `false`)
+    pub fn filter_mode(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_FILTER_MODE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `enableFormatConditionsCalculation` — Enable Conditional Formatting Calculations (default `true`)
+    pub fn enable_format_conditions_calculation(
+        &self,
+    ) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `x:tabColor` child.
+    pub fn tab_color(&self) -> Option<TabColorView<'a>> {
+        self.0.child::<TabColor>().map(TabColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetProperties`]. Reads go through [`SheetPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, SheetProperties>);
+impl<'a> SheetPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetPropertiesView<'_> {
+        SheetPropertiesView(self.0.as_lens())
+    }
+    /// Sets `syncHorizontal` — Synch Horizontal (default `false`)
+    pub fn set_sync_horizontal(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_SYNC_HORIZONTAL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `syncHorizontal`.
+    pub fn remove_sync_horizontal(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_HORIZONTAL)
+    }
+    /// Sets `syncVertical` — Synch Vertical (default `false`)
+    pub fn set_sync_vertical(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_SYNC_VERTICAL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `syncVertical`.
+    pub fn remove_sync_vertical(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_VERTICAL)
+    }
+    /// Sets `syncRef` — Synch Reference
+    pub fn set_sync_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProperties::ATTR_SYNC_REF, v)
+    }
+    /// Removes `syncRef`.
+    pub fn remove_sync_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_REF)
+    }
+    /// Sets `transitionEvaluation` — Transition Formula Evaluation (default `false`)
+    pub fn set_transition_evaluation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_TRANSITION_EVALUATION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `transitionEvaluation`.
+    pub fn remove_transition_evaluation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_TRANSITION_EVALUATION)
+    }
+    /// Sets `transitionEntry` — Transition Formula Entry (default `false`)
+    pub fn set_transition_entry(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_TRANSITION_ENTRY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `transitionEntry`.
+    pub fn remove_transition_entry(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_TRANSITION_ENTRY)
+    }
+    /// Sets `published` — Published (default `true`)
+    pub fn set_published(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(SheetProperties::ATTR_PUBLISHED, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `published`.
+    pub fn remove_published(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_PUBLISHED)
+    }
+    /// Sets `codeName` — Code Name
+    pub fn set_code_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProperties::ATTR_CODE_NAME, v)
+    }
+    /// Removes `codeName`.
+    pub fn remove_code_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_CODE_NAME)
+    }
+    /// Sets `filterMode` — Filter Mode (default `false`)
+    pub fn set_filter_mode(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_FILTER_MODE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `filterMode`.
+    pub fn remove_filter_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_FILTER_MODE)
+    }
+    /// Sets `enableFormatConditionsCalculation` — Enable Conditional Formatting Calculations (default `true`)
+    pub fn set_enable_format_conditions_calculation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `enableFormatConditionsCalculation`.
+    pub fn remove_enable_format_conditions_calculation(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION)
+    }
+    /// First `x:tabColor` child, mutably.
+    pub fn tab_color_mut(&mut self) -> Option<TabColorViewMut<'_>> {
+        self.0.child_mut::<TabColor>().map(TabColorViewMut)
+    }
+    /// Existing `x:tabColor` child, or a new one in schema position.
+    pub fn get_or_insert_tab_color(
+        &mut self,
+    ) -> Result<TabColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TabColor>().map(TabColorViewMut)
+    }
+    /// Removes the first `x:tabColor` child.
+    pub fn remove_tab_color(&mut self) -> bool {
+        self.0.remove::<TabColor>()
+    }
+}
+/// `x:CT_SheetView/x:sheetView` — Worksheet View.
+#[derive(Debug)]
+pub enum SheetViewElement {}
+impl SheetViewElement {
+    /// `windowProtection`
+    pub const ATTR_WINDOW_PROTECTION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowProtection",
+    );
+    /// `showFormulas`
+    pub const ATTR_SHOW_FORMULAS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showFormulas",
+    );
+    /// `showGridLines`
+    pub const ATTR_SHOW_GRID_LINES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showGridLines",
+    );
+    /// `showRowColHeaders`
+    pub const ATTR_SHOW_ROW_COL_HEADERS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showRowColHeaders",
+    );
+    /// `showZeros`
+    pub const ATTR_SHOW_ZEROS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showZeros",
+    );
+    /// `rightToLeft`
+    pub const ATTR_RIGHT_TO_LEFT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "rightToLeft",
+    );
+    /// `tabSelected`
+    pub const ATTR_TAB_SELECTED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "tabSelected",
+    );
+    /// `showRuler`
+    pub const ATTR_SHOW_RULER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showRuler",
+    );
+    /// `showOutlineSymbols`
+    pub const ATTR_SHOW_OUTLINE_SYMBOLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showOutlineSymbols",
+    );
+    /// `defaultGridColor`
+    pub const ATTR_DEFAULT_GRID_COLOR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defaultGridColor",
+    );
+    /// `showWhiteSpace`
+    pub const ATTR_SHOW_WHITE_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showWhiteSpace",
+    );
+    /// `view`
+    pub const ATTR_VIEW: ooxml_core::QName = ooxml_core::QName::new("", "view");
+    /// `topLeftCell`
+    pub const ATTR_TOP_LEFT_CELL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "topLeftCell",
+    );
+    /// `colorId`
+    pub const ATTR_COLOR_ID: ooxml_core::QName = ooxml_core::QName::new("", "colorId");
+    /// `zoomScale`
+    pub const ATTR_ZOOM_SCALE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScale",
+    );
+    /// `zoomScaleNormal`
+    pub const ATTR_ZOOM_SCALE_NORMAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScaleNormal",
+    );
+    /// `zoomScaleSheetLayoutView`
+    pub const ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScaleSheetLayoutView",
+    );
+    /// `zoomScalePageLayoutView`
+    pub const ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScalePageLayoutView",
+    );
+    /// `workbookViewId`
+    pub const ATTR_WORKBOOK_VIEW_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookViewId",
+    );
+}
+impl ooxml_core::ElementSpec for SheetViewElement {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetView");
+    const SDK_NAME: &'static str = "x:CT_SheetView/x:sheetView";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_WINDOW_PROTECTION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_FORMULAS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_GRID_LINES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_ZEROS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_RIGHT_TO_LEFT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_TAB_SELECTED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_RULER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_DEFAULT_GRID_COLOR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_WHITE_SPACE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_VIEW,
+            ty: ooxml_core::SimpleType::Enum(
+                <SheetViewValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("normal"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_TOP_LEFT_CELL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_COLOR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("64"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("100"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE_NORMAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_WORKBOOK_VIEW_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pane")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "selection")],
+                wildcard: None,
+                max_each: Some(4),
+                max_total: Some(4),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pivotSelection")],
+                wildcard: None,
+                max_each: Some(4),
+                max_total: Some(4),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`SheetViewElement`].
+#[derive(Clone, Debug)]
+pub struct SheetViewElementView<'a>(pub ooxml_core::Lens<'a, SheetViewElement>);
+impl<'a> SheetViewElementView<'a> {
+    /// `windowProtection` — Window Protection (default `false`)
+    pub fn window_protection(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_WINDOW_PROTECTION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showFormulas` — Show Formulas (default `false`)
+    pub fn show_formulas(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_FORMULAS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showGridLines` — Show Grid Lines (default `true`)
+    pub fn show_grid_lines(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_GRID_LINES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showRowColHeaders` — Show Headers (default `true`)
+    pub fn show_row_col_headers(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showZeros` — Show Zero Values (default `true`)
+    pub fn show_zeros(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_ZEROS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `rightToLeft` — Right To Left (default `false`)
+    pub fn right_to_left(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_RIGHT_TO_LEFT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `tabSelected` — Sheet Tab Selected (default `false`)
+    pub fn tab_selected(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_TAB_SELECTED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showRuler` — Show Ruler (default `true`)
+    pub fn show_ruler(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_RULER,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showOutlineSymbols` — Show Outline Symbols (default `true`)
+    pub fn show_outline_symbols(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `defaultGridColor` — Default Grid Color (default `true`)
+    pub fn default_grid_color(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_DEFAULT_GRID_COLOR,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showWhiteSpace` — Show White Space (default `true`)
+    pub fn show_white_space(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_WHITE_SPACE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `view` — View Type (default `normal`)
+    pub fn view(&self) -> ooxml_core::EnumValue<'a, SheetViewValues> {
+        self.0.attr_enum_or(SheetViewElement::ATTR_VIEW, "normal")
+    }
+    /// `topLeftCell` — Top Left Visible Cell
+    pub fn top_left_cell(&self) -> Option<&'a str> {
+        self.0.attr(SheetViewElement::ATTR_TOP_LEFT_CELL)
+    }
+    /// `colorId` — Color Id (default `64`)
+    pub fn color_id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_COLOR_ID,
+                "64",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScale` — Zoom Scale (default `100`)
+    pub fn zoom_scale(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE,
+                "100",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScaleNormal` — Zoom Scale Normal View (default `0`)
+    pub fn zoom_scale_normal(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE_NORMAL,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScaleSheetLayoutView` — Zoom Scale Page Break Preview (default `0`)
+    pub fn zoom_scale_sheet_layout_view(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScalePageLayoutView` — Zoom Scale Page Layout View (default `0`)
+    pub fn zoom_scale_page_layout_view(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `workbookViewId` — Workbook View Index
+    pub fn workbook_view_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                SheetViewElement::ATTR_WORKBOOK_VIEW_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetViewElement`]. Reads go through [`SheetViewElementViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetViewElementViewMut<'a>(pub ooxml_core::LensMut<'a, SheetViewElement>);
+impl<'a> SheetViewElementViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetViewElementView<'_> {
+        SheetViewElementView(self.0.as_lens())
+    }
+    /// Sets `windowProtection` — Window Protection (default `false`)
+    pub fn set_window_protection(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_WINDOW_PROTECTION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `windowProtection`.
+    pub fn remove_window_protection(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_WINDOW_PROTECTION)
+    }
+    /// Sets `showFormulas` — Show Formulas (default `false`)
+    pub fn set_show_formulas(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_FORMULAS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showFormulas`.
+    pub fn remove_show_formulas(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_FORMULAS)
+    }
+    /// Sets `showGridLines` — Show Grid Lines (default `true`)
+    pub fn set_show_grid_lines(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_GRID_LINES,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showGridLines`.
+    pub fn remove_show_grid_lines(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_GRID_LINES)
+    }
+    /// Sets `showRowColHeaders` — Show Headers (default `true`)
+    pub fn set_show_row_col_headers(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showRowColHeaders`.
+    pub fn remove_show_row_col_headers(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS)
+    }
+    /// Sets `showZeros` — Show Zero Values (default `true`)
+    pub fn set_show_zeros(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_ZEROS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showZeros`.
+    pub fn remove_show_zeros(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_ZEROS)
+    }
+    /// Sets `rightToLeft` — Right To Left (default `false`)
+    pub fn set_right_to_left(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_RIGHT_TO_LEFT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `rightToLeft`.
+    pub fn remove_right_to_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_RIGHT_TO_LEFT)
+    }
+    /// Sets `tabSelected` — Sheet Tab Selected (default `false`)
+    pub fn set_tab_selected(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_TAB_SELECTED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `tabSelected`.
+    pub fn remove_tab_selected(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_TAB_SELECTED)
+    }
+    /// Sets `showRuler` — Show Ruler (default `true`)
+    pub fn set_show_ruler(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_RULER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showRuler`.
+    pub fn remove_show_ruler(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_RULER)
+    }
+    /// Sets `showOutlineSymbols` — Show Outline Symbols (default `true`)
+    pub fn set_show_outline_symbols(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showOutlineSymbols`.
+    pub fn remove_show_outline_symbols(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS)
+    }
+    /// Sets `defaultGridColor` — Default Grid Color (default `true`)
+    pub fn set_default_grid_color(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_DEFAULT_GRID_COLOR,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `defaultGridColor`.
+    pub fn remove_default_grid_color(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_DEFAULT_GRID_COLOR)
+    }
+    /// Sets `showWhiteSpace` — Show White Space (default `true`)
+    pub fn set_show_white_space(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_WHITE_SPACE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showWhiteSpace`.
+    pub fn remove_show_white_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_WHITE_SPACE)
+    }
+    /// Sets `view` — View Type (default `normal`)
+    pub fn set_view(&mut self, v: SheetViewValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetViewElement::ATTR_VIEW, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `view`.
+    pub fn remove_view(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_VIEW)
+    }
+    /// Sets `topLeftCell` — Top Left Visible Cell
+    pub fn set_top_left_cell(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetViewElement::ATTR_TOP_LEFT_CELL, v)
+    }
+    /// Removes `topLeftCell`.
+    pub fn remove_top_left_cell(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_TOP_LEFT_CELL)
+    }
+    /// Sets `colorId` — Color Id (default `64`)
+    pub fn set_color_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_COLOR_ID, s),
+        )
+    }
+    /// Removes `colorId`.
+    pub fn remove_color_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_COLOR_ID)
+    }
+    /// Sets `zoomScale` — Zoom Scale (default `100`)
+    pub fn set_zoom_scale(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE, s),
+        )
+    }
+    /// Removes `zoomScale`.
+    pub fn remove_zoom_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE)
+    }
+    /// Sets `zoomScaleNormal` — Zoom Scale Normal View (default `0`)
+    pub fn set_zoom_scale_normal(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE_NORMAL, s),
+        )
+    }
+    /// Removes `zoomScaleNormal`.
+    pub fn remove_zoom_scale_normal(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE_NORMAL)
+    }
+    /// Sets `zoomScaleSheetLayoutView` — Zoom Scale Page Break Preview (default `0`)
+    pub fn set_zoom_scale_sheet_layout_view(
+        &mut self,
+        v: u32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW, s),
+        )
+    }
+    /// Removes `zoomScaleSheetLayoutView`.
+    pub fn remove_zoom_scale_sheet_layout_view(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW)
+    }
+    /// Sets `zoomScalePageLayoutView` — Zoom Scale Page Layout View (default `0`)
+    pub fn set_zoom_scale_page_layout_view(
+        &mut self,
+        v: u32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW, s),
+        )
+    }
+    /// Removes `zoomScalePageLayoutView`.
+    pub fn remove_zoom_scale_page_layout_view(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW)
+    }
+    /// Sets `workbookViewId` — Workbook View Index
+    pub fn set_workbook_view_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_WORKBOOK_VIEW_ID, s),
+        )
+    }
+    /// Removes `workbookViewId`.
+    pub fn remove_workbook_view_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_WORKBOOK_VIEW_ID)
+    }
+}
+/// `x:CT_SheetViews/x:sheetViews` — Dialog Sheet Views.
+#[derive(Debug)]
+pub enum SheetViews {}
+impl ooxml_core::ElementSpec for SheetViews {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetViews");
+    const SDK_NAME: &'static str = "x:CT_SheetViews/x:sheetViews";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "sheetView")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SheetViews> for SheetViewElement {}
+/// Read-only view of [`SheetViews`].
+#[derive(Clone, Debug)]
+pub struct SheetViewsView<'a>(pub ooxml_core::Lens<'a, SheetViews>);
+impl<'a> SheetViewsView<'a> {
+    /// `x:sheetView` children in document order.
+    pub fn sheet_view_iter(&self) -> impl Iterator<Item = SheetViewElementView<'a>> {
+        self.0.children::<SheetViewElement>().map(SheetViewElementView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetViews`]. Reads go through [`SheetViewsViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetViewsViewMut<'a>(pub ooxml_core::LensMut<'a, SheetViews>);
+impl<'a> SheetViewsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetViewsView<'_> {
+        SheetViewsView(self.0.as_lens())
+    }
+    /// First `x:sheetView` child matching `pred`, mutably.
+    pub fn sheet_view_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SheetViewElementViewMut<'_>> {
+        self.0.child_mut_by::<SheetViewElement>(pred).map(SheetViewElementViewMut)
+    }
+    /// Inserts a `x:sheetView` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sheet_view_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SheetViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SheetViewElement>(before).map(SheetViewElementViewMut)
+    }
+    /// Appends a `x:sheetView` at the end of its slot.
+    pub fn insert_sheet_view(
+        &mut self,
+    ) -> Result<SheetViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SheetViewElement>().map(SheetViewElementViewMut)
+    }
+    /// Removes the first `x:sheetView` child.
+    pub fn remove_sheet_view(&mut self) -> bool {
+        self.0.remove::<SheetViewElement>()
+    }
+}
 /// `x:CT_Sheets/x:sheets` — Defines the Sheets Class.
 #[derive(Debug)]
 pub enum Sheets {}
@@ -2301,6 +4986,37 @@ impl<'a> SheetsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Sheets`]. Reads go through [`SheetsViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetsViewMut<'a>(pub ooxml_core::LensMut<'a, Sheets>);
+impl<'a> SheetsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetsView<'_> {
+        SheetsView(self.0.as_lens())
+    }
+    /// First `x:sheet` child matching `pred`, mutably.
+    pub fn sheet_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SheetViewMut<'_>> {
+        self.0.child_mut_by::<Sheet>(pred).map(SheetViewMut)
+    }
+    /// Inserts a `x:sheet` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sheet_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SheetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Sheet>(before).map(SheetViewMut)
+    }
+    /// Appends a `x:sheet` at the end of its slot.
+    pub fn insert_sheet(&mut self) -> Result<SheetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Sheet>().map(SheetViewMut)
+    }
+    /// Removes the first `x:sheet` child.
+    pub fn remove_sheet(&mut self) -> bool {
+        self.0.remove::<Sheet>()
     }
 }
 /// `x:CT_Sst/x:sst` — Shared String Table.
@@ -2982,9 +5698,12 @@ impl ooxml_core::ElementSpec for Workbook {
         ],
     );
 }
+impl ooxml_core::ChildOf<Workbook> for BookViews {}
 impl ooxml_core::ChildOf<Workbook> for CalculationProperties {}
+impl ooxml_core::ChildOf<Workbook> for CustomWorkbookViews {}
 impl ooxml_core::ChildOf<Workbook> for DefinedNames {}
 impl ooxml_core::ChildOf<Workbook> for Sheets {}
+impl ooxml_core::ChildOf<Workbook> for WorkbookProperties {}
 /// Read-only view of [`Workbook`].
 #[derive(Clone, Debug)]
 pub struct WorkbookView<'a>(pub ooxml_core::Lens<'a, Workbook>);
@@ -2993,9 +5712,17 @@ impl<'a> WorkbookView<'a> {
     pub fn conformance(&self) -> Option<ooxml_core::EnumValue<'a, ConformanceClass>> {
         self.0.attr_enum(Workbook::ATTR_CONFORMANCE)
     }
+    /// First `x:bookViews` child.
+    pub fn book_views(&self) -> Option<BookViewsView<'a>> {
+        self.0.child::<BookViews>().map(BookViewsView)
+    }
     /// First `x:calcPr` child.
     pub fn calculation_properties(&self) -> Option<CalculationPropertiesView<'a>> {
         self.0.child::<CalculationProperties>().map(CalculationPropertiesView)
+    }
+    /// First `x:customWorkbookViews` child.
+    pub fn custom_workbook_views(&self) -> Option<CustomWorkbookViewsView<'a>> {
+        self.0.child::<CustomWorkbookViews>().map(CustomWorkbookViewsView)
     }
     /// First `x:definedNames` child.
     pub fn defined_names(&self) -> Option<DefinedNamesView<'a>> {
@@ -3004,6 +5731,451 @@ impl<'a> WorkbookView<'a> {
     /// First `x:sheets` child.
     pub fn sheets(&self) -> Option<SheetsView<'a>> {
         self.0.child::<Sheets>().map(SheetsView)
+    }
+    /// First `x:workbookPr` child.
+    pub fn workbook_properties(&self) -> Option<WorkbookPropertiesView<'a>> {
+        self.0.child::<WorkbookProperties>().map(WorkbookPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Workbook`]. Reads go through [`WorkbookViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorkbookViewMut<'a>(pub ooxml_core::LensMut<'a, Workbook>);
+impl<'a> WorkbookViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorkbookView<'_> {
+        WorkbookView(self.0.as_lens())
+    }
+    /// Sets `conformance` — conformance
+    pub fn set_conformance(
+        &mut self,
+        v: ConformanceClass,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Workbook::ATTR_CONFORMANCE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `conformance`.
+    pub fn remove_conformance(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Workbook::ATTR_CONFORMANCE)
+    }
+    /// First `x:bookViews` child, mutably.
+    pub fn book_views_mut(&mut self) -> Option<BookViewsViewMut<'_>> {
+        self.0.child_mut::<BookViews>().map(BookViewsViewMut)
+    }
+    /// Existing `x:bookViews` child, or a new one in schema position.
+    pub fn get_or_insert_book_views(
+        &mut self,
+    ) -> Result<BookViewsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BookViews>().map(BookViewsViewMut)
+    }
+    /// Removes the first `x:bookViews` child.
+    pub fn remove_book_views(&mut self) -> bool {
+        self.0.remove::<BookViews>()
+    }
+    /// First `x:calcPr` child, mutably.
+    pub fn calculation_properties_mut(
+        &mut self,
+    ) -> Option<CalculationPropertiesViewMut<'_>> {
+        self.0.child_mut::<CalculationProperties>().map(CalculationPropertiesViewMut)
+    }
+    /// Existing `x:calcPr` child, or a new one in schema position.
+    pub fn get_or_insert_calculation_properties(
+        &mut self,
+    ) -> Result<CalculationPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CalculationProperties>().map(CalculationPropertiesViewMut)
+    }
+    /// Removes the first `x:calcPr` child.
+    pub fn remove_calculation_properties(&mut self) -> bool {
+        self.0.remove::<CalculationProperties>()
+    }
+    /// First `x:definedNames` child, mutably.
+    pub fn defined_names_mut(&mut self) -> Option<DefinedNamesViewMut<'_>> {
+        self.0.child_mut::<DefinedNames>().map(DefinedNamesViewMut)
+    }
+    /// Existing `x:definedNames` child, or a new one in schema position.
+    pub fn get_or_insert_defined_names(
+        &mut self,
+    ) -> Result<DefinedNamesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DefinedNames>().map(DefinedNamesViewMut)
+    }
+    /// Removes the first `x:definedNames` child.
+    pub fn remove_defined_names(&mut self) -> bool {
+        self.0.remove::<DefinedNames>()
+    }
+    /// First `x:sheets` child, mutably.
+    pub fn sheets_mut(&mut self) -> Option<SheetsViewMut<'_>> {
+        self.0.child_mut::<Sheets>().map(SheetsViewMut)
+    }
+    /// Existing `x:sheets` child, or a new one in schema position.
+    pub fn get_or_insert_sheets(
+        &mut self,
+    ) -> Result<SheetsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Sheets>().map(SheetsViewMut)
+    }
+    /// Removes the first `x:sheets` child.
+    pub fn remove_sheets(&mut self) -> bool {
+        self.0.remove::<Sheets>()
+    }
+}
+/// `x:CT_WorkbookPr/x:workbookPr` — Defines the WorkbookProperties Class.
+#[derive(Debug)]
+pub enum WorkbookProperties {}
+impl WorkbookProperties {
+    /// `date1904`
+    pub const ATTR_DATE1904: ooxml_core::QName = ooxml_core::QName::new("", "date1904");
+    /// `dateCompatibility`
+    pub const ATTR_DATE_COMPATIBILITY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "dateCompatibility",
+    );
+    /// `showObjects`
+    pub const ATTR_SHOW_OBJECTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showObjects",
+    );
+    /// `showBorderUnselectedTables`
+    pub const ATTR_SHOW_BORDER_UNSELECTED_TABLES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showBorderUnselectedTables",
+    );
+    /// `filterPrivacy`
+    pub const ATTR_FILTER_PRIVACY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "filterPrivacy",
+    );
+    /// `promptedSolutions`
+    pub const ATTR_PROMPTED_SOLUTIONS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "promptedSolutions",
+    );
+    /// `showInkAnnotation`
+    pub const ATTR_SHOW_INK_ANNOTATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showInkAnnotation",
+    );
+    /// `backupFile`
+    pub const ATTR_BACKUP_FILE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "backupFile",
+    );
+    /// `saveExternalLinkValues`
+    pub const ATTR_SAVE_EXTERNAL_LINK_VALUES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "saveExternalLinkValues",
+    );
+    /// `updateLinks`
+    pub const ATTR_UPDATE_LINKS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "updateLinks",
+    );
+    /// `codeName`
+    pub const ATTR_CODE_NAME: ooxml_core::QName = ooxml_core::QName::new("", "codeName");
+    /// `hidePivotFieldList`
+    pub const ATTR_HIDE_PIVOT_FIELD_LIST: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hidePivotFieldList",
+    );
+    /// `showPivotChartFilter`
+    pub const ATTR_SHOW_PIVOT_CHART_FILTER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showPivotChartFilter",
+    );
+    /// `allowRefreshQuery`
+    pub const ATTR_ALLOW_REFRESH_QUERY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "allowRefreshQuery",
+    );
+    /// `publishItems`
+    pub const ATTR_PUBLISH_ITEMS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "publishItems",
+    );
+    /// `checkCompatibility`
+    pub const ATTR_CHECK_COMPATIBILITY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "checkCompatibility",
+    );
+    /// `autoCompressPictures`
+    pub const ATTR_AUTO_COMPRESS_PICTURES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoCompressPictures",
+    );
+    /// `refreshAllConnections`
+    pub const ATTR_REFRESH_ALL_CONNECTIONS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshAllConnections",
+    );
+    /// `defaultThemeVersion`
+    pub const ATTR_DEFAULT_THEME_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defaultThemeVersion",
+    );
+}
+impl ooxml_core::ElementSpec for WorkbookProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "workbookPr");
+    const SDK_NAME: &'static str = "x:CT_WorkbookPr/x:workbookPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_DATE1904,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_DATE_COMPATIBILITY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_SHOW_OBJECTS,
+            ty: ooxml_core::SimpleType::Enum(
+                <ObjectDisplayValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("all"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_SHOW_BORDER_UNSELECTED_TABLES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_FILTER_PRIVACY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_PROMPTED_SOLUTIONS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_SHOW_INK_ANNOTATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_BACKUP_FILE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_SAVE_EXTERNAL_LINK_VALUES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_UPDATE_LINKS,
+            ty: ooxml_core::SimpleType::Enum(
+                <UpdateLinksBehaviorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("userSet"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_CODE_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_HIDE_PIVOT_FIELD_LIST,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_SHOW_PIVOT_CHART_FILTER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_ALLOW_REFRESH_QUERY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_PUBLISH_ITEMS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_CHECK_COMPATIBILITY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_AUTO_COMPRESS_PICTURES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_REFRESH_ALL_CONNECTIONS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProperties::ATTR_DEFAULT_THEME_VERSION,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`WorkbookProperties`].
+#[derive(Clone, Debug)]
+pub struct WorkbookPropertiesView<'a>(pub ooxml_core::Lens<'a, WorkbookProperties>);
+impl<'a> WorkbookPropertiesView<'a> {
+    /// `date1904` — Date 1904 (default `false`)
+    pub fn date1904(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_DATE1904,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `dateCompatibility` — dateCompatibility
+    pub fn date_compatibility(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookProperties::ATTR_DATE_COMPATIBILITY,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showObjects` — Show Objects (default `all`)
+    pub fn show_objects(&self) -> ooxml_core::EnumValue<'a, ObjectDisplayValues> {
+        self.0.attr_enum_or(WorkbookProperties::ATTR_SHOW_OBJECTS, "all")
+    }
+    /// `showBorderUnselectedTables` — Show Border Unselected Table (default `true`)
+    pub fn show_border_unselected_tables(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_SHOW_BORDER_UNSELECTED_TABLES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `filterPrivacy` — Filter Privacy (default `false`)
+    pub fn filter_privacy(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_FILTER_PRIVACY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `promptedSolutions` — Prompted Solutions (default `false`)
+    pub fn prompted_solutions(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_PROMPTED_SOLUTIONS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showInkAnnotation` — Show Ink Annotations (default `true`)
+    pub fn show_ink_annotation(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_SHOW_INK_ANNOTATION,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `backupFile` — Create Backup File (default `false`)
+    pub fn backup_file(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_BACKUP_FILE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `saveExternalLinkValues` — Save External Link Values (default `true`)
+    pub fn save_external_link_values(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_SAVE_EXTERNAL_LINK_VALUES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `updateLinks` — Update Links Behavior (default `userSet`)
+    pub fn update_links(&self) -> ooxml_core::EnumValue<'a, UpdateLinksBehaviorValues> {
+        self.0.attr_enum_or(WorkbookProperties::ATTR_UPDATE_LINKS, "userSet")
+    }
+    /// `codeName` — Code Name
+    pub fn code_name(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProperties::ATTR_CODE_NAME)
+    }
+    /// `hidePivotFieldList` — Hide Pivot Field List (default `false`)
+    pub fn hide_pivot_field_list(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_HIDE_PIVOT_FIELD_LIST,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showPivotChartFilter` — Show Pivot Chart Filter (default `false`)
+    pub fn show_pivot_chart_filter(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_SHOW_PIVOT_CHART_FILTER,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `allowRefreshQuery` — Allow Refresh Query (default `false`)
+    pub fn allow_refresh_query(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_ALLOW_REFRESH_QUERY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `publishItems` — Publish Items (default `false`)
+    pub fn publish_items(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_PUBLISH_ITEMS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `checkCompatibility` — Check Compatibility On Save (default `false`)
+    pub fn check_compatibility(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_CHECK_COMPATIBILITY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `autoCompressPictures` — Auto Compress Pictures (default `true`)
+    pub fn auto_compress_pictures(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_AUTO_COMPRESS_PICTURES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `refreshAllConnections` — Refresh all Connections on Open (default `false`)
+    pub fn refresh_all_connections(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProperties::ATTR_REFRESH_ALL_CONNECTIONS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `defaultThemeVersion` — Default Theme Version
+    pub fn default_theme_version(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookProperties::ATTR_DEFAULT_THEME_VERSION,
+                ooxml_core::value::parse_u32,
+            )
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -3250,14 +6422,21 @@ impl ooxml_core::ElementSpec for Worksheet {
         ],
     );
 }
+impl ooxml_core::ChildOf<Worksheet> for Hyperlinks {}
 impl ooxml_core::ChildOf<Worksheet> for MergeCells {}
 impl ooxml_core::ChildOf<Worksheet> for SheetData {}
 impl ooxml_core::ChildOf<Worksheet> for SheetDimension {}
+impl ooxml_core::ChildOf<Worksheet> for SheetProperties {}
+impl ooxml_core::ChildOf<Worksheet> for SheetViews {}
 impl ooxml_core::ChildOf<Worksheet> for TableParts {}
 /// Read-only view of [`Worksheet`].
 #[derive(Clone, Debug)]
 pub struct WorksheetView<'a>(pub ooxml_core::Lens<'a, Worksheet>);
 impl<'a> WorksheetView<'a> {
+    /// First `x:hyperlinks` child.
+    pub fn hyperlinks(&self) -> Option<HyperlinksView<'a>> {
+        self.0.child::<Hyperlinks>().map(HyperlinksView)
+    }
     /// First `x:mergeCells` child.
     pub fn merge_cells(&self) -> Option<MergeCellsView<'a>> {
         self.0.child::<MergeCells>().map(MergeCellsView)
@@ -3269,6 +6448,14 @@ impl<'a> WorksheetView<'a> {
     /// First `x:dimension` child.
     pub fn sheet_dimension(&self) -> Option<SheetDimensionView<'a>> {
         self.0.child::<SheetDimension>().map(SheetDimensionView)
+    }
+    /// First `x:sheetPr` child.
+    pub fn sheet_properties(&self) -> Option<SheetPropertiesView<'a>> {
+        self.0.child::<SheetProperties>().map(SheetPropertiesView)
+    }
+    /// First `x:sheetViews` child.
+    pub fn sheet_views(&self) -> Option<SheetViewsView<'a>> {
+        self.0.child::<SheetViews>().map(SheetViewsView)
     }
     /// First `x:tableParts` child.
     pub fn table_parts(&self) -> Option<TablePartsView<'a>> {
@@ -3286,6 +6473,20 @@ impl<'a> WorksheetViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> WorksheetView<'_> {
         WorksheetView(self.0.as_lens())
+    }
+    /// First `x:hyperlinks` child, mutably.
+    pub fn hyperlinks_mut(&mut self) -> Option<HyperlinksViewMut<'_>> {
+        self.0.child_mut::<Hyperlinks>().map(HyperlinksViewMut)
+    }
+    /// Existing `x:hyperlinks` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlinks(
+        &mut self,
+    ) -> Result<HyperlinksViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Hyperlinks>().map(HyperlinksViewMut)
+    }
+    /// Removes the first `x:hyperlinks` child.
+    pub fn remove_hyperlinks(&mut self) -> bool {
+        self.0.remove::<Hyperlinks>()
     }
     /// First `x:sheetData` child, mutably.
     pub fn sheet_data_mut(&mut self) -> Option<SheetDataViewMut<'_>> {
@@ -3314,6 +6515,34 @@ impl<'a> WorksheetViewMut<'a> {
     /// Removes the first `x:dimension` child.
     pub fn remove_sheet_dimension(&mut self) -> bool {
         self.0.remove::<SheetDimension>()
+    }
+    /// First `x:sheetPr` child, mutably.
+    pub fn sheet_properties_mut(&mut self) -> Option<SheetPropertiesViewMut<'_>> {
+        self.0.child_mut::<SheetProperties>().map(SheetPropertiesViewMut)
+    }
+    /// Existing `x:sheetPr` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_properties(
+        &mut self,
+    ) -> Result<SheetPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetProperties>().map(SheetPropertiesViewMut)
+    }
+    /// Removes the first `x:sheetPr` child.
+    pub fn remove_sheet_properties(&mut self) -> bool {
+        self.0.remove::<SheetProperties>()
+    }
+    /// First `x:sheetViews` child, mutably.
+    pub fn sheet_views_mut(&mut self) -> Option<SheetViewsViewMut<'_>> {
+        self.0.child_mut::<SheetViews>().map(SheetViewsViewMut)
+    }
+    /// Existing `x:sheetViews` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_views(
+        &mut self,
+    ) -> Result<SheetViewsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetViews>().map(SheetViewsViewMut)
+    }
+    /// Removes the first `x:sheetViews` child.
+    pub fn remove_sheet_views(&mut self) -> bool {
+        self.0.remove::<SheetViews>()
     }
 }
 /// `x:CT_Xstring/x:t` — Text.
@@ -3450,15 +6679,28 @@ impl<'a> CellValueViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<WorkbookViewElement>();
+const _: () = ooxml_core::schema::assert_spec::<BookViews>();
+const _: () = ooxml_core::schema::assert_child::<BookViews, WorkbookViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
 const _: () = ooxml_core::schema::assert_child::<Cell, InlineString>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellValue>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormula>();
+const _: () = ooxml_core::schema::assert_spec::<TabColor>();
+const _: () = ooxml_core::schema::assert_spec::<CustomWorkbookView>();
+const _: () = ooxml_core::schema::assert_spec::<CustomWorkbookViews>();
+const _: () = ooxml_core::schema::assert_child::<
+    CustomWorkbookViews,
+    CustomWorkbookView,
+>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
+const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
+const _: () = ooxml_core::schema::assert_spec::<Hyperlinks>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlinks, Hyperlink>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
@@ -3476,6 +6718,11 @@ const _: () = ooxml_core::schema::assert_spec::<Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SheetData>();
 const _: () = ooxml_core::schema::assert_child::<SheetData, Row>();
 const _: () = ooxml_core::schema::assert_spec::<SheetDimension>();
+const _: () = ooxml_core::schema::assert_spec::<SheetProperties>();
+const _: () = ooxml_core::schema::assert_child::<SheetProperties, TabColor>();
+const _: () = ooxml_core::schema::assert_spec::<SheetViewElement>();
+const _: () = ooxml_core::schema::assert_spec::<SheetViews>();
+const _: () = ooxml_core::schema::assert_child::<SheetViews, SheetViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Sheets, Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringTable>();
@@ -3485,13 +6732,20 @@ const _: () = ooxml_core::schema::assert_spec::<TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<TableParts>();
 const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<Workbook>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, BookViews>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, CalculationProperties>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, CustomWorkbookViews>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, Sheets>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, WorkbookProperties>();
+const _: () = ooxml_core::schema::assert_spec::<WorkbookProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Worksheet>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, Hyperlinks>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetData>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetDimension>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProperties>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetViews>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, TableParts>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
 const _: () = ooxml_core::schema::assert_spec::<CellValue>();

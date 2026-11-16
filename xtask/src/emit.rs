@@ -147,6 +147,25 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 }
                 type_names.insert(e.name.clone(), name);
             }
+            // A marker named like another marker's view wrapper (`SheetView`
+            // vs `Sheet` + `View`, `WorkbookView` vs `Workbook` + `View`)
+            // would collide with it: such a marker gets an `Element` suffix.
+            let group_names: BTreeSet<String> =
+                in_group.iter().map(|e| type_names[&e.name].clone()).collect();
+            for e in &in_group {
+                let name = type_names[&e.name].clone();
+                let clashes = ["View", "ViewMut"].iter().any(|suf| {
+                    name.strip_suffix(suf).is_some_and(|m| !m.is_empty() && group_names.contains(m))
+                });
+                if clashes {
+                    let renamed = format!("{name}Element");
+                    taken.remove(&name);
+                    if !taken.insert(renamed.clone()) {
+                        return Err(format!("type name collision {renamed} in group {g}").into());
+                    }
+                    type_names.insert(e.name.clone(), renamed);
+                }
+            }
             // enums referenced by the group's entries
             let mut used: BTreeSet<(usize, usize)> = BTreeSet::new();
             for e in &in_group {

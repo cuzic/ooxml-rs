@@ -61,6 +61,7 @@ mod escape;
 mod formula;
 mod graph;
 mod reference;
+mod sheet_ops;
 mod workbook;
 mod worksheet;
 
@@ -68,6 +69,7 @@ pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;
+pub use sheet_ops::{RewrittenLocation, SheetState};
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
 

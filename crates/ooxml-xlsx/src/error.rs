@@ -210,6 +210,79 @@ pub enum Error {
     /// `workbook.xml` and `docProps/app.xml` together).
     #[error("naming or renaming a sheet is not supported in Phase0")]
     SheetNamingUnsupported,
+
+    /// A sheet name Excel would not accept (ADR-0009 §3): empty or longer
+    /// than 31 UTF-16 units, one of `: \\ / ? * [ ]`, U+0000 or U+0003, a
+    /// leading or trailing `'`, or `History`.
+    #[error("invalid sheet name {name:?}: {reason}")]
+    InvalidSheetName {
+        /// The name.
+        name: String,
+        /// Which rule.
+        reason: &'static str,
+    },
+
+    /// Another sheet already has this name (compared as ADR-0003 folds).
+    #[error("a sheet named {0:?} exists")]
+    DuplicateSheetName(String),
+
+    /// The operation would leave no visible sheet, or remove the last one.
+    #[error("the workbook must keep at least one visible sheet")]
+    LastVisibleSheet,
+
+    /// The workbook is shared (a `revisions` relationship): its revision log
+    /// keeps a sheet-id map Phase3 cannot maintain.
+    #[error("shared workbooks are not supported for sheet operations")]
+    SharedWorkbook,
+
+    /// The sheet to delete owns parts Phase3 does not cascade (pivot tables,
+    /// slicers, OLE objects, controls, …), by relationship type.
+    #[error("the sheet has parts that cannot be deleted with it: {rel_types:?}")]
+    SheetHasUnsupportedParts {
+        /// The relationship types.
+        rel_types: Vec<String>,
+    },
+
+    /// A pivot cache takes its data from the sheet.
+    #[error("sheet {0:?} is the source of a pivot cache")]
+    SheetIsPivotSource(String),
+
+    /// A table on the sheet is used elsewhere (structured references).
+    #[error("table {0:?} on the sheet is used elsewhere")]
+    TableInUse(String),
+
+    /// A custom workbook view names the sheet as its active sheet.
+    #[error("a custom workbook view references the sheet")]
+    CustomViewReferencesSheet,
+
+    /// A reference to the sheet sits where this version cannot rewrite it
+    /// (ADR-0009 §6 closed-world scan): the operation is refused rather than
+    /// leaving a reference that silently stops working.
+    #[error("{part}: a reference to the sheet at {location} cannot be rewritten")]
+    UnrewritableReference {
+        /// The part.
+        part: String,
+        /// Where in it.
+        location: String,
+    },
+
+    /// The move would reverse a 3-D reference's endpoints (ADR-0009 §7).
+    #[error("the move would reverse the 3-D reference {0}")]
+    ReversesThreeDReference(String),
+
+    /// The workbook has ActiveX binaries, whose linked cells cannot be read
+    /// or rewritten: renames are refused.
+    #[error("the workbook has ActiveX controls whose references cannot be checked")]
+    BinaryReferencesPossible,
+
+    /// `delete_sheet_strict`: the sheet is still referenced.
+    #[error("sheet {sheet:?} is still referenced ({count} references)")]
+    SheetInUse {
+        /// The sheet.
+        sheet: String,
+        /// Number of references found.
+        count: usize,
+    },
 }
 
 /// `Result` with [`Error`].
