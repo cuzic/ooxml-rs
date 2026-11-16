@@ -41,6 +41,10 @@ import p3common as C  # noqa: E402
 w, local = C.w, C.local
 W14 = 'http://schemas.microsoft.com/office/word/2010/wordml'
 W15 = 'http://schemas.microsoft.com/office/word/2012/wordml'
+# Office 2013 pre-release namespace for the same w15 elements (review round 1, B1):
+# Word 2013 betas wrote commentsExtended/people with it, and many SDK files keep it.
+W15_PRE = 'http://schemas.microsoft.com/office/word/2010/11/wordml'
+W15S = (W15, W15_PRE)
 W16CID = 'http://schemas.microsoft.com/office/word/2016/wordml/cid'
 W16CEX = 'http://schemas.microsoft.com/office/word/2018/wordml/cex'
 W16DU = 'http://schemas.microsoft.com/office/word/2023/wordml/word16du'
@@ -206,10 +210,13 @@ def main(argv):
                 note('comments', 'files with ' + kind + ' (' + os.path.basename(tgt) + ')', f)
         ext = xml_or_none(pkg, rel_target(pkg, REL_EXT['commentsExtended']))
         if ext is not None:
-            entries = list(ext.iter(q(W15, 'commentEx')))
-            by_para = {e.get(q(W15, 'paraId')): e for e in entries}
+            n15 = C.ns(ext.tag)
+            note('comments', 'commentsExtended namespace: ' + {W15: '2012 (w15)', W15_PRE: '2010/11 (pre-release)'}.get(n15, n15), f)
+            entries = list(ext.iter(q(n15, 'commentEx')))
+            by_para = {e.get(q(n15, 'paraId')): e for e in entries}
+            parent_of = {}
             for e in entries:
-                pid = e.get(q(W15, 'paraId'))
+                pid = e.get(q(n15, 'paraId'))
                 note('comments', 'commentEx entries', f)
                 if pid in last_para:
                     note('comments', 'commentEx paraId = last paragraph of a comment', f)
@@ -217,21 +224,36 @@ def main(argv):
                     note('comments', 'commentEx paraId = a non-last paragraph of a comment', f, pid)
                 else:
                     note('comments', 'commentEx paraId matching no comment paragraph', f, pid)
-                if e.get(q(W15, 'done')) == '1':
+                if e.get(q(n15, 'done')) == '1':
                     note('comments', 'commentEx done="1"', f)
-                parent = e.get(q(W15, 'paraIdParent'))
+                parent = e.get(q(n15, 'paraIdParent'))
                 if parent:
                     note('comments', 'replies (commentEx with paraIdParent)', f)
                     if parent not in last_para:
                         note('comments', 'paraIdParent matching no comment last paragraph', f, parent)
                     pe = by_para.get(parent)
-                    if pe is not None and pe.get(q(W15, 'paraIdParent')):
+                    if pe is not None and pe.get(q(n15, 'paraIdParent')):
                         note('comments', 'reply to a reply (depth > 1)', f)
-                    rc = last_para.get(pid)
-                    if rc is not None:
-                        a = anchors.get(rc, collections.Counter())
-                        shape = '+'.join(k for k in ('commentRangeStart', 'commentRangeEnd', 'commentReference') if a[k])
+                    rc, pc = last_para.get(pid), last_para.get(parent)
+                    if rc is not None and pc is not None:
+                        parent_of[rc] = pc
+                        a_ = anchors.get(rc, collections.Counter())
+                        shape = '+'.join(k for k in ('commentRangeStart', 'commentRangeEnd', 'commentReference') if a_[k])
                         note('comments', 'reply anchoring: ' + (shape or 'none'), f)
+                        pd = (pe.get(q(n15, 'done')) if pe is not None else None) or '0'
+                        note('comments', 'done: parent %s, reply %s' % (pd, e.get(q(n15, 'done')) or '0'), f)
+            # where replies' anchors sit relative to their parent's (main story order)
+            order = [(local(el.tag), el.get(w('id'))) for kind, _, root in stories if kind == 'main' for el in root.iter()
+                     if local(el.tag) in ('commentRangeStart', 'commentRangeEnd', 'commentReference')]
+            pos = {k: i for i, k in enumerate(order)}
+            for rc, pc in parent_of.items():
+                rs, ps_ = pos.get(('commentRangeStart', rc)), pos.get(('commentRangeStart', pc))
+                re_, pr_ = pos.get(('commentRangeEnd', rc)), pos.get(('commentReference', pc))
+                if rs is not None and ps_ is not None:
+                    between = {order[i][0] for i in range(ps_ + 1, rs)}
+                    note('comments', 'reply start: after the parent start with only starts between' if rs > ps_ and between <= {'commentRangeStart'} else 'reply start: elsewhere', f)
+                if re_ is not None and pr_ is not None:
+                    note('comments', 'reply end: after the parent reference' if re_ > pr_ else 'reply end: before the parent reference', f)
             missing = [cid for cid in comments if not any(pp in by_para for pp in [p.get(q(W14, 'paraId')) for p in paragraphs(comments[cid])[-1:]])]
             if missing:
                 note('comments', 'comments with no commentEx entry (file has commentsExtended)', f, n=len(missing))
@@ -258,14 +280,15 @@ def main(argv):
                 note('comments', 'commentExtensible dateUtc: ' + date_shape(e.get(q(W16CEX, 'dateUtc'))), f)
         people = xml_or_none(pkg, rel_target(pkg, REL_EXT['people']))
         if people is not None:
+            n15 = C.ns(people.tag)
+            note('comments', 'people.xml namespace: ' + {W15: '2012 (w15)', W15_PRE: '2010/11 (pre-release)'}.get(n15, n15), f)
             names = set()
-            for p in people.iter(q(W15, 'person')):
-                names.add(p.get(q(W15, 'author')))
-                pi = p.find(q(W15, 'presenceInfo'))
-                note('comments', 'people: presenceInfo providerId=' + (pi.get(q(W15, 'providerId')) if pi is not None else '(none)'), f)
+            for p in people.iter(q(n15, 'person')):
+                names.add(p.get(q(n15, 'author')))
+                pi = p.find(q(n15, 'presenceInfo'))
+                note('comments', 'people: presenceInfo providerId=' + (pi.get(q(n15, 'providerId')) if pi is not None else '(none)'), f)
             for c in comments.values():
-                if c.get(w('author')) not in names:
-                    note('comments', 'comment author missing from people.xml', f, c.get(w('author')))
+                note('comments', 'comment author found in people.xml' if c.get(w('author')) in names else 'comment author missing from people.xml', f, None if c.get(w('author')) in names else c.get(w('author')))
 
         # ---------------------------------------------------------------------- paraId
         seen = collections.Counter()
@@ -313,6 +336,42 @@ def main(argv):
                         note('revisions', 'w:del containing w:t (not delText)', f)
                 if ln == 'ins' and el.find('.//' + w('delText')) is not None:
                     note('revisions', 'w:ins containing w:delText (ins+del of the same text)', f)
+        # paragraph-mark revisions: on the last paragraph of a container (review M1);
+        # tracked row deletions/insertions: what their cell content carries (M2);
+        # comment references inside revisions (m3)
+        for kind, part, root in stories:
+            parent = {c: p for p in root.iter() for c in p}
+            for cont in root.iter():
+                if local(cont.tag) not in ('body', 'tc', 'footnote', 'endnote', 'comment', 'hdr', 'ftr', 'txbxContent'):
+                    continue
+                ps = [c for c in cont if c.tag == w('p')]
+                for i, p_ in enumerate(ps):
+                    mk = p_.find(w('pPr') + '/' + w('rPr'))
+                    if mk is None:
+                        continue
+                    for t in ('ins', 'del'):
+                        if mk.find(w(t)) is None:
+                            continue
+                        in_row = False
+                        a_ = parent.get(cont)
+                        if local(cont.tag) == 'tc' and a_ is not None and a_.find(w('trPr') + '/' + w(t)) is not None:
+                            in_row = True
+                        where = 'the last paragraph of its container' if i == len(ps) - 1 else 'a paragraph that is not the last'
+                        note('revisions', 'paragraph-mark %s on %s%s' % (t, where, ' (row revision)' if in_row else ''), f)
+            for tr in root.iter(w('tr')):
+                for t in ('ins', 'del'):
+                    if tr.find(w('trPr') + '/' + w(t)) is None:
+                        continue
+                    runs = [r for r in tr.iter(w('r')) if r.find(w('t')) is not None or r.find(w('delText')) is not None]
+                    wrapped = sum(1 for r in runs if parent.get(r) is not None and local(parent[r].tag) == t)
+                    marks = [p_ for p_ in tr.iter(w('p'))]
+                    mk = sum(1 for p_ in marks if p_.find(w('pPr') + '/' + w('rPr') + '/' + w(t)) is not None)
+                    note('revisions', 'tracked row %s: runs with text %d, inside w:%s %d; paragraphs %d, marks %s %d' % (t, len(runs), t, wrapped, len(marks), t, mk), f)
+            for el in root.iter():
+                if local(el.tag) == 'commentReference':
+                    a_ = parent.get(parent.get(el)) if parent.get(el) is not None else None
+                    if a_ is not None and local(a_.tag) in ('ins', 'del'):
+                        note('comments', 'commentReference run inside w:' + local(a_.tag), f)
         if rev_ids:
             note('revisions', 'files with revisions', f)
             ints = [int(i) for i in rev_ids if i.lstrip('-').isdigit()]
@@ -402,7 +461,7 @@ def main(argv):
                     level = 'nested in ' + ('inline' if gp is not None and parent.get(gp) is not None and local(parent.get(gp).tag) == 'p' else 'block') + ' sdt'
                 note('sdt', 'level: ' + level, f)
                 kinds = [local(c.tag) for c in (pr if pr is not None else []) if local(c.tag) in SDT_KINDS and C.ns(c.tag) == C.W]
-                ext = [C.ns(c.tag).rsplit('/', 1)[-1] + ':' + local(c.tag) for c in (pr if pr is not None else []) if C.ns(c.tag) in (W14, W15) and local(c.tag) in ('checkbox', 'repeatingSection', 'repeatingSectionItem', 'webExtensionLinked', 'webExtensionCreated')]
+                ext = [C.ns(c.tag).rsplit('/', 1)[-1] + ':' + local(c.tag) for c in (pr if pr is not None else []) if C.ns(c.tag) in (W14, W15, W15_PRE) and local(c.tag) in ('checkbox', 'repeatingSection', 'repeatingSectionItem', 'webExtensionLinked', 'webExtensionCreated')]
                 note('sdt', 'kind: ' + ('+'.join(kinds + ext) or '(rich text, no kind element)'), f)
                 if pr is None:
                     continue
@@ -423,13 +482,18 @@ def main(argv):
                 db = pr.find(w('dataBinding'))
                 if db is not None:
                     sid2 = (db.get(w('storeItemID')) or '').upper()
-                    note('sdt', 'dataBinding storeItemID ' + ('names a custom XML part' if sid2 in store_ids else 'names no custom XML part (Office built-in or missing)'), f, sid2)
+                    kind_ = {'{6C3C8BC8-F283-45AE-878A-BAB7291924A1}': 'core properties (Office built-in)',
+                             '{6668398D-A668-4E3E-A5EB-62B293D839F1}': 'extended properties (Office built-in)',
+                             '{55AF091B-3C7A-41E3-B477-F2FDAA23CFDA}': 'cover page properties'}.get(sid2, 'other store')
+                    note('sdt', 'dataBinding store: %s, %s' % (kind_, 'a custom XML part with this itemID exists' if sid2 in store_ids else 'no custom XML part with this itemID'), f, sid2)
                     if db.get(w('prefixMappings')):
                         note('sdt', 'dataBinding with prefixMappings', f)
-                if pr.find(q(W15, 'dataBinding')) is not None:
+                if any(pr.find(q(n, 'dataBinding')) is not None for n in W15S):
                     note('sdt', 'w15:dataBinding (rich-text binding)', f)
-                if pr.find(q(W15, 'appearance')) is not None:
-                    note('sdt', 'w15:appearance=' + (pr.find(q(W15, 'appearance')).get(q(W15, 'val')) or ''), f)
+                for n in W15S:
+                    ap = pr.find(q(n, 'appearance'))
+                    if ap is not None:
+                        note('sdt', 'w15:appearance=' + (ap.get(q(n, 'val')) or '') + (' (pre-release ns)' if n == W15_PRE else ''), f)
         if any(v > 1 for v in sdt_ids.values()):
             note('sdt', 'files with duplicate sdt w:id', f)
         if store_ids:
@@ -537,6 +601,12 @@ def main(argv):
                     if el.find(w('rPr')) is not None:
                         note('formatting', 'paragraph-mark rPr (pPr/rPr)', f)
                         break
+                for el in root.iter(w('tblLook')):
+                    has_attrs = any(el.get(w(a)) is not None for a in ('firstRow', 'lastRow', 'firstColumn', 'lastColumn', 'noHBand', 'noVBand'))
+                    note('formatting', 'tblLook with ' + ('explicit attributes' if has_attrs else 'only the hex w:val'), f)
+                for el in root.iter(w('color')):
+                    if el.get(w('themeColor')):
+                        note('formatting', 'w:color with themeColor' + (', cached RGB present' if el.get(w('val')) not in (None, 'auto') else ', no cached RGB') + (', tint/shade' if el.get(w('themeTint')) or el.get(w('themeShade')) else ''), f)
                 for el in root.iter(w('cnfStyle')):
                     note('formatting', 'cnfStyle (cached table conditional formatting)', f)
                     break

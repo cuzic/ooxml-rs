@@ -25,7 +25,7 @@ Same as the Phase1 and Phase2 spikes:
 
 | Script | What it does |
 |---|---|
-| `review.py` | Measures comments and their four companion parts (commentsExtended, commentsIds, commentsExtensible, people), `w14:paraId`/`textId`, tracked changes, footnotes/endnotes, content controls, fields, and the inputs of effective-formatting resolution. The docstring lists every measure. |
+| `review.py` | Measures comments and their four companion parts (both the 2012 `w15` namespace and the Office 2013 pre-release namespace `…/word/2010/11/wordml`; revision 2, review round 1 B1) (commentsExtended, commentsIds, commentsExtensible, people), reply anchoring and `done` per comment, `w14:paraId`/`textId`, tracked changes (including where paragraph-mark revisions sit and what tracked rows carry), footnotes/endnotes, content controls, fields, and the inputs of effective-formatting resolution (`tblLook` forms, theme colors with cached RGB). The docstring lists every measure. |
 | `summarize.py` | Merges the JSON outputs into the tables below (`out/tables.md`). |
 
 ```sh
@@ -34,7 +34,7 @@ python3 -I $S/review.py --json $O/sdk.json $C/sdk     # likewise fx, poi, d4j, t
 python3 -I $S/summarize.py fx=$O/fx.json poi=$O/poi.json sdk=$O/sdk.json d4j=$O/d4j.json tpl=$O/tpl.json
 ```
 
-## Results (2026-11-16, Python 3.15)
+## Results (2026-11-16, Python 3.15; revision 2)
 
 Cells are "occurrences (files)". Single values (largest id, deepest chain) are the largest over
 the corpus.
@@ -107,6 +107,8 @@ the corpus.
 | style type paragraph | 818 (21) | 2199 (107) | 3589 (440) | 58 (12) | 2198 (212) |
 | style type table | 24 (21) | 1231 (101) | 683 (440) | 15 (12) | 885 (157) |
 | table styles with tblStylePr | 1 (1) | 967 (5) | 119 (23) | 0 | 674 (20) |
+| tblLook with explicit attributes | 15 (3) | 59 (15) | 25 (8) | 14 (2) | 41 (29) |
+| tblLook with only the hex w:val | 6 (3) | 55 (9) | 357 (122) | 1 (1) | 5 (5) |
 | tblStylePr type band1Horz | 1 (1) | 185 (5) | 79 (18) | 0 | 636 (20) |
 | tblStylePr type band1Vert | 1 (1) | 64 (4) | 76 (18) | 0 | 634 (18) |
 | tblStylePr type band2Horz | 0 | 0 | 7 (3) | 0 | 98 (18) |
@@ -128,13 +130,19 @@ the corpus.
 | toggle property in a style: strike | 0 | 4 (2) | 6 (3) | 0 | 0 |
 | toggle property in a style: vanish | 27 (2) | 49 (4) | 19 (11) | 0 | 0 |
 | toggle property in direct rPr | 13 (10) | 38 (33) | 201 (146) | 3 (3) | 67 (49) |
+| w:color with themeColor, cached RGB present | 52 (4) | 27 (3) | 427 (46) | 0 | 43 (7) |
+| w:color with themeColor, cached RGB present, tint/shade | 22 (3) | 12 (2) | 803 (46) | 0 | 19 (3) |
 
 ### sdt
 
 | measure | fx | poi | sdk | d4j | tpl |
 |---|---|---|---|---|---|
-| dataBinding storeItemID names a custom XML part | 4 (2) | 11 (3) | 62 (21) | 3 (1) | 4 (2) |
-| dataBinding storeItemID names no custom XML part (Office built-in or missing) | 4 (2) | 11 (4) | 401 (85) | 0 | 2 (1) |
+| dataBinding store: core properties (Office built-in), no custom XML part with this itemID | 3 (2) | 10 (4) | 161 (76) | 0 | 2 (1) |
+| dataBinding store: cover page properties, a custom XML part with this itemID exists | 4 (2) | 11 (3) | 25 (12) | 0 | 4 (2) |
+| dataBinding store: cover page properties, no custom XML part with this itemID | 0 | 0 | 141 (30) | 0 | 0 |
+| dataBinding store: extended properties (Office built-in), no custom XML part with this itemID | 1 (1) | 1 (1) | 82 (37) | 0 | 0 |
+| dataBinding store: other store, a custom XML part with this itemID exists | 0 | 0 | 37 (9) | 3 (1) | 0 |
+| dataBinding store: other store, no custom XML part with this itemID | 0 | 0 | 17 (7) | 0 | 0 |
 | dataBinding with prefixMappings | 8 (2) | 22 (5) | 434 (82) | 0 | 6 (3) |
 | files with custom XML parts | 7 (7) | 17 (17) | 115 (115) | 5 (5) | 56 (56) |
 | files with duplicate sdt w:id | 0 | 1 (1) | 2 (2) | 0 | 3 (3) |
@@ -292,8 +300,15 @@ the corpus.
 | moveTo | 0 | 1 (1) | 0 | 0 | 0 |
 | moveToRangeStart | 0 | 1 (1) | 0 | 0 | 0 |
 | pPrChange | 0 | 0 | 2 (1) | 0 | 0 |
+| paragraph-mark del on a paragraph that is not the last | 2 (1) | 3 (2) | 19 (2) | 0 | 0 |
+| paragraph-mark del on the last paragraph of its container (row revision) | 0 | 0 | 7 (3) | 0 | 0 |
+| paragraph-mark ins on a paragraph that is not the last | 13 (1) | 17 (2) | 29 (3) | 0 | 0 |
+| paragraph-mark ins on the last paragraph of its container (row revision) | 0 | 0 | 1 (1) | 0 | 0 |
 | rPrChange | 46 (1) | 47 (2) | 15 (3) | 0 | 0 |
 | settings trackRevisions on | 1 (1) | 5 (5) | 6 (6) | 0 | 0 |
+| tracked row del: runs with text 0, inside w:del 0; paragraphs 1, marks del 1 | 0 | 0 | 1 (1) | 0 | 0 |
+| tracked row del: runs with text 3, inside w:del 3; paragraphs 3, marks del 3 | 0 | 0 | 2 (2) | 0 | 0 |
+| tracked row ins: runs with text 0, inside w:ins 0; paragraphs 1, marks ins 1 | 0 | 0 | 1 (1) | 0 | 0 |
 | w:ins containing w:delText (ins+del of the same text) | 0 | 0 | 2 (1) | 0 | 0 |
 
 ### comments
@@ -305,22 +320,33 @@ the corpus.
 | anchoring: none | 0 | 0 | 1 (1) | 0 | 0 |
 | anchors naming a missing comment | 0 | 0 | 2 (2) | 0 | 0 |
 | anchors repeated for one id | 0 | 0 | 1 (1) | 0 | 0 |
-| comment author missing from people.xml | 12 (1) | 0 | 503 (25) | 0 | 0 |
+| comment author found in people.xml | 12 (1) | 0 | 430 (25) | 0 | 2 (2) |
+| comment author missing from people.xml | 0 | 0 | 73 (13) | 0 | 0 |
 | comment id equal to a bookmark/permission id | 0 | 0 | 0 | 0 | 2 (2) |
 | comment paragraphs | 17 (3) | 8 (3) | 1777 (85) | 5 (2) | 4 (4) |
-| commentEx entries | 1 (1) | 1 (1) | 9 (5) | 0 | 4 (4) |
-| commentEx paraId = last paragraph of a comment | 1 (1) | 1 (1) | 9 (5) | 0 | 4 (4) |
+| commentEx done="1" | 3 (1) | 0 | 100 (21) | 0 | 0 |
+| commentEx entries | 13 (2) | 1 (1) | 1090 (59) | 0 | 4 (4) |
+| commentEx paraId = last paragraph of a comment | 13 (2) | 1 (1) | 1089 (59) | 0 | 4 (4) |
+| commentEx paraId matching no comment paragraph | 0 | 0 | 1 (1) | 0 | 0 |
 | commentExtensible dateUtc: Z, no fraction | 1 (1) | 1 (1) | 0 | 0 | 0 |
 | commentExtensible entries | 1 (1) | 1 (1) | 0 | 0 | 0 |
 | commentId entries | 1 (1) | 1 (1) | 0 | 0 | 2 (2) |
+| commentReference run inside w:del | 0 | 0 | 32 (1) | 0 | 0 |
+| commentReference run inside w:ins | 0 | 0 | 19 (3) | 0 | 0 |
 | comments | 15 (3) | 5 (3) | 1215 (85) | 3 (2) | 4 (4) |
 | comments containing a table | 0 | 0 | 1 (1) | 0 | 0 |
 | comments whose last paragraph has w14:paraId | 15 (3) | 1 (1) | 1093 (60) | 0 | 4 (4) |
 | comments with more than one paragraph | 2 (2) | 2 (2) | 234 (31) | 1 (1) | 0 |
-| comments with no commentEx entry (file has commentsExtended) | 12 (1) | 0 | 1081 (54) | 0 | 0 |
+| comments with no commentEx entry (file has commentsExtended) | 0 | 0 | 1 (1) | 0 | 0 |
 | comments without w:annotationRef | 0 | 1 (1) | 5 (4) | 0 | 4 (4) |
+| commentsExtended namespace: 2010/11 (pre-release) | 1 (1) | 0 | 54 (54) | 0 | 0 |
+| commentsExtended namespace: 2012 (w15) | 1 (1) | 1 (1) | 5 (5) | 0 | 4 (4) |
 | date: Z, no fraction | 13 (2) | 5 (3) | 1204 (79) | 3 (2) | 4 (4) |
 | date: absent | 2 (1) | 0 | 11 (6) | 0 | 0 |
+| done: parent 0, reply 0 | 3 (1) | 0 | 394 (42) | 0 | 0 |
+| done: parent 0, reply 1 | 1 (1) | 0 | 36 (14) | 0 | 0 |
+| done: parent 1, reply 0 | 1 (1) | 0 | 12 (11) | 0 | 0 |
+| done: parent 1, reply 1 | 1 (1) | 0 | 26 (15) | 0 | 0 |
 | files whose comment ids do not start at 0 | 1 (1) | 1 (1) | 15 (15) | 0 | 2 (2) |
 | files whose comment ids have gaps | 1 (1) | 0 | 27 (27) | 0 | 0 |
 | files with a comments part | 3 (3) | 3 (3) | 85 (85) | 2 (2) | 4 (4) |
@@ -329,71 +355,69 @@ the corpus.
 | files with commentsIds (commentsIds.xml) | 1 (1) | 1 (1) | 0 | 0 | 2 (2) |
 | files with people (people.xml) | 1 (1) | 0 | 25 (25) | 0 | 4 (4) |
 | max comment id (largest over files) | 12 | 5 | 136 | 1 | 1 |
+| paraIdParent matching no comment last paragraph | 0 | 0 | 1 (1) | 0 | 0 |
+| people.xml namespace: 2010/11 (pre-release) | 1 (1) | 0 | 25 (25) | 0 | 0 |
+| people.xml namespace: 2012 (w15) | 0 | 0 | 0 | 0 | 4 (4) |
+| people: presenceInfo providerId=(none) | 1 (1) | 0 | 103 (25) | 0 | 0 |
 | people: presenceInfo providerId=None | 0 | 0 | 0 | 0 | 2 (2) |
 | people: presenceInfo providerId=Windows Live | 0 | 0 | 0 | 0 | 2 (2) |
-| replies (commentEx with paraIdParent) | 0 | 0 | 3 (1) | 0 | 0 |
-| reply anchoring: commentRangeStart+commentRangeEnd+commentReference | 0 | 0 | 3 (1) | 0 | 0 |
+| replies (commentEx with paraIdParent) | 6 (1) | 0 | 469 (43) | 0 | 0 |
+| reply anchoring: commentRangeStart+commentRangeEnd+commentReference | 6 (1) | 0 | 461 (42) | 0 | 0 |
+| reply anchoring: commentReference | 0 | 0 | 7 (4) | 0 | 0 |
+| reply end: after the parent reference | 6 (1) | 0 | 421 (42) | 0 | 0 |
+| reply end: before the parent reference | 0 | 0 | 40 (14) | 0 | 0 |
+| reply start: after the parent start with only starts between | 6 (1) | 0 | 460 (42) | 0 | 0 |
+| reply to a reply (depth > 1) | 0 | 0 | 52 (16) | 0 | 0 |
 
-## What the numbers mean for ADR-0015
+## What the numbers mean for ADR-0015 (revision 2)
 
-- **Comments.**
-  - Every comment that has a range is anchored by the range start, the range end and a
-    reference run (SDK 1,195 of 1,215). 18 SDK comments have only a reference, one has no
-    anchor, and 2 anchors name a missing comment.
-  - Comment ids do not always start at 0 (15 SDK files) and have gaps (27 SDK files). Allocation
-    is therefore max + 1 over the annotation union, as ADR-0011 §2 decided.
-  - **commentsExtended is partial:** in 54 SDK files that have it, 1,081 comments have no
-    `commentEx`. Comments written before Word 2013 never got one. A reader must not require it,
-    and a writer adds entries only for the comments it creates or changes.
-  - Every `commentEx`, `commentId` and `paraIdParent` matches the **last** paragraph of a comment.
-  - Replies are rare: 3, in 1 SDK file. Each reply carries its own full range-start / range-end /
-    reference anchoring.
-  - commentsIds and commentsExtensible occur together, in a few recent files (fx 1, POI 1,
-    tpl 2 for commentsIds only).
-  - `people.xml` exists in 25 SDK files, but its `w15:author` values do not match the comments'
-    `w:author` strings (503 comments; the authors carry e-mail decorations). Matching is not by
-    exact string, *(u)*.
-- **`w14:paraId`.**
-  - It is on almost every comment paragraph that has companions (SDK 1,603 of 1,777), but on only
-    5% of body paragraphs (SDK 1,494 of 30,726).
-  - The placeholder `textId` 77777777 dominates (comments: 1,516 of 1,603).
-  - Duplicate `paraId` across stories occurs in 17 files. The allocator must avoid every
-    existing value and never assume uniqueness.
+Revision 1 of this spike read `commentsExtended` and `people.xml` only in the 2012 `w15`
+namespace. Most files with comments, including the fixture `sdk-Comment010`, use the Office
+2013 **pre-release** namespace `http://schemas.microsoft.com/office/word/2010/11/wordml`, so
+revision 1's comment conclusions were inverted (review round 1, B1). The numbers below count
+both namespaces.
+
+- **Namespaces.**
+  - `commentsExtended`: pre-release in 54 of 59 SDK files and in `sdk-Comment010`; 2012 in
+    5 SDK files, `poi-testComment` and 4 template files.
+  - `people.xml`: pre-release in all 25 SDK files and in `sdk-Comment010`; 2012 in 4 template
+    files.
+- **`commentsExtended` is essentially complete.**
+  - 1,090 `commentEx` entries in 59 SDK files. 1,089 point at a comment's last paragraph; one
+    orphan names no paragraph.
+  - Only one comment in those files has no entry.
+- **Replies are common.**
+  - 469 replies in 43 SDK files, plus 6 in `sdk-Comment010`.
+  - 52 are replies to replies (depth > 1).
+  - `done` is per comment. Parent and reply differ in 48 cases (36 open parent with a done
+    reply, 12 done parent with an open reply).
+- **Reply anchoring.**
+  - 461 replies have full start/end/reference anchoring; 7 have only a reference.
+  - The reply's range start follows the parent's start with only other starts in between (460).
+  - The reply's range end comes after the parent's reference run (421 of 461).
+- **`people.xml`.** 430 of 503 comment authors match a person exactly; 73 do not.
 - **Revisions.**
-  - Every dated revision uses `YYYY-MM-DDTHH:MM:SSZ`; 8 revisions in 1 POI file have no date.
-  - `w16du:dateUtc` was not seen.
-  - Paragraph-mark revisions (`pPr/rPr/ins|del`) are common.
-  - Revision ids are ascending in document order except in 1 SDK file. They never collide with
-    comment ids in any corpus.
-- **Notes.**
-  - Two separator conventions coexist: ids `-1`/`0` (POI 22, SDK 15, tpl 52) and `0`/`1`
-    (POI 15, SDK 147, tpl 15). Normal notes start right after them.
-  - Footnote and endnote ids are separate spaces: equal ids in 11 files.
-  - `settings` `footnotePr`/`endnotePr` lists the separator ids whenever the parts exist.
-  - Reference runs use the `FootnoteReference`/`EndnoteReference` style ids, or localized ids
-    (`a5`, `af0`, `Caratteredellanota`). The style must be found by its built-in **name**, not
-    its id.
-- **Content controls.**
-  - Most are rich text with no kind element. After that come `text`, `date`, `docPartObj`,
-    `comboBox`/`dropDownList`, `picture`, `checkbox` and `repeatingSection`.
-  - Data binding is common (SDK 463 in 85 files). 401 of those bindings point at **Office
-    built-in stores**, not at a custom XML part:
-    - `{6C3C8BC8-F283-45AE-878A-BAB7291924A1}`: core properties;
-    - `{6668398D-A668-4E3E-A5EB-62B293D839F1}`: extended properties.
-  - Placeholders (`showingPlcHdr`) and `temporary` are common.
-  - `w:id` values are often negative, and duplicates occur in 6 files.
-- **Fields.**
-  - Complex fields outnumber `fldSimple` 658 to 118 (SDK).
-  - 114 complex fields in 18 SDK files have no `separate`, so no cached result.
-  - `w:dirty` was never seen. `fldLock` appears in 1 file.
-  - `updateFields` appears only in 2 template outputs.
-- **Formatting.**
-  - `docDefaults` is present wherever there is a styles part (6 tpl files have only
-    `rPrDefault`).
-  - `basedOn` chains are at most 5 deep with no cycles. One POI file bases a style on a style of
-    another type, and one POI file references 22 missing paragraph styles.
-  - Toggle properties occur in styles in hundreds of files. Theme fonts are referenced from
-    styles in most files.
-  - Numbering levels carry `rPr` in 164 files.
-  - Table styles with conditional formatting are frequent, while the cached `cnfStyle` is rare
-    (19 files). The resolver must compute conditional formatting rather than read it.
+  - Paragraph-mark revisions sit on a paragraph that is **not** the last of its container, except
+    inside tracked table rows. Appending a tracked paragraph therefore marks the previous
+    paragraph's mark, as Word does.
+  - Tracked row deletions wrap every text run of the row in `w:del` and mark every paragraph
+    mark `del`. Tracked row insertions mark every paragraph mark `ins`.
+  - Comment references sit inside `w:del` (32) and `w:ins` (19).
+- **Data bindings, by store** (SDK):
+  - core properties: 161;
+  - extended properties: 82;
+  - cover-page properties `{55AF091B-…}`: 141 with no custom XML part in the package, 25 with
+    one;
+  - other stores: 37 with a part, 17 without.
+- **Formatting oracles available without LibreOffice.**
+  - Every `w:color` with `themeColor` in the stories also carries a cached RGB (1,230 SDK, 803 of them with
+    tint or shade).
+  - 357 `tblLook` elements in 122 SDK files have only the hex `w:val`, so the bitmask must be
+    decoded.
+- **Earlier findings that still hold:**
+  - comment ids start above 0 or have gaps in many files;
+  - `w14:paraId` covers most comment paragraphs but few body paragraphs;
+  - duplicate `paraId` values occur (17 files);
+  - two note-separator conventions coexist;
+  - complex fields dominate, and `w:dirty` was never seen;
+  - toggle properties and theme fonts are common in styles.

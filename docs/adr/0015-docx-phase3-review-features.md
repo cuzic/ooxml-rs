@@ -1,6 +1,6 @@
 # ADR-0015: Word Phase3: review features (comments, notes, tracked changes, content controls, fields, effective formatting)
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): layers, T1/T2, Layer 3's
@@ -16,13 +16,59 @@
       registry, which is designed there but not activated;
     - run splitting and paragraph insertion (§9);
     - the structure column of W2 (§10).
-  - The core transaction API being designed on `core/add-part`. It generalizes ADR-0011's
-    `PartPlan` and is required by §1 below.
+  - The core registry transaction of PR #38 (`core/add-part`): `RegistryPlan`, `stage_part` and
+    `Package::apply` (§1).
+  - PR #45 (`core/insert-with-ns`): inserts that declare namespaces on the new element.
 - Evidence:
   - `spikes/docx-phase3/` (`review.py`, `summarize.py`, README with every number).
   - Corpora: fixtures (23 open), Apache POI (111), Open XML SDK non-Strict (440), docx4j (12),
     template-engine files (212).
   - Library behaviour from source at pinned revisions (§12, Sources).
+
+## Revision history
+
+- **Revision 1:** initial proposal.
+- **Revision 2** (after `0015-opus-review-round1.md`):
+  - **B1 (spike namespaces).** Revision 1's spike read `commentsExtended` and `people.xml` only in
+    the 2012 `w15` namespace. Most files, including the fixture `sdk-Comment010`, use the Office
+    2013 **pre-release** namespace `…/word/2010/11/wordml`. The spike now reads both. Every
+    comment claim is redone:
+    - `commentsExtended` is complete, not partial;
+    - there are 469 replies, 52 of them replies to replies;
+    - `done` is per comment;
+    - 430 of 503 people match exactly.
+
+    Writes go only to 2012-namespace companion parts; a pre-release part makes replies and
+    resolve refuse with `LegacyCommentsExtended` (§3.2). The acceptance fixture becomes
+    `poi-testComment`; `sdk-Comment010` becomes the refusal test (roadmap updated).
+  - **M1 (paragraph-mark insertion).** A tracked paragraph appended after a paragraph marks the
+    **previous** paragraph's mark as inserted, as Word does; never the last paragraph of a
+    container (§5.2).
+  - **M2 (table rows).** Tracked row insertion and deletion also wrap the row's runs in
+    `ins`/`del` (with `delText`) and mark every paragraph mark (§5.2).
+  - **M3 (existing property changes).** A run or paragraph that already has `rPrChange` or
+    `pPrChange` is refused, and ADR-0004's R2 is extended to all nine revision kinds, so the
+    original snapshot is never overwritten (§5.2).
+  - **M4 (toggle properties).** Toggle properties follow [MS-OI29500] 2.1.258: overriding
+    inheritance along `basedOn`, a reset at the paragraph style, a toggle by the character
+    style, absolute direct formatting. Revision 1's XOR along chains is withdrawn (§8.2).
+  - **M5 (core-properties bindings).** A bound-control write to `docProps/core.xml` requires the
+    `updateFields` opt-in when a field reads the same property, else `StaleFieldRisk`. The
+    binding statistics are corrected (§6.2).
+  - **Minor findings:**
+    - m1: reply anchor ordering;
+    - m2: resolve applies to the thread;
+    - m3: `delete_comment` details, orphan ids in the union, T-CMT as a delta;
+    - m4: session high-water marks and `AnnotationIdsExhausted`;
+    - m5: the annotation-union evidence;
+    - m6: `paraId` scan scope;
+    - m7: `mc:Ignorable`;
+    - m8: refusals for tracked replacement;
+    - m9: SDT details;
+    - m10: resolver details and oracles;
+    - m11: notes created in pairs, separators, and cross-references.
+  - **§1** is rewritten against PR #38's `RegistryPlan`.
+  - **Owner questions:** the reviewer's recommendations are recorded as proposed answers.
 
 ## Context
 
@@ -57,26 +103,36 @@ anchors, written by other tools.
 
 The spike's corpus findings that shape the design (the README has every number):
 
-- **Comments.**
+- **Comments** (both `w15` namespaces counted; revision 2):
   - Range start, range end and a reference run anchor 1,195 of 1,215 SDK comments.
-  - `commentsExtended` is **partial**: 1,081 comments in 54 SDK files have no `commentEx`.
-  - Every `commentEx`, `commentId` and `paraIdParent` points at the **last** paragraph of a
-    comment.
-  - Replies carry their own full anchoring.
-  - `people.xml` authors do not match `w:author` strings exactly (25 SDK files).
+  - **Two namespaces for the same parts.** `commentsExtended` uses the pre-release
+    `…/word/2010/11/wordml` in 54 of 59 SDK files and in `sdk-Comment010`; the 2012 `w15` in 5 SDK
+    files, `poi-testComment` and 4 template files. `people.xml` is pre-release in all 25 SDK files.
+  - `commentsExtended` is complete: 1,089 of 1,090 entries point at a comment's **last**
+    paragraph, and only one comment lacks an entry.
+  - Replies are common: 469 in 43 SDK files, 52 of them replies to replies.
+  - `done` is per comment: parent and reply differ in 48 cases.
+  - Replies carry their own anchoring. The reply's start follows the parent's start (460). Its
+    end and reference follow the parent's reference (421 of 461).
+  - `people.xml`: 430 of 503 comment authors match a person exactly.
 - **`w14:paraId`:** on 90% of comment paragraphs, but on 5% of body paragraphs. Duplicates occur
   in 17 files.
 - **Revisions:**
   - dates always `YYYY-MM-DDTHH:MM:SSZ` when present;
-  - paragraph-mark revisions are common;
-  - ids never collide with comment ids.
+  - paragraph-mark revisions are common. Outside tracked table rows they never sit on the last
+    paragraph of a container;
+  - tracked row deletions wrap every run in `w:del` and mark every paragraph mark;
+  - ids never collide with comment or bookmark ids in Word-written files.
 - **Notes:**
   - two separator id conventions, (`-1`, `0`) and (`0`, `1`);
   - footnote and endnote id spaces are separate;
   - reference styles often have localized ids.
 - **Content controls:**
-  - 463 SDK data bindings, of which 401 point at **Office built-in stores** (core and extended
-    properties) rather than at custom XML parts;
+  - 463 SDK data bindings, by store:
+    - core properties: 161;
+    - extended properties: 82;
+    - cover-page properties: 166, of which 141 have no custom XML part in the package;
+    - other: 54;
   - negative and duplicate `w:id`s.
 - **Fields:**
   - complex fields dominate (658 to 118);
@@ -86,44 +142,51 @@ The spike's corpus findings that shape the design (the README has every number):
   - `basedOn` chains up to 5 deep;
   - toggle properties in styles in hundreds of files;
   - numbering-level `rPr` in 164 files;
-  - conditional table formatting is frequent, while the cached `cnfStyle` is rare (19 files).
+  - conditional table formatting is frequent, while the cached `cnfStyle` is rare (19 files);
+  - 357 `tblLook` elements carry only the hex `w:val`;
+  - every theme-colored `w:color` in the stories caches its RGB (1,230 SDK), which serves as an
+    oracle.
 
 ## Decision
 
-### 1. Prerequisite: a core transaction that spans parts
+### 1. Prerequisite: the core registry transaction (PR #38)
 
 Phase3 operations edit **existing** parts (the story, `comments.xml`, `settings.xml`, a custom
-XML part) and **add** parts and registry entries in the same step. ADR-0011's `PartPlan` covers
-the additions. Phase3 needs the plan to cover the edits too. The requirements on the
-`core/add-part` design are:
+XML part, `docProps/core.xml`) and **add** parts and registry entries in the same step. PR #38
+provides that transaction, and Phase3 uses it as follows.
 
-1. **One staging area for both.** It holds new parts, new relationships and content types, and
-   **checked Layer 2 edits** of existing parts. A checked edit is a `LensMut` operation whose
-   refusals (`check_insert_at`, PR #26; slots; depth limit) all run before anything changes.
-2. **`commit` cannot fail after validation.** Validation runs every check: core's OPC rules
-   (ADR-0011 §1.2), every staged edit's check, and the format crate's registry freshness checks
-   (§2). After that, commit only applies.
-3. **On any error before commit, nothing is visible.** Not in the trees, not in the registries,
-   not in the zip. Registry allocations made while planning are released, which is safe because
-   nothing referenced them yet.
-4. **Edits of a part that does not exist yet** (a new `comments.xml`) are expressed as its
-   initial tree (`PartBody::Xml`), not as edits.
+1. **Plan.** `let mut plan = RegistryPlan::new(&pkg)`. Every step is validated against the
+   package plus the earlier steps, and a refused step leaves the plan unchanged.
+2. **Edits of existing parts.** For each part to edit, take a clone of the tree
+   (`pkg.xml_part(name)?.clone()`) and edit it with the lens. The lens refuses before changing
+   anything (`check_*` twins, PR #45; slots; depth limit). Then stage it with
+   `plan.stage_part(&pkg, name, doc)`.
+3. **New parts and relationships.**
+   - New parts are added with `plan.add_part` / `add_related_part` (`comments.xml`,
+     `footnotes.xml` and `endnotes.xml`, `commentsExtended.xml`).
+   - Relationships are added with `plan.add_relationship`; content types follow from
+     `add_part`.
+4. **Apply.** `pkg.apply(plan)` cannot fail except `StalePlan`, which arises when the package
+   changed since the plan started. ooxml-docx holds `&mut Document` for the whole operation, so
+   that cannot happen from outside. Dropping the plan is the validate-only twin of the whole
+   operation.
+5. **Registries.** ooxml-docx's own registries (§2) hand out values while planning. They advance
+   their high-water marks **only when `apply` succeeds**. A plan that is dropped releases nothing
+   that anything could reference.
 
-ooxml-docx builds every Phase3 operation as one transaction. When `core/add-part` lands, this ADR
-is checked against its final API before implementation. The API names below are the docx side
-only.
+No core API beyond PR #38 and PR #45 is needed.
 
 ### 2. Registries (activating and extending ADR-0011 §2)
 
 | Registry | Scope scanned | Allocation | Evidence |
 |---|---|---|---|
-| **Annotation ids** (ADR-0011): comments, revisions, bookmarks, permissions, move ranges | the union over every story and `comments.xml` | max + 1 over the union, never a gap. Comment and revision ids come from here. | Comment ids start above 0 in 19 files and have gaps in 28. Revision ids never collide with comment ids; comment ids collide with bookmark ids in 2 template outputs, and the union avoids both. |
-| **`w14:paraId`** (designed in ADR-0011, activated here) | every paragraph and row in every story; `commentsExtended`, `commentsIds` and `paraIdParent` values | random value in `[1, 0x7FFFFFFF]`, absent from the scope *(ECMA-376 MS extension: < 0x80000000)*; redrawn on collision | 0 values ≥ 0x80000000; duplicates in 17 files, tolerated and avoided |
-| **`w14:textId`** | — | written as `77777777` on new paragraphs that get a `paraId` (Open question 2) | comments: 1,516 of 1,603 paragraphs with `paraId` carry it |
-| **Durable ids** (`w16cid:durableId`) | `commentsIds.xml`, `commentsExtensible.xml` | random value in `[1, 0x7FFFFFFF]`, absent from both | 0 values ≥ 0x80000000 |
-| **Note ids** | per kind: `footnotes.xml` (separators included) plus `footnoteReference` in every story; likewise endnotes | max + 1 per kind. Footnotes and endnotes are separate spaces; ids are never reused. | Equal footnote and endnote ids in 11 files. Separators are (`-1`, `0`) or (`0`, `1`). |
+| **Annotation ids** (ADR-0011 rev 2): comments, revisions (all nine kinds), bookmarks, permissions, move ranges | the union of **definitions and references** over every story, both branches of every `mc:AlternateContent`, text boxes, and `comments.xml`. Ids that are only referenced (dangling anchors) count. | max + 1 over the union and the **session high-water mark**, so an id freed earlier in the session is never handed out again (m4). `AnnotationIdsExhausted` when max + 1 would exceed 2³¹ − 1 (ADR-0011). | Cross-kind collisions: 0 in Word-written files (SDK: 72 files with comments and bookmarks, 11 with bookmarks and revisions, 8 with comments and revisions), so the union matches Word's single id space (m5). Collisions only in 2 docxtemplater outputs. |
+| **`w14:paraId`** (designed in ADR-0011, activated here) | every paragraph and row in every story, both AC branches, text boxes and the glossary document; plus every `paraId`/`paraIdParent` in `commentsExtended` and `commentsIds` (both namespaces) | random value in `[1, 0x7FFFFFFF]` absent from the scope, redrawn on collision ([MS-DOCX] 2.6.2.3) | Duplicates occur in 17 files, mostly AC Fallback copies or template loops. They are tolerated and avoided. |
+| **`w14:textId`** | — | `77777777`, always together with a `paraId` ([MS-DOCX] 2.6.2.4) | 1,516 of 1,603 comment paragraphs that have a `paraId` |
+| **Durable ids** (`w16cid:durableId`) | `commentsIds.xml`, `commentsExtensible.xml` | random value in `[1, 0x7FFFFFFF]` absent from both | 0 values ≥ 0x80000000 |
+| **Note ids** | per kind: `footnotes.xml` (separators included) plus `footnoteReference` in every story; likewise endnotes | max + 1 per kind and session high-water mark. Footnotes and endnotes are separate spaces; ids are never reused. | Equal footnote and endnote ids in 11 files. Separators are (`-1`, `0`) or (`0`, `1`); ADR-0011's note rows agree. |
 | **SDT ids** (`sdtPr/w:id`) | every story | random signed 32-bit value, non-zero, absent from the scope | negative values in 16 files, duplicates in 6 |
-| **People** | `people.xml` | appended when a new author is absent, by exact string (§3.4) | authors not matching exactly in 25 SDK files |
+| **People** | `people.xml` (2012 namespace only, §3.2) | appended when a new author is absent, by exact string | 430 of 503 authors match exactly |
 
 Every scan is lazy (ADR-0011), and every value is checked against its scope again at validation
 (T-REG). Existing duplicates are never repaired.
@@ -136,25 +199,27 @@ Every scan is lazy (ADR-0011), and every value is checked against its scope agai
 impl Document {
     pub fn add_comment(&mut self, range: TextRange, c: NewComment) -> Result<CommentId>;
     pub fn reply(&mut self, parent: CommentId, c: NewComment) -> Result<CommentId>;
-    pub fn set_resolved(&mut self, id: CommentId, done: bool) -> Result<()>;
+    pub fn set_resolved(&mut self, thread: CommentId, done: bool) -> Result<()>;
     pub fn delete_comment(&mut self, id: CommentId) -> Result<()>;   // with its replies
     pub fn comments(&self) -> impl Iterator<Item = CommentRef<'_>>; // author, date, text, parent, done, anchor
 }
 pub struct NewComment { pub author: String, pub initials: Option<String>, pub date: Option<UtcDateTime>, pub paragraphs: Vec<String> }
 ```
 
-`TextRange` is a start and an end position at run boundaries in one story, possibly in different
-paragraphs. Runs are split as needed with ADR-0011 §9.2's `split_run`, and the split must pass
-R1–R4. The read side resolves the parent through `commentEx`. It falls back to "no parent" and
-"not done" when a comment has no entry, which is the case in 1,081 SDK comments.
+- **`TextRange`** is a start and an end position at run boundaries in one story, possibly in
+  different paragraphs. Runs are split as needed with ADR-0011 §9.2's `split_run`, and each split
+  must pass R1–R4.
+- **Reading** resolves `commentsExtended` in **both** namespaces (2012 and the 2010/11
+  pre-release). It reports the parent at any depth, since replies to replies occur (52), and
+  `done` **per comment**. A comment without an entry has no parent and is not done.
 
 #### 3.2 What `add_comment` writes, in one transaction
 
-- **Story.**
-  - `w:commentRangeStart w:id` goes before the first run of the range.
-  - `w:commentRangeEnd w:id` goes after the last run.
-  - Right after the end, a run with `w:rStyle` = the comment-reference style (§3.5) and
-    `w:commentReference w:id`.
+- **Story.** In this order:
+  1. `w:commentRangeStart w:id` before the first run of the range;
+  2. `w:commentRangeEnd w:id` after the last run;
+  3. right after the end, a run with `w:rStyle` = the comment-reference style (§3.5) and
+     `w:commentReference w:id`.
 
   This is the shape of 1,195 of 1,215 SDK comments, and the shape python-docx writes (§12).
 - **`comments.xml`.** `w:comment w:id w:author w:date w:initials` with one `w:p` per paragraph:
@@ -162,62 +227,82 @@ R1–R4. The read side resolves the parent through `commentEx`. It falls back to
   - the first paragraph starts with a run with the reference style and `w:annotationRef`.
 
   If the part is missing, it is created through §1: `word/comments.xml`, a relationship from the
-  main part, and an `Override`. The namespace declarations are those of the template in §3.5.
-- **`commentsExtended.xml`.** `w15:commentEx w15:paraId=<last paragraph's paraId> w15:done="0"`.
-  - It is created if missing: it is the part that carries replies and the resolved state, and
-    Word 2013+ writes it *(u)*.
-  - Entries are appended for created comments only; existing comments without an entry stay as
-    they are.
-- **`commentsIds.xml` / `commentsExtensible.xml`.** An entry with a new durable id is written
-  **only if the part exists**: `w16cid:commentId` with `paraId` and `durableId`; and
-  `w16cex:commentExtensible` with the same durable id and `dateUtc`.
-  - They are not created, because Word 2016+/2018+ adds them on save *(u)*. `commentsIds` occurs
-    in 4 corpus files and `commentsExtensible` in 2. Open question 3.
-  - When one exists and the other does not, only the existing one gets an entry.
-- **`people.xml`.** A `w15:person w15:author` with `w15:presenceInfo w15:providerId="None"
-  w15:userId=<author>` is appended **if the part exists** and no person has exactly that author
-  string. The part is not created.
+  main part, and an `Override`. Its root declares `w` and `w14` and lists `w14` in
+  `mc:Ignorable` (m7).
+- **Companion parts, by namespace (B1).**
+
+  | `commentsExtended` in the package | `add_comment` | `reply`, `set_resolved` |
+  |---|---|---|
+  | absent | creates it in the 2012 namespace with a `w15:commentEx w15:paraId=<last paragraph> w15:done="0"` entry | work on the new part |
+  | present, 2012 namespace | appends the entry | work |
+  | present, 2010/11 pre-release namespace | writes **no** entry; the comment works without one, and readers tolerate the absence | refused: `LegacyCommentsExtended` |
+
+  Writing pre-release-namespace entries is rejected, because whether Word 2013 RTM and later
+  read that namespace is *(u)*. A second `commentsExtended` relationship is never created next
+  to an existing one.
+  - **`commentsIds` / `commentsExtensible`:** an entry with a new durable id is written only if
+    the part exists and uses the namespace this ADR knows (`w16cid`, `w16cex`). Neither part is
+    created.
+  - **`people.xml`:** `w15:person w15:author` with `w15:presenceInfo w15:providerId="None"
+    w15:userId=<author>` is appended only if the part exists in the 2012 namespace and no person
+    has exactly that author. The part is not created.
 - **Dates.** The caller's, or "now". Written in UTC as `YYYY-MM-DDTHH:MM:SSZ`, the only shape in
-  the corpora. Fractional seconds are not written.
+  the corpora.
+- **Markup Compatibility (m7).** Adding `w14:paraId` to an original paragraph, or `w15`/`w14`
+  elements anywhere, requires the prefix to be **declared and listed in `mc:Ignorable`** on the
+  part's root. Otherwise the operation is refused (`NotIgnorable`), since changing the root's
+  start tag is an original-element edit. Created parts and created elements declare the prefix
+  (PR #45) and list it in `mc:Ignorable` on that element.
 
 #### 3.3 Replies, resolve and delete
 
-- **`reply(parent, …)`** writes a new `w:comment` and its `commentEx` with
-  `w15:paraIdParent` = the parent's last-paragraph `paraId`. Its anchors are placed **inside**
-  the parent's: range start right after the parent's start, range end right after the parent's
-  end, and its reference run right after the parent's reference run. That is the shape of the
-  corpus replies.
-  - A parent whose last paragraph has no `w14:paraId` gets one. This is an attribute edit of an
-    existing paragraph's start tag, so it is local, and T2 permits it.
-  - When `w14` is not declared in scope, the edit is refused (`ParentNotAddressable`), because
-    declaring a namespace on an original node is refused by ADR-0011 §1.3. How often that
-    happens is not measured; the implementation's first commit adds it to the spike.
-  - Replies to replies are refused (`NestedReply`): Word's UI threads one level *(u)*, and the
-    corpus has none.
-- **`set_resolved`** sets `w15:done` on the comment's `commentEx`, creating the entry if it is
-  missing. Replies inherit the state *(u)*: only the parent is set.
-- **`delete_comment`** removes the comment, its replies, their anchors in every story, and their
-  `commentEx`, `commentId`, `commentExtensible` entries.
-  - Freed ids are not reused (Layer 3), and `people.xml` entries stay.
-  - Removal of registry entries follows PR #14's interim rule; for these parts the entries are
-    content, not OPC registries.
+- **`reply(parent, …)`** writes a new `w:comment` and its `commentEx` with `w15:paraIdParent` =
+  the parent's last-paragraph `paraId`.
+  - **Anchors** follow the corpus shape (m1):
+    - the reply's range start goes after the last existing range start of the thread (parent or
+      sibling replies) that is adjacent to the parent's start;
+    - its range end and reference run go, as a pair, after the reference run of the thread's last
+      reply, or after the parent's reference run if there is none.
+  - **A parent without a `paraId`** on its last paragraph gets one: an attribute edit of that
+    original paragraph. It is refused (`ParentNotAddressable`) unless `w14` is declared and
+    ignorable on the `comments.xml` root (§3.2).
+  - **Replies to replies are not created in Phase3** (`NestedReply`). Reading handles any depth.
+- **`set_resolved(thread, done)`** writes the same `w15:done` to the parent and every reply of the
+  thread (m2), creating missing entries under the namespace rule of §3.2 and the `paraId` rule
+  above *(u: Word 365's behaviour; manual check)*. Reading still reports `done` per comment.
+- **`delete_comment(id)`** removes:
+  - the comment and its replies from `comments.xml`;
+  - their `commentEx`, `commentId` and `commentExtensible` entries;
+  - their range start and end;
+  - their `commentReference` elements. The run holding a reference is removed only if nothing
+    but `rPr` is left in it (m3).
+
+  It is refused when an anchor lies inside a revision (`w:ins`/`w:del`, SDK: 51 references),
+  because that would edit a revision (R2). Freed ids are not reused (§2's high-water mark), and
+  `people.xml` entries stay.
 
 #### 3.4 Gates
 
 | Gate | Effect on comments |
 |---|---|
 | W1 (`trackRevisions`) | Does not apply. Comments are not tracked changes, and Word records them while tracking. |
-| W3 (`documentProtection`) | `comments` and `none` allow comments; `readOnly`, `forms` and `trackedChanges` refuse them *(u: whether Word permits comments under `trackedChanges`)* |
-| W2 (fields) | Text column: anchors add no text, so no field result changes |
-| R1–R4 | Apply to the runs at the range boundaries, because they may be split. A range may span runs inside fields and revisions as long as no split falls inside them. |
+| W3 (`documentProtection`) | `comments` and `none` allow comments; `readOnly` and `forms` refuse them. `trackedChanges` is *(u)*; it is refused until the manual check answers it. |
+| W2 (fields) | Text column: anchors add no text, so no field result changes. |
+| R1–R4 | Apply to the runs at the range boundaries, because they may be split. |
 
 #### 3.5 Styles by name
 
-The comment styles are looked up by their built-in **name** (`annotation text`,
-`annotation reference`, `footnote reference`, `footnote text`, …), never by style id. Localized
-documents use ids such as `a5`, `af0` and `Caratteredellanota` (spike: notes). If the style does
-not exist, it is created through ADR-0011 §8 with Word's built-in definition. Open question 4
-covers whether these definitions come from an owner-provided Word 365 document.
+The comment and note styles are looked up by their built-in **name**, never by style id:
+`annotation text`, `annotation reference`, `footnote text`, `footnote reference`,
+`endnote text`, `endnote reference`. Localized documents use ids such as `a5`, `af0` and
+`Caratteredellanota` (spike: notes).
+
+If the style does not exist, it is created through ADR-0011 §8:
+
+- **Until the owner provides a Word 365 document** (Open question 4): minimal definitions, with
+  the id derived from the name (e.g. `CommentText`, `CommentReference`, `FootnoteText`,
+  `FootnoteReference`).
+- **Afterwards:** definitions copied from that document.
 
 ### 4. Footnotes and endnotes
 
@@ -234,12 +319,15 @@ impl Document {
   - each paragraph has `pStyle` = the footnote-text style;
   - the first starts with a run with the reference style and `w:footnoteRef`, then a run with a
     space and the text, as Word writes it *(u)*.
-- **Ids:** max + 1 over the part (separators included) and over every reference in every story.
-  The separators are never touched.
-- **Missing part.** Created with Word 2010+'s separator convention: `separator` id `-1`,
-  `continuationSeparator` id `0` *(u: which convention current Word writes; both occur)*.
-  `settings.xml` also gains `w:footnotePr` (or `w:endnotePr`) listing them, in schema order. The
-  corpora always have it when the part exists.
+- **Ids:** max + 1 per kind over the part (separators included), over every reference in every
+  story, and over the session high-water mark. The separators are never touched.
+- **Missing part.**
+  - Footnotes and endnotes are created **as a pair**: both parts exist together in 162 of 162 SDK
+    files.
+  - Separators use the (`-1`, `0`) convention: `separator` id `-1`, `continuationSeparator`
+    id `0`. Template outputs and Word 2010+ write it *(u)*.
+  - `settings.xml` gains `w:footnotePr` and `w:endnotePr` listing the separators, in schema
+    order, as the corpora always have.
 - **Gates:** W1 and W3 apply, as for any text edit. W2 uses the structure column, because notes
   renumber and shift pagination. R1–R4 apply at `at`.
 - **Not in Phase3:** custom marks (`w:customMarkFollows`), changing note numbering properties,
@@ -266,29 +354,35 @@ t.insert_rows(...)?;              // trPr/ins
 
 | Edit | Markup | Notes |
 |---|---|---|
-| Replace a run's text | `w:del w:id w:author w:date` around the old run, whose `w:t` becomes `w:delText` and whose `instrText` becomes `delInstrText`; `w:ins` around a new run with the same `rPr` | The old run keeps its rsids and `rPr`. Only its text elements are renamed. A rename re-renders that run (T2-local). |
-| Insert text, runs or a paragraph | `w:ins` around new runs. A new paragraph also gets `w:pPr/w:rPr/w:ins` (paragraph-mark insertion). | Paragraph-mark revisions: POI 20, SDK 56 |
+| Replace a run's text | `w:del w:id w:author w:date` around the old run and `w:ins` around a new run with the same `rPr`. In the old run, **every** `w:t` becomes `w:delText` and every `w:instrText` becomes `w:delInstrText`, at any depth in the run. | The old run keeps its rsids and `rPr`. Renaming re-renders that run, which is T2-local. Refused (m8) when the run holds anything but text: `commentReference`, `footnoteReference`, `endnoteReference`, `drawing`, `fldChar`, `sym`, `object` (`RunNotTextOnly`, as R4). |
+| Insert text or runs | `w:ins` around the new runs | |
+| Insert a paragraph after paragraph P (M1) | `w:ins` around the new paragraph's runs. **P's** paragraph mark becomes inserted: `w:ins` as the **first** child of `P/w:pPr/w:rPr`, since `CT_ParaRPr` puts `ins`/`del`/`moveFrom`/`moveTo` before `EG_RPrBase`. The new paragraph takes over P's original mark. When the new paragraph is first in its container, or follows a table, its own mark is inserted instead; it is then not the container's last paragraph. | Matches Word. Outside tracked rows, the corpora never have a paragraph-mark revision on a container's last paragraph. Rejecting the change removes the new text and P's inserted mark, leaving the original document. |
 | Delete text | `w:del` around the runs, with `delText` | Splits at run boundaries (ADR-0011 §9.2) |
-| Change run formatting | `w:rPrChange w:id w:author w:date` holding a copy of the old `rPr` (`detach_as`, minus an existing `rPrChange`) | Refused if the run already has an `rPrChange` from another author *(Word merges; Phase3 does not)* |
-| Change paragraph properties | `w:pPrChange` with the old `pPr`, minus `sectPr`, `rPr` and `pPrChange` | |
-| Insert or delete table rows | `w:trPr/w:ins` or `w:trPr/w:del` | |
+| Change run formatting | `w:rPrChange w:id w:author w:date` holding a copy of the old `rPr`, made with `detach_as` as `CT_RPrOriginal` | Refused when the run already has an `rPrChange` (M3) |
+| Change paragraph properties | `w:pPrChange` with the old `pPr` as `CT_PPrBase`: without `sectPr`, `rPr` and `pPrChange` | Refused when the paragraph already has a `pPrChange` (M3) |
+| Insert table rows (M2) | `w:trPr/w:ins` on each new row, `w:ins` around every run in its cells, and `w:ins` in every paragraph mark of its cells | Matches the SDK's tracked rows |
+| Delete table rows (M2) | `w:trPr/w:del` on each row, every run wrapped in `w:del` with `w:t` → `w:delText`, and `w:del` in every paragraph mark of its cells | All 3 SDK files with tracked deleted rows have this shape. ADR-0004's accepted view (`Paragraph::text`) then excludes the row's text, because the text is `delText` inside `w:del`. |
 
+- **ADR-0004's R2 is extended (M3).** A run or paragraph inside, or carrying, any of the nine
+  revision kinds is refused for every Phase0–3 edit: `ins`, `del`, `moveFrom`, `moveTo`,
+  `rPrChange`, `pPrChange`, `trPr/ins|del`, `numberingChange`, `sectPrChange`. A second change
+  can therefore never overwrite the original snapshot that rejecting must restore. Keeping the
+  snapshot and updating only id, author and date is the alternative; Word's behaviour there is
+  *(u)*, so it is not done.
 - **Attributes.**
   - `w:id` comes from the annotation union (§2).
   - `w:author` is the session's author and must be non-empty.
   - `w:date` is UTC `YYYY-MM-DDTHH:MM:SSZ`.
   - rsids and `w16du:dateUtc` are not written; the latter was never seen in the corpora.
 - **Still refused:**
-  - edits inside existing revisions (R2), including a session's own earlier revisions, because
-    Word would merge them *(u)*;
-  - moves (`moveFrom`/`moveTo`);
+  - edits touching existing revisions (extended R2), including a session's own earlier
+    revisions;
+  - moves;
   - numbering changes;
   - section property changes;
-  - accept and reject, which are later in the roadmap (Q3) because of moves, numbering and
-    paragraph-mark merges.
-- **W2 still applies** per ADR-0007/0011 columns. A tracked edit changes the "all revisions
-  accepted" view, which fields compute from *(u)*.
-- **Reading.** `Run::revision()` reports author, date and kind. ADR-0004's "accepted view" text is
+  - accept and reject, which are later in the roadmap (Q3).
+- **W2 still applies** per ADR-0007/0011 columns.
+- **Reading.** `Run::revision()` reports author, date and kind. ADR-0004's accepted view is
   unchanged.
 
 ### 6. Content controls (SDT)
@@ -301,9 +395,9 @@ R3 is lifted for these kinds; every other kind stays refused:
 |---|---|---|
 | `w:text` (plain text) | `set_text` | The content becomes one run with the content's first run's `rPr`. `multiLine` decides whether `\n` maps to `w:br` or is refused. |
 | no kind element (rich text) | `set_text` on a single-paragraph control; runs inside follow R1–R4 as body runs do | Most controls (SDK 1,010) |
-| `w:date` | `set_date(date)` | `w:date/@w:fullDate` (ISO) and the displayed text, formatted with `w:dateFormat` and `w:lid` *(u: Word's format engine; Open question 6)* |
+| `w:date` | `set_date(date)` | `w:date/@w:fullDate` (ISO) and the displayed text, formatted with `w:dateFormat` and `w:lid` *(u: Word's format engine; Open question 6)*. A bound date control writes to the store in the form `w:storeMappedDataAs` names (`dateTime`, `date` or `text`). |
 | `w14:checkbox` | `set_checked(bool)` | `w14:checked/@w14:val` and the glyph run from `w14:checkedState`/`uncheckedState` (font and char) |
-| `w:dropDownList`, `w:comboBox` | `select(value)` | The text becomes the matching `listItem@displayText`. A combo box also accepts free text. |
+| `w:dropDownList`, `w:comboBox` | `select(value)` | The **store** gets the item's `value`; the **display** is its `displayText`, or `value` when `displayText` is absent. A combo box also accepts free text. |
 | `w:picture`, `w:docPartObj`, `w:docPartList`, `w:citation`, `w:bibliography`, `w:equation`, `w:group`, `w15:repeatingSection` | — | Refused (`UnsupportedControl`) |
 
 - **Placeholders.** When `w:showingPlcHdr` is present (SDK 1,673), setting a value removes it
@@ -318,20 +412,40 @@ R3 is lifted for these kinds; every other kind stays refused:
 
 #### 6.2 Data binding
 
-`w:dataBinding` has `w:storeItemID`, `w:xpath` and `w:prefixMappings`. Setting a bound control's
-value updates the store **and** the cached content of **every** control bound to the same
-(store, xpath). Readers other than Word see only the cached content; Word refreshes from the
-store on open *(u)*.
+`w:dataBinding` has `w:storeItemID`, `w:xpath` and `w:prefixMappings`.
 
-| Store | Where | Phase3 |
+- **What a write updates.** Setting a bound control's value updates the store **and** the cached
+  content of **every** control bound to the same node. Readers other than Word see only the
+  cached content; Word refreshes from the store on open *(u)*.
+- **Node identity (m9).** Two bindings name the same node when the store matches and their
+  xpaths are equal after resolving prefixes to namespace URIs (through `prefixMappings`) and
+  normalizing absent `[1]` positions. The SDK core-properties bindings mix `ns0:title` and
+  `ns1:title`.
+- **Mixed controls.** When controls of different kinds share a node, each renders its display by
+  its own kind's rule.
+
+| Store (SDK counts) | Where | Phase3 |
 |---|---|---|
-| A custom XML part whose `itemProps` `ds:itemID` equals `storeItemID` | `customXml/itemN.xml` | Supported. The xpath must be the subset Word writes: absolute steps `/p:a[1]/p:b[1]`, with prefixes from `prefixMappings`, optional `[n]` positions and no other predicates. The target must be one element whose content is text; it is replaced, and nothing else in the part changes. Anything else is `UnsupportedBinding`. |
-| `{6C3C8BC8-F283-45AE-878A-BAB7291924A1}`, core properties | `docProps/core.xml` | Supported for text properties (`dc:title`, `dc:subject`, `dc:creator`, `cp:keywords`, `dc:description`, `cp:category`, `cp:contentStatus`). This is the most frequent binding (SDK 401). It interacts with ADR-0004 §5's stale `core.xml` policy; Open question 7. |
-| `{6668398D-A668-4E3E-A5EB-62B293D839F1}`, extended properties | `docProps/app.xml` | Read only (`UnsupportedBinding` on write) *(u: which properties Word binds)* |
-| Any other store, or no matching part | — | Refused |
+| A custom XML part whose `itemProps` `ds:itemID` equals `storeItemID` (cover page 25, other 37) | `customXml/itemN.xml` | Supported. The xpath must be the subset Word writes: absolute steps `/p:a[1]/p:b[1]`, prefixes from `prefixMappings`, optional `[n]` positions, no other predicates. The target must be one element whose content is text; it is replaced, and nothing else in the part changes. Anything else is `UnsupportedBinding`. |
+| `{6C3C8BC8-F283-45AE-878A-BAB7291924A1}`, core properties (161) | `docProps/core.xml` | Supported for the text properties `dc:title`, `dc:subject`, `dc:creator`, `cp:keywords`, `dc:description`, `cp:category`, `cp:contentStatus`, **under the M5 rule below**. |
+| `{6668398D-A668-4E3E-A5EB-62B293D839F1}`, extended properties (82) | `docProps/app.xml` | Read only (`UnsupportedBinding` on write) |
+| Cover-page properties `{55AF091B-…}` with no part in the package (141), or any other store without a part (17) | — | Refused: there is no store to write |
 
-- Bindings with `w15:dataBinding` (rich-text binding, Word 2013+) are refused.
-- Creating new custom XML stores is not in Phase3.
+- **Core properties and fields (M5).** ADR-0004 classifies `TITLE`, `SUBJECT`, `AUTHOR`,
+  `KEYWORDS`, `COMMENTS` and `DOCPROPERTY Title` (etc.) as safe because Phase0 never writes
+  `docProps`. A bound write changes the property those fields read. So:
+  - if any story (complex fields and `fldSimple`) has a field that reads the written property,
+    the write requires the caller's `updateFields` opt-in (ADR-0007). Without it, it is refused
+    with `StaleFieldRisk`;
+  - `dcterms:modified`, `cp:lastModifiedBy` and `cp:revision` stay as Word last saved them
+    (ADR-0004 §5).
+- **How the store is edited.** The custom XML part and `docProps/core.xml` have no WML schema,
+  so the edit cannot go through the §10 allowlist. It is a Layer 2 replacement of one element's
+  text through the untyped primitive ADR-0002 already allows for registry-like parts: a clone
+  edited by text replacement, staged with `stage_part` (§1). The target element must contain
+  only text (no child elements); otherwise the edit is refused.
+- **Not in Phase3:** `w15:dataBinding` (rich-text binding, in either `w15` namespace) is refused,
+  and new custom XML stores are not created.
 
 #### 6.3 Creating controls
 
@@ -344,8 +458,9 @@ store on open *(u)*.
 - A binding may target only an existing store (§6.2), and the store's current value must equal
   the wrapped text, else `BindingMismatch`.
 - Row and cell controls are not created.
-- The kind elements in `w14` need `w14` declared in scope. `declare_namespace` on created nodes
-  covers that (ADR-0011 §1.3).
+- The kind elements in `w14` (`w14:checkbox` with `w14:checked`, `w14:checkedState`,
+  `w14:uncheckedState`) are declared on the created `w:sdt` through PR #45's `*_with_ns` inserts,
+  with `w14` listed in that element's `mc:Ignorable` (m7).
 
 ### 7. Inserting fields
 
@@ -408,14 +523,17 @@ The order follows the ECMA-376 Part 1 style hierarchy *(§17.7.2; section number
 u)*. Each later level overrides the earlier:
 
 1. **Document defaults:** `docDefaults/rPrDefault`, `pPrDefault`. When they are absent, Word's
-   application defaults apply *(u: Times New Roman 10 pt; Open question 8)*. The corpora always
+   application defaults apply (Times New Roman 10 pt *(u)*), reported as
+   `Provenance::ApplicationDefault`; resolution is never refused for this. The corpora always
    have them when a styles part exists, and 6 template files have only `rPrDefault`.
 2. **Table style** of the enclosing table:
    - its `pPr`/`rPr`;
    - then the conditional `tblStylePr` blocks that apply to the cell. These are computed from
      the cell position and `tblLook` (`firstRow`, `lastRow`, `firstColumn`, `lastColumn`,
      `noHBand`, `noVBand`, band sizes), in the order whole table → bands → first/last column →
-     first/last row → corner cells *(u)*.
+     first/last row → corner cells *(u)*. `tblLook` is often only the hex `w:val` (357 SDK), and
+     that bitmask is decoded. Bands are counted in **grid columns**, taking `gridSpan` and
+     `vMerge` into account (m10).
    - `cnfStyle` is a cache and is ignored for resolution (19 files have it).
 3. **Numbering level** `pPr` (and `rPr` for the number itself, not for the paragraph's runs).
    This applies when the paragraph has `numPr` directly or through its style chain. The
@@ -429,11 +547,21 @@ u)*. Each later level overrides the earlier:
 #### 8.2 Rules
 
 - **Toggle properties** (`b`, `bCs`, `i`, `iCs`, `caps`, `smallCaps`, `strike`, `dstrike`,
-  `outline`, `shadow`, `emboss`, `imprint`, `vanish`):
-  - within styles (table, paragraph and character chains), each occurrence **toggles** the
-    inherited value (XOR);
-  - direct formatting sets the value absolutely;
-  - `w:val="0"` in a style sets false rather than toggling *(u)*.
+  `outline`, `shadow`, `emboss`, `imprint`, `vanish`; M4) are resolved as follows:
+  1. **Within one style chain** (`basedOn`), a derived style's value **overrides** its base's,
+     as for every other property. No XOR is applied along the chain.
+  2. **The paragraph style resets.** Its resolved value, if present, sets the property
+     ([MS-OI29500] 2.1.258, Part 1 §17.7.8: "a value of 1 resets the property's state to True
+     instead of toggling it").
+  3. **The character style toggles** the value resolved so far: on `true` it flips the value,
+     on `false` it leaves the value unchanged.
+  4. **The table style's** interaction with the paragraph and character styles is *(u)*; it is
+     settled by differential tests.
+  5. **Direct formatting** sets the value absolutely.
+
+  The corpus cases that drive this: `[b=1 → b=0]` paragraph-style chains in 17 SDK
+  Microsoft-template files and `caps` in 2. T-FMT adds synthetic cases: `[1, 1]` chains, `b` in
+  both the paragraph and the character style, and `b` in both the table and the paragraph style.
 - **Chains** are followed root first and guarded against cycles (0 observed; refused with
   `StyleCycle` rather than looping) and against depth beyond 64.
 - **A missing style** referenced by `pStyle`/`rStyle` falls back to the default style of that
@@ -458,10 +586,10 @@ u)*. Each later level overrides the earlier:
 
 | Operation | W1 `trackRevisions` | W3 protection allows | W2 column |
 |---|---|---|---|
-| comments (add, reply, resolve, delete) | not applied | `none`, `comments` | text (no change) |
+| comments (add, reply, resolve, delete) | not applied | `none`, `comments` (`trackedChanges` *(u)*, refused for now) | text (no change) |
 | footnotes and endnotes | applied (tracked notes are not generated in Phase3) | `none` | structure |
 | tracked-change session edits | **lifted** | `none`, `trackedChanges` | per edit (text or structure) |
-| SDT value edits | applied | `none`, `forms` *(u)* | text |
+| SDT value edits | applied | `none`, `forms` *(u)* | text; a core-properties binding needs `updateFields` when fields read the property (§6.2) |
 | wrapping in a new SDT | applied | `none` | text |
 | inserting a field | applied | `none` | text for safe codes; content-dependent codes need `updateFields` |
 | effective formatting | — (read) | — | — |
@@ -490,24 +618,36 @@ u)*. Each later level overrides the earlier:
 
   Whether these MS-extension schemas are in the SDK data the generator reads is checked in the
   implementation PR's first commit (Open question 9).
-- **`[detach]`** gains `w:CT_RPr/w:rPr` and `w:CT_PPr/w:pPr` for `rPrChange`/`pPrChange` copies,
-  each reviewed for document-unique ids (none expected).
+- **`[detach]`** gains the snapshot types of `rPrChange`/`pPrChange`, reached by `detach_as`'s
+  type conversion: `w:CT_RPr` → `w:CT_RPrOriginal` and `w:CT_PPr` → `w:CT_PPrBase`. Each is
+  reviewed for document-unique ids (none expected).
+- **`w14` checkbox state elements** for created checkboxes: `w14:checkedState` and
+  `w14:uncheckedState`.
 
 ### 11. Test oracles
 
 - **T1–T6, T-OPC and T-REG** (ADR-0011) on every output.
-- **T-CMT (comment consistency), on every output:**
+- **T-CMT (comment consistency).** The checks are on the **delta** from the input: an operation
+  must not newly break any of them. Inputs already contain dangling anchors (2) and an orphan
+  `commentEx` (`Comment040`).
   - every `commentReference`/range id names a comment;
   - every created comment has exactly one start, end and reference;
   - every `commentEx`/`commentId` `paraId` is the last paragraph of a comment;
   - every `paraIdParent` names a comment that is not itself a reply;
   - `commentsIds` and `commentsExtensible` agree on durable ids;
-  - acceptance: `sdk-Comment010` with a reply added, with all five parts agreeing (roadmap).
+  - **acceptance:** `poi-testComment` (2012-namespace companions), with a reply added and
+    resolved, and all parts agreeing.
+  - **refusal test:** `sdk-Comment010` (pre-release namespace) must refuse `reply` and
+    `set_resolved` with `LegacyCommentsExtended` and leave the package unchanged, while
+    `add_comment` succeeds without a `commentEx`.
 - **T-REV:**
   - docx-rs read-back of `ins`/`del` (author, date, text) on a tracked edit of `poi-delins`
     with its `trackRevisions` kept on (roadmap);
   - the accepted view (ADR-0004 `Paragraph::text`) equals the new text, and the rejected view
-    equals the old text.
+    equals the old text;
+  - a tracked append at the end of the body, and inside a table cell, puts the inserted mark on
+    the previous paragraph (M1);
+  - tracked row deletion: the accepted view drops the row's text (M2).
 - **T-NOTE:**
   - every reference resolves within its kind;
   - separators are unchanged;
@@ -518,8 +658,14 @@ u)*. Each later level overrides the earlier:
 - **T-FLD:**
   - ADR-0004's scanner classifies every inserted field as its `FieldSpec`;
   - content-dependent fields carry `w:dirty`.
-- **T-FMT (resolver differential):**
-  - a hand-computed table over the fixtures and synthetic cases: XOR chains, missing styles,
+- **T-FMT (resolver differential).** These oracles need no LibreOffice (m10):
+  - the RGB cached with every theme-colored `w:color` (1,230 SDK) checks the theme, tint and shade
+    arithmetic;
+  - the 19 files with `cnfStyle` check the computed conditional formatting;
+  - the toggle cases of §8.2 are added.
+
+  The original checks:
+  - a hand-computed table over the fixtures and synthetic cases: toggle chains (§8.2), missing styles,
     conditional table formatting, numbering indentation, theme fonts and colors.
   - LibreOffice is the reference where available; it is not available in this sandbox. The
     O3 LibreOffice workflow (PR #21) can export the same documents to compare.
@@ -545,7 +691,7 @@ u)*. Each later level overrides the earlier:
 | tracked changes | none (reads ignore `w:ins` text, roadmap Q3) | reads `ins` runs (`XWPFParagraph.java:151-160`); no API to create | `Insert`/`Delete` with default author `unnamed` and date `1970-01-01T00:00:00Z` (`elements/insert.rs:69-77`); ids from a process-global counter from 0 (`history_id.rs`), not checked against existing ids | session author and date, ids from the union, paragraph-mark and `rPrChange` handled (§5) |
 | content controls | none | read-only `XWPFSDT`/`XWPFAbstractSDT` (constructors and getters only, `XWPFSDT.java:29-52`) | `StructuredDataTag` with `DataBinding { xpath, prefix_mappings, store_item_id }` (`elements/structured_data_tag.rs:117-151`, `elements/data_binding.rs:9-30`); the store is not updated | value edits per kind, store and every bound control updated together (§6) |
 | fields | none | `fldSimple` only (`createFieldRun`, `XWPFParagraph.java:1565-1570`; `XWPFFieldRun.setFieldInstruction`, `XWPFFieldRun.java:45`) | complex fields with an optional `w:dirty` (`elements/run.rs:194-200`, `elements/fld_char.rs:25`); typed instructions for TOC, PAGE, PAGEREF, HYPERLINK, TC (`elements/instr_*.rs`) | complex fields from a closed enum; `dirty` + `updateFields` for content-dependent codes (§7) |
-| effective formatting | none: `Font.bold` reads direct `rPr` only (`text/font.py:39-48`); `style.base_style` exposes the chain (`styles/style.py:172`) | none: `XWPFRun.isBold` reads direct `rPr` (`XWPFRun.java:325-328`); `XWPFStyles.getUsedStyleList` walks `basedOn`/`link`/`next` to copy styles, not to resolve (`XWPFStyles.java:234-270`) | none: styles keep `based_on` (`elements/style.rs:22, 83`) but nothing resolves | resolver with XOR toggles, conditional table formatting and theme (§8) |
+| effective formatting | none: `Font.bold` reads direct `rPr` only (`text/font.py:39-48`); `style.base_style` exposes the chain (`styles/style.py:172`) | none: `XWPFRun.isBold` reads direct `rPr` (`XWPFRun.java:325-328`); `XWPFStyles.getUsedStyleList` walks `basedOn`/`link`/`next` to copy styles, not to resolve (`XWPFStyles.java:234-270`) | none: styles keep `based_on` (`elements/style.rs:22, 83`) but nothing resolves | resolver with toggle rules per [MS-OI29500], conditional table formatting and theme (§8) |
 
 None of the three keeps the five comment parts consistent, allocates note or revision ids
 against the existing file, or resolves effective formatting. Those are the parts of Phase3 with
@@ -572,6 +718,13 @@ reviewed here: its source is not in the spike's pinned set (Open question 10).
    *(u)*, and the edit would be reverted visibly. Store and cache are updated together.
 7. **Lift W1 for every edit while `trackRevisions` is on** (silently track). Rejected: the
    caller must choose an author and opt in to tracking; a session makes that explicit.
+8. **Write `commentEx` entries in the pre-release namespace** when the existing part uses it.
+   This would make replies work on most comment-bearing files (54 of 59 SDK files). Rejected:
+   whether Word 2013 RTM and later read that namespace is *(u)*, and a reply that a consumer
+   cannot see is worse than a refusal. It is revisited if the owner's manual check shows that
+   current Word reads it.
+9. **XOR toggle properties along every style chain** (revision 1). Withdrawn: it contradicts
+   [MS-OI29500] 2.1.258 and overriding inheritance (§8.2).
 
 ## Consequences
 
@@ -585,8 +738,11 @@ reviewed here: its source is not in the spike's pinned set (Open question 10).
     users.
   - The core transaction is shared with xlsx and pptx.
 - **Negative:**
-  - Phase3 depends on the core transaction API (`core/add-part`) and on ADR-0011's registries
-    and `split_run`.
+  - Phase3 depends on PR #38 (`RegistryPlan`) and PR #45 (`*_with_ns` inserts), and on
+    ADR-0011's registries and `split_run`.
+  - Replies and resolve are refused on files whose `commentsExtended` uses the pre-release
+    namespace: 54 of 59 SDK files with that part, and `sdk-Comment010`. Adding comments still
+    works there.
   - About 40 allowlist entries, and four MS-extension namespaces whose schema data must be
     available to the generator.
 - **Negative:** several behaviours are Word's and are not specified:
@@ -603,28 +759,30 @@ reviewed here: its source is not in the spike's pinned set (Open question 10).
 
 ## Open questions for the project owner
 
-1. **Core transaction (§1):** confirm that the `core/add-part` design covers staged Layer 2
-   edits of existing parts, not only additions.
-2. **`w14:textId` for new paragraphs:** write the placeholder `77777777` (proposed, matching
-   1,516 of 1,603 comment paragraphs) or omit it?
-3. **Companion parts:** create `commentsIds`/`commentsExtensible`/`people` too (Word 365 does
-   *(u)*), or only append to them when present (proposed)?
-4. **Built-in style definitions** for comment and note styles: copy them from an owner-provided
-   Word 365 document (preferred), or define our own?
-5. **Note separators for new parts:** (`-1`, `0`) as proposed, or (`0`, `1`)? Current Word's
-   choice needs checking.
-6. **Date formatting** for date controls and DATE fields: implement Word's picture syntax for
-   the common patterns (`yyyy/MM/dd`, `d MMMM yyyy`, Japanese era formats?) or require the
-   caller to pass the display text?
-7. **Core-properties binding** (§6.2): editing `docProps/core.xml` through a bound control
-   conflicts with ADR-0004 §5's "leave `core.xml` as Word last saved it". Allow it for bound
-   properties only (proposed)?
-8. **Application defaults** when `docDefaults` is missing: Times New Roman 10 pt *(u)*, or
-   refuse to resolve?
-9. **MS-extension schemas** (`w14`, `w15`, `w16cid`, `w16cex`) in the generator's input: are
-   they in the pinned SDK data, or do they need an override file?
-10. **docx4j** as a further reference for formatting resolution (its `PropertyResolver`): add
-    its source at a pinned revision to the spike before implementation?
+Each question has the round-1 reviewer's recommendation as its proposed answer, awaiting the
+owner's decision.
+
+1. **Core transaction (§1).** Proposed: PR #38's `RegistryPlan`, with `stage_part` of lens-edited
+   clones. No further core API.
+2. **`w14:textId` for new paragraphs.** Proposed: `77777777`, always paired with a `paraId`
+   ([MS-DOCX] 2.6.2.4).
+3. **Companion parts.** Proposed: append only when the part exists, and only in the 2012
+   namespace. Create `commentsExtended` only when no `commentsExtended` relationship exists
+   (§3.2).
+4. **Built-in style definitions.** Proposed: copy them from an owner-provided Word 365 document;
+   until then, minimal definitions found by name, with ids derived from the names (§3.5).
+5. **Note separators for new parts.** Proposed: (`-1`, `0`), with footnotes and endnotes created
+   as a pair.
+6. **Date formatting** for date controls and DATE fields: implement Word's picture syntax for the
+   common patterns, or require the caller to pass the display text? (Open.)
+7. **Core-properties binding.** Proposed: allowed, but it requires `updateFields` when a field
+   reads the written property (§6.2, M5).
+8. **Application defaults** without `docDefaults`. Proposed: Times New Roman 10 pt, reported as
+   `Provenance::ApplicationDefault`; never refused.
+9. **MS-extension schemas** (`w14`, `w15`, `w16cid`, `w16cex`) in the generator's input: are they
+   in the pinned SDK data, or do they need an override file? (Open.)
+10. **docx4j** as a further formatting reference (its `PropertyResolver`): add its source at a
+    pinned revision to the spike before implementation? (Open.)
 
 ## Sources
 
@@ -645,9 +803,15 @@ reviewed here: its source is not in the spike's pinned set (Open question 10).
     `style.rs`.
 
   Line ranges are given in §12.
-- **ADRs and PRs:** ADR-0001, ADR-0002, ADR-0004 (Accepted), ADR-0007 (PR #25), ADR-0011
-  (PR #31), PR #14 (`remove_part`), PR #18 (`detach_as`), PR #26 (`insert_at`), PR #21 (O3
-  LibreOffice workflow), `docs/roadmap/docx.md` (Phase3, Q3, Q4).
+- **ADRs and PRs:**
+  - ADR-0001, ADR-0002, ADR-0004 (Accepted), ADR-0007 (PR #25), ADR-0011 (PR #31);
+  - PR #14 (`remove_part`), PR #18 (`detach_as`), PR #26 (`insert_at`), PR #21 (O3 LibreOffice
+    workflow), PR #38 (`RegistryPlan`), PR #45 (`*_with_ns` inserts);
+  - `docs/roadmap/docx.md` (Phase3, Q3, Q4);
+  - the round-1 review `0015-opus-review-round1.md` and its probes.
+- **Microsoft specifications:**
+  - [MS-OI29500] 2.1.258 (Part 1 §17.7.8, toggle properties in paragraph styles);
+  - [MS-DOCX] 2.6.2.3–2.6.2.4 (`paraId`, `textId`), 2.8.3.2 (`CT_CommentsIds`).
 - **Specifications:**
   - ECMA-376 Part 1: comments §17.13.4; footnotes and endnotes §17.11; revisions §17.13.5;
     structured document tags §17.5.2; fields §17.16; style hierarchy §17.7.2; toggle properties
