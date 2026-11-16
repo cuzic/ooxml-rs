@@ -129,14 +129,22 @@
   §21.1.2.3.9 (`rPr`), §21.1.2.2.3 (`endParaRPr`), §21.1.2.3.2 (`defRPr`,
   which also occurs below `a:pPr`): "smtId (SmartTag ID) … This ID is
   unique throughout the presentation" (PR #18 review round 2, R2-1);
-  elements `a:rPr`, `a:endParaRPr`, `a:defRPr`, `cs:defRPr`. Reviewed and
-  not unique: `bmk` (a bookmark target name, a reference). The review
+  elements `a:rPr`, `a:endParaRPr`, `a:defRPr`, `cs:defRPr`; and
+  `a:CT_EffectContainer@name` — §20.1.8.20 (`cont`), §20.1.8.25
+  (`effectDag`), reached from the text formatting types through
+  `EG_EffectProperties`: "Shall be unique across all effect trees and
+  effect containers" (round 3, R3-1; no default, so any value refuses).
+  Reviewed (the 90 complex types reachable from the three detachable
+  types) and not unique: `bmk` (a bookmark target name, a reference),
+  `a:effect@ref` (a reference to a name), `a:snd@name`. The review
   covers schema-known content only: an extension list (`extLst`, any
   namespace) is open content and is refused unless skipped
   (`ExtensionList`; 0 of 6,036 formatting elements with children in the
-  83-file corpus have one). `Detachable` is sealed through a
-  `#[doc(hidden)]` supertrait implemented by generated code; a
-  hand-written impl is its author's responsibility. `SameType<S>` ("a renamed copy of an `S` is
+  83-file corpus have one). `Detachable` has a `#[doc(hidden)]`
+  supertrait implemented by generated code; this is not a seal (the
+  module must be public for `ooxml-schema`), so other crates can
+  implement both, which is unsupported: the guarantee covers generated
+  impls only. `SameType<S>` ("a renamed copy of an `S` is
   schema-valid as `Self`") is reflexive by a blanket impl and generated
   only between detachable entries with the same SDK complex type (the part
   of the SDK Name before `/`) whose resolved attributes, completeness,

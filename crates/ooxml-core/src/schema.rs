@@ -201,11 +201,14 @@ pub trait SameType<S: ElementSpec>: ElementSpec {}
 /// attribute that must be unique in the document listed in
 /// [`Self::UNIQUE_ATTRS`] (refused when set to a non-default value).
 /// Phase 0.1 opts in DrawingML formatting only (`a:rPr`, `a:endParaRPr`,
-/// `a:pPr`; unique: `smtId`, ECMA-376 Part 1 §21.1.2.3.9).
+/// `a:pPr`; unique: `smtId`, ECMA-376 Part 1 §21.1.2.3.9, and the effect
+/// container `name`, §20.1.8.20/§20.1.8.25).
 ///
-/// Sealed: the supertrait lives in a `#[doc(hidden)]` module for generated
-/// code (and tests). The guarantee covers the generated impls only; a
-/// hand-written impl is its author's responsibility.
+/// Its supertrait lives in a `#[doc(hidden)]` module for generated code.
+/// This is **not** a seal: `ooxml-schema` is another crate, so the module
+/// must be public, and any crate can implement both traits (the core tests
+/// do). Doing so is unsupported: the guarantee above covers the generated
+/// impls only, and a hand-written impl is its author's responsibility.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not detachable",
     note = "list it in the `[detach]` section of its `codegen/allowlist/*.toml` (only for subtrees without ids or id references)"

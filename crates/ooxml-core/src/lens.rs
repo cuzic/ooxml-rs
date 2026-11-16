@@ -362,9 +362,11 @@ impl<C: ElementSpec> Detached<C> {
     /// the edit's first change.
     pub fn check_insert_under(&self, doc: &crate::XmlDocument, parent_path: &[usize], created: usize) -> Result<()> {
         let root = doc.root();
-        let parent = element_at(root, parent_path, C::QNAME)?;
-        // parent depth = path len + 1; the copy's deepest element:
-        if parent_path.len() + 1 + created + self.height() > doc.max_depth() {
+        // (the path names the parent, whose type the copy does not know)
+        let parent = element_at(root, parent_path, QName::new("", "(parent element at parent_path)"))?;
+        // parent depth = path len + 1; the copy's deepest element
+        // (saturating: a huge `created` must refuse, not wrap):
+        if parent_path.len().saturating_add(1).saturating_add(created).saturating_add(self.height()) > doc.max_depth() {
             return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span.map_or(0, |s| s.start) });
         }
         check_destination(&self.root, self.text_inherits_space, root, parent_path)?;

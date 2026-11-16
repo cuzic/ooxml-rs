@@ -42,3 +42,26 @@ fn smt_id_and_ext_lst_are_refused_on_real_types() {
     let rpr = Lens::<RunProperties>::at(d.root(), &[0, 0]).unwrap();
     assert_matches!(rpr.detach_as::<RunProperties>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::ExtensionList, .. }));
 }
+
+#[test]
+fn effect_container_names_are_refused() {
+    // ECMA-376 Part 1 §20.1.8.20 / §20.1.8.25: an effect container's name
+    // "Shall be unique across all effect trees and effect containers" (PR #18
+    // review round 3, R3-1). Reached through EG_EffectProperties.
+    let names: Vec<_> = RunProperties::UNIQUE_ATTRS.iter().map(|u| (u.element.local, u.attr.local, u.default)).collect();
+    assert!(names.contains(&("effectDag", "name", None)) && names.contains(&("cont", "name", None)), "{names:?}");
+    for inner in [
+        r#"<a:r><a:rPr lang="en-US"><a:effectDag name="E2" type="sib"/></a:rPr><a:t>x</a:t></a:r>"#,
+        r#"<a:r><a:rPr lang="en-US"><a:effectDag type="sib"><a:cont name="C2"/></a:effectDag></a:rPr><a:t>x</a:t></a:r>"#,
+    ] {
+        let d = para(inner);
+        let rpr = Lens::<RunProperties>::at(d.root(), &[0, 0]).unwrap();
+        assert_matches!(rpr.detach_as::<EndParagraphRunProperties>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::UniqueAttribute, .. }), "{inner}");
+    }
+    let d = para(r#"<a:pPr><a:defRPr><a:effectDag name="E3"/></a:defRPr></a:pPr>"#);
+    let ppr = Lens::<ParagraphProperties>::at(d.root(), &[0]).unwrap();
+    assert_matches!(ppr.detach_as::<ParagraphProperties>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::UniqueAttribute, .. }));
+    // an unnamed container is copied
+    let d = para(r#"<a:r><a:rPr lang="en-US"><a:effectDag type="sib"><a:cont/></a:effectDag></a:rPr><a:t>x</a:t></a:r>"#);
+    Lens::<RunProperties>::at(d.root(), &[0, 0]).unwrap().detach_as::<RunProperties>(&[]).unwrap();
+}
