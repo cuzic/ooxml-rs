@@ -176,3 +176,16 @@ fn strict_packages_are_refused() {
     let bytes = zw.finish().unwrap().into_inner();
     assert_matches!(Package::from_bytes(bytes), Err(Error::StrictNotSupported(_)));
 }
+
+/// The docx plan's XXE probe (Apache POI `ExternalEntityInText.docx`): the
+/// package opens, the part with the DTD is refused, nothing is fetched, and
+/// the untouched part still passes through.
+#[test]
+fn xxe_probe_part_is_refused() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/docx/poi-ExternalEntityInText.docx");
+    let input = std::fs::read(path).unwrap();
+    let mut pkg = Package::from_bytes(input.clone()).unwrap();
+    assert_matches!(pkg.xml_part("word/document.xml"), Err(Error::DtdNotAllowed { .. }));
+    assert_eq!(pkg.state("word/document.xml"), Some(PartStateKind::Raw));
+    assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(&input));
+}
