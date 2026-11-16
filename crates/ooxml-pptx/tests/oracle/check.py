@@ -76,12 +76,20 @@ def run_source(p):
     return runs[0].find(A + 'rPr') if runs else p.find(A + 'endParaRPr')
 
 
+LINKS = (A + 'hlinkClick', A + 'hlinkMouseOver')
+
+
 def copy_as(src, local):
-    """A copy of a format source under another name; None when there is
-    nothing to copy (a source without attributes and children)."""
-    if src is None or (not src.attrib and len(src) == 0):
+    """A copy of a run format source under another name, without its link
+    children (Phase 0.1: a link stays on the run that had it); None when
+    nothing is left (no attributes, no child elements)."""
+    if src is None:
         return None
     c = copy.deepcopy(src)
+    for link in [k for k in c if k.tag in LINKS]:
+        c.remove(link)
+    if not c.attrib and not any(isinstance(k.tag, str) for k in c):
+        return None
     c.tag = A + local
     c.tail = None
     return c

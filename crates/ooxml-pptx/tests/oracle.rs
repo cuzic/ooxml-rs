@@ -46,8 +46,18 @@ fn runs(p: &Value) -> Vec<Value> {
 }
 
 /// Format source for new runs: the first run's rPr, else `endParaRPr`.
+/// Phase 0.1: the whole subtree is copied, except the link children
+/// (`a:hlinkClick`, `a:hlinkMouseOver`); nothing left → no element.
 fn run_fmt(p: &Value) -> Value {
-    runs(p).first().map_or_else(|| p["end"].clone(), |r| r[2].clone())
+    let mut f = runs(p).first().map_or_else(|| p["end"].clone(), |r| r[2].clone());
+    if let Some(children) = f.get_mut("children").and_then(Value::as_array_mut) {
+        const A: &str = "{http://schemas.openxmlformats.org/drawingml/2006/main}";
+        children.retain(|c| c["name"] != format!("{A}hlinkClick") && c["name"] != format!("{A}hlinkMouseOver"));
+        if children.is_empty() && f["attrs"].as_object().is_some_and(serde_json::Map::is_empty) {
+            f = Value::Null;
+        }
+    }
+    f
 }
 
 fn para_set(p: &mut Value, text: &str) {
