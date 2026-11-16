@@ -80,7 +80,7 @@ fn t5_set_run_text_reads_back() {
             n += 1;
         }
     }
-    assert!(n >= 40, "{n} edits");
+    assert_eq!(n, 41, "edits");
 }
 
 #[test]
