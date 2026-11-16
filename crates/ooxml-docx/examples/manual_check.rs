@@ -237,6 +237,7 @@ fn phase1(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::E
     );
     phase1_part2(out, &mut push)?;
     phase2_part1(out, &mut push)?;
+    phase2_part2(out, &mut push)?;
     Ok(())
 }
 
@@ -374,6 +375,72 @@ fn phase2_part1(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, Str
         "Synthetic (root without xmlns:r): an external hyperlink and one to a bookmark".into(),
         "Ctrl+click opens https://example.com/ and jumps to \"Bookmark target\" respectively; no repair dialog (the first hyperlink declares xmlns:r itself).",
     );
+    Ok(())
+}
+
+/// Word Phase2 part 2 items (ADR-0011 §3, §7, §12 "Manual").
+fn phase2_part2(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, String, &'static str)) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{ImageSize, ParaRef, RowTemplate, RunPosition, StoryIndex, StoryKind, TableRef};
+    // a 4×2 PNG (red pixels are not needed: Word shows the frame and the size)
+    let png = {
+        // a real 1×1 red PNG, scaled to 2 × 1 cm
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x02\0\0\0\x90wS\xde".to_vec();
+        b.extend(b"\0\0\0\x0cIDATx\x9cc\xf8\xcf\xc0\0\0\x03\x01\x01\0\xc9\xfe\x92\xef\0\0\0\0IEND\xaeB`\x82");
+        b
+    };
+    // 25: an image in the body and in a header (header from a fixture)
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join("poi-PageSpecificHeadFoot.docx"))?;
+    let size = ImageSize::Emu { cx: 720_000, cy: 360_000 };
+    let mut done = Vec::new();
+    for kind in [StoryKind::Main, StoryKind::Header] {
+        let target = doc.stories().filter(|s| s.id().kind() == kind).flat_map(|s| s.paragraphs().map(|p| p.para_ref()).collect::<Vec<_>>()).collect::<Vec<_>>();
+        for p in target {
+            if doc.insert_image(RunPosition::EndOf(p), &png, size, "red rectangle").is_ok() {
+                done.push(format!("{kind:?} paragraph {}", p.index()));
+                break;
+            }
+        }
+    }
+    save(&doc, out, "25-image-body-and-header.docx")?;
+    push(
+        "25-image-body-and-header.docx",
+        "poi-PageSpecificHeadFoot",
+        format!("A 2 × 1 cm red image at the end of: {}", done.join(", ")),
+        "The red rectangle shows in the body and in the header, 2 cm wide; Alt Text shows \"red rectangle\". The header image appears on every page that uses that header.",
+    );
+    // 26: rows and columns
+    let tbl = |rows: usize, cols: usize| {
+        let grid: String = (0..cols).map(|_| r#"<w:gridCol w:w="2000"/>"#).collect();
+        let tr: String = (0..rows)
+            .map(|r| {
+                let cells: String = (0..cols).map(|c| format!(r#"<w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>r{r}c{c}</w:t></w:r></w:p></w:tc>"#)).collect();
+                if r == 0 { format!("<w:tr><w:trPr><w:tblHeader/></w:trPr>{cells}</w:tr>") } else { format!("<w:tr>{cells}</w:tr>") }
+            })
+            .collect();
+        format!(r#"<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{tr}</w:tbl><w:p/>"#)
+    };
+    let mut doc = synthetic(&tbl(3, 3))?;
+    let t = TableRef::new(StoryIndex::MAIN, 0);
+    doc.insert_rows(t, 1, 2, RowTemplate::Above)?;
+    doc.insert_column(t, 3, 1500)?;
+    save(&doc, out, "26-table-rows-and-column.docx")?;
+    push(
+        "26-table-rows-and-column.docx",
+        "",
+        "Synthetic: a 3 × 3 bordered table with a repeating header row; two empty rows inserted after the header (template: the header, without tblHeader), a 1500-twip column appended".into(),
+        "The table has 5 rows and 4 columns, all bordered; only the first row repeats as a header (Table Properties > Row); the new cells are empty and editable.",
+    );
+    // 27: merges
+    let mut doc = synthetic(&tbl(4, 4).replace("r1c2</w:t>", "</w:t>").replace("r1c3</w:t>", "</w:t>").replace("r2c2</w:t>", "</w:t>").replace("r2c3</w:t>", "</w:t>").replace("<w:r><w:t></w:t></w:r>", ""))?;
+    doc.merge_cells(TableRef::new(StoryIndex::MAIN, 0), 1..3, 2..4)?;
+    save(&doc, out, "27-merge-cells.docx")?;
+    push(
+        "27-merge-cells.docx",
+        "",
+        "Synthetic: a 4 × 4 table; the 2 × 2 block rows 2–3, columns 3–4 merged (gridSpan + vMerge)".into(),
+        "The block shows as one cell spanning two rows and two columns (Table Design: Select > Cell shows it as one cell); the other cells are unchanged.",
+    );
+    let _ = ParaRef::new(StoryIndex::MAIN, 0);
     Ok(())
 }
 

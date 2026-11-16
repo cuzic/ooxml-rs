@@ -927,6 +927,45 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   - Results: 13,565 paragraphs, 1,997 breaks, 14,143 hyperlinks and 774 appends written.
     After saving and reopening there was no panic, no reopen failure and no text mismatch.
 
+### Part 2 (§3, §7)
+
+- **Addressing.** A table is a `TableRef`: its index among a story's `w:tbl` in document order,
+  nested tables and tables in content controls included. A table inside a content control is
+  refused.
+- **Paragraph marks of copied rows.** §7.1 says a copied paragraph mark drops its revision
+  elements. `detach_as` can skip only direct children, and the mark's `w:rPr` sits below
+  `w:pPr`, so a template paragraph whose mark carries a revision element is refused
+  (`RevisionInRange`) instead. The same applies to new cells of `insert_column`.
+- **Copied row properties.** A `w:trPr` holding `ins`, `del` or `trPrChange`, or a `w:tcPr`
+  holding `tcPrChange`, `cellIns`, `cellDel` or `cellMerge`, is `TrackedPropertyChange`.
+- **`delete_rows` and fields.** It refuses any `w:fldChar`/`w:fldSimple` in the removed rows
+  (`InsideField`), even when the field is complete inside them. This is stricter than §7.2 and
+  fails closed.
+- **"Empty" for `delete_column` and `merge_cells`:** exactly one paragraph holding nothing but
+  `w:pPr`. That is stricter than "no runs with text, no anchors", and fails closed.
+- **Widths.** `merge_cells` writes `w:tcW` = the sum of the merged grid columns (dxa), when
+  every one of them has a width. `insert_column`'s new cell gets `w:tcW` = the width (dxa).
+- **Generations.** After a table edit, every paragraph from the table on gets a fresh
+  generation.
+- **Images.**
+  - **Allowlist.** The `wp` and `pic` entries are in `wml.toml`, not a new `wpd.toml` group
+    (Q7): the generator's groups are cargo features, and only ooxml-docx uses these entries.
+    The shared `a:` entries are in `dml.toml`, where `a:graphic` and `a:graphicData` move from
+    read to write. ADR-0005's owner should review them.
+  - **Media reuse** compares content type and bytes directly; there is no SHA-256 index
+    (§3's hash is an optimisation).
+  - **Part names.** Core numbers media per name pattern, so after `image1.png` a GIF is
+    `image1.gif`.
+  - **DPI.** A PNG `pHYs` value is rounded to whole dots per inch (5670 px/m → 144 dpi).
+  - **Drawing ids** are scanned at call time over every story part's tree, which includes the
+    session's own insertions.
+- **Corpus cross-check (821 files).**
+  - Gate outputs are byte-identical to `main`.
+  - Per table: a row inserted at 1 and deleted again (510 times), and a grid column inserted
+    at 1 and deleted again (508 times). All undos succeeded.
+  - One image per story: 2,192 inserted.
+  - After saving and reopening there was no panic, no reopen failure and no text mismatch.
+
 ## Sources
 
 - Spike: `spikes/docx-phase2/README.md`, `registries.py`, `needs.py` and, since revision 2,

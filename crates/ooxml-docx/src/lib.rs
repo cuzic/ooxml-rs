@@ -49,6 +49,9 @@
 //! part 1: new paragraphs ([`Document::insert_paragraph`]), section breaks
 //! ([`Document::insert_section_break`], and `append_paragraph` moving the
 //! last section's `w:sectPr`), hyperlinks ([`Document::insert_hyperlink`]).
+//! Part 2: tables ([`Document::insert_rows`], [`Document::delete_rows`],
+//! [`Document::insert_column`], [`Document::delete_column`],
+//! [`Document::merge_cells`]) and inline images ([`Document::insert_image`]).
 //!
 //! ```no_run
 //! use ooxml_docx::{Document, ReplaceOptions};
