@@ -325,3 +325,119 @@ fn f4_whitespace_like_calamine() {
         assert!(calamine_matches(cal["Sheet1"].get(&(r, c)), &v), "({r}, {c}): calamine {:?}", cal["Sheet1"].get(&(r, c)));
     }
 }
+/// F2 / ADR-0001 R2-M3: a formula only on a sheet other than "sheet1"
+/// refuses every write. `poi/51850.xlsx` (no formula, no calcChain) with one
+/// row `A99 = Sheet1!A1*2` inserted at the start of sheet2's `sheetData`.
+#[test]
+fn f2_formula_on_another_sheet_only() {
+    let input = read("poi/51850.xlsx");
+    assert!(Workbook::from_bytes(input.clone()).unwrap().edit_refusal().is_none(), "the unedited fixture is writable");
+    let s2 = patched(
+        &input,
+        "xl/worksheets/sheet2.xml",
+        "<sheetData>",
+        r#"<sheetData><row r="99"><c r="A99"><f>Sheet1!A1*2</f><v>0</v></c></row>"#,
+    );
+    let bytes = rebuild(&input, &[("xl/worksheets/sheet2.xml", s2)]);
+    let wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    assert_eq!(wb.worksheet_part(), SHEET1);
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/worksheets/sheet2.xml");
+    for at in ["A1", "B2", "Z99"] {
+        let (wb, r) = apply(&bytes, a1(at), &W::Num(1.0));
+        assert_matches!(r, Err(Error::FormulaPresent { .. }), "{at}");
+        assert_unchanged(&wb, &bytes);
+    }
+}
+
+/// F2: formulas in macro sheets and dialog sheets count, found through
+/// either the content type or the workbook relationship.
+#[test]
+fn f2_formula_in_macro_or_dialog_sheet_only() {
+    // (a) poi/xlmmacro.xlsm: its macro sheet (CT override *and* xlMacrosheet
+    // relationship) gets one formula cell in its empty sheetData
+    let input = read("poi/xlmmacro.xlsm");
+    assert!(Workbook::from_bytes(input.clone()).unwrap().edit_refusal().is_none());
+    let m = patched(&input, "xl/macrosheets/sheet1.xml", "<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><f>RETURN()</f></c></row></sheetData>"#);
+    let bytes = rebuild(&input, &[("xl/macrosheets/sheet1.xml", m)]);
+    let wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/macrosheets/sheet1.xml");
+    let (wb, r) = apply(&bytes, a1("A1"), &W::Num(1.0));
+    assert_matches!(r, Err(Error::FormulaPresent { .. }));
+    assert_unchanged(&wb, &bytes);
+
+    // `fixture_minimal` plus one extra sheet part holding a formula
+    let input = read("minimal");
+    let sheet_with_f = |root: &str| {
+        format!(r#"<{root} xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f>1+1</f></c></row></sheetData></{root}>"#)
+            .into_bytes()
+    };
+    // (b) a dialog sheet known only by its content type (no relationship)
+    let ct = patched(
+        &input,
+        "[Content_Types].xml",
+        "</Types>",
+        r#"<Override PartName="/xl/dialogsheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml"/></Types>"#,
+    );
+    let bytes = rebuild(&input, &[("[Content_Types].xml", ct), ("xl/dialogsheets/sheet1.xml", sheet_with_f("dialogsheet"))]);
+    let wb = Workbook::from_bytes(bytes).unwrap();
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/dialogsheets/sheet1.xml");
+    // (c) a macro sheet known only by its relationship (content type falls
+    // back to the `xml` Default, application/xml)
+    let rels = patched(
+        &input,
+        "xl/_rels/workbook.xml.rels",
+        "</Relationships>",
+        r#"<Relationship Id="rId99" Type="http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet" Target="macrosheets/sheet1.xml"/></Relationships>"#,
+    );
+    let bytes = rebuild(&input, &[("xl/_rels/workbook.xml.rels", rels), ("xl/macrosheets/sheet1.xml", sheet_with_f("xm:macrosheet"))]);
+    let wb = Workbook::from_bytes(bytes).unwrap();
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/macrosheets/sheet1.xml");
+}
+
+/// F2: ADR-0001's fast path: a `calcChain.xml` refuses edits even when no
+/// sheet has an `f`. `fixture_minimal` plus a calcChain part, its workbook
+/// relationship and its content-type override.
+#[test]
+fn f2_calc_chain_only() {
+    let input = read("minimal");
+    let rels = patched(
+        &input,
+        "xl/_rels/workbook.xml.rels",
+        "</Relationships>",
+        r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/></Relationships>"#,
+    );
+    let ct = patched(
+        &input,
+        "[Content_Types].xml",
+        "</Types>",
+        r#"<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/></Types>"#,
+    );
+    let chain = br#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B2" i="1"/></calcChain>"#.to_vec();
+    let bytes = rebuild(&input, &[("xl/_rels/workbook.xml.rels", rels), ("[Content_Types].xml", ct), ("xl/calcChain.xml", chain)]);
+    let wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/calcChain.xml");
+    let (wb, r) = apply(&bytes, a1("B2"), &W::Num(1.0));
+    assert_matches!(r, Err(Error::FormulaPresent { .. }));
+    assert_unchanged(&wb, &bytes);
+}
+
+/// F2: a sheet other than "sheet1" that cannot be scanned (not well-formed;
+/// UTF-16) refuses writes with `FormulaScanFailed`; reads of "sheet1" work.
+/// `poi/51850.xlsx` with sheet2 replaced.
+#[test]
+fn f2_unscannable_other_sheet() {
+    let input = read("poi/51850.xlsx");
+    let broken = br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData></worksheet>"#.to_vec();
+    let mut utf16 = vec![0xFF, 0xFE];
+    utf16.extend(text(&input, "xl/worksheets/sheet2.xml").encode_utf16().flat_map(u16::to_le_bytes));
+    for s2 in [broken, utf16] {
+        let bytes = rebuild(&input, &[("xl/worksheets/sheet2.xml", s2)]);
+        let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+        assert_matches!(wb.edit_refusal(), Some(Error::FormulaScanFailed { part, .. }) if part == "xl/worksheets/sheet2.xml");
+        assert!(wb.worksheet().unwrap().cell(0, 0).unwrap().unwrap().value().is_ok());
+        let (wb, r) = apply(&bytes, a1("C3"), &W::Str("x".into()));
+        assert_matches!(r, Err(Error::FormulaScanFailed { .. }));
+        assert_unchanged(&wb, &bytes);
+    }
+}
+
