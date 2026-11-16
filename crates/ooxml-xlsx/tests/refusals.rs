@@ -1,0 +1,190 @@
+//! Expected refusals: docs/roadmap/xlsx.md §7.5. A refused call changes
+//! nothing: the workbook still saves to the input's entries (L1).
+
+mod common;
+
+use std::assert_matches;
+
+use common::*;
+use ooxml_core::PartStateKind;
+use ooxml_xlsx::{CellValue, Error, Workbook};
+
+fn refuse_everywhere(name: &str, check: impl Fn(&Error) -> bool) {
+    let input = read(name);
+    let wb = Workbook::from_bytes(input.clone()).unwrap();
+    assert!(wb.edit_refusal().is_some_and(|e| check(&e)), "{name}");
+    // every 5th cell keeps the debug-build run short; all cells are refused alike
+    let mut cells: Vec<_> = existing_cells(&input).into_iter().step_by(5).collect();
+    cells.push(a1("Z99"));
+    for at in cells {
+        for w in [W::Num(1.0), W::Str("x".into())] {
+            let (wb, r) = apply(&input, at, &w);
+            let e = r.expect_err(name);
+            assert!(check(&e), "{name} {at}: {e:?}");
+            assert_unchanged(&wb, &input);
+        }
+    }
+}
+
+/// P0-R1..R3: any formula anywhere → every write refused, with or without
+/// `calcChain.xml`; reads still work (cached values).
+#[test]
+fn r1_to_r3_formula_present() {
+    for name in [
+        "poi/shared_formulas.xlsx",
+        "poi/70005-countifs.xlsx",
+        "poi/MatrixFormulaEvalTestData.xlsx",
+        "poi/xlookup.xlsx",
+        "poi/NewStyleConditionalFormattings.xlsx",
+    ] {
+        refuse_everywhere(name, |e| matches!(e, Error::FormulaPresent { .. }));
+    }
+    // the calcChain-less one is caught by the element scan, not the fast path
+    let wb = Workbook::from_bytes(read("poi/70005-countifs.xlsx")).unwrap();
+    assert_matches!(wb.edit_refusal(), Some(Error::FormulaPresent { part }) if part == "xl/worksheets/sheet1.xml");
+    // reads: a formula cell's cached string result and its formula text
+    let mut wb = Workbook::from_bytes(read("poi/shared_formulas.xlsx")).unwrap();
+    let ws = wb.worksheet().unwrap();
+    let c = ws.cell(1, 0).unwrap().unwrap();
+    assert_eq!(c.formula().as_deref(), Some("B2"));
+    assert_eq!(c.value().unwrap(), CellValue::String("ProductionOrderConfirmation".into()));
+    assert!(matches!(c.value().unwrap(), CellValue::String(_)));
+}
+
+/// P0-R4, R5: rows/cells without `r` → reads and writes refused.
+#[test]
+fn r4_r5_missing_reference() {
+    for name in ["poi/59746_NoRowNums.xlsx", "poi/InlineString.xlsx"] {
+        let input = read(name);
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        {
+            let ws = wb.worksheet().unwrap();
+            assert_matches!(ws.cell(0, 0), Err(Error::MissingReference { .. }), "{name}");
+        }
+        let (wb, r) = apply(&input, a1("A1"), &W::Num(1.0));
+        assert_matches!(r, Err(Error::MissingReference { .. }), "{name}");
+        assert_unchanged(&wb, &input);
+    }
+}
+
+/// P0-R6 (+ coordinator default): every cell of a merged range is refused,
+/// the top-left one included.
+#[test]
+fn r6_merged() {
+    let input = read("poi/61605.xlsx");
+    for cell in ["B1", "C1", "E1", "B9"] {
+        let (wb, r) = apply(&input, a1(cell), &W::Num(1.0));
+        assert_matches!(r, Err(Error::MergedCell { ref range, .. }) if range.starts_with('B'), "{cell}");
+        assert_unchanged(&wb, &input);
+    }
+}
+
+/// P0-R7: `cell_mut` without a setter changes nothing at all.
+#[test]
+fn r7_cell_mut_without_setter() {
+    let input = read("poi/61605.xlsx");
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        let _ = ws.cell_mut(19, 0).unwrap();
+        let _ = ws.cell_mut(1, 1).unwrap();
+        let _ = ws.cell(1, 1).unwrap();
+    }
+    assert_unchanged(&wb, &input);
+}
+
+/// P0-R8: there is no `set_formula` in Phase0; formula writes are not
+/// expressible. (Compile-time: `CellMut` has only `set_string`/`set_number`.)
+#[test]
+fn r8_no_formula_write_api() {
+    let mut wb = Workbook::from_bytes(read("minimal")).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    ws.cell_mut(0, 0).unwrap().set_string("=1+1").unwrap();
+    assert_eq!(ws.cell(0, 0).unwrap().unwrap().formula(), None, "a leading = is text, not a formula");
+}
+
+const WS_OPEN: &str = r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">"#;
+
+fn with_sheet(xml: &str) -> Vec<u8> {
+    let mut pkg = ooxml_core::Package::from_bytes(read("minimal")).unwrap();
+    pkg.set_part("xl/worksheets/sheet1.xml", xml.as_bytes().to_vec()).unwrap();
+    pkg.to_bytes().unwrap()
+}
+
+/// P0-R9 (adapted: a missing `dimension` is never inserted, coordinator
+/// default): a worksheet with an `mc:AlternateContent` child and no
+/// `dimension` is writable; one that also lacks `sheetData` needs an
+/// insertion next to the AC → `UnresolvedSibling`, nothing changed.
+#[test]
+fn r9_alternate_content_sibling() {
+    let ac = "<mc:AlternateContent><mc:Choice Requires=\"x14\"><controls/></mc:Choice></mc:AlternateContent>";
+    let ok = with_sheet(&format!("{WS_OPEN}<sheetData/>{ac}</worksheet>"));
+    let (wb, r) = apply(&ok, a1("B2"), &W::Num(1.0));
+    r.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains(r#"<sheetData><row r="2"><c r="B2"><v>1</v></c></row></sheetData>"#) && !xml.contains("dimension"), "{xml}");
+    let bad = with_sheet(&format!("{WS_OPEN}{ac}</worksheet>"));
+    let (wb, r) = apply(&bad, a1("B2"), &W::Num(1.0));
+    assert_matches!(r, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.package().state("xl/worksheets/sheet1.xml"), Some(PartStateKind::Parsed { dirty: false }));
+}
+
+/// Rows out of order, a cell whose `r` names another row, out-of-range
+/// indices, and a byte-pattern `<f`-lookalike that is not a formula.
+#[test]
+fn malformed_shapes() {
+    let rows = with_sheet(&format!(r#"{WS_OPEN}<sheetData><row r="3"/><row r="2"/></sheetData></worksheet>"#));
+    assert_matches!(apply(&rows, a1("A1"), &W::Num(1.0)).1, Err(Error::OutOfOrder(_)));
+    let wrong = with_sheet(&format!(r#"{WS_OPEN}<sheetData><row r="1"><c r="A2"/></row></sheetData></worksheet>"#));
+    assert_matches!(apply(&wrong, a1("A1"), &W::Num(1.0)).1, Err(Error::InvalidReference(_)));
+    let mut wb = Workbook::from_bytes(read("minimal")).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert_matches!(ws.cell_mut(1 << 20, 0), Err(Error::OutOfRange { .. }));
+    assert_matches!(ws.cell(0, 1 << 14), Err(Error::OutOfRange { .. }));
+    let fill = with_sheet(&format!(r#"{WS_OPEN}<sheetData/><filterColumn/><formula/></worksheet>"#));
+    assert!(Workbook::from_bytes(fill).unwrap().edit_refusal().is_none());
+    let f = with_sheet(&format!(r#"{WS_OPEN}<sheetData><row r="1"><c r="A1"><f>1</f></c></row></sheetData></worksheet>"#));
+    assert_matches!(apply(&f, a1("C3"), &W::Num(1.0)).1, Err(Error::FormulaPresent { .. }));
+    let dtd = with_sheet(&format!(r#"<!DOCTYPE x>{WS_OPEN}<sheetData/></worksheet>"#));
+    assert_matches!(Workbook::from_bytes(dtd), Err(Error::Core(ooxml_core::Error::DtdNotAllowed { .. })));
+}
+
+/// Reads: shared strings, rich inline strings, booleans, errors, styles.
+#[test]
+fn reads() {
+    let mut wb = Workbook::from_bytes(read("minimal")).unwrap();
+    let ws = wb.worksheet().unwrap();
+    let v = |r, c| ws.cell(r, c).unwrap().map(|c| c.value().unwrap());
+    assert_eq!(v(0, 0), Some(CellValue::String("Name".into())));
+    assert_eq!(v(1, 1), Some(CellValue::Number(90.0)));
+    assert_eq!(v(1, 2), Some(CellValue::Bool(true)));
+    assert_eq!(v(1, 3), Some(CellValue::Empty));
+    assert_eq!(v(5, 5), None);
+    assert_eq!(ws.cell_a1("A1").unwrap().unwrap().style_index().unwrap(), 1);
+    let mut wb = Workbook::from_bytes(read("calamine/pictures_in_cell_and_over_cell.xlsx")).unwrap();
+    let ws = wb.worksheet().unwrap();
+    assert_eq!(ws.cell(0, 0).unwrap().unwrap().value().unwrap(), CellValue::Error("#VALUE!".into()));
+    // every readable cell of every openable fixture decodes, and agrees with calamine
+    for name in all_zip_fixtures() {
+        let input = read(&name);
+        let Ok(mut wb) = Workbook::from_bytes(input.clone()) else { continue };
+        let sheet = wb.sheet_name().to_owned();
+        let Some(cal) = try_calamine_cells(&input) else { continue }; // calamine rejects macro sheets
+        let Some(cal) = cal.get(&sheet) else { continue };
+        let ws = wb.worksheet().unwrap();
+        if ws.cell(0, 0).is_err() {
+            continue; // MissingReference fixtures
+        }
+        for at in existing_cells(&input) {
+            let c = ws.cell(at.row, at.col).unwrap().unwrap();
+            let v = c.value().unwrap_or_else(|e| panic!("{name} {at}: {e}"));
+            let d = cal.get(&(at.row, at.col));
+            let agree = match (&v, d) {
+                (CellValue::Error(_), Some(calamine::Data::Error(_))) => true,
+                (CellValue::String(s), None) if s.is_empty() => true,
+                _ => calamine_matches(d, &v),
+            };
+            assert!(agree, "{name} {at}: ours {v:?}, calamine {d:?}");
+        }
+    }
+}
