@@ -300,3 +300,28 @@ fn f7_dimension_ref() {
     }
 }
 
+/// F4: outer-whitespace trimming follows calamine: only the `t`'s own
+/// `xml:space="preserve"` keeps it (an inherited one from `si` is ignored);
+/// rich runs are concatenated, phonetic runs skipped. `fixture_minimal`
+/// with its shared strings and D2 replaced.
+#[test]
+fn f4_whitespace_like_calamine() {
+    let input = read("minimal");
+    let sst = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2"><si><r><t xml:space="preserve">Na</t></r><r><rPr><b/></rPr><t>me </t></r><rPh sb="0" eb="1"><t>ナ</t></rPh><phoneticPr fontId="1"/></si><si xml:space="preserve"><t> Alice </t></si></sst>"#;
+    let sheet = patched(
+        &input,
+        SHEET1,
+        r#"<c r="D2" s="1"/>"#,
+        r#"<c r="D2" t="inlineStr"><is><t> in </t></is></c><c r="E2" t="inlineStr"><is><t xml:space="preserve"> kept </t></is></c><c r="F2" t="inlineStr" xml:space="preserve"><is><t>	tab </t></is></c>"#,
+    );
+    let bytes = rebuild(&input, &[("xl/sharedStrings.xml", sst.as_bytes().to_vec()), (SHEET1, sheet)]);
+    let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    let ws = wb.worksheet().unwrap();
+    let cal = calamine_cells(&bytes);
+    for (r, c, want) in [(0, 0, "Name"), (1, 0, "Alice"), (1, 3, "in"), (1, 4, " kept "), (1, 5, "tab")] {
+        let v = ws.cell(r, c).unwrap().unwrap().value().unwrap();
+        assert_eq!(v, CellValue::String(want.into()), "({r}, {c})");
+        assert!(calamine_matches(cal["Sheet1"].get(&(r, c)), &v), "({r}, {c}): calamine {:?}", cal["Sheet1"].get(&(r, c)));
+    }
+}

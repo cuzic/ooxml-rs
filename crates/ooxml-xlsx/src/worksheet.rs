@@ -44,14 +44,17 @@ pub struct CellRef<'a> {
     ctx: &'a SheetContext,
 }
 
-/// Concatenates `t` texts (rich runs included) the way Excel and calamine
-/// read them: a `t` without `xml:space="preserve"` in effect has its outer
-/// ASCII whitespace removed; `_xHHHH_` escapes are decoded.
+/// Concatenates `t` texts (rich runs included) the way calamine reads them:
+/// a `t` that does not itself carry `xml:space="preserve"` has its outer
+/// ASCII whitespace (space, tab, CR, LF) removed. Like calamine, only the
+/// `t`'s own attribute counts: an `xml:space` inherited from `si`/`is`/`r`
+/// is ignored (review round 1, F4). `_xHHHH_` escapes are decoded.
 pub(crate) fn text_of<'a>(t: Option<TextView<'a>>, runs: impl Iterator<Item = Option<TextView<'a>>>) -> String {
     let mut out = String::new();
     for t in t.into_iter().chain(runs.flatten()) {
         let raw = t.text();
-        let raw = if t.0.xml_space_preserve() { &raw[..] } else { raw.trim_matches([' ', '\t', '\r', '\n']) };
+        let preserve = t.0.raw().xml_space_preserve() == Some(true);
+        let raw = if preserve { &raw[..] } else { raw.trim_matches([' ', '\t', '\r', '\n']) };
         out.push_str(&escape::decode(raw));
     }
     out
