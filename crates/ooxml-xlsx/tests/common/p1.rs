@@ -2,6 +2,7 @@
 //! that no reader sees a stale cached value.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::{Cursor, Write};
 
 use calamine::Data;
 use ooxml_core::{ElementSpec, RawNode, XmlDocument};
@@ -132,8 +133,7 @@ pub fn stripped(span: &str) -> String {
     }
     let mut rest = rest.to_owned();
     for tag in ["v", "is"] {
-        loop {
-            let Some(i) = find_elem(&rest, tag) else { break };
+        while let Some(i) = find_elem(&rest, tag) {
             let j = elem_end(&rest[i..], tag) + i;
             rest.replace_range(i..j, "");
         }
@@ -421,3 +421,38 @@ pub fn with_part(bytes: &[u8], name: &str, xml: &str) -> Vec<u8> {
     pkg.set_part(name, xml.as_bytes().to_vec()).unwrap();
     pkg.to_bytes().unwrap()
 }
+
+/// A hand-built workbook (review round 3 probes): sheets with their
+/// `sheetData` inner XML, `definedName` elements, extra `workbook` children.
+pub fn book(sheets: &[(&str, &str)], defined_names: &str, extra_wb: &str) -> Vec<u8> {
+    let mut zw = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let o = zip::write::SimpleFileOptions::default();
+    let mut ct = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>"#);
+    let mut rels = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#);
+    let mut sh = String::new();
+    let mut parts = Vec::new();
+    for (i, (name, sd)) in sheets.iter().enumerate() {
+        parts.push((format!("xl/worksheets/sheet{}.xml", i + 1), format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="{SML}"><sheetData>{sd}</sheetData></worksheet>"#)));
+        ct.push_str(&format!(r#"<Override PartName="/xl/worksheets/sheet{}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>"#, i + 1));
+        rels.push_str(&format!(r#"<Relationship Id="rId{}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{}.xml"/>"#, i + 1, i + 1));
+        sh.push_str(&format!(r#"<sheet name="{}" sheetId="{}" r:id="rId{}"/>"#, name, i + 1, i + 1));
+    }
+    ct.push_str("</Types>");
+    rels.push_str("</Relationships>");
+    let dn = if defined_names.is_empty() { String::new() } else { format!("<definedNames>{defined_names}</definedNames>") };
+    let wb = format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="{SML}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><sheets>{sh}</sheets>{dn}{extra_wb}</workbook>"#);
+    let top = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#;
+    let mut all = vec![
+        ("[Content_Types].xml".to_string(), ct),
+        ("_rels/.rels".to_string(), top.to_string()),
+        ("xl/workbook.xml".to_string(), wb),
+        ("xl/_rels/workbook.xml.rels".to_string(), rels),
+    ];
+    all.extend(parts);
+    for (n, b) in all {
+        zw.start_file(n, o).unwrap();
+        zw.write_all(b.as_bytes()).unwrap();
+    }
+    zw.finish().unwrap().into_inner()
+}
+

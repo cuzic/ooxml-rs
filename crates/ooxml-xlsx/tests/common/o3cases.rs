@@ -54,6 +54,7 @@ pub fn cases() -> Vec<Case> {
         ("o1_arrays", &[("Sheet1", "A1"), ("Sheet1", "A9")]),
         ("o1_shared", &[("Sheet2", "A3"), ("Sheet2", "D1")]),
         ("o1_manual", &[("Sheet1", "A1")]),
+        ("o1_name_scope", &[("S1", "A1")]),
         ("o1_no_calcpr", &[("Sheet1", "A1")]),
         ("o1_everything_indirect", &[("Sheet1", "A1")]),
         ("o1_everything_offset", &[("Sheet1", "A1")]),

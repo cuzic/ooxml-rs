@@ -309,6 +309,18 @@ build(
     ],
 )
 
+# --- o1_name_scope: an unqualified reference inside a local name, used from
+#     another sheet (review R3-M1 a). Excel reads it on the using sheet, so
+#     S1!C1 = S1!A1 = 1 (cached), not S2!A1 = 7. Depends on everything.
+build(
+    "o1_name_scope.xlsx",
+    [
+        ("S1", {"A1": 1, "C1": F("S2!Loc", 1), "D1": F("2*3", 6)}, "ws"),
+        ("S2", {"A1": 7}, "ws"),
+    ],
+    names=[("Loc", "$A$1", 1)],
+)
+
 # --- calculation modes and workbook-wide refusals.
 build("o1_manual.xlsx", [("Sheet1", {"A1": 1, "B1": F("A1*2", 2), "C1": F("3", 3)}, "ws")], calc_pr='calcId="191029" calcMode="manual"')
 build("o1_iterate.xlsx", [("Sheet1", {"A1": F("A1+B1", 1), "B1": 1, "C1": 5}, "ws")], calc_pr='calcId="191029" iterate="1"')

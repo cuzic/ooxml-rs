@@ -101,6 +101,14 @@ Master hand-off (`phase1_formulas.rs`): overwriting `B2` makes `B3` the master w
 `G3`. The member `G2` translates to row 0, so its precedents are `Everything` (edit
 `'Q1 2024'!A2` → G2, G3), and overwriting the master `G3` is `Err(SharedFormulaMaster)`.
 
+## `o1_name_scope.xlsx` (review R3-M1 a)
+
+`S1!C1` = `S2!Loc`, where `Loc` is local to `S2` with the unqualified text `$A$1`. Excel reads it
+on the using sheet (`S1!A1`); LibreOffice relative to the calculating sheet. ooxml-xlsx does not
+guess: `C1` depends on everything. Edit `S1!Z9` → `S1!C1`; `D1` (`2*3`) is never a dependent.
+The other round-3 shapes (two masters sharing an `si`, sheet and defined names that fold alike,
+the Kelvin sign) are built in `tests/phase1_review_r3.rs`.
+
 ## Calculation modes and refusals
 
 | File | Shape | Expected |

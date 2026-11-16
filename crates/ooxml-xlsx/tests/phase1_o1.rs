@@ -71,6 +71,13 @@ fn o1_shared_groups() {
 }
 
 #[test]
+fn o1_name_scope_unqualified_reference_in_a_local_name() {
+    let wb = synthetic("o1_name_scope.xlsx");
+    value_edit(&wb, "S1", "Z9", 3.0, &["S1!C1"]);
+    value_edit(&wb, "S1", "A1", 3.0, &["S1!C1"]);
+}
+
+#[test]
 fn o1_manual_mode_strips_but_does_not_set_full_calc() {
     let wb = synthetic("o1_manual.xlsx");
     let out = value_edit(&wb, "Sheet1", "A1", 5.0, &["Sheet1!B1"]);

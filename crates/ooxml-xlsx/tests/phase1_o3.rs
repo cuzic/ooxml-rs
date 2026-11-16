@@ -10,7 +10,10 @@
 //! Check: every formula cell that **kept** its cached value in an output,
 //! and whose cached value in the input agreed with LibreOffice's
 //! recalculation of the input (baseline), holds LibreOffice's recalculated
-//! value of the output. Cells using a volatile function are skipped.
+//! value of the output. Workbooks with a volatile formula (a volatile
+//! function in any formula text, or `ca="1"`) are skipped entirely, so that
+//! no transitive dependent of a volatile cell is compared (review R3-m5;
+//! no dependency code is used for this).
 
 mod common;
 
@@ -60,6 +63,16 @@ fn same(a: &(String, String), b: &(String, String)) -> bool {
 
 const VOLATILE: &[&str] = &["NOW(", "TODAY(", "RAND(", "RANDBETWEEN(", "OFFSET(", "INDIRECT(", "CELL(", "INFO("];
 
+/// Any formula text (shared masters included) with a volatile function, or
+/// any `ca="1"`, in any sheet part.
+fn has_volatile(bytes: &[u8]) -> bool {
+    sheet_parts(bytes).values().any(|p| {
+        let x = String::from_utf8(part(bytes, p)).unwrap();
+        let up = x.to_ascii_uppercase();
+        VOLATILE.iter().any(|f| up.contains(f)) || x.contains(r#"ca="1""#) || x.contains(r#"ca="true""#)
+    })
+}
+
 #[test]
 fn o3_case_list_is_deterministic() {
     let a: Vec<(String, u64, u64)> = cases().iter().map(|c| (c.id.clone(), fnv1a(&c.input), fnv1a(&c.output))).collect();
@@ -75,7 +88,7 @@ fn o3_kept_values_match_libreoffice_recalculation() {
         "reference/fixtures/xlsx/o3/expected.tsv is missing: run `cargo run -p ooxml-xlsx --example o3_inputs -- DIR` \
          and `python3 -I spikes/xlsx/o3_recalc.py DIR reference/fixtures/xlsx/o3/expected.tsv` with LibreOffice",
     );
-    let (mut compared, mut failures) = (0, Vec::new());
+    let (mut compared, mut skipped, mut failures) = (0, 0, Vec::new());
     for c in cases() {
         let stem = file_stem(&c.id);
         let (inp, out) = (format!("{stem}.input.xlsx"), format!("{stem}.output.xlsx"));
@@ -84,11 +97,12 @@ fn o3_kept_values_match_libreoffice_recalculation() {
         };
         assert_eq!(*hi, format!("{:016x}", fnv1a(&c.input)), "{}: input changed since the data was generated", c.id);
         assert_eq!(*ho, format!("{:016x}", fnv1a(&c.output)), "{}: output changed since the data was generated", c.id);
+        if has_volatile(&c.input) {
+            skipped += 1;
+            continue;
+        }
         let before = kept(&c.input);
         for (cell, (text, t, v)) in kept(&c.output) {
-            if VOLATILE.iter().any(|f| text.to_ascii_uppercase().contains(f)) {
-                continue;
-            }
             // Baseline: the input's cached value agreed with LibreOffice.
             let Some((ti, vi)) = before.get(&cell).map(|b| (b.1.clone(), b.2.clone())) else { continue };
             let Some(lo_i) = lo_in.get(&cell) else { continue };
@@ -103,5 +117,5 @@ fn o3_kept_values_match_libreoffice_recalculation() {
         }
     }
     assert!(failures.is_empty(), "{} stale values:\n{}", failures.len(), failures.join("\n"));
-    assert!(compared > 100, "only {compared} cells compared");
+    assert!(compared > 100, "only {compared} cells compared ({skipped} cases skipped as volatile)");
 }
