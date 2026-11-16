@@ -19,7 +19,7 @@
 //! let mut wb = ooxml_xlsx::Workbook::open("book.xlsx")?;
 //! let mut ws = wb.worksheet_by_name("Inputs")?;
 //! ws.cell_mut(1, 1)?.set_number(42.0)?;         // B2; dependents lose their caches
-//! ws.cell_mut(0, 0)?.set_string("  padded ")?;  // A1, inline string
+//! ws.cell_mut(0, 0)?.set_string("  padded ")?;  // A1: shared string if the file has a table
 //! ws.cell_mut(2, 1)?.set_formula("B2*2")?;      // B3
 //! wb.save("book.xlsx")?;                         // same path is safe
 //! # Ok(()) }
@@ -61,6 +61,8 @@ mod escape;
 mod formula;
 mod graph;
 mod reference;
+mod registry;
+mod setters;
 mod workbook;
 mod worksheet;
 
@@ -68,6 +70,8 @@ pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;
+pub use registry::dates::ExcelDateTime;
+pub use registry::format::{Alignment, Border, Color, Fill, Font, Format, NumFormat, Protection, Side, Tint, Underline};
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
 

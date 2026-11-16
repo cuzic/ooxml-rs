@@ -19,7 +19,7 @@ use crate::core_props;
 
 pub(crate) const REL_WORKSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 const REL_CHARTSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
-const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
+pub(crate) const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
 const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
 const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
@@ -88,6 +88,8 @@ pub enum ApplyStep {
     Strip,
     /// Before the shared-formula hand-off.
     HandOff,
+    /// Before installing registry additions (`styles.xml`, `sharedStrings.xml`).
+    Registries,
     /// Before writing the target cell.
     Target,
     /// Before updating the formula index.
@@ -116,6 +118,9 @@ pub struct Workbook {
     pub(crate) calc_chain: Option<String>,
     pub(crate) policy: CalcPolicy,
     pub(crate) poisoned: Option<String>,
+    /// Phase2 registries (ADR-0006), activated by the first write that
+    /// needs them.
+    pub(crate) registries: crate::registry::Registries,
     from_template: bool,
     template_sheet_taken: bool,
     #[cfg(feature = "fault-injection")]
@@ -195,6 +200,7 @@ impl Workbook {
             calc_chain,
             policy: CalcPolicy::default(),
             poisoned: None,
+            registries: Default::default(),
             from_template: false,
             template_sheet_taken: false,
             #[cfg(feature = "fault-injection")]

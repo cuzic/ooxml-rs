@@ -260,7 +260,7 @@ pub fn apply(input: &[u8], at: CellIndex, w: &W) -> (Workbook, ooxml_xlsx::Resul
         let c = ws.cell_mut(at.row, at.col).unwrap();
         match w {
             W::Num(n) => c.set_number(*n),
-            W::Str(s) => c.set_string(s),
+            W::Str(s) => c.set_string_inline(s),
         }
     };
     (wb, r)

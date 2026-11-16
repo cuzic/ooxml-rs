@@ -1,0 +1,783 @@
+//! The style registry (ADR-0006 §5).
+//!
+//! - Tables `numFmts`, `fonts`, `fills`, `borders`, `cellXfs` only grow; a
+//!   missing table is inserted in schema order; an empty table gets its
+//!   reserved leading entries first (font 0, border 0, `xf` 0, fills 0/1).
+//! - A new `Format` resolves bottom-up: number format, font, fill and border
+//!   ids first, then the `xf` built from them. Each is reused when an entry
+//!   with exactly the canonical bytes exists (including entries a previous
+//!   session appended), else appended.
+//! - Unset groups copy the default style's ids (`cellStyleXfs[0]`, else
+//!   `cellXfs[0]`).
+//! - A new custom `numFmtId` is above every `numFmtId` in any XML part of
+//!   the package.
+//! - A table with an `mc:AlternateContent` child never grows; indices in a
+//!   table that is not index-stable are refused.
+//! - Every plan works on a clone of the registry and a staged clone of
+//!   `styles.xml`; apply swaps both in.
+
+use std::collections::{HashMap, HashSet};
+
+use ooxml_core::name::MC_ALTERNATE_CONTENT;
+use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode, XmlDocument};
+use ooxml_schema::sml;
+
+use super::format::{BUILTIN, is_date_format, Border, Color, Fill, Font, Format, NumFormat, Side, Underline};
+use super::{Table, limit, render};
+use crate::error::{Error, Result};
+use crate::workbook::Workbook;
+
+const REL_STYLES: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
+
+/// The tables a registry can grow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Which {
+    NumFmts,
+    Fonts,
+    Fills,
+    Borders,
+    CellXfs,
+}
+
+impl Which {
+    fn name(self) -> &'static str {
+        match self {
+            Which::NumFmts => "numFmts",
+            Which::Fonts => "fonts",
+            Which::Fills => "fills",
+            Which::Borders => "borders",
+            Which::CellXfs => "cellXfs",
+        }
+    }
+}
+
+/// The unqualified attributes and children of an `xf`.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct XfInfo {
+    pub(crate) attrs: Vec<(String, String)>,
+    /// A namespaced attribute or an unknown child: cannot be derived from.
+    pub(crate) opaque: bool,
+    pub(crate) alignment: Option<Vec<(String, String)>>,
+    pub(crate) protection: Option<Vec<(String, String)>>,
+}
+
+impl XfInfo {
+    fn read(n: &RawNode) -> XfInfo {
+        let mut x = XfInfo::default();
+        for a in n.attrs() {
+            if a.name().ns().is_empty() {
+                x.attrs.push((a.name().local().to_owned(), a.value().to_owned()));
+            } else if a.name().ns() != ooxml_core::name::XMLNS_NS {
+                x.opaque = true;
+            }
+        }
+        for c in n.elements() {
+            let plain = |c: &RawNode| c.attrs().iter().map(|a| (a.name().local().to_owned(), a.value().to_owned())).collect::<Vec<_>>();
+            if c.is(sml::Alignment::QNAME) && c.attrs().iter().all(|a| a.name().ns().is_empty()) && c.elements().next().is_none() {
+                x.alignment = Some(plain(c));
+            } else if c.is(sml::Protection::QNAME) && c.attrs().iter().all(|a| a.name().ns().is_empty()) && c.elements().next().is_none() {
+                x.protection = Some(plain(c));
+            } else {
+                x.opaque = true;
+            }
+        }
+        x
+    }
+
+    pub(crate) fn get(&self, k: &str) -> Option<&str> {
+        self.attrs.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str())
+    }
+
+    fn set(&mut self, k: &str, v: &str) {
+        match self.attrs.iter_mut().find(|(n, _)| n == k) {
+            Some(slot) => slot.1 = v.to_owned(),
+            None => self.attrs.push((k.to_owned(), v.to_owned())),
+        }
+    }
+}
+
+/// The registry state.
+#[derive(Clone, Debug)]
+pub(crate) struct Styles {
+    pub(crate) part: String,
+    root_prefix: Option<String>,
+    tables: HashMap<Which, Table>,
+    prefixes: HashMap<Which, Option<String>>,
+    exists: HashSet<Which>,
+    count_attr: HashSet<Which>,
+    csx: Table,
+    next_numfmt: u32,
+    custom_codes: HashMap<String, u32>,
+    redefined: HashSet<u32>,
+    pub(crate) codes: HashMap<u32, String>,
+    custom_count: u32,
+    pub(crate) default: Option<XfInfo>,
+    pub(crate) xfs: Vec<Option<XfInfo>>,
+    csx_infos: Vec<Option<XfInfo>>,
+    named: Vec<(String, u32)>,
+}
+
+/// What a style plan produces.
+#[derive(Debug)]
+pub(crate) struct StylePlan {
+    pub(crate) s: u32,
+    pub(crate) staged: Option<XmlDocument>,
+    pub(crate) next: Styles,
+}
+
+/// What a write asks of the style registry.
+#[derive(Clone, Debug)]
+pub(crate) enum StyleRequest {
+    /// A value format (unset groups inherit from the default style).
+    Format(Format),
+    /// An existing `cellXfs` index.
+    Index(u32),
+    /// A named style (`cellStyles/cellStyle/@name`).
+    Named(String),
+    /// The cell's current `xf` with another number format (ADR-0006 §5.6,
+    /// "preserving edits").
+    NumFormatOnly(NumFormat),
+    /// The cell's current `xf` if its number format is a date or time
+    /// format, else that `xf` with built-in 14 (ADR-0006 §6).
+    EnsureDate,
+}
+
+fn table_node<'d>(root: &'d RawNode, local: &str) -> Option<&'d RawNode> {
+    root.elements().find(|e| e.name().ns() == crate::SML_NS && e.name().local() == local)
+}
+
+/// The largest `numFmtId` attribute value in any XML part (review n6:
+/// lexical rules, content-type selection, UTF-16 decoded; a part that
+/// cannot be decoded refuses).
+fn max_numfmt_id(wb: &Workbook) -> Result<u32> {
+    let mut best = 0u32;
+    let names: Vec<String> = wb.pkg.part_names().map(str::to_owned).collect();
+    for name in names {
+        let is_xml = wb.pkg.content_type(&name).is_some_and(|ct| {
+            let e = ct.split(';').next().unwrap_or_default().trim().to_ascii_lowercase();
+            e.ends_with("/xml") || e.ends_with("+xml")
+        });
+        if !is_xml {
+            continue;
+        }
+        let bytes = wb.pkg.read_part(&name)?;
+        let text = decode_xml_text(&bytes).ok_or_else(|| Error::Malformed(format!("{name}: cannot decode to scan numFmtId")))?;
+        let b = text.as_bytes();
+        let mut i = 0;
+        while let Some(off) = text[i..].find("numFmtId") {
+            let mut j = i + off + "numFmtId".len();
+            i = j;
+            while j < b.len() && b[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            if b.get(j) != Some(&b'=') {
+                continue;
+            }
+            j += 1;
+            while j < b.len() && b[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            let Some(&q) = b.get(j).filter(|q| **q == b'"' || **q == b'\'') else { continue };
+            let start = j + 1;
+            let end = text[start..].find(q as char).map(|e| start + e).unwrap_or(start);
+            if let Ok(v) = text[start..end].trim().parse::<u64>() {
+                best = best.max(v.min(u64::from(u32::MAX)) as u32);
+            }
+        }
+    }
+    Ok(best)
+}
+
+fn decode_xml_text(b: &[u8]) -> Option<String> {
+    let utf16 = |le: bool, b: &[u8]| -> Option<String> {
+        let units: Vec<u16> = b.chunks_exact(2).map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }).collect();
+        String::from_utf16(&units).ok()
+    };
+    match b {
+        [0xFF, 0xFE, rest @ ..] => utf16(true, rest),
+        [0xFE, 0xFF, rest @ ..] => utf16(false, rest),
+        _ => std::str::from_utf8(b.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(b)).ok().map(str::to_owned),
+    }
+}
+
+impl Styles {
+    /// Activates the registry. [`Error::NoStylesPart`] without a styles
+    /// part; [`Error::UnsupportedStylesPart`] when its root is not a
+    /// SpreadsheetML `styleSheet`.
+    pub(crate) fn activate(wb: &mut Workbook) -> Result<Styles> {
+        let rels = wb.pkg.relationships(&wb.workbook_part)?;
+        let part = rels
+            .by_type(REL_STYLES)
+            .next()
+            .and_then(|r| rels.resolve(r))
+            .filter(|p| wb.pkg.contains(p))
+            .ok_or(Error::NoStylesPart)?;
+        let max_id = max_numfmt_id(wb)?;
+        let doc = wb.pkg.xml_part(&part)?;
+        let root = doc.root();
+        if !root.is(sml::Stylesheet::QNAME) {
+            return Err(Error::UnsupportedStylesPart(format!("{part}: root is {{{}}}{}", root.name().ns(), root.name().local())));
+        }
+        if root.elements().any(|e| e.is(MC_ALTERNATE_CONTENT)) {
+            // a table wrapped in AC is neither present nor absent (review n9)
+            return Err(ooxml_core::Error::UnresolvedSibling(sml::Stylesheet::QNAME).into());
+        }
+        let mut st = Styles {
+            part: part.clone(),
+            root_prefix: root.name().prefix().map(str::to_owned),
+            tables: HashMap::new(),
+            prefixes: HashMap::new(),
+            exists: HashSet::new(),
+            count_attr: HashSet::new(),
+            csx: Table::default(),
+            next_numfmt: max_id.max(163) + 1,
+            custom_codes: HashMap::new(),
+            redefined: HashSet::new(),
+            codes: HashMap::new(),
+            custom_count: 0,
+            default: None,
+            xfs: Vec::new(),
+            csx_infos: Vec::new(),
+            named: Vec::new(),
+        };
+        let entry = |w: Which| match w {
+            Which::NumFmts => sml::NumberingFormat::QNAME,
+            Which::Fonts => sml::Font::QNAME,
+            Which::Fills => sml::Fill::QNAME,
+            Which::Borders => sml::Border::QNAME,
+            Which::CellXfs => sml::CellFormat::QNAME,
+        };
+        for w in [Which::NumFmts, Which::Fonts, Which::Fills, Which::Borders, Which::CellXfs] {
+            let node = table_node(root, w.name());
+            if let Some(n) = node {
+                st.exists.insert(w);
+                st.prefixes.insert(w, n.name().prefix().map(str::to_owned));
+                if n.attr(QName::new("", "count")).is_some() {
+                    st.count_attr.insert(w);
+                }
+            }
+            st.tables.insert(w, Table::read(doc, node, entry(w)));
+        }
+        // fills 0 and 1 are reserved; 0 is a reuse target only as canonical `none`
+        let none_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &Fill::NoFill))?;
+        st.tables.get_mut(&Which::Fills).expect("read").reuse.retain(|k, i| *i >= 2 || (*i == 0 && *k == none_key));
+        // number formats
+        if let Some(n) = table_node(root, "numFmts") {
+            for e in n.elements().filter(|e| e.is(sml::NumberingFormat::QNAME)) {
+                let (Some(id), Some(code)) = (e.attr(QName::new("", "numFmtId")).and_then(|v| v.trim().parse::<u32>().ok()), e.attr(QName::new("", "formatCode"))) else {
+                    continue;
+                };
+                st.codes.insert(id, code.to_owned());
+                if id < 164 {
+                    st.redefined.insert(id);
+                } else {
+                    st.custom_count += 1;
+                    if e.attrs().len() == 2 && e.elements().next().is_none() {
+                        st.custom_codes.entry(code.to_owned()).or_insert(id);
+                    }
+                }
+            }
+        }
+        // xfs, cell style xfs, named styles
+        let xfs = |local: &str| -> Vec<Option<XfInfo>> {
+            table_node(root, local)
+                .map(|t| t.elements().map(|e| e.is(sml::CellFormat::QNAME).then(|| XfInfo::read(e))).collect())
+                .unwrap_or_default()
+        };
+        st.xfs = xfs("cellXfs");
+        st.csx_infos = xfs("cellStyleXfs");
+        st.csx = Table::read(doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
+        st.default = if st.csx.count > 0 && st.csx.stable { st.csx_infos.first().cloned().flatten() } else { st.xfs.first().cloned().flatten() };
+        if let Some(cs) = table_node(root, "cellStyles") {
+            for e in cs.elements().filter(|e| e.is(sml::CellStyle::QNAME)) {
+                if let (Some(n), Some(x)) = (e.attr(QName::new("", "name")), e.attr(QName::new("", "xfId")).and_then(|v| v.trim().parse().ok())) {
+                    st.named.push((n.to_owned(), x));
+                }
+            }
+        }
+        Ok(st)
+    }
+
+    fn prefix(&self, w: Which) -> Option<String> {
+        if self.exists.contains(&w) { self.prefixes.get(&w).cloned().flatten() } else { self.root_prefix.clone() }
+    }
+
+    fn table(&self, w: Which) -> &Table {
+        self.tables.get(&w).expect("all tables read")
+    }
+
+    /// Entries in `cellXfs`.
+    pub(crate) fn xf_count(&self) -> u32 {
+        self.table(Which::CellXfs).count
+    }
+
+    /// The number format code of a `cellXfs` index (built-in table, or
+    /// the file's `numFmts`), and whether it is a date.
+    pub(crate) fn num_format_of(&self, s: u32) -> (Option<u32>, Option<String>) {
+        let id = self.xfs.get(s as usize).cloned().flatten().and_then(|x| x.get("numFmtId").and_then(|v| v.parse::<u32>().ok()));
+        let code = id.and_then(|i| self.codes.get(&i).cloned().or_else(|| BUILTIN.iter().find(|(b, _)| u32::from(*b) == i).map(|(_, c)| (*c).to_owned())));
+        (id, code)
+    }
+
+    /// Plans a style request for a cell whose current `s` is `current`.
+    pub(crate) fn plan(&self, wb: &mut Workbook, req: &StyleRequest, current: u32) -> Result<StylePlan> {
+        let mut p = Planner { next: self.clone(), staged: None, base: None };
+        let s = match req {
+            StyleRequest::Index(n) => {
+                p.next.table(Which::CellXfs).require_stable()?;
+                if *n >= p.next.table(Which::CellXfs).count {
+                    return Err(Error::StyleIndexOutOfRange { index: *n, count: p.next.table(Which::CellXfs).count });
+                }
+                *n
+            }
+            StyleRequest::Format(f) => p.format(wb, f)?,
+            StyleRequest::Named(name) => p.named(wb, name, current)?,
+            StyleRequest::NumFormatOnly(nf) => p.derive_num_format(wb, nf, current)?,
+            StyleRequest::EnsureDate => {
+                let (id, code) = p.next.num_format_of(current);
+                let custom = id.filter(|i| p.next.codes.contains_key(i)).and(code);
+                if is_date_format(id, custom.as_deref()) && p.next.table(Which::CellXfs).stable {
+                    current
+                } else {
+                    p.derive_num_format(wb, &NumFormat::Code("mm-dd-yy".into()), current)?
+                }
+            }
+        };
+        let n = &p.next;
+        let check = |table: &'static str, count: u32| -> Result<()> {
+            if count > limit(table) { Err(Error::StyleTableFull { table: table.into(), limit: limit(table) }) } else { Ok(()) }
+        };
+        check("cellXfs+cellStyleXfs", n.table(Which::CellXfs).count + n.csx.count)?;
+        check("fonts", n.table(Which::Fonts).count)?;
+        check("fills", n.table(Which::Fills).count)?;
+        check("borders", n.table(Which::Borders).count)?;
+        check("custom numFmts", n.custom_count)?;
+        Ok(StylePlan { s, staged: p.staged, next: p.next })
+    }
+}
+
+struct Planner {
+    next: Styles,
+    staged: Option<XmlDocument>,
+    base: Option<()>,
+}
+
+/// Appends under table `T` of the staged `styleSheet`.
+fn append_to<T>(doc: &mut XmlDocument, set_count: Option<u32>, build: impl FnOnce(&mut LensMut<'_, T>) -> Result<()>) -> Result<()>
+where
+    T: ElementSpec + ChildOf<sml::Stylesheet>,
+{
+    let mut ss = doc.lens_mut::<sml::Stylesheet>()?;
+    let mut t = ss.get_or_insert::<T>()?;
+    build(&mut t)?;
+    if let Some(n) = set_count {
+        t.set_attr(QName::new("", "count"), &n.to_string())?;
+    }
+    Ok(())
+}
+
+impl Planner {
+    fn stage(&mut self, wb: &mut Workbook) -> Result<&mut XmlDocument> {
+        if self.staged.is_none() {
+            self.staged = Some(wb.pkg.xml_part(&self.next.part)?.clone());
+        }
+        Ok(self.staged.as_mut().expect("staged"))
+    }
+
+    /// Reuses an entry with exactly these bytes, else appends it.
+    fn entry<T>(&mut self, wb: &mut Workbook, w: Which, build: &dyn Fn(&mut LensMut<'_, T>) -> Result<()>) -> Result<u32>
+    where
+        T: ElementSpec + ChildOf<sml::Stylesheet>,
+    {
+        let key = render::<T>(self.next.prefix(w).as_deref(), |p| build(p))?;
+        let t = self.next.table(w);
+        if t.stable
+            && let Some(&i) = t.reuse.get(&key)
+        {
+            return Ok(i);
+        }
+        self.ensure_reserved(wb, w)?;
+        self.push::<T>(wb, w, key, build)
+    }
+
+    fn push<T>(&mut self, wb: &mut Workbook, w: Which, key: String, build: &dyn Fn(&mut LensMut<'_, T>) -> Result<()>) -> Result<u32>
+    where
+        T: ElementSpec + ChildOf<sml::Stylesheet>,
+    {
+        let t = self.next.table(w);
+        if t.has_ac {
+            return Err(ooxml_core::Error::UnresolvedSibling(T::QNAME).into());
+        }
+        t.require_stable()?;
+        let index = t.count;
+        let created = !self.next.exists.contains(&w);
+        let set_count = (created || self.next.count_attr.contains(&w)).then_some(index + 1);
+        let doc = self.stage(wb)?;
+        append_to::<T>(doc, set_count, |p| build(p))?;
+        if created {
+            self.next.exists.insert(w);
+            self.next.count_attr.insert(w);
+            self.next.prefixes.insert(w, self.next.root_prefix.clone());
+        }
+        let t = self.next.tables.get_mut(&w).expect("read");
+        t.count += 1;
+        t.reuse.entry(key).or_insert(index);
+        Ok(index)
+    }
+
+    /// Reserved leading entries of an empty table (ADR-0006 §5.4).
+    fn ensure_reserved(&mut self, wb: &mut Workbook, w: Which) -> Result<()> {
+        let count = self.next.table(w).count;
+        match w {
+            Which::Fonts if count == 0 => {
+                let f = Font::default();
+                let key = render::<sml::Fonts>(self.next.prefix(w).as_deref(), |p| build_font(p, &f))?;
+                self.push::<sml::Fonts>(wb, w, key, &|p| build_font(p, &f))?;
+            }
+            Which::Borders if count == 0 => {
+                let b = Border::default();
+                let key = render::<sml::Borders>(self.next.prefix(w).as_deref(), |p| build_border(p, &b))?;
+                self.push::<sml::Borders>(wb, w, key, &|p| build_border(p, &b))?;
+            }
+            Which::Fills if count < 2 => {
+                for k in count..2 {
+                    let f = if k == 0 {
+                        Fill::NoFill
+                    } else {
+                        Fill::Pattern { pattern: "gray125".into(), fg: None, bg: None }
+                    };
+                    let key = render::<sml::Fills>(self.next.prefix(w).as_deref(), |p| build_fill(p, &f))?;
+                    self.push::<sml::Fills>(wb, w, key, &|p| build_fill(p, &f))?;
+                }
+                // the reserved positions are not reuse targets except `none` at 0
+                let t = self.next.tables.get_mut(&w).expect("read");
+                t.reuse.retain(|_, i| *i != 1);
+            }
+            Which::CellXfs if count == 0 => {
+                for dep in [Which::Fonts, Which::Fills, Which::Borders] {
+                    self.ensure_reserved(wb, dep)?;
+                }
+                let mut spec = XfInfo::default();
+                for k in ["numFmtId", "fontId", "fillId", "borderId"] {
+                    spec.set(k, "0");
+                }
+                if self.next.csx.count > 0 {
+                    spec.set("xfId", "0");
+                }
+                let key = render::<sml::CellFormats>(self.next.prefix(w).as_deref(), |p| build_xf(p, &spec))?;
+                self.push::<sml::CellFormats>(wb, w, key, &|p| build_xf(p, &spec))?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn num_fmt_id(&mut self, wb: &mut Workbook, nf: &NumFormat) -> Result<u32> {
+        match nf {
+            NumFormat::General => Ok(0),
+            NumFormat::Builtin(id) => {
+                let id = u32::from(*id);
+                if self.next.redefined.contains(&id) {
+                    return Err(Error::BuiltinNumFormatRedefined { id });
+                }
+                Ok(id)
+            }
+            NumFormat::Code(code) => {
+                if let Some((id, _)) = BUILTIN.iter().find(|(_, c)| c == code)
+                    && !self.next.redefined.contains(&u32::from(*id))
+                {
+                    return Ok(u32::from(*id));
+                }
+                if let Some(&id) = self.next.custom_codes.get(code) {
+                    return Ok(id);
+                }
+                if crate::escape::encode(code) != *code || ooxml_core::value::first_invalid_xml_char(code).is_some() {
+                    return Err(Error::InvalidNumFormat(code.clone()));
+                }
+                let id = self.next.next_numfmt;
+                if id > 65_535 {
+                    return Err(Error::NumFmtIdExhausted);
+                }
+                let code_c = code.clone();
+                let key = render::<sml::NumberingFormats>(self.next.prefix(Which::NumFmts).as_deref(), |p| build_numfmt(p, id, &code_c))?;
+                self.push::<sml::NumberingFormats>(wb, Which::NumFmts, key, &|p| build_numfmt(p, id, &code_c))?;
+                self.next.next_numfmt += 1;
+                self.next.custom_count += 1;
+                self.next.custom_codes.insert(code.clone(), id);
+                self.next.codes.insert(id, code.clone());
+                Ok(id)
+            }
+        }
+    }
+
+    fn default_attr(&self, k: &str) -> String {
+        self.next.default.as_ref().and_then(|d| d.get(k)).unwrap_or("0").to_owned()
+    }
+
+    fn format(&mut self, wb: &mut Workbook, f: &Format) -> Result<u32> {
+        let _ = self.base;
+        let mut spec = XfInfo::default();
+        let num = match &f.num_format {
+            Some(nf) => self.num_fmt_id(wb, nf)?.to_string(),
+            None => self.default_attr("numFmtId"),
+        };
+        let font = match &f.font {
+            Some(font) => self.entry::<sml::Fonts>(wb, Which::Fonts, &|p| build_font(p, font))?.to_string(),
+            None => {
+                self.ensure_reserved(wb, Which::Fonts)?;
+                self.default_attr("fontId")
+            }
+        };
+        let fill = match &f.fill {
+            Some(fill) => {
+                self.ensure_reserved(wb, Which::Fills)?;
+                self.entry::<sml::Fills>(wb, Which::Fills, &|p| build_fill(p, fill))?.to_string()
+            }
+            None => {
+                self.ensure_reserved(wb, Which::Fills)?;
+                self.default_attr("fillId")
+            }
+        };
+        let border = match &f.border {
+            Some(b) => self.entry::<sml::Borders>(wb, Which::Borders, &|p| build_border(p, b))?.to_string(),
+            None => {
+                self.ensure_reserved(wb, Which::Borders)?;
+                self.default_attr("borderId")
+            }
+        };
+        spec.set("numFmtId", &num);
+        spec.set("fontId", &font);
+        spec.set("fillId", &fill);
+        spec.set("borderId", &border);
+        if self.next.csx.count > 0 {
+            self.next.csx.require_stable()?;
+            spec.set("xfId", "0");
+        }
+        for (set, k) in [
+            (f.num_format.is_some(), "applyNumberFormat"),
+            (f.font.is_some(), "applyFont"),
+            (f.fill.is_some(), "applyFill"),
+            (f.border.is_some(), "applyBorder"),
+            (f.alignment.is_some(), "applyAlignment"),
+            (f.protection.is_some(), "applyProtection"),
+        ] {
+            if set {
+                spec.set(k, "1");
+            }
+        }
+        let default = self.next.default.clone();
+        spec.alignment = match &f.alignment {
+            Some(a) => Some(a.attrs().into_iter().map(|(k, v)| (k.to_owned(), v)).collect::<Vec<_>>()).filter(|v| !v.is_empty()),
+            None => default.as_ref().and_then(|d| d.alignment.clone()),
+        };
+        spec.protection = match &f.protection {
+            Some(pr) => {
+                let mut v = Vec::new();
+                if !pr.locked {
+                    v.push(("locked".to_owned(), "0".to_owned()));
+                }
+                if pr.hidden {
+                    v.push(("hidden".to_owned(), "1".to_owned()));
+                }
+                Some(v).filter(|v| !v.is_empty())
+            }
+            None => default.as_ref().and_then(|d| d.protection.clone()),
+        };
+        self.xf(wb, spec)
+    }
+
+    fn xf(&mut self, wb: &mut Workbook, spec: XfInfo) -> Result<u32> {
+        self.ensure_reserved(wb, Which::CellXfs)?;
+        let s = self.entry::<sml::CellFormats>(wb, Which::CellXfs, &|p| build_xf(p, &spec))?;
+        if s as usize >= self.next.xfs.len() {
+            self.next.xfs.resize(s as usize + 1, None);
+            self.next.xfs[s as usize] = Some(spec);
+        }
+        Ok(s)
+    }
+
+    fn current(&self, current: u32) -> Result<XfInfo> {
+        self.next.table(Which::CellXfs).require_stable()?;
+        Ok(self.next.xfs.get(current as usize).cloned().flatten().or_else(|| self.next.default.clone()).unwrap_or_default())
+    }
+
+    fn named(&mut self, wb: &mut Workbook, name: &str, current: u32) -> Result<u32> {
+        let fold = crate::formula::precedents::fold;
+        let hits: Vec<u32> = self.next.named.iter().filter(|(n, _)| fold(n) == fold(name)).map(|(_, x)| *x).collect();
+        let xf_id = match hits[..] {
+            [x] => x,
+            [] => return Err(Error::NoSuchStyle(name.to_owned())),
+            _ => return Err(Error::AmbiguousStyleName(name.to_owned())),
+        };
+        self.next.csx.require_stable()?;
+        let style = self.next.csx_infos.get(xf_id as usize).cloned().flatten().ok_or_else(|| Error::NoSuchStyle(name.to_owned()))?;
+        if style.opaque {
+            return Err(Error::NotExpressible(format!("named style {name:?} has extension content")));
+        }
+        let cell = self.current(current)?;
+        let mut spec = XfInfo::default();
+        for (id, apply) in [("numFmtId", "applyNumberFormat"), ("fontId", "applyFont"), ("fillId", "applyFill"), ("borderId", "applyBorder")] {
+            let from_style = style.get(apply) != Some("0") && style.get(apply) != Some("false");
+            let v = if from_style { style.get(id) } else { cell.get(id) }.unwrap_or("0").to_owned();
+            spec.set(id, &v);
+        }
+        spec.set("xfId", &xf_id.to_string());
+        for apply in ["applyNumberFormat", "applyFont", "applyFill", "applyBorder", "applyAlignment", "applyProtection"] {
+            if style.get(apply) != Some("0") && style.get(apply) != Some("false") {
+                spec.set(apply, "1");
+            }
+        }
+        let al = style.get("applyAlignment") != Some("0") && style.get("applyAlignment") != Some("false");
+        spec.alignment = if al { style.alignment.clone() } else { cell.alignment.clone() };
+        let pr = style.get("applyProtection") != Some("0") && style.get("applyProtection") != Some("false");
+        spec.protection = if pr { style.protection.clone() } else { cell.protection.clone() };
+        self.xf(wb, spec)
+    }
+
+    fn derive_num_format(&mut self, wb: &mut Workbook, nf: &NumFormat, current: u32) -> Result<u32> {
+        let mut spec = self.current(current)?;
+        if spec.opaque {
+            return Err(Error::NotExpressible("the cell's xf has extension content".into()));
+        }
+        let id = self.num_fmt_id(wb, nf)?;
+        spec.set("numFmtId", &id.to_string());
+        spec.set("applyNumberFormat", "1");
+        if spec.get("fontId").is_none() {
+            spec.set("fontId", "0");
+        }
+        self.xf(wb, spec)
+    }
+}
+
+// ------------------------------------------------------------ builders
+
+fn color<C: ElementSpec>(l: &mut LensMut<'_, C>, c: &Color) -> Result<()> {
+    for (k, v) in c.attrs() {
+        l.set_attr(QName::new("", k), &v)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn build_font(p: &mut LensMut<'_, sml::Fonts>, f: &Font) -> Result<()> {
+    let mut n = p.insert::<sml::Font>()?;
+    if f.bold {
+        n.insert::<sml::Bold>()?;
+    }
+    if f.italic {
+        n.insert::<sml::Italic>()?;
+    }
+    if f.strike {
+        n.insert::<sml::Strike>()?;
+    }
+    if let Some(u) = f.underline {
+        let mut e = n.insert::<sml::Underline>()?;
+        match u {
+            Underline::Single => {}
+            Underline::Double => e.set_attr(QName::new("", "val"), "double")?,
+            Underline::SingleAccounting => e.set_attr(QName::new("", "val"), "singleAccounting")?,
+            Underline::DoubleAccounting => e.set_attr(QName::new("", "val"), "doubleAccounting")?,
+        }
+    }
+    n.insert::<sml::FontSize>()?.set_attr(QName::new("", "val"), &f.size)?;
+    if let Some(c) = &f.color {
+        color(&mut n.insert::<sml::Color>()?, c)?;
+    }
+    n.insert::<sml::FontName>()?.set_attr(QName::new("", "val"), &f.name)?;
+    if let Some(fam) = f.family {
+        n.insert::<sml::FontFamilyNumbering>()?.set_attr(QName::new("", "val"), &fam.to_string())?;
+    }
+    if let Some(s) = &f.scheme {
+        n.insert::<sml::FontScheme>()?.set_attr(QName::new("", "val"), s)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn build_fill(p: &mut LensMut<'_, sml::Fills>, f: &Fill) -> Result<()> {
+    let mut n = p.insert::<sml::Fill>()?;
+    let mut pf = n.insert::<sml::PatternFill>()?;
+    match f {
+        Fill::NoFill => pf.set_attr(QName::new("", "patternType"), "none")?,
+        Fill::Pattern { pattern, fg, bg } => {
+            pf.set_attr(QName::new("", "patternType"), pattern)?;
+            if let Some(c) = fg {
+                color(&mut pf.insert::<sml::ForegroundColor>()?, c)?;
+            }
+            if let Some(c) = bg {
+                color(&mut pf.insert::<sml::BackgroundColor>()?, c)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn side<S: ElementSpec + ChildOf<sml::Border>>(b: &mut LensMut<'_, sml::Border>, s: &Option<Side>) -> Result<()>
+where
+    sml::Color: ChildOf<S>,
+{
+    let mut e = b.insert::<S>()?;
+    if let Some(s) = s {
+        e.set_attr(QName::new("", "style"), &s.style)?;
+        if let Some(c) = &s.color {
+            color(&mut e.insert::<sml::Color>()?, c)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn build_border(p: &mut LensMut<'_, sml::Borders>, b: &Border) -> Result<()> {
+    let mut n = p.insert::<sml::Border>()?;
+    if b.diagonal_up {
+        n.set_attr(QName::new("", "diagonalUp"), "1")?;
+    }
+    if b.diagonal_down {
+        n.set_attr(QName::new("", "diagonalDown"), "1")?;
+    }
+    side::<sml::LeftBorder>(&mut n, &b.left)?;
+    side::<sml::RightBorder>(&mut n, &b.right)?;
+    side::<sml::TopBorder>(&mut n, &b.top)?;
+    side::<sml::BottomBorder>(&mut n, &b.bottom)?;
+    side::<sml::DiagonalBorder>(&mut n, &b.diagonal)?;
+    Ok(())
+}
+
+pub(crate) fn build_numfmt(p: &mut LensMut<'_, sml::NumberingFormats>, id: u32, code: &str) -> Result<()> {
+    let mut n = p.insert::<sml::NumberingFormat>()?;
+    n.set_attr(QName::new("", "numFmtId"), &id.to_string())?;
+    n.set_attr(QName::new("", "formatCode"), code)?;
+    Ok(())
+}
+
+pub(crate) fn build_xf(p: &mut LensMut<'_, sml::CellFormats>, x: &XfInfo) -> Result<()> {
+    let mut n = p.insert::<sml::CellFormat>()?;
+    for (k, v) in &x.attrs {
+        n.set_attr(QName::new("", leak(k)), v)?;
+    }
+    if let Some(a) = &x.alignment {
+        let mut e = n.insert::<sml::Alignment>()?;
+        for (k, v) in a {
+            e.set_attr(QName::new("", leak(k)), v)?;
+        }
+    }
+    if let Some(pr) = &x.protection {
+        let mut e = n.insert::<sml::Protection>()?;
+        for (k, v) in pr {
+            e.set_attr(QName::new("", leak(k)), v)?;
+        }
+    }
+    Ok(())
+}
+
+/// `QName` needs `&'static str`: attribute names come from a small closed
+/// set (the schema's `xf`/`alignment`/`protection` attributes), so they are
+/// interned once.
+fn leak(k: &str) -> &'static str {
+    use std::sync::{LazyLock, Mutex};
+    static INTERN: LazyLock<Mutex<HashSet<&'static str>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+    let mut set = INTERN.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(s) = set.get(k) {
+        return s;
+    }
+    let s: &'static str = Box::leak(k.to_owned().into_boxed_str());
+    set.insert(s);
+    s
+}

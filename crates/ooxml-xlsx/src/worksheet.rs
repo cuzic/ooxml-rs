@@ -16,8 +16,8 @@ use crate::workbook::Workbook;
 /// Rows and columns are 0-based (`A1` = `(0, 0)`).
 #[derive(Debug)]
 pub struct Worksheet<'wb> {
-    wb: &'wb mut Workbook,
-    sheet: usize,
+    pub(crate) wb: &'wb mut Workbook,
+    pub(crate) sheet: usize,
 }
 
 /// A decoded cell value.
@@ -222,7 +222,7 @@ fn refuse_alternate_content(n: &RawNode, parent: QName) -> Result<()> {
 /// The new child's namespace prefix cannot be refused: it is always
 /// SpreadsheetML main, the namespace of `E` itself, so the parent's own
 /// prefix is bound to it.
-fn check_insertable<'n, E: ElementSpec>(children: impl Iterator<Item = &'n RawNode>, q: QName) -> Result<()> {
+pub(crate) fn check_insertable<'n, E: ElementSpec>(children: impl Iterator<Item = &'n RawNode>, q: QName) -> Result<()> {
     let Content::Slots(slots) = E::CONTENT else {
         return Err(ooxml_core::Error::UnsupportedContentModel(E::QNAME).into());
     };
@@ -268,6 +268,8 @@ pub(crate) struct TargetPlan {
     pub(crate) loc: Located,
     /// The new `dimension/@ref`, if `dimension` exists and must grow.
     pub(crate) dimension: Option<String>,
+    /// The new `s` (Phase2): `None` keeps the cell's style.
+    pub(crate) style: Option<u32>,
 }
 
 /// Decides the target write without changing anything: where the row and
@@ -279,7 +281,7 @@ pub(crate) struct TargetPlan {
 pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
         CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) => Some(t.as_str()),
-        CellOp::RemoveFormula => None,
+        CellOp::RemoveFormula | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::StyleOnly => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -289,10 +291,10 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
     let loc = locate(doc, part, at)?;
     let ws = sml::WorksheetView(doc.lens::<sml::Worksheet>()?);
     let new_child = match op {
-        CellOp::Number(_) => Some(sml::CellValue::QNAME),
+        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) => Some(sml::InlineString::QNAME),
         CellOp::Formula(_) => Some(sml::CellFormula::QNAME),
-        CellOp::RemoveFormula => None,
+        CellOp::RemoveFormula | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
         None => check_insertable::<sml::Worksheet>(ws.raw().elements(), sml::SheetData::QNAME)?,
@@ -304,7 +306,7 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
                     None => check_insertable::<sml::Row>(row.elements(), sml::Cell::QNAME)?,
                     Some(ci) => {
                         let c = row.children()[ci].as_element().expect("located cell");
-                        if c.attr(sml::Cell::ATTR_VM).is_some() {
+                        if c.attr(sml::Cell::ATTR_VM).is_some() && !matches!(op, CellOp::StyleOnly) {
                             return Err(Error::RichValueCell { cell: at.to_string() });
                         }
                         // `write_cell` removes every `f`, `v` and `is`
@@ -332,7 +334,7 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
             (!range.contains(at)).then(|| range.union(at).to_string())
         }
     };
-    Ok(TargetPlan { loc, dimension })
+    Ok(TargetPlan { loc, dimension, style: None })
 }
 
 /// The item index of the existing child that the new content can reuse in
@@ -342,14 +344,14 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
 fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
     let first = |q: QName| c.indexed_elements().find(|(_, n)| n.is(q)).map(|(i, _)| i);
     match op {
-        CellOp::Number(_) => first(sml::CellValue::QNAME),
+        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) => first(sml::CellValue::QNAME),
         CellOp::Formula(_) => first(sml::CellFormula::QNAME),
         CellOp::Text(_) => first(sml::InlineString::QNAME).filter(|&i| {
             let is = c.children()[i].as_element().expect("element");
             let mut kids = is.elements();
             matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
         }),
-        CellOp::RemoveFormula => None,
+        CellOp::RemoveFormula | CellOp::StyleOnly => None,
     }
 }
 
@@ -393,6 +395,9 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
         // one element of the kind the new content needs: that one is reused
         // in place, so comments, PIs and unknown children keep their
         // position relative to the value (Phase0 review round 3, R3-3).
+        if let Some(s) = plan.style {
+            c.set_style_index(s)?;
+        }
         let reuse = reusable(c.0.node(), op);
         let doomed: Vec<usize> = c
             .0
@@ -400,6 +405,7 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
             .indexed_elements()
             .filter(|(i, n)| {
                 Some(*i) != reuse
+                    && !matches!(op, CellOp::StyleOnly)
                     && (n.is(sml::CellFormula::QNAME) || n.is(sml::CellValue::QNAME) || n.is(sml::InlineString::QNAME))
             })
             .map(|(i, _)| i)
@@ -443,6 +449,15 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
             CellOp::RemoveFormula => {
                 c.remove_data_type()?;
             }
+            CellOp::Shared(index) => {
+                c.set_data_type(CellValues::SharedString)?;
+                c.get_or_insert_cell_value()?.set_text(&index.to_string())?;
+            }
+            CellOp::Bool(b) => {
+                c.set_data_type(CellValues::Boolean)?;
+                c.get_or_insert_cell_value()?.set_text(if *b { "1" } else { "0" })?;
+            }
+            CellOp::StyleOnly => {}
         }
     }
     if let Some(r) = &plan.dimension {
@@ -508,6 +523,11 @@ impl<'wb> Worksheet<'wb> {
         self.cell_mut(row, col)?.set_string(value)
     }
 
+    /// `cell_mut(row, col)?.set_string_inline(value)`.
+    pub fn write_string_inline(&mut self, row: u32, col: u32, value: &str) -> Result<()> {
+        self.cell_mut(row, col)?.set_string_inline(value)
+    }
+
     /// `cell_mut(row, col)?.set_number(value)` (the from-scratch API name).
     pub fn write_number(&mut self, row: u32, col: u32, value: f64) -> Result<()> {
         self.cell_mut(row, col)?.set_number(value)
@@ -523,16 +543,16 @@ impl<'wb> Worksheet<'wb> {
 /// happens until a value is set).
 #[derive(Debug)]
 pub struct CellMut<'s, 'wb> {
-    ws: &'s mut Worksheet<'wb>,
-    at: CellIndex,
+    pub(crate) ws: &'s mut Worksheet<'wb>,
+    pub(crate) at: CellIndex,
 }
 
 /// Excel's cell text limit, in UTF-16 code units.
-const MAX_STRING_LEN: usize = 32_767;
+pub(crate) const MAX_STRING_LEN: usize = 32_767;
 
 /// Formats a finite number as `xsd:double`: plain decimal in the usual
 /// range, `1E300`-style outside it; `-0` is written as `0`.
-fn format_number(v: f64) -> String {
+pub(crate) fn format_number(v: f64) -> String {
     let a = v.abs();
     if v == 0.0 {
         "0".into()
@@ -562,12 +582,15 @@ impl CellMut<'_, '_> {
         ws.wb.edit_cell(ws.sheet, self.at, CellOp::Number(format_number(value)))
     }
 
-    /// Writes a string as an inline string (`t="inlineStr"`,
-    /// `<is><t>…</t></is>`; ADR-0001 Phase0 never touches the shared-string
-    /// table). `xml:space="preserve"` is set when the value has leading or
-    /// trailing whitespace; characters XML cannot carry are written as
-    /// `_xHHHH_`. `s` is kept. At most 32,767 UTF-16 code units
-    /// ([`Error::StringTooLong`]).
+    /// Writes a string. When the workbook has a shared-string table it is
+    /// written as a shared string (`t="s"`, ADR-0006 §4): an existing plain
+    /// item with exactly these bytes is reused, otherwise one `si` is
+    /// appended, and `count`/`uniqueCount` are kept current. Without a
+    /// shared-string table it is an inline string, as
+    /// [`Self::set_string_inline`] writes. `xml:space="preserve"` is set when
+    /// the value has leading or trailing whitespace; characters XML cannot
+    /// carry are written as `_xHHHH_`. `s` is kept. At most 32,767 UTF-16
+    /// code units ([`Error::StringTooLong`]).
     ///
     /// In a workbook with formulas, the cached values of every cell that may
     /// depend on this one are removed and `fullCalcOnLoad` is set (ADR-0003
@@ -583,6 +606,14 @@ impl CellMut<'_, '_> {
     /// such as `UnresolvedSibling` if `sheetData` itself must be inserted
     /// next to an `mc:AlternateContent`.
     pub fn set_string(self, value: &str) -> Result<()> {
+        let ws = &mut *self.ws;
+        ws.wb.write_string(ws.sheet, self.at, value, None)
+    }
+
+    /// Writes a string as an inline string (`t="inlineStr"`,
+    /// `<is><t>…</t></is>`), never touching the shared-string table (the
+    /// Phase0 behaviour of [`Self::set_string`]). Same rules and refusals.
+    pub fn set_string_inline(self, value: &str) -> Result<()> {
         let units = value.encode_utf16().count();
         if units > MAX_STRING_LEN {
             return Err(Error::StringTooLong(units));
