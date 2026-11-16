@@ -1,8 +1,9 @@
 [workspace]
 resolver = "3"
+# Glob so that format crates (crates/ooxml-xlsx, -docx, -pptx) can be added in
+# parallel PRs without conflicting edits to this list.
 members = [
-    "crates/ooxml-core",
-    "crates/ooxml-schema",
+    "crates/*",
     "xtask",
 ]
 
