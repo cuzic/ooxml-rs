@@ -1,6 +1,6 @@
 # ADR-0009: xlsx Phase3 — sheet operations on existing files
 
-- Status: **Proposed** (revision 3)
+- Status: **Accepted** (revision 4)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 3 append-only invariant, and the
@@ -9,13 +9,15 @@
   - **PR #38** (`ooxml-core` registry transaction, `RegistryPlan`): the single source of truth
     for adding and removing parts, relationships and content types;
   - [ADR-0002](0002-schema-driven-code-generation.md): lens, allowlist, §4.3 insertion;
-  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) **revision 4** (on
-    `impl/xlsx-phase1`, PR #20; §2.4 folding and unknown sheets exist only there): census,
-    tokenizer, `Everything`, plan → validate → apply, §5 guards, calcChain policy;
+  - [ADR-0003](0003-xlsx-phase1-formula-and-calc-state.md) **revision 5** (Accepted; PR #20):
+    census, tokenizer, §2.4 folding and unknown sheets, `Everything`, plan → validate → apply
+    with poisoning (§3.1), cache stripping (every `v` and `is`, duplicates included; rev 5
+    R4-M1), calculation modes and `KeepStaleCaches` (§3.3), §5 guards, fault injection (§7.3),
+    calcChain policy;
   - [ADR-0006](0006-xlsx-phase2-shared-strings-and-styles.md): registries (PR #22).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.2 (A4–A7), §6 Phase3
 - Evidence: [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md)
-- Review: [round 1](0009-opus-review-round1.md), [round 2](0009-opus-review-round2.md)
+- Review: [round 1](0009-opus-review-round1.md), [round 2](0009-opus-review-round2.md), [round 3](0009-opus-review-round3.md) (converged)
 
 ## Revision history
 
@@ -68,12 +70,30 @@
   - **R2-m3:** the scan's blind spots are stated: XML parts that do not parse get a byte scan
     and refuse on a hit; non-ActiveX binaries are not scanned; raw-name locations rely on the
     table alone.
-  - **R2-m4:** the scan folds like ADR-0003 rev 4 §2.4 (Unicode upper then lower).
+  - **R2-m4:** the scan folds like ADR-0003 §2.4 (Unicode upper then lower; rev 5 since
+    revision 4).
   - **R2-m5:** "sheet-prefix token" includes `Sheet2!Name`, `Sheet2!#REF!` and
     `Sheet2!Func(`; their handling on rename and delete is stated.
   - **R2-m6:** a move is refused only when it **changes** the relative order of a 3-D
     reference's endpoints.
   - **R2-m7:** the `allowed_rel_types` passed to `remove_parts` per operation are listed.
+- **Revision 4** (after `0009-opus-review-round3.md`: converged, 6 Minor; status **Accepted**
+  with the owner decisions of 2026-11-16):
+  - **R3-m1:** ADR-0003 **revision 5** is the reference: its strip definition (every `v` and
+    `is`, duplicates included) and its `o1_duplicate_caches.xlsx` shape in the strip+rewrite
+    test.
+  - **R3-m2:** Phase3 inherits ADR-0003 §3.3's calculation modes (manual: no
+    `fullCalcOnLoad`; `autoNoTable` as auto) and honours `KeepStaleCaches` (§2, §12).
+  - **R3-m3:** the workbook is poisoned **before** `Package::apply` and cleared only after the
+    rebuild succeeds; fault injection covers before apply, between apply and rebuild, and
+    inside the rebuild (§2, oracles).
+  - **R3-m4:** a rename whose new name cannot be written into a `#Sheet!` relationship target
+    (a control character such as `_x000a_`'s LF) refuses (§6, §13).
+  - **R3-m5:** staged clones come from `pkg.xml_part(name)?.clone()`, never from a re-parse of
+    `read_part`; one plan never combines `set_relationship_target` with `remove_parts`; a VBA
+    project re-created with `Exact` is noted (§2, §10).
+  - **R3-m6:** `calcChain.xml` is removed by its own `remove_parts` call in the same plan
+    (§5).
 
 ## Context
 
@@ -262,9 +282,14 @@ the operation changes in the package is in that plan** (review R2-M2):
 - **Staged parts** (`stage_part`), **one clone per part**, each carrying every change that part
   gets from the operation, because staging a part again replaces the earlier content:
   - `workbook.xml`: the `<sheets>` edit, `definedNames` (`localSheetId`, rewritten texts),
-    `bookViews`, **and** Phase1's `calcPr/@fullCalcOnLoad`;
+    `bookViews`, **and** Phase1's `calcPr/@fullCalcOnLoad` (ADR-0003 §3.3: not in manual
+    calculation mode; `autoNoTable` counts as auto);
   - every sheet part whose formula texts are rewritten **and/or** whose dependent cells lose
-    their cached values (ADR-0003 §3.1's strip): rewrite and strip go into the same clone.
+    their cached values (ADR-0003 rev 5 §3.1's strip: every `v` and `is`, schema-invalid
+    duplicates included, and `t`): rewrite and strip go into the same clone. Under
+    `CalcPolicy::KeepStaleCaches` nothing is stripped, as in Phase1: the caller chose stale
+    caches for Excel-only use, and a structural operation honours that choice (only
+    `fullCalcOnLoad` is set).
     Strip positions are computed on the parsed tree before rewriting; rewriting changes only
     text of `f` elements, never the children of `sheetData`, so the positions hold in the
     clone (invariant, tested);
@@ -283,16 +308,25 @@ the operation changes in the package is in that plan** (review R2-M2):
   `localSheetId`, 3-D span membership, unknown-sheet resolution all change).
 
 No Layer 2 edit happens outside the plan: `xml_part_mut` between planning and apply would make
-the plan stale (`StalePlan`), so Phase3 never calls it. Each registry step is validated against
+the plan stale (`StalePlan`), so Phase3 never calls it. Every staged clone is taken from
+`pkg.xml_part(name)?.clone()` and then edited; it is never a re-parse of `read_part`, so it is
+never mistaken for an unedited copy of the original entry (review R3-m5 a; PR #38 N1). One plan
+never combines `set_relationship_target` with `remove_parts`: retargets happen only in rename,
+removals only in delete and VBA replacement (R3-m5 b; PR #38 N2, since fixed, makes this a
+belt-and-braces rule). Each registry step is validated against
 the **plan's view** (the package as the earlier steps leave it). Reference scans read the
 staged content: the sheet part's relationship is removable because the staged `workbook.xml` no
 longer names its `r:id`. If any step refuses, the plan is dropped and nothing changes.
 
-**Failure after apply.** `Package::apply` cannot fail except `StalePlan`, which cannot happen
-because nothing touches the package between planning and apply. The in-memory rebuild reads
-parts this operation just wrote. If it nevertheless fails (a bug), the workbook is **poisoned**
-exactly as ADR-0003 §3.1 does for a failed apply: every later edit and every save is refused,
-so a package and an index that disagree can never be written. That is ADR-0003 §3.1's plan →
+**Poisoning** (review R3-m3). As in ADR-0003 §3.1, the workbook is poisoned **before**
+`Package::apply` and the poison is cleared only after the rebuild succeeds, so a panic inside
+apply or the rebuild also leaves it poisoned. `Package::apply` cannot fail except `StalePlan`,
+which cannot happen because nothing touches the package between planning and apply; but once
+it has run, the package has changed, and a rebuild that then fails (a bug) would leave the
+indexes describing the old package. The poison makes every later edit and every save refuse,
+so a package and an index that disagree can never be written. ADR-0003 §7.3's fault injection
+(`fault-injection` feature, `Err` and panic, `catch_unwind`) covers three points: before apply,
+between apply and the rebuild, and inside the rebuild. That is ADR-0003 §3.1's plan →
 validate → apply for multi-part edits (review B2, R2-M2).
 
 **`allowed_rel_types` per operation** (review R2-m7). These are the types of relationships
@@ -414,8 +448,10 @@ Refused when:
 3. stages every part **outside the set** whose references to the sheet are rewritten or whose
    caches are stripped (below). Parts in the set are neither rewritten nor scanned: they go
    (review R2-m2);
-4. removes the closed set with all its `.rels` (`remove_parts`, `allowed_rel_types` per §2),
-   and `calcChain.xml`;
+4. removes the closed set with all its `.rels` (`remove_parts`, `allowed_rel_types` =
+   `worksheet` per §2), and then `calcChain.xml` with a **second** `remove_parts` call in the
+   same plan (`allowed_rel_types` = `calcChain`), so that the calcChain type is never allowed
+   for the sheet's set (review R3-m6);
 5. stages `sharedStrings.xml` (`sst/@count`) and `app.xml` (§11).
 
 The staged `workbook.xml` no longer names the sheet's `r:id`. The set's internal references
@@ -505,7 +541,7 @@ function for its syntax. The corpus count is the number of packages (a lower bou
 | form controls: ctrlProps `@fmlaLink`/`@fmlaRange`/`@fmlaTxbx`/`@fmlaGroup`; VML `x:FmlaLink`/`x:FmlaRange`/`x:FmlaTxbx`/`x:FmlaPict`; `controlPr/@linkedCell`/`@listFillRange` | formula (reference) | 0 |
 | `xdr:sp/@textlink`, `cdr:sp/@textlink` | formula (reference) | 0 non-empty |
 | `hyperlink/@location` | location (`Sheet!A1` / `'S h'!A1`) | 3 |
-| `#Sheet!…` targets of Internal relationships in sheet and drawing `.rels` (shape hyperlinks) | location, written through PR #38 `set_relationship_target` (`Id`, `Type`, `TargetMode` stay; review R2-M1) | 3 (18 renames of 838 in the POI corpus) |
+| `#Sheet!…` targets of Internal relationships in sheet and drawing `.rels` (shape hyperlinks) | location, written through PR #38 `set_relationship_target` (`Id`, `Type`, `TargetMode` stay; review R2-M1). A new name with a control character (`_x000a_` decodes to LF) cannot be written into a `Target`: such a rename is refused (`UnrewritableReference`) rather than leaving a stale link (review R3-m4); how Excel writes it is XL item 9(i) | 3 (18 renames of 838 in the POI corpus) |
 | `app.xml` worksheet titles | raw name (`vt:lpstr`, ST_Xstring) | 294 with titles |
 | `app.xml` "Named Ranges" titles (`'1'!Print_Area`) | location | 32 |
 | `docProps/custom.xml` `linkTarget` | defined-name name (unchanged by a sheet rename) | 9 |
@@ -534,7 +570,7 @@ function for its syntax. The corpus count is the number of packages (a lower bou
 **Closed-world scan** (review B3). Before planning, every XML part of the package that is not
 in the operation's closed set is scanned, whatever its content type. The scan covers every
 text node and every attribute value, after XML unescaping and ST_Xstring decoding, folded as
-ADR-0003 rev 4 §2.4 folds sheet names (Unicode upper case, then lower case; a broader fold
+ADR-0003 rev 5 §2.4 folds sheet names (Unicode upper case, then lower case; a broader fold
 only refuses more; review R2-m4).
 - It looks for the old name in sheet-prefix form: `'…'!`, `Name!`, or a 3-D `A:B!` with the
   old name as an endpoint.
@@ -660,7 +696,9 @@ only refuses more; review R2-m4).
      `add_relationship` from the workbook.
 
   A changed project invalidates every signature. Existing `codeName`s are kept. (Revision 2's
-  wording failed against PR #38 at the time with `NameInUse`; review R2-m1.)
+  wording failed against PR #38 at the time with `NameInUse`; review R2-m1.) The re-created
+  `vbaProject.bin`'s relationships continue above the removed part's `Id`s (PR #38 round 2,
+  n4; recorded for review R3-m5 c); no signature is written, so no relationship is added.
 - **`remove_vba_project()`:** the same closed-set removal, plus the non-macro content type
   (`.xlsm` → `.xlsx`, `.xltm` → `.xltx`).
   - It is refused for `.xlam`: an add-in without macros is not a workbook type
@@ -737,7 +775,8 @@ are in staged clones, not applied separately. An `Err` leaves the package unchan
 - `LastVisibleSheet`
 - `SheetHasUnsupportedParts { rel_types }`
 - `SheetIsPivotSource`
-- `UnrewritableReference { part, location }`
+- `UnrewritableReference { part, location }` (also: a renamed sheet's new name cannot be
+  written into a `#Sheet!` relationship target, review R3-m4)
 - `InvalidName`
 - `DuplicateName`
 - `InvalidNameFormula`
@@ -751,7 +790,8 @@ are in staged clones, not applied separately. An `Err` leaves the package unchan
 - `AddinNeedsVba`
 - `IterativeCalculation`, `MacroSheetDependent`, `RichValueCell` and the workbook-wide
   blocks (ADR-0003 §1, §5; §12)
-- `Poisoned` (a failed in-memory rebuild after apply; ADR-0003 §3.1)
+- `Poisoned` (a failure between the start of apply and the end of the rebuild; ADR-0003
+  §3.1, §2 "Poisoning")
 - core `RegistryRefused` (PR #38)
 
 All are refusals in ADR-0001's sense: nothing changes.
@@ -770,6 +810,12 @@ All are refusals in ADR-0001's sense: nothing changes.
    - a new part has only the relationships the operation added (review M6).
 1a. **Index oracle** (review R2-M2): after every operation, the rebuilt census, sheet list and
     registries equal those of `Workbook::open` on the saved output.
+1b. **Strip + rewrite in one clone** (review R3-m1): on ADR-0003 rev 5's
+    `o1_duplicate_caches.xlsx` shape (duplicate `v`, two `is`), a delete that both rewrites a
+    dependent's formula and strips its cache leaves no `v`/`is` and the rewritten text.
+1c. **Poisoning** (review R3-m3): with `fault-injection`, an `Err` or a panic before apply,
+    between apply and the rebuild, or inside the rebuild leaves the workbook poisoned
+    (`edit_refusal`, `save` and `to_bytes` refuse), checked under `catch_unwind`.
 2. **L1** for every part the operation does not touch.
 3. **T2** on `workbook.xml`, `[Content_Types].xml`, `.rels` and `app.xml`: the diff is
    confined to the inserted, removed or moved elements and the renumbered attributes listed
@@ -852,6 +898,8 @@ All are refusals in ADR-0001's sense: nothing changes.
    - (g) `app.xml` after hiding a sheet as `veryHidden`, and which names "Named Ranges" lists;
    - (h) a deleted sheet's table referenced elsewhere (Excel's `#REF!` form, before
      `TableInUse` is relaxed).
+   - (i) a shape hyperlink to a sheet renamed (in Excel) to a name with a line break: how the
+     `.rels` `Target` is written (review R3-m4).
 
 ## Alternatives considered
 
