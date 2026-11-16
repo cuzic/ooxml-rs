@@ -126,38 +126,61 @@ pub(crate) fn render<T: ElementSpec>(prefix: Option<&str>, build: impl FnOnce(&m
     Ok(s[open_end..close].to_owned())
 }
 
-/// Number of `c` elements with `t="s"` in a sheet part (SpreadsheetML main
-/// namespace), by a streaming scan.
-pub(crate) fn count_shared_refs(xml: &[u8]) -> Result<u64> {
+/// What a sheet part holds that the registries need: the number of `c`
+/// elements with `t="s"`, and the largest `s` (cell, row) or `style`
+/// (column) value.
+#[derive(Debug, Default)]
+pub(crate) struct SheetScan {
+    pub(crate) shared: u64,
+    pub(crate) max_s: Option<u32>,
+}
+
+/// The sheet parts the Phase1 census scans: worksheets, macro sheets and
+/// dialog sheets (ADR-0006 review n1).
+pub(crate) fn census_sheet_parts(wb: &crate::workbook::Workbook) -> Vec<String> {
+    use crate::census::SheetKind;
+    wb.sheets
+        .iter()
+        .filter(|s| matches!(s.kind, SheetKind::Worksheet | SheetKind::MacroSheet | SheetKind::DialogSheet))
+        .filter_map(|s| s.part.clone())
+        .collect()
+}
+
+pub(crate) fn scan_sheet(xml: &[u8]) -> Result<SheetScan> {
     use quick_xml::events::Event;
     use quick_xml::name::ResolveResult;
     use quick_xml::{NsReader, XmlVersion};
-    let fail = |e: String| Error::Malformed(format!("cannot count shared-string references: {e}"));
+    let fail = |e: String| Error::Malformed(format!("cannot scan a sheet part for shared strings and styles: {e}"));
     let mut reader = NsReader::from_reader(xml);
-    let mut n = 0u64;
+    let mut out = SheetScan::default();
     loop {
         let (ns, ev) = reader.read_resolved_event().map_err(|e| fail(e.to_string()))?;
         match ev {
-            Event::Start(ref e) | Event::Empty(ref e)
-                if matches!(ns, ResolveResult::Bound(b) if b.into_inner() == crate::SML_NS) && e.local_name().into_inner() == "c" =>
-            {
+            Event::Start(ref e) | Event::Empty(ref e) if matches!(ns, ResolveResult::Bound(b) if b.into_inner() == crate::SML_NS) => {
+                let local = e.local_name().into_inner().to_owned();
+                let style_attr = match local.as_str() {
+                    "c" | "row" => "s",
+                    "col" => "style",
+                    _ => continue,
+                };
                 for a in e.attributes().with_checks(true) {
                     let a = a.map_err(|e| fail(e.to_string()))?;
-                    if a.key.prefix().is_none() && a.key.local_name().into_inner() == "t" {
+                    if a.key.prefix().is_some() {
+                        continue;
+                    }
+                    let k = a.key.local_name().into_inner().to_owned();
+                    if local == "c" && k == "t" || k == style_attr {
                         let v = a.normalized_value(XmlVersion::Implicit1_0).map_err(|e| fail(e.to_string()))?;
-                        if v.trim() == "s" {
-                            n += 1;
+                        if k == "t" {
+                            out.shared += u64::from(v.trim() == "s");
+                        } else if let Ok(n) = v.trim().parse::<u32>() {
+                            out.max_s = out.max_s.max(Some(n));
                         }
                     }
                 }
             }
-            Event::Eof => return Ok(n),
+            Event::Eof => return Ok(out),
             _ => {}
         }
     }
-}
-
-/// Every attribute of `n` as (name, value), in order.
-pub(crate) fn attrs_of(n: &RawNode) -> Vec<(String, String)> {
-    n.attrs().iter().map(|a| (a.name().display().to_string(), a.value().to_owned())).collect()
 }

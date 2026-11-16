@@ -15,8 +15,7 @@ use std::collections::HashMap;
 use ooxml_core::{ElementSpec, LensMut, QName};
 use ooxml_schema::sml;
 
-use super::{Table, count_shared_refs, render};
-use crate::census::SheetKind;
+use super::{Table, census_sheet_parts, render, scan_sheet};
 use crate::error::{Error, Result};
 use crate::workbook::Workbook;
 
@@ -62,14 +61,8 @@ impl SharedStrings {
             return Ok(None);
         };
         let mut refs = 0i64;
-        let sheet_parts: Vec<String> = wb
-            .sheets
-            .iter()
-            .filter(|s| matches!(s.kind, SheetKind::Worksheet | SheetKind::MacroSheet | SheetKind::DialogSheet))
-            .filter_map(|s| s.part.clone())
-            .collect();
-        for p in sheet_parts {
-            refs += count_shared_refs(&wb.pkg.read_part(&p)?)? as i64;
+        for p in census_sheet_parts(wb) {
+            refs += scan_sheet(&wb.pkg.read_part(&p)?)?.shared as i64;
         }
         let doc = wb.pkg.xml_part(&part)?;
         let root = doc.root();

@@ -22,7 +22,7 @@ use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode, XmlDocument};
 use ooxml_schema::sml;
 
-use super::format::{BUILTIN, is_date_format, Border, Color, Fill, Font, Format, NumFormat, Side, Underline};
+use super::format::{BUILTIN, Border, Color, Fill, Font, Format, NumFormat, Protection, Side, Underline, is_date_format};
 use super::{Table, limit, render};
 use crate::error::{Error, Result};
 use crate::workbook::Workbook;
@@ -115,6 +115,9 @@ pub(crate) struct Styles {
     pub(crate) xfs: Vec<Option<XfInfo>>,
     csx_infos: Vec<Option<XfInfo>>,
     named: Vec<(String, u32)>,
+    /// Largest existing reference into each table (cell/row `s`, column
+    /// `style`, `xf` ids).
+    max_ref: HashMap<Which, u32>,
 }
 
 /// What a style plan produces.
@@ -129,7 +132,7 @@ pub(crate) struct StylePlan {
 #[derive(Clone, Debug)]
 pub(crate) enum StyleRequest {
     /// A value format (unset groups inherit from the default style).
-    Format(Format),
+    Format(Box<Format>),
     /// An existing `cellXfs` index.
     Index(u32),
     /// A named style (`cellStyles/cellStyle/@name`).
@@ -190,7 +193,7 @@ fn max_numfmt_id(wb: &Workbook) -> Result<u32> {
 
 fn decode_xml_text(b: &[u8]) -> Option<String> {
     let utf16 = |le: bool, b: &[u8]| -> Option<String> {
-        let units: Vec<u16> = b.chunks_exact(2).map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }).collect();
+        let units: Vec<u16> = b.as_chunks::<2>().0.iter().map(|c| if le { u16::from_le_bytes(*c) } else { u16::from_be_bytes(*c) }).collect();
         String::from_utf16(&units).ok()
     };
     match b {
@@ -213,6 +216,11 @@ impl Styles {
             .filter(|p| wb.pkg.contains(p))
             .ok_or(Error::NoStylesPart)?;
         let max_id = max_numfmt_id(wb)?;
+        let mut sheet_max_s: Option<u32> = None;
+        for p in super::census_sheet_parts(wb) {
+            let scan = super::scan_sheet(&wb.pkg.read_part(&p)?)?;
+            sheet_max_s = sheet_max_s.max(scan.max_s);
+        }
         let doc = wb.pkg.xml_part(&part)?;
         let root = doc.root();
         if !root.is(sml::Stylesheet::QNAME) {
@@ -239,6 +247,7 @@ impl Styles {
             xfs: Vec::new(),
             csx_infos: Vec::new(),
             named: Vec::new(),
+            max_ref: HashMap::new(),
         };
         let entry = |w: Which| match w {
             Which::NumFmts => sml::NumberingFormat::QNAME,
@@ -260,7 +269,12 @@ impl Styles {
         }
         // fills 0 and 1 are reserved; 0 is a reuse target only as canonical `none`
         let none_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &Fill::NoFill))?;
-        st.tables.get_mut(&Which::Fills).expect("read").reuse.retain(|k, i| *i >= 2 || (*i == 0 && *k == none_key));
+        let gray_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &gray125()))?;
+        st.tables
+            .get_mut(&Which::Fills)
+            .expect("read")
+            .reuse
+            .retain(|k, i| *i >= 2 || (*i == 0 && *k == none_key) || (*i == 1 && *k == gray_key));
         // number formats
         if let Some(n) = table_node(root, "numFmts") {
             for e in n.elements().filter(|e| e.is(sml::NumberingFormat::QNAME)) {
@@ -288,6 +302,17 @@ impl Styles {
         st.csx_infos = xfs("cellStyleXfs");
         st.csx = Table::read(doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
         st.default = if st.csx.count > 0 && st.csx.stable { st.csx_infos.first().cloned().flatten() } else { st.xfs.first().cloned().flatten() };
+        for x in st.xfs.iter().chain(&st.csx_infos).flatten() {
+            for (k, w) in [("fontId", Which::Fonts), ("fillId", Which::Fills), ("borderId", Which::Borders)] {
+                if let Some(v) = x.get(k).and_then(|v| v.trim().parse::<u32>().ok()) {
+                    let e = st.max_ref.entry(w).or_insert(0);
+                    *e = (*e).max(v);
+                }
+            }
+        }
+        if let Some(m) = sheet_max_s {
+            st.max_ref.insert(Which::CellXfs, m);
+        }
         if let Some(cs) = table_node(root, "cellStyles") {
             for e in cs.elements().filter(|e| e.is(sml::CellStyle::QNAME)) {
                 if let (Some(n), Some(x)) = (e.attr(QName::new("", "name")), e.attr(QName::new("", "xfId")).and_then(|v| v.trim().parse().ok())) {
@@ -339,7 +364,8 @@ impl Styles {
                 if is_date_format(id, custom.as_deref()) && p.next.table(Which::CellXfs).stable {
                     current
                 } else {
-                    p.derive_num_format(wb, &NumFormat::Code("mm-dd-yy".into()), current)?
+                    let nf = if p.next.redefined.contains(&14) { NumFormat::Code("yyyy-mm-dd".into()) } else { NumFormat::Builtin(14) };
+                    p.derive_num_format(wb, &nf, current)?
                 }
             }
         };
@@ -400,7 +426,26 @@ impl Planner {
         self.push::<T>(wb, w, key, build)
     }
 
+    /// Appends a new entry after the dangling-reference check (ADR-0006 §2,
+    /// review m2): an existing reference at or past the end would silently
+    /// start meaning the new entry.
     fn push<T>(&mut self, wb: &mut Workbook, w: Which, key: String, build: &dyn Fn(&mut LensMut<'_, T>) -> Result<()>) -> Result<u32>
+    where
+        T: ElementSpec + ChildOf<sml::Stylesheet>,
+    {
+        let count = self.next.table(w).count;
+        if let Some(&m) = self.next.max_ref.get(&w)
+            && m >= count
+        {
+            return Err(Error::DanglingReference { table: w.name().into(), index: m });
+        }
+        self.push_reserved::<T>(wb, w, key, build)
+    }
+
+    /// Appends without the dangling check: the reserved entries give an
+    /// index-0 (or `fills[1]`) reference exactly the meaning a reader
+    /// already assumes (review n8).
+    fn push_reserved<T>(&mut self, wb: &mut Workbook, w: Which, key: String, build: &dyn Fn(&mut LensMut<'_, T>) -> Result<()>) -> Result<u32>
     where
         T: ElementSpec + ChildOf<sml::Stylesheet>,
     {
@@ -432,26 +477,19 @@ impl Planner {
             Which::Fonts if count == 0 => {
                 let f = Font::default();
                 let key = render::<sml::Fonts>(self.next.prefix(w).as_deref(), |p| build_font(p, &f))?;
-                self.push::<sml::Fonts>(wb, w, key, &|p| build_font(p, &f))?;
+                self.push_reserved::<sml::Fonts>(wb, w, key, &|p| build_font(p, &f))?;
             }
             Which::Borders if count == 0 => {
                 let b = Border::default();
                 let key = render::<sml::Borders>(self.next.prefix(w).as_deref(), |p| build_border(p, &b))?;
-                self.push::<sml::Borders>(wb, w, key, &|p| build_border(p, &b))?;
+                self.push_reserved::<sml::Borders>(wb, w, key, &|p| build_border(p, &b))?;
             }
             Which::Fills if count < 2 => {
                 for k in count..2 {
-                    let f = if k == 0 {
-                        Fill::NoFill
-                    } else {
-                        Fill::Pattern { pattern: "gray125".into(), fg: None, bg: None }
-                    };
+                    let f = if k == 0 { Fill::NoFill } else { gray125() };
                     let key = render::<sml::Fills>(self.next.prefix(w).as_deref(), |p| build_fill(p, &f))?;
-                    self.push::<sml::Fills>(wb, w, key, &|p| build_fill(p, &f))?;
+                    self.push_reserved::<sml::Fills>(wb, w, key, &|p| build_fill(p, &f))?;
                 }
-                // the reserved positions are not reuse targets except `none` at 0
-                let t = self.next.tables.get_mut(&w).expect("read");
-                t.reuse.retain(|_, i| *i != 1);
             }
             Which::CellXfs if count == 0 => {
                 for dep in [Which::Fonts, Which::Fills, Which::Borders] {
@@ -465,7 +503,12 @@ impl Planner {
                     spec.set("xfId", "0");
                 }
                 let key = render::<sml::CellFormats>(self.next.prefix(w).as_deref(), |p| build_xf(p, &spec))?;
-                self.push::<sml::CellFormats>(wb, w, key, &|p| build_xf(p, &spec))?;
+                self.push_reserved::<sml::CellFormats>(wb, w, key, &|p| build_xf(p, &spec))?;
+                self.next.xfs.resize(1, None);
+                self.next.xfs[0] = Some(spec);
+                if self.next.default.is_none() {
+                    self.next.default = self.next.xfs[0].clone();
+                }
             }
             _ => {}
         }
@@ -553,13 +596,16 @@ impl Planner {
             self.next.csx.require_stable()?;
             spec.set("xfId", "0");
         }
+        // rust_xlsxwriter's pattern: a flag for each group the format sets
+        // to something other than index 0 / the default
+        let nonzero = |v: &str| v != "0";
         for (set, k) in [
-            (f.num_format.is_some(), "applyNumberFormat"),
-            (f.font.is_some(), "applyFont"),
-            (f.fill.is_some(), "applyFill"),
-            (f.border.is_some(), "applyBorder"),
-            (f.alignment.is_some(), "applyAlignment"),
-            (f.protection.is_some(), "applyProtection"),
+            (f.num_format.is_some() && nonzero(&num), "applyNumberFormat"),
+            (f.font.is_some() && nonzero(&font), "applyFont"),
+            (f.fill.is_some() && nonzero(&fill), "applyFill"),
+            (f.border.is_some() && nonzero(&border), "applyBorder"),
+            (f.alignment.as_ref().is_some_and(|a| !a.attrs().is_empty()), "applyAlignment"),
+            (f.protection.is_some_and(|p| p != Protection::default()), "applyProtection"),
         ] {
             if set {
                 spec.set(k, "1");
@@ -651,6 +697,10 @@ impl Planner {
 
 // ------------------------------------------------------------ builders
 
+fn gray125() -> Fill {
+    Fill::Pattern { pattern: "gray125".into(), fg: None, bg: None }
+}
+
 fn color<C: ElementSpec>(l: &mut LensMut<'_, C>, c: &Color) -> Result<()> {
     for (k, v) in c.attrs() {
         l.set_attr(QName::new("", k), &v)?;
@@ -698,12 +748,21 @@ pub(crate) fn build_fill(p: &mut LensMut<'_, sml::Fills>, f: &Fill) -> Result<()
     match f {
         Fill::NoFill => pf.set_attr(QName::new("", "patternType"), "none")?,
         Fill::Pattern { pattern, fg, bg } => {
+            // rust_xlsxwriter's forms: a bare pattern without colours; a
+            // solid/none pattern gets the default `bgColor indexed="64"`
             pf.set_attr(QName::new("", "patternType"), pattern)?;
+            if fg.is_none() && bg.is_none() && pattern != "none" {
+                return Ok(());
+            }
             if let Some(c) = fg {
                 color(&mut pf.insert::<sml::ForegroundColor>()?, c)?;
             }
-            if let Some(c) = bg {
-                color(&mut pf.insert::<sml::BackgroundColor>()?, c)?;
+            match bg {
+                Some(c) => color(&mut pf.insert::<sml::BackgroundColor>()?, c)?,
+                None if pattern == "solid" || pattern == "none" => {
+                    pf.insert::<sml::BackgroundColor>()?.set_attr(QName::new("", "indexed"), "64")?;
+                }
+                None => {}
             }
         }
     }
@@ -717,9 +776,7 @@ where
     let mut e = b.insert::<S>()?;
     if let Some(s) = s {
         e.set_attr(QName::new("", "style"), &s.style)?;
-        if let Some(c) = &s.color {
-            color(&mut e.insert::<sml::Color>()?, c)?;
-        }
+        color(&mut e.insert::<sml::Color>()?, s.color.as_ref().unwrap_or(&Color::Auto))?;
     }
     Ok(())
 }

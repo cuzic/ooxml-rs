@@ -3,6 +3,7 @@
 //! Phase1 edit pipeline (plan → validate → apply, poisoning on a failed
 //! apply).
 
+use ooxml_core::ElementSpec;
 use ooxml_schema::sml;
 
 use crate::edit::{CellOp, Extra};
@@ -10,7 +11,7 @@ use crate::error::{Error, Result};
 use crate::escape;
 use crate::reference::CellIndex;
 use crate::registry::dates::ExcelDateTime;
-use crate::registry::format::{Format, NumFormat};
+use crate::registry::format::{Font, Format, NumFormat};
 use crate::registry::styles::StyleRequest;
 use crate::workbook::Workbook;
 use crate::worksheet::{CellMut, MAX_STRING_LEN};
@@ -73,20 +74,20 @@ impl CellMut<'_, '_> {
         if !value.is_finite() {
             return Err(Error::InvalidNumber(value));
         }
-        self.edit(CellOp::Number(crate::worksheet::format_number(value)), Some(StyleRequest::Format(format.clone())))
+        self.edit(CellOp::Number(crate::worksheet::format_number(value)), Some(StyleRequest::Format(Box::new(format.clone()))))
     }
 
     /// Writes a string with a format; see [`Self::set_string`] and
     /// [`Self::set_number_with_format`].
     pub fn set_string_with_format(self, value: &str, format: &Format) -> Result<()> {
         let ws = &mut *self.ws;
-        ws.wb.write_string(ws.sheet, self.at, value, Some(StyleRequest::Format(format.clone())))
+        ws.wb.write_string(ws.sheet, self.at, value, Some(StyleRequest::Format(Box::new(format.clone()))))
     }
 
     /// Writes a formula with a format; see [`Self::set_formula`].
     pub fn set_formula_with_format(self, text: &str, format: &Format) -> Result<()> {
         let text = text.strip_prefix('=').unwrap_or(text);
-        self.edit(CellOp::Formula(text.to_owned()), Some(StyleRequest::Format(format.clone())))
+        self.edit(CellOp::Formula(text.to_owned()), Some(StyleRequest::Format(Box::new(format.clone()))))
     }
 
     /// Writes a boolean (`t="b"`).
@@ -101,7 +102,7 @@ impl CellMut<'_, '_> {
     /// `GET.CELL`, or functions outside Phase1's allowlist) treats this as
     /// a value write: dependents lose their cached values (ADR-0006 §7).
     pub fn set_format(self, format: &Format) -> Result<()> {
-        self.edit(CellOp::StyleOnly, Some(StyleRequest::Format(format.clone())))
+        self.edit(CellOp::StyleOnly, Some(StyleRequest::Format(Box::new(format.clone()))))
     }
 
     /// Changes only the number format, keeping every other part of the
@@ -141,6 +142,136 @@ impl CellMut<'_, '_> {
     pub fn set_datetime_with_format(self, value: ExcelDateTime, format: &Format) -> Result<()> {
         let ws = &mut *self.ws;
         let serial = value.serial(ws.wb.date1904()?).ok_or(Error::DateOutOfRange)?;
-        self.edit(CellOp::Number(crate::worksheet::format_number(serial)), Some(StyleRequest::Format(format.clone())))
+        self.edit(CellOp::Number(crate::worksheet::format_number(serial)), Some(StyleRequest::Format(Box::new(format.clone()))))
+    }
+}
+
+impl Workbook {
+    /// Does the workbook have a shared-string table? When it has none,
+    /// `set_string` writes inline strings (ADR-0006 §4.6).
+    pub fn shared_strings_available(&mut self) -> Result<bool> {
+        self.shared_strings_active()
+    }
+
+    /// The workbook's default font (that of the Normal style,
+    /// `cellStyleXfs[0]`, else `cellXfs[0]`) as a [`Font`] value, or
+    /// `None` when it has anything a `Font` cannot express. See
+    /// [`Format::with_default_font_of`].
+    pub fn default_font(&mut self) -> Result<Option<Font>> {
+        self.styles()?;
+        let st = self.registries.styles.as_ref().expect("active");
+        let Some(font_id) = st.default.as_ref().and_then(|d| d.get("fontId")).and_then(|v| v.trim().parse::<usize>().ok()) else {
+            return Ok(None);
+        };
+        let part = st.part.clone();
+        let doc = self.pkg.xml_part(&part)?;
+        let Some(fonts) = doc.root().elements().find(|e| e.is(sml::Fonts::QNAME)) else { return Ok(None) };
+        let kids: Vec<_> = fonts.elements().collect();
+        if kids.iter().any(|k| !k.is(sml::Font::QNAME)) {
+            return Ok(None);
+        }
+        Ok(kids.get(font_id).and_then(|f| font_from_node(f)))
+    }
+}
+
+fn font_from_node(n: &ooxml_core::RawNode) -> Option<Font> {
+    use crate::registry::format::{Color, Tint, Underline};
+    if !n.attrs().is_empty() {
+        return None;
+    }
+    let mut f = Font { color: None, family: None, scheme: None, size: String::new(), name: String::new(), ..Font::default() };
+    let val = |e: &ooxml_core::RawNode| e.attr(ooxml_core::QName::new("", "val")).map(str::to_owned);
+    let only = |e: &ooxml_core::RawNode, allowed: &[&str]| e.elements().next().is_none() && e.attrs().iter().all(|a| a.name().ns().is_empty() && allowed.contains(&a.name().local()));
+    for e in n.elements() {
+        if e.name().ns() != crate::SML_NS {
+            return None;
+        }
+        match e.name().local() {
+            "b" | "i" | "strike" if only(e, &["val"]) => {
+                let on = !matches!(val(e).as_deref(), Some("0" | "false"));
+                match e.name().local() {
+                    "b" => f.bold = on,
+                    "i" => f.italic = on,
+                    _ => f.strike = on,
+                }
+            }
+            "u" if only(e, &["val"]) => {
+                f.underline = match val(e).as_deref() {
+                    None | Some("single") => Some(Underline::Single),
+                    Some("double") => Some(Underline::Double),
+                    Some("singleAccounting") => Some(Underline::SingleAccounting),
+                    Some("doubleAccounting") => Some(Underline::DoubleAccounting),
+                    Some("none") => None,
+                    Some(_) => return None,
+                }
+            }
+            "sz" if only(e, &["val"]) => f.size = val(e)?,
+            "name" if only(e, &["val"]) => f.name = val(e)?,
+            "family" if only(e, &["val"]) => f.family = Some(val(e)?.trim().parse().ok()?),
+            "scheme" if only(e, &["val"]) => f.scheme = Some(val(e)?),
+            "color" if e.elements().next().is_none() => {
+                let a: Vec<(String, String)> = e.attrs().iter().map(|a| (a.name().display().to_string(), a.value().to_owned())).collect();
+                let get = |k: &str| a.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str());
+                let c = match (get("rgb"), get("theme"), get("indexed"), get("auto")) {
+                    (Some(rgb), None, None, None) if a.len() == 1 => Color::Rgb(u32::from_str_radix(rgb, 16).ok()?),
+                    (None, Some(t), None, None) => {
+                        let tint = match get("tint") {
+                            Some(t) => Tint::new(t.parse().ok()?)?,
+                            None => Tint::NONE,
+                        };
+                        if a.len() != 1 + usize::from(get("tint").is_some()) {
+                            return None;
+                        }
+                        Color::Theme { index: t.parse().ok()?, tint }
+                    }
+                    (None, None, Some(i), None) if a.len() == 1 => Color::Indexed(i.parse().ok()?),
+                    (None, None, None, Some("1" | "true")) if a.len() == 1 => Color::Auto,
+                    _ => return None,
+                };
+                f.color = Some(c);
+            }
+            _ => return None,
+        }
+    }
+    (!f.name.is_empty() && !f.size.is_empty()).then_some(f)
+}
+
+impl Format {
+    /// A format whose font is the workbook's default font when a [`Font`]
+    /// can express it (else rust_xlsxwriter's Calibri 11), so `set_bold()`
+    /// keeps the workbook's face and size (ADR-0006 §3, review n5).
+    pub fn with_default_font_of(wb: &mut Workbook) -> Result<Format> {
+        Ok(match wb.default_font()? {
+            Some(f) => Format::with_font(f),
+            None => Format::new(),
+        })
+    }
+}
+
+impl crate::worksheet::Worksheet<'_> {
+    /// Is the cell's number format a date or time format (calamine's rule:
+    /// built-in ids 14–22, 27–36, 45, 47, 50–58, or a custom code with
+    /// date/time tokens)? `false` for a missing cell.
+    pub fn is_date(&mut self, row: u32, col: u32) -> Result<bool> {
+        let Some(s) = self.cell(row, col)?.map(|c| c.style_index()).transpose()? else { return Ok(false) };
+        let st = self.wb.styles()?;
+        let (id, code) = st.num_format_of(s);
+        let custom = id.filter(|i| st.codes.contains_key(i)).and(code);
+        Ok(crate::registry::format::is_date_format(id, custom.as_deref()))
+    }
+
+    /// The cell's number as a date in the workbook's date system, if the
+    /// cell holds a number and [`Self::is_date`]. Serial 60 in the 1900
+    /// system is [`Error::NonexistentDate`].
+    pub fn datetime(&mut self, row: u32, col: u32) -> Result<Option<ExcelDateTime>> {
+        if !self.is_date(row, col)? {
+            return Ok(None);
+        }
+        let Some(crate::worksheet::CellValue::Number(n)) = self.cell(row, col)?.map(|c| c.value()).transpose()? else { return Ok(None) };
+        let d1904 = self.wb.date1904()?;
+        if !d1904 && n.floor() == 60.0 {
+            return Err(Error::NonexistentDate);
+        }
+        ExcelDateTime::from_serial(n, d1904).map(Some).ok_or(Error::DateOutOfRange)
     }
 }

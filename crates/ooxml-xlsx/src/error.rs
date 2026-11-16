@@ -259,6 +259,21 @@ pub enum Error {
     #[error("no cell style named {0:?}")]
     NoSuchStyle(String),
 
+    /// An existing reference (a cell `s`, an `xf`'s `fontId`, …) points at
+    /// or past the end of a table; appending would give it a meaning
+    /// (ADR-0006 §2).
+    #[error("an existing reference to {table}[{index}] is out of range; appending would give it a meaning")]
+    DanglingReference {
+        /// The table.
+        table: String,
+        /// The largest out-of-range index.
+        index: u32,
+    },
+
+    /// Serial 60 in the 1900 date system: Excel's nonexistent 1900-02-29.
+    #[error("serial 60 is Excel's nonexistent 1900-02-29")]
+    NonexistentDate,
+
     /// Several cell styles have that name (compared case-insensitively).
     #[error("several cell styles are named {0:?}")]
     AmbiguousStyleName(String),
