@@ -1,22 +1,47 @@
 name: O3 recalculation data (manual)
 
-# ADR-0003 §7.1 oracle O3: LibreOffice recalculates the O3 inputs and
-# outputs; the resulting TSV is uploaded as an artifact for the owner to
-# review and commit to reference/fixtures/xlsx/o3/expected.tsv. Then
-# `cargo test -p ooxml-xlsx --test phase1_o3 -- --ignored` checks it.
+# ADR-0003 §7.1 oracle O3 (xlsx Phase1): LibreOffice hard-recalculates the
+# O3 inputs and outputs written by `examples/o3_inputs.rs`; the resulting
+# TSV is uploaded as an artifact for the owner to review and commit to
+# reference/fixtures/xlsx/o3/expected.tsv. Dispatch it against the branch
+# that has the example and spikes/xlsx/o3_recalc.py (e.g. impl/xlsx-phase1).
+#
+# LibreOffice is pinned (an exact release from the Document Foundation's
+# permanent archive) so that regenerating the data is reproducible.
 on:
   workflow_dispatch:
+    inputs:
+      libreoffice_version:
+        description: "Exact LibreOffice release (downloadarchive.documentfoundation.org/libreoffice/old/)"
+        required: true
+        default: "25.2.7.2"
+
+permissions:
+  contents: read
 
 jobs:
   o3:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.99"
-      - name: Install LibreOffice
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-calc
+      - name: Install LibreOffice ${{ inputs.libreoffice_version }} (pinned)
+        env:
+          LO_VERSION: ${{ inputs.libreoffice_version }}
+        run: |
+          set -euo pipefail
+          base="https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64"
+          tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$tgz" "$base/$tgz"
+          curl -fsSL -o "$RUNNER_TEMP/$tgz.sha256" "$base/$tgz.sha256" || true
+          if [ -s "$RUNNER_TEMP/$tgz.sha256" ]; then (cd "$RUNNER_TEMP" && sha256sum -c "$tgz.sha256"); fi
+          mkdir -p "$RUNNER_TEMP/lo" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP/lo"
+          sudo dpkg -i "$RUNNER_TEMP"/lo/*/DEBS/*.deb || sudo apt-get -f install -y
+          dir=$(ls -d /opt/libreoffice*/program | head -1)
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/soffice" --version
       - name: Write O3 inputs and outputs
         run: cargo run -p ooxml-xlsx --example o3_inputs -- "$RUNNER_TEMP/o3"
       - name: Recalculate with LibreOffice
