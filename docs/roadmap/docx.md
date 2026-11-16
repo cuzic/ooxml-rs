@@ -14,7 +14,8 @@
   - 隣り合うテキストランの組の 60〜76% は書式（`w:rPr`）が同一で、rsid が違うだけで分かれている。ランをまたぐ置換は Phase1 で「書式が同じランの並びの中だけ」許す。
   - `w14:paraId` の重複は 8 ファイルにあった。実ファイルは ID の一意性を守っていないので、読み込みで一意性を前提にしない。
   - ブックマーク ID の重複、変更履歴 ID とブックマーク ID の衝突は 0 件だった。
-- Phase0 の詳細は ADR-0004（`docs/adr/0004-docx-phase0.md`）。
+- Phase0 の詳細は ADR-0004（`docs/adr/0004-docx-phase0.md`、revision 2）。実装は `crates/ooxml-docx`。
+- 2026-11-16 の更新（ADR-0004 revision 2 と同時）: 文書保護（`w:documentProtection` の強制）も書き込み拒否に加えた。入れ子のフィールドはスタックで全階層を判定する。`Document::new()`（新規作成）は Phase0 から外した（所有者の判断）。
 - Phase2（構造の追加）の設計は ADR-0011（`docs/adr/0011-docx-phase2-structure.md`、Proposed）。Word で初めてパーツと ID を追加するフェーズで、次の 2 つからなる。
   - `ooxml-core` 側：パーツを追加する API（パーツ名、関係 ID、Content Types）。xlsx Phase3 と共通にする。
   - `ooxml-docx` 側：追記のみの ID レジストリ（描画 ID、注釈 ID、ブックマーク名、番号付け、スタイル）。
@@ -80,13 +81,13 @@ A "✓" means the API exists. It does not mean the library round-trips the featu
 | 18 | **Math (OMML)** | `m:oMath`/`m:oMathPara` inside `w:p` (shared-math schema, `m:` on/off types) | none | H (structure is large) | ✗ | ✗ | ✗ | ✗ (CT only) *(u)* | 4 (passthrough is Phase0) |
 | 19 | **Charts** | `w:drawing/…/c:chart r:id` → `charts/chartN.xml` (+ `colors`/`style` parts, embedded `.xlsx` package); `cx:` chartex | chart part chain + embedded workbook; shared DrawingML/chart with ooxml-xlsx/pptx | XH | ✗ | ✗ | ✗ | ✓ (`XWPFChart`) | 4 (shared with PowerPoint/Excel ADRs) |
 | 20 | **Settings, rsids, `w14:paraId`/`textId`** | `settings.xml` (103 single-QName slots: `trackRevisions`, `updateFields`, `documentProtection`, `rsids`, `compat`, `w14/w15:docId`); `w:rsidR`/`rsidRPr`/`rsidP` on p/r; `w14:paraId`/`textId` on p/tr | **rsid registry** (settings/rsids, optional); **paraId registry**: values < 0x80000000, uniqueness **not** held by real files (§3 Q4) | M | partial | ✓ (docId, paraId) | ✓ | ✓ (`XWPFSettings`) | 0 (read 2 flags), 2 |
-| 21 | **Document protection** | `settings/w:documentProtection` (hash), `w:permStart/End` | none | M | ✗ | ✗ *(u)* | ✗ *(u)* | ✓ | 4 |
+| 21 | **Document protection** | `settings/w:documentProtection` (hash), `w:permStart/End` | none | M | ✗ | ✗ *(u)* | ✗ *(u)* | ✓ | 0 (enforced protection refuses writes: `DocumentProtected`), 4 |
 | 22 | **Glossary document** (building blocks) | `glossary/document.xml` + its own styles/numbering/settings (a second main-like story tree) | its own registries | H | ✗ | ✗ | ✗ | ✗ *(u)* | passthrough only |
 | 23 | **altChunk** (imported HTML/RTF/docx) | `w:altChunk r:id` → `AlternativeFormatImportPart` | rel + part | M (create), passthrough (read) | ✗ | ✗ | ✗ | ✗ *(u)* | 4 (no fixture yet) |
 | 24 | **Smart tags, `customXml` markup** | `w:smartTag` (ECMA Transitional; **not in SDK `CT_P`**: an unlisted child), `w:customXml` (5 SDK entries with `attrs_incomplete`) | none | M | ✗ | ✗ | ✗ | R (smartTag runs flattened) | 1 (text inside via an `add_child` override) |
 | 25 | **Legacy form fields** | complex fields `FORMTEXT`/`FORMCHECKBOX` with `w:ffData` | bookmark names | M | ✗ | ✗ | ✗ | ✗ *(u)* | 4 |
 | 26 | **Package-level**: macro/template variants, Strict, encryption | main-part content type (`.docx`/`.docm`/`.dotx`/`.dotm`); Strict namespaces (`purl.oclc.org`); CFB-encrypted packages | OPC | M–H | ✓/✗/✗ | ✗ Strict (panics on `Strict01.docx`) | ✗ | ✓ / ✗ / ✓ (decrypt) | 0 (accept all four main types; Err for Strict and encrypted) |
-| 27 | **From scratch** (`Document::new()`) | template package (main, styles, settings, fontTable, theme, docProps) | as Excel: same edit path, seeded from an embedded template | L | ✓ (default template) | W | W | ✓ | 0 |
+| 27 | **From scratch** (`Document::new()`) | template package (main, styles, settings, fontTable, theme, docProps) | as Excel: same edit path, seeded from an embedded template | L | ✓ (default template) | W | W | ✓ | 1 (deferred from Phase0 by the owner, 2026-11-16) |
 
 Coverage observations:
 
@@ -113,7 +114,7 @@ All numbers come from `spikes/docx/design_facts.py` and `phase0_gate.py`. "POI" 
 
 **Decision.**
 
-- **Phase0** exposes only per-run text replacement: `Run::set_text`, plus a read-only `Paragraph::text()`.
+- **Phase0** exposes only per-run text replacement: `Document::set_run_text(paragraph, run, text)`, plus a read-only `Paragraph::text()`.
 - **Phase1** adds `Paragraph::replace(needle, replacement)` with this rule:
   - The match is computed over the concatenated text of a **run group**: maximal sequences of direct text runs of one parent (`w:p` or `w:hyperlink`), separated only by nothing, `w:proofErr`, or `w:bookmarkStart`/`End`.
   - A match that crosses anything else (a hyperlink boundary, a field character, `ins`/`del`, `sdt`, a comment marker, a non-text child such as `w:drawing`) is `Err(MatchCrossesBoundary)`. It is never silently skipped.
@@ -141,7 +142,7 @@ All numbers come from `spikes/docx/design_facts.py` and `phase0_gate.py`. "POI" 
 **Decision.**
 
 - **Phase0 refuses** writes inside a field (between `begin` and `end`, or inside `w:fldSimple`).
-- Phase0 also refuses **every write** to a document that has a content-dependent field in **any** story part: `Err(StaleFieldRisk { codes })`. This is checked by a cheap event scan at open, like ADR-0001's formula scan. The scan reassembles split `instrText` before classifying.
+- Phase0 also refuses **every write** to a document that has a content-dependent field in **any** story part: `Err(StaleFieldRisk { codes })`. This is checked by a scan at open, like ADR-0001's formula scan. The scan reassembles split `instrText` before classifying, tracks fields with a stack and classifies every nesting level (ADR-0004 rev 2, §6 W2).
 - Measured cost: 30 of 444 SDK files and 1 of 114 POI files (which uses `M:USERCONTENT`, a code we cannot classify) are refused for this reason.
 - **Phase1** adds the opt-in alternative: `Document::set_update_fields_on_open(true)` writes `<w:updateFields w:val="true"/>` into `settings.xml`, which brings that part into Layer 2. This lifts `StaleFieldRisk`. It is POI's `enforceUpdateFields`.
   - Cost to the user: Word asks "This document contains fields that may refer to other files. Update?" on open *(u: Word behaviour, owner to confirm)*.
@@ -264,23 +265,39 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 
 ### Phase0 (ADR-0004)
 
+Implemented in `crates/ooxml-docx` (ADR-0004 revision 4, still Proposed).
+
 **Scope.**
 
-- `Document::open`/`from_bytes`/`new` (embedded template) and `save`.
-- Read: `paragraphs()`, `Paragraph::text()` and `runs()`.
-- Write: `Run::set_text`, and `append_paragraph(text)` before `sectPr`.
-- Gates: `EncryptedPackage`, `DtdNotAllowed`, `StrictNotSupported`, `TrackRevisionsOn`, `StaleFieldRisk`.
-- Per-run refusals: `InsideField`, `InsideRevision`, `UnsupportedContext` (SDT, smartTag, text box, AC), `RunNotTextOnly`.
+- `Document::open`/`from_bytes` and `save`/`to_bytes`. `Document::new()` (from scratch) is
+  deferred to Phase1 by the owner's decision of 2026-11-16.
+- Read: `paragraphs()`, `Paragraph::text()` and `runs()`, each run with a `RunContext` and
+  `in_field()`.
+- Write: `Document::set_run_text(paragraph, run, text)`, and `append_paragraph(text)` before
+  `sectPr`.
+- Gates: `EncryptedPackage`, `DtdNotAllowed`, `StrictNotSupported`, `TooDeep` (core's nesting
+  limit, O5), `TrackRevisionsOn`, `DocumentProtected`, `StaleFieldRisk` (fields classified with
+  their arguments for `INFO`/`DOCPROPERTY`; malformed field markup refused).
+- Append refusal `SectionBreakAtEnd` when the last section's `sectPr` sits in the last paragraph.
+- Reported only: `writeProtection`, Mark as Final, `updateFields`.
+- Per-run refusals: `InsideField`, `InsideRevision`, `UnsupportedContext` (SDT, smartTag,
+  customXml, bidi, ruby), `RunNotTextOnly`.
 
-**Acceptance.**
+**Acceptance** (all automated in `crates/ooxml-docx/tests/`, except the manual check).
 
-- **T1/T1b:** pass on every XML part of the 22 openable fixtures. T1 includes BOM and pretty-printed parts.
-- **T2 (locality):** for every settable run in every Editable fixture (3,110 runs), `set_text(same)` and `set_text(other)` change bytes only inside that run's span. Append changes bytes only at the insertion point.
+- **T1/T1b:** pass on every XML part of the 23 openable fixtures. T1 includes BOM and
+  pretty-printed parts.
+- **T2 (locality):** for every settable run in every writable fixture (3,423 runs),
+  `set_run_text(own text)` and `set_run_text(other)` change bytes only inside that run's span;
+  own text on a canonical run changes nothing. Append changes bytes only at the insertion point.
 - **T3:** every other part is (name, method, CRC, payload) identical, directory entries included.
 - **T4:** each refusing fixture returns its documented `Err` and writes nothing.
-- **T5:** `docx-rs` read-back shows the new text, and every other `w:t` text is unchanged.
+- **T5:** `docx-rs` read-back of `document.children` shows the new text in place of the run's
+  pieces, and every other text unchanged.
 - **T6:** child order of every edited parent satisfies the generated slots.
-- **Manual:** the owner opens a sample of outputs in Word and gets no repair dialog. This is an explicit gap, as in ADR-0001.
+- **Manual:** the owner opens the outputs of
+  `cargo run -p ooxml-docx --example manual_check -- <outdir>` in Word and gets no repair dialog.
+  This is an explicit gap, as in ADR-0001.
 
 **Oracle independence:** T5 uses docx-rs (justification in ADR-0004 §7).
 
@@ -294,6 +311,34 @@ Risk is mostly cross-part ID consistency and stale caches. Each phase is an ADR 
 - Direct run and paragraph properties (`b`, `i`, `u`, `color`, `sz`, `jc`, …; the `Option<bool>` on/off model).
 - `pStyle`/`rStyle` set to an **existing** style ID, read from `styles.xml`, else `Err(UnknownStyle)`.
 - `set_update_fields_on_open`.
+- `Document::new()` from an embedded template (deferred from Phase0; template source, page size and East Asian font defaults to be decided by the owner).
+- Possibly: an opt-in to edit enforced-protection documents (with `readOnly` + `w:permStart`/`w:permEnd` editable ranges, a common template pattern, as an input to that decision).
+- Moving the last section's `sectPr` on append (lifting A2), as an explicit, documented edit.
+
+**Planned direction for `StaleFieldRisk` (ADR-0004 open questions 2 and 3; recommendation of
+`0004-opus-review-round2.md`, recorded in ADR-0004 revision 3, awaiting the owner's
+confirmation).**
+
+- **Per-operation check, limited.** A two-column table in `fields.rs` (code → allowed under
+  `set_run_text` / under `append_paragraph`) replaces the single `SAFE` list, which is the
+  "allowed under both" special case. Phase1 adds only `SEQ`, `TC`, `XE`, `NOTEREF`, `LISTNUM`,
+  `AUTONUM`, `AUTONUMLGL`, `AUTONUMOUT` as allowed under both operations: their results depend
+  only on the number and order of fields, the instruction text or note numbering, none of which
+  Phase0's operations change. Tests enumerate the whole table.
+- **`TOC`, `PAGEREF`, `REF` under append** are not added in this step: a default paragraph style
+  with `w:outlineLvl` would put the appended paragraph into a `\u` TOC, and endnotes move after
+  the appended paragraph, which can change a `PAGEREF` to them. They go with the `updateFields`
+  opt-in or a later step.
+- **Refused under `set_run_text`** in any case: `TOC`, `REF`, `PAGEREF`, `STYLEREF`, `=`, `IF`
+  (unless the next rule applies), `NUMWORDS`, `NUMCHARS`, and `INFO`/`DOCPROPERTY` statistics.
+- **`IF`** is safe when (a) every nested field is safe and (b) neither side of the comparison is a
+  bare identifier (a bookmark reference: `{ IF bm = "x" … }`). A tokenizer over the instruction
+  (quoted strings, numbers, operators, nested-field placeholders) decides (b). The mail-merge
+  pattern `{ IF { MERGEFIELD G } = "F" "Ms." "Mr." }` passes. Note: in a mail-merge main document
+  (`settings/w:mailMerge`), `IF` and `MERGEFIELD` are re-evaluated on every merge *(u)*.
+- **`updateFields` opt-in** covers the rest: documents with `REF`/`TOC` or an `IF` that fails (a)
+  or (b), where the caller accepts that Word updates the fields on open. It is never the default,
+  because readers other than Word keep the stale results (ADR-0004 Alternatives 4).
 
 **Acceptance.**
 
