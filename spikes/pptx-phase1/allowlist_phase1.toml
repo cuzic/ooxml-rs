@@ -1,0 +1,154 @@
+# ADR-0008 §6: proposed Phase 1 additions to codegen/allowlist/{pml,dml}.toml.
+# All are [read] entries (Phase 1 writes only text, through the Phase 0
+# [write] entries). Checked by allowlist_p1.py (names exist, descent edges
+# are generated ChildOf pairs, percentage attributes) and by a trial
+# `cargo xtask codegen` in a scratch copy (README).
+
+[pml.read]
+names = [
+    # part roots reached through the chain and notes
+    "p:CT_SlideLayout/p:sldLayout",
+    "p:CT_SlideMaster/p:sldMaster",
+    "p:CT_NotesSlide/p:notes",
+    "p:CT_NotesMaster/p:notesMaster",
+    # text styles
+    "p:CT_SlideMasterTextStyles/p:txStyles",
+    "a:CT_TextListStyle/p:titleStyle",
+    "a:CT_TextListStyle/p:bodyStyle",
+    "a:CT_TextListStyle/p:otherStyle",
+    "a:CT_TextListStyle/p:notesStyle",
+    "a:CT_TextListStyle/p:defaultTextStyle",
+    # colour mapping
+    "a:CT_ColorMapping/p:clrMap",
+    "a:CT_ColorMappingOverride/p:clrMapOvr",
+    # geometry and shape style
+    "a:CT_ShapeProperties/p:spPr",
+    "a:CT_GroupShapeProperties/p:grpSpPr",
+    "a:CT_Transform2D/p:xfrm",
+    "a:CT_ShapeStyle/p:style",
+    "p:CT_SlideSize/p:sldSz",
+    # transitions (kinds are read by QName; see ADR-0008 §3.4)
+    "p:CT_SlideTransition/p:transition",
+    "p:CT_TransitionSoundAction/p:sndAc",
+    # timing summary
+    "p:CT_SlideTiming/p:timing",
+    "p:CT_BuildList/p:bldLst",
+    "p:CT_TLBuildParagraph/p:bldP",
+    "p:CT_TLCommonTimeNodeData/p:cTn",
+    "p:CT_TLShapeTargetElement/p:spTgt",
+    "p:CT_TLTextTargetElement/p:txEl",
+    "p:CT_IndexRange/p:pRg",
+    "p:CT_IndexRange/p:charRg",
+    # legacy comments
+    "p:CT_CommentList/p:cmLst",
+    "p:CT_Comment/p:cm",
+    "a:CT_Point2D/p:pos",
+    "xsd:string/p:text",
+    "p:CT_CommentAuthorList/p:cmAuthorLst",
+    "p:CT_CommentAuthor/p:cmAuthor",
+    # sections (p14, inside the presentation extension list)
+    "p:CT_PresentationExtensionList/p:extLst",
+    "p:CT_PresentationExtension/p:ext",
+    "p14:CT_SectionList/p14:sectionLst",
+    "p14:CT_Section/p14:section",
+    "p14:CT_SectionSlideIdList/p14:sldIdLst",
+    "p14:CT_SectionSlideIdListEntry/p14:sldId",
+    # modern comments (p188); anchors (ac:/pc: monikers) stay raw as in Phase 0
+    "p188:CT_CommentList/p188:cmLst",
+    "p188:CT_Comment/p188:cm",
+    "a:CT_Point2D/p188:pos",
+    "a:CT_TextBody/p188:txBody",
+    "p188:CT_CommentReplyList/p188:replyLst",
+    "p188:CT_CommentReply/p188:reply",
+    "p188:CT_AuthorList/p188:authorLst",
+    "p188:CT_Author/p188:author",
+]
+
+[dml.read]
+names = [
+    # list styles and levels
+    "a:CT_TextListStyle/a:lstStyle",
+    "a:CT_TextParagraphProperties/a:defPPr",
+    "a:CT_TextParagraphProperties/a:lvl1pPr",
+    "a:CT_TextParagraphProperties/a:lvl2pPr",
+    "a:CT_TextParagraphProperties/a:lvl3pPr",
+    "a:CT_TextParagraphProperties/a:lvl4pPr",
+    "a:CT_TextParagraphProperties/a:lvl5pPr",
+    "a:CT_TextParagraphProperties/a:lvl6pPr",
+    "a:CT_TextParagraphProperties/a:lvl7pPr",
+    "a:CT_TextParagraphProperties/a:lvl8pPr",
+    "a:CT_TextParagraphProperties/a:lvl9pPr",
+    "a:CT_TextCharacterProperties/a:defRPr",
+    # paragraph properties resolved in Phase 1
+    "a:CT_TextSpacing/a:lnSpc",
+    "a:CT_TextSpacing/a:spcBef",
+    "a:CT_TextSpacing/a:spcAft",
+    "a:CT_TextSpacingPercent/a:spcPct",
+    "a:CT_TextSpacingPoint/a:spcPts",
+    "a:CT_TextNoBullet/a:buNone",
+    "a:CT_TextAutonumberBullet/a:buAutoNum",
+    "a:CT_TextCharBullet/a:buChar",
+    "a:CT_TextBlipBullet/a:buBlip",
+    "a:CT_TextBulletSizePercent/a:buSzPct",
+    "a:CT_TextFont/a:buFont",
+    "a:CT_Color/a:buClr",
+    # revision 2 (review m4): the rest of the bullet groups and the symbol font
+    "a:CT_TextBulletColorFollowText/a:buClrTx",
+    "a:CT_TextBulletSizeFollowText/a:buSzTx",
+    "a:CT_TextBulletSizePoint/a:buSzPts",
+    "a:CT_TextBulletTypefaceFollowText/a:buFontTx",
+    "a:CT_TextFont/a:sym",
+    # body properties
+    "a:CT_TextBodyProperties/a:bodyPr",
+    "a:CT_TextNormalAutofit/a:normAutofit",
+    "a:CT_TextNoAutofit/a:noAutofit",
+    "a:CT_TextShapeAutofit/a:spAutoFit",
+    # geometry
+    "a:CT_Transform2D/a:xfrm",
+    "a:CT_GroupTransform2D/a:xfrm",
+    "a:CT_Point2D/a:off",
+    "a:CT_PositiveSize2D/a:ext",
+    "a:CT_Point2D/a:chOff",
+    "a:CT_PositiveSize2D/a:chExt",
+    "a:CT_PresetGeometry2D/a:prstGeom",
+    "a:CT_CustomGeometry2D/a:custGeom",   # revision 2 (review m5a): the geometry choice group
+    # fonts and fills on run properties
+    "a:CT_TextFont/a:latin",
+    "a:CT_TextFont/a:ea",
+    "a:CT_TextFont/a:cs",
+    "a:CT_SolidColorFillProperties/a:solidFill",
+    "a:CT_NoFillProperties/a:noFill",
+    "a:CT_SRgbColor/a:srgbClr",
+    "a:CT_SchemeColor/a:schemeClr",
+    "a:CT_SystemColor/a:sysClr",
+    "a:CT_ScRgbColor/a:scrgbClr",
+    "a:CT_PresetColor/a:prstClr",
+    "a:CT_HslColor/a:hslClr",
+    "a:CT_FontReference/a:fontRef",
+    # hyperlinks / actions (runs and p:cNvPr)
+    "a:CT_Hyperlink/a:hlinkClick",
+    "a:CT_Hyperlink/a:hlinkMouseOver",
+    "a:CT_Hyperlink/a:hlinkHover",
+    # theme part
+    "a:CT_OfficeStyleSheet/a:theme",
+    "a:CT_BaseStyles/a:themeElements",
+    "a:CT_ColorScheme/a:clrScheme",
+    "a:CT_Color2/a:dk1",
+    "a:CT_Color2/a:lt1",
+    "a:CT_Color2/a:dk2",
+    "a:CT_Color2/a:lt2",
+    "a:CT_Color2/a:accent1",
+    "a:CT_Color2/a:accent2",
+    "a:CT_Color2/a:accent3",
+    "a:CT_Color2/a:accent4",
+    "a:CT_Color2/a:accent5",
+    "a:CT_Color2/a:accent6",
+    "a:CT_Color2/a:hlink",
+    "a:CT_Color2/a:folHlink",
+    "a:CT_FontScheme/a:fontScheme",
+    "a:CT_FontCollection/a:majorFont",
+    "a:CT_FontCollection/a:minorFont",
+    "a:CT_SupplementalFont/a:font",
+    "a:CT_ColorMapping/a:overrideClrMapping",
+    "a:CT_EmptyElement/a:masterClrMapping",
+]

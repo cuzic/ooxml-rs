@@ -17,13 +17,15 @@ names = [
     "x:CT_Xstring/x:v",
     "x:CT_Rst/x:is",
     "x:CT_Xstring/x:t",
+    # Phase1 (ADR-0003 §6): formula writes and calcPr/@fullCalcOnLoad.
+    "x:CT_CellFormula/x:f",
+    "x:CT_CalcPr/x:calcPr",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
 # first sheet, shared/rich strings, merged ranges, table header rows.
 [read]
 names = [
-    "x:CT_CellFormula/x:f",
     "x:CT_Workbook/x:workbook",
     "x:CT_Sheets/x:sheets",
     "x:CT_Sheet/x:sheet",
@@ -36,4 +38,7 @@ names = [
     "x:CT_TableParts/x:tableParts",
     "x:CT_TablePart/x:tablePart",
     "x:CT_Table/x:table",
+    # Phase1 (ADR-0003 §6): defined names for dependency analysis.
+    "x:CT_DefinedNames/x:definedNames",
+    "x:CT_DefinedName/x:definedName",
 ]
