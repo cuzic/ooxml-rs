@@ -409,10 +409,14 @@ impl<'wb> Worksheet<'wb> {
         Ok(Plan { loc, value, dimension })
     }
 
-    /// Plans the write, then applies it.
+    /// Plans the write, then applies it. An `Err` from `apply` would mean
+    /// `plan` let through a write it should have refused (and the tree may
+    /// be half-changed): a bug, so debug builds (the test suite) panic.
     fn write(&mut self, at: CellIndex, value: NewValue) -> Result<()> {
         let plan = self.plan(at, value)?;
-        self.apply(at, plan)
+        let r = self.apply(at, plan);
+        debug_assert!(r.is_ok(), "plan() let through a write that apply() failed: {r:?}");
+        r
     }
 
     /// Carries out a validated [`Plan`]. None of the `?` below can fire:
@@ -540,7 +544,34 @@ impl CellMut<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use super::format_number;
+    use super::{check_insertable, format_number};
+    use ooxml_core::{ElementSpec, XmlDocument};
+    use ooxml_schema::sml;
+
+    /// `check_insertable` agrees with ooxml-core's real insertion (its
+    /// `place`) on every shape: ordered, out of order, AC sibling, slot full.
+    #[test]
+    fn dry_run_matches_core() {
+        const NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
+        let ac = "<mc:AlternateContent/>";
+        for (inner, ok) in [
+            ("", true),
+            ("<extLst/>", true),
+            ("<v>1</v><extLst/>", false),       // slot full (AlreadyPresent)
+            ("<is/><v>1</v>", false),           // out of order
+            ("<extLst/><is/>", false),          // out of order
+            (ac, false),                        // AC sibling
+            ("<foo xmlns=\"urn:x\"/>", true), // unlisted: skipped
+        ] {
+            let xml = format!("<c {NS} r=\"A1\">{inner}</c>");
+            let doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+            let dry = check_insertable::<sml::Cell>(doc.root().elements(), sml::CellValue::QNAME);
+            let mut doc2 = XmlDocument::parse(xml.as_bytes()).unwrap();
+            let real = doc2.lens_mut::<sml::Cell>().unwrap().insert::<sml::CellValue>().map(|_| ());
+            assert_eq!(dry.is_ok(), ok, "{inner}: {dry:?}");
+            assert_eq!(dry.is_ok(), real.is_ok(), "{inner}: dry {dry:?} vs core {real:?}");
+        }
+    }
 
     #[test]
     fn numbers() {
