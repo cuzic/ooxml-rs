@@ -17,7 +17,7 @@ use crate::read::{self, ShapePath, Slide, SlideInfo, TextBodyRef, find_by_id, ra
 use crate::refs::SlideRefs;
 use crate::text;
 
-fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {
+pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {
     path.iter().try_fold(root, |n, &i| n.children().get(i).and_then(RawItem::as_element))
 }
 
@@ -102,6 +102,13 @@ fn body_lens<'d>(doc: &'d mut XmlDocument, path: &[usize]) -> Result<BodyLens<'d
     }
 }
 
+/// A typed lens on the `a:p` at child index `para_child` of the text body
+/// at `body` (a node path from the slide root).
+pub(crate) fn paragraph_lens<'d>(doc: &'d mut XmlDocument, body: &[usize], para_child: usize) -> Result<LensMut<'d, Paragraph>> {
+    let b = body_lens(doc, body)?;
+    with_body!(b, l => paragraph_at(l, para_child))
+}
+
 fn paragraph_at<'d, B: ElementSpec>(l: LensMut<'d, B>, child: usize) -> Result<LensMut<'d, Paragraph>>
 where
     Paragraph: ChildOf<B>,
@@ -142,13 +149,13 @@ fn ordered(n: &RawNode, ranks: &[(QName, u8, bool)], what: &str) -> Result<()> {
 }
 
 /// Child indices of a well-formed `a:p`.
-struct ParaShape {
+pub(crate) struct ParaShape {
     runs: Vec<usize>,
     breaks: Vec<usize>,
     fields: Vec<usize>,
 }
 
-fn para_shape(p: &RawNode) -> Result<ParaShape> {
+pub(crate) fn para_shape(p: &RawNode) -> Result<ParaShape> {
     ordered(
         p,
         &[
@@ -200,7 +207,7 @@ fn body_paragraphs(b: &RawNode) -> Result<Vec<usize>> {
 
 /// Children of a run format source that new runs do not inherit: a link
 /// stays on the run that had it (ADR-0005 §3 "Hyperlinks").
-const LINKS: [QName; 2] = [a("hlinkClick"), a("hlinkMouseOver")];
+pub(crate) const LINKS: [QName; 2] = [a("hlinkClick"), a("hlinkMouseOver")];
 
 /// Has `n` any format to copy (attributes or child elements, links aside)?
 fn has_format(n: &RawNode) -> bool {
@@ -210,7 +217,7 @@ fn has_format(n: &RawNode) -> bool {
 /// Copy, as a `C`, of the element at `path` (absolute, from the part root);
 /// `None` when there is nothing to copy (no attributes and no child
 /// elements after `skip`).
-fn detach<S, C>(root: &RawNode, path: Option<Vec<usize>>, skip: &[QName], what: &'static str) -> Result<Option<Detached<C>>>
+pub(crate) fn detach<S, C>(root: &RawNode, path: Option<Vec<usize>>, skip: &[QName], what: &'static str) -> Result<Option<Detached<C>>>
 where
     S: Detachable,
     C: SameType<S> + Detachable,
@@ -325,7 +332,7 @@ fn check_depth(doc: &XmlDocument, path: &[usize], levels: usize) -> Result<()> {
 }
 
 /// `Detached::check_insert_under` for copies of any type.
-trait CheckInsert {
+pub(crate) trait CheckInsert {
     fn check(&self, doc: &XmlDocument, under: &[usize], created: usize) -> Result<()>;
 }
 
@@ -459,7 +466,7 @@ const _: () = assert!(
 // Guards: references into the text (ADR-0005 §6).
 
 #[derive(Clone, Debug)]
-struct Guard {
+pub(crate) struct Guard {
     shape_id: u32,
     paragraphs: bool,
     characters: bool,
@@ -476,7 +483,7 @@ impl Guard {
         }
     }
     /// Any change to the text of this body.
-    fn text(&self) -> Result<()> {
+    pub(crate) fn text(&self) -> Result<()> {
         if self.characters {
             return Err(Error::AnimatedCharacters { shape_id: self.shape_id });
         }
@@ -640,6 +647,11 @@ pub struct TextBodyMut<'a> {
 impl TextBodyMut<'_> {
     fn node(&self) -> &RawNode {
         node_at(self.doc.root(), &self.path).expect("checked on creation")
+    }
+
+    /// The references guarding this body (ADR-0005 §6).
+    pub(crate) fn guard(&self) -> &Guard {
+        &self.guard
     }
 
     /// Read access to the current content.
