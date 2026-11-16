@@ -122,6 +122,15 @@ pub enum Error {
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
+    /// [`Package::remove_part`](crate::Package::remove_part) refused: a
+    /// precondition does not hold (nothing was changed).
+    #[error("cannot remove part {part:?}: {reason}")]
+    RemovePartRefused {
+        /// The part.
+        part: String,
+        /// Which precondition failed.
+        reason: crate::package::RemoveRefusal,
+    },
     /// The part is not well-formed XML in a way the underlying reader
     /// (quick-xml) would let through. Refused at parse time so that the tree
     /// never holds something a re-render could not write back, and element
