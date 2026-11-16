@@ -1,6 +1,6 @@
 # ADR-0013: PowerPoint Phase 1b — table structure and SmartArt text
 
-- Status: **Proposed** (revision 3)
+- Status: **Accepted** (revision 4)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md),
   [ADR-0002](0002-schema-driven-code-generation.md) (lens, allowlist and
@@ -8,7 +8,11 @@
   limit"), [ADR-0005](0005-pptx-phase0.md) (Phase 0 text edits, references
   into text, refusals; revision 4 §9 "Phase 0.1 — subtree copy of format
   sources", PR #19), ADR-0008 (Phase 1, PR #28, Proposed), which moved
-  both topics here.
+  both topics here. Core PRs: #44 (`core/move-subtree`, `merge`), #45
+  (`core/insert-with-ns`, `a16` ids) plus the codegen addition of §2
+  (review round 3 P1), #38 (`core/add-part`, registry transaction;
+  `drop_drawing_cache` is implemented only after #38 merges with its
+  round-1 fixes, P2).
 - Evidence: [`spikes/pptx-phase1b/`](../../spikes/pptx-phase1b/README.md)
   (`tables_smartart.py`; 619 distinct presentations from the ADR-0008
   corpora: POI, Open XML SDK, python-pptx, LibreOffice `sd/qa/unit/data/pptx`,
@@ -16,7 +20,8 @@
   `2e885d0b` source, cited in §6.
 
 - Review: [round 1](0013-opus-review-round1.md),
-  [round 2](0013-opus-review-round2.md)
+  [round 2](0013-opus-review-round2.md),
+  [round 3](0013-opus-review-round3.md) (Accepted after Minor only)
 
 ## Revision history
 
@@ -56,6 +61,17 @@
   | N7 `[detach]` review, move checks | reachable complex types listed in the follow-up; PR #44's checks named | §2 |
   | N8 empty slices, empty data runs | "empty slice" folded into `SmartArtCacheInconsistent`; empty data runs ignored by the run mapping | §4 |
   | N9 border API details | covered cell → its merged range; outside neighbours paired; oracle limited to written edges; GUIDs compared case-insensitively | §3, §7 |
+
+- **Revision 4** (after `0013-opus-review-round3.md`: N1 resolved, 0
+  mismatches over about 430,000 random cases; Accepted after Minor
+  only). Status: Accepted.
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | P1 no `ChildOf<a:ext>` (its SDK content is one `Any`) | a codegen addition is requested as an ADR-0002 note (children for a wildcard-only parent, keyed by `a:ext@uri`); `RowIdNotSupported` lifts only with #45 **and** that addition | §2 |
+  | P2 `drop_drawing_cache` depends on #38's open fixes (M3, m6, M6/m10) | implemented after #38 merges with them; refused on any unreadable `.rels`; only existing parts added to the set; "no orphans" qualified | header, §4 |
+  | P3 empty runs ignored on the data side only | ignored on **both** sides (431/431 unchanged); indices count non-empty runs; text put into an empty run goes after the preceding non-empty cache run | §4 |
+  | P4 nits | (a) a 1-D vertical merge copies `vMerge` only; (b) `r:id` sits on `a:hlinkClick`/`a:hlinkMouseOver` under `a:rPr`, refusal scope stated; (c) `InvalidNamespaceDeclaration` in §5 | §2, §4, §5 |
 
 ## Context
 
@@ -159,8 +175,10 @@ a newly created covered cell copies the **merge attributes** of the
 existing cell **at the insert position** — the cell that will be below
 it for a new row (row `at`), right of it for a new column (column `at`)
 (review N1). Inside a merge (`r0 < at ≤ r0 + R − 1`) that cell is always
-a covered cell of the same merge, so the copy is `vMerge` + `gridSpan`
-in the origin's column and `hMerge` + `vMerge` elsewhere — never the
+a covered cell of the same merge, so the copy is `vMerge` (plus
+`gridSpan` as that cell has it, i.e. in a 2-D merge) in the origin's
+column and `hMerge` + `vMerge` elsewhere; in a 1-D vertical merge it is
+`vMerge` only (review round 3 P4a) — never the
 origin's own `rowSpan` (copying from the cell above at `at = r0 + 1`
 would create a second origin; every corpus vertical merge has
 `rowSpan="2"`, so `r0 + 1` is the only inside position there). Its
@@ -214,8 +232,20 @@ and check twins; review N3). The elements created are
 `a:tr/a:extLst/a:ext[@uri="{0D108BD9-81ED-4DB2-BD59-A6C34878D82A}"]/a16:rowId@val`
 and
 `a:gridCol/a:extLst/a:ext[@uri="{9D8B030D-6E8A-4147-A177-3AD203B41FA5}"]/a16:colId@val`
-(the URIs of all 152 / 135 corpus ids). Until #45 is merged,
-`insert_row`/`insert_column` on such a table are `RowIdNotSupported`
+(the URIs of all 152 / 135 corpus ids). #45 alone is not enough
+(review round 3 P1): its `*_with_ns` inserts need `C: ChildOf<E>`, and
+the SDK data gives `a:CT_OfficeArtExtension/a:ext` a single `Any`
+particle with no `Children`, so codegen emits no `ChildOf<a:ext>` (the
+"wildcard parents" rule reads the parent's `Children`), and
+`overrides.toml`'s `add_child` needs a named sibling to anchor on. This
+ADR therefore requests a **codegen addition**, recorded as an ADR-0002
+post-acceptance note: an override that gives a wildcard-only parent
+named children, keyed by the extension URI (`a:ext@uri` decides the
+content: one child per URI — `a16:rowId` under
+`{0D108BD9-…}`, `a16:colId` under `{9D8B030D-…}`), with the corpus
+counts (152/135) as evidence. Until **both** #45 and that addition are
+merged, `insert_row`/`insert_column` on such a table are
+`RowIdNotSupported`
 (deletion, merge and properties are unaffected). **Ids:** `rowId` and
 `colId` are separate value spaces. A new id is unused in its space in
 the table and not deleted from that table earlier in the session:
@@ -328,9 +358,14 @@ Additionally:
     destination of the node; in each, the node's **slice** is its
     paragraphs within the concatenation of the shape's sources (in
     `destOrd` order; a source without `dgm:t` counts as one empty
-    paragraph, so a slice always has at least one paragraph; data runs
-    with empty text, `<a:r><a:t/></a:r>`, are ignored by the run
-    mapping, review N8). **Invariants checked before the edit** (else
+    paragraph, so a slice always has at least one paragraph). Runs with
+    empty text (`<a:r><a:t/></a:r>`) are ignored by the run mapping **on
+    both sides**, data and cache (review N8, round 3 P3; still 431/431
+    runs): run indices count non-empty runs only, so an edit that
+    empties a run does not break the next edit, and text put into an
+    empty data run goes into the cache after the paired cache run of the
+    preceding non-empty data run (at the paragraph's start when there is
+    none). **Invariants checked before the edit** (else
     `SmartArtCacheInconsistent`; 5 shapes in one corpus file): (1) the
     shape's paragraphs equal that concatenation (321 of 326); (2) no two
     sources share a `destOrd` (0 ties in the corpus); (3) per paired
@@ -348,9 +383,14 @@ Additionally:
     its layout-computed `sz` unless the data sets `sz`), and so is a
     change of a formatting **child** (`a:solidFill`, `a:latin`, …; 148 of
     149 data runs with children have the same children in the cache).
-    A run whose `a:rPr` holds an `r:*` attribute (a hyperlink: its `r:id`
-    differs between the data and the drawing part's relationships, 1 in
-    the corpus) is refused (`FormatNotCopyable`) for SmartArt edits. **New**
+    A run whose `a:rPr` **subtree** holds an `r:*` attribute (a
+    hyperlink: the `r:id` sits on the child `a:hlinkClick` /
+    `a:hlinkMouseOver`, and differs between the data and the drawing
+    part's relationships, 1 in the corpus) is refused
+    (`FormatNotCopyable`) for every SmartArt edit that would write to it
+    or copy its `a:rPr` — text changes and formatting of that run, and
+    new runs taking it as a format source; other runs of the same node
+    stay editable (review round 3 P4b). **New**
     paragraphs and runs in the cache take their format sources from the
     node's **own slice** (its last paragraph's `a:pPr`/`a:endParaRPr`,
     its first run's `a:rPr`, by the Phase 0.1 rules) — never from another
@@ -363,7 +403,13 @@ Additionally:
     and autofit are not recomputed (cosmetic, Q2), and
     `docProps/thumbnail.jpeg` stays as it was.
   - **explicit alternative:** `SmartArtMut::drop_drawing_cache()`, one
-    registry transaction (ADR-0012 §2; review N2):
+    registry transaction (ADR-0012 §2; review N2). It depends on #38's
+    round-1 fixes M3 (unreadable `.rels` in `remove_parts`), m6
+    (`incoming_relationships` skipping them) and M6/m10 (fragments and
+    unresolvable targets, false `kept_targets`), and is implemented only
+    after #38 merges with them (review round 3 P2). Until then, and as a
+    safe rule afterwards, a relationships part that cannot be read or
+    parsed anywhere in the package refuses it (`Core(…)`):
     1. `Package::incoming_relationships(drawing)` must be exactly the
        one `diagramDrawing` relationship of this slide (75/75 drawing
        parts in the corpus), else `SmartArtCacheShared` — checked first,
@@ -372,16 +418,18 @@ Additionally:
     2. the data part, edited on a clone without the `a:ext` holding
        `dsp:dataModelExt` (and `dgm:extLst` if it becomes empty), is
        staged with `RegistryPlan::stage_part`;
-    3. `remove_parts` with the drawing part **plus** each part it
-       targets that nothing outside the set references (images used only
-       by the cache), and `allowed_rel_types = [diagramDrawing]`: the
+    3. `remove_parts` with the drawing part **plus** each **existing**
+       part it targets that nothing outside the set references (images
+       used only by the cache; in the corpus all 7 drawing images are
+       also referenced by the data part, so the set is the drawing
+       alone), and `allowed_rel_types = [diagramDrawing]`: the
        allowed types are those of relationships **into** the set from
        remaining parts (only the slide's); the drawing's own
        relationships (`image` 7, `hyperlink` 1 in the corpus) go with it
        unchecked. The slide's relationship is removed by `remove_parts`
-       (no separate step). Targets still used elsewhere stay; the
-       returned `kept_targets` are therefore parts still referenced, and
-       nothing is left orphaned.
+       (no separate step). Targets still used elsewhere stay; once #38's
+       M6/m10 are fixed, the returned `kept_targets` are therefore parts
+       still referenced and nothing is left orphaned.
     Never done implicitly.
 - **locks:** a frame inside `mc:AlternateContent` (Phase 0 rule), a
   missing data part, an unresolved `dataModelExt` relationship
@@ -410,7 +458,7 @@ declines it; the edit-both rule needs no layout knowledge.
 | `TableStyleNotDefined` | §3 |
 | `NotSmartArt`, `SmartArtNodeNotFound` | model access |
 | `SmartArtCacheInconsistent`, `SmartArtCacheUnresolved`, `SmartArtCacheShared` | §4 |
-| `FormatNotCopyable`, `Core(…)` (`TooDeep`, `NamespaceNotInScope`, `NotMovable`) | format copies, inserts and moves, all checked before the first change; SmartArt runs with hyperlinks (§4) |
+| `FormatNotCopyable`, `Core(…)` (`TooDeep`, `NamespaceNotInScope`, `InvalidNamespaceDeclaration`, `NotMovable`) | format copies, inserts and moves, all checked before the first change; SmartArt runs with hyperlinks (§4) |
 | Phase 0 guards | `InsideAlternateContent`, `AnimatedCharacters`, `CommentAnchoredText`, … |
 
 ### 6. Reference implementations (source-verified)
