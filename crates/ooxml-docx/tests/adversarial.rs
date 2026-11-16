@@ -5,8 +5,10 @@ mod common;
 
 use std::assert_matches;
 use std::io::{Cursor, Write};
+use std::time::{Duration, Instant};
 
 use common::*;
+use ooxml_core::{DEFAULT_MAX_DEPTH, Error as CoreError};
 use ooxml_docx::fields::{CALCULATED_FORM_FIELD, MALFORMED};
 use ooxml_docx::{Document, Error, RunContext, WriteProtection};
 
@@ -315,4 +317,55 @@ fn p09_p11_p12_field_state() {
     let d = Document::from_bytes(docx(body, None, None)).unwrap();
     assert_matches!(d.paragraph(0).unwrap().run(0).unwrap().check_settable(), Err(Error::InsideField));
     assert_eq!(d.paragraph(0).unwrap().run(0).unwrap().context(), RunContext::SmartTag);
+}
+
+// ---- N1: deep nesting ---------------------------------------------------
+
+/// `d` nested tables shaped as Word writes them (a paragraph at the end of
+/// every cell), with a run at the bottom (review round 2, `gen_deep.rs`).
+fn nested_tables(d: usize) -> String {
+    let mut body = String::with_capacity(d * 80);
+    for _ in 0..d {
+        body.push_str("<w:tbl><w:tr><w:tc>");
+    }
+    body.push_str("<w:p><w:r><w:t>deep</w:t></w:r></w:p>");
+    for _ in 0..d {
+        body.push_str("</w:tc></w:tr></w:tbl><w:p><w:r><w:t>x</w:t></w:r></w:p>");
+    }
+    body
+}
+
+/// O5: the round-2 reproducers (4.7 GB at depth 10,000; stack overflow at
+/// 40,000) are refused at open with a typed error, quickly.
+#[test]
+fn n1_deep_nesting_is_refused_at_open() {
+    for d in [10_000, 40_000] {
+        let input = docx(&format!("{}<w:sectPr/>", nested_tables(d)), None, None);
+        let t = Instant::now();
+        assert_matches!(Document::from_bytes(input), Err(Error::Core(CoreError::TooDeep { limit: DEFAULT_MAX_DEPTH, .. })), "{d}");
+        assert!(t.elapsed() < Duration::from_secs(5), "{d}: {:?}", t.elapsed());
+    }
+    // In a scanned story part too.
+    let input = docx("<w:p><w:r><w:t>x</w:t></w:r></w:p>", None, Some(&nested_tables(10_000)));
+    assert_matches!(Document::from_bytes(input), Err(Error::Core(CoreError::TooDeep { .. })));
+}
+
+/// Just under the limit (document 1, body 2, three levels per table, then
+/// p, r, t: depth 3·83 + 5 = 254), a document opens, edits the deepest
+/// run, appends and reads back.
+#[test]
+fn n1_just_under_the_limit_works() {
+    let d = 83;
+    let mut doc = Document::from_bytes(docx(&format!("{}<w:sectPr/>", nested_tables(d)), None, None)).unwrap();
+    assert_eq!(doc.paragraph_count(), d + 1);
+    doc.set_run_text(0, 0, "DEEP").unwrap();
+    doc.append_paragraph("end").unwrap();
+    let again = reopen(&doc);
+    assert_eq!(again.paragraph(0).unwrap().text(), "DEEP");
+    assert_eq!(again.paragraph(d + 1).unwrap().text(), "end");
+    // One more table level puts the w:t at 257: refused.
+    assert_matches!(
+        Document::from_bytes(docx(&format!("{}<w:sectPr/>", nested_tables(d + 1)), None, None)),
+        Err(Error::Core(CoreError::TooDeep { limit: DEFAULT_MAX_DEPTH, .. }))
+    );
 }
