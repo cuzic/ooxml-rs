@@ -7,8 +7,13 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "OPC package + lossless XML tree foundation shared by ooxml-rs's Excel/Word/PowerPoint crates"
+include = ["src/**/*.rs", "Cargo.toml", "README.md", "THIRD-PARTY-NOTICES"]
+readme = "README.md"
 
 [dependencies]
 zip = { workspace = true }
 quick-xml = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+zip = { workspace = true }

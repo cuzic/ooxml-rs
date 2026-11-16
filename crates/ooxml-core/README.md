@@ -1,0 +1,121 @@
+# ooxml-core
+
+Format-agnostic foundation of ooxml-rs: the OPC package (Layer 1), the
+lossless raw XML tree and typed lenses (Layer 2), and the OPC registries
+(Layer 3) of [ADR-0001](../../docs/adr/0001-lossless-round-trip-architecture.md),
+plus the runtime half of [ADR-0002](../../docs/adr/0002-schema-driven-code-generation.md).
+Schema knowledge (`ElementSpec` markers, `*View`/`*ViewMut`) is generated
+into [`ooxml-schema`](../ooxml-schema); format crates (`ooxml-xlsx`,
+`ooxml-docx`, `ooxml-pptx`) build their domain API on both.
+
+This page is the API tour for format-crate authors. Every item has rustdoc.
+
+## Layer 1 — `Package`
+
+```rust
+let mut pkg = Package::open("book.xlsx")?;          // whole file read into memory
+let wb = pkg.main_document_part().unwrap();          // "xl/workbook.xml" (officeDocument rel)
+let rels = pkg.relationships(&wb)?;                  // xl/_rels/workbook.xml.rels
+let sheet = rels.resolve(rels.by_id("rId1").unwrap()).unwrap();
+let doc: &mut XmlDocument = pkg.xml_part_mut(&sheet)?; // Raw -> Parsed (once)
+/* … edit through a LensMut … */
+pkg.save("book.xlsx")?;                              // temp file + rename; same path is safe
+```
+
+| Item | Notes |
+| --- | --- |
+| `Package::open(path)` / `from_bytes(bytes)` | `Error::EncryptedPackage` for CFB/OLE files; `Error::StrictNotSupported` when a package relationship uses `http://purl.oclc.org/ooxml/…`. |
+| `part_names()`, `contains(name)`, `state(name) -> PartStateKind` | Part names are zip entry names, no leading `/`. Original order is kept. |
+| `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). |
+| `xml_part(name)` / `xml_part_mut(name)` | Parse once into an `XmlDocument`. A part parsed but not edited is still raw-copied on save. |
+| `set_part(name, bytes)` | Replace an existing part wholesale (`Replaced`). New parts: `Error::NewPartUnsupported` (Phase0). |
+| `content_types()`, `content_type(name)` | `[Content_Types].xml` (overrides, then extension defaults; ASCII case-insensitive). |
+| `package_relationships()`, `relationships(part)`, `main_document_part()` | `opc::Relationships` with `by_id`, `by_type`, `resolve` (relative targets, `..`, absolute `/`). |
+| `write_to(w)`, `to_bytes()`, `save(path)` | `Raw` and dirty-free `Parsed` parts go through `ZipWriter::raw_copy_file`: (name, method, CRC-32, compressed bytes) unchanged. |
+| `parts::{PARTS, by_name, by_relationship_type, by_content_type}` | Generated part-kind table (content type, relationship type, root element/namespace, child parts). |
+
+## Layer 2 — `XmlDocument`, `RawNode`
+
+`XmlDocument::parse(bytes)` (UTF-8 only; a BOM is kept) builds a tree of
+`RawNode`s. Each node has its resolved name (`XName`: namespace URI, local
+name, original prefix), attributes in order (`xmlns` declarations included,
+as attributes in `XMLNS_NS`), child items (`RawItem::{Element, Text, Markup}`),
+its `ElementSpan` in the source, and `own_dirty` / `subtree_dirty`.
+`serialize()` emits untouched subtrees verbatim (T1: no edits ⇒ identical
+bytes). Any `<!DOCTYPE>` is refused (`Error::DtdNotAllowed`): no entity
+expansion, no XXE.
+
+Nodes are read-only from outside the crate; **all mutation goes through
+`LensMut`**, which owns the dirty-flag duties. Test helpers:
+`XmlDocument::force_rerender()` and `RawNode::structurally_eq()` (T1b).
+
+## Lenses
+
+`Lens<'a, E>` / `LensMut<'a, E>` are typed by an `ElementSpec` marker from
+`ooxml-schema` (or a hand-written one). Generated `*View(Lens)` and
+`*ViewMut(LensMut)` newtypes add typed accessors; `.0` reaches the generic
+lens.
+
+Reads (`Lens`): `root`, `raw`, `path`, `attr(q)`, `attr_or_default(q)`,
+`attr_parsed(q, parse)`, `attr_parsed_or(q, default, parse)`,
+`attr_enum::<V>(q) -> Option<EnumValue<V>>`, `attr_enum_or`, `text()`,
+`xml_space_preserve()`, `children::<C>()`, `child::<C>()`, `cast::<F>()`.
+Typed reads never coerce: a bad lexical value is `AttrError { attr, raw }`;
+an unknown enum value is `EnumValue::Unknown(raw)`.
+
+Navigation (`LensMut`): `node()`, `as_lens()`, `path()`, `child_mut::<C>()`,
+`child_mut_by::<C>(pred)`, `nth_child_mut::<C>(n)`; consuming variants
+`into_child_at::<C>(index)` / `into_child_by::<C>(pred)` keep the full
+lifetime so helpers can return grandchild lenses. Child lenses are
+reborrows: one at a time.
+
+Write primitives (ADR-0002 §4.2):
+
+| Primitive | Behaviour |
+| --- | --- |
+| `insert_by::<C>(before)` | Into `C`'s slot; `before(index_in_slot, existing)` picks the position inside the slot (callers own row/column order). Else before the first higher-ranked child, else immediately before the close tag. No whitespace is added. |
+| `insert::<C>()` | Append at the end of the slot. |
+| `insert_in_slot::<C>(slot, before)` | For a QName that is in two slots (otherwise `AmbiguousSlot`). |
+| `get_or_insert::<C>()` | First existing `C`, or insert. |
+| `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
+| `set_attr(q, value)`, `remove_attr(q)` | Untyped; typed setters are generated. Setting the current value is not a change. |
+| `set_text(value)` | `Content::Text` elements only; sets `xml:space="preserve"` for edge whitespace when the spec declares `xml:space`; never removes it. |
+
+Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
+`UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
+out of schema order), `UnsupportedContentModel`, `NotAllowed`, `NotText`,
+`IncompleteSpec` (spec with an unresolved SDK base), `NamespaceNotInScope`
+(no usable prefix; Phase0 never declares namespaces).
+
+Dirty duties: every write marks `subtree_dirty` up to the root; attribute
+writes and creation set `own_dirty`; a parent becomes `own_dirty` only if
+it was self-closing and gains its first child; a parent with a close tag
+keeps its original tags even when emptied.
+
+Prefixes for new nodes: the parent's prefix if it binds the URI, else the
+innermost binding in effect (default namespace preferred on the same
+element); attributes need a non-empty prefix; `xml:` always works.
+
+## Schema description types
+
+`QName` (static), `ElementSpec { QNAME, SDK_NAME, ATTRS, CONTENT,
+ATTRS_INCOMPLETE }`, `ChildOf<P>` (compile-time child check with a readable
+`on_unimplemented` message), `AttrSpec`, `SimpleType`, `Slot { names,
+wildcard, max_each, max_total }`, `Wildcard`, `Content::{Empty, Text, Slots,
+Unsupported}`, `EnumType`, `EnumValue<'a, E>`, and the `const fn` checks
+(`assert_spec`, `assert_child`, …) used by generated `const _` items.
+`value::*` has the lexical parsers/formatters generated accessors call.
+Namespace constants the core acts on: `name::{MC_NS, R_NS, XML_NS, XMLNS_NS}`.
+
+## Not yet (by design or later)
+
+- Adding parts / writing `[Content_Types].xml` or relationships (Layer 3 is
+  read-only; the append-only rule applies when writes arrive).
+- The `mc:AlternateContent` rank rule (ADR-0002 §4.3 "later rule").
+- A copy-subtree primitive (requested by the pptx plan). `RawNode` is
+  `Clone`; a future `LensMut::insert_copy::<C>(&RawNode)` would insert a
+  span-less clone (re-rendered, prefixes re-checked) with the usual dirty
+  duties. The current API does not preclude it.
+- Formula detection is format-specific and not in core. If a scan helper is
+  added here it will match element names (namespace URI + local name),
+  never byte patterns.

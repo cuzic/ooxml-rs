@@ -1,0 +1,35 @@
+# SpreadsheetML allowlist (feature `sml`), ADR-0002 §5.
+# Entries are SDK `Name`s ((complex type, element) pairs). Growing the typed
+# surface = adding entries here and reviewing the generated diff.
+#
+# [write]: `*View` + `*ViewMut` (typed setters, insert/remove helpers).
+# [read]:  `*View` only. `ChildOf` impls exist between any two allowlisted
+#          entries, so generic `LensMut` primitives still accept read entries.
+
+# Phase0 write path (ADR-0001 / ADR-0002 §5).
+[write]
+names = [
+    "x:CT_Worksheet/x:worksheet",
+    "x:CT_SheetDimension/x:dimension",
+    "x:CT_SheetData/x:sheetData",
+    "x:CT_Row/x:row",
+    "x:CT_Cell/x:c",
+    "x:CT_Xstring/x:v",
+    "x:CT_Rst/x:is",
+    "x:CT_Xstring/x:t",
+]
+
+# Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
+# first sheet, shared/rich strings, merged ranges.
+[read]
+names = [
+    "x:CT_CellFormula/x:f",
+    "x:CT_Workbook/x:workbook",
+    "x:CT_Sheets/x:sheets",
+    "x:CT_Sheet/x:sheet",
+    "x:CT_RElt/x:r",
+    "x:CT_Sst/x:sst",
+    "x:CT_Rst/x:si",
+    "x:CT_MergeCells/x:mergeCells",
+    "x:CT_MergeCell/x:mergeCell",
+]

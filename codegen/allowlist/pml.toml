@@ -1,0 +1,8 @@
+# pml allowlist (feature `pml`), ADR-0002 §5. Empty until the format plan
+# adds entries; see sml.toml for the format.
+
+[write]
+names = []
+
+[read]
+names = []
