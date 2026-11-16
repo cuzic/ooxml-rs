@@ -438,7 +438,15 @@ fn ids(nodes: &[(usize, &RawNode)], uri: &str, local: &'static str) -> Result<Op
     let v: Vec<Option<u32>> = nodes.iter().map(|(_, n)| id_of(n, uri, local)).collect::<Result<_>>()?;
     match v.iter().filter(|x| x.is_some()).count() {
         0 => Ok(None),
-        k if k == v.len() => Ok(Some(v.into_iter().flatten().collect())),
+        k if k == v.len() => {
+            let ids: Vec<u32> = v.into_iter().flatten().collect();
+            let mut sorted = ids.clone();
+            sorted.sort_unstable();
+            if sorted.windows(2).any(|w| w[0] == w[1]) {
+                return Err(bad(format!("duplicate a16:{local}")));
+            }
+            Ok(Some(ids))
+        }
         _ => Err(bad(format!("only some rows/columns carry a16:{local}"))),
     }
 }
@@ -676,7 +684,7 @@ impl TableMut<'_> {
         let cols = cols_of(tbl);
         let col_ids = ids(&cols, COL_ID_URI, "colId")?;
         let w = cols[src].1.attr(QName::new("", "w")).and_then(|v| v.trim().parse::<i64>().ok()).unwrap_or(0);
-        // new cells sit one level shallower than new rows' cells
+        // conservatively the same levels as a new row's cells
         self.check_formats(&fmts, 0)?;
         let new_col_id = col_ids.as_ref().map(|v| new_id(v, &self.deleted.cols)).transpose()?;
         let mut merges = g.merges.clone();
@@ -790,9 +798,12 @@ impl TableMut<'_> {
         let root = self.doc.root();
         // paragraphs to move, and what each covered cell keeps
         let origin = self.cell_path(r1, c1).expect("in grid");
-        let origin_body = find_child(node_at(root, &origin).expect("cell"), dml::TextBody::QNAME).map(|i| sub(&origin, &[i])).ok_or(Error::NoTextBody)?;
-        // a scratch copy for the move checks (they need a `LensMut`)
+        // a scratch copy for the move checks (they need a `LensMut`); an
+        // origin without a:txBody gets one there, and in the edit only when
+        // something moves (review #57 m2)
         let mut probe = self.doc.clone();
+        let origin_has_body = find_child(node_at(root, &origin).expect("cell"), dml::TextBody::QNAME).is_some();
+        let origin_body = ensure_body(&mut probe, &self.tbl, r1, c1)?;
         let mut keep: Vec<KeptParagraph> = Vec::new();
         for r in r1..=r2 {
             for c in c1..=c2 {
@@ -821,7 +832,7 @@ impl TableMut<'_> {
                 }
             }
         }
-        let origin_single_empty = {
+        let origin_single_empty = !origin_has_body || {
             let b = node_at(root, &origin_body).expect("body");
             let ps: Vec<&RawNode> = b.elements().filter(|e| e.is(Paragraph::QNAME)).collect();
             ps.len() == 1 && para_is_empty(ps[0])
@@ -834,6 +845,9 @@ impl TableMut<'_> {
         let tbl_path = self.tbl.clone();
         self.edit(|doc, frame, tbl| {
             let _ = frame;
+            if !keep.is_empty() {
+                ensure_body(doc, tbl, r1, c1)?;
+            }
             let mut moved_any = false;
             for (rc, ppr, end) in &keep {
                 let cell = cell_path_in(doc.root(), tbl, rc.0, rc.1).expect("cell");
@@ -929,11 +943,30 @@ impl TableMut<'_> {
     /// `ppt/tableStyles.xml` or one of PowerPoint's 74 built-in ids
     /// (case-insensitive), else `TableStyleNotDefined` (ADR-0013 §3).
     pub fn set_style(&mut self, id: Option<&str>) -> Result<()> {
-        if let Some(id) = id
-            && !self.styles.iter().any(|s| s.trim().eq_ignore_ascii_case(id.trim()))
-            && !crate::builtin_styles::is_builtin(id)
+        // the matched id's own spelling is written: the definition's, or the
+        // built-in list's uppercase ST_Guid form (review #57 M1)
+        let canon: Option<String> = match id {
+            None => None,
+            Some(id) => Some(
+                self.styles
+                    .iter()
+                    .map(|s| s.trim())
+                    .find(|s| s.eq_ignore_ascii_case(id.trim()))
+                    .map(str::to_owned)
+                    .or_else(|| crate::builtin_styles::builtin(id).map(str::to_owned))
+                    .ok_or_else(|| Error::TableStyleNotDefined(id.to_owned()))?,
+            ),
+        };
+        let id = canon.as_deref();
+        // an inline a:tableStyle (the other branch of the tblPr choice) is
+        // not replaced implicitly (review #57 m1)
+        if self
+            .tbl_node()
+            .elements()
+            .find(|e| e.is(TableProperties::QNAME))
+            .is_some_and(|p| p.elements().any(|e| e.is(QName::new(crate::names::A_NS, "tableStyle"))))
         {
-            return Err(Error::TableStyleNotDefined(id.to_owned()));
+            return Err(Error::TableStyleInline);
         }
         let current = self
             .tbl_node()
@@ -1203,6 +1236,25 @@ fn para_is_empty(p: &RawNode) -> bool {
     !text(p) && !p.elements().any(|e| e.is(dml::Field::QNAME) || e.is(dml::Break::QNAME))
 }
 
+/// The path of cell (r, c)'s `a:txBody`, creating one (`a:bodyPr` and an
+/// empty `a:p`) when the cell has none.
+fn ensure_body(doc: &mut XmlDocument, tbl: &[usize], r: usize, c: usize) -> Result<Vec<usize>> {
+    let cell = cell_path_in(doc.root(), tbl, r, c).ok_or(Error::CellNotFound { row: r, col: c })?;
+    if let Some(i) = find_child(node_at(doc.root(), &cell).expect("cell"), dml::TextBody::QNAME) {
+        return Ok(sub(&cell, &[i]));
+    }
+    {
+        let mut t = tbl_lens(doc, tbl)?;
+        let mut tr = t.nth_child_mut::<TableRow>(r).ok_or(Error::NotATable)?;
+        let mut tc = tr.nth_child_mut::<TableCell>(c).ok_or(Error::NotATable)?;
+        let mut b = tc.insert::<dml::TextBody>()?;
+        b.insert::<BodyProperties>()?;
+        b.insert::<Paragraph>()?;
+    }
+    let i = find_child(node_at(doc.root(), &cell).expect("cell"), dml::TextBody::QNAME).expect("created");
+    Ok(sub(&cell, &[i]))
+}
+
 fn cell_path_in(root: &RawNode, tbl: &[usize], r: usize, c: usize) -> Option<Vec<usize>> {
     let t = node_at(root, tbl)?;
     let (ri, tr) = *rows_of(t).get(r)?;
@@ -1273,6 +1325,8 @@ fn apply_attrs(doc: &mut XmlDocument, tbl: &[usize], target: &Grid) -> Result<()
             };
             let want = target.cells[r][c];
             if have != want {
+                #[cfg(test)]
+                fault::hit()?;
                 let mut t = tbl_lens(doc, tbl)?;
                 let mut tr = t.nth_child_mut::<TableRow>(r).ok_or(Error::NotATable)?;
                 let mut tc = tr.nth_child_mut::<TableCell>(c).ok_or(Error::NotATable)?;
@@ -1300,4 +1354,70 @@ fn grow_frame(doc: &mut XmlDocument, frame: &[usize], dx: i64, dy: i64) -> Resul
         ext.set_attr(q, &(old + d).max(0).to_string())?;
     }
     Ok(())
+}
+
+// Review #57 m4 (ADR-0005 R2-6): every element this module writes an
+// attribute or text on has a complete attribute list, checked at compile
+// time rather than refused at run time (`IncompleteSpec`).
+const _: () = assert!(
+    !TableCell::ATTRS_INCOMPLETE
+        && !TableRow::ATTRS_INCOMPLETE
+        && !GridColumn::ATTRS_INCOMPLETE
+        && !TableProperties::ATTRS_INCOMPLETE
+        && !TableStyleId::ATTRS_INCOMPLETE
+        && !TableCellProperties::ATTRS_INCOMPLETE
+        && !LeftBorderLineProperties::ATTRS_INCOMPLETE
+        && !RightBorderLineProperties::ATTRS_INCOMPLETE
+        && !TopBorderLineProperties::ATTRS_INCOMPLETE
+        && !BottomBorderLineProperties::ATTRS_INCOMPLETE
+        && !RgbColorModelHex::ATTRS_INCOMPLETE
+        && !SchemeColor::ATTRS_INCOMPLETE
+        && !Extension::ATTRS_INCOMPLETE
+        && !RowIdIdentifier::ATTRS_INCOMPLETE
+        && !ColIdIdentifier::ATTRS_INCOMPLETE
+        && !dml::Extents::ATTRS_INCOMPLETE,
+    "an element Phase 1b writes has an incomplete attribute list (ADR-0005 R2-6)"
+);
+
+#[cfg(test)]
+pub(crate) mod fault {
+    //! Fault injection inside an edit (review #57 m8, mutant X7): a failure
+    //! after some writes must leave the slide untouched (clone-and-install).
+    use std::cell::Cell;
+
+    thread_local! {
+        pub(crate) static FAIL_AT_WRITE: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn hit() -> crate::Result<()> {
+        FAIL_AT_WRITE.with(|f| match f.get() {
+            Some(0) => {
+                f.set(None);
+                Err(crate::Error::TableNotWellFormed("injected fault".into()))
+            }
+            Some(n) => {
+                f.set(Some(n - 1));
+                Ok(())
+            }
+            None => Ok(()),
+        })
+    }
+
+    #[test]
+    fn a_failure_after_some_writes_leaves_the_slide_untouched() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/table_test2.pptx");
+        let input = std::fs::read(path).unwrap();
+        let mut pres = crate::Presentation::from_bytes(input).unwrap();
+        let before = pres.to_bytes().unwrap();
+        // merging (3,1)-(4,2) writes four cells' attributes: fail at the third
+        FAIL_AT_WRITE.set(Some(2));
+        let r = {
+            let mut s = pres.slide_mut(0).unwrap();
+            let mut sh = s.shape_mut_by_id(4).unwrap();
+            sh.table_mut().unwrap().merge(3, 1, 4, 2)
+        };
+        FAIL_AT_WRITE.set(None);
+        assert!(r.is_err());
+        assert_eq!(pres.to_bytes().unwrap(), before, "a failure inside an edit must leave the slide byte-identical");
+    }
 }

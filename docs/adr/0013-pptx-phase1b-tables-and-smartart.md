@@ -87,6 +87,15 @@
   - Every operation runs its checks on the slide tree and its edits on a
     clone that replaces the tree only when every edit succeeded, so a
     refusal — this crate's or the core's — leaves the slide unchanged.
+  - Review #57 round 1: `set_style` writes the matched id's own spelling
+    (the definition's, or the built-in list's uppercase `ST_Guid` form);
+    a table whose `a:tblPr` holds an inline `a:tableStyle` (the other
+    branch of the schema choice; 0 in the corpus) is refused with
+    `TableStyleInline` for both `Some` and `None`; `merge` needs an
+    origin `a:txBody` only when text moves (one is created then); a
+    comment anchor outside the table kinds locks only the shape ids it
+    names (an anchor with no id at all still locks every table);
+    duplicate `a16:rowId`/`colId` values make a table not well-formed.
   - Property test: 3,000 random tables (38,257 row/column inserts and
     deletes, 3,817 expected refusals) against an independent logical
     model: 0 mismatches (`tests/table_model.rs`).

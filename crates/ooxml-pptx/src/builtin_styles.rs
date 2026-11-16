@@ -84,8 +84,9 @@ pub(crate) const BUILTIN_TABLE_STYLES: [&str; 74] = [
     "{FABFCF23-3B69-468F-B69F-88F6DE6A72F2}",
 ];
 
-/// Is uid=1002(cuzic) gid=1002(cuzic) groups=1002(cuzic) one of the built-in style ids (ASCII case-insensitive)?
-pub(crate) fn is_builtin(id: &str) -> bool {
+/// The built-in style id `id` names (ASCII case-insensitive, trimmed), in
+/// its canonical uppercase `ST_Guid` spelling.
+pub(crate) fn builtin(id: &str) -> Option<&'static str> {
     let up = id.trim().to_ascii_uppercase();
-    BUILTIN_TABLE_STYLES.binary_search(&up.as_str()).is_ok()
+    BUILTIN_TABLE_STYLES.binary_search(&up.as_str()).ok().map(|i| BUILTIN_TABLE_STYLES[i])
 }

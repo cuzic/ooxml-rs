@@ -170,10 +170,9 @@ impl SlideRefs {
     fn scan_table_anchor(&mut self, a: &RawNode, below: &[&RawNode]) {
         const TABLE_LISTS: [&str; 4] = ["tblMkLst", "tcMkLst", "trMkLst", "gridColMkLst"];
         const TABLE_MKS: [&str; 4] = ["tcMk", "trMk", "gridColMk", "tblMk"];
-        const KNOWN: [&str; 8] = ["sldMkLst", "deMkLst", "txMkLst", "txBodyMkLst", "graphicFrameMkLst", "tblMkLst", "tcMkLst", "trMkLst"];
         let local = a.name().local();
         let ns_ok = a.name().ns() == AC_NS || a.name().ns() == PC_NS;
-        let inside = (ns_ok && (TABLE_LISTS.contains(&local) || local == "gridColMkLst"))
+        let inside = (ns_ok && TABLE_LISTS.contains(&local))
             || below.iter().any(|n| {
                 (n.name().ns() == AC_NS && TABLE_MKS.contains(&n.name().local()))
                     || n.attr(QName::new("", "rowId")).is_some()
@@ -188,8 +187,22 @@ impl SlideRefs {
             for id in ids {
                 self.tables.add(id);
             }
-        } else if !(ns_ok && (KNOWN.contains(&local) || local == "gridColMkLst")) {
-            self.tables.all = true; // unverifiable anchor
+        } else {
+            // not inside a table: like ADR-0005 §6, an anchor that names
+            // shapes locks those ids only (a table among them is locked);
+            // one with no id at all cannot be verified and locks every
+            // table (review #57 m3)
+            let named = below.iter().any(|n| n.name().ns() == AC_NS && n.attr(QName::new("", "id")).is_some());
+            let safe = ns_ok && matches!(local, "sldMkLst" | "deMkLst");
+            if !safe {
+                if named {
+                    for id in below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id"))) {
+                        self.tables.add(Some(id));
+                    }
+                } else {
+                    self.tables.all = true;
+                }
+            }
         }
     }
 }

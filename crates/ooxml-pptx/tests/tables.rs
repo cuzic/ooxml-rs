@@ -412,7 +412,15 @@ fn style_ids_defined_or_built_in() {
     // a built-in id, case-insensitively
     let (r, out) = edit(&src, |t| t.set_style(Some("{073a0daa-6af3-43ab-8588-cec1d06c72b9}")));
     r.unwrap();
-    assert!(part(&out, SLIDE).contains("<a:tableStyleId>{073a0daa-6af3-43ab-8588-cec1d06c72b9}</a:tableStyleId>"));
+    // written in the built-in list's canonical spelling (ST_Guid: uppercase; review #57 M1)
+    assert!(part(&out, SLIDE).contains("<a:tableStyleId>{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}</a:tableStyleId>"));
+    let (r, out) = edit(&src, |t| t.set_style(Some(" {073a0daa-6af3-43ab-8588-cec1d06c72b9} ")));
+    r.unwrap();
+    assert!(part(&out, SLIDE).contains("<a:tableStyleId>{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}</a:tableStyleId>"));
+    // the same style in another spelling changes nothing
+    let (r, out) = edit(&src, |t| t.set_style(Some("{5c22544a-7ee6-4342-b048-85bdc9fd1c3a}")));
+    r.unwrap();
+    assert_eq!(out, unchanged(&src));
     let (r, out) = edit(&src, |t| t.set_style(Some("{00000000-0000-0000-0000-000000000000}")));
     assert_matches!(r, Err(Error::TableStyleNotDefined(_)));
     assert_eq!(out, unchanged(&src));
@@ -511,4 +519,125 @@ fn a_merge_mixing_edge_spans_and_flags_is_not_well_formed() {
     let (r, out) = edit(&src, |t| t.insert_row(0));
     assert_matches!(r, Err(Error::TableNotWellFormed(ref m)) if m.contains("mixes"), "{r:?}");
     assert_eq!(out, unchanged(&src));
+}
+
+
+// ------------------------------------------------------------------ review #57 round 1
+
+#[test]
+fn a_defined_style_is_written_in_the_definitions_spelling() {
+    let src = patch(&fixture(TT2), "ppt/tableStyles.xml", |s| {
+        s.replace("</a:tblStyleLst>", "<a:tblStyle styleId=\"{ABCDEF01-2222-3333-4444-555555555555}\" styleName=\"x\"/></a:tblStyleLst>")
+    });
+    let (r, out) = edit(&src, |t| t.set_style(Some("{abcdef01-2222-3333-4444-555555555555}")));
+    r.unwrap();
+    assert!(part(&out, SLIDE).contains("<a:tableStyleId>{ABCDEF01-2222-3333-4444-555555555555}</a:tableStyleId>"));
+}
+
+#[test]
+fn an_inline_table_style_is_refused() {
+    let src = patch(&fixture(TT2), SLIDE, |s| {
+        let i = s.find("<a:tableStyleId>").unwrap();
+        let j = s.find("</a:tableStyleId>").unwrap() + "</a:tableStyleId>".len();
+        format!("{}<a:tableStyle styleId=\"{{11111111-1111-1111-1111-111111111111}}\" styleName=\"inline\"/>{}", &s[..i], &s[j..])
+    });
+    for id in [Some("{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}"), None] {
+        let (r, out) = edit(&src, |t| t.set_style(id));
+        assert_matches!(r, Err(Error::TableStyleInline), "{id:?}");
+        assert_eq!(out, unchanged(&src));
+    }
+}
+
+#[test]
+fn merge_works_when_the_origin_has_no_text_body() {
+    // no txBody on the origin: nothing to move is fine, and moved text gets a body
+    let strip = |src: &[u8], r: usize, c: usize| {
+        patch(src, SLIDE, |s| {
+            let g = grid(&s);
+            let cell = &g[r][c].1;
+            let i = cell.find("<a:txBody>").unwrap();
+            let j = cell.find("</a:txBody>").unwrap() + "</a:txBody>".len();
+            s.replacen(cell.as_str(), &format!("{}{}", &cell[..i], &cell[j..]), 1)
+        })
+    };
+    // empty the three other cells first: then nothing moves
+    let mut p = Presentation::from_bytes(fixture(TT2)).unwrap();
+    {
+        let mut s = p.slide_mut(0).unwrap();
+        let mut sh = s.shape_mut_by_id(4).unwrap();
+        for (r, c) in [(3, 2), (4, 1), (4, 2)] {
+            sh.table_cell_mut(r, c).unwrap().set_text("").unwrap();
+        }
+    }
+    let src = strip(&p.to_bytes().unwrap(), 3, 1);
+    let (r, out) = edit(&src, |t| t.merge(3, 1, 4, 2));
+    r.unwrap();
+    assert!(!grid(&part(&out, SLIDE))[3][1].1.contains("<a:txBody>"));
+    // with text in (3,2) the origin gets a body holding it
+    let mut p = Presentation::from_bytes(src).unwrap();
+    {
+        let mut s = p.slide_mut(0).unwrap();
+        let mut sh = s.shape_mut_by_id(4).unwrap();
+        sh.table_cell_mut(3, 2).unwrap().set_text("moved").unwrap();
+    }
+    on_table(&mut p, 4, |t| t.merge(3, 1, 4, 2)).unwrap();
+    let out = p.to_bytes().unwrap();
+    let origin = grid(&part(&out, SLIDE))[3][1].1.clone();
+    assert!(origin.contains("<a:txBody><a:bodyPr/>") && origin.contains(">moved<"), "{origin}");
+    assert_eq!(origin.matches("<a:p>").count() + origin.matches("<a:p ").count(), 1, "{origin}");
+}
+
+#[test]
+fn an_anchor_on_another_shape_does_not_lock_the_table() {
+    let src = fixture(TT2);
+    let b = with_comment(&src, "<ac:spMkLst><pc:docMk/><ac:spMk id=\"99\" creationId=\"{0}\"/></ac:spMkLst>");
+    let (r, _) = edit(&b, |t| t.insert_row(0));
+    r.unwrap();
+    // naming the table's own id locks it
+    let b = with_comment(&src, "<ac:spMkLst><pc:docMk/><ac:spMk id=\"4\" creationId=\"{0}\"/></ac:spMkLst>");
+    let (r, _) = edit(&b, |t| t.insert_row(0));
+    assert_matches!(r, Err(Error::CommentAnchoredTable { shape_id: 4 }));
+}
+
+#[test]
+fn duplicate_ids_are_not_well_formed() {
+    let src = patch(&fixture(TT2), SLIDE, |s| s.replace("val=\"949750401\"", "val=\"355537859\""));
+    let (r, out) = edit(&src, |t| t.insert_row(0));
+    assert_matches!(r, Err(Error::TableNotWellFormed(ref m)) if m.contains("duplicate"), "{r:?}");
+    assert_eq!(out, unchanged(&src));
+}
+
+#[test]
+fn deleting_shrinks_the_frame() {
+    let src = fixture(TT2);
+    let s0 = part(&src, SLIDE);
+    let (cx0, cy0) = frame_ext(&s0);
+    let rows = grid(&s0);
+    let _ = rows;
+    let h6: i64 = table_xml(&s0).split("<a:tr h=\"").nth(7).unwrap().split('"').next().unwrap().parse().unwrap();
+    let w5: i64 = table_xml(&s0).split("<a:gridCol w=\"").nth(6).unwrap().split('"').next().unwrap().parse().unwrap();
+    let (r, out) = edit(&src, |t| {
+        t.delete_row(6)?;
+        t.delete_column(5)
+    });
+    r.unwrap();
+    assert_eq!(frame_ext(&part(&out, SLIDE)), (cx0 - w5, cy0 - h6));
+}
+
+#[test]
+fn insert_column_copies_width_and_format_from_the_left() {
+    // column 0 and column 1 differ: give column 1 a distinct width and tcPr
+    let src = patch(&fixture(TT2), SLIDE, |s| {
+        let g = grid(&s);
+        let cell = g[6][1].1.clone();
+        s.replacen(&cell, &cell.replacen("<a:tcPr/>", "<a:tcPr marL=\"12345\"/>", 1), 1)
+    });
+    let s0 = part(&src, SLIDE);
+    let w1: String = table_xml(&s0).split("<a:gridCol w=\"").nth(2).unwrap().split('"').next().unwrap().to_owned();
+    let (r, out) = edit(&src, |t| t.insert_column(2));
+    r.unwrap();
+    let s1 = part(&out, SLIDE);
+    let w_new: String = table_xml(&s1).split("<a:gridCol w=\"").nth(3).unwrap().split('"').next().unwrap().to_owned();
+    assert_eq!(w_new, w1, "width from the left column");
+    assert!(grid(&s1)[6][2].1.contains("<a:tcPr marL=\"12345\"/>"), "{}", grid(&s1)[6][2].1);
 }

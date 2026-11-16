@@ -330,7 +330,11 @@
   `rowId? colId? any`, so `ChildOf<a:ext>` exists for the two ids and
   every other extension still falls in the wildcard slot. Which child an
   `a:ext` holds is decided by its `uri`; the format crate writes the
-  matching pair, the generated content does not enforce it.
+  matching pair, the generated content does not enforce it. Because `a16:rowId`/`colId` are now allowlisted global elements,
+  the existing "wildcard parents" rule also makes them `ChildOf` the
+  wildcard-content parents such as `a:graphicData` (and generates the
+  matching iterators). That is semantically meaningless there; no format
+  crate uses it (review #57 m5).
   (2) `dml.toml`'s `[detach]` gains `a:CT_TableCellProperties/a:tcPr`,
   `a:CT_TextBodyProperties/a:bodyPr` and `a:CT_TextListStyle/a:lstStyle`
   (new table cells copy a neighbour's formatting). Reviewed as the

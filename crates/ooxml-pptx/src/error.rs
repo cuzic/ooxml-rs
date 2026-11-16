@@ -194,6 +194,11 @@ pub enum Error {
     /// built in.
     #[error("table style {0:?} is not defined")]
     TableStyleNotDefined(String),
+    /// `set_style` on a table whose `a:tblPr` holds an inline
+    /// `a:tableStyle` (the other branch of the schema choice), which is not
+    /// replaced implicitly.
+    #[error("the table has an inline a:tableStyle")]
+    TableStyleInline,
     /// A value outside its schema range.
     #[error("value out of range for {what}")]
     ValueOutOfRange {
