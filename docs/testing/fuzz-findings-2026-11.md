@@ -7,8 +7,9 @@
 - ooxml-pptx: `Presentation::from_bytes`、全スライドの読み取り、テキスト編集（本文・段落・ラン・表セル）、保存と再オープン
 
 ooxml-docx（#13 で main にマージ）は積み上げの PR（`test/fuzz-docx`）で `docx_edit` ターゲットを追加した（下の「ooxml-docx」の節）。
-xlsx Phase1（数式の経路、`impl/xlsx-phase1`）はまだ main にないので対象外。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
-「Err なら無変更」もまだ検査していない。
+xlsx Phase1（#20）は main に入っており、`xlsx_edit` の oracle は Phase1 の契約に合わせてある（`phase1_oracle`）。
+数式を書き換える編集のターゲットは、さらに積み上げの PR で追加する。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
+「Err なら無変更」は、まだ検査していない。
 
 ハーネスは `crates/ooxml-robustness`（publish しない dev 専用 crate）、cargo-fuzz のターゲットは `fuzz/`（ワークスペース外、nightly）。
 各ターゲットの不変条件は `fuzz/README.md` の表にある。crate のソースは変更していない。修正は各 crate の担当者に任せる。
@@ -106,7 +107,7 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 
 ## ooxml-docx（`docx_edit`、PR #36 に積む PR で追加）
 
-対象: main @8c54366 の ooxml-docx Phase0（ADR-0004）。`Document::from_bytes`、書き込みゲート（`write_gate` / `write_gates`）、
+対象: ooxml-docx Phase0（ADR-0004）。当初は main @8c54366 に対して実行し、現在は main @4f8e294 にマージして再確認した。`Document::from_bytes`、書き込みゲート（`write_gate` / `write_gates`）、
 全段落・全ランの読み取り（`text`、`context`、`in_field`、`check_settable`）、`set_run_text`、`append_paragraph`、保存と再オープン。
 入力は xlsx / pptx と同じ形（fixture 1 個の part 1 個を payload で置き換え、続くバイトで操作を選ぶ）。fixture は
 `reference/fixtures/docx` の 26 ファイルで、XXE の検査用ファイル（`poi-ExternalEntityInText.docx`）も seed に入れた（DTD は open で拒否される）。
@@ -156,13 +157,20 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 - **timeout 3 件**: どれも 1.35 MB の fixture（`poi-bug59058.docx`）での、ハーネス側の負荷だった。
   - 原因: append の予測と位置の検査が main part を毎回 parse し、編集のたびに再オープンしていた。
   - release では 0.5 秒で終わる。ASan では単独で 5 秒前後、16 並列の負荷下では 10 秒を超えた。
-  - 対策: parse を 1 回にまとめ、main part が 512 KiB を超える文書では編集を 2 回までにした。2 回目の実行では timeout は出ていない。
+  - 対策（PR #47 round 2 の m5 の後の値）: parse を 1 回にまとめた。main part が 512 KiB を超える文書では、編集を 1 回にし、読み取り後の 2 回目の保存と L1 比較も飛ばす。
+    これで、この fixture の seed は ASan で 2.8〜3.6 秒になった（以前は負荷のない状態で 6〜12 秒）。
 - **所見**: なし。
+
+**分類そのものの検査（m6）**: 予測は ooxml-docx の分類用の公開 API（`check_settable`、`write_gate`、`in_field`）をそのまま使う。
+そのため、「分類どおりに拒否・許可しているか」は検査できるが、分類そのものの誤りは検査できない。
+このうちフィールドについては、`read_all` で各ランの `w:fldChar` を独立に数え直す。そして `in_field()` が「直前の深さ > 0、直後の深さ > 0、またはそのランが `w:fldChar` を持つ」と一致することを assert する。
+変更履歴の wrapper とゲートの検出（settings.xml）が正しいかどうかは、ooxml-docx の単体テストの範囲とする。
+ファザーが見るのは、分類と結果が一貫しているかどうかである。
 
 **結果: 所見なし。** 7 分（12 並列、53k 回）と 25 分（16 並列、19.4 万回、cov 6,558）回し、stable スモーク（release、`OOXML_SMOKE_ITERS=100`）も通った。
 1 回目に出た timeout 1 件はハーネスの負荷だった。最大の fixture（`poi-bug59058.docx`、document.xml 1.35 MB）で 12 回編集し、
 毎回開き直すと、release で 1.2 秒、ASan では 10 秒を超える。ライブラリ側はどれも速い（open 34 ms、全ランの `check_settable` 0.6 ms、
-`append_paragraph` 0.8 ms、保存 2 ms）。main part が 512 KiB を超える場合は編集回数を 4 回にした。
+`append_paragraph` 0.8 ms、保存 2 ms）。この fixture の扱いの最終的な値は、上の「対策」の項を参照。
 
 ## 所見の詳細
 
