@@ -67,7 +67,9 @@ names = [
     "x:CT_Break/x:brk",
     "x:CT_PageSetUpPr/x:pageSetUpPr",
     "x:CT_WorkbookProtection/x:workbookProtection",
-    "x:CT_ExtensionList/x:extLst",
+    "x:CT_WorksheetExtensionList/x:extLst",
+    "x:CT_CfRuleExtensionList/x:extLst",
+    "x:CT_CfRuleExtension/x:ext",
     "x:CT_WorksheetExtension/x:ext",
 ]
 

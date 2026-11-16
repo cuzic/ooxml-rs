@@ -178,3 +178,59 @@ fn workbook_protection_and_legacy_hash() {
     r.unwrap();
     assert!(out_xml(&wb).contains(r#"<sheetProtection password="83AF" sheet="1" objects="1" scenarios="1"/>"#));
 }
+
+// ---- data validation (§5) ----
+
+const X14_DV: &str = r#"<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="1" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list" allowBlank="1"><x14:formula1><xm:f>Other!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>D1:D9</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst>"#;
+
+#[test]
+fn data_validation_add_and_remove() {
+    use ooxml_xlsx::{ErrorStyle, Validation, ValidationOperator, ValidationType};
+    let input = book(&[("S", ""), ("Other", "")], r#"<definedName name="Colours">Other!$A$1:$A$3</definedName>"#, "");
+    let (wb, r) = try_on(&input, |ws| {
+        ws.add_validation("A1:A9", &Validation::list(&["red", "say \"hi\"", "blue"]).input_message("Pick", "one colour"))?;
+        ws.add_validation("B1 B3:B4", &Validation::compare(ValidationType::Whole, ValidationOperator::Between, "1", Some("=10")).error_message("No", "1 to 10", ErrorStyle::Warning))?;
+        ws.add_validation("C1", &Validation::list_from("=Colours"))
+    });
+    r.unwrap();
+    let xml = out_xml(&wb);
+    for want in [
+        r#"<dataValidations count="3"><dataValidation type="list" allowBlank="1" showInputMessage="1" promptTitle="Pick" prompt="one colour" sqref="A1:A9"><formula1>"red,say ""hi"",blue"</formula1></dataValidation>"#,
+        r#"<dataValidation type="whole" errorStyle="warning" allowBlank="1" showErrorMessage="1" errorTitle="No" error="1 to 10" sqref="B1 B3:B4"><formula1>1</formula1><formula2>10</formula2></dataValidation>"#,
+        r#"<dataValidation type="list" allowBlank="1" sqref="C1"><formula1>Colours</formula1></dataValidation></dataValidations>"#,
+    ] {
+        assert!(xml.contains(want), "{want}\n{xml}");
+    }
+    // removal of a 2007 rule, then of the last one (container removed)
+    let mut wb = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        ws.remove_validation("B3:B4 B1").unwrap_err(); // the order is part of sqref here
+        ws.remove_validation("B1 B3:B4").unwrap();
+        ws.remove_validation("A1:A9").unwrap();
+        ws.remove_validation("C1").unwrap();
+        assert_matches!(ws.remove_validation("C1"), Err(Error::NoSuchRule { .. }));
+    }
+    assert!(!out_xml(&wb).contains("dataValidations"));
+    // refusals
+    let cases: Vec<(Validation, fn(&Error) -> bool)> = vec![
+        (Validation::list_from("Other!$A$1:$A$3"), |e| matches!(e, Error::CrossSheetReference { .. })),
+        (Validation::custom("Nope!A1>0"), |e| matches!(e, Error::UnknownSheet(_))),
+        (Validation::list(&["a,b"]), |e| matches!(e, Error::ListItemHasComma(_))),
+        (Validation::list(&[&"x".repeat(254)]), |e| matches!(e, Error::ListTooLong(256))),
+        (Validation::custom("SUM(("), |e| matches!(e, Error::InvalidFormula { .. })),
+        (Validation::custom("1").input_message(&"t".repeat(33), "m"), |e| matches!(e, Error::InvalidSetting { .. })),
+    ];
+    for (v, ok) in cases {
+        let (_, r) = try_on(&input, |ws| ws.add_validation("A1", &v));
+        let e = r.unwrap_err();
+        assert!(ok(&e), "{e}");
+    }
+    // overlap with an x14 rule; removing the x14 rule removes its ext
+    let x14 = sheet_with("", X14_DV, "");
+    let (_, r) = try_on(&x14, |ws| ws.add_validation("D5:E5", &Validation::custom("1")));
+    assert_matches!(r, Err(Error::ValidationOverlap { .. }));
+    let (wb, r) = try_on(&x14, |ws| ws.remove_validation("D1:D9"));
+    r.unwrap();
+    assert!(out_xml(&wb).contains("<extLst></extLst>") || !out_xml(&wb).contains("CCE6A557"), "{}", out_xml(&wb));
+}

@@ -978,7 +978,6 @@ impl ooxml_core::ElementSpec for AutoFilter {
         ],
     );
 }
-impl ooxml_core::ChildOf<AutoFilter> for ExtensionList {}
 impl ooxml_core::ChildOf<AutoFilter> for FilterColumn {}
 impl ooxml_core::ChildOf<AutoFilter> for SortState {}
 /// Read-only view of [`AutoFilter`].
@@ -988,10 +987,6 @@ impl<'a> AutoFilterView<'a> {
     /// `ref` — Cell or Range Reference
     pub fn reference(&self) -> Option<&'a str> {
         self.0.attr(AutoFilter::ATTR_REF)
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// `x:filterColumn` children in document order.
     pub fn filter_column_iter(&self) -> impl Iterator<Item = FilterColumnView<'a>> {
@@ -1021,20 +1016,6 @@ impl<'a> AutoFilterViewMut<'a> {
     /// Removes `ref`.
     pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(AutoFilter::ATTR_REF)
-    }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
     }
 }
 /// `x:CT_Break/x:brk` — Break.
@@ -1685,7 +1666,6 @@ impl ooxml_core::ElementSpec for Cell {
     );
 }
 impl ooxml_core::ChildOf<Cell> for CellFormula {}
-impl ooxml_core::ChildOf<Cell> for ExtensionList {}
 impl ooxml_core::ChildOf<Cell> for InlineString {}
 impl ooxml_core::ChildOf<Cell> for CellValue {}
 /// Read-only view of [`Cell`].
@@ -1719,10 +1699,6 @@ impl<'a> CellView<'a> {
     /// First `x:f` child.
     pub fn cell_formula(&self) -> Option<CellFormulaView<'a>> {
         self.0.child::<CellFormula>().map(CellFormulaView)
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// First `x:is` child.
     pub fn inline_string(&self) -> Option<InlineStringView<'a>> {
@@ -1806,20 +1782,6 @@ impl<'a> CellViewMut<'a> {
     /// Removes the first `x:f` child.
     pub fn remove_cell_formula(&mut self) -> bool {
         self.0.remove::<CellFormula>()
-    }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
     }
     /// First `x:is` child, mutably.
     pub fn inline_string_mut(&mut self) -> Option<InlineStringViewMut<'_>> {
@@ -2334,6 +2296,8 @@ impl ooxml_core::ElementSpec for ConditionalFormattingRule {
         ],
     );
 }
+impl ooxml_core::ChildOf<ConditionalFormattingRule>
+for ConditionalFormattingRuleExtensionList {}
 impl ooxml_core::ChildOf<ConditionalFormattingRule> for ColorScale {}
 impl ooxml_core::ChildOf<ConditionalFormattingRule> for DataBar {}
 impl ooxml_core::ChildOf<ConditionalFormattingRule> for IconSet {}
@@ -2438,6 +2402,14 @@ impl<'a> ConditionalFormattingRuleView<'a> {
                 "false",
                 ooxml_core::value::parse_bool,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn conditional_formatting_rule_extension_list(
+        &self,
+    ) -> Option<ConditionalFormattingRuleExtensionListView<'a>> {
+        self.0
+            .child::<ConditionalFormattingRuleExtensionList>()
+            .map(ConditionalFormattingRuleExtensionListView)
     }
     /// First `x:colorScale` child.
     pub fn color_scale(&self) -> Option<ColorScaleView<'a>> {
@@ -2627,6 +2599,26 @@ impl<'a> ConditionalFormattingRuleViewMut<'a> {
     pub fn remove_equal_average(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(ConditionalFormattingRule::ATTR_EQUAL_AVERAGE)
     }
+    /// First `x:extLst` child, mutably.
+    pub fn conditional_formatting_rule_extension_list_mut(
+        &mut self,
+    ) -> Option<ConditionalFormattingRuleExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<ConditionalFormattingRuleExtensionList>()
+            .map(ConditionalFormattingRuleExtensionListViewMut)
+    }
+    /// Existing `x:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_conditional_formatting_rule_extension_list(
+        &mut self,
+    ) -> Result<ConditionalFormattingRuleExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<ConditionalFormattingRuleExtensionList>()
+            .map(ConditionalFormattingRuleExtensionListViewMut)
+    }
+    /// Removes the first `x:extLst` child.
+    pub fn remove_conditional_formatting_rule_extension_list(&mut self) -> bool {
+        self.0.remove::<ConditionalFormattingRuleExtensionList>()
+    }
     /// First `x:colorScale` child, mutably.
     pub fn color_scale_mut(&mut self) -> Option<ColorScaleViewMut<'_>> {
         self.0.child_mut::<ColorScale>().map(ColorScaleViewMut)
@@ -2692,6 +2684,148 @@ impl<'a> ConditionalFormattingRuleViewMut<'a> {
         self.0.remove::<Formula>()
     }
 }
+/// `x:CT_CfRuleExtension/x:ext` — Defines the ConditionalFormattingRuleExtension Class.
+#[derive(Debug)]
+pub enum ConditionalFormattingRuleExtension {}
+impl ConditionalFormattingRuleExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for ConditionalFormattingRuleExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "ext");
+    const SDK_NAME: &'static str = "x:CT_CfRuleExtension/x:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRuleExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X14, "id")],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`ConditionalFormattingRuleExtension`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormattingRuleExtensionView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormattingRuleExtension>,
+);
+impl<'a> ConditionalFormattingRuleExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(ConditionalFormattingRuleExtension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormattingRuleExtension`]. Reads go through [`ConditionalFormattingRuleExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormattingRuleExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormattingRuleExtension>,
+);
+impl<'a> ConditionalFormattingRuleExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormattingRuleExtensionView<'_> {
+        ConditionalFormattingRuleExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ConditionalFormattingRuleExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRuleExtension::ATTR_URI)
+    }
+}
+/// `x:CT_CfRuleExtensionList/x:extLst` — Defines the ConditionalFormattingRuleExtensionList Class.
+#[derive(Debug)]
+pub enum ConditionalFormattingRuleExtensionList {}
+impl ooxml_core::ElementSpec for ConditionalFormattingRuleExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extLst");
+    const SDK_NAME: &'static str = "x:CT_CfRuleExtensionList/x:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ConditionalFormattingRuleExtensionList>
+for ConditionalFormattingRuleExtension {}
+/// Read-only view of [`ConditionalFormattingRuleExtensionList`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormattingRuleExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormattingRuleExtensionList>,
+);
+impl<'a> ConditionalFormattingRuleExtensionListView<'a> {
+    /// `x:ext` children in document order.
+    pub fn conditional_formatting_rule_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormattingRuleExtensionView<'a>> {
+        self.0
+            .children::<ConditionalFormattingRuleExtension>()
+            .map(ConditionalFormattingRuleExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormattingRuleExtensionList`]. Reads go through [`ConditionalFormattingRuleExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormattingRuleExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormattingRuleExtensionList>,
+);
+impl<'a> ConditionalFormattingRuleExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormattingRuleExtensionListView<'_> {
+        ConditionalFormattingRuleExtensionListView(self.0.as_lens())
+    }
+    /// First `x:ext` child matching `pred`, mutably.
+    pub fn conditional_formatting_rule_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormattingRuleExtensionViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormattingRuleExtension>(pred)
+            .map(ConditionalFormattingRuleExtensionViewMut)
+    }
+    /// Inserts a `x:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_formatting_rule_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormattingRuleExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormattingRuleExtension>(before)
+            .map(ConditionalFormattingRuleExtensionViewMut)
+    }
+    /// Appends a `x:ext` at the end of its slot.
+    pub fn insert_conditional_formatting_rule_extension(
+        &mut self,
+    ) -> Result<ConditionalFormattingRuleExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<ConditionalFormattingRuleExtension>()
+            .map(ConditionalFormattingRuleExtensionViewMut)
+    }
+    /// Removes the first `x:ext` child.
+    pub fn remove_conditional_formatting_rule_extension(&mut self) -> bool {
+        self.0.remove::<ConditionalFormattingRuleExtension>()
+    }
+}
 /// `x:CT_Cfvo/x:cfvo` — Conditional Format Value Object.
 #[derive(Debug)]
 pub enum ConditionalFormatValueObject {}
@@ -2736,7 +2870,6 @@ impl ooxml_core::ElementSpec for ConditionalFormatValueObject {
         ],
     );
 }
-impl ooxml_core::ChildOf<ConditionalFormatValueObject> for ExtensionList {}
 /// Read-only view of [`ConditionalFormatValueObject`].
 #[derive(Clone, Debug)]
 pub struct ConditionalFormatValueObjectView<'a>(
@@ -2761,10 +2894,6 @@ impl<'a> ConditionalFormatValueObjectView<'a> {
                 "true",
                 ooxml_core::value::parse_bool,
             )
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2818,20 +2947,6 @@ impl<'a> ConditionalFormatValueObjectViewMut<'a> {
     /// Removes `gte`.
     pub fn remove_greater_than_or_equal(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(ConditionalFormatValueObject::ATTR_GTE)
-    }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
     }
 }
 /// `x:CT_Col/x:col` — Column Width and Formatting.
@@ -3426,7 +3541,6 @@ impl ooxml_core::ElementSpec for ConditionalFormatting {
     );
 }
 impl ooxml_core::ChildOf<ConditionalFormatting> for ConditionalFormattingRule {}
-impl ooxml_core::ChildOf<ConditionalFormatting> for ExtensionList {}
 /// Read-only view of [`ConditionalFormatting`].
 #[derive(Clone, Debug)]
 pub struct ConditionalFormattingView<'a>(
@@ -3451,10 +3565,6 @@ impl<'a> ConditionalFormattingView<'a> {
         &self,
     ) -> impl Iterator<Item = ConditionalFormattingRuleView<'a>> {
         self.0.children::<ConditionalFormattingRule>().map(ConditionalFormattingRuleView)
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -3523,20 +3633,6 @@ impl<'a> ConditionalFormattingViewMut<'a> {
     /// Removes the first `x:cfRule` child.
     pub fn remove_conditional_formatting_rule(&mut self) -> bool {
         self.0.remove::<ConditionalFormattingRule>()
-    }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
     }
 }
 /// `x:CT_DataBar/x:dataBar` — Data Bar.
@@ -4766,42 +4862,6 @@ impl<'a> DefinedNamesViewMut<'a> {
         self.0.remove::<DefinedName>()
     }
 }
-/// `x:CT_ExtensionList/x:extLst` — Defines the ExtensionList Class.
-#[derive(Debug)]
-pub enum ExtensionList {}
-impl ooxml_core::ElementSpec for ExtensionList {
-    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extLst");
-    const SDK_NAME: &'static str = "x:CT_ExtensionList/x:extLst";
-    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
-    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
-        &[
-            ooxml_core::Slot {
-                names: &[ooxml_core::QName::new(NS_X, "ext")],
-                wildcard: None,
-                max_each: None,
-                max_total: None,
-            },
-        ],
-    );
-}
-/// Read-only view of [`ExtensionList`].
-#[derive(Clone, Debug)]
-pub struct ExtensionListView<'a>(pub ooxml_core::Lens<'a, ExtensionList>);
-impl<'a> ExtensionListView<'a> {
-    /// The underlying raw node.
-    pub fn raw(&self) -> &'a ooxml_core::RawNode {
-        self.0.raw()
-    }
-}
-/// Mutable view of [`ExtensionList`]. Reads go through [`ExtensionListViewMut::as_view`].
-#[derive(Debug)]
-pub struct ExtensionListViewMut<'a>(pub ooxml_core::LensMut<'a, ExtensionList>);
-impl<'a> ExtensionListViewMut<'a> {
-    /// Read-only view of the same node.
-    pub fn as_view(&self) -> ExtensionListView<'_> {
-        ExtensionListView(self.0.as_lens())
-    }
-}
 /// `x:CT_FilterColumn/x:filterColumn` — AutoFilter Column.
 #[derive(Debug)]
 pub enum FilterColumn {}
@@ -4860,7 +4920,6 @@ impl ooxml_core::ElementSpec for FilterColumn {
         ],
     );
 }
-impl ooxml_core::ChildOf<FilterColumn> for ExtensionList {}
 /// Read-only view of [`FilterColumn`].
 #[derive(Clone, Debug)]
 pub struct FilterColumnView<'a>(pub ooxml_core::Lens<'a, FilterColumn>);
@@ -4886,10 +4945,6 @@ impl<'a> FilterColumnView<'a> {
                 "true",
                 ooxml_core::value::parse_bool,
             )
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7141,7 +7196,6 @@ impl ooxml_core::ElementSpec for Row {
     );
 }
 impl ooxml_core::ChildOf<Row> for Cell {}
-impl ooxml_core::ChildOf<Row> for ExtensionList {}
 /// Read-only view of [`Row`].
 #[derive(Clone, Debug)]
 pub struct RowView<'a>(pub ooxml_core::Lens<'a, Row>);
@@ -7214,10 +7268,6 @@ impl<'a> RowView<'a> {
     /// `x:c` children in document order.
     pub fn cell_iter(&self) -> impl Iterator<Item = CellView<'a>> {
         self.0.children::<Cell>().map(CellView)
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7357,20 +7407,6 @@ impl<'a> RowViewMut<'a> {
     /// Removes the first `x:c` child.
     pub fn remove_cell(&mut self) -> bool {
         self.0.remove::<Cell>()
-    }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
     }
 }
 /// `x:CT_Rst/x:is` — Rich Text Inline.
@@ -9318,7 +9354,6 @@ impl ooxml_core::ElementSpec for SheetViewElement {
         ],
     );
 }
-impl ooxml_core::ChildOf<SheetViewElement> for ExtensionList {}
 impl ooxml_core::ChildOf<SheetViewElement> for Pane {}
 impl ooxml_core::ChildOf<SheetViewElement> for Selection {}
 /// Read-only view of [`SheetViewElement`].
@@ -9484,10 +9519,6 @@ impl<'a> SheetViewElementView<'a> {
                 SheetViewElement::ATTR_WORKBOOK_VIEW_ID,
                 ooxml_core::value::parse_u32,
             )
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// First `x:pane` child.
     pub fn pane(&self) -> Option<PaneView<'a>> {
@@ -9740,20 +9771,6 @@ impl<'a> SheetViewElementViewMut<'a> {
     pub fn remove_workbook_view_id(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(SheetViewElement::ATTR_WORKBOOK_VIEW_ID)
     }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
-    }
     /// First `x:pane` child, mutably.
     pub fn pane_mut(&mut self) -> Option<PaneViewMut<'_>> {
         self.0.child_mut::<Pane>().map(PaneViewMut)
@@ -9815,16 +9832,11 @@ impl ooxml_core::ElementSpec for SheetViews {
         ],
     );
 }
-impl ooxml_core::ChildOf<SheetViews> for ExtensionList {}
 impl ooxml_core::ChildOf<SheetViews> for SheetViewElement {}
 /// Read-only view of [`SheetViews`].
 #[derive(Clone, Debug)]
 pub struct SheetViewsView<'a>(pub ooxml_core::Lens<'a, SheetViews>);
 impl<'a> SheetViewsView<'a> {
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
-    }
     /// `x:sheetView` children in document order.
     pub fn sheet_view_iter(&self) -> impl Iterator<Item = SheetViewElementView<'a>> {
         self.0.children::<SheetViewElement>().map(SheetViewElementView)
@@ -9841,20 +9853,6 @@ impl<'a> SheetViewsViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> SheetViewsView<'_> {
         SheetViewsView(self.0.as_lens())
-    }
-    /// First `x:extLst` child, mutably.
-    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
-        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Existing `x:extLst` child, or a new one in schema position.
-    pub fn get_or_insert_extension_list(
-        &mut self,
-    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
-    }
-    /// Removes the first `x:extLst` child.
-    pub fn remove_extension_list(&mut self) -> bool {
-        self.0.remove::<ExtensionList>()
     }
     /// First `x:sheetView` child matching `pred`, mutably.
     pub fn sheet_view_mut_by(
@@ -9972,7 +9970,6 @@ impl ooxml_core::ElementSpec for SortState {
         ],
     );
 }
-impl ooxml_core::ChildOf<SortState> for ExtensionList {}
 /// Read-only view of [`SortState`].
 #[derive(Clone, Debug)]
 pub struct SortStateView<'a>(pub ooxml_core::Lens<'a, SortState>);
@@ -10002,10 +9999,6 @@ impl<'a> SortStateView<'a> {
     /// `ref` — Sort Range
     pub fn reference(&self) -> Option<&'a str> {
         self.0.attr(SortState::ATTR_REF)
-    }
-    /// `x:extLst` children in document order.
-    pub fn extension_list_iter(&self) -> impl Iterator<Item = ExtensionListView<'a>> {
-        self.0.children::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -10056,7 +10049,6 @@ impl ooxml_core::ElementSpec for SharedStringTable {
         ],
     );
 }
-impl ooxml_core::ChildOf<SharedStringTable> for ExtensionList {}
 impl ooxml_core::ChildOf<SharedStringTable> for SharedStringItem {}
 /// Read-only view of [`SharedStringTable`].
 #[derive(Clone, Debug)]
@@ -10073,10 +10065,6 @@ impl<'a> SharedStringTableView<'a> {
                 SharedStringTable::ATTR_UNIQUE_COUNT,
                 ooxml_core::value::parse_u32,
             )
-    }
-    /// First `x:extLst` child.
-    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
-        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// `x:si` children in document order.
     pub fn shared_string_item_iter(
@@ -11372,6 +11360,7 @@ impl ooxml_core::ChildOf<Worksheet> for SheetProtection {}
 impl ooxml_core::ChildOf<Worksheet> for SheetViews {}
 impl ooxml_core::ChildOf<Worksheet> for SortState {}
 impl ooxml_core::ChildOf<Worksheet> for TableParts {}
+impl ooxml_core::ChildOf<Worksheet> for WorksheetExtensionList {}
 /// Read-only view of [`Worksheet`].
 #[derive(Clone, Debug)]
 pub struct WorksheetView<'a>(pub ooxml_core::Lens<'a, Worksheet>);
@@ -11457,6 +11446,10 @@ impl<'a> WorksheetView<'a> {
     /// First `x:tableParts` child.
     pub fn table_parts(&self) -> Option<TablePartsView<'a>> {
         self.0.child::<TableParts>().map(TablePartsView)
+    }
+    /// First `x:extLst` child.
+    pub fn worksheet_extension_list(&self) -> Option<WorksheetExtensionListView<'a>> {
+        self.0.child::<WorksheetExtensionList>().map(WorksheetExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -11747,6 +11740,24 @@ impl<'a> WorksheetViewMut<'a> {
     pub fn remove_sheet_views(&mut self) -> bool {
         self.0.remove::<SheetViews>()
     }
+    /// First `x:extLst` child, mutably.
+    pub fn worksheet_extension_list_mut(
+        &mut self,
+    ) -> Option<WorksheetExtensionListViewMut<'_>> {
+        self.0.child_mut::<WorksheetExtensionList>().map(WorksheetExtensionListViewMut)
+    }
+    /// Existing `x:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_worksheet_extension_list(
+        &mut self,
+    ) -> Result<WorksheetExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<WorksheetExtensionList>()
+            .map(WorksheetExtensionListViewMut)
+    }
+    /// Removes the first `x:extLst` child.
+    pub fn remove_worksheet_extension_list(&mut self) -> bool {
+        self.0.remove::<WorksheetExtensionList>()
+    }
 }
 /// `x:CT_WorksheetExtension/x:ext` — Defines the WorksheetExtension Class.
 #[derive(Debug)]
@@ -11815,6 +11826,77 @@ impl<'a> WorksheetExtensionViewMut<'a> {
     /// Removes `uri`.
     pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(WorksheetExtension::ATTR_URI)
+    }
+}
+/// `x:CT_WorksheetExtensionList/x:extLst` — Defines the WorksheetExtensionList Class.
+#[derive(Debug)]
+pub enum WorksheetExtensionList {}
+impl ooxml_core::ElementSpec for WorksheetExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extLst");
+    const SDK_NAME: &'static str = "x:CT_WorksheetExtensionList/x:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<WorksheetExtensionList> for WorksheetExtension {}
+/// Read-only view of [`WorksheetExtensionList`].
+#[derive(Clone, Debug)]
+pub struct WorksheetExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, WorksheetExtensionList>,
+);
+impl<'a> WorksheetExtensionListView<'a> {
+    /// `x:ext` children in document order.
+    pub fn worksheet_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = WorksheetExtensionView<'a>> {
+        self.0.children::<WorksheetExtension>().map(WorksheetExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorksheetExtensionList`]. Reads go through [`WorksheetExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorksheetExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, WorksheetExtensionList>,
+);
+impl<'a> WorksheetExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorksheetExtensionListView<'_> {
+        WorksheetExtensionListView(self.0.as_lens())
+    }
+    /// First `x:ext` child matching `pred`, mutably.
+    pub fn worksheet_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<WorksheetExtensionViewMut<'_>> {
+        self.0.child_mut_by::<WorksheetExtension>(pred).map(WorksheetExtensionViewMut)
+    }
+    /// Inserts a `x:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_worksheet_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<WorksheetExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<WorksheetExtension>(before).map(WorksheetExtensionViewMut)
+    }
+    /// Appends a `x:ext` at the end of its slot.
+    pub fn insert_worksheet_extension(
+        &mut self,
+    ) -> Result<WorksheetExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<WorksheetExtension>().map(WorksheetExtensionViewMut)
+    }
+    /// Removes the first `x:ext` child.
+    pub fn remove_worksheet_extension(&mut self) -> bool {
+        self.0.remove::<WorksheetExtension>()
     }
 }
 /// `x:CT_Xstring/x:evenFooter` — Even Page Footer.
@@ -12555,18 +12637,20 @@ impl<'a> CellValueViewMut<'a> {
     }
 }
 const _: () = ooxml_core::schema::assert_spec::<AutoFilter>();
-const _: () = ooxml_core::schema::assert_child::<AutoFilter, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<AutoFilter, FilterColumn>();
 const _: () = ooxml_core::schema::assert_child::<AutoFilter, SortState>();
 const _: () = ooxml_core::schema::assert_spec::<Break>();
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
-const _: () = ooxml_core::schema::assert_child::<Cell, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<Cell, InlineString>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellValue>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormula>();
 const _: () = ooxml_core::schema::assert_spec::<ConditionalFormattingRule>();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormattingRule,
+    ConditionalFormattingRuleExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_child::<
     ConditionalFormattingRule,
     ColorScale,
@@ -12574,11 +12658,15 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<ConditionalFormattingRule, DataBar>();
 const _: () = ooxml_core::schema::assert_child::<ConditionalFormattingRule, IconSet>();
 const _: () = ooxml_core::schema::assert_child::<ConditionalFormattingRule, Formula>();
-const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatValueObject>();
-const _: () = ooxml_core::schema::assert_child::<
-    ConditionalFormatValueObject,
-    ExtensionList,
+const _: () = ooxml_core::schema::assert_spec::<ConditionalFormattingRuleExtension>();
+const _: () = ooxml_core::schema::assert_spec::<
+    ConditionalFormattingRuleExtensionList,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormattingRuleExtensionList,
+    ConditionalFormattingRuleExtension,
+>();
+const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatValueObject>();
 const _: () = ooxml_core::schema::assert_spec::<Column>();
 const _: () = ooxml_core::schema::assert_spec::<Color>();
 const _: () = ooxml_core::schema::assert_spec::<ColorScale>();
@@ -12594,7 +12682,6 @@ const _: () = ooxml_core::schema::assert_child::<
     ConditionalFormatting,
     ConditionalFormattingRule,
 >();
-const _: () = ooxml_core::schema::assert_child::<ConditionalFormatting, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<DataBar>();
 const _: () = ooxml_core::schema::assert_child::<
     DataBar,
@@ -12609,9 +12696,7 @@ const _: () = ooxml_core::schema::assert_child::<DataValidations, DataValidation
 const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
-const _: () = ooxml_core::schema::assert_spec::<ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<FilterColumn>();
-const _: () = ooxml_core::schema::assert_child::<FilterColumn, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<HeaderFooter>();
 const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenFooter>();
 const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenHeader>();
@@ -12643,7 +12728,6 @@ const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
 const _: () = ooxml_core::schema::assert_spec::<Row>();
 const _: () = ooxml_core::schema::assert_child::<Row, Cell>();
-const _: () = ooxml_core::schema::assert_child::<Row, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<InlineString>();
 const _: () = ooxml_core::schema::assert_child::<InlineString, Run>();
 const _: () = ooxml_core::schema::assert_child::<InlineString, Text>();
@@ -12660,18 +12744,14 @@ const _: () = ooxml_core::schema::assert_spec::<SheetProperties>();
 const _: () = ooxml_core::schema::assert_child::<SheetProperties, PageSetupProperties>();
 const _: () = ooxml_core::schema::assert_spec::<SheetProtection>();
 const _: () = ooxml_core::schema::assert_spec::<SheetViewElement>();
-const _: () = ooxml_core::schema::assert_child::<SheetViewElement, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SheetViewElement, Pane>();
 const _: () = ooxml_core::schema::assert_child::<SheetViewElement, Selection>();
 const _: () = ooxml_core::schema::assert_spec::<SheetViews>();
-const _: () = ooxml_core::schema::assert_child::<SheetViews, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SheetViews, SheetViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Sheets, Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SortState>();
-const _: () = ooxml_core::schema::assert_child::<SortState, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringTable>();
-const _: () = ooxml_core::schema::assert_child::<SharedStringTable, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringTable, SharedStringItem>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, AutoFilter>();
@@ -12706,7 +12786,13 @@ const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProtection>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetViews>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SortState>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, TableParts>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, WorksheetExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<WorksheetExtension>();
+const _: () = ooxml_core::schema::assert_spec::<WorksheetExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<
+    WorksheetExtensionList,
+    WorksheetExtension,
+>();
 const _: () = ooxml_core::schema::assert_spec::<EvenFooter>();
 const _: () = ooxml_core::schema::assert_spec::<EvenHeader>();
 const _: () = ooxml_core::schema::assert_spec::<FirstFooter>();

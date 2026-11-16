@@ -294,6 +294,63 @@ pub enum Error {
     #[error("spin count {0} exceeds 10,000,000")]
     InvalidSpinCount(u32),
 
+    /// A formula of a range feature (validation, conditional format)
+    /// refers to another sheet directly; use a defined name for the source
+    /// (ADR-0014 §5, Q2).
+    #[error("{text:?} refers to another sheet; use a defined name instead")]
+    CrossSheetReference {
+        /// The formula.
+        text: String,
+    },
+
+    /// A reference names a sheet that does not exist.
+    #[error("no sheet {0:?}")]
+    UnknownSheet(String),
+
+    /// A new data validation overlaps an existing one (a cell has one
+    /// validation).
+    #[error("{sqref} overlaps the validation on {existing}")]
+    ValidationOverlap {
+        /// The new range.
+        sqref: String,
+        /// The existing rule's `sqref`.
+        existing: String,
+    },
+
+    /// An inline list over 255 characters (quotes and commas included).
+    #[error("the inline list has {0} characters (at most 255)")]
+    ListTooLong(usize),
+
+    /// An inline list item containing a comma cannot be represented.
+    #[error("list item {0:?} contains a comma")]
+    ListItemHasComma(String),
+
+    /// A new hyperlink overlaps an existing one.
+    #[error("{range} overlaps the hyperlink on {existing}")]
+    HyperlinkOverlap {
+        /// The new range.
+        range: String,
+        /// The existing hyperlink's `ref`.
+        existing: String,
+    },
+
+    /// A URL or file target that cannot be stored.
+    #[error("invalid link target: {0}")]
+    InvalidUrl(String),
+
+    /// The conditional format belongs to a PivotTable (`pivot="1"`).
+    #[error("conditional formatting on {0} belongs to a PivotTable")]
+    PivotConditionalFormat(String),
+
+    /// No rule matches the given range (and priority).
+    #[error("no {what} on {sqref}")]
+    NoSuchRule {
+        /// "validation" or "conditional format".
+        what: &'static str,
+        /// The range.
+        sqref: String,
+    },
+
     /// `freeze_panes(0, 0)`: nothing to freeze.
     #[error("freeze_panes(0, 0) freezes nothing")]
     NothingToFreeze,
