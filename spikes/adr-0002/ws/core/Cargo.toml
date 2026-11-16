@@ -1,0 +1,5 @@
+[package]
+name = "core-spike"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true

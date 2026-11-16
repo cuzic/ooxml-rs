@@ -1,0 +1,10 @@
+[package]
+name = "schema-spike"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+[dependencies]
+core-spike = { path = "../core" }
+[features]
+default = ["sml"]
+sml = []

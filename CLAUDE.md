@@ -14,7 +14,7 @@
 
 | 用途 | 使うもの | 版 | 使わないもの |
 | --- | --- | --- | --- |
-| Layer 2 `ElementSpan` のオフセット計算（quick-xml が借用で返したスライス → 入力内の範囲） | `str::substr_range` / `<[T]>::subslice_range` | 1.98 | `as_ptr()` の差分計算 |
+| Layer 2 `ElementSpan` のオフセット計算（quick-xml が借用で返したスライス → 入力内の範囲） | `str::substr_range` / `<[T]>::subslice_range`（戻り値は `std::ops::Range` ではなく新しい `core::range::Range`） | 1.98 | `as_ptr()` の差分計算 |
 | 数値属性（`r="B2"` の行番号、`s="3"`）の出力 | `<整数>::format_into` + `core::fmt::NumBuffer` | 1.98 | `itoa` crate、`to_string()` |
 | 引用符・括弧で囲まれた値の除去 | `str::strip_circumfix` | 1.98 | `strip_prefix` と `strip_suffix` の連続呼び出し |
 | `Option`/`Result` の既定値への変換 | `map_or_default` | 1.98 | `map_or(Default::default(), …)` |
@@ -26,7 +26,7 @@
 | バイト位置を文字境界へ丸める（エラー表示での切り出し） | `str::floor_char_boundary` / `ceil_char_boundary` | 1.91 | 手書きのループ |
 | 型の識別を const 文脈で行う（生成表の検証） | const な `TypeId::of` | 1.91 | — |
 | 逆引き表などの遅延初期化 | `LazyLock`（`get` / `force_mut` は 1.94） | 1.80 | `once_cell`、`lazy_static` |
-| テストでのパターン一致 | `assert_matches!` | 1.96 | `assert!(matches!(…))` |
+| テストでのパターン一致 | `std::assert_matches!`（prelude に無いのでパス指定か `use`） | 1.96 | `assert!(matches!(…))` |
 | 型エラーの文言（`ChildOf` など生成 trait） | `#[diagnostic::on_unimplemented]`、`#[diagnostic::do_not_recommend]` | 1.78 / 1.85 | — |
 | 生成表のコンパイル時検証 | インライン `const { … }` | 1.79 | 実行時の `assert!` |
 | lint 抑制 | `#[expect(…)]` | 1.81 | `#[allow(…)]` |

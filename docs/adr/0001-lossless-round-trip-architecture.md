@@ -40,6 +40,10 @@
   (1.93) and `<integer>::format_into` (1.98) render dirty tags and
   numeric attributes without intermediate allocation; `cfg_select!`
   (1.95) gates per-namespace generated code.
+- **Post-acceptance note (2026-11-16):** the dedicated `ooxmlsdk`
+  evaluation that Alternative 5 deferred was carried out for ADR-0002
+  (see its Alternatives); outcome: not adopted as the Layer 2
+  foundation, kept as a reference and test oracle.
 
 ## Context
 
