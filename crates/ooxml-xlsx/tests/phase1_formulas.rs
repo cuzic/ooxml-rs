@@ -227,3 +227,22 @@ fn apply_failures_poison_the_workbook() {
     }
     assert!(!std::env::temp_dir().join("never-written.xlsx").exists());
 }
+
+/// Phase0 review round 3, R3-2: an existing cell outside `dimension` still
+/// grows it when written (value, formula and removal alike).
+#[test]
+fn dimension_grows_when_the_existing_cell_is_outside_it() {
+    let input = synthetic("o1_no_calcpr.xlsx");
+    let sheet = r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:B1"/><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1*2</f><v>2</v></c></row><row r="5"><c r="D5"><v>9</v></c></row></sheetData></worksheet>"#;
+    let wb_in = with_part(&input, "xl/worksheets/sheet1.xml", sheet);
+    for f in [
+        (|c: ooxml_xlsx::CellMut<'_, '_>| c.set_number(3.0)) as fn(ooxml_xlsx::CellMut<'_, '_>) -> ooxml_xlsx::Result<()>,
+        |c| c.set_string("x"),
+        |c| c.set_formula("A1+1"),
+    ] {
+        let (wb, r) = edit(&wb_in, "Sheet1", "D5", f);
+        r.unwrap();
+        let x = xml_of(&wb.to_bytes().unwrap(), "Sheet1");
+        assert!(x.contains(r#"<dimension ref="A1:D5"/>"#), "{x}");
+    }
+}

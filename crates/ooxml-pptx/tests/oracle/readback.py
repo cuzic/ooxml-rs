@@ -12,7 +12,7 @@ import sys
 
 
 def import_pptx(site=None):
-    if site:
+    if site and site not in sys.path:
         sys.path.insert(0, site)
     import pptx  # noqa: F401
     from pptx import Presentation
@@ -22,16 +22,48 @@ def import_pptx(site=None):
     return Presentation, qn, GroupShape, TextFrame
 
 
-def attrs(el):
-    """Attributes of an element (Clark keys) or None if absent/empty."""
+def _elements(el):
+    return [c for c in el if isinstance(c.tag, str)]  # skip comments / PIs
+
+
+def canon(el):
+    """Canonical form of an element subtree (see model.rs)."""
+    kids = _elements(el)
+    out = {'name': el.tag, 'attrs': dict(el.attrib), 'children': [canon(c) for c in kids]}
+    if not kids and el.text:
+        out['text'] = el.text
+    return out
+
+
+def fmt(el):
+    """Format form of a:rPr / a:pPr / a:endParaRPr: attributes and the whole
+    child subtree (review R2-2); None if absent or empty."""
     if el is None:
         return None
-    d = {k: v for k, v in el.attrib.items()}
-    return d or None
+    attrs, kids = dict(el.attrib), [canon(c) for c in _elements(el)]
+    if not attrs and not kids:
+        return None
+    return {'attrs': attrs, 'children': kids}
+
+
+def slide_parts(prs):
+    """(sldId@id, part name, slide part) in sldIdLst order, read *before*
+    touching prs.slides: python-pptx renames slide parts to slide1..N when
+    the slides collection is built."""
+    entries = []
+    for sldId in prs.part._element.sldIdLst.sldId_lst:
+        part = prs.part.related_part(sldId.rId)
+        entries.append((sldId.id, str(part.partname), part))
+    return entries
 
 
 def dump(path, site=None):
-    Presentation, qn, GroupShape, TextFrame = import_pptx(site)
+    Presentation = import_pptx(site)[0]
+    return dump_prs(Presentation(path), site)
+
+
+def dump_prs(prs, site=None):
+    _, qn, GroupShape, TextFrame = import_pptx(site)
 
     def body(txBody):
         if txBody is None:
@@ -42,7 +74,7 @@ def dump(path, site=None):
             for el in p._p.content_children:
                 tag = el.tag
                 if tag == qn('a:r'):
-                    items.append(['r', el.text, attrs(el.rPr)])
+                    items.append(['r', el.text, fmt(el.rPr)])
                     joined.append(el.text)
                 elif tag == qn('a:br'):
                     items.append(['br'])
@@ -54,7 +86,7 @@ def dump(path, site=None):
                     joined.append(text)
             # python-pptx's own paragraph text must agree with the items
             assert p.text == ''.join(joined), (p.text, joined)
-            out.append({'ppr': attrs(p._p.pPr), 'end': attrs(p._p.find(qn('a:endParaRPr'))), 'items': items})
+            out.append({'ppr': fmt(p._p.pPr), 'end': fmt(p._p.find(qn('a:endParaRPr'))), 'items': items})
         return out
 
     def walk(shapes, out):
@@ -75,15 +107,8 @@ def dump(path, site=None):
                             'ph': None if ph is None else [ph.get('type'), ph.get('idx')],
                             'paragraphs': body(txBody)})
 
-    prs = Presentation(path)
-    # Read part names from sldIdLst *before* touching prs.slides: python-pptx
-    # renames slide parts to slide1..N when the slides collection is built.
-    entries = []
-    for sldId in prs.part._element.sldIdLst.sldId_lst:
-        part = prs.part.related_part(sldId.rId)
-        entries.append((sldId.id, str(part.partname), part))
     slides = []
-    for sid, partname, part in entries:
+    for sid, partname, part in slide_parts(prs):
         shapes = []
         walk(part.slide.shapes, shapes)
         slides.append({'slide_id': sid, 'partname': partname, 'shapes': shapes})

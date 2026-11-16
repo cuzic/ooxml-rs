@@ -1,6 +1,6 @@
 # ADR-0005: PowerPoint Phase 0 — text edits in existing shapes
 
-- Status: **Proposed** (revision 2)
+- Status: **Accepted** (revision 3)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md),
   [ADR-0002](0002-schema-driven-code-generation.md) (and its post-acceptance
@@ -8,7 +8,8 @@
 - Background and evidence: [`docs/roadmap/pptx.md`](../roadmap/pptx.md),
   [`spikes/pptx/`](../../spikes/pptx/README.md),
   [`reference/fixtures/pptx/`](../../reference/fixtures/pptx/README.md)
-- Review: [round 1](0005-opus-review-round1.md)
+- Review: [round 1](0005-opus-review-round1.md),
+  [round 2](0005-opus-review-round2.md) (converged: Minor findings only)
 - Implementation: `crates/ooxml-pptx` (milestone `pptx-phase0`)
 
 ## Revision history
@@ -38,6 +39,25 @@
   | m8 generator warning | generated code is warning-free under `clippy -D warnings` | §5 |
   | m9 fixture licensing boundary | fixtures read by path, never packaged (`include` in `Cargo.toml`) | §7 |
   | m10 API details | `idx() -> Result`; unreadable ids refuse; hyperlink behaviour; prerequisites | §3, §6, Context |
+
+- **Revision 3 (2026-11-16): Accepted.** The round-2 review converged
+  (Blocker 0, Major 0; "may be Accepted after the Minor fixes"). All seven
+  Minor findings are fixed in code, tests and text:
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | R2-1 panic on a body without `a:p` | `UnsupportedContent("text body without a:p")` for every body-level write; T4 input | §3 "Paragraph content", §6, §7 T4 |
+  | R2-2 T3 compared attributes only | the model's `a:rPr`/`a:pPr`/`a:endParaRPr` are the whole subtree (canonical form); tests show a dropped `a:sym` and a retargeted paragraph/run are noticed | §7 T3 |
+  | R2-3 python `apply` mirrored Rust; one edit per body | `check.py` performs the edits on python-pptx's own lxml tree; a multi sweep applies three successive edits per body | §7 T3 |
+  | R2-4 §8 wording; 156/394 | wording fixed; T2 body figure cited | §8 |
+  | R2-5 new paragraphs had no `a:endParaRPr` | they get one copying the run format source (decision: copy, as PowerPoint's Enter does) | §3 "Edits", "Format sources" |
+  | R2-6 `IncompleteSpec` missing from the list | listed; ruled out by a `const` assert in `write.rs` | §3 "Losslessness rules" |
+  | R2-7 not every §6 condition in T4 | every sub-condition raised in `tests/refusals.rs` (synthetic inputs) | §7 T4 |
+  | m9 leftover | top-level README: `reference/fixtures/**` are third-party files under their own licences | `README.md` |
+
+  Q2 (copy-subtree primitive) is answered by the review's recommendation and
+  taken up as Phase 0.1 in a separate revision; Phase 0 as accepted here
+  copies attribute-only formats.
 
 ## Context
 
@@ -173,7 +193,10 @@ a:tc → a:txBody`, each step a generated `ChildOf` edge.
 - Each setter runs **all** checks of §6 and of this section on the current
   tree before its first primitive call; the remaining core refusals
   (`UnresolvedSibling`, `AlreadyPresent`) are ruled out by the content check
-  below, and `NamespaceNotInScope` can only come from the first insertion.
+  below, `IncompleteSpec` (attribute writes on an element whose generated
+  attribute list is incomplete) by a `const` assert over every element
+  Phase 0 writes (`write.rs`, review R2-6), and `NamespaceNotInScope` can
+  only come from the first insertion.
   A refused edit leaves the package byte-identical (tested for every
   refusal, §7 T4).
 - `a:t` declares no `xml:space` and none of its 4,980 occurrences in the
@@ -200,8 +223,9 @@ does.
 **Paragraph content (review m7).** Writes accept only the children Phase 0
 models, in schema order: `a:p` = `[a:pPr] (a:r | a:br | a:fld)* [a:endParaRPr]`,
 `a:r` = `[a:rPr] a:t`, body = `a:bodyPr [a:lstStyle] a:p+`. Anything else
-(`a14:m`, `mc:AlternateContent`, out-of-order children) makes every write to
-that paragraph or body `UnsupportedContent` (0 such children in the corpus;
+(`a14:m`, `mc:AlternateContent`, out-of-order children, a body without
+`a:p` — review R2-1) makes every write to that paragraph or body
+`UnsupportedContent` (0 such children and 0 bodies without `a:p` in the corpus;
 `probe.py`: `ac_under_a_p`, `ac_under_txBody`, `other_children_of_a_p` all 0).
 
 **Edits.**
@@ -216,7 +240,10 @@ that paragraph or body `UnsupportedContent` (0 such children in the corpus;
   paragraph *i* through `ParagraphMut::set_text` (so `a:pPr`, the first
   run's `a:rPr` and `a:endParaRPr` stay); surplus paragraphs are removed;
   missing ones are appended after the last `a:p`, each with a copy of the
-  last existing paragraph's `a:pPr` attributes and its run format source.
+  last existing paragraph's `a:pPr` attributes, runs formatted from its run
+  format source, and an `a:endParaRPr` copying that same source (review
+  R2-5: PowerPoint's Enter carries the end-of-paragraph format over, and an
+  empty line's height comes from it).
 - `add_run`, `add_paragraph`: the **explicitly unformatted** path — no
   `a:rPr`/`a:pPr`; the text takes the list/placeholder style, as
   python-pptx's `add_run`/`add_paragraph`. Inserted before `a:endParaRPr` /
@@ -230,14 +257,16 @@ Phase 0).** A run created by a format-preserving edit copies the attributes
 of the paragraph's first `a:rPr`, or of `a:endParaRPr` when the paragraph
 has no run (what PowerPoint does when one types into an empty paragraph);
 a paragraph created by `TextBody::set_text` copies the last paragraph's
-`a:pPr` attributes. Copies are **attribute-only**: if the source has child
+`a:pPr` attributes, and its `a:endParaRPr` copies the run format source.
+Copies are **attribute-only**: if the source has child
 elements (fill, fonts, `a:sym`, `a:hlinkClick`, bullets, spacing…) or an
 attribute outside the generated `ATTRS`, the edit is refused with
 `FormatNotCopyable(element)` — a copy needs the subtree-copy primitive that
 the coordinator deferred to Phase 2. A source without attributes produces
-no `a:rPr`/`a:pPr`. The source is consulted only when a new run/paragraph
-is needed: single-line `set_text` on a paragraph that has a run never is
-refused for format reasons.
+no `a:rPr`/`a:pPr`/`a:endParaRPr`. The source is consulted only when a new
+run or paragraph is needed — for every new paragraph, even an empty one,
+since it carries `a:endParaRPr`: single-line `set_text` on a paragraph that
+has a run never is refused for format reasons.
 
 **Fields (review M2).** No edit removes an `a:fld` implicitly:
 `ParagraphMut::set_text` on a paragraph with a field, `TextBodyMut::set_text`
@@ -349,7 +378,7 @@ elements in the SDK data). Classification:
 | `NoTextBody`, `NotATable`, `CellNotFound`, `MergedCell { row, col }` | no `p:txBody`/`a:txBody`; not a table frame; no such cell; `hMerge`/`vMerge` true |
 | `ParagraphNotFound`, `RunNotFound`, `FieldNotFound` | index out of range |
 | `FieldInParagraph { paragraph }` | the edit would remove an `a:fld` implicitly (§3 Fields) |
-| `UnsupportedContent` | §3 Paragraph content |
+| `UnsupportedContent` | §3 Paragraph content (incl. a body without `a:p`) |
 | `LastParagraph` | removing the only `a:p` |
 | `FormatNotCopyable(element)` | §3 Format sources |
 | `AnimatedParagraphs { shape_id }` | `add_paragraph`, `remove_paragraph`, or `TextBody::set_text` that changes the paragraph count, on a paragraph-locked shape |
@@ -394,10 +423,19 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
 - **T3 (expected model; review M4).** The model is the whole deck: every
   slide in order, every `p:sp` text body and table cell outside AC, per
   paragraph the `a:pPr`/`a:endParaRPr` attributes and items
-  `["r", text, rPr attributes] | ["br"] | ["fld", cached text]`.
-  Cases: per fixture one *sweep* that edits **every** editable body with a
-  rotating set of nine operations, plus named cases (2026-11-16: 25 cases,
-  338 applied edits; refused ones are dropped and covered by T4). Checks:
+  `["r", text, rPr] | ["br"] | ["fld", cached text]`, where `a:pPr`,
+  `a:endParaRPr` and `a:rPr` are compared as their **whole subtree**
+  (attributes and canonical child elements, review R2-2), so a lost
+  `a:solidFill`/`a:latin`/`a:sym` is a difference.
+  Cases: per fixture one *sweep* that edits **every** editable body once
+  with a rotating set of nine operations, one *multi sweep* that applies
+  three successive edits to every body, each chosen from the body's state
+  after the previous one and addressing the last paragraph/run (stale
+  indices, review R2-3), plus named cases (2026-11-16: 48 cases, 1,393
+  applied edits; refused ones are dropped and covered by T4). Tests prove
+  the check notices an edit retargeted to another shape, paragraph or run,
+  and an output whose kept `a:rPr` lost its `a:sym` (which an
+  attribute-only model would not). Checks:
   1. in `cargo test`: `ooxml-pptx(output) == apply(edits, ooxml-pptx(input))`
      on the whole deck — an edit on the wrong shape, cell, paragraph or run
      changes the model elsewhere (a test proves the check notices a
@@ -405,12 +443,18 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   2. **independent, python-pptx 1.0.2** (pinned in
      `crates/ooxml-pptx/tests/oracle/requirements.txt`; accepted by the
      owner): `examples/oracle_cases.rs` writes the outputs, `cases.json`
-     and ooxml-pptx's models; `tests/oracle/check.py` (its own `apply`,
-     written from this section) checks
-     `python-pptx(output) == apply(edits, python-pptx(input))`,
+     and ooxml-pptx's models; `tests/oracle/check.py` checks
+     `python-pptx(output) == python-pptx(edit(input))`,
      `python-pptx(output) == ooxml-pptx(output)` and
      `python-pptx(input) == ooxml-pptx(input)`. It runs in the separate CI
      job `pptx-readback`, so the Rust job is not slowed down.
+     The independence (review R2-3) is in both halves: the reader is
+     python-pptx, and `edit` does not compute on the JSON model as the Rust
+     `apply` does — it opens the input with python-pptx, finds each body by
+     shape id / cell in python-pptx's shape tree, and performs the edit on
+     its lxml elements from the rules of §3 (keep the first run, remove
+     other runs and breaks, deep-copy the format source, insert before
+     `a:endParaRPr`, …); the expected model is read back from that tree.
 
   python-pptx facts (corrected, review M4): `_Paragraph.text` includes
   `a:br` as `"\v"` and field text (`content_children` = `a:r`, `a:br`,
@@ -420,8 +464,9 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   `readback.py` reads part names from `p:sldIdLst` first. `ooxmlsdk` as a
   second in-cargo parse check (revision 1) is dropped: it shares the SDK
   schema data with the generator, so it adds no independence.
-- **T4 (refusals; review M3):** every error of §6 is raised in
-  `tests/refusals.rs` and the package must be byte-identical afterwards.
+- **T4 (refusals; review M3, R2-7):** every error **and every
+  sub-condition** of §6 is raised in `tests/refusals.rs` and the package
+  must be byte-identical afterwards.
   Real inputs: `Of16-01.pptx` (AC, id 7 in both branches), `45545_Comment.pptx`
   (`bldP build="p"` + `p:pRg` on shape 584707), `table_test2.pptx` (16
   merged cells), `shapes.pptx` (connectors, groups, pictures, tables),
@@ -435,7 +480,12 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   `cNvPr@id`, `a14:m` in a paragraph, `p:pRg` → `p:charRg`, `ac:deMkLst` →
   `ac:txMkLst` + `ac:txMk`, unknown anchor, malformed comment part,
   DrawingML namespace declared per element (`NamespaceNotInScope`); a CFB
-  signature; an `.xlsx` (`NotAPresentation`). Character rules are tested
+  signature; an `.xlsx` (`NotAPresentation`); and (review R2-1, R2-7) a
+  Strict package relationship (`Core(StrictNotSupported)`), a body without
+  `a:p`, an `a:endParaRPr` before a run (out of order), a group without
+  `cNvPr@id` (`InvalidShapeId` for its member), an unknown `p:txEl` child,
+  a non-numeric `spid` (locks another shape), a comment relationship to a
+  missing part, and a `p188:cm` without anchor. Character rules are tested
   per setter × (`\v`, `\n`, `\r`, U+0000, U+0001, U+001F, U+FFFE).
 - **Manual (owner decision):** `cargo run -p ooxml-pptx --example
   manual_check -- <outdir>` writes ten named outputs (title/body, autofit,
@@ -460,9 +510,12 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   of 469 of 2,510 run-less paragraphs (19 %). So `\v` in `Paragraph::set_text`,
   growing a body with `TextBody::set_text`, and filling ~1 in 5 empty
   paragraphs are refused with `FormatNotCopyable` that often; in the T2
-  sweep 217 of 599 two-segment `Paragraph::set_text` calls were. The common
-  single-line edits (run text, paragraph/body text with no more lines than
-  paragraphs) are not affected. `add_run`/`add_paragraph` remain as explicit
+  sweep 217 of 599 two-segment `Paragraph::set_text` calls and 156 of 394
+  two-line `TextBody::set_text` calls (40 %, the template-filling case)
+  were. Not affected: run text, and paragraph/body text that only rewrites
+  paragraphs which already have a run (review R2-4: filling an *empty*
+  paragraph needs a new run and is refused when its `a:endParaRPr` has
+  children, 469 of 2,510). `add_run`/`add_paragraph` remain as explicit
   unformatted paths. See Q2.
 - Negative: decks with "build by paragraph" animations refuse paragraph
   structure edits on those shapes even when the animation would survive.
@@ -499,7 +552,8 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
 ## Open questions for the project owner
 
 - **Q1** (resolved: no `DmlPercent`/override in Phase 0.)
-- **Q2** Given §8's counts (47 % / 38 % / 19 % of format sources have child
+- **Q2** (answered by the round-2 review: yes, as Phase 0.1 — a separate
+  revision with its own core PR.) Given §8's counts (47 % / 38 % / 19 % of format sources have child
   elements), should the copy-subtree primitive (`LensMut::insert_copy`,
   sketched in the core README) move from Phase 2 into a Phase 0.1, so that
   `\v`, multi-line body text and empty-paragraph fill copy formatting the

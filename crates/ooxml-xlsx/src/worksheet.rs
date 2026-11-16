@@ -564,7 +564,63 @@ impl CellMut<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use super::format_number;
+    use super::{check_insertable, format_number};
+    use ooxml_core::{ChildOf, ElementSpec, XmlDocument};
+    use ooxml_schema::sml;
+
+    const NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
+
+    /// Compares the dry run with ooxml-core's real insertion for `C` in `P`
+    /// on one shape (Phase0 review round 3, R3-1: the copy must not drift).
+    fn agree<P: ElementSpec, C: ChildOf<P>>(root: &str, inner: &str) -> bool {
+        let xml = format!("<{root} {NS}>{inner}</{root}>");
+        let doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+        let dry = check_insertable::<P>(doc.root().elements(), C::QNAME);
+        let mut doc2 = XmlDocument::parse(xml.as_bytes()).unwrap();
+        let real = doc2.lens_mut::<P>().unwrap().insert::<C>().map(|_| ());
+        assert_eq!(dry.is_ok(), real.is_ok(), "<{root}>{inner} + {:?}: dry {dry:?} vs core {real:?}", C::QNAME);
+        dry.is_ok()
+    }
+
+    /// `check_insertable` agrees with ooxml-core's `place` on every
+    /// parent/child pair the write path inserts, over generated shapes:
+    /// every ordering of up to three of the parent's listed children
+    /// (including duplicates), an `mc:AlternateContent`, an unlisted child.
+    #[test]
+    fn dry_run_matches_core_for_every_inserted_pair() {
+        fn shapes(names: &[&str]) -> Vec<String> {
+            let mut atoms: Vec<String> = names.iter().map(|n| format!("<{n}/>")).collect();
+            atoms.push("<mc:AlternateContent/>".into());
+            atoms.push(r#"<foo xmlns="urn:x"/>"#.into());
+            let mut out = vec![String::new()];
+            for a in &atoms {
+                out.push(a.clone());
+                for b in &atoms {
+                    out.push(format!("{a}{b}"));
+                    for c in &atoms {
+                        out.push(format!("{a}{b}{c}"));
+                    }
+                }
+            }
+            out
+        }
+        let mut ok = (0, 0);
+        for s in shapes(&["f", "v", "is", "extLst"]) {
+            for r in [agree::<sml::Cell, sml::CellValue>("c", &s), agree::<sml::Cell, sml::InlineString>("c", &s), agree::<sml::Cell, sml::CellFormula>("c", &s)] {
+                if r { ok.0 += 1 } else { ok.1 += 1 }
+            }
+        }
+        for s in shapes(&["c", "extLst"]) {
+            agree::<sml::Row, sml::Cell>("row", &s);
+        }
+        for s in shapes(&["row"]) {
+            agree::<sml::SheetData, sml::Row>("sheetData", &s);
+        }
+        for s in shapes(&["sheetPr", "dimension", "sheetData", "mergeCells", "extLst"]) {
+            agree::<sml::Worksheet, sml::SheetData>("worksheet", &s);
+        }
+        assert!(ok.0 > 10 && ok.1 > 10, "both outcomes exercised: {ok:?}");
+    }
 
     #[test]
     fn numbers() {
