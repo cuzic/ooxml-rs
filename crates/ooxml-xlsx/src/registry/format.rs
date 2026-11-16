@@ -79,6 +79,41 @@ impl std::hash::Hash for Tint {
     }
 }
 
+/// A font size in points: finite, 1 to 409 (Excel's range), compared and
+/// hashed on its bits; written in its shortest round-trip form (`11`,
+/// `10.5`) (ADR-0006 §3, review m9).
+#[derive(Clone, Copy, Debug)]
+pub struct FontSize(f64);
+
+impl FontSize {
+    /// `None` for NaN, infinities and sizes outside 1..=409.
+    pub fn new(points: f64) -> Option<Self> {
+        (points.is_finite() && (1.0..=409.0).contains(&points)).then_some(FontSize(points))
+    }
+    /// The size in points.
+    pub fn get(self) -> f64 {
+        self.0
+    }
+}
+
+impl PartialEq for FontSize {
+    fn eq(&self, o: &Self) -> bool {
+        self.0.to_bits() == o.0.to_bits()
+    }
+}
+impl Eq for FontSize {}
+impl std::hash::Hash for FontSize {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        self.0.to_bits().hash(h);
+    }
+}
+impl std::fmt::Display for FontSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `f64`'s Display is the shortest form that round-trips
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A number format.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum NumFormat {
@@ -109,8 +144,8 @@ pub enum Underline {
 pub struct Font {
     /// Face name.
     pub name: String,
-    /// Size in points, as written (`"11"`, `"10.5"`).
-    pub size: String,
+    /// Size in points.
+    pub size: FontSize,
     /// `<b/>`.
     pub bold: bool,
     /// `<i/>`.
@@ -133,7 +168,7 @@ impl Default for Font {
     fn default() -> Self {
         Font {
             name: "Calibri".into(),
-            size: "11".into(),
+            size: FontSize(11.0),
             bold: false,
             italic: false,
             strike: false,
@@ -268,6 +303,9 @@ pub struct Format {
     pub alignment: Option<Alignment>,
     /// Protection.
     pub protection: Option<Protection>,
+    /// `quotePrefix`: the value is shown as text (Excel's leading
+    /// apostrophe).
+    pub quote_prefix: bool,
 }
 
 impl Format {
@@ -317,11 +355,12 @@ impl Format {
         self.font_mut().underline = Some(u);
         self
     }
-    /// Font size in points (written in its shortest form; non-finite or
-    /// non-positive sizes are ignored).
+    /// Font size in points, written in its shortest form. A size
+    /// [`FontSize::new`] rejects (not finite, or outside 1..=409) leaves the
+    /// format unchanged; use [`FontSize::new`] directly to detect it.
     pub fn set_font_size(mut self, points: f64) -> Self {
-        if points.is_finite() && points > 0.0 && points <= 409.0 {
-            self.font_mut().size = format!("{points}");
+        if let Some(size) = FontSize::new(points) {
+            self.font_mut().size = size;
         }
         self
     }
@@ -374,10 +413,61 @@ impl Format {
         self.protection.get_or_insert_with(Protection::default).hidden = true;
         self
     }
+    /// `quotePrefix="1"` (Excel's leading apostrophe: the value is text).
+    pub fn set_quote_prefix(mut self) -> Self {
+        self.quote_prefix = true;
+        self
+    }
     /// The default date format (`NumFormat::Builtin(14)`, `mm-dd-yy`, which
     /// Excel shows in the user's short-date form).
     pub fn date() -> Self {
         Format { num_format: Some(NumFormat::Builtin(14)), ..Format::default() }
+    }
+}
+
+impl Format {
+    /// Checks the string-typed values against their schema enumerations
+    /// (`ST_PatternType`, `ST_BorderStyle`, `ST_HorizontalAlignment`,
+    /// `ST_VerticalAlignment`, `ST_FontScheme`) and the numeric ranges
+    /// (`textRotation` 0–180 or 255, `readingOrder` 0–2), so a write never
+    /// produces a `styles.xml` Excel rejects. [`crate::Error::InvalidFormat`].
+    pub(crate) fn validate(&self) -> crate::Result<()> {
+        use ooxml_core::EnumType;
+        use ooxml_schema::sml::{BorderStyleValues, FontSchemeValues, HorizontalAlignmentValues, PatternValues, VerticalAlignmentValues};
+        fn one_of<E: EnumType>(what: &str, v: &str) -> crate::Result<()> {
+            if E::VALUES.contains(&v) { Ok(()) } else { Err(crate::Error::InvalidFormat(format!("{what} {v:?}"))) }
+        }
+        if let Some(f) = &self.font {
+            if f.name.is_empty() {
+                return Err(crate::Error::InvalidFormat("empty font name".into()));
+            }
+            if let Some(s) = &f.scheme {
+                one_of::<FontSchemeValues>("font scheme", s)?;
+            }
+        }
+        if let Some(Fill::Pattern { pattern, .. }) = &self.fill {
+            one_of::<PatternValues>("fill pattern", pattern)?;
+        }
+        if let Some(b) = &self.border {
+            for s in [&b.left, &b.right, &b.top, &b.bottom, &b.diagonal].into_iter().flatten() {
+                one_of::<BorderStyleValues>("border style", &s.style)?;
+            }
+        }
+        if let Some(a) = &self.alignment {
+            if let Some(h) = &a.horizontal {
+                one_of::<HorizontalAlignmentValues>("horizontal alignment", h)?;
+            }
+            if let Some(v) = &a.vertical {
+                one_of::<VerticalAlignmentValues>("vertical alignment", v)?;
+            }
+            if a.rotation.is_some_and(|r| r > 180 && r != 255) {
+                return Err(crate::Error::InvalidFormat(format!("text rotation {}", a.rotation.unwrap_or_default())));
+            }
+            if a.reading_order.is_some_and(|r| r > 2) {
+                return Err(crate::Error::InvalidFormat(format!("reading order {}", a.reading_order.unwrap_or_default())));
+            }
+        }
+        Ok(())
     }
 }
 

@@ -281,7 +281,7 @@ pub(crate) struct TargetPlan {
 pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
         CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) => Some(t.as_str()),
-        CellOp::RemoveFormula | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -291,7 +291,7 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
     let loc = locate(doc, part, at)?;
     let ws = sml::WorksheetView(doc.lens::<sml::Worksheet>()?);
     let new_child = match op {
-        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) => Some(sml::CellValue::QNAME),
+        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) => Some(sml::InlineString::QNAME),
         CellOp::Formula(_) => Some(sml::CellFormula::QNAME),
         CellOp::RemoveFormula | CellOp::StyleOnly => None,
@@ -344,7 +344,7 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
 fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
     let first = |q: QName| c.indexed_elements().find(|(_, n)| n.is(q)).map(|(i, _)| i);
     match op {
-        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) => first(sml::CellValue::QNAME),
+        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => first(sml::CellValue::QNAME),
         CellOp::Formula(_) => first(sml::CellFormula::QNAME),
         CellOp::Text(_) => first(sml::InlineString::QNAME).filter(|&i| {
             let is = c.children()[i].as_element().expect("element");
@@ -456,6 +456,10 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
             CellOp::Bool(b) => {
                 c.set_data_type(CellValues::Boolean)?;
                 c.get_or_insert_cell_value()?.set_text(if *b { "1" } else { "0" })?;
+            }
+            CellOp::Error(e) => {
+                c.set_data_type(CellValues::Error)?;
+                c.get_or_insert_cell_value()?.set_text(e)?;
             }
             CellOp::StyleOnly => {}
         }

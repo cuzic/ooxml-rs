@@ -34,6 +34,8 @@ pub(crate) enum CellOp {
     Shared(u32),
     /// `t="b"`.
     Bool(bool),
+    /// `t="e"` with this error value (`#N/A`, …).
+    Error(&'static str),
     /// Only the cell's `s` changes (Phase2).
     StyleOnly,
 }

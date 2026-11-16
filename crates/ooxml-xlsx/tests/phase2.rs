@@ -679,6 +679,81 @@ fn num_format_only_keeps_the_rest_of_the_style() {
 }
 
 #[test]
+fn font_fill_border_only_keep_the_rest_of_the_style() {
+    use ooxml_xlsx::{Border, Font, Side};
+    let mut wb = Workbook::from_bytes(styled_book()).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        let italic = Font { italic: true, ..Font::default() };
+        ws.cell_mut(0, 0).unwrap().set_font(&italic).unwrap();
+        ws.cell_mut(0, 0).unwrap().set_fill(&Fill::Pattern { pattern: "solid".into(), fg: Some(Color::rgb(0x00FF00)), bg: None }).unwrap();
+        let side = Some(Side { style: "thin".into(), color: None });
+        ws.cell_mut(0, 0).unwrap().set_border(&Border { bottom: side, ..Border::default() }).unwrap();
+    }
+    let out = wb.to_bytes().unwrap();
+    let e = style_entries(&parse(&part(&out, "xl/styles.xml")));
+    // each step copies the previous xf and replaces one id + its apply flag
+    assert_eq!(e["cellXfs"][2], r#"<xf numFmtId="3" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"><alignment vertical="top"/></xf>"#);
+    assert_eq!(e["cellXfs"][3], r#"<xf numFmtId="3" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1" applyFill="1"><alignment vertical="top"/></xf>"#);
+    assert_eq!(e["cellXfs"][4], r#"<xf numFmtId="3" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyNumberFormat="1" applyFill="1" applyBorder="1"><alignment vertical="top"/></xf>"#);
+    assert!(sheet_xml(&out).contains(r#"<c r="A1" s="4"><v>1234</v></c>"#), "value kept");
+}
+
+#[test]
+fn preserving_edits_refuse_what_they_cannot_carry() {
+    // an xf with an extension attribute cannot be copied without losing it
+    let styled = STYLED.replace(r#"<xf numFmtId="3" fontId="1""#, r#"<xf xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac" x14ac:foo="1" numFmtId="3" fontId="1""#);
+    let input = p1::with_part(&styled_book(), "xl/styles.xml", &styled);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    let e = guarded(&mut wb, |wb| wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_num_format("0.0"));
+    assert!(matches!(e, Err(Error::NotExpressible(_))), "{e:?}");
+    // an out-of-range s is not derived from the default style
+    let input = patch_part(&styled_book(), "xl/worksheets/sheet1.xml", r#"<c r="A1" s="1">"#, r#"<c r="A1" s="7">"#);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    let e = guarded(&mut wb, |wb| wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_font(&ooxml_xlsx::Font::default()));
+    assert!(matches!(e, Err(Error::DanglingReference { index: 7, .. })), "{e:?}");
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+}
+
+#[test]
+fn invalid_format_values_are_refused() {
+    let input = Workbook::new().unwrap().to_bytes().unwrap();
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    for f in [
+        Format::new().set_border("hairline"),
+        Format::new().set_align("middle"),
+        Format::new().set_valign("centre"),
+        Format { fill: Some(Fill::Pattern { pattern: "Solid".into(), fg: None, bg: None }), ..Format::new() },
+        Format::new().set_font_name(""),
+    ] {
+        let e = guarded(&mut wb, |wb| wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &f));
+        assert!(matches!(e, Err(Error::InvalidFormat(_))), "{f:?}: {e:?}");
+    }
+    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+    assert!(ooxml_xlsx::FontSize::new(0.5).is_none() && ooxml_xlsx::FontSize::new(f64::NAN).is_none());
+    assert_eq!(Format::new().set_font_size(500.0), Format::new(), "a rejected size leaves the format unchanged");
+}
+
+#[test]
+fn quote_prefix_bool_and_error() {
+    let mut wb = Workbook::new().unwrap();
+    {
+        let mut ws = wb.add_worksheet().unwrap();
+        ws.cell_mut(0, 0).unwrap().set_string_with_format("=not a formula", &Format::new().set_quote_prefix()).unwrap();
+        ws.cell_mut(0, 1).unwrap().set_bool(true).unwrap();
+        ws.cell_mut(0, 2).unwrap().set_error("#N/A").unwrap();
+        assert!(matches!(ws.cell_mut(0, 3).unwrap().set_error("#WHAT"), Err(Error::InvalidValue { .. })));
+    }
+    let out = wb.to_bytes().unwrap();
+    let xfs = &style_entries(&parse(&part(&out, "xl/styles.xml")))["cellXfs"];
+    assert_eq!(xfs[1], r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" quotePrefix="1"/>"#);
+    let cells = calamine_cells(&out);
+    let sheet = cells.values().next().unwrap();
+    assert_eq!(sheet.get(&(0, 1)), Some(&Data::Bool(true)));
+    assert_eq!(sheet.get(&(0, 2)), Some(&Data::Error(calamine::CellErrorType::NA)));
+}
+
+#[test]
 fn named_style_respects_apply_flags() {
     let mut wb = Workbook::from_bytes(styled_book()).unwrap();
     {
@@ -834,7 +909,11 @@ fn from_scratch_matches_rust_xlsxwriter() {
         rx::Format::new().set_font_color(rx::Color::RGB(red)),
         rx::Format::new().set_background_color(rx::Color::RGB(yellow)),
         rx::Format::new().set_border(rx::FormatBorder::Thin),
-        rx::Format::new().set_num_format("0.00"),
+        // ADR-0006 §5.3 maps a locale-independent built-in code to its id;
+        // rust_xlsxwriter 0.102 gives every code a custom id from 164
+        // (`workbook.rs` `prepare_num_formats`). The intended difference is
+        // expressed here by asking rust_xlsxwriter for the built-in id.
+        rx::Format::new().set_num_format_index(2),
         rx::Format::new().set_num_format("0.000"),
         rx::Format::new().set_align(rx::FormatAlign::Center).set_text_wrap(),
         rx::Format::new().set_unlocked().set_hidden(),
@@ -870,6 +949,9 @@ fn from_scratch_matches_rust_xlsxwriter() {
     for t in ["numFmts", "fonts", "fills", "borders", "cellXfs"] {
         assert_eq!(ea[t], eb[t], "{t}");
     }
+    // the built-in mapping itself (§5.3): "0.00" is id 2, with no numFmt entry
+    assert!(ea["cellXfs"].iter().any(|x| x.contains("numFmtId=\"2\"")), "{:?}", ea["cellXfs"]);
+    assert!(!ea["numFmts"].iter().any(|x| x.contains("formatCode=\"0.00\"")));
     // shared strings
     assert_eq!(sst_entries(&parse(&part(&a, "xl/sharedStrings.xml"))), sst_entries(&parse(&part(&b, "xl/sharedStrings.xml"))));
     // calamine: values and styles

@@ -11,7 +11,7 @@ use crate::error::{Error, Result};
 use crate::escape;
 use crate::reference::CellIndex;
 use crate::registry::dates::ExcelDateTime;
-use crate::registry::format::{Font, Format, NumFormat};
+use crate::registry::format::{Border, Fill, Font, Format, NumFormat};
 use crate::registry::styles::StyleRequest;
 use crate::workbook::Workbook;
 use crate::worksheet::{CellMut, MAX_STRING_LEN};
@@ -90,6 +90,18 @@ impl CellMut<'_, '_> {
         self.edit(CellOp::Formula(text.to_owned()), Some(StyleRequest::Format(Box::new(format.clone()))))
     }
 
+    /// Writes an error value (`t="e"`): one of `#NULL!`, `#DIV/0!`,
+    /// `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#GETTING_DATA`
+    /// (ECMA-376 §18.17.4.6 plus Excel's `#GETTING_DATA`), else
+    /// [`Error::InvalidValue`]. A value write, as [`Self::set_number`].
+    pub fn set_error(self, value: &str) -> Result<()> {
+        const ERRORS: &[&str] = &["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"];
+        let Some(e) = ERRORS.iter().copied().find(|e| *e == value) else {
+            return Err(Error::InvalidValue { cell: self.at.to_string(), message: format!("{value:?} is not an error value") });
+        };
+        self.edit(CellOp::Error(e), None)
+    }
+
     /// Writes a boolean (`t="b"`).
     pub fn set_bool(self, value: bool) -> Result<()> {
         self.edit(CellOp::Bool(value), None)
@@ -107,9 +119,32 @@ impl CellMut<'_, '_> {
 
     /// Changes only the number format, keeping every other part of the
     /// cell's current style (font, fill, border, alignment, protection and
-    /// the named style), and keeps the value.
+    /// the named style), and keeps the value (ADR-0006 §5.6). The new `xf`
+    /// copies the current one's attributes and children and replaces only
+    /// `numFmtId` and `applyNumberFormat`. Errors: [`Error::NotExpressible`]
+    /// when the current `xf` has extension attributes or children (they
+    /// could not be carried over) or is an `mc:AlternateContent` entry;
+    /// [`Error::DanglingReference`] when the cell's `s` is out of range;
+    /// those of [`Self::set_number_with_format`].
     pub fn set_num_format(self, code: &str) -> Result<()> {
         self.edit(CellOp::StyleOnly, Some(StyleRequest::NumFormatOnly(NumFormat::Code(code.to_owned()))))
+    }
+
+    /// Changes only the font, keeping every other part of the cell's
+    /// current style and the value (ADR-0006 §5.6). Errors as for
+    /// [`Self::set_num_format`].
+    pub fn set_font(self, font: &Font) -> Result<()> {
+        self.edit(CellOp::StyleOnly, Some(StyleRequest::FontOnly(Box::new(font.clone()))))
+    }
+
+    /// Changes only the fill; see [`Self::set_font`].
+    pub fn set_fill(self, fill: &Fill) -> Result<()> {
+        self.edit(CellOp::StyleOnly, Some(StyleRequest::FillOnly(fill.clone())))
+    }
+
+    /// Changes only the borders; see [`Self::set_font`].
+    pub fn set_border(self, border: &Border) -> Result<()> {
+        self.edit(CellOp::StyleOnly, Some(StyleRequest::BorderOnly(Box::new(border.clone()))))
     }
 
     /// Applies an existing `cellXfs` entry by index ([`Error::StyleIndexOutOfRange`]).
@@ -179,7 +214,7 @@ fn font_from_node(n: &ooxml_core::RawNode) -> Option<Font> {
     if !n.attrs().is_empty() {
         return None;
     }
-    let mut f = Font { color: None, family: None, scheme: None, size: String::new(), name: String::new(), ..Font::default() };
+    let mut f = Font { color: None, family: None, scheme: None, name: String::new(), ..Font::default() };
     let val = |e: &ooxml_core::RawNode| e.attr(ooxml_core::QName::new("", "val")).map(str::to_owned);
     let only = |e: &ooxml_core::RawNode, allowed: &[&str]| e.elements().next().is_none() && e.attrs().iter().all(|a| a.name().ns().is_empty() && allowed.contains(&a.name().local()));
     for e in n.elements() {
@@ -205,7 +240,7 @@ fn font_from_node(n: &ooxml_core::RawNode) -> Option<Font> {
                     Some(_) => return None,
                 }
             }
-            "sz" if only(e, &["val"]) => f.size = val(e)?,
+            "sz" if only(e, &["val"]) => f.size = crate::registry::format::FontSize::new(val(e)?.trim().parse().ok()?)?,
             "name" if only(e, &["val"]) => f.name = val(e)?,
             "family" if only(e, &["val"]) => f.family = Some(val(e)?.trim().parse().ok()?),
             "scheme" if only(e, &["val"]) => f.scheme = Some(val(e)?),
@@ -233,7 +268,8 @@ fn font_from_node(n: &ooxml_core::RawNode) -> Option<Font> {
             _ => return None,
         }
     }
-    (!f.name.is_empty() && !f.size.is_empty()).then_some(f)
+    let has_size = n.elements().any(|e| e.name().local() == "sz");
+    (!f.name.is_empty() && has_size).then_some(f)
 }
 
 impl Format {

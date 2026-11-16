@@ -242,6 +242,11 @@ pub enum Error {
         id: u32,
     },
 
+    /// A [`crate::Format`] value outside its schema enumeration or range
+    /// (fill pattern, border style, alignment, font scheme, …).
+    #[error("invalid format value: {0}")]
+    InvalidFormat(String),
+
     /// A number format code XML cannot carry.
     #[error("invalid number format code {0:?}")]
     InvalidNumFormat(String),

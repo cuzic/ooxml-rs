@@ -65,7 +65,7 @@ impl XfInfo {
     fn read(n: &RawNode) -> XfInfo {
         let mut x = XfInfo::default();
         for a in n.attrs() {
-            if a.name().ns().is_empty() {
+            if a.name().ns().is_empty() && known(XF_ATTRS, a.name().local()).is_some() {
                 x.attrs.push((a.name().local().to_owned(), a.value().to_owned()));
             } else if a.name().ns() != ooxml_core::name::XMLNS_NS {
                 x.opaque = true;
@@ -73,9 +73,12 @@ impl XfInfo {
         }
         for c in n.elements() {
             let plain = |c: &RawNode| c.attrs().iter().map(|a| (a.name().local().to_owned(), a.value().to_owned())).collect::<Vec<_>>();
-            if c.is(sml::Alignment::QNAME) && c.attrs().iter().all(|a| a.name().ns().is_empty()) && c.elements().next().is_none() {
+            let only = |c: &RawNode, set: &'static [&'static str]| {
+                c.elements().next().is_none() && c.attrs().iter().all(|a| a.name().ns().is_empty() && known(set, a.name().local()).is_some())
+            };
+            if c.is(sml::Alignment::QNAME) && only(c, ALIGNMENT_ATTRS) {
                 x.alignment = Some(plain(c));
-            } else if c.is(sml::Protection::QNAME) && c.attrs().iter().all(|a| a.name().ns().is_empty()) && c.elements().next().is_none() {
+            } else if c.is(sml::Protection::QNAME) && only(c, PROTECTION_ATTRS) {
                 x.protection = Some(plain(c));
             } else {
                 x.opaque = true;
@@ -140,6 +143,12 @@ pub(crate) enum StyleRequest {
     /// The cell's current `xf` with another number format (ADR-0006 §5.6,
     /// "preserving edits").
     NumFormatOnly(NumFormat),
+    /// The cell's current `xf` with another font (§5.6).
+    FontOnly(Box<Font>),
+    /// The cell's current `xf` with another fill (§5.6).
+    FillOnly(Fill),
+    /// The cell's current `xf` with other borders (§5.6).
+    BorderOnly(Box<Border>),
     /// The cell's current `xf` if its number format is a date or time
     /// format, else that `xf` with built-in 14 (ADR-0006 §6).
     EnsureDate,
@@ -346,7 +355,7 @@ impl Styles {
 
     /// Plans a style request for a cell whose current `s` is `current`.
     pub(crate) fn plan(&self, wb: &mut Workbook, req: &StyleRequest, current: u32) -> Result<StylePlan> {
-        let mut p = Planner { next: self.clone(), staged: None, base: None };
+        let mut p = Planner { next: self.clone(), staged: None };
         let s = match req {
             StyleRequest::Index(n) => {
                 p.next.table(Which::CellXfs).require_stable()?;
@@ -357,7 +366,10 @@ impl Styles {
             }
             StyleRequest::Format(f) => p.format(wb, f)?,
             StyleRequest::Named(name) => p.named(wb, name, current)?,
-            StyleRequest::NumFormatOnly(nf) => p.derive_num_format(wb, nf, current)?,
+            StyleRequest::NumFormatOnly(nf) => p.derive(wb, &Group::NumFormat(nf), current)?,
+            StyleRequest::FontOnly(f) => p.derive(wb, &Group::Font(f), current)?,
+            StyleRequest::FillOnly(f) => p.derive(wb, &Group::Fill(f), current)?,
+            StyleRequest::BorderOnly(b) => p.derive(wb, &Group::Border(b), current)?,
             StyleRequest::EnsureDate => {
                 let (id, code) = p.next.num_format_of(current);
                 let custom = id.filter(|i| p.next.codes.contains_key(i)).and(code);
@@ -365,7 +377,7 @@ impl Styles {
                     current
                 } else {
                     let nf = if p.next.redefined.contains(&14) { NumFormat::Code("yyyy-mm-dd".into()) } else { NumFormat::Builtin(14) };
-                    p.derive_num_format(wb, &nf, current)?
+                    p.derive(wb, &Group::NumFormat(&nf), current)?
                 }
             }
         };
@@ -382,10 +394,17 @@ impl Styles {
     }
 }
 
+/// The group a preserving edit replaces.
+enum Group<'a> {
+    NumFormat(&'a NumFormat),
+    Font(&'a Font),
+    Fill(&'a Fill),
+    Border(&'a Border),
+}
+
 struct Planner {
     next: Styles,
     staged: Option<XmlDocument>,
-    base: Option<()>,
 }
 
 /// Appends under table `T` of the staged `styleSheet`.
@@ -558,7 +577,7 @@ impl Planner {
     }
 
     fn format(&mut self, wb: &mut Workbook, f: &Format) -> Result<u32> {
-        let _ = self.base;
+        f.validate()?;
         let mut spec = XfInfo::default();
         let num = match &f.num_format {
             Some(nf) => self.num_fmt_id(wb, nf)?.to_string(),
@@ -595,6 +614,9 @@ impl Planner {
         if self.next.csx.count > 0 {
             self.next.csx.require_stable()?;
             spec.set("xfId", "0");
+        }
+        if f.quote_prefix {
+            spec.set("quotePrefix", "1");
         }
         // rust_xlsxwriter's pattern: a flag for each group the format sets
         // to something other than index 0 / the default
@@ -642,9 +664,23 @@ impl Planner {
         Ok(s)
     }
 
-    fn current(&self, current: u32) -> Result<XfInfo> {
+    /// The cell's current `xf` (an empty `cellXfs` first gets its reserved
+    /// `xf` 0, which a cell without `s` already means). A cell whose `xf`
+    /// is an `mc:AlternateContent` entry, or whose `s` is out of range,
+    /// cannot be derived from: using any other `xf` would change its look.
+    fn current(&mut self, wb: &mut Workbook, current: u32) -> Result<XfInfo> {
         self.next.table(Which::CellXfs).require_stable()?;
-        Ok(self.next.xfs.get(current as usize).cloned().flatten().or_else(|| self.next.default.clone()).unwrap_or_default())
+        self.ensure_reserved(wb, Which::CellXfs)?;
+        let count = self.next.table(Which::CellXfs).count;
+        if current >= count {
+            return Err(Error::DanglingReference { table: "cellXfs".into(), index: current });
+        }
+        self.next
+            .xfs
+            .get(current as usize)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| Error::NotExpressible(format!("cellXfs[{current}] is an mc:AlternateContent entry")))
     }
 
     fn named(&mut self, wb: &mut Workbook, name: &str, current: u32) -> Result<u32> {
@@ -660,7 +696,7 @@ impl Planner {
         if style.opaque {
             return Err(Error::NotExpressible(format!("named style {name:?} has extension content")));
         }
-        let cell = self.current(current)?;
+        let cell = self.current(wb, current)?;
         let mut spec = XfInfo::default();
         for (id, apply) in [("numFmtId", "applyNumberFormat"), ("fontId", "applyFont"), ("fillId", "applyFill"), ("borderId", "applyBorder")] {
             let from_style = style.get(apply) != Some("0") && style.get(apply) != Some("false");
@@ -680,17 +716,44 @@ impl Planner {
         self.xf(wb, spec)
     }
 
-    fn derive_num_format(&mut self, wb: &mut Workbook, nf: &NumFormat, current: u32) -> Result<u32> {
-        let mut spec = self.current(current)?;
+    /// A preserving edit (ADR-0006 §5.6, Q4): the cell's current `xf`
+    /// with one group replaced. Only that group's id attribute and its
+    /// `apply*` flag change; every other attribute and the `alignment` and
+    /// `protection` children are carried over as they are, so the cell's
+    /// named style and the rest of its look are kept. Ids are copied by
+    /// index; no existing entry is parsed into a value.
+    fn derive(&mut self, wb: &mut Workbook, group: &Group<'_>, current: u32) -> Result<u32> {
+        let mut spec = self.current(wb, current)?;
         if spec.opaque {
-            return Err(Error::NotExpressible("the cell's xf has extension content".into()));
+            return Err(Error::NotExpressible(format!("cellXfs[{current}] has content the registry does not model")));
         }
-        let id = self.num_fmt_id(wb, nf)?;
-        spec.set("numFmtId", &id.to_string());
-        spec.set("applyNumberFormat", "1");
-        if spec.get("fontId").is_none() {
-            spec.set("fontId", "0");
-        }
+        let probe = Format {
+            font: match group {
+                Group::Font(f) => Some((*f).clone()),
+                _ => None,
+            },
+            fill: match group {
+                Group::Fill(f) => Some((*f).clone()),
+                _ => None,
+            },
+            border: match group {
+                Group::Border(b) => Some((*b).clone()),
+                _ => None,
+            },
+            ..Format::default()
+        };
+        probe.validate()?;
+        let (id_attr, apply, id) = match group {
+            Group::NumFormat(nf) => ("numFmtId", "applyNumberFormat", self.num_fmt_id(wb, nf)?),
+            Group::Font(f) => ("fontId", "applyFont", self.entry::<sml::Fonts>(wb, Which::Fonts, &|p| build_font(p, f))?),
+            Group::Fill(f) => {
+                self.ensure_reserved(wb, Which::Fills)?;
+                ("fillId", "applyFill", self.entry::<sml::Fills>(wb, Which::Fills, &|p| build_fill(p, f))?)
+            }
+            Group::Border(b) => ("borderId", "applyBorder", self.entry::<sml::Borders>(wb, Which::Borders, &|p| build_border(p, b))?),
+        };
+        spec.set(id_attr, &id.to_string());
+        spec.set(apply, "1");
         self.xf(wb, spec)
     }
 }
@@ -728,7 +791,7 @@ pub(crate) fn build_font(p: &mut LensMut<'_, sml::Fonts>, f: &Font) -> Result<()
             Underline::DoubleAccounting => e.set_attr(QName::new("", "val"), "doubleAccounting")?,
         }
     }
-    n.insert::<sml::FontSize>()?.set_attr(QName::new("", "val"), &f.size)?;
+    n.insert::<sml::FontSize>()?.set_attr(QName::new("", "val"), &f.size.to_string())?;
     if let Some(c) = &f.color {
         color(&mut n.insert::<sml::Color>()?, c)?;
     }
@@ -807,34 +870,36 @@ pub(crate) fn build_numfmt(p: &mut LensMut<'_, sml::NumberingFormats>, id: u32, 
 pub(crate) fn build_xf(p: &mut LensMut<'_, sml::CellFormats>, x: &XfInfo) -> Result<()> {
     let mut n = p.insert::<sml::CellFormat>()?;
     for (k, v) in &x.attrs {
-        n.set_attr(QName::new("", leak(k)), v)?;
+        n.set_attr(QName::new("", known(XF_ATTRS, k).ok_or_else(|| Error::Malformed(format!("xf attribute {k}")))?), v)?;
     }
     if let Some(a) = &x.alignment {
         let mut e = n.insert::<sml::Alignment>()?;
         for (k, v) in a {
-            e.set_attr(QName::new("", leak(k)), v)?;
+            e.set_attr(QName::new("", known(ALIGNMENT_ATTRS, k).ok_or_else(|| Error::Malformed(format!("alignment attribute {k}")))?), v)?;
         }
     }
     if let Some(pr) = &x.protection {
         let mut e = n.insert::<sml::Protection>()?;
         for (k, v) in pr {
-            e.set_attr(QName::new("", leak(k)), v)?;
+            e.set_attr(QName::new("", known(PROTECTION_ATTRS, k).ok_or_else(|| Error::Malformed(format!("protection attribute {k}")))?), v)?;
         }
     }
     Ok(())
 }
 
-/// `QName` needs `&'static str`: attribute names come from a small closed
-/// set (the schema's `xf`/`alignment`/`protection` attributes), so they are
-/// interned once.
-fn leak(k: &str) -> &'static str {
-    use std::sync::{LazyLock, Mutex};
-    static INTERN: LazyLock<Mutex<HashSet<&'static str>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
-    let mut set = INTERN.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(s) = set.get(k) {
-        return s;
-    }
-    let s: &'static str = Box::leak(k.to_owned().into_boxed_str());
-    set.insert(s);
-    s
+/// The unqualified attributes an `xf` and its `alignment`/`protection`
+/// children may carry (ECMA-376 `CT_Xf`, `CT_CellAlignment`,
+/// `CT_CellProtection`). `QName` takes `&'static str`, so a name read from
+/// the file is mapped onto this closed set; anything else makes the entry
+/// opaque (never interned or leaked).
+const XF_ATTRS: &[&str] = &[
+    "numFmtId", "fontId", "fillId", "borderId", "xfId", "quotePrefix", "pivotButton",
+    "applyNumberFormat", "applyFont", "applyFill", "applyBorder", "applyAlignment", "applyProtection",
+];
+const ALIGNMENT_ATTRS: &[&str] =
+    &["horizontal", "vertical", "textRotation", "wrapText", "indent", "relativeIndent", "justifyLastLine", "shrinkToFit", "readingOrder"];
+const PROTECTION_ATTRS: &[&str] = &["locked", "hidden"];
+
+fn known(set: &'static [&'static str], k: &str) -> Option<&'static str> {
+    set.iter().copied().find(|n| *n == k)
 }
