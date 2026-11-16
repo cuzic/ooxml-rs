@@ -4,7 +4,8 @@
 - Date: 2026-11-16 (Phase0 implementation update: §1, §7, §8)
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md) (Phase0 definition),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md) (typed lens, allowlist)
-- Proposes: [ADR-0003](../adr/0003-xlsx-phase1-formula-and-calc-state.md)
+- Proposes: [ADR-0003](../adr/0003-xlsx-phase1-formula-and-calc-state.md) (Phase1),
+  [ADR-0009](../adr/0009-xlsx-phase3-sheet-operations.md) (Phase3)
 - Fixtures: [`reference/fixtures/xlsx/`](../../reference/fixtures/xlsx/README.md);
   scripts: [`spikes/xlsx/`](../../spikes/xlsx/README.md)
 
@@ -368,17 +369,42 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
   updated; CR of formats via calamine 0.38 `worksheet_style`.
 - **Oracles:** T1/T1b/T2 on `styles.xml` and `sharedStrings.xml`, CR (values + styles), XL.
 
-### Phase3 — package structure edits
+### Phase3 — package structure edits (ADR-0009, Proposed)
 
 - **Goal:** add, delete, rename, reorder, hide sheets in existing packages; defined names CRUD;
-  VBA blob insertion; `app.xml`/`core.xml` maintenance.
-- **Scope:** OPC registries in `ooxml-core` (CT defaults/overrides, rels id allocation, part
-  name allocation that does not assume `sheetN.xml` numbering — `reordered_sheets.xlsx`,
-  `renamed_workbook_part.xlsx`); `sheetId` allocation (never reused); `localSheetId` renumbering
-  on reorder; formula sheet-name rewriting on rename (uses P1 tokenizer); `app.xml`
-  `TitlesOfParts`/`HeadingPairs`.
-- **Acceptance:** L1 for unrelated parts; OPC conformance checks (every rel target exists, every
-  part has a content type, no orphan parts) on all fixture outputs; CR sheet names/order; XL.
+  VBA blob insertion; `app.xml` maintenance.
+- **Design:** [ADR-0009](../adr/0009-xlsx-phase3-sheet-operations.md). Measurements:
+  [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md).
+- **Scope:**
+  - `ooxml-core` Layer 3 writes: `add_part` (Override unless an exact Default exists),
+    `add_relationship` (`rId{max+1}`), `set_content_type`, and `remove_part` (PR #14) with
+    per-caller allowlists. Each has a `check_*` twin, and none renumbers anything.
+  - `sheetId` = max + 1, never reused (16% of POI files have gaps). The part name starts at
+    that number and is bumped until free (23% of files do not number parts by `sheetId`).
+  - Rename rewrites every by-name reference: cell formulas incl. 3-D, defined names, chart
+    `c:f` on every sheet, pivot cache sources, DV/CF incl. x14 `xm:f`, hyperlink locations,
+    `app.xml` titles. Some sheet is referenced by name in 32% of multi-sheet POI workbooks.
+    Unlexable text that mentions the name is refused.
+  - Delete:
+    - cascades exclusively owned parts (drawings, charts, comments, VML, tables, printer
+      settings);
+    - refuses sheets with pivot tables, slicers, OLE objects or controls, and pivot sources;
+    - rewrites references to `#REF!` as Excel does;
+    - removes calcChain.
+  - Position-based state (`localSheetId`, `activeTab`, `firstSheet`) is remapped on add,
+    delete and reorder.
+  - Defined names CRUD with Excel's name rules; deleting a name in use is refused by default.
+  - VBA: an `Override` for `vbaProject.bin` (a `bin` Default is printer settings in 110 POI
+    files), the workbook content type switched to macro-enabled, `codeName`s added only where
+    absent.
+  - `app.xml` is maintained only when its shape is recognized (290/294); labels are never
+    rewritten.
+  - Phase1 seeds per operation (3-D spans, `SHEET()`/`SHEETS()`, `CELL`), Phase2 `count`
+    recompute.
+- **Acceptance (ADR-0009 "Test oracles"):** OPC conformance on every output; L1 for unrelated
+  parts; T2 on `workbook.xml`, `[Content_Types].xml`, `.rels`, `app.xml`; a rewrite oracle
+  against openpyxl tokenizer output; CR (names, order, visibility, defined names, values); O3
+  LibreOffice recalculation; a corpus run of every operation; mutation testing; XL.
 
 ### Phase4 — range-based worksheet features (write and edit)
 
