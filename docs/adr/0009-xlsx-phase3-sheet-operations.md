@@ -901,6 +901,11 @@ All are refusals in ADR-0001's sense: nothing changes.
 
 ## Open questions for the project owner
 
+**Owner decision 2026-11-16:** Q2 — references to a deleted sheet are rewritten to a bare
+`#REF!` as Excel does, with `delete_sheet_strict` available for callers who want a referenced
+sheet's deletion refused instead. Q1 and Q3–Q7 — the proposed defaults below are accepted
+(including Q7: `#Sheet!` hyperlink relationship targets are rewritten on rename).
+
 Each question carries the reviewer's recommendation (round 1; Q7 from round 2) as the **proposed default**,
 pending the owner's confirmation.
 
