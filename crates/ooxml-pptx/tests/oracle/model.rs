@@ -1,10 +1,18 @@
 //! The text model shared by the oracles (ADR-0005 §7 T3): every slide in
 //! `p:sldIdLst` order, every `p:sp` with a `p:txBody` and every table cell,
-//! depth-first, outside `mc:AlternateContent`; per paragraph the `a:pPr` /
-//! `a:endParaRPr` attributes and the items (`["r", text, rPr attrs]`,
-//! `["br"]`, `["fld", text]`). `tests/oracle/readback.py` produces the same
-//! JSON with python-pptx; `apply` (Rust: `tests/oracle.rs`, Python:
-//! `check.py`) computes the expected model after a list of edits.
+//! depth-first, outside `mc:AlternateContent`; per paragraph the **format
+//! form** of `a:pPr` / `a:endParaRPr` and the items (`["r", text, rPr
+//! form]`, `["br"]`, `["fld", text]`). `tests/oracle/readback.py` produces
+//! the same JSON with python-pptx; `apply` in `tests/oracle.rs` computes the
+//! expected model after a list of edits (`tests/oracle/check.py` computes it
+//! independently, by editing python-pptx's own tree).
+//!
+//! The format form (review R2-2) is the whole subtree, not only the
+//! attributes: `{"attrs": {...}, "children": [{"name", "attrs",
+//! "children"[, "text"]}...]}` with Clark names, attributes sorted (a JSON
+//! object), namespace declarations left out, child elements in document
+//! order, and `text` only on elements without element children. `null`
+//! when the element is absent or has neither attributes nor children.
 
 #![allow(dead_code)]
 
@@ -12,23 +20,51 @@ use ooxml_core::RawNode;
 use ooxml_pptx::{Presentation, ShapeKind, TextBodyRef, TextItem};
 use serde_json::{Map, Value, json};
 
-/// Attributes as a JSON object (Clark notation for namespaced names);
-/// `null` when the element is absent or has no attributes.
-pub fn attrs(n: Option<&RawNode>) -> Value {
-    let Some(n) = n else { return Value::Null };
-    let mut m = Map::new();
-    for a in n.attrs() {
-        if a.name().is_namespace_declaration() {
-            continue;
-        }
-        let k = if a.name().ns().is_empty() {
-            a.name().local().to_owned()
-        } else {
-            format!("{{{}}}{}", a.name().ns(), a.name().local())
-        };
-        m.insert(k, Value::String(a.value().to_owned()));
+fn clark(ns: &str, local: &str) -> String {
+    if ns.is_empty() { local.to_owned() } else { format!("{{{ns}}}{local}") }
+}
+
+/// Attributes as a JSON object (Clark keys), namespace declarations left out.
+pub fn attr_map(n: &RawNode) -> Map<String, Value> {
+    n.attrs()
+        .iter()
+        .filter(|a| !a.name().is_namespace_declaration())
+        .map(|a| (clark(a.name().ns(), a.name().local()), Value::String(a.value().to_owned())))
+        .collect()
+}
+
+/// Canonical form of an element subtree.
+pub fn canon(n: &RawNode) -> Value {
+    let children: Vec<Value> = n.elements().map(canon).collect();
+    let mut v = json!({"name": clark(n.name().ns(), n.name().local()), "attrs": attr_map(n), "children": children});
+    if n.elements().next().is_none() && !n.text().is_empty() {
+        v["text"] = json!(n.text());
     }
-    if m.is_empty() { Value::Null } else { Value::Object(m) }
+    v
+}
+
+/// Format form of a formatting element (`a:rPr`, `a:pPr`, `a:endParaRPr`).
+pub fn fmt(n: Option<&RawNode>) -> Value {
+    let Some(n) = n else { return Value::Null };
+    let attrs = attr_map(n);
+    let children: Vec<Value> = n.elements().map(canon).collect();
+    if attrs.is_empty() && children.is_empty() {
+        return Value::Null;
+    }
+    json!({"attrs": attrs, "children": children})
+}
+
+/// The attribute-only projection of a format form (the round-2 model):
+/// used to show what the richer form catches.
+pub fn attrs_only(v: &Value) -> Value {
+    match v {
+        Value::Object(m) if m.contains_key("children") && m.contains_key("attrs") && !m.contains_key("name") => {
+            if m["attrs"].as_object().is_some_and(Map::is_empty) { Value::Null } else { m["attrs"].clone() }
+        }
+        Value::Object(m) => Value::Object(m.iter().map(|(k, x)| (k.clone(), attrs_only(x))).collect()),
+        Value::Array(a) => Value::Array(a.iter().map(attrs_only).collect()),
+        x => x.clone(),
+    }
 }
 
 fn child<'a>(n: &'a RawNode, local: &str) -> Option<&'a RawNode> {
@@ -44,15 +80,15 @@ pub fn body(b: TextBodyRef<'_>) -> Value {
                 .items()
                 .iter()
                 .filter_map(|it| match it {
-                    TextItem::Run(r) => Some(json!(["r", r.text(), attrs(child(r.raw(), "rPr"))])),
+                    TextItem::Run(r) => Some(json!(["r", r.text(), fmt(child(r.raw(), "rPr"))])),
                     TextItem::Break => Some(json!(["br"])),
                     TextItem::Field(f) => Some(json!(["fld", f.text()])),
                     _ => None,
                 })
                 .collect();
             json!({
-                "ppr": attrs(child(p.raw(), "pPr")),
-                "end": attrs(child(p.raw(), "endParaRPr")),
+                "ppr": fmt(child(p.raw(), "pPr")),
+                "end": fmt(child(p.raw(), "endParaRPr")),
                 "items": items,
             })
         })
