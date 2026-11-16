@@ -94,14 +94,19 @@ impl Workbook {
         if let Some(t) = ctx.tables.iter().find(|t| t.range.intersects(&r)) {
             return Err(Error::TableOverlap { range: r.to_string(), table: t.name.clone() });
         }
-        for loc in &ctx.pivots {
-            // an unparseable location is treated as overlapping (refusing is safe)
-            if CellRange::parse(loc).map_or(true, |p| p.intersects(&r)) {
-                return Err(Error::PivotOverlap { range: r.to_string(), location: loc.clone() });
-            }
-        }
         if let Some(q) = &ctx.query_table {
             return Err(Error::QueryTableOverlap(q.clone()));
+        }
+        for part in ctx.pivots.clone() {
+            // read lazily; a part that does not parse or has no location is
+            // treated as overlapping (refusing is safe)
+            let loc = match self.pkg.xml_part(&part) {
+                Ok(doc) => doc.root().elements().find(|e| e.name().local() == "location").and_then(|l| l.attr(ooxml_core::QName::new("", "ref"))).map(str::to_owned),
+                Err(_) => None,
+            };
+            if loc.as_deref().and_then(|l| CellRange::parse(l).ok()).is_none_or(|p| p.intersects(&r)) {
+                return Err(Error::PivotOverlap { range: r.to_string(), location: loc.unwrap_or_else(|| format!("{part} (no readable location)")) });
+            }
         }
         self.check_array_overlap(sheet, &r)?;
         if let Some(&(_, c)) = self.census.vm_cells.iter().find(|(s, c)| *s == sheet && r.contains(*c)) {

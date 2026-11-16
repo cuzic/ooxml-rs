@@ -34,6 +34,29 @@ fn sheet_with(children: &str, sheet_data: &str) -> Vec<u8> {
 
 // ---- merged cells (§3) ----
 
+/// Round 1 M1: pivot parts are read only by `merge`; a part without a
+/// location (or one that does not parse) never stops the workbook opening,
+/// and a merge on that sheet is refused as overlapping.
+#[test]
+fn unreadable_pivot_location_does_not_block_open() {
+    let pivot = read("poi/ExcelPivotTableSample.xlsx");
+    let p1 = String::from_utf8(part(&pivot, "xl/pivotTables/pivotTable1.xml")).unwrap();
+    let no_loc = with_part(&pivot, "xl/pivotTables/pivotTable1.xml", &p1.replace(r#"<location ref="A3:D7" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>"#, ""));
+    let broken = with_part(&pivot, "xl/pivotTables/pivotTable2.xml", "<pivotTableDefinition");
+    for input in [&no_loc, &broken] {
+        for sheet in 0..3 {
+            let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+            wb.worksheet_by_index(sheet).unwrap().cell_mut(98, 25).unwrap().set_number(1.0).unwrap();
+            wb.to_bytes().unwrap();
+        }
+    }
+    // pivotTable1 is on sheet 2, pivotTable2 on sheet 3
+    let refused = |input: &[u8]| (0..3).filter(|&s| matches!(try_on(input, s, |ws| ws.merge("X50:Y51")).1, Err(Error::PivotOverlap { .. }))).collect::<Vec<_>>();
+    assert_eq!(refused(&no_loc), [1]);
+    assert_eq!(refused(&broken), [2]);
+    assert_eq!(refused(&pivot), [0usize; 0]);
+}
+
 #[test]
 fn merge_refusals_change_nothing() {
     let m61605 = read("poi/61605.xlsx");
