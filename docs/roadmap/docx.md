@@ -414,7 +414,10 @@ Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Accepted, revisi
 
 **Acceptance.**
 
-- `sdk-Comment010` round-trip with a reply added (all 5 parts agree).
+- `poi-testComment` round-trip with a reply added and resolved, with every comment part agreeing.
+  Its companions use the 2012 `w15` namespace.
+- `sdk-Comment010` refuses replies and resolve (`LegacyCommentsExtended`, ADR-0015 rev 2), because
+  its `commentsExtended` uses the Office 2013 pre-release namespace. Adding a comment still works.
 - Tracked edit on `poi-delins` with docx-rs read-back of `ins`/`del`.
 - Resolver differential tests against a hand-computed table from the fixtures. LibreOffice is the reference where available; it is not available in this sandbox.
 
