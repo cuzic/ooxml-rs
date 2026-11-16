@@ -222,6 +222,27 @@ fn e11b_table_header_variants() {
     }
 }
 
+/// Review round 2, N2: insertion order. `fixture_minimal` with A2 removed
+/// (row 2 starts at B2), a row 4 added after row 2 and `dimension` A1:D4.
+/// A2 goes in front of B2, C3 becomes a new row between rows 2 and 4, and
+/// E1 is appended to row 1; each write passes T2 (byte locality at the
+/// expected insertion point, rows and cells ascending) and CR.
+#[test]
+fn e16_insert_in_the_middle() {
+    let input = read("minimal");
+    let s = text(&input, "xl/worksheets/sheet1.xml")
+        .replacen("<c r=\"A2\" t=\"s\"><v>1</v></c>\n", "", 1)
+        .replacen("</row>\n</sheetData>", "</row>\n<row r=\"4\"><c r=\"A4\"><v>4</v></c></row>\n</sheetData>", 1)
+        .replacen(r#"<dimension ref="A1:D2"/>"#, r#"<dimension ref="A1:D4"/>"#, 1);
+    assert!(!s.contains(r#"r="A2""#) && s.contains(r#"<row r="4">"#) && s.contains("A1:D4"));
+    let bytes = rebuild(&input, &[("xl/worksheets/sheet1.xml", s.into_bytes())]);
+    let out = check_edit("minimal-gaps", &bytes, a1("A2"), &W::Str("first".into()));
+    assert!(sheet_xml(&out).contains("<row r=\"2\">\n<c r=\"A2\" t=\"inlineStr\"><is><t>first</t></is></c><c r=\"B2\">"));
+    let out = check_edit("minimal-gaps", &bytes, a1("C3"), &W::Num(3.0));
+    assert!(sheet_xml(&out).contains("</row>\n<row r=\"3\"><c r=\"C3\"><v>3</v></c></row><row r=\"4\">"));
+    check_edit("minimal-gaps", &bytes, a1("E1"), &W::Num(5.0));
+}
+
 /// P0-E12: images in cells (`vm`) are refused; a neighbour is Ok.
 #[test]
 fn e12_rich_value_cells() {
