@@ -1,6 +1,9 @@
 //! Layer 3 OPC registries: `[Content_Types].xml` and relationship parts
 //! (ADR-0001). Read-only for now; the append-only invariant governs any
-//! future write API (existing entries are never renumbered or removed).
+//! future write API (existing entries are never renumbered or removed). The
+//! one exception is [`crate::Package::remove_part`], which removes entries
+//! only together with the part they register (ADR-0001 interim
+//! post-acceptance note of 2026-11-16; ADR-0003 §4.3 when accepted).
 //!
 //! Part names in this crate are zip entry names: no leading `/`
 //! (`xl/workbook.xml`). OPC's `/`-prefixed names are converted on input.
@@ -59,6 +62,12 @@ impl ContentTypes {
         &self.overrides
     }
 
+    /// Drops every override for `part` (after [`crate::Package::remove_part`]
+    /// removed it from the XML).
+    pub(crate) fn remove_override(&mut self, part: &str) {
+        self.overrides.retain(|(p, _)| !same_part_name(p, part));
+    }
+
     /// Content type of a part: an override, else the extension default.
     /// Comparison is ASCII case-insensitive, as OPC requires.
     pub fn content_type_of(&self, part: &str) -> Option<&str> {
@@ -69,6 +78,49 @@ impl ContentTypes {
         let ext = part.rsplit_once('.').map(|(_, e)| e)?;
         self.defaults.iter().find(|(e, _)| e.eq_ignore_ascii_case(ext)).map(|(_, t)| t.as_str())
     }
+}
+
+/// The calcChain relationship type (Transitional): the type xlsx Phase1
+/// allows [`crate::Package::remove_part`] to drop.
+pub const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
+
+/// The calcChain relationship type (Strict). `allowed_rel_types` is an exact
+/// string match, so a caller that accepts Strict packages passes both.
+pub const REL_CALC_CHAIN_STRICT: &str = "http://purl.oclc.org/ooxml/officeDocument/relationships/calcChain";
+
+/// Trims XML whitespace (`#x20 #x9 #xA #xD`), as the schema's whitespace
+/// collapse does for `xsd:anyURI`, `xsd:ID` and token attributes.
+pub(crate) fn xml_trim(s: &str) -> &str {
+    s.trim_matches([' ', '\t', '\n', '\r'])
+}
+
+/// A part name normalized for OPC part-name equivalence: no leading `/`,
+/// percent-decoded (an IRI and its `%`-encoded UTF-8 form are the same
+/// name), ASCII lower case.
+pub(crate) fn normalize_part_name(s: &str) -> String {
+    let s = s.trim_start_matches('/');
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%'
+            && let Some(h) = b.get(i + 1..i + 3)
+            && h.iter().all(u8::is_ascii_hexdigit)
+            && let Ok(v) = u8::from_str_radix(std::str::from_utf8(h).unwrap_or("zz"), 16)
+        {
+            out.push(v);
+            i += 3;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).to_ascii_lowercase()
+}
+
+/// OPC part-name equivalence (see [`normalize_part_name`]).
+pub(crate) fn same_part_name(a: &str, b: &str) -> bool {
+    normalize_part_name(a) == normalize_part_name(b)
 }
 
 /// Is a relationship's target inside or outside the package?
@@ -131,6 +183,16 @@ impl Relationships {
     /// An empty set (for parts without a relationships part).
     pub fn empty(source: Option<&str>) -> Self {
         Relationships { source: source.map(String::from), rels: Vec::new() }
+    }
+
+    /// The same set without the relationships whose `Id` is in `ids`
+    /// (after [`crate::Package::remove_part`]; no re-parse, so it cannot fail).
+    pub(crate) fn without_ids(&self, ids: &[String]) -> Relationships {
+        let ids: Vec<&str> = ids.iter().map(|i| xml_trim(i)).collect();
+        Relationships {
+            source: self.source.clone(),
+            rels: self.rels.iter().filter(|r| !ids.contains(&xml_trim(&r.id))).cloned().collect(),
+        }
     }
 
     /// The source part (`None` = package).

@@ -27,3 +27,28 @@ names = [
     "a:CT_TextCharacterProperties/a:endParaRPr",
     "a:CT_TextParagraphProperties/a:pPr",
 ]
+
+# Detachable (ADR-0002 note "detach/insert", ADR-0005 §9): copied by
+# Lens::detach_as for new runs/paragraphs. Formatting only: these subtrees
+# hold no shape id, placeholder index or id reference. Never list shapes,
+# groups, text bodies or anything that can contain a cNvPr.
+# unique_attrs: values that must be unique in the document. ECMA-376 Part 1
+# §21.1.2.3.9 (rPr), §21.1.2.2.3 (endParaRPr), §21.1.2.3.2 (defRPr, also
+# below a:pPr): "smtId (SmartTag ID) ... This ID is unique throughout the
+# presentation". §20.1.8.20 (cont) and §20.1.8.25 (effectDag), the
+# a:CT_EffectContainer reached through EG_EffectProperties of rPr/defRPr:
+# "name ... Shall be unique across all effect trees and effect containers"
+# (no default: any value is refused). A copy with a non-default value of
+# either is refused. Reviewed (all 90 complex types reachable from the three
+# types) and not unique: bmk (a bookmark *target name*, a reference that may
+# repeat), a:effect@ref (a reference to a name), a:snd@name (a sound's
+# original or short name), lang/altLang, kumimoji, the formatting
+# attributes. a:extLst content is
+# open (not covered by this review): detach_as refuses it unless skipped.
+[detach]
+unique_attrs = ["a:CT_TextCharacterProperties@smtId", "a:CT_EffectContainer@name"]
+names = [
+    "a:CT_TextCharacterProperties/a:rPr",
+    "a:CT_TextCharacterProperties/a:endParaRPr",
+    "a:CT_TextParagraphProperties/a:pPr",
+]

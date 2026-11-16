@@ -1,0 +1,61 @@
+AlternateContent in shape trees: 1
+app.xml HiddenSlides == hidden slides (show=0|false): 86
+app.xml Notes == notes count: 86
+app.xml Slides == count: 86
+app.xml with HiddenSlides: 86
+app.xml with TitlesOfParts: 86
+app.xml with a slide-titles heading: 78
+app.xml without Slides: 4
+duplicate files skipped: 15
+empty sections: 12
+files: 91
+files whose lowest sldId != 256: 26
+files whose slide part numbers != 1..n in order: 1
+files with >1 master: 9
+files with a notes master: 36
+files with gaps in slide part numbers: 1
+files with p14:sectionLst: 4
+files with sldId gaps: 18
+files with sldIds not ascending in order: 20
+hidden slides (show=0): 3
+layout parts: 1136
+layout parts used by no slide: 959
+masters: 119
+media parts shared by >1 slide: 15
+media parts used by slides: 157
+no app.xml: 1
+notes part number != its slide part number: 101
+pres rIds all rIdN: 91
+pres rIds contiguous 1..n: 89
+pres rIds with gaps: 2
+sections: 17
+shapes (outside AC): 4089
+slide media parts also used by a layout/master: 1
+slide media typed by Default: 149
+slide media typed by Override: 8
+slide-titles heading count == slides: 77
+slide-to-slide relationships (jump links): 22
+slides: 522
+slides deletable by the ADR-0012 cascade: 519
+slides duplicable (ADR-0012 types): 457
+slides that are jump-link targets: 3
+slides typed by Override: 522
+slides where a @spid or comment moniker id exceeds every @id: 11
+slides where some non-shape @id exceeds max shape id: 5
+slides with a relationship type outside the delete cascade: 3
+slides with notes: 227
+slides with p14:creationId: 172
+slides with sparse shape ids (max > 4*count+10): 257
+unreadable: 11
+app.xml heading labels: Använt teckensnitt=2, Bildrubriker=2, Design=4, Design Template=1, Eingebettete OLE-Server=2, Embedded OLE Servers=7, Folientitel=4, Fonts Used=36, Links=1, Polices utilisées=1, Slide Titles=72, Tema=2, Theme=71, Thème=2, Titres des diapositives=2, Verwendete Schriftarten=2, Внедренные серверы OLE=1, Заголовки слайдов=2, Использованные шрифты=1, Тема=2, 主题=4, 嵌入 OLE 服务器=1, 已用的字体=4, 幻灯片标题=4
+blocking types (delete): chartEx=1, control=2
+max shape id per slide: <=100=289, <=10^4=81, <=2^31=146
+max sldId: 1000..2^31=2, 256..299=74, 300..999=15
+media extensions: emf=2, gif=4, jpeg=60, jpg=5, mp3=1, mp4=1, png=69, wmf=15
+presentation relationship types: authors=1, changesInfo=3, commentAuthors=8, customXml=19, font=6, handoutMaster=17, notesMaster=36, presProps=88, printerSettings=6, revisionInfo=5, slide=522, slideMaster=119, tableStyles=86, tags=2, theme=91, vbaProject=1, viewProps=86
+sectionLst ext uri: {521415D9-36F7-43E2-AB2F-B90AF26B5E84}=4
+slide relationship types: audio=1, chart=28, chartEx=1, comments=3, control=2, diagramColors=18, diagramData=18, diagramDrawing=18, diagramLayout=18, diagramQuickStyle=18, hdphoto=1, hyperlink=44, image=198, media=2, notesSlide=227, oleObject=19, package=5, slide=22, slideLayout=522, tags=2, themeOverride=1, video=1, vmlDrawing=24
+slides per file: 0=72, 10=10, 20=6, 30=2, 40=1
+slides per used layout: 1=117, 10=15, 2=24, 3=8, 4=3, 6=3, 7=3, 9=4
+example slide numbering: [('airplane-transition.pptx', [2])]
+example spid above @id: [('bug54570.pptx', 'ppt/slides/slide1.xml', 1026, 4), ('bug62513.pptx', 'ppt/slides/slide11.xml', 38916, 4), ('bug62513.pptx', 'ppt/slides/slide13.xml', 1029, 6), ('bug62513.pptx', 'ppt/slides/slide14.xml', 9219, 4), ('bug62513.pptx', 'ppt/slides/slide15.xml', 8195, 4), ('bug62513.pptx', 'ppt/slides/slide16.xml', 39940, 4)]
