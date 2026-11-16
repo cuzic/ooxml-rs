@@ -28,7 +28,7 @@ wish-list.
 
 ## Adversarial review rounds
 
-- From the second round of PRs onward, every ADR and implementation PR is reviewed by an independent Opus reviewer that tries
+- Every ADR, and every implementation PR from #11 onward, is reviewed by an independent Opus reviewer that tries
   to break it: probes, mutation tests, corpus scans, and the actual code of the branches it
   interacts with.
 - Findings are graded **Blocker / Major / Minor**. The author fixes them in a new revision, with
@@ -60,4 +60,7 @@ wish-list.
 - **Small commits.** Commits written by agents carry a `Co-Authored-By` trailer.
 - **The owner merges PRs.** Agents open PRs and update them, but do not merge.
 
-Note: the first foundation PRs (#6, #9, #10) were merged on CI before the review-until-converged rule was adopted; Phase0 implementations merged on CI alone were reviewed afterwards (e.g. `docs/reviews/xlsx-phase0-impl-round*.md`).
+Note: ADRs were reviewed until converged from the start (ADR-0001, ADR-0002). The rule was
+extended to implementation PRs later: the foundation PRs #6, #9 and #10 merged on CI alone, and
+Phase0 implementations merged on CI were reviewed afterwards (e.g.
+`docs/reviews/xlsx-phase0-impl-round*.md`).
