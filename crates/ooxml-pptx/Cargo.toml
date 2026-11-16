@@ -1,0 +1,23 @@
+[package]
+name = "ooxml-pptx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "PowerPoint (PresentationML) domain API of ooxml-rs: lossless open/save and in-place text edits"
+readme = "README.md"
+# Fixtures are third-party files under their own licences
+# (reference/fixtures/pptx/LICENSES); tests read them from the repository
+# and they are never packaged into this crate (ADR-0005 §7, review m9).
+include = ["src/**/*.rs", "Cargo.toml", "README.md"]
+
+[dependencies]
+ooxml-core = { workspace = true }
+ooxml-schema = { workspace = true, features = ["pml", "dml"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = "1"
+zip = { workspace = true }
