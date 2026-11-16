@@ -146,6 +146,60 @@ pub enum Error {
     /// explicitly unformatted text.
     #[error("the formatting of {0} cannot be copied (relationship id, unique id or name, extension list, markup compatibility, namespace declaration or scope)")]
     FormatNotCopyable(&'static str),
+
+    // ---- Phase 1b (ADR-0013 §5): tables ----
+    /// The table is not well-formed for structural edits (short rows,
+    /// overlapping or broken merges, partial `a16` ids, …).
+    #[error("the table is not well-formed: {0}")]
+    TableNotWellFormed(String),
+    /// A structural edit on a table a modern comment anchors into.
+    #[error("table {shape_id} is anchored by a modern comment (rows, columns or cells)")]
+    CommentAnchoredTable {
+        /// The graphic frame's id.
+        shape_id: u32,
+    },
+    /// Deleting a row that holds the origin of a vertical merge.
+    #[error("row {row} holds the origin of a merge; unmerge first")]
+    MergeOriginInRow {
+        /// The row.
+        row: usize,
+    },
+    /// Deleting a column that holds the origin of a horizontal merge.
+    #[error("column {col} holds the origin of a merge; unmerge first")]
+    MergeOriginInColumn {
+        /// The column.
+        col: usize,
+    },
+    /// `merge` over a range that already contains a merged cell.
+    #[error("the range contains a merged cell")]
+    RangeContainsMerge,
+    /// `merge` over a range that leaves the grid or is a single cell.
+    #[error("the range is outside the grid or a single cell")]
+    RangeOutsideGrid,
+    /// `unmerge` on a cell that is not a merge origin.
+    #[error("cell ({row}, {col}) is not the origin of a merge")]
+    NotAMergeOrigin {
+        /// Row.
+        row: usize,
+        /// Column.
+        col: usize,
+    },
+    /// Deleting the only row.
+    #[error("cannot delete the only row")]
+    LastRow,
+    /// Deleting the only column.
+    #[error("cannot delete the only column")]
+    LastColumn,
+    /// A table style id neither defined in `ppt/tableStyles.xml` nor
+    /// built in.
+    #[error("table style {0:?} is not defined")]
+    TableStyleNotDefined(String),
+    /// A value outside its schema range.
+    #[error("value out of range for {what}")]
+    ValueOutOfRange {
+        /// The attribute.
+        what: &'static str,
+    },
 }
 
 impl From<ooxml_core::AttrError> for Error {

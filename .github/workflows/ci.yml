@@ -48,3 +48,7 @@ jobs:
         run: cargo run --release -p ooxml-pptx --example oracle_cases -- "$RUNNER_TEMP/pptx-oracle"
       - name: python-pptx read-back
         run: python -I crates/ooxml-pptx/tests/oracle/check.py "$RUNNER_TEMP/pptx-oracle" reference/fixtures/pptx
+      - name: write Phase 1b table cases (ADR-0013 §7)
+        run: cargo run --release -p ooxml-pptx --example table_cases -- "$RUNNER_TEMP/pptx-tables"
+      - name: python-pptx table read-back
+        run: python -I crates/ooxml-pptx/tests/oracle/tables.py "$RUNNER_TEMP/pptx-tables" reference/fixtures/pptx

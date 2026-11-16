@@ -63,6 +63,21 @@ pres.save("deck-edited.pptx")?;
 # Ok::<(), Error>(())
 ```
 
+Tables (Phase 1b, [ADR-0013](../../docs/adr/0013-pptx-phase1b-tables-and-smartart.md)
+§2–§3) through `ShapeMut::table_mut()`:
+
+| Edit | Behaviour |
+| --- | --- |
+| `insert_row(at)`, `insert_column(at)` | height/width and cell formatting copied from above/left (else below/right); inside a merge the new cells join it; new `a16:rowId`/`colId` when the table has ids (never an id deleted in this session); the frame size follows |
+| `delete_row(r)`, `delete_column(c)` | merges through it shrink (a span reaching 1 is removed); refused through a merge origin and for the only row/column |
+| `merge(r1, c1, r2, c2)`, `unmerge(r, c)` | edge form (PowerPoint's); the other cells' paragraphs move to the origin; refused over a merged cell |
+| `set_border(r, c, edge, line)`, `set_borders(line)` | both cells of a shared edge, the whole outline of a merged range |
+| `set_fill`, `set_margin`, `set_anchor`, `set_flag`, `set_style`, `set_column_width`, `set_row_height` | `a:tcPr` / `a:tblPr`; styles defined in `tableStyles.xml` or one of the 74 built-in ids |
+
+Structural edits are refused on a table a modern comment anchors into,
+and on a table that is not well-formed; every refusal leaves the slide
+unchanged.
+
 Development:
 
 - `cargo test -p ooxml-pptx` — L1/T1/T1b (`tests/roundtrip.rs`), T2
@@ -74,6 +89,11 @@ Development:
   `python3 -I crates/ooxml-pptx/tests/oracle/check.py OUT reference/fixtures/pptx`
   with python-pptx from `tests/oracle/requirements.txt`
   (`--site DIR` if it is installed into a directory).
+- Phase 1b tables: `tests/tables.rs`, the merge-rule property test
+  `tests/table_model.rs` (`TABLE_MODEL_CASES=N` for more cases), the
+  python-pptx oracle `cargo run --release -p ooxml-pptx --example table_cases -- OUT`
+  then `python3 -I crates/ooxml-pptx/tests/oracle/tables.py [--site DIR] OUT reference/fixtures/pptx`,
+  and a corpus sweep `cargo run --release -p ooxml-pptx --example table_sweep -- [--out DIR] DIR...`.
 - Manual check in PowerPoint:
   `cargo run -p ooxml-pptx --example pptx_manual_check -- OUT` writes edited
   files and `OUT/CHECKLIST.md`. `cargo xtask manual-check <outdir>` runs the

@@ -73,6 +73,24 @@
   | P3 empty runs ignored on the data side only | ignored on **both** sides (431/431 unchanged); indices count non-empty runs; text put into an empty run goes after the preceding non-empty cache run | §4 |
   | P4 nits | (a) a 1-D vertical merge copies `vMerge` only; (b) `r:id` sits on `a:hlinkClick`/`a:hlinkMouseOver` under `a:rPr`, refusal scope stated; (c) `InvalidNamespaceDeclaration` in §5 | §2, §4, §5 |
 
+- **Post-acceptance note (2026-11-16, implementation of §2–§3 tables on
+  `impl/pptx-phase1b-tables` — no change to the decisions):**
+  - The codegen addition P1 asked for is the ADR-0002 note "children of a
+    wildcard-only parent" (`add_child` with `before = "##any"`), so new
+    rows and columns of id-bearing tables get `a16:rowId`/`colId`
+    through `insert_with_ns` (#45); `RowIdNotSupported` is not needed.
+  - Merge attributes are written from the merge geometry in the edge
+    form for every merge an operation touches (inserting inside it,
+    deleting through it, creating it); this equals copying them from the
+    cell below/right (N1) and also converts a touched flag-only merge.
+    Untouched merges keep their bytes.
+  - Every operation runs its checks on the slide tree and its edits on a
+    clone that replaces the tree only when every edit succeeded, so a
+    refusal — this crate's or the core's — leaves the slide unchanged.
+  - Property test: 3,000 random tables (38,257 row/column inserts and
+    deletes, 3,817 expected refusals) against an independent logical
+    model: 0 mismatches (`tests/table_model.rs`).
+
 ## Context
 
 Phase 0 reads tables (`TableRef`/`CellRef`: grid, spans, merges) and edits

@@ -41,6 +41,9 @@ pub(crate) struct SlideRefs {
     pub characters: Lock,
     /// Text ranges anchored by modern comments (or unverifiable anchors).
     pub comments: Lock,
+    /// Tables with a comment anchored inside them (rows, columns, cells),
+    /// or unverifiable anchors: structural edits refused (ADR-0013 §2).
+    pub tables: Lock,
 }
 
 const fn p(local: &'static str) -> QName {
@@ -100,11 +103,13 @@ impl SlideRefs {
     pub(crate) fn scan_comments(&mut self, part: Option<&XmlDocument>) {
         let Some(doc) = part else {
             self.comments.all = true;
+            self.tables.all = true;
             return;
         };
         let root = doc.root();
         if !root.is(QName::new(P188_NS, "cmLst")) {
             self.comments.all = true;
+            self.tables.all = true;
             return;
         }
         for cm in root.elements() {
@@ -113,6 +118,7 @@ impl SlideRefs {
             }
             if !cm.is(QName::new(P188_NS, "cm")) {
                 self.comments.all = true;
+                self.tables.all = true;
                 continue;
             }
             let anchors: Vec<&RawNode> = cm
@@ -123,10 +129,12 @@ impl SlideRefs {
                 .collect();
             if anchors.is_empty() {
                 self.comments.all = true;
+                self.tables.all = true;
             }
             for a in anchors {
                 let mut below = Vec::new();
                 descendants(a, &mut below);
+                self.scan_table_anchor(a, &below);
                 let text_like = below.iter().any(|n| {
                     n.name().local() == "txMk"
                         || n.attr(QName::new("", "cp")).is_some()
@@ -148,6 +156,40 @@ impl SlideRefs {
                     self.comments.add(id);
                 }
             }
+        }
+    }
+}
+
+impl SlideRefs {
+    /// ADR-0013 §2 (review N5): an anchor inside a table — a list of a
+    /// table kind, or **any** list holding `rowId`/`colId` or a
+    /// `tcMk`/`trMk`/`gridColMk`/`tblMk` — locks the frame ids below it;
+    /// an anchor ADR-0005 §6 cannot verify (no known kind) locks every
+    /// table. A whole-frame anchor (`deMkLst` with only `graphicFrameMk`
+    /// and slide/document monikers) does not lock.
+    fn scan_table_anchor(&mut self, a: &RawNode, below: &[&RawNode]) {
+        const TABLE_LISTS: [&str; 4] = ["tblMkLst", "tcMkLst", "trMkLst", "gridColMkLst"];
+        const TABLE_MKS: [&str; 4] = ["tcMk", "trMk", "gridColMk", "tblMk"];
+        const KNOWN: [&str; 8] = ["sldMkLst", "deMkLst", "txMkLst", "txBodyMkLst", "graphicFrameMkLst", "tblMkLst", "tcMkLst", "trMkLst"];
+        let local = a.name().local();
+        let ns_ok = a.name().ns() == AC_NS || a.name().ns() == PC_NS;
+        let inside = (ns_ok && (TABLE_LISTS.contains(&local) || local == "gridColMkLst"))
+            || below.iter().any(|n| {
+                (n.name().ns() == AC_NS && TABLE_MKS.contains(&n.name().local()))
+                    || n.attr(QName::new("", "rowId")).is_some()
+                    || n.attr(QName::new("", "colId")).is_some()
+            });
+        if inside {
+            let ids: Vec<Option<&str>> =
+                below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id")).map(Some)).collect();
+            if ids.is_empty() {
+                self.tables.all = true;
+            }
+            for id in ids {
+                self.tables.add(id);
+            }
+        } else if !(ns_ok && (KNOWN.contains(&local) || local == "gridColMkLst")) {
+            self.tables.all = true; // unverifiable anchor
         }
     }
 }

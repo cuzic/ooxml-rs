@@ -23,6 +23,7 @@
 //!
 //! [ADR-0005]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0005-pptx-phase0.md
 
+mod builtin_styles;
 mod error;
 mod names;
 mod presentation;
@@ -37,4 +38,4 @@ pub use read::{
     CellRef, FieldRef, ParagraphRef, PlaceholderRef, RunRef, ShapeKind, ShapePath, ShapeRef, Slide, SlideInfo,
     TableRef, TextBodyRef, TextItem,
 };
-pub use write::{ParagraphMut, RunMut, ShapeMut, SlideMut, TextBodyMut};
+pub use write::{CellFill, Color, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, TableFlag, TableMut, TextBodyMut};

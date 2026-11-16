@@ -47,6 +47,9 @@ struct SlideEntry {
 pub struct Presentation {
     pkg: Package,
     slides: Vec<SlideEntry>,
+    /// Table edit state that outlives one `SlideMut` (deleted `a16` ids),
+    /// by slide part (ADR-0013 §2: the session is the `Presentation`).
+    tables: std::collections::BTreeMap<String, crate::write::TableSession>,
 }
 
 impl Presentation {
@@ -89,7 +92,7 @@ impl Presentation {
                     .filter(|p| pkg.contains(p)),
             })
             .collect();
-        Ok(Presentation { pkg, slides })
+        Ok(Presentation { pkg, slides, tables: Default::default() })
     }
 
     /// Saves to `path` (temp file + rename; the same path is safe).
@@ -156,11 +159,30 @@ impl Presentation {
             };
             refs.scan_comments(doc.as_ref());
         }
+        let table_styles = self.table_style_ids();
+        let tables = self.tables.entry(part.clone()).or_default();
         let doc = self.pkg.xml_part_mut(&part)?;
         if !doc.root().is(pml::Slide::QNAME) {
             return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
         }
         refs.scan_timing(doc.root());
-        Ok(SlideMut { doc, info, refs })
+        Ok(SlideMut { doc, info, refs, table_styles, tables })
+    }
+
+    /// `a:tblStyle@styleId`s defined in the presentation's `tableStyles`
+    /// part (found by relationship); empty when absent or unreadable.
+    fn table_style_ids(&self) -> Vec<String> {
+        const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
+        let Some(main) = self.pkg.main_document_part() else { return Vec::new() };
+        let Ok(rels) = self.pkg.relationships(&main) else { return Vec::new() };
+        let Some(part) = rels.by_type(REL).filter_map(|r| rels.resolve(r)).find(|p| self.pkg.contains(p)) else {
+            return Vec::new();
+        };
+        let Some(doc) = self.pkg.read_part(&part).ok().and_then(|b| XmlDocument::parse(&b).ok()) else { return Vec::new() };
+        doc.root()
+            .elements()
+            .filter(|e| e.is(QName::new(crate::names::A_NS, "tblStyle")))
+            .filter_map(|e| e.attr(QName::new("", "styleId")).map(str::to_owned))
+            .collect()
     }
 }
