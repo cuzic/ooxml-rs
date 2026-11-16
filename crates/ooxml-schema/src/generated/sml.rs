@@ -37,6 +37,30 @@ impl ooxml_core::EnumType for CellFormulaValues {
         self as usize
     }
 }
+/// `x:ST_TableType` — Table Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TableValues {
+    /// `worksheet`
+    Worksheet,
+    /// `xml`
+    Xml,
+    /// `queryTable`
+    QueryTable,
+}
+impl ooxml_core::EnumType for TableValues {
+    const VALUES: &'static [&'static str] = &["worksheet", "xml", "queryTable"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Worksheet),
+            1 => Some(Self::Xml),
+            2 => Some(Self::QueryTable),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_SheetState` — Sheet Visibility Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SheetStateValues {
@@ -1444,6 +1468,478 @@ impl<'a> SharedStringTableView<'a> {
         self.0.raw()
     }
 }
+/// `x:CT_Table/x:table` — Table.
+#[derive(Debug)]
+pub enum Table {}
+impl Table {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `displayName`
+    pub const ATTR_DISPLAY_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "displayName",
+    );
+    /// `comment`
+    pub const ATTR_COMMENT: ooxml_core::QName = ooxml_core::QName::new("", "comment");
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `tableType`
+    pub const ATTR_TABLE_TYPE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "tableType",
+    );
+    /// `headerRowCount`
+    pub const ATTR_HEADER_ROW_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "headerRowCount",
+    );
+    /// `insertRow`
+    pub const ATTR_INSERT_ROW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertRow",
+    );
+    /// `insertRowShift`
+    pub const ATTR_INSERT_ROW_SHIFT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertRowShift",
+    );
+    /// `totalsRowCount`
+    pub const ATTR_TOTALS_ROW_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowCount",
+    );
+    /// `totalsRowShown`
+    pub const ATTR_TOTALS_ROW_SHOWN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowShown",
+    );
+    /// `published`
+    pub const ATTR_PUBLISHED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "published",
+    );
+    /// `headerRowDxfId`
+    pub const ATTR_HEADER_ROW_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "headerRowDxfId",
+    );
+    /// `dataDxfId`
+    pub const ATTR_DATA_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "dataDxfId",
+    );
+    /// `totalsRowDxfId`
+    pub const ATTR_TOTALS_ROW_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowDxfId",
+    );
+    /// `headerRowBorderDxfId`
+    pub const ATTR_HEADER_ROW_BORDER_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "headerRowBorderDxfId",
+    );
+    /// `tableBorderDxfId`
+    pub const ATTR_TABLE_BORDER_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "tableBorderDxfId",
+    );
+    /// `totalsRowBorderDxfId`
+    pub const ATTR_TOTALS_ROW_BORDER_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowBorderDxfId",
+    );
+    /// `headerRowCellStyle`
+    pub const ATTR_HEADER_ROW_CELL_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "headerRowCellStyle",
+    );
+    /// `dataCellStyle`
+    pub const ATTR_DATA_CELL_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "dataCellStyle",
+    );
+    /// `totalsRowCellStyle`
+    pub const ATTR_TOTALS_ROW_CELL_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowCellStyle",
+    );
+    /// `connectionId`
+    pub const ATTR_CONNECTION_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "connectionId",
+    );
+}
+impl ooxml_core::ElementSpec for Table {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "table");
+    const SDK_NAME: &'static str = "x:CT_Table/x:table";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_DISPLAY_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_COMMENT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TABLE_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <TableValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("worksheet"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_HEADER_ROW_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_INSERT_ROW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_INSERT_ROW_SHIFT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TOTALS_ROW_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TOTALS_ROW_SHOWN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_PUBLISHED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_HEADER_ROW_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_DATA_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TOTALS_ROW_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_HEADER_ROW_BORDER_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TABLE_BORDER_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TOTALS_ROW_BORDER_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_HEADER_ROW_CELL_STYLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_DATA_CELL_STYLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_TOTALS_ROW_CELL_STYLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Table::ATTR_CONNECTION_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "autoFilter")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "sortState")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tableColumns")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tableStyleInfo")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`Table`].
+#[derive(Clone, Debug)]
+pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
+impl<'a> TableView<'a> {
+    /// `id` — Table Id
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Table::ATTR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `name` — Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_NAME)
+    }
+    /// `displayName` — Table Name
+    pub fn display_name(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_DISPLAY_NAME)
+    }
+    /// `comment` — Table Comment
+    pub fn comment(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_COMMENT)
+    }
+    /// `ref` — Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_REF)
+    }
+    /// `tableType` — Table Type (default `worksheet`)
+    pub fn table_type(&self) -> ooxml_core::EnumValue<'a, TableValues> {
+        self.0.attr_enum_or(Table::ATTR_TABLE_TYPE, "worksheet")
+    }
+    /// `headerRowCount` — Header Row Count (default `1`)
+    pub fn header_row_count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Table::ATTR_HEADER_ROW_COUNT,
+                "1",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `insertRow` — Insert Row Showing (default `false`)
+    pub fn insert_row(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Table::ATTR_INSERT_ROW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertRowShift` — Insert Row Shift (default `false`)
+    pub fn insert_row_shift(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Table::ATTR_INSERT_ROW_SHIFT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `totalsRowCount` — Totals Row Count (default `0`)
+    pub fn totals_row_count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Table::ATTR_TOTALS_ROW_COUNT,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `totalsRowShown` — Totals Row Shown (default `true`)
+    pub fn totals_row_shown(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Table::ATTR_TOTALS_ROW_SHOWN,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `published` — Published (default `false`)
+    pub fn published(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Table::ATTR_PUBLISHED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `headerRowDxfId` — Header Row Format Id
+    pub fn header_row_format_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Table::ATTR_HEADER_ROW_DXF_ID, ooxml_core::value::parse_u32)
+    }
+    /// `dataDxfId` — Data Area Format Id
+    pub fn data_format_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Table::ATTR_DATA_DXF_ID, ooxml_core::value::parse_u32)
+    }
+    /// `totalsRowDxfId` — Totals Row Format Id
+    pub fn totals_row_format_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Table::ATTR_TOTALS_ROW_DXF_ID, ooxml_core::value::parse_u32)
+    }
+    /// `headerRowBorderDxfId` — Header Row Border Format Id
+    pub fn header_row_border_format_id(
+        &self,
+    ) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Table::ATTR_HEADER_ROW_BORDER_DXF_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `tableBorderDxfId` — Table Border Format Id
+    pub fn border_format_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Table::ATTR_TABLE_BORDER_DXF_ID, ooxml_core::value::parse_u32)
+    }
+    /// `totalsRowBorderDxfId` — Totals Row Border Format Id
+    pub fn totals_row_border_format_id(
+        &self,
+    ) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Table::ATTR_TOTALS_ROW_BORDER_DXF_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `headerRowCellStyle` — Header Row Style
+    pub fn header_row_cell_style(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_HEADER_ROW_CELL_STYLE)
+    }
+    /// `dataCellStyle` — Data Style Name
+    pub fn data_cell_style(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_DATA_CELL_STYLE)
+    }
+    /// `totalsRowCellStyle` — Totals Row Style
+    pub fn totals_row_cell_style(&self) -> Option<&'a str> {
+        self.0.attr(Table::ATTR_TOTALS_ROW_CELL_STYLE)
+    }
+    /// `connectionId` — Connection ID
+    pub fn connection_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Table::ATTR_CONNECTION_ID, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TablePart/x:tablePart` — Table Part.
+#[derive(Debug)]
+pub enum TablePart {}
+impl TablePart {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for TablePart {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tablePart");
+    const SDK_NAME: &'static str = "x:CT_TablePart/x:tablePart";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TablePart::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TablePart`].
+#[derive(Clone, Debug)]
+pub struct TablePartView<'a>(pub ooxml_core::Lens<'a, TablePart>);
+impl<'a> TablePartView<'a> {
+    /// `r:id` — Relationship Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(TablePart::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TableParts/x:tableParts` — Defines the TableParts Class.
+#[derive(Debug)]
+pub enum TableParts {}
+impl TableParts {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for TableParts {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tableParts");
+    const SDK_NAME: &'static str = "x:CT_TableParts/x:tableParts";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableParts::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tablePart")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableParts> for TablePart {}
+/// Read-only view of [`TableParts`].
+#[derive(Clone, Debug)]
+pub struct TablePartsView<'a>(pub ooxml_core::Lens<'a, TableParts>);
+impl<'a> TablePartsView<'a> {
+    /// `count` — Count
+    pub fn count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TableParts::ATTR_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `x:tablePart` children in document order.
+    pub fn table_part_iter(&self) -> impl Iterator<Item = TablePartView<'a>> {
+        self.0.children::<TablePart>().map(TablePartView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `x:CT_Workbook/x:workbook` — Workbook.
 #[derive(Debug)]
 pub enum Workbook {}
@@ -1840,6 +2336,7 @@ impl ooxml_core::ElementSpec for Worksheet {
 impl ooxml_core::ChildOf<Worksheet> for MergeCells {}
 impl ooxml_core::ChildOf<Worksheet> for SheetData {}
 impl ooxml_core::ChildOf<Worksheet> for SheetDimension {}
+impl ooxml_core::ChildOf<Worksheet> for TableParts {}
 /// Read-only view of [`Worksheet`].
 #[derive(Clone, Debug)]
 pub struct WorksheetView<'a>(pub ooxml_core::Lens<'a, Worksheet>);
@@ -1855,6 +2352,10 @@ impl<'a> WorksheetView<'a> {
     /// First `x:dimension` child.
     pub fn sheet_dimension(&self) -> Option<SheetDimensionView<'a>> {
         self.0.child::<SheetDimension>().map(SheetDimensionView)
+    }
+    /// First `x:tableParts` child.
+    pub fn table_parts(&self) -> Option<TablePartsView<'a>> {
+        self.0.child::<TableParts>().map(TablePartsView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2058,11 +2559,16 @@ const _: () = ooxml_core::schema::assert_spec::<Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Sheets, Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringTable>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringTable, SharedStringItem>();
+const _: () = ooxml_core::schema::assert_spec::<Table>();
+const _: () = ooxml_core::schema::assert_spec::<TablePart>();
+const _: () = ooxml_core::schema::assert_spec::<TableParts>();
+const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<Workbook>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, Sheets>();
 const _: () = ooxml_core::schema::assert_spec::<Worksheet>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetData>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetDimension>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, TableParts>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
 const _: () = ooxml_core::schema::assert_spec::<CellValue>();

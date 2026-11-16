@@ -20,7 +20,7 @@ names = [
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
-# first sheet, shared/rich strings, merged ranges.
+# first sheet, shared/rich strings, merged ranges, table header rows.
 [read]
 names = [
     "x:CT_CellFormula/x:f",
@@ -32,4 +32,8 @@ names = [
     "x:CT_Rst/x:si",
     "x:CT_MergeCells/x:mergeCells",
     "x:CT_MergeCell/x:mergeCell",
+    # Table header guard (roadmap Q5): tableParts -> table part -> ref/headerRowCount.
+    "x:CT_TableParts/x:tableParts",
+    "x:CT_TablePart/x:tablePart",
+    "x:CT_Table/x:table",
 ]

@@ -70,8 +70,14 @@ def _one(p):
         if ty != "worksheet" or t not in z.namelist():
             continue
         for _, el in ET.iterparse(io.BytesIO(z.read(t))):
+            if el.tag == f"{{{SML}}}c" and el.get("cm") is not None:
+                c["cm"] += 1  # cell-metadata index (dynamic-array anchors; ADR-0003 m4)
+            if el.tag == f"{{{SML}}}c" and el.get("ca") is not None:
+                c["c_ca"] += 1
             if el.tag != F:
                 continue
+            if el.get("ca") in ("1", "true"):
+                c["f_ca"] += 1  # always-calculate (volatile) flag
             c["f"] += 1
             kind = el.get("t", "normal")
             c["t_" + kind] += 1
