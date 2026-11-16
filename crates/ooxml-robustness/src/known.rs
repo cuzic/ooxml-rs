@@ -47,13 +47,20 @@ pub fn f3_skip_xmlns_attrs() -> bool {
     enabled()
 }
 
-/// F-4: an XML declaration after the start of the document (inside the
-/// root element it is dropped from the tree).
+/// F-4: an XML declaration after the root element's start tag begins (it
+/// is dropped from the tree). Declarations in the prolog stay verbatim and
+/// are not filtered.
 pub fn f4_inner_xml_decl(xml: &[u8]) -> bool {
-    enabled()
-        && xml.windows(6).enumerate().any(|(i, w)| {
-            i > 3 && w.starts_with(b"<?xml") && matches!(w[5], b' ' | b'\t' | b'\r' | b'\n' | b'?')
-        })
+    if !enabled() {
+        return false;
+    }
+    // The root start tag: the first `<` not followed by `?`, `!` or `/`.
+    let Some(root) = xml.windows(2).position(|w| w[0] == b'<' && !matches!(w[1], b'?' | b'!' | b'/')) else {
+        return false;
+    };
+    xml[root..]
+        .windows(6)
+        .any(|w| w.starts_with(b"<?xml") && matches!(w[5], b' ' | b'\t' | b'\r' | b'\n' | b'?'))
 }
 
 /// F-5: an element with an empty local name or empty prefix (`< />`).
