@@ -109,6 +109,16 @@ guess: `C1` depends on everything. Edit `S1!Z9` → `S1!C1`; `D1` (`2*3`) is nev
 The other round-3 shapes (two masters sharing an `si`, sheet and defined names that fold alike,
 the Kelvin sign) are built in `tests/phase1_review_r3.rs`.
 
+## `o1_duplicate_caches.xlsx` (review R4-M1; not an O3 case)
+
+Schema-invalid duplicate caches on dependents of `A1`: `B1` = `A1*2` with two `<v>`; `C1:C2` a
+CSE array `{A1:A2*3}` whose result cell `C2` has two `<v>`; `D1` (`t="str"`) with two `<v>`;
+`E1` with two `<is>`. `F1` = `A2*2` is not a dependent.
+
+| Edit | Expected |
+|---|---|
+| A1 | B1, C1, C2, D1, E1 lose **every** `v`/`is` (and `t`); F1 keeps `<v>4</v>` |
+
 ## `o3_canary.xlsx` (O3 positive control, not an O1 case)
 
 `Sheet1!B1` = `A1+1` with a deliberately **wrong** cached value 3. The O3 data generator and the O3

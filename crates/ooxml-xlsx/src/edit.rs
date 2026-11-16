@@ -315,8 +315,11 @@ impl Workbook {
                 let row = sd.into_child_at::<sml::Row>(ri).ok_or_else(|| Error::Malformed("planned row".into()))?;
                 let cell = row.into_child_at::<sml::Cell>(ci).ok_or_else(|| Error::Malformed("planned cell".into()))?;
                 let mut c = sml::CellViewMut(cell);
-                c.remove_cell_value();
-                c.remove_inline_string();
+                // every `v` and `is`, duplicates included (schema-invalid,
+                // but a reader would see a survivor), as `write_cell` does
+                // (review R4-M1)
+                while c.remove_cell_value() {}
+                while c.remove_inline_string() {}
                 c.remove_data_type()?;
             }
         }
@@ -389,8 +392,11 @@ impl Workbook {
 
     #[cfg(feature = "fault-injection")]
     fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
-        if self.fault == Some(step) {
+        if let Some((at, panic)) = self.fault
+            && at == step
+        {
             self.fault = None;
+            assert!(!panic, "injected panic before {step:?}");
             return Err(Error::Malformed(format!("injected failure before {step:?}")));
         }
         Ok(())
