@@ -474,7 +474,15 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     // ---- attributes ----
 
-    fn check_attr_write(&self) -> Result<()> {
+    /// Refusals shared by `set_attr` and `remove_attr`: an incomplete spec,
+    /// and namespace declarations. A declaration is `{XMLNS_NS}*`, or an
+    /// unqualified `xmlns` / `xmlns:*` (which would render as one). Writing
+    /// one could unbind a prefix still in use (not well-formed output) or
+    /// silently move existing names to another namespace (fuzz finding F-3).
+    fn check_attr_write(&self, q: QName) -> Result<()> {
+        if q.ns == XMLNS_NS || (q.ns.is_empty() && (q.local == "xmlns" || q.local.starts_with("xmlns:"))) {
+            return Err(Error::NamespaceDeclaration(q));
+        }
         if E::ATTRS_INCOMPLETE { Err(Error::IncompleteSpec(E::QNAME)) } else { Ok(()) }
     }
 
@@ -482,9 +490,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// and prefix; a new one is appended. A namespaced attribute needs a
     /// non-empty prefix bound to its URI ([`Error::NamespaceNotInScope`]).
     /// A value with a character outside XML 1.0 `Char` is refused
-    /// ([`Error::InvalidXmlChar`]) before anything changes.
+    /// ([`Error::InvalidXmlChar`]) before anything changes. Namespace
+    /// declarations are refused ([`Error::NamespaceDeclaration`]).
     pub fn set_attr(&mut self, q: QName, value: &str) -> Result<()> {
-        self.check_attr_write()?;
+        self.check_attr_write(q)?;
         check_xml_chars(value)?;
         let existing = self.node().attrs.iter().position(|a| a.name.is(q));
         let prefix = match existing {
@@ -506,9 +515,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         Ok(())
     }
 
-    /// Removes attribute `q`. Returns whether it existed.
+    /// Removes attribute `q`. Returns whether it existed. Namespace
+    /// declarations are refused ([`Error::NamespaceDeclaration`]).
     pub fn remove_attr(&mut self, q: QName) -> Result<bool> {
-        self.check_attr_write()?;
+        self.check_attr_write(q)?;
         let node = self.node_mut();
         let Some(i) = node.attrs.iter().position(|a| a.name.is(q)) else {
             return Ok(false);
