@@ -72,6 +72,7 @@ mod replace;
 mod story;
 mod structure;
 mod styles;
+mod tables;
 mod text;
 
 pub use document::{Document, Paragraph, Run};
@@ -83,6 +84,7 @@ pub use format::{
 };
 pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
 pub use styles::{StyleInfo, StyleKind};
+pub use tables::{RowTemplate, TableRef};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
     Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,

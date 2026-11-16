@@ -249,6 +249,56 @@ pub enum Error {
     #[error("hyperlinks cannot be nested")]
     NestedHyperlink,
 
+    /// A table operation needs a consistent grid: for every row,
+    /// `gridBefore`, the cells' `gridSpan`s and `gridAfter` add up to the
+    /// number of `w:gridCol`, and the table has a `w:tblGrid` (ADR-0011 §7).
+    #[error("the table's grid is inconsistent or missing")]
+    InconsistentGrid,
+
+    /// No table with that index in the story.
+    #[error("no table {0}")]
+    NoSuchTable(usize),
+
+    /// Removed content holds a footnote or endnote reference (ADR-0011 §7,
+    /// review M6).
+    #[error("the removed content holds a note reference")]
+    WouldRemoveNote,
+
+    /// Removed content holds a revision element (ADR-0011 §7, review M6).
+    #[error("the removed content holds a revision ({element})")]
+    RevisionInRange {
+        /// The element, e.g. `w:ins`.
+        element: String,
+    },
+
+    /// Removed rows hold a range marker whose partner stays, or a comment
+    /// anchor or reference (ADR-0011 §7.2).
+    #[error("removing the rows would break {marker}")]
+    AnchorWouldBreak {
+        /// The marker, e.g. `w:bookmarkStart`.
+        marker: String,
+    },
+
+    /// The table would be left without rows or grid columns.
+    #[error("the table would be empty")]
+    TableWouldBeEmpty,
+
+    /// A row would be left without a cell (ADR-0011 §7.3).
+    #[error("a row would be left without cells")]
+    RowWouldBeEmpty,
+
+    /// A cell to remove is not empty (one paragraph, nothing but `w:pPr`).
+    #[error("the cell is not empty")]
+    CellNotEmpty,
+
+    /// A merge rectangle's edge cuts a cell span or a vertical merge.
+    #[error("the merge rectangle cuts an existing span or merge")]
+    MergeOverlaps,
+
+    /// A cell to merge (other than the top-left one) is not empty.
+    #[error("a cell to merge is not empty")]
+    MergeNonEmpty,
+
     /// No paragraph with that index.
     #[error("no paragraph {0}")]
     NoSuchParagraph(usize),

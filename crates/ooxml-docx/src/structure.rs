@@ -757,6 +757,14 @@ fn sect_lens<'a>(xml: &'a mut XmlDocument, path: &[usize]) -> Result<LensMut<'a,
     .ok_or(Error::NoSectionProperties)
 }
 
+/// A mutable lens on the table at `path` (from the story root), when its
+/// parent is a body, header, footer, note, comment or table cell.
+pub(crate) fn table_lens<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -> Result<Option<LensMut<'a, Table>>> {
+    let Some((item, parent)) = path.split_last() else { return Ok(None) };
+    let Some(c) = container_at(xml, kind, parent)? else { return Ok(None) };
+    Ok(on_container!(c, l => l.into_child_at::<Table>(*item)))
+}
+
 /// A mutable lens on the paragraph at `path` (from the story root).
 fn para_lens<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -> Result<LensMut<'a, P>> {
     let (parent, item) = path.split_at(path.len() - 1);

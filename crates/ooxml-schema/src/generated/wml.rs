@@ -575,6 +575,54 @@ impl ooxml_core::EnumType for ThemeFontValues {
         self as usize
     }
 }
+/// `w:ST_TblWidth` — TableWidthUnitValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TableWidthUnitValues {
+    /// `nil`
+    Nil,
+    /// `pct`
+    Pct,
+    /// `dxa`
+    Dxa,
+    /// `auto`
+    Auto,
+}
+impl ooxml_core::EnumType for TableWidthUnitValues {
+    const VALUES: &'static [&'static str] = &["nil", "pct", "dxa", "auto"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Nil),
+            1 => Some(Self::Pct),
+            2 => Some(Self::Dxa),
+            3 => Some(Self::Auto),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_Merge` — MergedCellValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MergedCellValues {
+    /// `continue`
+    Continue,
+    /// `restart`
+    Restart,
+}
+impl ooxml_core::EnumType for MergedCellValues {
+    const VALUES: &'static [&'static str] = &["continue", "restart"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Continue),
+            1 => Some(Self::Restart),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_StyleType` — StyleValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StyleValues {
@@ -1281,6 +1329,28 @@ impl<'a> BodyViewMut<'a> {
     pub fn remove_section_properties(&mut self) -> bool {
         self.0.remove::<SectionProperties>()
     }
+    /// First `w:tbl` child matching `pred`, mutably.
+    pub fn table_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableViewMut<'_>> {
+        self.0.child_mut_by::<Table>(pred).map(TableViewMut)
+    }
+    /// Inserts a `w:tbl` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Table>(before).map(TableViewMut)
+    }
+    /// Appends a `w:tbl` at the end of its slot.
+    pub fn insert_table(&mut self) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Table>().map(TableViewMut)
+    }
+    /// Removes the first `w:tbl` child.
+    pub fn remove_table(&mut self) -> bool {
+        self.0.remove::<Table>()
+    }
 }
 /// `w:CT_Br/w:br` — Break.
 #[derive(Debug)]
@@ -1623,6 +1693,153 @@ impl<'a> CommentsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_DecimalNumber/w:gridAfter` — Defines the GridAfter Class.
+#[derive(Debug)]
+pub enum GridAfter {}
+impl GridAfter {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for GridAfter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "gridAfter");
+    const SDK_NAME: &'static str = "w:CT_DecimalNumber/w:gridAfter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GridAfter::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`GridAfter`].
+#[derive(Clone, Debug)]
+pub struct GridAfterView<'a>(pub ooxml_core::Lens<'a, GridAfter>);
+impl<'a> GridAfterView<'a> {
+    /// `w:val` — Decimal Number Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GridAfter::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GridAfter`]. Reads go through [`GridAfterViewMut::as_view`].
+#[derive(Debug)]
+pub struct GridAfterViewMut<'a>(pub ooxml_core::LensMut<'a, GridAfter>);
+impl<'a> GridAfterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GridAfterView<'_> {
+        GridAfterView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Decimal Number Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(GridAfter::ATTR_W_VAL, s))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GridAfter::ATTR_W_VAL)
+    }
+}
+/// `w:CT_DecimalNumber/w:gridBefore` — Defines the GridBefore Class.
+#[derive(Debug)]
+pub enum GridBefore {}
+impl GridBefore {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for GridBefore {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "gridBefore");
+    const SDK_NAME: &'static str = "w:CT_DecimalNumber/w:gridBefore";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GridBefore::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`GridBefore`].
+#[derive(Clone, Debug)]
+pub struct GridBeforeView<'a>(pub ooxml_core::Lens<'a, GridBefore>);
+impl<'a> GridBeforeView<'a> {
+    /// `w:val` — Decimal Number Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GridBefore::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GridBefore`]. Reads go through [`GridBeforeViewMut::as_view`].
+#[derive(Debug)]
+pub struct GridBeforeViewMut<'a>(pub ooxml_core::LensMut<'a, GridBefore>);
+impl<'a> GridBeforeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GridBeforeView<'_> {
+        GridBeforeView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Decimal Number Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(GridBefore::ATTR_W_VAL, s))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GridBefore::ATTR_W_VAL)
+    }
+}
+/// `w:CT_DecimalNumber/w:gridSpan` — Defines the GridSpan Class.
+#[derive(Debug)]
+pub enum GridSpan {}
+impl GridSpan {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for GridSpan {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "gridSpan");
+    const SDK_NAME: &'static str = "w:CT_DecimalNumber/w:gridSpan";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GridSpan::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`GridSpan`].
+#[derive(Clone, Debug)]
+pub struct GridSpanView<'a>(pub ooxml_core::Lens<'a, GridSpan>);
+impl<'a> GridSpanView<'a> {
+    /// `w:val` — Decimal Number Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GridSpan::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GridSpan`]. Reads go through [`GridSpanViewMut::as_view`].
+#[derive(Debug)]
+pub struct GridSpanViewMut<'a>(pub ooxml_core::LensMut<'a, GridSpan>);
+impl<'a> GridSpanViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GridSpanView<'_> {
+        GridSpanView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Decimal Number Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(GridSpan::ATTR_W_VAL, s))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GridSpan::ATTR_W_VAL)
     }
 }
 /// `w:CT_DocProtect/w:documentProtection` — Document Editing Restrictions.
@@ -6054,7 +6271,9 @@ impl ooxml_core::ChildOf<TableRow> for DeletedRun {}
 impl ooxml_core::ChildOf<TableRow> for InsertedRun {}
 impl ooxml_core::ChildOf<TableRow> for MoveFromRun {}
 impl ooxml_core::ChildOf<TableRow> for MoveToRun {}
+impl ooxml_core::ChildOf<TableRow> for TablePropertyExceptions {}
 impl ooxml_core::ChildOf<TableRow> for TableCell {}
+impl ooxml_core::ChildOf<TableRow> for TableRowProperties {}
 /// Read-only view of [`TableRow`].
 #[derive(Clone, Debug)]
 pub struct TableRowView<'a>(pub ooxml_core::Lens<'a, TableRow>);
@@ -6099,13 +6318,150 @@ impl<'a> TableRowView<'a> {
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
     }
+    /// First `w:tblPrEx` child.
+    pub fn table_property_exceptions(&self) -> Option<TablePropertyExceptionsView<'a>> {
+        self.0.child::<TablePropertyExceptions>().map(TablePropertyExceptionsView)
+    }
     /// `w:tc` children in document order.
     pub fn table_cell_iter(&self) -> impl Iterator<Item = TableCellView<'a>> {
         self.0.children::<TableCell>().map(TableCellView)
     }
+    /// First `w:trPr` child.
+    pub fn table_row_properties(&self) -> Option<TableRowPropertiesView<'a>> {
+        self.0.child::<TableRowProperties>().map(TableRowPropertiesView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`TableRow`]. Reads go through [`TableRowViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableRowViewMut<'a>(pub ooxml_core::LensMut<'a, TableRow>);
+impl<'a> TableRowViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableRowView<'_> {
+        TableRowView(self.0.as_lens())
+    }
+    /// Sets `w:rsidRPr` — Revision Identifier for Table Row Glyph Formatting
+    pub fn set_rsid_table_row_mark_revision(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableRow::ATTR_W_RSID_R_PR, v)
+    }
+    /// Removes `w:rsidRPr`.
+    pub fn remove_rsid_table_row_mark_revision(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_W_RSID_R_PR)
+    }
+    /// Sets `w:rsidR` — Revision Identifier for Table Row
+    pub fn set_rsid_table_row_addition(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableRow::ATTR_W_RSID_R, v)
+    }
+    /// Removes `w:rsidR`.
+    pub fn remove_rsid_table_row_addition(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_W_RSID_R)
+    }
+    /// Sets `w:rsidDel` — Revision Identifier for Table Row Deletion
+    pub fn set_rsid_table_row_deletion(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableRow::ATTR_W_RSID_DEL, v)
+    }
+    /// Removes `w:rsidDel`.
+    pub fn remove_rsid_table_row_deletion(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_W_RSID_DEL)
+    }
+    /// Sets `w:rsidTr` — Revision Identifier for Table Row Properties
+    pub fn set_rsid_table_row_properties(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableRow::ATTR_W_RSID_TR, v)
+    }
+    /// Removes `w:rsidTr`.
+    pub fn remove_rsid_table_row_properties(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_W_RSID_TR)
+    }
+    /// Sets `w14:paraId` — paraId
+    pub fn set_paragraph_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableRow::ATTR_W14_PARA_ID, v)
+    }
+    /// Removes `w14:paraId`.
+    pub fn remove_paragraph_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_W14_PARA_ID)
+    }
+    /// Sets `w14:textId` — textId
+    pub fn set_text_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableRow::ATTR_W14_TEXT_ID, v)
+    }
+    /// Removes `w14:textId`.
+    pub fn remove_text_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableRow::ATTR_W14_TEXT_ID)
+    }
+    /// First `w:tblPrEx` child, mutably.
+    pub fn table_property_exceptions_mut(
+        &mut self,
+    ) -> Option<TablePropertyExceptionsViewMut<'_>> {
+        self.0.child_mut::<TablePropertyExceptions>().map(TablePropertyExceptionsViewMut)
+    }
+    /// Existing `w:tblPrEx` child, or a new one in schema position.
+    pub fn get_or_insert_table_property_exceptions(
+        &mut self,
+    ) -> Result<TablePropertyExceptionsViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<TablePropertyExceptions>()
+            .map(TablePropertyExceptionsViewMut)
+    }
+    /// Removes the first `w:tblPrEx` child.
+    pub fn remove_table_property_exceptions(&mut self) -> bool {
+        self.0.remove::<TablePropertyExceptions>()
+    }
+    /// First `w:tc` child matching `pred`, mutably.
+    pub fn table_cell_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableCellViewMut<'_>> {
+        self.0.child_mut_by::<TableCell>(pred).map(TableCellViewMut)
+    }
+    /// Inserts a `w:tc` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_cell_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<TableCell>(before).map(TableCellViewMut)
+    }
+    /// Appends a `w:tc` at the end of its slot.
+    pub fn insert_table_cell(
+        &mut self,
+    ) -> Result<TableCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<TableCell>().map(TableCellViewMut)
+    }
+    /// Removes the first `w:tc` child.
+    pub fn remove_table_cell(&mut self) -> bool {
+        self.0.remove::<TableCell>()
+    }
+    /// First `w:trPr` child, mutably.
+    pub fn table_row_properties_mut(&mut self) -> Option<TableRowPropertiesViewMut<'_>> {
+        self.0.child_mut::<TableRowProperties>().map(TableRowPropertiesViewMut)
+    }
+    /// Existing `w:trPr` child, or a new one in schema position.
+    pub fn get_or_insert_table_row_properties(
+        &mut self,
+    ) -> Result<TableRowPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableRowProperties>().map(TableRowPropertiesViewMut)
+    }
+    /// Removes the first `w:trPr` child.
+    pub fn remove_table_row_properties(&mut self) -> bool {
+        self.0.remove::<TableRowProperties>()
     }
 }
 /// `w:CT_RunTrackChange/w:del` — Deleted Run Content.
@@ -8760,6 +9116,7 @@ impl ooxml_core::ChildOf<Table> for DeletedRun {}
 impl ooxml_core::ChildOf<Table> for InsertedRun {}
 impl ooxml_core::ChildOf<Table> for MoveFromRun {}
 impl ooxml_core::ChildOf<Table> for MoveToRun {}
+impl ooxml_core::ChildOf<Table> for TableGrid {}
 /// Read-only view of [`Table`].
 #[derive(Clone, Debug)]
 pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
@@ -8784,9 +9141,382 @@ impl<'a> TableView<'a> {
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
     }
+    /// First `w:tblGrid` child.
+    pub fn table_grid(&self) -> Option<TableGridView<'a>> {
+        self.0.child::<TableGrid>().map(TableGridView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Table`]. Reads go through [`TableViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableViewMut<'a>(pub ooxml_core::LensMut<'a, Table>);
+impl<'a> TableViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableView<'_> {
+        TableView(self.0.as_lens())
+    }
+    /// First `w:tr` child matching `pred`, mutably.
+    pub fn table_row_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableRowViewMut<'_>> {
+        self.0.child_mut_by::<TableRow>(pred).map(TableRowViewMut)
+    }
+    /// Inserts a `w:tr` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_row_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableRowViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<TableRow>(before).map(TableRowViewMut)
+    }
+    /// Appends a `w:tr` at the end of its slot.
+    pub fn insert_table_row(
+        &mut self,
+    ) -> Result<TableRowViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<TableRow>().map(TableRowViewMut)
+    }
+    /// Removes the first `w:tr` child.
+    pub fn remove_table_row(&mut self) -> bool {
+        self.0.remove::<TableRow>()
+    }
+    /// First `w:tblGrid` child, mutably.
+    pub fn table_grid_mut(&mut self) -> Option<TableGridViewMut<'_>> {
+        self.0.child_mut::<TableGrid>().map(TableGridViewMut)
+    }
+    /// Existing `w:tblGrid` child, or a new one in schema position.
+    pub fn get_or_insert_table_grid(
+        &mut self,
+    ) -> Result<TableGridViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableGrid>().map(TableGridViewMut)
+    }
+    /// Removes the first `w:tblGrid` child.
+    pub fn remove_table_grid(&mut self) -> bool {
+        self.0.remove::<TableGrid>()
+    }
+}
+/// `w:CT_TblGrid/w:tblGrid` — Table Grid.
+#[derive(Debug)]
+pub enum TableGrid {}
+impl ooxml_core::ElementSpec for TableGrid {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "tblGrid");
+    const SDK_NAME: &'static str = "w:CT_TblGrid/w:tblGrid";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "gridCol")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblGridChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableGrid> for GridColumn {}
+/// Read-only view of [`TableGrid`].
+#[derive(Clone, Debug)]
+pub struct TableGridView<'a>(pub ooxml_core::Lens<'a, TableGrid>);
+impl<'a> TableGridView<'a> {
+    /// `w:gridCol` children in document order.
+    pub fn grid_column_iter(&self) -> impl Iterator<Item = GridColumnView<'a>> {
+        self.0.children::<GridColumn>().map(GridColumnView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableGrid`]. Reads go through [`TableGridViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableGridViewMut<'a>(pub ooxml_core::LensMut<'a, TableGrid>);
+impl<'a> TableGridViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableGridView<'_> {
+        TableGridView(self.0.as_lens())
+    }
+    /// First `w:gridCol` child matching `pred`, mutably.
+    pub fn grid_column_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GridColumnViewMut<'_>> {
+        self.0.child_mut_by::<GridColumn>(pred).map(GridColumnViewMut)
+    }
+    /// Inserts a `w:gridCol` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_grid_column_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GridColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GridColumn>(before).map(GridColumnViewMut)
+    }
+    /// Appends a `w:gridCol` at the end of its slot.
+    pub fn insert_grid_column(
+        &mut self,
+    ) -> Result<GridColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GridColumn>().map(GridColumnViewMut)
+    }
+    /// Removes the first `w:gridCol` child.
+    pub fn remove_grid_column(&mut self) -> bool {
+        self.0.remove::<GridColumn>()
+    }
+}
+/// `w:CT_TblGridCol/w:gridCol` — Grid Column Definition.
+#[derive(Debug)]
+pub enum GridColumn {}
+impl GridColumn {
+    /// `w:w`
+    pub const ATTR_W_W: ooxml_core::QName = ooxml_core::QName::new(NS_W, "w");
+}
+impl ooxml_core::ElementSpec for GridColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "gridCol");
+    const SDK_NAME: &'static str = "w:CT_TblGridCol/w:gridCol";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GridColumn::ATTR_W_W,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`GridColumn`].
+#[derive(Clone, Debug)]
+pub struct GridColumnView<'a>(pub ooxml_core::Lens<'a, GridColumn>);
+impl<'a> GridColumnView<'a> {
+    /// `w:w` — Grid Column Width
+    pub fn width(&self) -> Option<&'a str> {
+        self.0.attr(GridColumn::ATTR_W_W)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GridColumn`]. Reads go through [`GridColumnViewMut::as_view`].
+#[derive(Debug)]
+pub struct GridColumnViewMut<'a>(pub ooxml_core::LensMut<'a, GridColumn>);
+impl<'a> GridColumnViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GridColumnView<'_> {
+        GridColumnView(self.0.as_lens())
+    }
+    /// Sets `w:w` — Grid Column Width
+    pub fn set_width(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(GridColumn::ATTR_W_W, v)
+    }
+    /// Removes `w:w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GridColumn::ATTR_W_W)
+    }
+}
+/// `w:CT_TblPrEx/w:tblPrEx` — Table-Level Property Exceptions.
+#[derive(Debug)]
+pub enum TablePropertyExceptions {}
+impl ooxml_core::ElementSpec for TablePropertyExceptions {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "tblPrEx");
+    const SDK_NAME: &'static str = "w:CT_TblPrEx/w:tblPrEx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblW")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "jc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblCellSpacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblInd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblBorders")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "shd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblLayout")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblCellMar")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblLook")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblPrExChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::schema::__private::Sealed for TablePropertyExceptions {}
+impl ooxml_core::Detachable for TablePropertyExceptions {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`TablePropertyExceptions`].
+#[derive(Clone, Debug)]
+pub struct TablePropertyExceptionsView<'a>(
+    pub ooxml_core::Lens<'a, TablePropertyExceptions>,
+);
+impl<'a> TablePropertyExceptionsView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TablePropertyExceptions`]. Reads go through [`TablePropertyExceptionsViewMut::as_view`].
+#[derive(Debug)]
+pub struct TablePropertyExceptionsViewMut<'a>(
+    pub ooxml_core::LensMut<'a, TablePropertyExceptions>,
+);
+impl<'a> TablePropertyExceptionsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TablePropertyExceptionsView<'_> {
+        TablePropertyExceptionsView(self.0.as_lens())
+    }
+}
+/// `w:CT_TblWidth/w:tcW` — Defines the TableCellWidth Class.
+#[derive(Debug)]
+pub enum TableCellWidth {}
+impl TableCellWidth {
+    /// `w:w`
+    pub const ATTR_W_W: ooxml_core::QName = ooxml_core::QName::new(NS_W, "w");
+    /// `w:type`
+    pub const ATTR_W_TYPE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "type");
+}
+impl ooxml_core::ElementSpec for TableCellWidth {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "tcW");
+    const SDK_NAME: &'static str = "w:CT_TblWidth/w:tcW";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableCellWidth::ATTR_W_W,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellWidth::ATTR_W_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <TableWidthUnitValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TableCellWidth`].
+#[derive(Clone, Debug)]
+pub struct TableCellWidthView<'a>(pub ooxml_core::Lens<'a, TableCellWidth>);
+impl<'a> TableCellWidthView<'a> {
+    /// `w:w` — Table Width Value
+    pub fn width(&self) -> Option<&'a str> {
+        self.0.attr(TableCellWidth::ATTR_W_W)
+    }
+    /// `w:type` — Table Width Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, TableWidthUnitValues>> {
+        self.0.attr_enum(TableCellWidth::ATTR_W_TYPE)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableCellWidth`]. Reads go through [`TableCellWidthViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellWidthViewMut<'a>(pub ooxml_core::LensMut<'a, TableCellWidth>);
+impl<'a> TableCellWidthViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellWidthView<'_> {
+        TableCellWidthView(self.0.as_lens())
+    }
+    /// Sets `w:w` — Table Width Value
+    pub fn set_width(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCellWidth::ATTR_W_W, v)
+    }
+    /// Removes `w:w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellWidth::ATTR_W_W)
+    }
+    /// Sets `w:type` — Table Width Type
+    pub fn set_type(
+        &mut self,
+        v: TableWidthUnitValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCellWidth::ATTR_W_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellWidth::ATTR_W_TYPE)
     }
 }
 /// `w:CT_Tc/w:tc` — Table Cell.
@@ -8855,6 +9585,7 @@ impl ooxml_core::ChildOf<TableCell> for InsertedRun {}
 impl ooxml_core::ChildOf<TableCell> for MoveFromRun {}
 impl ooxml_core::ChildOf<TableCell> for MoveToRun {}
 impl ooxml_core::ChildOf<TableCell> for Table {}
+impl ooxml_core::ChildOf<TableCell> for TableCellProperties {}
 /// Read-only view of [`TableCell`].
 #[derive(Clone, Debug)]
 pub struct TableCellView<'a>(pub ooxml_core::Lens<'a, TableCell>);
@@ -8883,9 +9614,302 @@ impl<'a> TableCellView<'a> {
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
     }
+    /// First `w:tcPr` child.
+    pub fn table_cell_properties(&self) -> Option<TableCellPropertiesView<'a>> {
+        self.0.child::<TableCellProperties>().map(TableCellPropertiesView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`TableCell`]. Reads go through [`TableCellViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellViewMut<'a>(pub ooxml_core::LensMut<'a, TableCell>);
+impl<'a> TableCellViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellView<'_> {
+        TableCellView(self.0.as_lens())
+    }
+    /// First `w:p` child matching `pred`, mutably.
+    pub fn paragraph_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ParagraphViewMut<'_>> {
+        self.0.child_mut_by::<Paragraph>(pred).map(ParagraphViewMut)
+    }
+    /// Inserts a `w:p` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_paragraph_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Paragraph>(before).map(ParagraphViewMut)
+    }
+    /// Appends a `w:p` at the end of its slot.
+    pub fn insert_paragraph(
+        &mut self,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Paragraph>().map(ParagraphViewMut)
+    }
+    /// Removes the first `w:p` child.
+    pub fn remove_paragraph(&mut self) -> bool {
+        self.0.remove::<Paragraph>()
+    }
+    /// First `w:tbl` child matching `pred`, mutably.
+    pub fn table_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableViewMut<'_>> {
+        self.0.child_mut_by::<Table>(pred).map(TableViewMut)
+    }
+    /// Inserts a `w:tbl` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Table>(before).map(TableViewMut)
+    }
+    /// Appends a `w:tbl` at the end of its slot.
+    pub fn insert_table(&mut self) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Table>().map(TableViewMut)
+    }
+    /// Removes the first `w:tbl` child.
+    pub fn remove_table(&mut self) -> bool {
+        self.0.remove::<Table>()
+    }
+    /// First `w:tcPr` child, mutably.
+    pub fn table_cell_properties_mut(
+        &mut self,
+    ) -> Option<TableCellPropertiesViewMut<'_>> {
+        self.0.child_mut::<TableCellProperties>().map(TableCellPropertiesViewMut)
+    }
+    /// Existing `w:tcPr` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_properties(
+        &mut self,
+    ) -> Result<TableCellPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellProperties>().map(TableCellPropertiesViewMut)
+    }
+    /// Removes the first `w:tcPr` child.
+    pub fn remove_table_cell_properties(&mut self) -> bool {
+        self.0.remove::<TableCellProperties>()
+    }
+}
+/// `w:CT_TcPr/w:tcPr` — Table Cell Properties.
+#[derive(Debug)]
+pub enum TableCellProperties {}
+impl ooxml_core::ElementSpec for TableCellProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "tcPr");
+    const SDK_NAME: &'static str = "w:CT_TcPr/w:tcPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "cnfStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tcW")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "gridSpan")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "hMerge")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "vMerge")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tcBorders")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "shd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "noWrap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tcMar")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textDirection")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tcFitText")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "vAlign")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "hideMark")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "cellIns"),
+                    ooxml_core::QName::new(NS_W, "cellDel"),
+                    ooxml_core::QName::new(NS_W, "cellMerge"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tcPrChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableCellProperties> for GridSpan {}
+impl ooxml_core::ChildOf<TableCellProperties> for TableCellWidth {}
+impl ooxml_core::ChildOf<TableCellProperties> for VerticalMerge {}
+impl ooxml_core::schema::__private::Sealed for TableCellProperties {}
+impl ooxml_core::Detachable for TableCellProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`TableCellProperties`].
+#[derive(Clone, Debug)]
+pub struct TableCellPropertiesView<'a>(pub ooxml_core::Lens<'a, TableCellProperties>);
+impl<'a> TableCellPropertiesView<'a> {
+    /// First `w:gridSpan` child.
+    pub fn grid_span(&self) -> Option<GridSpanView<'a>> {
+        self.0.child::<GridSpan>().map(GridSpanView)
+    }
+    /// First `w:tcW` child.
+    pub fn table_cell_width(&self) -> Option<TableCellWidthView<'a>> {
+        self.0.child::<TableCellWidth>().map(TableCellWidthView)
+    }
+    /// First `w:vMerge` child.
+    pub fn vertical_merge(&self) -> Option<VerticalMergeView<'a>> {
+        self.0.child::<VerticalMerge>().map(VerticalMergeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableCellProperties`]. Reads go through [`TableCellPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, TableCellProperties>,
+);
+impl<'a> TableCellPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellPropertiesView<'_> {
+        TableCellPropertiesView(self.0.as_lens())
+    }
+    /// First `w:gridSpan` child, mutably.
+    pub fn grid_span_mut(&mut self) -> Option<GridSpanViewMut<'_>> {
+        self.0.child_mut::<GridSpan>().map(GridSpanViewMut)
+    }
+    /// Existing `w:gridSpan` child, or a new one in schema position.
+    pub fn get_or_insert_grid_span(
+        &mut self,
+    ) -> Result<GridSpanViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GridSpan>().map(GridSpanViewMut)
+    }
+    /// Removes the first `w:gridSpan` child.
+    pub fn remove_grid_span(&mut self) -> bool {
+        self.0.remove::<GridSpan>()
+    }
+    /// First `w:tcW` child, mutably.
+    pub fn table_cell_width_mut(&mut self) -> Option<TableCellWidthViewMut<'_>> {
+        self.0.child_mut::<TableCellWidth>().map(TableCellWidthViewMut)
+    }
+    /// Existing `w:tcW` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_width(
+        &mut self,
+    ) -> Result<TableCellWidthViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellWidth>().map(TableCellWidthViewMut)
+    }
+    /// Removes the first `w:tcW` child.
+    pub fn remove_table_cell_width(&mut self) -> bool {
+        self.0.remove::<TableCellWidth>()
+    }
+    /// First `w:vMerge` child, mutably.
+    pub fn vertical_merge_mut(&mut self) -> Option<VerticalMergeViewMut<'_>> {
+        self.0.child_mut::<VerticalMerge>().map(VerticalMergeViewMut)
+    }
+    /// Existing `w:vMerge` child, or a new one in schema position.
+    pub fn get_or_insert_vertical_merge(
+        &mut self,
+    ) -> Result<VerticalMergeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<VerticalMerge>().map(VerticalMergeViewMut)
+    }
+    /// Removes the first `w:vMerge` child.
+    pub fn remove_vertical_merge(&mut self) -> bool {
+        self.0.remove::<VerticalMerge>()
     }
 }
 /// `w:CT_Text/w:delInstrText` — Deleted Field Code.
@@ -9084,6 +10108,177 @@ impl<'a> TextViewMut<'a> {
         self.0.set_text(v)
     }
 }
+/// `w:CT_TrPr/w:trPr` — Table Row Properties.
+#[derive(Debug)]
+pub enum TableRowProperties {}
+impl ooxml_core::ElementSpec for TableRowProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "trPr");
+    const SDK_NAME: &'static str = "w:CT_TrPr/w:trPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "cnfStyle"),
+                    ooxml_core::QName::new(NS_W, "divId"),
+                    ooxml_core::QName::new(NS_W, "gridBefore"),
+                    ooxml_core::QName::new(NS_W, "gridAfter"),
+                    ooxml_core::QName::new(NS_W, "wBefore"),
+                    ooxml_core::QName::new(NS_W, "wAfter"),
+                    ooxml_core::QName::new(NS_W, "trHeight"),
+                    ooxml_core::QName::new(NS_W, "hidden"),
+                    ooxml_core::QName::new(NS_W, "cantSplit"),
+                    ooxml_core::QName::new(NS_W, "tblHeader"),
+                    ooxml_core::QName::new(NS_W, "tblCellSpacing"),
+                    ooxml_core::QName::new(NS_W, "jc"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "ins")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "del")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "trPrChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableRowProperties> for GridAfter {}
+impl ooxml_core::ChildOf<TableRowProperties> for GridBefore {}
+impl ooxml_core::schema::__private::Sealed for TableRowProperties {}
+impl ooxml_core::Detachable for TableRowProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`TableRowProperties`].
+#[derive(Clone, Debug)]
+pub struct TableRowPropertiesView<'a>(pub ooxml_core::Lens<'a, TableRowProperties>);
+impl<'a> TableRowPropertiesView<'a> {
+    /// `w:gridAfter` children in document order.
+    pub fn grid_after_iter(&self) -> impl Iterator<Item = GridAfterView<'a>> {
+        self.0.children::<GridAfter>().map(GridAfterView)
+    }
+    /// `w:gridBefore` children in document order.
+    pub fn grid_before_iter(&self) -> impl Iterator<Item = GridBeforeView<'a>> {
+        self.0.children::<GridBefore>().map(GridBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableRowProperties`]. Reads go through [`TableRowPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableRowPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, TableRowProperties>,
+);
+impl<'a> TableRowPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableRowPropertiesView<'_> {
+        TableRowPropertiesView(self.0.as_lens())
+    }
+    /// First `w:gridAfter` child matching `pred`, mutably.
+    pub fn grid_after_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GridAfterViewMut<'_>> {
+        self.0.child_mut_by::<GridAfter>(pred).map(GridAfterViewMut)
+    }
+    /// Inserts a `w:gridAfter` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_grid_after_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GridAfterViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GridAfter>(before).map(GridAfterViewMut)
+    }
+    /// Appends a `w:gridAfter` at the end of its slot.
+    pub fn insert_grid_after(
+        &mut self,
+    ) -> Result<GridAfterViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GridAfter>().map(GridAfterViewMut)
+    }
+    /// Removes the first `w:gridAfter` child.
+    pub fn remove_grid_after(&mut self) -> bool {
+        self.0.remove::<GridAfter>()
+    }
+    /// First `w:gridBefore` child matching `pred`, mutably.
+    pub fn grid_before_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GridBeforeViewMut<'_>> {
+        self.0.child_mut_by::<GridBefore>(pred).map(GridBeforeViewMut)
+    }
+    /// Inserts a `w:gridBefore` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_grid_before_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GridBeforeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GridBefore>(before).map(GridBeforeViewMut)
+    }
+    /// Appends a `w:gridBefore` at the end of its slot.
+    pub fn insert_grid_before(
+        &mut self,
+    ) -> Result<GridBeforeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GridBefore>().map(GridBeforeViewMut)
+    }
+    /// Removes the first `w:gridBefore` child.
+    pub fn remove_grid_before(&mut self) -> bool {
+        self.0.remove::<GridBefore>()
+    }
+}
 /// `w:CT_Underline/w:u` — Defines the Underline Class.
 #[derive(Debug)]
 pub enum Underline {}
@@ -9225,6 +10420,57 @@ impl<'a> UnderlineViewMut<'a> {
         self.0.remove_attr(Underline::ATTR_W_THEME_SHADE)
     }
 }
+/// `w:CT_VMerge/w:vMerge` — Defines the VerticalMerge Class.
+#[derive(Debug)]
+pub enum VerticalMerge {}
+impl VerticalMerge {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for VerticalMerge {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "vMerge");
+    const SDK_NAME: &'static str = "w:CT_VMerge/w:vMerge";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: VerticalMerge::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <MergedCellValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`VerticalMerge`].
+#[derive(Clone, Debug)]
+pub struct VerticalMergeView<'a>(pub ooxml_core::Lens<'a, VerticalMerge>);
+impl<'a> VerticalMergeView<'a> {
+    /// `w:val` — Vertical Merge Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, MergedCellValues>> {
+        self.0.attr_enum(VerticalMerge::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`VerticalMerge`]. Reads go through [`VerticalMergeViewMut::as_view`].
+#[derive(Debug)]
+pub struct VerticalMergeViewMut<'a>(pub ooxml_core::LensMut<'a, VerticalMerge>);
+impl<'a> VerticalMergeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> VerticalMergeView<'_> {
+        VerticalMergeView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Vertical Merge Type
+    pub fn set_val(&mut self, v: MergedCellValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(VerticalMerge::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(VerticalMerge::ATTR_W_VAL)
+    }
+}
 /// `w:CT_VerticalAlignRun/w:vertAlign` — Defines the VerticalTextAlignment Class.
 #[derive(Debug)]
 pub enum VerticalTextAlignment {}
@@ -9299,6 +10545,9 @@ const _: () = ooxml_core::schema::assert_child::<Comment, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Comments>();
 const _: () = ooxml_core::schema::assert_child::<Comments, Comment>();
+const _: () = ooxml_core::schema::assert_spec::<GridAfter>();
+const _: () = ooxml_core::schema::assert_spec::<GridBefore>();
+const _: () = ooxml_core::schema::assert_spec::<GridSpan>();
 const _: () = ooxml_core::schema::assert_spec::<DocumentProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Document>();
 const _: () = ooxml_core::schema::assert_child::<Document, Body>();
@@ -9425,7 +10674,9 @@ const _: () = ooxml_core::schema::assert_child::<TableRow, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, TablePropertyExceptions>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableCell>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, TableRowProperties>();
 const _: () = ooxml_core::schema::assert_spec::<DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, DeletedRun>();
@@ -9483,6 +10734,12 @@ const _: () = ooxml_core::schema::assert_child::<Table, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Table, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Table, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Table, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Table, TableGrid>();
+const _: () = ooxml_core::schema::assert_spec::<TableGrid>();
+const _: () = ooxml_core::schema::assert_child::<TableGrid, GridColumn>();
+const _: () = ooxml_core::schema::assert_spec::<GridColumn>();
+const _: () = ooxml_core::schema::assert_spec::<TablePropertyExceptions>();
+const _: () = ooxml_core::schema::assert_spec::<TableCellWidth>();
 const _: () = ooxml_core::schema::assert_spec::<TableCell>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, DeletedRun>();
@@ -9490,9 +10747,18 @@ const _: () = ooxml_core::schema::assert_child::<TableCell, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, Table>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, TableCellProperties>();
+const _: () = ooxml_core::schema::assert_spec::<TableCellProperties>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, GridSpan>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, TableCellWidth>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, VerticalMerge>();
 const _: () = ooxml_core::schema::assert_spec::<DeletedFieldCode>();
 const _: () = ooxml_core::schema::assert_spec::<DeletedText>();
 const _: () = ooxml_core::schema::assert_spec::<FieldCode>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
+const _: () = ooxml_core::schema::assert_spec::<TableRowProperties>();
+const _: () = ooxml_core::schema::assert_child::<TableRowProperties, GridAfter>();
+const _: () = ooxml_core::schema::assert_child::<TableRowProperties, GridBefore>();
 const _: () = ooxml_core::schema::assert_spec::<Underline>();
+const _: () = ooxml_core::schema::assert_spec::<VerticalMerge>();
 const _: () = ooxml_core::schema::assert_spec::<VerticalTextAlignment>();
