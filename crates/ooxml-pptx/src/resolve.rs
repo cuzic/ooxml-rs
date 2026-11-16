@@ -782,7 +782,9 @@ impl<'a> Sheet<'a> {
     /// geometry, mapped through every enclosing group's
     /// `a:off`/`a:ext`/`a:chOff`/`a:chExt` (scaled, rounded to EMU).
     /// `None` when the geometry is not `Set` and valid (including a
-    /// placeholder in a group, `GroupCoordinates`).
+    /// placeholder in a group, `GroupCoordinates`), or when an enclosing
+    /// group's transform is invalid (`rot`/`flip*` not parseable, `a:off`/
+    /// `a:ext` missing or invalid, a zero `a:chExt`; #56 r2-m3).
     ///
     /// Errors: [`crate::Error::TransformedGroup`] if an enclosing group has
     /// `rot` ≠ 0, `flipH` or `flipV`; chain errors.
@@ -798,21 +800,40 @@ impl<'a> Sheet<'a> {
             if !g.is(p("grpSp")) {
                 continue;
             }
+            // no a:xfrm: the group does not transform its children
             let Some(gx) = child(g, p("grpSpPr")).and_then(|sp| child(sp, a("xfrm"))) else { continue };
-            let rot = gx.attr(un("rot")).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
-            let flip = |k: &'static str| gx.attr(un(k)).and_then(ooxml_core::value::parse_bool).unwrap_or(false);
-            if rot % 21_600_000 != 0 || flip("flipH") || flip("flipV") {
+            // #56 r2-m3: an invalid rot/flip, a missing or invalid off/ext,
+            // or a zero chExt leaves the rectangle undecided (Ok(None)),
+            // never an identity guess
+            let rot = match gx.attr(un("rot")) {
+                None => 0,
+                Some(v) => match v.parse::<i64>() {
+                    Ok(r) => r,
+                    Err(_) => return Ok(None),
+                },
+            };
+            let flip = |k: &'static str| -> Option<bool> {
+                match gx.attr(un(k)) {
+                    None => Some(false),
+                    Some(v) => ooxml_core::value::parse_bool(v),
+                }
+            };
+            let (Some(fh), Some(fv)) = (flip("flipH"), flip("flipV")) else { return Ok(None) };
+            if rot % 21_600_000 != 0 || fh || fv {
                 return Err(crate::Error::TransformedGroup { group_id: shape_id(g) });
             }
-            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<(f64, f64)> {
-                let e = child(gx, a(n))?;
-                Some((e.attr(un(ax))?.parse().ok()?, e.attr(un(ay))?.parse().ok()?))
+            // Some(None): element absent; None: present but invalid
+            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<Option<(f64, f64)>> {
+                let Some(e) = child(gx, a(n)) else { return Some(None) };
+                Some(Some((e.attr(un(ax))?.parse().ok()?, e.attr(un(ay))?.parse().ok()?)))
             };
-            let (Some(off), Some(ext)) = (pt("off", "x", "y"), pt("ext", "cx", "cy")) else { continue };
-            let ch_off = pt("chOff", "x", "y").unwrap_or(off);
-            let ch_ext = pt("chExt", "cx", "cy").unwrap_or(ext);
-            let sx = if ch_ext.0 == 0.0 { 1.0 } else { ext.0 / ch_ext.0 };
-            let sy = if ch_ext.1 == 0.0 { 1.0 } else { ext.1 / ch_ext.1 };
+            let (Some(Some(off)), Some(Some(ext))) = (pt("off", "x", "y"), pt("ext", "cx", "cy")) else { return Ok(None) };
+            let (Some(ch_off), Some(ch_ext)) = (pt("chOff", "x", "y"), pt("chExt", "cx", "cy")) else { return Ok(None) };
+            let (ch_off, ch_ext) = (ch_off.unwrap_or(off), ch_ext.unwrap_or(ext));
+            if ch_ext.0 == 0.0 || ch_ext.1 == 0.0 {
+                return Ok(None);
+            }
+            let (sx, sy) = (ext.0 / ch_ext.0, ext.1 / ch_ext.1);
             rx = off.0 + (rx - ch_off.0) * sx;
             ry = off.1 + (ry - ch_off.1) * sy;
             rcx *= sx;

@@ -482,3 +482,22 @@ fn links_in_notes_layouts_and_masters() {
     assert_eq!(ll[0].0.text, None);
     assert!(deck.masters().iter().all(|m| deck.link_reader(m).links().is_empty()));
 }
+
+/// N5: a non-placeholder text box on a notes slide resolves steps 1–4 only
+/// (no p:defaultTextStyle, whose lvl1 sets latin Arial in sample.pptx).
+#[test]
+fn notes_text_box_has_no_presentation_default() {
+    let tb = r#"<p:sp><p:nvSpPr><p:cNvPr id="40" name="Notes box"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>box</a:t></a:r></a:p></p:txBody></p:sp></p:spTree>"#;
+    let mut p = Presentation::from_bytes(patched("poi/sample.pptx", &[(NOTES1, "</p:spTree>", tb)])).unwrap();
+    let deck = p.deck().unwrap();
+    let s = deck.slide(0).unwrap();
+    let sheet = s.notes_sheet().unwrap();
+    let shapes = sheet.shapes();
+    let bx = shapes.iter().find(|x| x.name() == Some("Notes box")).unwrap();
+    let b = bx.text_body().unwrap();
+    let para = b.paragraphs()[0];
+    let TextItem::Run(r) = para.items()[0] else { panic!() };
+    let rp = sheet.run_props(bx, b, para, RunItem::Run(r)).unwrap();
+    assert_eq!(rp.latin, Lookup::Unset, "{:?}", rp.latin);
+    assert_eq!(rp.size, Lookup::Unset);
+}

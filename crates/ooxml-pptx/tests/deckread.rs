@@ -225,3 +225,28 @@ fn comment_anchor_shared_classifier() {
     let e = p.slide_mut(0).unwrap().shape_mut_by_id(id).unwrap().text_body_mut().unwrap().set_text("x").unwrap_err();
     assert!(matches!(e, ooxml_pptx::Error::CommentAnchoredText { .. }), "{e:?}");
 }
+
+/// Review #56 r2-m2 (Z1, Z2): effects before the first click and in an
+/// interactive sequence have no click index; the comparison keeps `None`s.
+#[test]
+fn click_index_exact_sequence() {
+    let eff = |id: u32, nt: &str| format!(r#"<p:par><p:cTn id="{id}" presetClass="entr" presetID="1" nodeType="{nt}"/></p:par>"#);
+    let main: String = [eff(3, "afterEffect"), eff(4, "clickEffect"), eff(5, "withEffect"), eff(6, "clickEffect")].concat();
+    let timing = format!(
+        r#"<p:timing><p:tnLst><p:par><p:cTn id="1" nodeType="tmRoot"><p:childTnLst><p:seq><p:cTn id="2" nodeType="mainSeq"><p:childTnLst>{main}</p:childTnLst></p:cTn></p:seq><p:seq><p:cTn id="7" nodeType="interactiveSeq"><p:childTnLst>{}</p:childTnLst></p:cTn></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing></p:sld>"#,
+        eff(8, "clickEffect")
+    );
+    let mut p = patched("poi/sample.pptx", "ppt/slides/slide1.xml", "</p:sld>", &timing);
+    let d = p.deck().unwrap();
+    let t = d.slide(0).unwrap().timing().unwrap();
+    assert_eq!(t.effects.iter().map(|e| e.click_index).collect::<Vec<_>>(), [None, Some(0), Some(0), Some(1), None]);
+}
+
+/// Z22: transition kind attributes keep their namespace.
+#[test]
+fn transition_kind_attribute_namespaces() {
+    let mut p = patched("libreoffice/airplane-transition.pptx", "ppt/slides/slide2.xml", r#"<p15:prstTrans prst="airplane"/>"#, r#"<p15:prstTrans prst="airplane" p14:dir="r"/>"#);
+    let d = p.deck().unwrap();
+    let t = d.slide(0).unwrap().transition().unwrap();
+    assert_eq!(t.kind_attributes, [(("", "prst"), "airplane"), (("http://schemas.microsoft.com/office/powerpoint/2010/main", "dir"), "r")]);
+}
