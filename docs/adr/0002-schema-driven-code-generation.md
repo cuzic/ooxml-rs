@@ -106,6 +106,38 @@
   parts are never parsed below the default. Raising the limit needs a
   proportionally larger stack (documented on `max_depth`). Format crates
   map the error to their own open-time refusal (ooxml-docx: O5).
+- **Post-acceptance note (2026-11-16, same-part move — additive, no
+  change to the decisions; requested by ADR-0013 §2 for table-cell merges,
+  usable by any format crate):** `LensMut::move_in[_by]::<C: ChildOf<E>>(from, [before])`
+  moves the element at `from` (a child-index path in the same part) and
+  its subtree into the lens's element, placed exactly as `insert_by::<C>`
+  would place a new `C` (slot, caller order, limits and refusals computed
+  on the children **without** the moved element when it is already one of
+  them), and returns a lens on it; `check_move_in_by` runs the same
+  validation without changing anything (`Ok` exactly when the move
+  succeeds). The moved node keeps its source span and flags, so its bytes
+  are written unchanged: the output differs from the input only by those
+  bytes leaving the source and appearing at the destination (plus a
+  self-closing destination parent re-rendered when it gains its first
+  child). Because the bytes do not change, the move is refused
+  (`Error::NotMovable { reason: MoveRefusal, name }`, before any change)
+  when it would change their meaning: a prefix used in the subtree (element
+  or attribute, or the default namespace) bound to another namespace or
+  unbound at the destination (`NamespaceBinding`; declarations inside the
+  subtree travel with it); a namespace of the subtree ignorable
+  (`mc:Ignorable`) at one place only (`IgnorableNamespace`); text that
+  inherits `xml:space` from different values (`XmlSpace`). Also refused:
+  the root (`Root`), a destination inside the moved element (`IntoItself`),
+  an element not named `C::QNAME` or no element at `from`
+  (`WrongElement`), and a subtree whose deepest element would pass the
+  part's depth limit (`TooDeep`). Dirty duties: the source parent and the
+  destination parent with their ancestors get `subtree_dirty`; a source
+  parent with a close tag keeps its tags when emptied; only a self-closing
+  destination parent gains `own_dirty`. Adjacent whitespace text stays
+  where it was. Tests: `crates/ooxml-core/tests/move_subtree.rs`
+  (locality, dirty duties, destination-path shift, every refusal, a
+  brute-force agreement of check and move over a small tree), 16 mutants
+  killed.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
