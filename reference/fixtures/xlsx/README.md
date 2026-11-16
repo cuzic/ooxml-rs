@@ -9,6 +9,7 @@ that use them are specified in `docs/roadmap/xlsx.md` §7.
 - `poi/`: 23 files from Apache POI, Apache License 2.0. `poi/LICENSE` and `poi/NOTICE` are POI's
   `legal/LICENSE` and `legal/NOTICE` at the same commit.
 - `calamine/`: 2 files from calamine, MIT. `calamine/LICENSE-MIT.md` is calamine's licence file.
+- `o3/`: LibreOffice-recalculated values for the O3 test (generated data, not third-party files; `o3/README.md`).
 - Checksums: `poi/SHA256SUMS`, `calamine/SHA256SUMS` (`sha256sum -c` from inside each directory).
 
 ## Provenance

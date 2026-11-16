@@ -1,0 +1,14 @@
+DIFFER (source layout)                             1
+agree (source None)                                2
+agree (source layout)                              359
+agree (source master)                              454
+agree (source slide)                               451
+compared                                           1272
+python-pptx None, ours resolved (source master)    5
+python-pptx cannot open                            17
+   (('layouts.pptx', '262', '2'), (457200, 274638, 8229600, 1143000), (None, None, None, None))
+   (('tdf143129.pptx', '260', '3'), (838080, 1825560, 10515240, 4350960), (838080, 365040, 10515240, 1325160))
+   (('tdf169781.pptx', '265', '1027'), (250825, 260350, 8642350, 769938), (None, None, None, None))
+   (('tdf169781.pptx', '267', '2051'), (250825, 260350, 8642350, 769938), (None, None, None, None))
+   (('sc038-051_title-placeholder.pptx', '325', '3074'), (457200, 274638, 8229600, 1143000), (None, None, None, None))
+   (('sc081-autoshape-case014.pptx', '295', '2'), (1435608, 1447800, 7498080, 4800600), (None, None, None, None))

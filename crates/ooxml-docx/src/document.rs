@@ -46,6 +46,26 @@ impl Gate {
 /// is parsed read-only and stays a raw copy on save; headers, footers,
 /// notes and comments are parsed transiently to scan their fields; every
 /// other part is passed through untouched (Layer 1).
+///
+/// # Examples
+///
+/// ```no_run
+/// use ooxml_docx::Document;
+///
+/// let mut doc = Document::open("letter.docx")?;
+/// doc.write_gate()?; // track changes, protection, fields that could go stale
+/// let hit = doc.paragraphs().find_map(|p| {
+///     p.runs().find(|r| r.text() == "{{name}}" && r.check_settable().is_ok()).map(|r| (p.index(), r.index()))
+/// });
+/// if let Some((p, r)) = hit {
+///     doc.set_run_text(p, r, "Ada Lovelace")?;
+/// }
+/// doc.append_paragraph("Regards,\tthe team")?;
+/// doc.save("letter-filled.docx")?;
+/// # Ok::<(), ooxml_docx::Error>(())
+/// ```
+///
+/// A complete, runnable version is `examples/fill_runs.rs`.
 #[derive(Debug)]
 pub struct Document {
     pkg: Package,
