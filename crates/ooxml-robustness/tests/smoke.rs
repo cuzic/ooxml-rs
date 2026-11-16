@@ -125,6 +125,9 @@ fn pptx_edit() {
 fn docx_edit() {
     let mut rng = Rng::new(0xd0c5);
     assert!(DOCX.len() > 20, "fixtures not found");
+    for input in ooxml_robustness::docx::targeted_inputs() {
+        guarded("docx_edit", &input, ooxml_robustness::check_docx_input);
+    }
     for input in format_inputs(&DOCX, &mut rng, iters() * 2) {
         guarded("docx_edit", &input, ooxml_robustness::check_docx_input);
     }

@@ -78,6 +78,15 @@ impl<'a> Input<'a> {
         s
     }
 
+    /// A short string of characters every writer must accept: letters,
+    /// digits, spaces (also at the edges and doubled), tab, LF, CR, and a
+    /// few non-ASCII ones.
+    pub fn printable(&mut self) -> String {
+        const CHARS: &[char] = &['a', 'b', 'Z', '0', ' ', ' ', '\t', '\n', '\r', '-', '&', '<', '>', '"', '\'', 'é', '日', '\u{1F600}', '\u{2011}', '\u{AD}'];
+        let n = self.u8() % 12;
+        (0..n).map(|_| CHARS[usize::from(self.u8()) % CHARS.len()]).collect()
+    }
+
     /// A number: special values first, then arbitrary bit patterns.
     pub fn f64(&mut self) -> f64 {
         const SPECIAL: &[f64] = &[
