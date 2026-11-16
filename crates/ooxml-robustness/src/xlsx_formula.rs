@@ -18,9 +18,10 @@
 //!   is `1` (or the workbook is in manual mode) when there were dependents
 //!   or the set of formula cells changed; `calcChain.xml` is removed exactly
 //!   when the set of formula cells changed (with its relationship and
-//!   content-type override); a written value reads back; parts other than
-//!   the workbook, the package registries and the formula/edited sheets are
-//!   Layer-1 identical;
+//!   content-type override); a written value reads back; outside the
+//!   edited sheet only what Phase1 may write changed
+//!   ([`crate::phase1_oracle`]: the dependents' `v`/`is`/`@t`, `calcPr`,
+//!   calcChain);
 //! - the set of formula cells read back from the output equals the model's
 //!   expectation, and the output reopens.
 
@@ -31,7 +32,7 @@ use ooxml_xlsx::{CellIndex, CellValue, Error, Workbook};
 
 use crate::fixtures::{XLSX, build_zip, decode};
 use crate::input::Input;
-use crate::zipcmp::{assert_l1_except_removing, raw_entries};
+use crate::phase1_oracle::{Phase1Edits, assert_phase1_diff};
 
 /// How often the oracles fired (for reporting coverage of the checks):
 /// successful edits, dependents checked for a stripped cache, calcChain
@@ -284,8 +285,14 @@ fn model(zip: &[u8]) -> Option<Model> {
             let mut masters: BTreeMap<String, (u32, u32, String)> = BTreeMap::new();
             let mut members: Vec<((u32, u32), String)> = Vec::new();
             for row in sd.into_iter().flat_map(RawNode::elements).filter(|e| is_sml(e, "row")) {
+                let row_number: Option<u32> = attr(row, "r").and_then(|v| v.parse().ok());
                 for c in row.elements().filter(|e| is_sml(e, "c")) {
                     let (r, col, ..) = cell_ref(attr(c, "r")?)?;
+                    // A cell naming another row is fuzz finding F-8 (the
+                    // census and the row index disagree): not modelled.
+                    if row_number.is_some_and(|n| n != r + 1) {
+                        return None;
+                    }
                     let mut cell = Cell { has_v: c.elements().any(|e| is_sml(e, "v")), ..Cell::default() };
                     if let Some(f) = c.elements().find(|e| is_sml(e, "f")) {
                         cell.has_f = true;
@@ -365,11 +372,6 @@ impl Model {
             .enumerate()
             .flat_map(|(si, cells)| cells.iter().filter(|(_, c)| c.has_f).map(move |(&(r, c), _)| (si, r, c)))
             .collect()
-    }
-
-    /// Sheets with at least one formula.
-    fn formula_sheets(&self) -> BTreeSet<usize> {
-        self.cells.iter().enumerate().filter(|(_, c)| c.values().any(|c| c.has_f)).map(|(i, _)| i).collect()
     }
 }
 
@@ -470,6 +472,7 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
             }
         }
         let had_formula = m.cells[sheet].get(&(row, col)).is_some_and(|c| c.has_f);
+        let pending = Phase1Edits::default().before_write(&mut wb, &m.names[sheet], row, col);
         let result = {
             let Ok(mut ws) = wb.worksheet_by_index(sheet) else { continue };
             let Ok(cm) = ws.cell_mut(row, col) else { continue };
@@ -548,18 +551,13 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                     expected_formulas.remove(&at);
                 }
                 assert_eq!(new.formula_cells(), expected_formulas, "formula cells after editing {}!({row},{col})", m.names[sheet]);
-                // Layer 1 outside the sheets that may change
-                let names: Vec<String> = raw_entries(&before).map(|v| v.into_iter().map(|e| e.name).collect()).unwrap_or_default();
-                let touchable: BTreeSet<&str> = m
-                    .formula_sheets()
-                    .into_iter()
-                    .chain([sheet])
-                    .filter_map(|s| m.parts[s].as_deref())
-                    .chain([wb.workbook_part(), "[Content_Types].xml"])
-                    .collect();
-                let except: Vec<&str> = names.iter().map(String::as_str).filter(|n| touchable.contains(n) || n.ends_with(".rels")).collect();
-                let removable: Vec<&str> = m.calc_chain.iter().map(String::as_str).collect();
-                assert_l1_except_removing(&before, &out, &except, &removable, "xlsx formula edit");
+                // Outside the edited sheet only what Phase1 may write (the
+                // dependents' caches, calcPr, calcChain): #36's tight oracle.
+                let mut edits = Phase1Edits::default();
+                edits.wrote(pending, has_formula_now);
+                let workbook = wb.workbook_part().to_owned();
+                let edited: Vec<&str> = m.parts[sheet].as_deref().into_iter().collect();
+                assert_phase1_diff(&mut wb, &before, &out, &edited, &workbook, &edits);
                 m = new;
             }
         }
@@ -577,6 +575,18 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
 /// Small workbooks with the Phase1 shapes (shared groups, array formulas,
 /// cross-sheet chains, a calcChain, manual mode) built from XML.
 pub fn formula_books() -> Vec<(&'static str, Vec<u8>)> {
+    formula_books_inner()
+}
+
+/// A workbook whose sheet has a formula cell inside a row whose number
+/// differs from the cell's reference (`<row r="1"><c r="B2"><f>…`), with a
+/// calcChain: the shape of fuzz finding F-8.
+pub fn wrong_row_formula_book() -> Vec<u8> {
+    let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B2" i="1"/></calcChain>"#;
+    formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#)], "", Some(chain))
+}
+
+fn formula_books_inner() -> Vec<(&'static str, Vec<u8>)> {
     let sheet1 = concat!(
         r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1*2</f><v>2</v></c><c r="C1"><f t="shared" ref="C1:C3" si="0">A1+B1</f><v>3</v></c></row>"#,
         r#"<row r="2"><c r="A2"><v>2</v></c><c r="B2"><f>SUM(A1:A3)</f><v>6</v></c><c r="C2"><f t="shared" si="0"/><v>8</v></c></row>"#,
@@ -584,7 +594,7 @@ pub fn formula_books() -> Vec<(&'static str, Vec<u8>)> {
         r#"<row r="4"><c r="D4"><v>4</v></c><c r="E4"><v>12</v></c></row>"#
     );
     let sheet2 = r#"<row r="1"><c r="A1"><f>Sheet1!B2+1</f><v>7</v></c><c r="B1"><f>A1*2</f><v>14</v></c><c r="C1"><v>5</v></c></row>"#;
-    let sheet3 = r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>Sheet2!B1+'Sheet 3'!A1</f><v>15</v></c></row>"#;
+    let sheet3 = r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B2"><f>Sheet2!B1+'Sheet 3'!A1</f><v>15</v></c></row>"#;
     let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B1" i="1"/><c r="C1"/><c r="B2"/></calcChain>"#;
     vec![
         ("formula/three-sheets-calcchain.xlsx", formula_book(&[("Sheet1", sheet1), ("Sheet2", sheet2), ("Sheet 3", sheet3)], "", Some(chain))),

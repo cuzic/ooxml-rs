@@ -30,6 +30,7 @@ F-6 の ZIP64 の形（459 バイトの zip）で `Package::from_bytes` がプ�
 | F-5 | Low | 名前が空の要素（`< />`、`<\r/>`）を受け付ける。再描画で `</>` を書き、どのパーサーも読めない | `f5_empty_element_name_is_refused` |
 | I-1 | Info | パーサーがほかにも XML 1.0 / Namespaces の非 well-formed 入力を受け付ける（下記） | — |
 | I-2 | Info | 展開後サイズや圧縮率の上限がない（zip bomb） | — |
+| F-8 | Low | （xlsx Phase1、`xlsx_formula_edit` で発見）別の行番号を名乗る数式セル（`<row r="1"><c r="B2"><f>…`）がある。数式の census は B2 を数式セルとして数えるが、行インデックスは B2 を見つけない。`set_formula` を B2 に行うと、2 つ目の `c r="B2"` ができ、calcChain も残る。**未修正** | `f8_formula_cell_in_another_row_is_not_duplicated`（`#[ignore]`） |
 
 **状況（2026-11-16 時点）: F-1〜F-6 は PR #40、F-7 は PR #14 で修正され、どちらも main にマージ済み。**
 再現テストは `crates/ooxml-robustness/tests/fuzz_findings.rs` にあり、PR #36 round 2 で `#[ignore]` を外した。
@@ -222,7 +223,36 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 - part の名前が `calcChain.xml` でも、relationship から参照されていなければ計算チェーンではない。そこで、計算チェーンは relationship で特定するようにした。
 - 壊れた `[Content_Types].xml` には、`calcChain` という文字列が別の PartName に残りうる。そこで、Override の有無は PartName で判定するようにした。
 
-<!-- XF-RESULTS -->
+**ooxml-xlsx の契約外の書き込み**: 他の part の検査には、#36 の round 3 で入れた `phase1_oracle` を使う。編集したシート以外では、依存セルの `v`・`is`・`@t`、`calcPr`、calcChain しか変わってはならない。
+この oracle を入れてから変異を 4 つ再確認し、すべて検出された。
+
+- 依存先を剥がさない
+- `set_formula` で集合の変化を見ない
+- `calcPr` に `iterate` を書く
+- 依存セルの `f` まで消す
+
+**実行**:
+
+| 実行 | 時間 | 回数 | cov | 新規 |
+|---|---|---|---|---|
+| 1 回目（16 並列、seed 593 件） | 25 分 | 23.4 万 | 13,454 | 0 |
+| 2 回目（16 並列、tight oracle に差し替え後） | 18 分 | 11.5 万 | 14,037 | crash 31 件 → F-8（下記）とハーネスの合成ブックの誤り。現在のハーネスでは 0 |
+| 3 回目（16 並列、F-8 の形を除外した後） | 10 分 | 4.4 万 | 14,112 | 0 |
+| stable スモーク（release、`OOXML_SMOKE_ITERS=200`） | 49 秒 | 成功した編集 14,540、確認した依存先 9,598、calcChain の判定 6,757、拒否 5,821 | | 0 |
+
+### F-8 [Low] 別の行を名乗る数式セルで、census と行インデックスが食い違う
+
+- **再現**: `<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>` と calcChain を持つブックで、`cell_mut(1, 1).set_formula("A1*3")` を呼ぶ。
+  結果は `Ok` で、出力は `<row r="1">…<c r="B2"><f>A1*2</f><v>2</v></c></row><row r="2"><c r="B2"><f>A1*3</f></c></row>` になる。B2 という名前のセルが 2 つあり、古い B2 は古いキャッシュを持ったまま残る。
+  calcChain は残る。census は、B2 がもともと数式セルだったので、数式セルの集合が変わらないと判断したためである。
+  見つけたきっかけは、ハーネスの合成ブックにあった誤りである（行の中に別の行番号のセルを置いていた。こちらは修正済み）。
+  そのブックに対して、`phase1_oracle` が「数式セルの集合が変わったのに calcChain が残った」と報告した。ooxml-xlsx 自身の `cell(1, 1)` は `Ok(None)` を返し、census と食い違っている。
+- **影響**: このような入力は非 well-formed ではないが、スキーマ上は不正（`c/@r` は親の行に属さなければならない）である。Excel では開けない可能性が高い。
+  それでも ooxml-xlsx は、黙って重複セルを書く。README は「`c/@r` naming another row」の読み書きを `InvalidReference` で拒否すると書いているが、これは**対象の行**に限られる。
+- **推定原因**: census（`census.rs`）は `c/@r` だけでセルを特定する。行インデックス（`index.rs`）は、行の番号で探す。
+- **修正の方向**: census の走査中に、セルの行が親の行と違ったら `FormulaScanFailed`（またはそのシートの編集をすべて拒否）にする。
+- **ハーネス**: 依存モデルは、この形のブックを対象外にする（`model()` が `None` を返す）。修正されたら、この除外を外すこと。
+- **再現テスト**: `f8_formula_cell_in_another_row_is_not_duplicated`（`#[ignore]`）。
 
 ## 所見の詳細
 

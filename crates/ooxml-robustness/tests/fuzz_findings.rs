@@ -294,3 +294,30 @@ fn f6_zip64_declared_size_does_not_abort() {
     );
     assert!(stdout.contains("test result: ok. 1 passed"), "child process did not pass the test:\n{stdout}");
 }
+
+/// F-8 (Low, found by `xlsx_formula_edit`): a formula cell inside a row
+/// whose number differs from its reference (`<row r="1"><c r="B2"><f>…`).
+/// The formula census keys cells by `c/@r` and counts B2 as a formula cell;
+/// the row index looks B2 up in row 2 and does not find it. `set_formula`
+/// on B2 then writes a second `c r="B2"` in a new row 2 and keeps
+/// `calcChain.xml` (the census saw no change in the formula set), so the
+/// output has two cells named B2. Expected: refuse (`InvalidReference`, as
+/// for reads and writes in a row whose cells name another row), or treat
+/// the sheet as unscannable for formula edits.
+#[test]
+#[ignore = "fuzz finding F-8, see docs/testing/fuzz-findings-2026-11.md"]
+fn f8_formula_cell_in_another_row_is_not_duplicated() {
+    use ooxml_xlsx::Workbook;
+    let input = ooxml_robustness::xlsx_formula::wrong_row_formula_book();
+    // control: the census sees the formula
+    let mut wb = Workbook::from_bytes(input).expect("opens");
+    assert!(wb.edit_refusal().is_none());
+    let r = wb.worksheet().unwrap().cell_mut(1, 1).unwrap().set_formula("A1*3");
+    if r.is_err() {
+        return; // refusing is the expected fix
+    }
+    let out = wb.to_bytes().unwrap();
+    let pkg = ooxml_core::Package::from_bytes(out).unwrap();
+    let sheet = String::from_utf8(pkg.read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert_eq!(sheet.matches(r#"r="B2""#).count(), 1, "two cells named B2:\n{sheet}");
+}
