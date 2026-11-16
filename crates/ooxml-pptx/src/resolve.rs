@@ -28,7 +28,7 @@
 
 use ooxml_core::{AttrError, ElementSpec, EnumType, EnumValue, QName, RawNode};
 use ooxml_schema::dml::{
-    BodyProperties, ParagraphProperties, RunProperties, TextAlignmentTypeValues, TextAnchoringTypeValues, TextAutoNumberSchemeValues,
+    BodyProperties, ColorSchemeIndexValues, ParagraphProperties, ShapeTypeValues, RunProperties, TextAlignmentTypeValues, TextAnchoringTypeValues, TextAutoNumberSchemeValues,
     TextCapsValues, TextStrikeValues, TextUnderlineValues, TextVerticalValues, TextWrappingValues,
 };
 use ooxml_core::value::{DmlPercent, parse_dml_percent};
@@ -851,7 +851,7 @@ impl<'a> Sheet<'a> {
         for s in steps {
             let Some(sppr) = s.node.filter(|n| n.is(p("spPr"))) else { continue };
             if let Some(g) = child(sppr, a("prstGeom")) {
-                return Ok(Lookup::Set(Resolved { value: Ok(Outline::Preset(g.attr(un("prst")).unwrap_or(""))), source: s.source, defaulted: false }));
+                return Ok(Lookup::Set(Resolved { value: Ok(Outline::Preset(EnumValue::from_raw(g.attr(un("prst")).unwrap_or("")))), source: s.source, defaulted: false }));
             }
             if child(sppr, a("custGeom")).is_some() {
                 return Ok(Lookup::Set(Resolved { value: Ok(Outline::Custom), source: s.source, defaulted: false }));
@@ -938,7 +938,7 @@ pub struct Rect {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outline<'a> {
     /// `a:prstGeom@prst`.
-    Preset(&'a str),
+    Preset(EnumValue<'a, ShapeTypeValues>),
     /// `a:custGeom`.
     Custom,
 }
@@ -978,7 +978,7 @@ pub struct Color<'a> {
     /// Its `@val`.
     pub val: Option<&'a str>,
     /// For `schemeClr`: the theme slot after the colour map (`tx1` → `dk1`).
-    pub theme_slot: Option<&'a str>,
+    pub theme_slot: Option<EnumValue<'a, ColorSchemeIndexValues>>,
     /// Which colour map applied.
     pub map_source: Option<MapSource>,
     /// RGB before transforms: `srgbClr@val`, `sysClr@lastClr`, or the theme
@@ -1022,7 +1022,7 @@ fn color_of<'a>(c: &'a RawNode, chain: &Chain<'a>) -> std::result::Result<Color<
             } else {
                 v
             };
-            col.theme_slot = Some(slot);
+            col.theme_slot = Some(EnumValue::from_raw(slot));
             col.base_rgb = chain.theme.and_then(|t| theme_color(t, slot));
             if chain.theme.is_none() {
                 return Err(Reason::BrokenChain);
@@ -1497,7 +1497,7 @@ impl RunProps<'_> {
 
     /// Q4 helper (§1.4, owner decision): when a font slot is
     /// `Unresolved(ScriptDependent)`, picks the theme's script font for the
-    /// run's language — `altLang` first for `ea`/`cs`, then `lang`
+    /// run's language — `altLang` first, then `lang`, for any slot
     /// ([`script_for_lang`]). A candidate, never a `Set` value: PowerPoint
     /// decides per character.
     pub fn script_font_candidate<'f>(&self, slot: &'f Lookup<'_, Font<'_>>) -> Option<(&'static str, &'f str)> {

@@ -822,8 +822,8 @@ fn targets_below(n: &RawNode, out: &mut Vec<Target>) {
 
 /// Effects in document order. `click` counts the clicks of the main
 /// sequence: an effect with `nodeType="clickEffect"` starts the next click,
-/// `withEffect`/`afterEffect` join the current one (#56 m1: PowerPoint
-/// writes no `clickPar` node type on the click groups).
+/// `withEffect`/`afterEffect` join the current one (#56 m1: PowerPoint does not always
+/// write `clickPar` on its click groups; most files have none).
 fn walk_effects<'a>(n: &'a RawNode, click: &mut usize, current: &mut Option<usize>, in_main: bool, out: &mut Vec<Effect<'a>>) {
     for c in n.elements() {
         if c.is(p("cTn")) {

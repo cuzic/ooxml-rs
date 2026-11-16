@@ -102,8 +102,13 @@ departs from the §5 sketch, and what PR #56 leaves to the stacked notes PR.
   never turns `Unresolved(ScriptDependent)` into `Set`.
 - **`ParagraphRef::end_props`** is `run_props(…, RunItem::End)`.
 - **`Effect::click_index`** counts `clickEffect` nodes of the main sequence
-  (each starts the next click), not `clickPar` nodes: PowerPoint writes no
-  `clickPar` node type on its click groups.
+  (each starts the next click), not `clickPar` nodes. PowerPoint does not
+  always write `clickPar` on its click groups: most files have none, 30
+  occur in 8 slides of the corpus. Counting `clickEffect` matches a
+  structural reference (one main-sequence `p:par` waiting for a click per
+  click) on all 299 effects of the corpus (review #56 round 2).
+- **`Outline::Preset`** is `EnumValue<ShapeTypeValues>` and
+  **`Color::theme_slot`** is `EnumValue<ColorSchemeIndexValues>` (#56 r2-m1).
 - **Values from a master placeholder report the slide placeholder's own
   `MatchKind`** (§1.2 "every resolved value … reports the `MatchKind`");
   `MasterFamily` is the kind of a layout placeholder's master match (§1.7).
@@ -751,7 +756,7 @@ pub struct Effect<'a> {
     pub ctn_id: Option<u32>, pub preset_class: Option<&'a str>, // entr exit emph path verb mediacall
     pub preset_id: Option<u32>, pub preset_subtype: Option<u32>,
     pub node_type: Option<&'a str>,     // clickEffect withEffect afterEffect …
-    pub click_index: Option<usize>,      // ordinal of the enclosing clickPar in the main sequence
+    pub click_index: Option<usize>,      // ordinal of the enclosing clickPar in the main sequence (see the post-acceptance note: clickEffect count)
     pub targets: Vec<Target>,
 }
 pub enum Target { Shape(u32), Paragraphs(u32, u32, u32) /* spid, st, end */, Chars(u32, u32, u32), Background(u32), Other { spid: Option<u32>, element: String } }
