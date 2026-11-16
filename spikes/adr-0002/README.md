@@ -30,5 +30,9 @@ results quoted in ADR-0002:
   (attributeFormDefault/form, attributeGroup, global-attribute `ref`, one extension level): 1,511.
 - `typecheck.py <same args>` — joined defaults outside the SDK type's lexical space: 39 (none in SML).
   (`join2.py` is its helper.) `join*.py`/`typecheck.py` were written by the round-2 reviewer.
-- `slottable.py <Open-XML-SDK data dir> <ECMA Transitional XSD dir>` — §4.1 slot lowering counts and
-  the SDK-vs-ECMA order cross-check.
+- `slottable.py <Open-XML-SDK data dir> <ECMA Transitional XSD dir>` — §4.1 slot lowering counts
+  (revision 5 rules: 1,573 / 537 / 12 unsupported, 1 ambiguous) and the SDK-vs-ECMA order cross-check (8).
+- `bynamespace.py <data dir> <XSD dir> <path to slottable.py>` — the same counts per format group.
+- `corpus_check.py <path to slottable.py> <data dir> <dir of .docx/.pptx>` — checks real files'
+  child order against the lowered slots and reports `mc:AlternateContent` parents. Run on 197 files
+  from Apache POI `test-data/{document,slideshow}` (not committed): 0 violations in 171,537 instances.

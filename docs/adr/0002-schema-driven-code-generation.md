@@ -1,6 +1,6 @@
 # ADR-0002: Schema-driven code generation for the typed lens
 
-- Status: **Accepted** (revision 4; round-3 review `0002-opus-review-round3.md` found no Blocker/Major and approved acceptance after its Minor fixes, all applied)
+- Status: **Accepted** (revision 5; round-3 review `0002-opus-review-round3.md` approved acceptance at revision 4; revision 5 corrects the slot rules after the Word/PowerPoint check and settles the XSD licence, and was itself reviewed in `0002-opus-review-round4.md`)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md)
 
@@ -39,6 +39,16 @@
   `MissingReference` applies when any sibling lacks `r`, for reads too
   (R3-m4); prefix-rule wording and an ADR-0001 note on `RawNode` names
   (R3-m5); `set_type` override (R3-m6).
+- **Revision 5** (after checking Word/PowerPoint applicability,
+  `docs/research/2026-11-16-word-powerpoint-applicability.md`): the
+  exclusive-choice rule now considers enclosing repetition, which had
+  wrongly made `w:p`/`w:tbl`/`w:tr`/`w:tc` unsupported; a repeated
+  sequence of optional parts is one free slot; a QName in two slots
+  makes only that QName's insertion need an explicit slot instead of
+  the whole model being unsupported. Unsupported models went from 66 to
+  12. Slot lowering was checked against 197 real .docx/.pptx files (0
+  order violations). The Ecma licence question (former open question 3)
+  is settled, and overrides on abstract base entries are inherited.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
@@ -124,16 +134,26 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
    outside the type's lexical space is returned as an `AttrError`
    carrying the raw string. It is never coerced or dropped.
 
-   The counts above were measured on `ooxmlsdk`'s copy of the XSDs, whose
-   edition is unrecorded; they are re-measured on the files fetched from
-   Ecma in the vendoring commit. The Transitional
-   XSDs are published with ECMA-376 Part 4 (Transitional Migration
-   Features, 5th edition, December 2016). Ecma makes its standards
-   available free of charge, and Apache POI bundles these same schemas
-   on that basis (citing §9.4 of the Ecma by-laws); the publication page
-   itself states no licence, so the exact terms are confirmed and quoted
-   in `PROVENANCE.md` before vendoring (open question 3). Edition,
-   source URL and checksums are recorded there too. Extension-namespace
+   **Source and licence.** The Transitional XSDs are the
+   `OfficeOpenXML-XMLSchema-Transitional.zip` inside Ecma's official
+   ECMA-376 Part 4 download (5th edition, December 2016;
+   `ECMA-376-4_5th_edition_december_2016.zip`, SHA-256
+   `bd25da1109f73762356596918bf5ff8b74a1331642dba5f1c1d1dfc6bed34ecd`;
+   inner zip `d34187520749998af306faf1b730e568b0ca6d88ad24638a407c0a9bb4ca04fc`).
+   `ooxmlsdk`'s copy, on which the counts above were measured, is
+   identical except for CRLF line endings, so the counts stand. This
+   edition carries no copyright page, and the XSDs carry no header.
+   Ecma's text copyright policy (version 3, December 2025) states that its
+   default notice applies in practice to standards predating it. That
+   notice permits copying and distribution with the notice attached, and
+   permits implementing the specification in conformant products,
+   including by copy and paste. It forbids modifying the document itself.
+   The XSDs are therefore vendored **unmodified** (line endings
+   included), with Ecma's default notice in full and the provenance
+   above. Corrections live only in `overrides.toml`. The same notice goes
+   into `ooxml-schema`'s `THIRD-PARTY-NOTICES` (§2). Ecma's BSD software
+   licence is not relied on, since this edition's copyright page does not
+   carry it. Extension-namespace
    defaults (x14, x15, …) are not in ECMA-376 and come only from overrides citing the relevant [MS-XLSX]/[MS-DOCX]/
    [MS-PPTX] section.
 3. **Overrides** — `codegen/overrides.toml`, for places where the data
@@ -156,7 +176,12 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
    `ooxmlsdk`'s own overrides (`sdk_data/schema_extensions/`) already
    need every one of these operations for SpreadsheetML alone (e.g.
    `xr:uid`, `xr:revisionPtr`, `SheetStateValues::show`, MCE-wrapped
-   `legacyDrawing`/`controls`), which is why the set is fixed now. If
+   `legacyDrawing`/`controls`), which is why the set is fixed now. An
+   override on an abstract base entry (`Name` ending in `/`) is inherited
+   by every entry derived from it. Example: one `set_default` of `val`
+   to `true` on `w:CT_OnOff/` gives WordprocessingML's on/off semantics
+   (`<w:b/>` means on, which the XSD leaves to prose) to all 186
+   entries using it. If
    an override's content is taken from there, its licence (MIT OR
    Apache-2.0) is honoured in the notices (§2).
 
@@ -376,7 +401,17 @@ and `max_total` (the whole slot). Insertion checks both.
 - A **non-repeating** `Choice` where two or more alternatives exist and
   any of them may repeat means "a run of one kind only". This is not
   representable as a slot, so the model is **unsupported**
-  (`p188:CT_Comment`, `x:CT_SortState`, …).
+  (`p188:CT_Comment`, `x:CT_SortState`, …). *Non-repeating* means
+  **effectively** non-repeating: a choice nested, up to the slot
+  boundary, inside any particle whose `maxOccurs ≠ 1` is a repeating
+  choice. (WordprocessingML nests `Group* > Choice > Group* > Choice …`
+  throughout `w:p`/`w:body`/`w:tc`.)
+- A repeated sequence or group whose parts are **all optional** is one
+  free slot holding all its names: `(a? b? …)*` and `(a | b | …)*`
+  accept the same child lists. Examples are SDK-inserted `w14`
+  extension pairs inside paragraph content and the top-level
+  `x:CT_RPrElt/x:rPr`, whose ECMA definition is an unbounded choice
+  anyway.
 - A nested `Sequence`/`Group` with `maxOccurs ≤ 1` is spliced in place.
 - **Repetition multiplies.** When a particle with upper bound `r` lowers
   to a single slot (a repeating choice, or a repeating group/sequence
@@ -392,10 +427,17 @@ and `max_total` (the whole slot). Insertion checks both.
   so, `mc:AlternateContent` is governed by §4.3, never by a wildcard.
 
 A content model is also **unsupported** if a multi-slot sequence/group
-repeats, if a `Choice` alternative is itself a multi-slot sequence, or
-if a QName lands in two slots. Then `Content::Unsupported(names)` is
-generated: typed reads work, and insertion returns
-`Err(UnsupportedContentModel)`.
+with a required part repeats, or if a `Choice` alternative is itself a
+multi-slot sequence. Then `Content::Unsupported(names)` is generated:
+typed reads work, and insertion returns `Err(UnsupportedContentModel)`.
+
+A QName that lands in **two slots** does not make the model
+unsupported. In `w:tbl`, for example, 20 range-marker elements are
+allowed both before `tblPr` and among the rows. Only inserting that
+QName is ambiguous: plain `insert`/`insert_by` for it returns
+`Err(AmbiguousSlot)`, and `insert_in_slot(slot_index, before)` picks the
+slot explicitly. All other children, `w:tr` included, insert normally.
+The compile-time duplicate check (§3) applies within a slot only.
 
 **Cross-check against ECMA order.** The SDK data is not always the
 ECMA particle. For example, `x:CT_Filters` is `Choice[x14:filter*,
@@ -413,11 +455,19 @@ border/margin types with `left`/`start`, `w:sdtPr`, `w:fieldMapData`.
 Measured on the data *(spike: `slottable.py`; a heuristic reading of
 `Occurs`, where a present `Occurs` without `Max` is taken as
 unbounded)*: of 2,122 content models, 1,573 lower to single-QName slots
-only, 483 to slots that include multi-QName (choice) slots, and **66
-are unsupported** (55 exclusive choices of repeating alternatives, 8
-multi-slot alternatives, 3 repeating multi-slot groups, one of them
-top-level: `x:CT_RPrElt/x:rPr`), before the 8 ECMA-order disagreements
-above. Where particle `Occurs` differ by Office
+only, 537 to slots that include multi-QName (choice) slots (1 of them,
+`w:tbl`, with an ambiguous QName), and **12 are unsupported** (4
+effectively exclusive choices of repeating alternatives, 8 multi-slot
+alternatives), before the 8 ECMA-order disagreements above. By format
+group, WordprocessingML and PresentationML base namespaces have 0
+unsupported.
+
+**Checked against real files** *(spike: `corpus_check.py`)*: for 197
+.docx/.pptx files from Apache POI's test data, the children of 171,537
+instances of 18 key parents (`w:body`, `w:p`, `w:r`, `w:tbl`, `w:tr`,
+`w:tc`, `w:pPr`, `w:rPr`, `w:sectPr`, `p:sld`, `p:cSld`, `p:spTree`,
+`p:sp`, `p:pic`, `p:txBody`, `a:p`, `a:r`, `p:presentation`) appear in
+an order the lowered slots accept, with 0 violations. Where particle `Occurs` differ by Office
 version (3 entries, none in Phase0), the most permissive one is used.
 
 All Phase0 entries are flat sequences or leaves (verified against the
@@ -431,6 +481,7 @@ data): `worksheet` (38 elements), `sheetData` (`row*`), `row`
 | --- | --- |
 | `insert_by::<C>(before)` | Find `C`'s slot. `before(index_in_slot, existing)` is called on the existing children of that slot in document order; the new node goes before the first one for which it returns `true`, else before the first child of a higher-ranked slot, else after the last child. If `max_each` or `max_total` is reached → `Err(AlreadyPresent)`. |
 | `insert::<C>()` | `insert_by` that never returns `true`: append at the end of the slot. |
+| `insert_in_slot::<C>(slot, before)` | As `insert_by`, with the slot given explicitly; required only for a QName that appears in two slots (§4.1). |
 | `get_or_insert::<C>()` | Existing child of `C`'s QName, or `insert`. The normal path for `maxOccurs = 1` children. |
 | `remove::<C>()` / `remove_at` | Remove the child node and its whole span. |
 | `set_attr` / `remove_attr` | Typed and untyped (by QName) variants. |
@@ -623,14 +674,15 @@ differ; it is identified by relationship type.)
   messages; ordering and cardinality are enforced in one place, the
   core primitives, and ADR-0001's row/column ordering has an explicit
   hook (`insert_by`).
-- Positive: slot lowering supports insertion for 2,056 of 2,122 content
-  models (minus the 8 ECMA-order disagreements until overridden), not
-  only the flat ones.
+- Positive: slot lowering supports insertion for 2,110 of 2,122 content
+  models (minus the 8 ECMA-order disagreements until overridden),
+  including every WordprocessingML and PresentationML base-namespace
+  model, and its ordering agrees with 171,537 real-file instances.
 - Negative: two upstream data sets plus overrides to keep pinned,
   attributed and in sync. A future SDK bump can change both structure
   and the default join, so the generated diff must be read, not skimmed.
-- Negative: 66 content models (exclusive choices of repeating
-  alternatives, repeating multi-slot groups) plus the 8 ECMA-order
+- Negative: 12 content models (exclusive choices of repeating
+  alternatives, multi-slot choice alternatives) plus the 8 ECMA-order
   disagreements stay read-only until overrides or a later ADR cover
   them. Any parent with
   an `mc:AlternateContent` child is insert-refused until the AC-rank
@@ -651,8 +703,7 @@ differ; it is identified by relationship type.)
 2. `Unknown(&str)`: a variant of each generated enum, or a wrapper
    type (`EnumValue<E>`) so a `match` on the known-values enum stays
    exhaustive?
-3. Ecma redistribution terms for the Transitional XSDs: confirm from
-   Ecma (not only from Apache POI's notice) before the vendoring commit.
+3. ~~Ecma redistribution terms~~ — settled in revision 5 (§1.2).
 
 ## Sources
 
@@ -670,5 +721,9 @@ differ; it is identified by relationship type.)
   RFC 3698 (https://rust-lang.github.io/rfcs/3698-declarative-derive-macros.html);
   E0116 (https://doc.rust-lang.org/error_codes/E0116.html)
 - Spike: `spikes/adr-0002/` (rustc 1.99.1, 2026-11-16)
+- Word/PowerPoint applicability: `docs/research/2026-11-16-word-powerpoint-applicability.md`;
+  Apache POI test data https://github.com/apache/poi/tree/trunk/test-data
+- Ecma text copyright policy version 3:
+  https://ecma-international.org/wp-content/uploads/Ecma_text_copyright_policy_version_3.pdf
 - Reviews: `docs/adr/0002-opus-review-round1.md`, `docs/adr/0002-opus-review-round2.md`,
   `docs/adr/0002-opus-review-round3.md`
