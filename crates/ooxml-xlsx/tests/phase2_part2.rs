@@ -334,8 +334,9 @@ fn sweep_one(name: &str, input: &[u8], tally: &mut BTreeMap<&'static str, usize>
         let (a, b) = (dxfs(input), dxfs(&out));
         assert!(b.len() >= a.len() && b[..a.len()] == a[..], "{name}: dxf entries changed");
     }
+    let sheet_name = wb.worksheet().unwrap().name().to_owned();
     if r.is_ok()
-        && let Some(Data::String(s)) = try_calamine_cells(&out).and_then(|m| m.into_values().next()).and_then(|m| m.get(&(row, 0)).cloned())
+        && let Some(Data::String(s)) = try_calamine_cells(&out).and_then(|mut m| m.remove(&sheet_name)).and_then(|m| m.get(&(row, 0)).cloned())
     {
         assert_eq!(s, "rich text", "{name}");
     }
