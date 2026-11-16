@@ -28,6 +28,7 @@ pkg.save("book.xlsx")?;                              // temp file + rename; same
 | `part_names()`, `contains(name)`, `state(name) -> PartStateKind` | Part names are zip entry names, no leading `/`. Original order is kept. |
 | `read_part(name) -> Vec<u8>` | Current decompressed content (never changes the part's state). |
 | `xml_part(name)` / `xml_part_mut(name)` | Parse once into an `XmlDocument`. A part parsed but not edited is still raw-copied on save. |
+| `parsed_part(name)` | `&self` access to a tree already parsed (`None` while `Raw` or `Replaced`); never parses. |
 | `set_part(name, bytes)` | Replace an existing part wholesale (`Replaced`). New parts: `Error::NewPartUnsupported` (Phase0). |
 | `content_types()`, `content_type(name)` | `[Content_Types].xml` (overrides, then extension defaults; ASCII case-insensitive). |
 | `package_relationships()`, `relationships(part)`, `main_document_part()` | `opc::Relationships` with `by_id`, `by_type`, `resolve` (relative targets, `..`, absolute `/`). |

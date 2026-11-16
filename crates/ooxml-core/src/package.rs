@@ -190,6 +190,17 @@ impl Package {
         }
     }
 
+    /// The tree of a part that [`Self::xml_part`] or [`Self::xml_part_mut`]
+    /// already parsed, without parsing: `None` if the part is missing, still
+    /// `Raw`, or `Replaced`. Lets a format crate parse its parts once (at
+    /// open) and then serve reads through `&self`.
+    pub fn parsed_part(&self, name: &str) -> Option<&XmlDocument> {
+        match &self.parts[self.find(name)?].state {
+            PartState::Parsed(d) => Some(d),
+            _ => None,
+        }
+    }
+
     /// Parses a part (once) and returns its tree for editing through
     /// [`XmlDocument::lens_mut`].
     pub fn xml_part_mut(&mut self, name: &str) -> Result<&mut XmlDocument> {
