@@ -423,6 +423,8 @@ fn remove_closed_set_with_own_relationships() {
     assert_eq!(removed.relationships, [("xl/_rels/workbook.xml.rels".to_owned(), "rId3".to_owned())]);
     assert_eq!(removed.overrides, 2);
     assert_eq!(removed.kept_targets, [("xl/drawings/drawing1.xml".to_owned(), "xl/media/image1.png".to_owned(), REL_IMAGE.to_owned())]);
+    // relationships parts that were only scanned stay Raw (no parse leaks into the output state)
+    assert_eq!(pkg.state("_rels/.rels"), Some(PartStateKind::Raw));
     // the image is an orphan now; remove it too
     assert!(pkg.incoming_relationships("xl/media/image1.png").is_empty());
     pkg.remove_parts(&["xl/media/image1.png"], &[]).unwrap();

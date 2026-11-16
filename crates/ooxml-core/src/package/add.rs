@@ -146,12 +146,6 @@ pub enum RegistryRefusal {
         /// The part.
         part: String,
     },
-    /// An `Override` for the name exists with another content type (left
-    /// over from a part that is gone).
-    ContentTypeConflict {
-        /// Its content type.
-        existing: String,
-    },
     /// The content type is XML but the bytes are not well-formed.
     MalformedXml {
         /// The parser's message.
@@ -214,7 +208,6 @@ impl std::fmt::Display for RegistryRefusal {
             R::InvalidExtension => write!(f, "not a valid extension"),
             R::DefaultExists { existing } => write!(f, "a Default with content type {existing:?} exists"),
             R::WouldRetypePart { part } => write!(f, "the Default would change the content type of {part:?}"),
-            R::ContentTypeConflict { existing } => write!(f, "an Override with content type {existing:?} exists"),
             R::MalformedXml { reason } => write!(f, "content is not well-formed XML: {reason}"),
             R::RegistryNotEditable { part, reason } => write!(f, "{part} cannot be edited in place: {reason}"),
             R::PartNotFound => write!(f, "no such part"),
@@ -606,17 +599,11 @@ impl RegistryPlan {
     }
 
     /// Registers the content type of a new name: nothing when a `Default`
-    /// (existing or planned) or a left-over `Override` already gives it,
-    /// else a new `Override`.
+    /// (existing or planned) gives exactly that type, else a new
+    /// `Override`.
     fn register_content_type(&mut self, pkg: &Package, name: &str, content_type: &str) -> std::result::Result<(), RegistryRefusal> {
-        let stale: Vec<&str> =
-            pkg.content_types.overrides().iter().filter(|(p, _)| same_part_name(p, name)).map(|(_, t)| t.as_str()).collect();
-        if let Some(t) = stale.iter().find(|t| !t.eq_ignore_ascii_case(content_type)) {
-            return Err(RegistryRefusal::ContentTypeConflict { existing: (*t).to_owned() });
-        }
-        if !stale.is_empty() {
-            return Ok(());
-        }
+        // A left-over Override for the name makes it taken (`check_free`), so
+        // only the Default can already give the type.
         if extension_of(name).and_then(|e| self.default_for(pkg, e)).is_some_and(|t| t.eq_ignore_ascii_case(content_type)) {
             return Ok(());
         }
@@ -668,13 +655,12 @@ impl RegistryPlan {
 
     /// Adds a part and registers its content type: nothing when a `Default`
     /// for its extension (existing or planned) gives exactly `content_type`
-    /// (ASCII case-insensitive), or an `Override` for the name is left with
-    /// that type; else an `Override`. Returns the name. The part is written
+    /// (ASCII case-insensitive); else an `Override`. Returns the name. The part is written
     /// fresh on save, after the original entries.
     ///
     /// Refused: an invalid name, template or media type, a registry part,
-    /// a name in use ([`Package::part_name_in_use`]), a left-over `Override`
-    /// with another type, XML bytes that are not well-formed for an XML
+    /// a name in use ([`Package::part_name_in_use`]: a left-over `Override`
+    /// or `.rels` for it counts), XML bytes that are not well-formed for an XML
     /// content type, a `[Content_Types].xml` that must change but was
     /// replaced or does not parse.
     pub fn add_part(&mut self, pkg: &Package, name: PartNameRequest, content_type: &str, content: impl Into<PartContent>) -> Result<String> {
