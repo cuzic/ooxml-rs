@@ -22,6 +22,27 @@ pub(crate) struct SlideEntry {
 /// Every part that is not edited is written back with its original
 /// compressed bytes (ADR-0001 Layer 1). Only slide parts are ever edited;
 /// the presentation part is parsed read-only.
+///
+/// # Examples
+///
+/// ```no_run
+/// use ooxml_pptx::Presentation;
+///
+/// let mut pres = Presentation::open("deck.pptx")?;
+/// for i in 0..pres.slide_count() {
+///     for shape in pres.slide(i)?.shapes() {
+///         if let Some(body) = shape.text_body() {
+///             println!("slide {i}, shape {:?}: {}", shape.name(), body.text());
+///         }
+///     }
+/// }
+/// let id = pres.slide(0)?.placeholders()[0].id()?;
+/// pres.slide_mut(0)?.shape_mut_by_id(id)?.text_body_mut()?.set_text("New title")?;
+/// pres.save("deck.pptx")?;
+/// # Ok::<(), ooxml_pptx::Error>(())
+/// ```
+///
+/// A complete, runnable version is `examples/replace_text.rs`.
 #[derive(Debug)]
 pub struct Presentation {
     pub(crate) pkg: Package,
