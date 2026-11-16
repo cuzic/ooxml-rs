@@ -843,6 +843,12 @@ fn title(p: &mut Presentation) -> Vec<RawNode> {
 
 #[test]
 fn smart_tag_ids_and_extension_lists_are_not_copied() {
+    // review #19 round 2 R2-1 / #18 R3-1: a named effect container
+    // ("Shall be unique across all effect trees and effect containers",
+    // ECMA-376 Part 1 §20.1.8.25). SYNTHETIC: on the title's a:rPr
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\"><a:effectDag name=\"E\" type=\"sib\"/></a:rPr><a:t>Lorem");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
     // N1 / #18 R2-1: smtId is "unique throughout the presentation"
     // (ECMA-376 Part 1 §21.1.2.3.9); a copy would duplicate it.
     // SYNTHETIC: the title's a:rPr with smtId="4242"
@@ -999,4 +1005,51 @@ fn depth_pre_checks_decide_alone() {
     let mut p = nested_title(246, end);
     p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("\n\ny").unwrap();
     assert!(reparses(&mut p));
+}
+
+// ---------------------------------------------------------------------------
+// Review #19 round 2 (R2-2, R2-3, R2-4).
+
+#[test]
+fn add_run_depth_and_body_copy_checks_decide_alone() {
+    // R2-2 (D6): add_run into a bare <a:p/> at depth 255 (k = 249): a:r 256,
+    // a:t 257; only add_run's own depth check prevents a half-applied edit
+    let mut p = nested_title(249, "<a:p/>");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.add_run("x"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { .. }));
+    // R2-2 (P7b/c): the title's a:p declares urn:ext and its a:pPr uses it;
+    // a new paragraph goes under the body, where urn:ext is not bound: the
+    // body-level copy check refuses before the new a:p is inserted
+    let mut p = sample_with(
+        "<a:p><a:pPr hangingPunct=\"1\"/><a:r>",
+        "<a:p xmlns:x14=\"urn:ext\"><a:pPr hangingPunct=\"1\" x14:k=\"1\"/><a:r>",
+    );
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("a\nb"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::NamespaceNotInScope(ref u)) if u == "urn:ext");
+}
+
+#[test]
+fn a_new_line_starting_with_a_break_still_gets_the_run_format() {
+    // R2-3 (N3d): in "x\n\u{b}b" the new paragraph's first segment is empty;
+    // its run "b" must still copy the format (the title's a:rPr with a:sym)
+    let mut p = open("poi/sample.pptx");
+    let rpr = subtree(child(child(&title(&mut p)[0], "r").unwrap(), "rPr").unwrap(), &[]);
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("x\n\u{b}b").unwrap();
+    let t = title(&mut p);
+    let run = child(&t[1], "r").expect("the run of \"b\"");
+    assert_eq!(subtree(child(run, "rPr").expect("formatted"), &[]), rpr);
+}
+
+#[test]
+fn destination_refusals_of_a_copy_are_format_not_copyable() {
+    // R2-4: the title paragraph is xml:space="preserve", its first run resets
+    // it to "default", and the run's a:rPr has whitespace text: detaching is
+    // fine (the run's own default), inserting a new run under the preserve
+    // paragraph would change the whitespace's meaning
+    let mut p = sample_with(
+        "<a:p><a:pPr hangingPunct=\"1\"/><a:r><a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr>",
+        "<a:p xml:space=\"preserve\"><a:pPr hangingPunct=\"1\"/><a:r xml:space=\"default\"><a:rPr lang=\"en-US\">\n  <a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/>\n</a:rPr>",
+    );
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
 }

@@ -95,7 +95,14 @@
   and `depth_pre_checks_decide_alone` (N2: each depth pre-check alone
   prevents a half-applied edit; the paragraph check counts only the levels
   the edit creates there, so a text-only rewrite is never refused for
-  depth).
+  depth). Review #19 round 2: named effect containers are refused (R2-1);
+  T4 `add_run_depth_and_body_copy_checks_decide_alone` (R2-2),
+  `a_new_line_starting_with_a_break_still_gets_the_run_format` (R2-3),
+  `destination_refusals_of_a_copy_are_format_not_copyable` (R2-4). R2-5:
+  the body-level check of `TextBody::set_text` and `add_paragraph` still
+  requires three levels (`a:p`/`a:r`/`a:t`) even when only an empty
+  paragraph is created — an over-refusal only at body depth 254 or more,
+  kept for simplicity.
 
 ## Context
 
@@ -319,10 +326,17 @@ with `r:embed`, or an `a:hlinkClick` inside `a:pPr/a:defRPr`, which is not
 a direct child and so not skipped); a non-zero **`smtId`** on `a:rPr`,
 `a:endParaRPr` or `a:defRPr` (ECMA-376 Part 1 §21.1.2.3.9: "unique
 throughout the presentation"; a copy would duplicate it; reviews #18 R2-1,
-#19 N1); an extension list (`a:extLst`, open content); Markup
+#19 N1); a **named effect container** (`a:effectDag@name`, `a:cont@name`,
+reached through `a:rPr`/`a:defRPr`: "Shall be unique across all effect
+trees and effect containers", §20.1.8.20/§20.1.8.25; reviews #18 R3-1,
+#19 R2-1); an extension list (`a:extLst`, open content); Markup
 Compatibility content; a namespace declaration inside the source; a
 namespace that an ancestor's `mc:Ignorable` lists; or text under an
-inherited `xml:space="preserve"`. A source with neither attributes nor
+inherited `xml:space="preserve"`. The same refusals checked at the
+**destination** (`check_insert_under`: a namespace ignorable there, text
+going under an inherited `preserve`) are also `FormatNotCopyable` (naming
+the copy's element; review #19 R2-4); depth and namespace-scope refusals
+stay `Core(TooDeep)` / `Core(NamespaceNotInScope)`. A source with neither attributes nor
 child elements (after the skip) produces no element. The run format source
 is consulted only when it is used (review #19 N3): for a new run, or for a
 new paragraph's `a:endParaRPr` when the last paragraph has no own end
@@ -448,7 +462,7 @@ elements in the SDK data). Classification:
 | `FieldInParagraph { paragraph }` | the edit would remove an `a:fld` implicitly (§3 Fields) |
 | `UnsupportedContent` | §3 Paragraph content (incl. a body without `a:p`) |
 | `LastParagraph` | removing the only `a:p` |
-| `FormatNotCopyable(element)` | §3 Format sources: the copy primitive refuses the source (relationship id outside the skipped direct links, non-zero `smtId`, `extLst`, Markup Compatibility, namespace declaration, ancestor-ignorable namespace, text under inherited `xml:space="preserve"`) |
+| `FormatNotCopyable(element)` | §3 Format sources: the copy primitive refuses the source or the destination (relationship id outside the skipped direct links, non-zero `smtId`, named effect container, `extLst`, Markup Compatibility, namespace declaration, an ignorable namespace, text under inherited `xml:space="preserve"`) |
 | `AnimatedParagraphs { shape_id }` | `add_paragraph`, `remove_paragraph`, or `TextBody::set_text` that changes the paragraph count, on a paragraph-locked shape |
 | `AnimatedCharacters { shape_id }` | any text edit on a character-locked shape |
 | `CommentAnchoredText { shape_id }` | any text edit on a comment-locked shape |

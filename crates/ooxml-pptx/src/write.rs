@@ -330,8 +330,26 @@ trait CheckInsert {
 }
 
 impl<C: ElementSpec> CheckInsert for Detached<C> {
+    /// A refusal of the copy at its destination (`NotDetachable`: the
+    /// destination's `mc:Ignorable` or inherited `xml:space`) is the same
+    /// "this format cannot be copied" as a refusal at the source, so it is
+    /// reported as `FormatNotCopyable` naming the copy's element (review #19
+    /// round 2, R2-4). Depth and namespace refusals stay `Core(…)`.
     fn check(&self, doc: &XmlDocument, under: &[usize], created: usize) -> Result<()> {
-        Ok(self.check_insert_under(doc, under, created)?)
+        self.check_insert_under(doc, under, created).map_err(|e| match e {
+            ooxml_core::Error::NotDetachable { .. } => Error::FormatNotCopyable(element_name(C::QNAME)),
+            e => e.into(),
+        })
+    }
+}
+
+/// `a:`-prefixed display name of a copied format element.
+fn element_name(q: QName) -> &'static str {
+    match q.local {
+        "rPr" => "a:rPr",
+        "endParaRPr" => "a:endParaRPr",
+        "pPr" => "a:pPr",
+        _ => "a:?",
     }
 }
 

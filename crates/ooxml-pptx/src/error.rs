@@ -138,12 +138,13 @@ pub enum Error {
     /// (`ooxml_core::Lens::detach_as`, any `DetachRefusal`): a relationship
     /// id (`r:`, Strict `r:`, VML `o:relid`) outside the skipped direct
     /// links (e.g. a picture fill or bullet, or a link inside `a:defRPr`),
-    /// a document-unique `smtId`, an extension list, Markup Compatibility
+    /// a document-unique `smtId` or effect container name, an extension
+    /// list, Markup Compatibility
     /// content, a namespace declaration, a namespace made ignorable by an
     /// ancestor's `mc:Ignorable`, or text under an inherited
     /// `xml:space="preserve"`. Use `add_run` / `add_paragraph` for
     /// explicitly unformatted text.
-    #[error("the formatting of {0} cannot be copied (relationship id, smtId, extension list, markup compatibility, namespace declaration or scope)")]
+    #[error("the formatting of {0} cannot be copied (relationship id, unique id or name, extension list, markup compatibility, namespace declaration or scope)")]
     FormatNotCopyable(&'static str),
 }
 
