@@ -69,6 +69,31 @@
   | N9 ADR-0016 notes API, `app.xml` `Notes` | one creation API (`ensure_notes_slide`, extended by ADR-0016 to create the notes master); every creation path counts `Notes` | §4.6, §7 |
   | Q5 | the review's recommendation recorded | Open questions |
 
+- **Post-acceptance note (2026-11-16, owner decision):** Q1–Q5's proposed
+  defaults are accepted — the predecessor's section; stale
+  `TitlesOfParts` accepted; deleting a referenced slide is refused; the
+  16:9 template with the 11 standard layouts; footers not reproduced.
+- **Post-acceptance note (2026-11-16, implementation — no change to the
+  decisions):** found while implementing `impl/pptx-phase2`:
+  - `p14:creationId` sits in `p:cSld/p:extLst/p:ext`
+    (`{BB962C8B-…}`; 1,159 of 1,159 corpus slides), not in `p:sld/p:extLst`;
+    notes slides carry it in the same place (140 of 471), and the
+    duplicated notes slide gets the next value as §4.4 says. A
+    `creationId` anywhere else is refused (`UnsupportedContent`) rather
+    than copied unchanged.
+  - Until ADR-0008 (PR #28) is implemented, `LayoutRef` is defined in
+    this crate with the fields §4.1 needs (master index and part, layout
+    part, `p:cSld@name`, `@type`); ADR-0008 adopts it.
+  - `move_slide` rebuilds the moved `p:sldId` from `id` and `r:id`; a
+    `p:sldId` with children or other attributes (0 in the corpus) is
+    refused (`UnsupportedContent`). `duplicate_slide(index, None)`
+    places the copy right after the original.
+  - Shape-id allocation is exposed as `Presentation::next_shape_id(slide)`
+    for `add_text_box`/`add_picture`.
+  - Cascade relationship types outside §6 found in the wider corpus
+    (619 decks): `customXml` (45 slides), `control` (15),
+    `legacyDrawing` (1), `chartEx` (4) — refused as §6 says.
+
 ## Context
 
 Phase 0/0.1 (ADR-0005) edits text **inside** existing slides and never
