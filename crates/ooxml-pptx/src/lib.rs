@@ -25,6 +25,7 @@
 
 mod error;
 mod names;
+mod new_deck;
 mod presentation;
 mod read;
 mod refs;
@@ -33,6 +34,7 @@ mod text;
 mod write;
 
 pub use error::{Error, Result};
+pub use new_deck::NewOptions;
 pub use presentation::Presentation;
 pub use slides::LayoutRef;
 pub use read::{

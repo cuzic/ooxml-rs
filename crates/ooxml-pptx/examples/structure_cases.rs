@@ -34,14 +34,21 @@ fn main() {
         }
     }
     files.sort();
+    // the built-in template (ADR-0012 §8), as an input of its own
+    let new_deck = Presentation::new_with(ooxml_pptx::NewOptions { created: std::time::UNIX_EPOCH }).unwrap().to_bytes().unwrap();
+    std::fs::write(Path::new(&dir).join("new.pptx"), &new_deck).unwrap();
+    files.insert(0, "@new.pptx".into());
     let mut cases: Vec<Value> = Vec::new();
     for f in &files {
-        let src = std::fs::read(format!("{FIX}/{f}")).unwrap();
+        let src = match f.strip_prefix('@') {
+            Some(n) => std::fs::read(Path::new(&dir).join(n)).unwrap(),
+            None => std::fs::read(format!("{FIX}/{f}")).unwrap(),
+        };
         let mut p0 = Presentation::from_bytes(src.clone()).unwrap();
         let n = p0.slide_count();
         let layouts = p0.layouts().unwrap();
         let mut ops: Vec<(&str, Value)> = Vec::new();
-        for (k, l) in layouts.iter().enumerate().take(3) {
+        for (k, l) in layouts.iter().enumerate().take(if f.starts_with('@') { 11 } else { 3 }) {
             let at = if k == 0 { Value::Null } else { json!(k.min(n)) };
             ops.push(("add", json!({"layout_part": l.part, "layout": l.name, "at": at})));
         }

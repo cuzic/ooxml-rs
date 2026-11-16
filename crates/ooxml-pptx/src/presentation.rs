@@ -45,7 +45,7 @@ impl Presentation {
         Self::from_package(Package::from_bytes(bytes)?)
     }
 
-    fn from_package(mut pkg: Package) -> Result<Self> {
+    pub(crate) fn from_package(mut pkg: Package) -> Result<Self> {
         let main = pkg.main_document_part().ok_or_else(|| Error::NotAPresentation("no officeDocument relationship".into()))?;
         if !pkg.contains(&main) {
             return Err(Error::NotAPresentation(format!("officeDocument target {main:?} does not exist")));

@@ -331,7 +331,104 @@ fn main() -> R {
         });
     }
 
-    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 — manual check in Microsoft 365 PowerPoint\n\n");
+    // 14–19. Phase 2 (ADR-0012 §10 "Manual"): slides as units
+    {
+        let mut p = Presentation::new_with(ooxml_pptx::NewOptions { created: std::time::UNIX_EPOCH })?;
+        for l in p.layouts()? {
+            p.add_slide(&l, None)?;
+        }
+        items.push(Item {
+            file: save(&out, "14-new-all-layouts", &p)?,
+            source: "Presentation::new() (built-in template)",
+            edit: "one slide per layout, in layout order (11 slides, nothing typed)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Slide i uses layout i: Title Slide, Title and Content, Section Header, Two Content, Comparison, Title Only, Blank, Content with Caption, Picture with Caption, Title and Vertical Text, Vertical Title and Text.",
+                "Empty placeholders show PowerPoint's own prompt text (\"Click to add title\", …); no footer, date or slide number on the slides (Q5).",
+                "File > Info shows 11 slides; the notes page view shows a slide image and a notes box.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("poi/sample.pptx"))?;
+        let l = p.layouts()?.into_iter().find(|l| l.name.as_deref() == Some("Title and Content")).ok_or("layout")?;
+        p.add_slide(&l, Some(1))?;
+        p.duplicate_slide(0, None)?;
+        let n = p.slide_count();
+        p.move_slide(n - 1, 0)?;
+        items.push(Item {
+            file: save(&out, "15-add-duplicate-move", &p)?,
+            source: "poi/sample.pptx",
+            edit: "add_slide(Title and Content, at 1); duplicate_slide(0) (copy after it); move_slide(last, 0)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Order: original slide 2, original slide 1, its copy (identical), the new empty Title and Content slide.",
+                "The copy is independent: editing it does not change the original.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("libreoffice/slide-sections.pptx"))?;
+        let l = p.layouts()?.into_iter().next().ok_or("layout")?;
+        p.add_slide(&l, Some(1))?;
+        p.add_slide(&l, Some(0))?;
+        p.delete_slide(4)?;
+        p.move_slide(0, 5)?;
+        items.push(Item {
+            file: save(&out, "16-sections", &p)?,
+            source: "libreoffice/slide-sections.pptx",
+            edit: "add_slide at 1 (joins slide 1's section), add_slide at 0 (joins the first slide's section), delete_slide(4), move_slide(0, 5) (joins the section of its new predecessor)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "The section panel shows every slide in a section; the new slides sit in the sections described in the edit (owner decision Q1).",
+                "Sections emptied by the delete (if any) are still listed.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("libreoffice/airplane-transition.pptx"))?;
+        let l = p.layouts()?.into_iter().next().ok_or("layout")?;
+        p.add_slide(&l, None)?;
+        p.duplicate_slide(0, None)?;
+        items.push(Item {
+            file: save(&out, "17-only-slide2-part", &p)?,
+            source: "libreoffice/airplane-transition.pptx (its only slide part is slide2.xml)",
+            edit: "duplicate_slide(0), add_slide at the end: new parts are slide3.xml and slide4.xml (largest number + 1), nothing renamed".into(),
+            observe: vec!["Opens without a repair prompt.", "The copy keeps the slide transition of the original."],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("python-pptx/sld-notes.pptx"))?;
+        p.duplicate_slide(0, None)?;
+        p.delete_slide(2)?;
+        items.push(Item {
+            file: save(&out, "18-notes-duplicate-delete", &p)?,
+            source: "python-pptx/sld-notes.pptx",
+            edit: "duplicate_slide(0) (its notes slide is copied); delete_slide(2) (the original second slide and its notes)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Slides 1 and 2 have the same speaker notes; editing the notes of one does not change the other.",
+                "File > Info: 2 slides (app.xml counts); the stale slide-title list in File > Properties, if visible, is accepted (owner decision Q2).",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("poi/layouts.pptx"))?;
+        let i = (0..p.slide_count())
+            .find(|&i| {
+                p.slide(i).ok().is_some_and(|s| s.shapes().iter().any(|x| *x.kind() == ShapeKind::Picture))
+            })
+            .ok_or("a slide with a picture")?;
+        p.delete_slide(i)?;
+        items.push(Item {
+            file: save(&out, "19-delete-with-picture", &p)?,
+            source: "poi/layouts.pptx",
+            edit: format!("delete_slide({i}): the slide with a picture; its image part goes with it when nothing else uses it"),
+            observe: vec!["Opens without a repair prompt.", "The other slides are unchanged."],
+        });
+    }
+
+    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 / 2 — manual check in Microsoft 365 PowerPoint\n\n");
     md.push_str("Generated by `cargo run -p ooxml-pptx --example manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
     md.push_str("For each file: open it in current Microsoft 365 PowerPoint (desktop), tick what holds, and write notes for anything else.\n");
     md.push_str("Inputs are third-party fixtures from `reference/fixtures/pptx/` (see its README for licences); do not redistribute the outputs.\n\n");
@@ -346,6 +443,7 @@ fn main() -> R {
     md.push_str("## Owner questions (summary)\n\n");
     md.push_str("- **Q4a autofit**: `02-autofit-stale.pptx` — when does PowerPoint recompute `a:normAutofit@fontScale`/`lnSpcReduction` after a text change?\n");
     md.push_str("- **Q4b sections**: `06-slide-outside-sections.pptx` — is a slide outside every `p14:section` accepted, repaired, or placed somewhere?\n");
+    md.push_str("- **ADR-0012 N8 self-jump links**: in PowerPoint, duplicate a slide that has a button with Link to: This Slide, then check where the copy's button points (the original slide, or the copy?). ooxml-rs keeps the original as the target.\n");
     md.push_str("- **Q4c app.xml**: `07-stale-app-xml.pptx` — do stale `Words`/`Paragraphs`/`TitlesOfParts` matter (prompt, display, recomputed on save)?\n");
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     println!("{} files and CHECKLIST.md written to {}", items.len(), out.display());

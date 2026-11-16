@@ -4,7 +4,7 @@ Independent of the Rust code: reads each case's input and output with
 zipfile + xml.etree (structure) and python-pptx 1.0.2 (read-back), applies
 the operation to a model of the input computed here, and compares.
 
-Usage: python -I structure.py <cases-dir> <fixtures-dir>
+Usage: python -I structure.py [--site DIR] <cases-dir> <fixtures-dir>
 (<cases-dir>/cases.json is written by `cargo run --example structure_cases`).
 
 The inputs are untrusted data: they are only parsed, never executed.
@@ -16,7 +16,10 @@ import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
-from pptx import Presentation
+if sys.argv[1:2] == ["--site"]:
+    sys.path.insert(0, sys.argv[2])
+    del sys.argv[1:3]
+from pptx import Presentation  # noqa: E402
 
 NS = {
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
@@ -141,7 +144,7 @@ def main():
     cases = json.load(open(posixpath.join(cases_dir, "cases.json")))
     n = 0
     for c in cases:
-        inp = posixpath.join(fixtures, c["input"])
+        inp = posixpath.join(cases_dir, c["input"][1:]) if c["input"].startswith("@") else posixpath.join(fixtures, c["input"])
         out = posixpath.join(cases_dir, c["output"])
         label = f"{c['input']} {c['op']} {c['args']}"
         zin, zout = zipfile.ZipFile(inp), zipfile.ZipFile(out)
