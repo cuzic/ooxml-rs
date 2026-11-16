@@ -1,6 +1,6 @@
 # ADR-0015: Word Phase3: review features (comments, notes, tracked changes, content controls, fields, effective formatting)
 
-- Status: **Proposed** (revision 2)
+- Status: **Proposed** (revision 3)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): layers, T1/T2, Layer 3's
@@ -19,6 +19,8 @@
   - The core registry transaction of PR #38 (`core/add-part`): `RegistryPlan`, `stage_part` and
     `Package::apply` (§1).
   - PR #45 (`core/insert-with-ns`): inserts that declare namespaces on the new element.
+  - **New in revision 3 (N2):** a small core API for text replacement in schemaless parts,
+    `XmlDocument::set_leaf_text` with its `check_` twin (§6.2), as its own core PR.
 - Evidence:
   - `spikes/docx-phase3/` (`review.py`, `summarize.py`, README with every number).
   - Corpora: fixtures (23 open), Apache POI (111), Open XML SDK non-Strict (440), docx4j (12),
@@ -69,6 +71,32 @@
     - m11: notes created in pairs, separators, and cross-references.
   - **§1** is rewritten against PR #38's `RegistryPlan`.
   - **Owner questions:** the reviewer's recommendations are recorded as proposed answers.
+- **Revision 3** (after `0015-opus-review-round2.md`: 2 Major, 8 Minor):
+  - **N1 (paragraph-mark takeover).** A tracked paragraph inserted after P takes **P's
+    original `pPr` verbatim** (`sectPr`, `numPr` and the mark's `rPr` included). P keeps a copy
+    without `sectPr` and `pPrChange`, with `ins` first in its mark `rPr`. Rejecting restores the
+    input; accepting gives Word's Enter shape. A caller asking for other formatting on the new
+    paragraph is refused in a session. T-REV compares the rejected view's `pPr` sequence, not
+    only text (§5.2, §11).
+  - **N2 (store edits).** There is no untyped write in core, and ADR-0004 Alternative 9 rejected
+    an untyped `LensMut`. Phase3 requests one narrow core API instead:
+    `XmlDocument::set_leaf_text(path, value)` and `check_set_leaf_text`, which replace the text
+    of one element without element children, addressed by namespace URI, local name and
+    position. It changes no structure and no attribute (§6.2). §1 and Q1 no longer say "no core
+    API beyond PR #38 and PR #45".
+  - **Minor findings:**
+    - n1: `delete_comment` is refused on pre-release `commentsExtended` too;
+    - n2: the revision kinds are ADR-0011 rev 2 §2's list, and an ADR-0004 post-acceptance note
+      records the extended R2;
+    - n3: numbering overrides the paragraph style ([MS-OI29500] 2.1.229), toggle defaults
+      ([MS-OI29500] 2.1.230);
+    - n4: `mc:Ignorable` checked by URI and actual prefix, `mc` declared, `NotDetachable`;
+    - n5: `w:date` local time with `Z`, reference-only parents, the `commentsExtended`
+      relationship and content types, *(u)* on row insertion, the read view of deleted rows;
+    - n6: allowlist rows;
+    - n7: `RegistryPlan` has no `add_related_part`; no `xml_part_mut` while planning; PR #38's
+      M2/M7 fixes are prerequisites;
+    - n8: editorial.
 
 ## Context
 
@@ -162,25 +190,36 @@ provides that transaction, and Phase3 uses it as follows.
    anything (`check_*` twins, PR #45; slots; depth limit). Then stage it with
    `plan.stage_part(&pkg, name, doc)`.
 3. **New parts and relationships.**
-   - New parts are added with `plan.add_part` / `add_related_part` (`comments.xml`,
-     `footnotes.xml` and `endnotes.xml`, `commentsExtended.xml`).
-   - Relationships are added with `plan.add_relationship`; content types follow from
-     `add_part`.
+   - New parts are added with `plan.add_part` (`comments.xml`, `footnotes.xml` and
+     `endnotes.xml`, `commentsExtended.xml`), and each is related with `plan.add_relationship`.
+     `RegistryPlan` has no `add_related_part` (that is `Package::add_related_part`, outside a
+     plan; n7). Content types follow from `add_part`.
 4. **Apply.** `pkg.apply(plan)` cannot fail except `StalePlan`, which arises when the package
    changed since the plan started. ooxml-docx holds `&mut Document` for the whole operation, so
-   that cannot happen from outside. Dropping the plan is the validate-only twin of the whole
-   operation.
+   that cannot happen from outside. Between `RegistryPlan::new` and `apply`, ooxml-docx reads
+   parts only through `Package::xml_part` / `parsed_part`, never `xml_part_mut`, which touches
+   the package and would make the plan stale (n7). Dropping the plan is the validate-only twin
+   of the whole operation.
 5. **Registries.** ooxml-docx's own registries (§2) hand out values while planning. They advance
    their high-water marks **only when `apply` succeeds**. A plan that is dropped releases nothing
    that anything could reference.
 
-No core API beyond PR #38 and PR #45 is needed.
+**Core prerequisites (revision 3, N2 and n7):**
+
+- PR #38 with its round-1 fixes **M2** (staging a tree that is not dirty) and **M7** (a new
+  `rId` must not pick up a dangling `r:id` left in a part). Phase3 creates relationships from
+  `document.xml` to `comments`, `footnotes`, `endnotes` and `commentsExtended`, which is the M7
+  case. PR #38's M3 and M4 do not affect Phase3: it calls neither `remove_parts` nor
+  `copy_relationships`.
+- PR #45 (`*_with_ns`).
+- One new core API, `XmlDocument::set_leaf_text` (§6.2), for the custom XML and core-properties
+  stores. Everything else goes through the typed lens.
 
 ### 2. Registries (activating and extending ADR-0011 §2)
 
 | Registry | Scope scanned | Allocation | Evidence |
 |---|---|---|---|
-| **Annotation ids** (ADR-0011 rev 2): comments, revisions (all nine kinds), bookmarks, permissions, move ranges | the union of **definitions and references** over every story, both branches of every `mc:AlternateContent`, text boxes, and `comments.xml`. Ids that are only referenced (dangling anchors) count. | max + 1 over the union and the **session high-water mark**, so an id freed earlier in the session is never handed out again (m4). `AnnotationIdsExhausted` when max + 1 would exceed 2³¹ − 1 (ADR-0011). | Cross-kind collisions: 0 in Word-written files (SDK: 72 files with comments and bookmarks, 11 with bookmarks and revisions, 8 with comments and revisions), so the union matches Word's single id space (m5). Collisions only in 2 docxtemplater outputs. |
+| **Annotation ids** (ADR-0011 rev 2): comments, revisions (every kind of ADR-0011 rev 2 §2, n2), bookmarks, permissions, move ranges | the union of **definitions and references** over every story, both branches of every `mc:AlternateContent`, text boxes, and `comments.xml`. Ids that are only referenced (dangling anchors) count. | max + 1 over the union and the **session high-water mark**, so an id freed earlier in the session is never handed out again (m4). `AnnotationIdsExhausted` when max + 1 would exceed 2³¹ − 1 (ADR-0011). | Cross-kind collisions: 0 in Word-written files (SDK: 72 files with comments and bookmarks, 11 with bookmarks and revisions, 8 with comments and revisions), so the union matches Word's single id space (m5). Collisions only in 2 docxtemplater outputs. |
 | **`w14:paraId`** (designed in ADR-0011, activated here) | every paragraph and row in every story, both AC branches, text boxes and the glossary document; plus every `paraId`/`paraIdParent` in `commentsExtended` and `commentsIds` (both namespaces) | random value in `[1, 0x7FFFFFFF]` absent from the scope, redrawn on collision ([MS-DOCX] 2.6.2.3) | Duplicates occur in 17 files, mostly AC Fallback copies or template loops. They are tolerated and avoided. |
 | **`w14:textId`** | — | `77777777`, always together with a `paraId` ([MS-DOCX] 2.6.2.4) | 1,516 of 1,603 comment paragraphs that have a `paraId` |
 | **Durable ids** (`w16cid:durableId`) | `commentsIds.xml`, `commentsExtensible.xml` | random value in `[1, 0x7FFFFFFF]` absent from both | 0 values ≥ 0x80000000 |
@@ -231,11 +270,16 @@ pub struct NewComment { pub author: String, pub initials: Option<String>, pub da
   `mc:Ignorable` (m7).
 - **Companion parts, by namespace (B1).**
 
-  | `commentsExtended` in the package | `add_comment` | `reply`, `set_resolved` |
-  |---|---|---|
-  | absent | creates it in the 2012 namespace with a `w15:commentEx w15:paraId=<last paragraph> w15:done="0"` entry | work on the new part |
-  | present, 2012 namespace | appends the entry | work |
-  | present, 2010/11 pre-release namespace | writes **no** entry; the comment works without one, and readers tolerate the absence | refused: `LegacyCommentsExtended` |
+  | `commentsExtended` in the package | `add_comment` | `reply`, `set_resolved` | `delete_comment` (n1) |
+  |---|---|---|---|
+  | absent | creates it in the 2012 namespace with a `w15:commentEx w15:paraId=<last paragraph> w15:done="0"` entry | work on the new part | works |
+  | present, 2012 namespace | appends the entry | work | works, removing the entries |
+  | present, 2010/11 pre-release namespace | writes **no** entry; the comment works without one, and readers tolerate the absence | refused: `LegacyCommentsExtended` | refused: `LegacyCommentsExtended`. Almost every comment there has a pre-release `commentEx`, and leaving it would point at no paragraph (T-CMT) |
+
+  A created `commentsExtended` part is related from the main part with type
+  `http://schemas.microsoft.com/office/2011/relationships/commentsExtended` and has content type
+  `application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml`, as in
+  `poi-testComment` (n5).
 
   Writing pre-release-namespace entries is rejected, because whether Word 2013 RTM and later
   read that namespace is *(u)*. A second `commentsExtended` relationship is never created next
@@ -246,13 +290,25 @@ pub struct NewComment { pub author: String, pub initials: Option<String>, pub da
   - **`people.xml`:** `w15:person w15:author` with `w15:presenceInfo w15:providerId="None"
     w15:userId=<author>` is appended only if the part exists in the 2012 namespace and no person
     has exactly that author. The part is not created.
-- **Dates.** The caller's, or "now". Written in UTC as `YYYY-MM-DDTHH:MM:SSZ`, the only shape in
-  the corpora.
-- **Markup Compatibility (m7).** Adding `w14:paraId` to an original paragraph, or `w15`/`w14`
-  elements anywhere, requires the prefix to be **declared and listed in `mc:Ignorable`** on the
-  part's root. Otherwise the operation is refused (`NotIgnorable`), since changing the root's
-  start tag is an original-element edit. Created parts and created elements declare the prefix
-  (PR #45) and list it in `mc:Ignorable` on that element.
+- **Dates (revision 3, n5).** Word writes `w:date` as **local wall-clock time with a `Z`
+  suffix**, and the true UTC in `w16cex:dateUtc` (`poi-testComment`: `w:date="2021-05-20T10:57:00Z"`,
+  `dateUtc="2021-05-20T02:57:00Z"`). ooxml-docx does the same *(u)*:
+  - `w:date` is the caller's local date-time (`NewComment::date` carries both the local
+    wall-clock time and its UTC offset), else the process's local time, written
+    `YYYY-MM-DDTHH:MM:SSZ`;
+  - `w16cex:dateUtc` is the UTC value, written only where a `commentsExtensible` entry is written.
+
+  Revisions' `w:date` (§5.2) follows the same rule.
+- **Markup Compatibility (m7, n4).** Adding `w14:paraId` to an original paragraph, or `w15`/`w14`
+  elements anywhere, requires the **namespace URI** to be bound in scope to a prefix that is
+  listed in `mc:Ignorable` on the part's root. The check goes URI → in-scope prefix → that
+  prefix's presence in `mc:Ignorable`, never by a prefix string: PR #45's `NsDecl` reuses an
+  in-scope prefix for the URI, or renames a requested prefix that is bound to another URI
+  (`w141`, `w152`), and in `sdk-Comment010` `w15` is bound to the pre-release namespace.
+  Otherwise the operation is refused (`NotIgnorable`), since changing the root's start tag is an
+  original-element edit. Created parts and created elements declare the prefix **and `mc`**
+  through `NsDecl` (PR #45; `set_attr` of `mc:Ignorable` needs `mc` in scope), and list in
+  `mc:Ignorable` the prefix **actually chosen** for the URI.
 
 #### 3.3 Replies, resolve and delete
 
@@ -262,7 +318,10 @@ pub struct NewComment { pub author: String, pub initials: Option<String>, pub da
     - the reply's range start goes after the last existing range start of the thread (parent or
       sibling replies) that is adjacent to the parent's start;
     - its range end and reference run go, as a pair, after the reference run of the thread's last
-      reply, or after the parent's reference run if there is none.
+      reply, or after the parent's reference run if there is none;
+    - **a parent with a reference run only** (no range; SDK 18 comments) gets a reply with a
+      reference run only, placed after the parent's (or the last reply's) reference run. The
+      corpora have 7 such replies (n5).
   - **A parent without a `paraId`** on its last paragraph gets one: an attribute edit of that
     original paragraph. It is refused (`ParentNotAddressable`) unless `w14` is declared and
     ignorable on the `comments.xml` root (§3.2).
@@ -356,23 +415,53 @@ t.insert_rows(...)?;              // trPr/ins
 |---|---|---|
 | Replace a run's text | `w:del w:id w:author w:date` around the old run and `w:ins` around a new run with the same `rPr`. In the old run, **every** `w:t` becomes `w:delText` and every `w:instrText` becomes `w:delInstrText`, at any depth in the run. | The old run keeps its rsids and `rPr`. Renaming re-renders that run, which is T2-local. Refused (m8) when the run holds anything but text: `commentReference`, `footnoteReference`, `endnoteReference`, `drawing`, `fldChar`, `sym`, `object` (`RunNotTextOnly`, as R4). |
 | Insert text or runs | `w:ins` around the new runs | |
-| Insert a paragraph after paragraph P (M1) | `w:ins` around the new paragraph's runs. **P's** paragraph mark becomes inserted: `w:ins` as the **first** child of `P/w:pPr/w:rPr`, since `CT_ParaRPr` puts `ins`/`del`/`moveFrom`/`moveTo` before `EG_RPrBase`. The new paragraph takes over P's original mark. When the new paragraph is first in its container, or follows a table, its own mark is inserted instead; it is then not the container's last paragraph. | Matches Word. Outside tracked rows, the corpora never have a paragraph-mark revision on a container's last paragraph. Rejecting the change removes the new text and P's inserted mark, leaving the original document. |
+| Insert a paragraph N after paragraph P (M1, N1) | `w:ins` around N's runs. **P's** paragraph mark becomes inserted: `w:ins` as the **first** child of `P/w:pPr/w:rPr`, since `CT_ParaRPr` puts `ins`/`del`/`moveFrom`/`moveTo` before `EG_RPrBase`. N takes over P's original mark, **with its properties** (the rule below). When N is first in its container, or follows a table, N's own mark is inserted instead, and N gets no properties from P; this requires a following paragraph in the same container, else it is refused (`NoFollowingParagraph`: a body that ends with a table and then `w:sectPr`, written by other tools). | Matches Word. Outside tracked rows, the corpora never have a paragraph-mark revision on a container's last paragraph. Rejecting the change removes N's text and P's inserted mark; P and N merge and keep N's mark, which carries P's original `pPr`, so the input comes back. |
 | Delete text | `w:del` around the runs, with `delText` | Splits at run boundaries (ADR-0011 §9.2) |
 | Change run formatting | `w:rPrChange w:id w:author w:date` holding a copy of the old `rPr`, made with `detach_as` as `CT_RPrOriginal` | Refused when the run already has an `rPrChange` (M3) |
 | Change paragraph properties | `w:pPrChange` with the old `pPr` as `CT_PPrBase`: without `sectPr`, `rPr` and `pPrChange` | Refused when the paragraph already has a `pPrChange` (M3) |
-| Insert table rows (M2) | `w:trPr/w:ins` on each new row, `w:ins` around every run in its cells, and `w:ins` in every paragraph mark of its cells | Matches the SDK's tracked rows |
-| Delete table rows (M2) | `w:trPr/w:del` on each row, every run wrapped in `w:del` with `w:t` → `w:delText`, and `w:del` in every paragraph mark of its cells | All 3 SDK files with tracked deleted rows have this shape. ADR-0004's accepted view (`Paragraph::text`) then excludes the row's text, because the text is `delText` inside `w:del`. |
+| Insert table rows (M2) | `w:trPr/w:ins` on each new row, `w:ins` around every run in its cells, and `w:ins` in every paragraph mark of its cells | `trPr/ins` and the marks match the SDK's tracked rows; wrapping the runs in `ins` is by symmetry with deletion *(u: the one inserted row in the corpora has no text run; n5)* |
+| Delete table rows (M2) | `w:trPr/w:del` on each row, every run wrapped in `w:del` with `w:t` → `w:delText`, and `w:del` in every paragraph mark of its cells | All 3 SDK files with tracked deleted rows have this shape. ADR-0004's accepted view (`Paragraph::text`) then excludes the row's text, because the text is `delText` inside `w:del`. ADR-0007's table read view (`tables()`, `CellRef`) still lists the row, as it lists every `w:tr` (n5); `Row::is_deleted()` reports `trPr/del`. |
 
-- **ADR-0004's R2 is extended (M3).** A run or paragraph inside, or carrying, any of the nine
-  revision kinds is refused for every Phase0–3 edit: `ins`, `del`, `moveFrom`, `moveTo`,
-  `rPrChange`, `pPrChange`, `trPr/ins|del`, `numberingChange`, `sectPrChange`. A second change
-  can therefore never overwrite the original snapshot that rejecting must restore. Keeping the
-  snapshot and updating only id, author and date is the alternative; Word's behaviour there is
-  *(u)*, so it is not done.
+- **Which mark properties go where (revision 3, N1).** The paragraph properties (`pPr`:
+  `sectPr`, `numPr`, the mark's `rPr`, everything) belong to the paragraph mark. When N takes
+  over P's mark:
+  - **N's `pPr` is P's original `pPr`, verbatim** (a detached copy, PR #18), so N carries P's
+    `sectPr` and numbering. Moving the `sectPr` to N is the same operation as ADR-0011's lifting
+    of A2 (§9.1 there): the section break stays at the end of the inserted text, as with Word's
+    Enter.
+  - **P's `pPr` becomes a copy of its original without `sectPr` and `pPrChange`**, with `ins`
+    first in its mark `rPr`.
+  - Rejecting removes P's inserted mark; the merged paragraph keeps N's mark, i.e. P's original
+    `pPr`, section break included. Accepting gives Word's Enter shape.
+  - A session call that asks for **other** properties on N (a style id, ADR-0011 §9.1's
+    `sectPr`-less copy) is refused (`TrackedParagraphFormatting`). Writing those through a
+    `pPrChange` on N would need Word's handling of a `pPrChange` on a taken-over mark, which is
+    *(u)*.
+- **ADR-0004's R2 is extended (M3, n2).** A run or paragraph inside, or carrying, any revision
+  kind of **ADR-0011 rev 2 §2's list** is refused for every Phase0–3 edit. That list covers the
+  run and paragraph kinds (`ins`, `del`, `moveFrom`, `moveTo`, `rPrChange`, `pPrChange`,
+  `numberingChange`, `sectPrChange`, the paragraph-mark `ins`/`del`), the table kinds
+  (`trPr/ins|del`, `tblPrChange`, `tblPrExChange`, `trPrChange`, `tcPrChange`,
+  `tblGridChange`, `cellIns`, `cellDel`, `cellMerge`) and the range kinds (`move*Range*`,
+  `customXml*Range*`). The corpora have no table property revision, but Word writes them when
+  table formatting changes under track changes, and ADR-0011's row and cell edits must not pass
+  over them.
+  - A run inside a paragraph that carries `pPrChange` is refused too: the paragraph is the
+    revision's scope.
+  - A second change can therefore never overwrite the original snapshot that rejecting must
+    restore. Keeping the snapshot and updating only id, author and date is the alternative;
+    Word's behaviour there is *(u)*, so it is not done.
+  - This changes Accepted ADR-0004's behaviour: Phase0's `set_run_text` newly refuses a run
+    carrying `rPrChange` (Phase1's `replace` already does, ADR-0007 §1.1). The implementation
+    PR adds an ADR-0004 post-acceptance note recording it.
+- **Property snapshots and `mc:Ignorable` (n4).** `detach_as` refuses a subtree with an element
+  in a namespace the ancestors list as Ignorable (`NotDetachable`). A run whose `rPr` holds such
+  an element (`w14:ligatures`, …; 10 runs in 4 files, `p3_rpr_ext.py`) therefore cannot get an
+  `rPrChange`, and a formatting change on it in a session is refused with that error.
 - **Attributes.**
   - `w:id` comes from the annotation union (§2).
   - `w:author` is the session's author and must be non-empty.
-  - `w:date` is UTC `YYYY-MM-DDTHH:MM:SSZ`.
+  - `w:date` is written as for comments (§3.2, n5): local wall-clock time with `Z` *(u)*.
   - rsids and `w16du:dateUtc` are not written; the latter was never seen in the corpora.
 - **Still refused:**
   - edits touching existing revisions (extended R2), including a session's own earlier
@@ -439,11 +528,39 @@ R3 is lifted for these kinds; every other kind stays refused:
     with `StaleFieldRisk`;
   - `dcterms:modified`, `cp:lastModifiedBy` and `cp:revision` stay as Word last saved them
     (ADR-0004 §5).
-- **How the store is edited.** The custom XML part and `docProps/core.xml` have no WML schema,
-  so the edit cannot go through the §10 allowlist. It is a Layer 2 replacement of one element's
-  text through the untyped primitive ADR-0002 already allows for registry-like parts: a clone
-  edited by text replacement, staged with `stage_part` (§1). The target element must contain
-  only text (no child elements); otherwise the edit is refused.
+- **How the store is edited (revision 3, N2).** The custom XML part and `docProps/core.xml`
+  have no WML schema: custom XML is arbitrary, and the generator's input has the part types but
+  not the `cp`/`dc` elements. Core offers only the typed `LensMut`; `XmlDocument::root_mut` is
+  crate-private, and ADR-0004 Alternative 9 rejected an untyped `LensMut` descent. Two ways were
+  weighed:
+  - (a) **a narrow core API (chosen):**
+
+    ```rust
+    pub struct LeafStep<'a> { pub ns: &'a str, pub local: &'a str, pub index: usize } // index: 0-based among same-name element siblings
+    impl XmlDocument {
+        pub fn check_set_leaf_text(&self, path: &[LeafStep<'_>], value: &str) -> Result<()>;
+        pub fn set_leaf_text(&mut self, path: &[LeafStep<'_>], value: &str) -> Result<()>;
+    }
+    ```
+
+    The path starts at the root element (its first step must match the root). The target must
+    exist (`NoSuchElement`) and have no element children (`NotLeaf`); `value` must be XML 1.0
+    characters (`InvalidXmlChar`). Only the target's text children are replaced, the target is
+    marked dirty and its ancestors `subtree_dirty`, so only its span is re-rendered (T2). Comments
+    or processing instructions inside the target refuse (`NotLeaf`), and `xml:space` is left as
+    is. It adds no element and no attribute, so it is not a schema bypass: it is the text half
+    of `set_text` without the `ElementSpec`. This revisits ADR-0004 Alternative 9 only for
+    **text replacement in parts without a schema**; untyped descent, insertion and attribute
+    writes stay rejected. It is a core PR of its own, listed in §1's prerequisites.
+  - (b) **byte splicing** of the original part, staged with `stage_part` as bytes: no core
+    change, but ooxml-docx would have to locate the element in the source itself (entities,
+    CDATA, namespace resolution) and guarantee T2 on its own. Rejected.
+
+  ooxml-docx maps the binding's xpath (§6.2's subset) to `LeafStep`s by resolving its prefixes
+  through `prefixMappings` and its `[n]` positions (absent = `[1]`), edits a clone of the parsed
+  store with `set_leaf_text` after `check_set_leaf_text`, and stages it with `stage_part`
+  (§1). `docProps/core.xml` is found through the package's core-properties relationship, not by
+  its usual name (n8).
 - **Not in Phase3:** `w15:dataBinding` (rich-text binding, in either `w15` namespace) is refused,
   and new custom XML stores are not created.
 
@@ -519,8 +636,8 @@ differential tests.
 
 #### 8.1 Order
 
-The order follows the ECMA-376 Part 1 style hierarchy *(§17.7.2; section numbers from memory,
-u)*. Each later level overrides the earlier:
+The order follows the ECMA-376 Part 1 style hierarchy (§17.7.2) as Word implements it
+([MS-OI29500] 2.1.229). Each later level overrides the earlier:
 
 1. **Document defaults:** `docDefaults/rPrDefault`, `pPrDefault`. When they are absent, Word's
    application defaults apply (Times New Roman 10 pt *(u)*), reported as
@@ -535,12 +652,12 @@ u)*. Each later level overrides the earlier:
      that bitmask is decoded. Bands are counted in **grid columns**, taking `gridSpan` and
      `vMerge` into account (m10).
    - `cnfStyle` is a cache and is ignored for resolution (19 files have it).
-3. **Numbering level** `pPr` (and `rPr` for the number itself, not for the paragraph's runs).
-   This applies when the paragraph has `numPr` directly or through its style chain. The
-   precedence of the numbering `pPr` against the paragraph style's `pPr` (indentation) is
-   *(u: Word lets numbering indentation override the style's)*. It is covered by a differential
-   test.
-4. **Paragraph style chain,** root first (`basedOn`).
+3. **Paragraph style chain,** root first (`basedOn`).
+4. **Numbering level** `pPr` (and `rPr` for the number itself, not for the paragraph's runs).
+   This applies when the paragraph has `numPr` directly or through its style chain. Numbering
+   comes **after** the paragraph style, so its indentation overrides the style's: "Word applies
+   the properties from a paragraph style … before it applies the properties from a numbering
+   style" ([MS-OI29500] 2.1.229, n3). A differential test covers it.
 5. **Character style chain** of the run's `rStyle`, root first.
 6. **Direct formatting:** `pPr`, then `rPr`.
 
@@ -556,8 +673,14 @@ u)*. Each later level overrides the earlier:
   3. **The character style toggles** the value resolved so far: on `true` it flips the value,
      on `false` it leaves the value unchanged.
   4. **The table style's** interaction with the paragraph and character styles is *(u)*; it is
-     settled by differential tests.
+     settled by differential tests. Word before 2016 does not display toggle properties of table
+     styles correctly ([MS-OI29500] 2.1.230 (c)), which is one more reason not to rely on old
+     renderings for it.
   5. **Direct formatting** sets the value absolutely.
+  6. **Document defaults (n3, [MS-OI29500] 2.1.230).** When `docDefaults` sets a toggle
+     property to true, the effective value is true if and only if the number of levels that set
+     it to false is even; and a level with no value takes the `docDefaults` value, not the
+     property's default. T-FMT adds a synthetic `docDefaults` `b=1` case.
 
   The corpus cases that drive this: `[b=1 → b=0]` paragraph-style chains in 17 SDK
   Microsoft-template files and `caps` in 2. T-FMT adds synthetic cases: `[1, 1]` chains, `b` in
@@ -601,10 +724,13 @@ u)*. Each later level overrides the earlier:
     `w:CT_MarkupRange/w:commentRangeStart`, `w:CT_MarkupRange/w:commentRangeEnd`,
     `w:CT_Empty/w:annotationRef`;
   - notes: `w:CT_Footnotes/w:footnotes`, `w:CT_FtnEdn/w:footnote`, `w:CT_FtnEdnRef/w:footnoteReference`,
-    `w:CT_Empty/w:footnoteRef` (and the endnote counterparts), `w:CT_FtnDocProps/w:footnotePr`;
+    `w:CT_Empty/w:footnoteRef`, `w:CT_Endnotes/w:endnotes`, `w:CT_FtnEdn/w:endnote`,
+    `w:CT_FtnEdnRef/w:endnoteReference`, `w:CT_Empty/w:endnoteRef`; in `settings.xml`,
+    `w:CT_FtnDocProps/w:footnotePr`, `w:CT_EdnDocProps/w:endnotePr` and their separator
+    references `w:CT_FtnEdnSepRef/w:footnote`, `w:CT_FtnEdnSepRef/w:endnote` (n6);
   - revisions: `w:CT_RunTrackChange/w:ins`, `w:CT_RunTrackChange/w:del`, `w:CT_Text/w:delText`,
     `w:CT_Text/w:delInstrText`, `w:CT_RPrChange/w:rPrChange`, `w:CT_PPrChange/w:pPrChange`,
-    `w:CT_TrackChange/w:ins` (paragraph mark, `trPr`);
+    `w:CT_TrackChange/w:ins` and `w:CT_TrackChange/w:del` (paragraph mark, `trPr`; n6);
   - content controls: `w:CT_SdtRun/w:sdt`, `w:CT_SdtBlock/w:sdt`, `w:CT_SdtPr/w:sdtPr`,
     `w:CT_SdtContentRun/w:sdtContent`, `w:CT_SdtContentBlock/w:sdtContent`, `w:CT_DecimalNumber/w:id`,
     `w:CT_String/w:tag`, `w:CT_String/w:alias`, `w:CT_SdtText/w:text`, `w:CT_SdtDate/w:date`,
@@ -633,13 +759,14 @@ u)*. Each later level overrides the earlier:
   - every `commentReference`/range id names a comment;
   - every created comment has exactly one start, end and reference;
   - every `commentEx`/`commentId` `paraId` is the last paragraph of a comment;
-  - every `paraIdParent` names a comment that is not itself a reply;
+  - every **created** `paraIdParent` names a comment that is not itself a reply (inputs have 52
+    replies to replies, which are kept; n8);
   - `commentsIds` and `commentsExtensible` agree on durable ids;
   - **acceptance:** `poi-testComment` (2012-namespace companions), with a reply added and
     resolved, and all parts agreeing.
-  - **refusal test:** `sdk-Comment010` (pre-release namespace) must refuse `reply` and
-    `set_resolved` with `LegacyCommentsExtended` and leave the package unchanged, while
-    `add_comment` succeeds without a `commentEx`.
+  - **refusal test:** `sdk-Comment010` (pre-release namespace) must refuse `reply`,
+    `set_resolved` and `delete_comment` with `LegacyCommentsExtended` and leave the package
+    unchanged, while `add_comment` succeeds without a `commentEx`.
 - **T-REV:**
   - docx-rs read-back of `ins`/`del` (author, date, text) on a tracked edit of `poi-delins`
     with its `trackRevisions` kept on (roadmap);
@@ -647,6 +774,12 @@ u)*. Each later level overrides the earlier:
     equals the old text;
   - a tracked append at the end of the body, and inside a table cell, puts the inserted mark on
     the previous paragraph (M1);
+  - **`pPr` round trip (N1):** tracked appends after a paragraph carrying `sectPr`, and after one
+    carrying `numPr`. The rejected view's sequence of `pPr` (canonical, per paragraph) must equal
+    the input's, not only its text; the accepted view must have the `sectPr` on the new
+    paragraph;
+  - a body ending with a table and `w:sectPr` refuses a tracked append there
+    (`NoFollowingParagraph`);
   - tracked row deletion: the accepted view drops the row's text (M2).
 - **T-NOTE:**
   - every reference resolves within its kind;
@@ -654,7 +787,9 @@ u)*. Each later level overrides the earlier:
   - `settings` lists the separators.
 - **T-SDT:**
   - after a bound edit, every control bound to the same (store, xpath) shows the store's value;
-  - the store part changed only at the target element (T2 on the custom XML part).
+  - the store part changed only at the target element (T2 on the custom XML part). The same
+    check is the acceptance test of `set_leaf_text` in its core PR (N2), together with
+    `NotLeaf`, `NoSuchElement`, and namespace-prefix variants of one path.
 - **T-FLD:**
   - ADR-0004's scanner classifies every inserted field as its `FieldSpec`;
   - content-dependent fields carry `w:dirty`.
@@ -733,13 +868,14 @@ reviewed here: its source is not in the spike's pinned set (Open question 10).
     files with every id fresh and every companion part consistent.
   - The effective-formatting resolver unlocks semantic reads, such as heading detection by
     effective size and weight, that no compared library offers.
-- **Positive:**
   - The registries designed in ADR-0011 (annotation union, `paraId`) get their first real
     users.
   - The core transaction is shared with xlsx and pptx.
 - **Negative:**
-  - Phase3 depends on PR #38 (`RegistryPlan`) and PR #45 (`*_with_ns` inserts), and on
-    ADR-0011's registries and `split_run`.
+  - Phase3 depends on PR #38 (`RegistryPlan`, with its M2 and M7 fixes), PR #45 (`*_with_ns`
+    inserts) and a new core API (`set_leaf_text`, §6.2), and on ADR-0011's registries and
+    `split_run`.
+  - Delete, as well as reply and resolve, is refused on pre-release `commentsExtended` files.
   - Replies and resolve are refused on files whose `commentsExtended` uses the pre-release
     namespace: 54 of 59 SDK files with that part, and `sdk-Comment010`. Adding comments still
     works there.
@@ -762,8 +898,9 @@ reviewed here: its source is not in the spike's pinned set (Open question 10).
 Each question has the round-1 reviewer's recommendation as its proposed answer, awaiting the
 owner's decision.
 
-1. **Core transaction (§1).** Proposed: PR #38's `RegistryPlan`, with `stage_part` of lens-edited
-   clones. No further core API.
+1. **Core transaction (§1).** Proposed: PR #38's `RegistryPlan` (with its M2 and M7 fixes), with
+   `stage_part` of lens-edited clones, plus **one** new core API for schemaless stores,
+   `XmlDocument::set_leaf_text` / `check_set_leaf_text` (§6.2, N2), in its own core PR.
 2. **`w14:textId` for new paragraphs.** Proposed: `77777777`, always paired with a `paraId`
    ([MS-DOCX] 2.6.2.4).
 3. **Companion parts.** Proposed: append only when the part exists, and only in the 2012
@@ -808,9 +945,14 @@ owner's decision.
   - PR #14 (`remove_part`), PR #18 (`detach_as`), PR #26 (`insert_at`), PR #21 (O3 LibreOffice
     workflow), PR #38 (`RegistryPlan`), PR #45 (`*_with_ns` inserts);
   - `docs/roadmap/docx.md` (Phase3, Q3, Q4);
-  - the round-1 review `0015-opus-review-round1.md` and its probes.
+  - the round-1 review `0015-opus-review-round1.md` and its probes; the round-2 review
+    `0015-opus-review-round2.md` (probes `p1_revkinds.py`, `p2_fx.py`, `p3_rpr_ext.py`).
 - **Microsoft specifications:**
   - [MS-OI29500] 2.1.258 (Part 1 §17.7.8, toggle properties in paragraph styles);
+  - [MS-OI29500] 2.1.229 (Part 1 §17.7.2, style hierarchy: numbering after paragraph styles),
+    https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/f20aa1bd-46a8-4833-bf1c-ee47082e12ba;
+  - [MS-OI29500] 2.1.230 (Part 1 §17.7.3, toggle properties: `docDefaults`, table styles),
+    https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/f7130225-2368-48f3-acae-a9d278d0fb25;
   - [MS-DOCX] 2.6.2.3–2.6.2.4 (`paraId`, `textId`), 2.8.3.2 (`CT_CommentsIds`).
 - **Specifications:**
   - ECMA-376 Part 1: comments §17.13.4; footnotes and endnotes §17.11; revisions §17.13.5;
