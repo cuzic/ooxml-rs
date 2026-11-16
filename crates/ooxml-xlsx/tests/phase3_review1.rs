@@ -226,6 +226,21 @@ fn move_keeps_first_sheet_clamped() {
     assert!(w.contains(r#"firstSheet="1""#), "{w}");
 }
 
+/// Add and delete shift `firstSheet` with the positions (review mutant R1).
+#[test]
+fn add_and_delete_shift_first_sheet() {
+    let views = r#"<bookViews><workbookView firstSheet="1" activeTab="2"/></bookViews>"#;
+    let base = common::p1::book(&[("A", ""), ("B", ""), ("C", "")], "", views);
+    let mut wb = Workbook::from_bytes(base.clone()).unwrap();
+    wb.add_sheet("N", 0).unwrap();
+    let w = text(&wb.to_bytes().unwrap(), "xl/workbook.xml");
+    assert!(w.contains(r#"firstSheet="2""#) && w.contains(r#"activeTab="3""#), "{w}");
+    let mut wb = Workbook::from_bytes(base).unwrap();
+    wb.delete_sheet("A").unwrap();
+    let w = text(&wb.to_bytes().unwrap(), "xl/workbook.xml");
+    assert!(w.contains(r#"firstSheet="0""#) && w.contains(r#"activeTab="1""#), "{w}");
+}
+
 // ---- m4: move goes through core's checked move ----
 
 #[test]
@@ -331,7 +346,7 @@ fn rows() -> Vec<Row> {
         },
         Row {
             label: "VML that does not parse",
-            edits: vec![("xl/drawings/vmlDrawing1.vml", r#"<xml xmlns:x="urn:schemas-microsoft-com:office:excel"><x:FmlaLink>'Sheet 1'!$A$1</x:FmlaLink><br></xml>"#.into())],
+            edits: vec![("xl/drawings/vmlDrawing1.vml", r#"<xml xmlns:x="urn:schemas-microsoft-com:office:excel"><br></xml><x:FmlaLink>'Sheet 1'!$A$1</x:FmlaLink>"#.into())],
             types: vec![("xl/drawings/vmlDrawing1.vml", "application/vnd.openxmlformats-officedocument.vmlDrawing")],
             rewritten: false,
         },
