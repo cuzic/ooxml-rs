@@ -507,3 +507,34 @@ fn m3_unreadable_entry_fails_closed() {
     assert!(pkg.check_remove_parts(&["xl/media/i.png"], &[IMG]).is_err());
     assert!(pkg.incoming_relationships("xl/media/i.png").is_err());
 }
+
+/// m5: a relationship appended earlier in the plan to an existing `.rels`
+/// part can be removed again in the same plan.
+#[test]
+fn remove_a_relationship_appended_in_the_plan() {
+    let r = rels(&[("rId1", IMG, "media/i.png")]);
+    let mut pkg = Package::from_bytes(base(&[("xl/s.xml", "<s/>"), ("xl/_rels/s.xml.rels", &r), ("xl/media/i.png", "P")])).unwrap();
+    let mut plan = RegistryPlan::new(&pkg);
+    let id = plan.add_relationship(&pkg, Some("xl/s.xml"), COMMENTS, Target::Part("xl/media/i.png".into())).unwrap();
+    plan.remove_relationship(&pkg, Some("xl/s.xml"), &id, &[COMMENTS]).unwrap();
+    pkg.apply(plan).unwrap();
+    let rs = pkg.relationships("xl/s.xml").unwrap();
+    assert_eq!(rs.iter().count(), 1);
+    assert!(rs.by_id(&id).is_none());
+}
+
+/// m2: registry parts parsed for planning use the package's parse options
+/// (a raised depth limit lets a deep `.rels` be edited).
+#[test]
+fn planning_parses_with_the_package_options() {
+    let depth = ooxml_core::DEFAULT_MAX_DEPTH + 20;
+    let deep = format!("{}{}", "<x:e xmlns:x=\"urn:x\">".repeat(depth - 5), "</x:e>".repeat(depth - 5));
+    let r = format!(
+        r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{IMG}" Target="media/i.png"/>{deep}</Relationships>"#
+    );
+    let input = base(&[("xl/s.xml", "<s/>"), ("xl/_rels/s.xml.rels", &r), ("xl/media/i.png", "P")]);
+    let mut options = ooxml_core::ParseOptions::default();
+    options.max_depth = depth + 5;
+    let pkg = Package::from_bytes_with(input, options).unwrap();
+    pkg.check_add_relationship(Some("xl/s.xml"), IMG, Target::Part("xl/media/i.png".into())).unwrap();
+}

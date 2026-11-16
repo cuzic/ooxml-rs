@@ -996,10 +996,11 @@ impl RegistryPlan {
             }
         };
         let rels_name = rels_part_name(source.as_deref());
+        // Ids removed by this plan are still in the planned-against tree
+        // (read below); Ids removed earlier in the session are not.
         let mut used: Vec<String> = self
             .new_ids
             .iter()
-            .chain(&self.removed_ids)
             .chain(&pkg.removed_rel_ids)
             .filter(|(r, _)| same_part_name(r, &rels_name))
             .map(|(_, id)| id.clone())
@@ -1069,9 +1070,7 @@ impl RegistryPlan {
     fn locate_relationship(&mut self, pkg: &Package, source: Option<&str>, id: &str) -> R<(String, RelAt)> {
         let rels_name = rels_part_name(source);
         let id = xml_trim(id);
-        if self.removed_ids.iter().any(|(r, i)| same_part_name(r, &rels_name) && i == id) {
-            return Err(RegistryRefusal::RelationshipNotFound);
-        }
+        // (an entry the plan removed is in its edit's `removes`, skipped below)
         if let Some(ri) = self.live(pkg, &rels_name) {
             let rels_name = pkg.parts[ri].name.clone();
             let pos = self.edit_for(pkg, ri, rels_root_q())?;
