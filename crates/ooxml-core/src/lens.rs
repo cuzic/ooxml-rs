@@ -23,8 +23,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::error::{DetachRefusal, Error, Result};
-use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, R_NS, XML_NS, XML_SPACE, XMLNS_NS, XName};
-use crate::schema::{ChildOf, Content, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot};
+use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, RELATIONSHIP_ATTRIBUTES, XML_NS, XML_SPACE, XMLNS_NS, XName};
+use crate::schema::{ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot};
 use crate::value::{first_invalid_xml_char, has_edge_ws};
 
 /// Refuses a value that XML 1.0 cannot represent (ADR-0002 post-acceptance
@@ -161,7 +161,9 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
     }
 
     /// Reinterprets this lens as another spec with the same QName (e.g. when
-    /// the caller knows the context-specific type).
+    /// the caller knows the context-specific type). Only the QName is
+    /// checked; that `F` is the right complex type for this node is the
+    /// caller's responsibility (it matters for [`Self::detach_as`]).
     pub fn cast<F: ElementSpec>(self) -> Result<Lens<'a, F>> {
         if F::QNAME != E::QNAME {
             return Err(Error::WrongElement {
@@ -175,29 +177,105 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
 
     /// An owned, span-less copy of this element's subtree, renamed to
     /// `C::QNAME`, for [`LensMut::insert_detached`] (ADR-0002
-    /// post-acceptance note "detach/insert"). Element and attribute names
-    /// keep their namespace URIs; prefixes are chosen again at the
-    /// destination. Direct children whose name is in `skip` are left out
-    /// (with their whole subtree).
+    /// post-acceptance note "detach/insert"). Only [`Detachable`] elements
+    /// (opted in per allowlist, never id-bearing subtrees) can be detached.
+    /// Element and attribute names keep their namespace URIs; prefixes are
+    /// chosen again at the destination. Direct children (only) whose name
+    /// is in `skip` are left out with their whole subtree.
     ///
-    /// Refused, before anything is copied ([`Error::NotDetachable`]):
-    /// an `mc:AlternateContent` element or any other Markup Compatibility
-    /// element or attribute in the kept subtree (`mc:Ignorable` names
-    /// prefixes); an attribute in the relationships (`r:`) namespace, which
-    /// would duplicate a reference into Layer 3; a namespace declaration on
-    /// any kept element (its scope would move).
-    pub fn detach_as<C: SameType<E>>(&self, skip: &[QName]) -> Result<Detached<C>> {
-        let mut root = detach_node(self.node, skip)?;
+    /// Refused, before anything is copied ([`Error::NotDetachable`] with a
+    /// [`DetachRefusal`] and the offending name), when the kept subtree has:
+    /// a Markup Compatibility element or attribute (`mc:AlternateContent`,
+    /// `mc:Ignorable`, …); an attribute holding a relationship id
+    /// ([`crate::name::RELATIONSHIP_ATTRIBUTES`]); a namespace declaration;
+    /// an element or attribute in a namespace that an **ancestor's**
+    /// `mc:Ignorable` lists; or text while `xml:space="preserve"` is
+    /// inherited from an ancestor (the lens must then know its ancestors:
+    /// use a lens from [`crate::XmlDocument::lens`] or [`Lens::at`], not
+    /// [`Lens::root`] on an inner node).
+    pub fn detach_as<C>(&self, skip: &[QName]) -> Result<Detached<C>>
+    where
+        E: Detachable,
+        C: SameType<E> + Detachable,
+    {
+        let ctx = self.ancestor_context();
+        if ctx.preserve && self.node.xml_space_preserve().is_none() && has_text(self.node) {
+            return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &self.node.name));
+        }
+        let mut root = detach_node(self.node, skip, &ctx.ignorable)?;
         root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
         Ok(Detached { root, _c: PhantomData })
+    }
+
+    /// What the ancestors of this node contribute: namespaces their
+    /// `mc:Ignorable` lists (resolved with the declarations in effect on
+    /// each), and whether `xml:space="preserve"` is inherited.
+    fn ancestor_context(&self) -> AncestorContext {
+        let mut decls: Vec<(Option<&str>, &str)> = Vec::new();
+        let mut ctx = AncestorContext { ignorable: Vec::new(), preserve: false };
+        let mut n = self.root;
+        let mut rest = self.path.iter();
+        loop {
+            if std::ptr::eq(n, self.node) {
+                break;
+            }
+            decls.extend(n.attrs.iter().filter(|a| a.name.ns() == XMLNS_NS).map(|a| (a.name.declared_prefix(), a.value.as_str())));
+            if let Some(v) = n.attr(MC_IGNORABLE) {
+                for p in v.split_ascii_whitespace() {
+                    if let Some((_, u)) = decls.iter().rev().find(|(q, _)| *q == Some(p)) {
+                        ctx.ignorable.push((*u).to_owned());
+                    }
+                }
+            }
+            if let Some(p) = n.xml_space_preserve() {
+                ctx.preserve = p;
+            }
+            let Some(&i) = rest.next() else { break };
+            n = n.children[i].as_element().expect("path points at an element");
+        }
+        ctx
+    }
+}
+
+struct AncestorContext {
+    ignorable: Vec<String>,
+    preserve: bool,
+}
+
+const MC_IGNORABLE: QName = QName::new(MC_NS, "Ignorable");
+
+fn has_text(n: &RawNode) -> bool {
+    n.children.iter().any(|c| match c {
+        RawItem::Text(t) => !t.value.is_empty(),
+        RawItem::Element(e) => e.xml_space_preserve().is_none() && has_text(e),
+        RawItem::Markup(_) => false,
+    })
+}
+
+impl<'a, E: ElementSpec> Lens<'a, E> {
+    /// A lens on the element at `path` (child indices into
+    /// [`RawNode::children`]) below `root`, which must be `E::QNAME`.
+    /// Unlike [`Self::root`] on the inner node, the lens knows the node's
+    /// ancestors (namespace declarations, `mc:Ignorable`, `xml:space`).
+    pub fn at(root: &'a RawNode, path: &[usize]) -> Result<Self> {
+        let mut node = root;
+        for &i in path {
+            node = node.children.get(i).and_then(RawItem::as_element).ok_or_else(|| Error::WrongElement {
+                expected: E::QNAME,
+                found_ns: String::new(),
+                found_local: "(no element at this path)".into(),
+            })?;
+        }
+        check_root::<E>(node)?;
+        Ok(Lens { root, node, path: path.to_vec(), _e: PhantomData })
     }
 }
 
 /// An owned copy of an element subtree taken by [`Lens::detach_as`]: no
 /// source spans, no prefixes (names carry namespace URIs only), typed as
-/// `C`. Insert it with [`LensMut::insert_detached`] /
-/// [`LensMut::insert_detached_by`]; it can be cloned to insert it more
-/// than once.
+/// `C`. Insert it, as often as needed, with [`LensMut::insert_detached`] /
+/// [`LensMut::insert_detached_by`]; [`Self::check_insert_under`] tells in
+/// advance, without changing anything, whether the prefixes will resolve.
 pub struct Detached<C: ElementSpec> {
     root: RawNode,
     _c: PhantomData<fn() -> C>,
@@ -220,6 +298,17 @@ impl<C: ElementSpec> Detached<C> {
     pub fn raw(&self) -> &RawNode {
         &self.root
     }
+
+    /// Would [`LensMut::insert_detached`] find a prefix for every namespace
+    /// of the copy when inserting it under the element at `parent_path` of
+    /// the part whose root is `root` — or under any element *created* below
+    /// that one (created elements declare no namespaces)? Changes nothing.
+    /// `Err(NamespaceNotInScope)` exactly when the insertion would fail for
+    /// that reason; slot rules are not checked here.
+    pub fn check_insert_under(&self, root: &RawNode, parent_path: &[usize]) -> Result<()> {
+        let decls = declarations(root, parent_path);
+        with_prefixes(self.root.clone(), &decls, node_at(root, parent_path).name.prefix()).map(|_| ())
+    }
 }
 
 fn not_detachable(reason: DetachRefusal, name: &XName) -> Error {
@@ -227,19 +316,27 @@ fn not_detachable(reason: DetachRefusal, name: &XName) -> Error {
     Error::NotDetachable { reason, name: format!("{{{}}}{}", name.ns(), name.local()) }
 }
 
+fn holds_relationship_id(name: &XName) -> bool {
+    RELATIONSHIP_ATTRIBUTES.iter().any(|&(ns, local)| name.ns() == ns && local.is_none_or(|l| name.local() == l))
+}
+
 /// Copies `n` (whose direct children named in `skip` are left out) with
 /// prefixes and spans cleared, refusing what [`Lens::detach_as`] refuses.
-fn detach_node(n: &RawNode, skip: &[QName]) -> Result<RawNode> {
+fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String]) -> Result<RawNode> {
     if n.name.ns() == MC_NS {
         let reason = if n.is(MC_ALTERNATE_CONTENT) { DetachRefusal::AlternateContent } else { DetachRefusal::MarkupCompatibility };
         return Err(not_detachable(reason, &n.name));
+    }
+    if ignorable.iter().any(|u| u == n.name.ns()) {
+        return Err(not_detachable(DetachRefusal::IgnorableNamespace, &n.name));
     }
     let mut attrs = Vec::with_capacity(n.attrs.len());
     for a in &n.attrs {
         let reason = match a.name.ns() {
             XMLNS_NS => Some(DetachRefusal::NamespaceDeclaration),
-            R_NS => Some(DetachRefusal::RelationshipAttribute),
             MC_NS => Some(DetachRefusal::MarkupCompatibility),
+            _ if holds_relationship_id(&a.name) => Some(DetachRefusal::RelationshipAttribute),
+            u if ignorable.iter().any(|i| i == u) => Some(DetachRefusal::IgnorableNamespace),
             _ => None,
         };
         if let Some(reason) = reason {
@@ -251,7 +348,7 @@ fn detach_node(n: &RawNode, skip: &[QName]) -> Result<RawNode> {
     for c in &n.children {
         children.push(match c {
             RawItem::Element(e) if skip.iter().any(|q| e.is(*q)) => continue,
-            RawItem::Element(e) => RawItem::Element(detach_node(e, &[])?),
+            RawItem::Element(e) => RawItem::Element(detach_node(e, &[], ignorable)?),
             RawItem::Text(t) => RawItem::Text(RawText { value: t.value.clone(), span: None, cdata: t.cdata }),
             RawItem::Markup(m) => RawItem::Markup(m.clone()),
         });
@@ -534,7 +631,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// inserted nodes are created nodes (rendered in full on output).
     pub fn insert_detached_by<C: ChildOf<E>>(
         &mut self,
-        d: Detached<C>,
+        d: &Detached<C>,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<LensMut<'_, C>> {
         let slots = self.slots()?;
@@ -546,7 +643,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         let decls = declarations(self.root, &self.path);
         let parent_prefix = self.node().name.prefix();
-        let node = with_prefixes(d.root, &decls, parent_prefix)?;
+        let node = with_prefixes(d.root.clone(), &decls, parent_prefix)?;
         let parent = self.node_mut();
         if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
             parent.own_dirty = true; // self-closing parent gains its first child
@@ -557,7 +654,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     }
 
     /// `insert_detached_by` that appends at the end of the slot.
-    pub fn insert_detached<C: ChildOf<E>>(&mut self, d: Detached<C>) -> Result<LensMut<'_, C>> {
+    pub fn insert_detached<C: ChildOf<E>>(&mut self, d: &Detached<C>) -> Result<LensMut<'_, C>> {
         self.insert_detached_by(d, |_, _| false)
     }
 

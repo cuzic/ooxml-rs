@@ -129,11 +129,19 @@ pub enum DetachRefusal {
     /// Another Markup Compatibility element or attribute (`mc:Ignorable`
     /// and friends name prefixes, which a copy re-chooses).
     MarkupCompatibility,
-    /// An attribute in the relationships namespace (`r:id`, `r:embed`, …):
+    /// An attribute that holds a relationship id (`r:id`, `r:embed`, the
+    /// Strict `r:` namespace, VML `o:relid`; `name::RELATIONSHIP_ATTRIBUTES`):
     /// a copy would add a second reference to a relationship (Layer 3).
     RelationshipAttribute,
     /// A namespace declaration on an element of the subtree.
     NamespaceDeclaration,
+    /// An element or attribute in a namespace that an ancestor's
+    /// `mc:Ignorable` lists: the copy would lose (or, at the destination,
+    /// gain) ignorability.
+    IgnorableNamespace,
+    /// `xml:space="preserve"` is inherited from an ancestor and the subtree
+    /// has text: the copy would lose it at a destination without it.
+    InheritedXmlSpace,
 }
 
 impl std::fmt::Display for DetachRefusal {
@@ -143,6 +151,8 @@ impl std::fmt::Display for DetachRefusal {
             DetachRefusal::MarkupCompatibility => "markup-compatibility element or attribute in the subtree",
             DetachRefusal::RelationshipAttribute => "relationship (r:) attribute in the subtree",
             DetachRefusal::NamespaceDeclaration => "namespace declaration in the subtree",
+            DetachRefusal::IgnorableNamespace => "namespace made ignorable by an ancestor's mc:Ignorable",
+            DetachRefusal::InheritedXmlSpace => "text under an inherited xml:space=\"preserve\"",
         })
     }
 }

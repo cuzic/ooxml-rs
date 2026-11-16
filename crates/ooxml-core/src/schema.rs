@@ -177,17 +177,35 @@ pub trait ElementSpec: 'static {
 pub trait ChildOf<P: ElementSpec>: ElementSpec {}
 
 /// `Self` has the same schema type as `S`: a copy of an `S` subtree, renamed
-/// to `Self::QNAME`, is a valid `Self` (ADR-0002 post-acceptance note
-/// "detach/insert"). Every spec is `SameType` of itself (blanket impl);
-/// `ooxml-schema` generates the other pairs, for allowlisted entries with
-/// the same SDK complex type and the same resolved attributes and content
+/// to `Self::QNAME`, is schema-valid as a `Self` (ADR-0002 post-acceptance
+/// note "detach/insert"). The guarantee is about the schema type only (not
+/// about meaning that depends on context), and it assumes the lens's spec is
+/// right for the node: [`Lens::cast`](crate::Lens::cast) can re-type a node
+/// to another spec with the same QName, and is the caller's responsibility.
+/// Every spec is `SameType` of itself (blanket impl); `ooxml-schema`
+/// generates the other pairs, only between [`Detachable`] entries with the
+/// same SDK complex type and the same resolved attributes and content
 /// (e.g. `a:endParaRPr` and `a:rPr`, both `a:CT_TextCharacterProperties`).
 /// Used by [`Lens::detach_as`](crate::Lens::detach_as).
 #[diagnostic::on_unimplemented(
     message = "`{Self}` does not have the same schema type as `{S}`",
-    note = "`SameType` is generated only for allowlisted elements sharing an SDK complex type"
+    note = "`SameType` is generated only for detachable elements sharing an SDK complex type"
 )]
 pub trait SameType<S: ElementSpec>: ElementSpec {}
+
+/// The element may be copied with [`Lens::detach_as`](crate::Lens::detach_as)
+/// (ADR-0002 post-acceptance note "detach/insert"). Generated only for the
+/// entries a format crate lists in the `[detach]` section of its allowlist
+/// file, after review that their subtrees carry no value that must be
+/// unique in the document (shape ids, `p:ph@idx`, `w14:paraId`, …) and no
+/// reference to such an id: copying such a subtree would duplicate it.
+/// Phase 0.1 opts in DrawingML formatting only (`a:rPr`, `a:endParaRPr`,
+/// `a:pPr`).
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not detachable",
+    note = "list it in the `[detach]` section of its `codegen/allowlist/*.toml` (only for subtrees without ids or id references)"
+)]
+pub trait Detachable: ElementSpec {}
 
 impl<S: ElementSpec> SameType<S> for S {}
 
