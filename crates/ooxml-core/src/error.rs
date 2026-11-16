@@ -106,9 +106,31 @@ pub enum Error {
     /// The element's spec is marked `attrs_incomplete` (unresolved base class).
     #[error("{0}'s attribute list is incomplete in the schema data; writes are refused")]
     IncompleteSpec(QName),
+    /// [`LensMut::move_in_by`](crate::LensMut::move_in_by) refused the move
+    /// (ADR-0002 post-acceptance note "same-part move").
+    #[error("cannot move {name}: {reason}")]
+    NotMovable {
+        /// Why.
+        reason: MoveRefusal,
+        /// The element, prefix or namespace concerned.
+        name: String,
+    },
     /// No usable prefix is bound to the namespace at this point.
     #[error("namespace {0:?} is not in scope with a usable prefix")]
     NamespaceNotInScope(String),
+    /// A namespace declaration requested for a new element
+    /// ([`NsDecl`](crate::lens::NsDecl)) is not acceptable: an empty or
+    /// reserved URI, a prefix that is not an NCName or starts with `xml`, or
+    /// a prefix or URI given twice.
+    #[error("invalid namespace declaration xmlns:{prefix}={uri:?}: {reason}")]
+    InvalidNamespaceDeclaration {
+        /// The requested prefix.
+        prefix: String,
+        /// The requested URI.
+        uri: String,
+        /// Why it was refused.
+        reason: &'static str,
+    },
     /// A text or attribute value contains a character that XML 1.0 does not
     /// allow (`Char` production: C0 controls other than tab/LF/CR,
     /// U+FFFE, U+FFFF). Writing it would make the part not well-formed.
@@ -138,6 +160,14 @@ pub enum Error {
         /// The number of child items.
         len: usize,
     },
+    /// A same-part copy ([`crate::SamePartDetached`]) was offered to
+    /// another document (or a clone of its document), or taken from / put
+    /// into a lens that does not know its document
+    /// ([`Lens::root`](crate::Lens::root), [`Lens::at`](crate::Lens::at),
+    /// [`LensMut::root`](crate::LensMut::root)): its relationship ids are
+    /// only valid in the part it came from (ADR-0002 note "same-part copy").
+    #[error("a same-part copy can only be inserted into the document it was taken from")]
+    WrongDocument,
     /// A typed read found an invalid lexical value.
     #[error(transparent)]
     Attr(#[from] crate::schema::AttrError),
@@ -149,6 +179,18 @@ pub enum Error {
         part: String,
         /// Which precondition failed.
         reason: crate::package::RemoveRefusal,
+    },
+    /// A registry write ([`RegistryPlan`](crate::RegistryPlan) step,
+    /// [`Package::apply`](crate::Package::apply) or a one-step convenience
+    /// such as [`Package::add_part`](crate::Package::add_part)) was refused;
+    /// nothing was changed.
+    #[error("registry write refused ({part:?}): {reason}")]
+    RegistryRefused {
+        /// The part concerned (the new part, the relationship's source —
+        /// `""` for the package — or the part whose type is set).
+        part: String,
+        /// Which precondition failed.
+        reason: crate::package::RegistryRefusal,
     },
     /// The part is not well-formed XML in a way the underlying reader
     /// (quick-xml) would let through. Refused at parse time so that the tree
@@ -238,6 +280,45 @@ impl std::fmt::Display for WellFormedness {
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Why a same-part move was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MoveRefusal {
+    /// The part's root element cannot be moved.
+    Root,
+    /// The destination is the moved element or inside it.
+    IntoItself,
+    /// A prefix the subtree uses without declaring it (on an element or
+    /// attribute, the default namespace, or named in a Markup Compatibility
+    /// attribute value such as `mc:Ignorable` or `mc:Choice/@Requires`)
+    /// means another namespace, or nothing, at the destination; the moved
+    /// bytes would change meaning.
+    NamespaceBinding,
+    /// A namespace the subtree uses is ignorable (`mc:Ignorable`) at one
+    /// place and not at the other.
+    IgnorableNamespace,
+    /// The subtree has text that inherits `xml:space`, and the inherited
+    /// value differs at the destination.
+    XmlSpace,
+    /// The source or the destination is inside `mc:AlternateContent` (a
+    /// `mc:Choice` / `mc:Fallback` branch): consumers reading the other
+    /// branch would see the element vanish or appear.
+    AlternateContent,
+}
+
+impl std::fmt::Display for MoveRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MoveRefusal::Root => "the root element",
+            MoveRefusal::IntoItself => "into itself",
+            MoveRefusal::NamespaceBinding => "a prefix is bound differently at the destination",
+            MoveRefusal::IgnorableNamespace => "a namespace is ignorable at only one place",
+            MoveRefusal::XmlSpace => "inherited xml:space differs",
+            MoveRefusal::AlternateContent => "inside mc:AlternateContent",
+        })
+    }
+}
+
 /// Why [`Lens::detach_as`](crate::Lens::detach_as) refused a subtree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -270,6 +351,12 @@ pub enum DetachRefusal {
     /// An extension list (`extLst`, any namespace) in the kept subtree: its
     /// content is open, so ids or references inside cannot be reviewed.
     ExtensionList,
+    /// Same-part copy ([`crate::Lens::detach_same_part_as`]): a prefix the
+    /// copy uses without declaring it is bound to another namespace (or
+    /// unbound) at the destination, so its bytes would mean something else
+    /// there. `name` is `{xmlns}prefix` (`{xmlns}xmlns` for the default
+    /// namespace).
+    NamespaceBinding,
 }
 
 impl std::fmt::Display for DetachRefusal {
@@ -283,6 +370,7 @@ impl std::fmt::Display for DetachRefusal {
             DetachRefusal::InheritedXmlSpace => "text under a different inherited xml:space",
             DetachRefusal::UniqueAttribute => "a document-unique id attribute with a non-default value",
             DetachRefusal::ExtensionList => "an extension list (extLst) in the subtree",
+            DetachRefusal::NamespaceBinding => "a prefix of the copy means another namespace at the destination",
         })
     }
 }
