@@ -1,9 +1,9 @@
-//! Writes the Phase0 and Phase1 outputs the project owner opens in Microsoft
+//! Writes the Phase0, Phase1 and Phase2 outputs the project owner opens in Microsoft
 //! 365 Excel (roadmap §7.6, ADR-0001 Consequences, ADR-0003 §7.4: no Excel in
-//! CI), plus a checklist.
+//! CI; ADR-0006 "Test oracles" 10 for Phase2), plus a checklist.
 //!
 //! ```sh
-//! cargo run -p ooxml-xlsx --example manual_check -- <outdir>
+//! cargo run -p ooxml-xlsx --example xlsx_manual_check -- <outdir>
 //! ```
 //!
 //! `<outdir>/` gets the edited files, `originals/` (unedited inputs, to tell
@@ -13,7 +13,11 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_xlsx::{CellValue, Result, Workbook, Worksheet};
+use ooxml_xlsx::{Border, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
+
+type BoxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+/// (original for `originals/`, edited output)
+type Built = BoxResult<(Option<Vec<u8>>, Vec<u8>)>;
 
 const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference");
 
@@ -264,12 +268,21 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         wb.save(out_dir.join(case.out))?;
         writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
     }
+    md.push_str(CHECKLIST_P2_HEAD);
+    for case in P2_CASES {
+        let (original, output) = (case.build)()?;
+        if let Some(o) = original {
+            std::fs::write(originals.join(case.out), o)?;
+        }
+        std::fs::write(out_dir.join(case.out), output)?;
+        writeln!(md, "| [ ] | `{}` | {} | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
+    }
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
     // ooxml-xlsx and every worksheet reads with calamine (an independent
     // reader), so the owner's Excel check starts from files known to parse.
-    let outs: Vec<&str> = CASES.iter().map(|c| c.out).chain(P1_CASES.iter().map(|c| c.out)).collect();
+    let outs: Vec<&str> = CASES.iter().map(|c| c.out).chain(P1_CASES.iter().map(|c| c.out)).chain(P2_CASES.iter().map(|c| c.out)).collect();
     for out in &outs {
         let path = out_dir.join(out);
         Workbook::open(&path).map_err(|e| format!("{out}: ooxml-xlsx cannot re-open it: {e}"))?;
@@ -287,7 +300,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-const CHECKLIST_HEAD: &str = "# ooxml-xlsx Phase0 + Phase1 — manual Excel check
+const CHECKLIST_HEAD: &str = "# ooxml-xlsx Phase0 + Phase1 + Phase2 — manual Excel check
 
 Open each file below in current Microsoft 365 Excel (desktop). For each one:
 
@@ -321,8 +334,428 @@ on open** and show the values below, with **no repair dialog**. Excel will ask t
 |---|---|---|---|---|---|
 ";
 
+const CHECKLIST_P2_HEAD: &str = "
+## Phase2 (ADR-0006 \"Test oracles\" 10): shared strings, styles, dates
+
+Excel must open each file **without a repair dialog** and show the formats listed. The XL item
+letters refer to ADR-0006 oracle 10. Where the row says **Record**, write down what Excel does:
+those rows decide an open question (Q2, Q5) or an inferred limit (§5.10), not pass/fail.
+
+| Pass | Output | Input | Edits | Look for | Notes |
+|---|---|---|---|---|---|
+";
+
 const CHECKLIST_TAIL: &str = "
 Not claimed even if every row passes (roadmap §7.6): correct `row/@spans` hints after edits
 outside a span (left as is), and anything about sheets other than the edited one except that
 they are byte-for-byte preserved.
 ";
+
+// ------------------------------------------------------------ Phase2 (ADR-0006)
+
+struct P2Case {
+    out: &'static str,
+    input: &'static str,
+    edits: &'static str,
+    look_for: &'static str,
+    build: fn() -> Built,
+}
+
+fn fixture(rel: &str) -> BoxResult<Vec<u8>> {
+    Ok(std::fs::read(Path::new(ROOT).join(rel))?)
+}
+
+/// Replaces one part's bytes (for inputs built from the template).
+fn with_part(bytes: &[u8], name: &str, text: &str) -> BoxResult<Vec<u8>> {
+    let mut pkg = ooxml_core::Package::from_bytes(bytes.to_vec())?;
+    pkg.set_part(name, text.as_bytes().to_vec())?;
+    Ok(pkg.to_bytes()?)
+}
+
+fn part_text(bytes: &[u8], name: &str) -> BoxResult<String> {
+    let pkg = ooxml_core::Package::from_bytes(bytes.to_vec())?;
+    Ok(String::from_utf8(pkg.read_part(name)?)?)
+}
+
+fn template() -> BoxResult<Vec<u8>> {
+    Ok(Workbook::new()?.to_bytes()?)
+}
+
+/// The from-scratch format matrix (oracle 5), one format per row; column A
+/// says what to look for.
+fn matrix() -> Vec<(&'static str, Format)> {
+    let side = |style: &str| Some(Side { style: style.into(), color: Some(Color::rgb(0x0000FF)) });
+    vec![
+        ("default (Calibri 11)", Format::new()),
+        ("bold", Format::new().set_bold()),
+        ("italic, single underline", Format::new().set_italic().set_underline(Underline::Single)),
+        ("double underline, strikethrough", Format::new().set_underline(Underline::Double).set_strikethrough()),
+        ("Arial 14", Format::new().set_font_size(14.0).set_font_name("Arial")),
+        ("red font", Format::new().set_font_color(Color::rgb(0xFF0000))),
+        ("theme 4 (accent1) font, tint -0.25 (darker)", Format::new().set_font_color(Color::Theme { index: 4, tint: Tint::new(-0.249977111117893).expect("tint") })),
+        ("yellow fill", Format::new().set_background_color(Color::rgb(0xFFFF00))),
+        ("lightGray pattern, red on white", Format { fill: Some(Fill::Pattern { pattern: "lightGray".into(), fg: Some(Color::rgb(0xFF0000)), bg: Some(Color::rgb(0xFFFFFF)) }), ..Format::new() }),
+        ("thin border all sides", Format::new().set_border("thin")),
+        ("blue medium bottom, dashed diagonal up", Format { border: Some(Border { bottom: side("medium"), diagonal: side("dashed"), diagonal_up: true, ..Border::default() }), ..Format::new() }),
+        ("0.00 (built-in id 2): 1234.5678 shows 1234.57", Format::new().set_num_format("0.00")),
+        ("custom 0.000\" kg\": shows 1234.568 kg", Format::new().set_num_format("0.000\" kg\"")),
+        ("percent 0.0%: shows 123456.8%", Format::new().set_num_format("0.0%")),
+        ("centered, wrapped", Format::new().set_align("center").set_text_wrap()),
+        ("right, top", Format::new().set_align("right").set_valign("top")),
+        ("unlocked + hidden (Format Cells > Protection)", Format::new().set_unlocked().set_hidden()),
+        ("everything: bold red on yellow, thin border, 0.000", Format::new().set_num_format("0.000").set_bold().set_font_color(Color::rgb(0xFF0000)).set_background_color(Color::rgb(0xFFFF00)).set_border("thin")),
+    ]
+}
+
+fn p2_matrix() -> Built {
+    let mut wb = Workbook::new()?;
+    {
+        let mut ws = wb.add_worksheet()?;
+        for (i, (what, f)) in matrix().iter().enumerate() {
+            let r = i as u32;
+            ws.cell_mut(r, 0)?.set_string(what)?;
+            ws.cell_mut(r, 1)?.set_number_with_format(1234.5678, f)?;
+            ws.cell_mut(r, 2)?.set_string_with_format("text", f)?;
+        }
+        let n = matrix().len() as u32;
+        ws.cell_mut(n, 0)?.set_string("quote prefix: shows =1+1 as text")?;
+        ws.cell_mut(n, 2)?.set_string_with_format("=1+1", &Format::new().set_quote_prefix())?;
+        ws.cell_mut(n + 1, 0)?.set_string("TRUE, #N/A, date 2026-11-16 (short-date format)")?;
+        ws.cell_mut(n + 1, 1)?.set_bool(true)?;
+        ws.cell_mut(n + 1, 2)?.set_error("#N/A")?;
+        ws.cell_mut(n + 1, 3)?.set_datetime(ExcelDateTime::from_ymd(2026, 11, 16).ok_or("date")?)?;
+    }
+    Ok((None, wb.to_bytes()?))
+}
+
+fn p2_matrix_rx() -> Built {
+    use rust_xlsxwriter as rx;
+    let side = rx::FormatBorder::Thin;
+    let theirs: Vec<rx::Format> = vec![
+        rx::Format::new(),
+        rx::Format::new().set_bold(),
+        rx::Format::new().set_italic().set_underline(rx::FormatUnderline::Single),
+        rx::Format::new().set_underline(rx::FormatUnderline::Double).set_font_strikethrough(),
+        rx::Format::new().set_font_size(14).set_font_name("Arial"),
+        rx::Format::new().set_font_color(rx::Color::RGB(0xFF0000)),
+        rx::Format::new().set_font_color(rx::Color::Theme(4, 4)),
+        rx::Format::new().set_background_color(rx::Color::RGB(0xFFFF00)),
+        rx::Format::new().set_pattern(rx::FormatPattern::LightGray).set_foreground_color(rx::Color::RGB(0xFF0000)).set_background_color(rx::Color::RGB(0xFFFFFF)),
+        rx::Format::new().set_border(side),
+        rx::Format::new()
+            .set_border_bottom(rx::FormatBorder::Medium)
+            .set_border_bottom_color(rx::Color::RGB(0x0000FF))
+            .set_border_diagonal(rx::FormatBorder::Dashed)
+            .set_border_diagonal_color(rx::Color::RGB(0x0000FF))
+            .set_border_diagonal_type(rx::FormatDiagonalBorder::BorderUp),
+        rx::Format::new().set_num_format_index(2),
+        rx::Format::new().set_num_format("0.000\" kg\""),
+        rx::Format::new().set_num_format("0.0%"),
+        rx::Format::new().set_align(rx::FormatAlign::Center).set_text_wrap(),
+        rx::Format::new().set_align(rx::FormatAlign::Right).set_align(rx::FormatAlign::Top),
+        rx::Format::new().set_unlocked().set_hidden(),
+        rx::Format::new().set_num_format("0.000").set_bold().set_font_color(rx::Color::RGB(0xFF0000)).set_background_color(rx::Color::RGB(0xFFFF00)).set_border(side),
+    ];
+    let mut wb = rx::Workbook::new();
+    let ws = wb.add_worksheet();
+    for (i, ((what, _), f)) in matrix().iter().zip(&theirs).enumerate() {
+        let r = i as u32;
+        ws.write_string(r, 0, *what)?;
+        ws.write_number_with_format(r, 1, 1234.5678, f)?;
+        ws.write_string_with_format(r, 2, "text", f)?;
+    }
+    Ok((None, wb.save_to_buffer()?))
+}
+
+fn p2_inherit_arial() -> Built {
+    let input = fixture("fixtures/xlsx/poi/62272.xlsx")?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    let bold = Format::with_default_font_of(&mut wb)?.set_bold();
+    {
+        let mut ws = wb.worksheet()?;
+        ws.cell_mut(39, 0)?.set_number_with_format(1234.5678, &Format::new().set_num_format("0.000"))?;
+        ws.cell_mut(39, 1)?.set_number_with_format(1234.5678, &bold)?;
+        ws.cell_mut(39, 2)?.set_number_with_format(1234.5678, &Format::new().set_bold())?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+fn p2_dates(date1904: bool) -> Built {
+    let base = template()?;
+    let input = if date1904 {
+        let wbx = part_text(&base, "xl/workbook.xml")?.replacen("<workbookPr ", "<workbookPr date1904=\"1\" ", 1);
+        with_part(&base, "xl/workbook.xml", &wbx)?
+    } else {
+        base
+    };
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    {
+        let mut ws = wb.worksheet()?;
+        let dates = if date1904 {
+            [(1904, 1, 1), (1904, 1, 2), (2000, 2, 29), (2026, 11, 16), (9999, 12, 31)]
+        } else {
+            [(1899, 12, 31), (1900, 2, 28), (1900, 3, 1), (2026, 11, 16), (9999, 12, 31)]
+        };
+        for (i, (y, m, d)) in dates.into_iter().enumerate() {
+            let r = i as u32;
+            ws.cell_mut(r, 0)?.set_string(&format!("{y:04}-{m:02}-{d:02}"))?;
+            ws.cell_mut(r, 1)?.set_datetime(ExcelDateTime::from_ymd(y, m, d).ok_or("date")?)?;
+            let iso = Format::new().set_num_format("yyyy-mm-dd");
+            ws.cell_mut(r, 2)?.set_datetime_with_format(ExcelDateTime::from_ymd(y, m, d).ok_or("date")?, &iso)?;
+        }
+        ws.cell_mut(5, 0)?.set_string("2026-11-16 13:45:30")?;
+        let dt = Format::new().set_num_format("yyyy-mm-dd hh:mm:ss");
+        ws.cell_mut(5, 2)?.set_datetime_with_format(ExcelDateTime::from_ymd_hms(2026, 11, 16, 13, 45, 30.0).ok_or("date")?, &dt)?;
+        ws.cell_mut(6, 0)?.set_string("12:00 (time only)")?;
+        ws.cell_mut(6, 2)?.set_datetime_with_format(ExcelDateTime::from_hms(12, 0, 0.0).ok_or("time")?, &Format::new().set_num_format("hh:mm"))?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+fn p2_numfmts_inserted() -> Built {
+    let input = fixture("round_trip_corpus/fixture_minimal.xlsx")?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    {
+        let mut ws = wb.worksheet()?;
+        ws.cell_mut(1, 1)?.set_num_format("#,##0.000\" kg\"")?;
+        ws.cell_mut(6, 0)?.set_number_with_format(0.25, &Format::new().set_num_format("0.0%").set_background_color(Color::rgb(0xFFFF00)))?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+fn p2_known_fonts() -> Built {
+    let input = fixture("fixtures/xlsx/poi/61605.xlsx")?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    {
+        let mut ws = wb.worksheet()?;
+        let f = Format::new().set_font_name("Meiryo").set_font_size(16.0).set_bold().set_font_color(Color::rgb(0xC00000));
+        ws.cell_mut(24, 0)?.set_string_with_format("new font, new row", &f)?;
+        ws.cell_mut(24, 1)?.set_number_with_format(2.0, &f)?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+fn p2_wrong_sst_count() -> Built {
+    let mut wb = Workbook::new()?;
+    {
+        let mut ws = wb.add_worksheet()?;
+        ws.cell_mut(0, 0)?.set_string("a")?;
+        ws.cell_mut(1, 0)?.set_string("b")?;
+    }
+    let base = wb.to_bytes()?;
+    let sst = part_text(&base, "xl/sharedStrings.xml")?;
+    if !sst.contains("count=\"2\"") {
+        return Err("expected sst count=2".into());
+    }
+    let input = with_part(&base, "xl/sharedStrings.xml", &sst.replacen("count=\"2\"", "count=\"7\"", 1))?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    {
+        let mut ws = wb.worksheet()?;
+        ws.cell_mut(2, 0)?.set_string("c")?;
+        ws.cell_mut(3, 0)?.set_string("a")?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+fn p2_empty_sst() -> Built {
+    let mut wb = Workbook::new()?;
+    {
+        let mut ws = wb.add_worksheet()?;
+        ws.cell_mut(0, 0)?.set_number(1.0)?;
+        ws.cell_mut(1, 0)?.set_number(2.0)?;
+    }
+    Ok((None, wb.to_bytes()?))
+}
+
+/// A template workbook whose `styles.xml` has `n` entries in one table and
+/// a cell `A1` using the last one; built by hand because the registry
+/// refuses to grow past §5.10's limits.
+fn p2_limit(table: &str, n: usize) -> Built {
+    let base = template()?;
+    let mut s = part_text(&base, "xl/styles.xml")?;
+    let last = n - 1;
+    let xf = match table {
+        "fills" => {
+            let entries: String = (0..n)
+                .map(|i| match i {
+                    0 => "<fill><patternFill patternType=\"none\"/></fill>".to_owned(),
+                    1 => "<fill><patternFill patternType=\"gray125\"/></fill>".to_owned(),
+                    _ => format!("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF{:06X}\"/><bgColor indexed=\"64\"/></patternFill></fill>", i * 40_000),
+                })
+                .collect();
+            s = s.replacen("<fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills>", &format!("<fills count=\"{n}\">{entries}</fills>"), 1);
+            format!("<xf numFmtId=\"0\" fontId=\"0\" fillId=\"{last}\" borderId=\"0\" xfId=\"0\" applyFill=\"1\"/>")
+        }
+        "borders" => {
+            let styles = ["thin", "medium", "dashed", "dotted", "thick", "double", "hair", "mediumDashed", "dashDot", "mediumDashDot", "dashDotDot", "mediumDashDotDot", "slantDashDot"];
+            let entries: String = (0..n)
+                .map(|i| {
+                    if i == 0 {
+                        return "<border><left/><right/><top/><bottom/><diagonal/></border>".to_owned();
+                    }
+                    let st = styles[i % styles.len()];
+                    format!("<border><left style=\"{st}\"><color rgb=\"FF{:06X}\"/></left><right/><top/><bottom/><diagonal/></border>", i * 40_000)
+                })
+                .collect();
+            s = s.replacen("<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>", &format!("<borders count=\"{n}\">{entries}</borders>"), 1);
+            format!("<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"{last}\" xfId=\"0\" applyBorder=\"1\"/>")
+        }
+        "fonts" => {
+            let entries: String = (0..n)
+                .map(|i| {
+                    if i == 0 {
+                        return "<font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font>".to_owned();
+                    }
+                    format!("<font><sz val=\"{}\"/><color rgb=\"FF{:06X}\"/><name val=\"Calibri\"/><family val=\"2\"/></font>", 8 + i % 40, i * 20_000)
+                })
+                .collect();
+            s = s.replacen("<fonts count=\"1\"><font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font></fonts>", &format!("<fonts count=\"{n}\">{entries}</fonts>"), 1);
+            format!("<xf numFmtId=\"0\" fontId=\"{last}\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>")
+        }
+        "numFmts" => {
+            let entries: String = (0..n).map(|i| format!("<numFmt numFmtId=\"{}\" formatCode=\"0.{}\"/>", 164 + i, "0".repeat(1 + i % 20) + &format!("&quot; n{i}&quot;"))).collect();
+            let open_end = s.find("<fonts").ok_or("styles")?;
+            s.insert_str(open_end, &format!("<numFmts count=\"{n}\">{entries}</numFmts>"));
+            format!("<xf numFmtId=\"{}\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/>", 164 + last)
+        }
+        _ => return Err("table".into()),
+    };
+    s = s.replacen("<cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs>", &format!("<cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>{xf}</cellXfs>"), 1);
+    if !s.contains(&xf) {
+        return Err(format!("{table}: template styles.xml changed").into());
+    }
+    let input = with_part(&base, "xl/styles.xml", &s)?;
+    let mut wb = Workbook::from_bytes(input)?;
+    {
+        let mut ws = wb.worksheet()?;
+        ws.cell_mut(0, 0)?.set_number(1234.5678)?;
+        ws.cell_mut(0, 0)?.set_style_index(1)?;
+        ws.cell_mut(1, 0)?.set_string(&format!("A1 uses {table}[{last}] ({n} entries)"))?;
+    }
+    Ok((None, wb.to_bytes()?))
+}
+
+/// The template with Excel's built-in "Good" cell style (green fill, dark
+/// green font, `applyNumberFormat="0"` as Excel writes it) and one styled
+/// cell to apply it to.
+fn p2_named_and_preserving() -> Built {
+    let base = template()?;
+    let styles = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><sz val="11"/><color rgb="FF006100"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyNumberFormat="0" applyBorder="0" applyAlignment="0" applyProtection="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="top"/></xf></cellXfs><cellStyles count="2"><cellStyle name="Good" xfId="1" builtinId="26"/><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="0"/><tableStyles count="0" defaultTableStyle="TableStyleMedium9" defaultPivotStyle="PivotStyleLight16"/></styleSheet>"#;
+    let b = with_part(&base, "xl/styles.xml", styles)?;
+    let sheet = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" s="1"><v>1234.5</v></c><c r="B1" s="1"><v>1234.5</v></c><c r="C1" s="1"><v>1234.5</v></c><c r="D1" s="1"><v>1234.5</v></c><c r="E1" s="1"><v>1234.5</v></c></row></sheetData></worksheet>"#;
+    let input = with_part(&b, "xl/worksheets/sheet1.xml", sheet)?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    {
+        let mut ws = wb.worksheet()?;
+        ws.cell_mut(0, 0)?.set_named_style("Good")?;
+        ws.cell_mut(0, 1)?.set_num_format("0.000")?;
+        ws.cell_mut(0, 2)?.set_font(&Font { italic: true, color: Some(Color::rgb(0x0000FF)), ..Font::default() })?;
+        ws.cell_mut(0, 3)?.set_fill(&Fill::Pattern { pattern: "solid".into(), fg: Some(Color::rgb(0xFFC7CE)), bg: None })?;
+        let side = Some(Side { style: "double".into(), color: None });
+        ws.cell_mut(0, 4)?.set_border(&Border { bottom: side, ..Border::default() })?;
+    }
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+const P2_CASES: &[P2Case] = &[
+    P2Case {
+        out: "22-p2-format-matrix.xlsx",
+        input: "(embedded template)",
+        edits: "oracle 5: one format per row (column A names it), applied to a number (B) and a string (C); then a quote prefix, TRUE, #N/A and a date",
+        look_for: "Each row looks as column A says. Compare with `22b-p2-format-matrix-rx.xlsx` (rust_xlsxwriter, same matrix): B and C should look the same row by row (row 7's tint differs slightly: rust_xlsxwriter's shade table). No repair dialog.",
+        build: p2_matrix,
+    },
+    P2Case {
+        out: "22b-p2-format-matrix-rx.xlsx",
+        input: "(rust_xlsxwriter 0.102)",
+        edits: "the reference for 22, written by rust_xlsxwriter",
+        look_for: "Reference only.",
+        build: p2_matrix_rx,
+    },
+    P2Case {
+        out: "23-p2-62272-arial-inherit.xlsx",
+        input: "`fixtures/xlsx/poi/62272.xlsx`",
+        edits: "**XL (f).** A40 = 1234.5678 with only a number format (font inherited); B40 with `with_default_font_of(..).set_bold()`; C40 with `Format::new().set_bold()`",
+        look_for: "A40 is **Arial 10** like its neighbours, shows 1234.568; B40 is **Arial 10 bold**; C40 is Calibri 11 bold (documented: `set_bold()` alone starts from Calibri 11).",
+        build: p2_inherit_arial,
+    },
+    P2Case {
+        out: "24-p2-dates-1904.xlsx",
+        input: "template with `date1904=\"1\"`",
+        edits: "**XL (a).** Column A names a date; B = `set_datetime` (short-date format), C = the same date as yyyy-mm-dd; C6 a date-time, C7 a time",
+        look_for: "Every B and C cell shows the date in column A (B in your short-date form). File > Options > Advanced shows \"Use 1904 date system\" checked.",
+        build: || p2_dates(true),
+    },
+    P2Case {
+        out: "25-p2-dates-1900.xlsx",
+        input: "(embedded template)",
+        edits: "As 24 in the 1900 system (1899-12-31 = serial 0, around Excel's false 1900-02-29)",
+        look_for: "Row 1 shows 1900-01-00 (Excel's display of serial 0) or 1899-12-31: **Record** which. Rows 2–5 show the dates in column A; C6 2026-11-16 13:45:30; C7 12:00.",
+        build: || p2_dates(false),
+    },
+    P2Case {
+        out: "26-p2-numfmts-inserted.xlsx",
+        input: "`round_trip_corpus/fixture_minimal.xlsx`",
+        edits: "**XL (b).** B2 `set_num_format(\"#,##0.000\\\" kg\\\"\")` (the file has no `numFmts`: the table is inserted; it has one fill: `gray125` is added first); A7 = 25% on yellow",
+        look_for: "B2 shows 91.000 kg style formatting of its value, keeping its other formatting; A7 = 25.0% on yellow. No repair dialog.",
+        build: p2_numfmts_inserted,
+    },
+    P2Case {
+        out: "27-p2-knownfonts-new-font-row.xlsx",
+        input: "`fixtures/xlsx/poi/61605.xlsx` (`x14ac:knownFonts=\"1\"`)",
+        edits: "**XL (c), Q5.** A25:B25 (new row) in a new font: Meiryo 16 bold dark red",
+        look_for: "**Record**: does Excel open it without complaint, and is row 25 tall enough for the 16 pt text (or clipped)? `knownFonts` is left untouched (Q5 proposed default).",
+        build: p2_known_fonts,
+    },
+    P2Case {
+        out: "28-p2-sst-count-was-wrong.xlsx",
+        input: "from-scratch file whose `sst/@count` was patched from 2 to 7",
+        edits: "**XL (d).** A3 = \"c\" (appended), A4 = \"a\" (reused); `count` is rewritten as the number of `t=\"s\"` cells (4)",
+        look_for: "A1:A4 = a, b, c, a. No repair dialog. (`originals/` has the wrong count; record whether Excel minds it there.)",
+        build: p2_wrong_sst_count,
+    },
+    P2Case {
+        out: "29-p2-empty-sst.xlsx",
+        input: "(embedded template)",
+        edits: "**XL (e), Q2.** Numbers only: the template's empty `<sst count=\"0\" uniqueCount=\"0\"/>` is saved as it is",
+        look_for: "**Record**: no repair dialog? (If Excel repairs, Q2's proposed default — an empty sst in the template — must change.)",
+        build: p2_empty_sst,
+    },
+    P2Case {
+        out: "30-p2-limit-300-fills.xlsx",
+        input: "template with 300 fills",
+        edits: "**XL (g).** A1 uses fills[299]",
+        look_for: "**Record**: does Excel open it, and does it report a limit? (The registry refuses a 257th fill; §5.10's mapping is inferred.)",
+        build: || p2_limit("fills", 300),
+    },
+    P2Case {
+        out: "31-p2-limit-300-borders.xlsx",
+        input: "template with 300 borders",
+        edits: "**XL (g).** A1 uses borders[299]",
+        look_for: "**Record** as 30 (registry limit 256).",
+        build: || p2_limit("borders", 300),
+    },
+    P2Case {
+        out: "32-p2-limit-600-fonts.xlsx",
+        input: "template with 600 fonts",
+        edits: "**XL (g).** A1 uses fonts[599]",
+        look_for: "**Record** as 30 (registry limit 512).",
+        build: || p2_limit("fonts", 600),
+    },
+    P2Case {
+        out: "33-p2-limit-260-numfmts.xlsx",
+        input: "template with 260 custom number formats",
+        edits: "**XL (g).** A1 uses numFmt 423 (the 260th)",
+        look_for: "**Record** as 30 (registry limit 200; Excel documents 200–250).",
+        build: || p2_limit("numFmts", 260),
+    },
+    P2Case {
+        out: "34-p2-named-style-and-preserving.xlsx",
+        input: "template with Excel's \"Good\" style; A1:E1 = 1234.5, `#,##0.00`, right/top aligned",
+        edits: "A1 `set_named_style(\"Good\")`; B1 `set_num_format(\"0.000\")`; C1 `set_font(italic blue)`; D1 `set_fill(pink)`; E1 `set_border(double bottom)`",
+        look_for: "A1 green on green **and still 1,234.50** (Good does not apply a number format); Home > Cell Styles shows A1 as Good. B1 1234.500; C1 italic blue, D1 pink fill, E1 double bottom border; B1:E1 keep 1,234.50-style formatting except what changed, and stay right/top aligned.",
+        build: p2_named_and_preserving,
+    },
+];

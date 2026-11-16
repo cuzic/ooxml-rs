@@ -634,6 +634,15 @@ fn style_table_limits() {
     assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
     // reuse still works
     wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &Format::new().set_num_format("0.0")).unwrap();
+    // a table already past its limit does not block writes that do not grow it
+    let over = s.replace(r#"<fonts count="512">"#, r#"<fonts count="513">"#).replace("</fonts>", &format!("{font}</fonts>"));
+    let input = p1::with_part(&base, "xl/styles.xml", &over);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    ws.cell_mut(0, 0).unwrap().set_style_index(0).unwrap();
+    ws.cell_mut(0, 1).unwrap().set_number_with_format(1.0, &Format::new().set_num_format("0.0")).unwrap();
+    let e = ws.cell_mut(0, 2).unwrap().set_number_with_format(1.0, &Format::new().set_font_name("Arial"));
+    assert!(matches!(e, Err(Error::StyleTableFull { .. })), "{e:?}");
 }
 
 #[test]

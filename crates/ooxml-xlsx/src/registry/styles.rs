@@ -381,15 +381,17 @@ impl Styles {
                 }
             }
         };
+        // Only a table this plan grows is checked: a file already past a
+        // limit can still apply, reuse and derive from existing entries.
         let n = &p.next;
-        let check = |table: &'static str, count: u32| -> Result<()> {
-            if count > limit(table) { Err(Error::StyleTableFull { table: table.into(), limit: limit(table) }) } else { Ok(()) }
+        let check = |table: &'static str, before: u32, after: u32| -> Result<()> {
+            if after > before && after > limit(table) { Err(Error::StyleTableFull { table: table.into(), limit: limit(table) }) } else { Ok(()) }
         };
-        check("cellXfs+cellStyleXfs", n.table(Which::CellXfs).count + n.csx.count)?;
-        check("fonts", n.table(Which::Fonts).count)?;
-        check("fills", n.table(Which::Fills).count)?;
-        check("borders", n.table(Which::Borders).count)?;
-        check("custom numFmts", n.custom_count)?;
+        check("cellXfs+cellStyleXfs", self.table(Which::CellXfs).count + self.csx.count, n.table(Which::CellXfs).count + n.csx.count)?;
+        check("fonts", self.table(Which::Fonts).count, n.table(Which::Fonts).count)?;
+        check("fills", self.table(Which::Fills).count, n.table(Which::Fills).count)?;
+        check("borders", self.table(Which::Borders).count, n.table(Which::Borders).count)?;
+        check("custom numFmts", self.custom_count, n.custom_count)?;
         Ok(StylePlan { s, staged: p.staged, next: p.next })
     }
 }
