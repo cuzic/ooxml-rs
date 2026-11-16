@@ -184,7 +184,6 @@
   `remove_part` is already implemented as the one-part case of
   `remove_parts` (one implementation of the removal rules), refusing parts
   with their own relationships.
-
 - **Post-acceptance note (2026-11-16, merged-cell anchors; effective
   when ADR-0014 is implemented):** Phase0's refusal of "writing into a
   cell inside a merged range" (Scope boundary below) is relaxed for the
