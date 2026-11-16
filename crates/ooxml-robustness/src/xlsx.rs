@@ -7,7 +7,8 @@ use ooxml_xlsx::{CellValue, Workbook};
 
 use crate::fixtures::{XLSX, decode};
 use crate::input::Input;
-use crate::zipcmp::{assert_l1_except, assert_l1_except_removing};
+use crate::phase1_oracle::{Phase1Edits, assert_phase1_diff};
+use crate::zipcmp::assert_l1_except;
 
 fn read_cell(wb: &mut Workbook, row: u32, col: u32) -> Option<CellValue> {
     let ws = wb.worksheet().ok()?;
@@ -55,6 +56,8 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
         }
     }
     let mut written: BTreeMap<(u32, u32), CellValue> = BTreeMap::new();
+    let target_name = wb.sheet_name().to_owned();
+    let mut edits = Phase1Edits::default();
     let mut steps = 0;
     while !ops.is_empty() && steps < 16 {
         steps += 1;
@@ -72,6 +75,7 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
             continue;
         }
         let before = wb.to_bytes().expect("to_bytes worked before");
+        let pending = edits.before_write(&mut wb, &target_name, row, col);
         let (result, expect) = {
             let Ok(mut ws) = wb.worksheet() else { return };
             match kind {
@@ -101,36 +105,17 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
                 let got = read_cell(&mut wb, row, col);
                 assert_eq!(got.as_ref(), Some(&expect), "write at ({row},{col}) does not read back");
                 written.insert((row, col), expect);
+                edits.wrote(pending, false);
             }
         }
     }
     let out = wb.to_bytes().unwrap_or_else(|e| panic!("save after edits failed: {e}"));
-    // Phase1 (ADR-0003): a value edit strips the cached values of its
-    // dependents on any sheet and sets `calcPr/@fullCalcOnLoad` in the
-    // workbook part; when the set of formula cells changes, `calcChain.xml`
-    // goes, with its relationship and content-type override.
-    let names: Vec<String> = re_names(&base);
-    let base_pkg = ooxml_core::Package::from_bytes(base.clone()).expect("the zero-edit save reopens");
-    let mut except: Vec<&str> = names
-        .iter()
-        .map(String::as_str)
-        .filter(|n| is_sheet(&base_pkg, n) || *n == "[Content_Types].xml" || n.ends_with(".rels"))
-        .collect();
-    except.push(&workbook);
-    let removable: Vec<&str> = names.iter().map(String::as_str).filter(|n| n.ends_with("calcChain.xml")).collect();
-    assert_l1_except_removing(&base, &out, &except, &removable, "xlsx save after edits");
+    // ADR-0003 Phase1: only the dependents' caches, calcPr and (when a
+    // formula cell was overwritten) calcChain may change outside the
+    // edited sheet (review of PR #36 round 3, M2).
+    assert_phase1_diff(&mut wb, &base, &out, &[sheet.as_str()], &workbook, &edits);
     let mut re = Workbook::from_bytes(out).unwrap_or_else(|e| panic!("edited workbook does not reopen: {e}"));
     for ((row, col), v) in &written {
         assert_eq!(read_cell(&mut re, *row, *col).as_ref(), Some(v), "({row},{col}) after reopen");
     }
-}
-
-fn re_names(zip: &[u8]) -> Vec<String> {
-    crate::zipcmp::raw_entries(zip).map(|v| v.into_iter().map(|e| e.name).collect()).unwrap_or_default()
-}
-
-/// A sheet part (worksheet, macro sheet, dialog sheet, chartsheet), by
-/// content type: a value edit may strip dependents' cached values there.
-fn is_sheet(pkg: &ooxml_core::Package, name: &str) -> bool {
-    pkg.content_type(name).is_some_and(|t| t.contains("sheet+xml") && !t.contains("sharedStrings") && !t.contains(".main+xml"))
 }

@@ -281,17 +281,16 @@ fn f6_zip64_declared_size_does_not_abort() {
         .env(CHILD, NAME)
         .output()
         .expect("spawn the test binary");
-    // The child must actually have run the body: a renamed test or a filter
-    // that selects nothing would otherwise "pass" (review of PR #36, M1').
-    assert!(
-        String::from_utf8_lossy(&out.stdout).contains("1 passed"),
-        "child process did not run the test:\n{}",
-        String::from_utf8_lossy(&out.stdout)
-    );
+    // The child must have selected exactly this test (a renamed test or a
+    // filter that selects nothing would otherwise "pass", review of PR #36
+    // M1') and passed it; an abort shows as a failed status first.
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("running 1 test"), "child process did not select the test:\n{stdout}");
     assert!(
         out.status.success(),
         "child process failed ({}):\n{}",
         out.status,
         String::from_utf8_lossy(&out.stderr).lines().filter(|l| !l.trim().is_empty()).take(5).collect::<Vec<_>>().join("\n")
     );
+    assert!(stdout.contains("test result: ok. 1 passed"), "child process did not pass the test:\n{stdout}");
 }

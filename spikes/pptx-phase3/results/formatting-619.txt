@@ -1,0 +1,60 @@
+ahyp:hlinkClr: 12
+custGeom: 1626
+duplicate files skipped: 445
+files: 619
+files with a notes master: 156
+files with slides but no notes master: 460
+groups with a scaled/offset child space: 216
+groups with child space == own space: 1336
+grpSpPr flipped: 59
+grpSpPr rotated: 23
+grpSpPr without xfrm (inherits position): 6
+hlink with empty r:id: 48
+hlinkClick: 177
+hlinkMouseOver: 1
+masters with a non-standard clrMap: 26
+masters with the standard bg/tx clrMap: 688
+normAutofit with fontScale/lnSpcReduction: 77
+notes slides: 371
+prstGeom with adjustment values: 205
+slides: 1269
+slides with overrideClrMapping: 3
+spPr flipped: 98
+spPr rotated: 125
+spPr with a:ln: 3445
+spPr without xfrm (inherits position): 825
+theme majorFont script fonts: 27129
+theme minorFont script fonts: 27129
+themes shared by >1 master: 0
+unreadable: 12
+algn values: ctr=1635, l=343, r=55, just=49
+bodyPr autofit (slides): none=5395, spAutoFit=658, noAutofit=265, normAutofit=247
+buAutoNum type: arabicPeriod=183, alphaLcPeriod=11, romanUcPeriod=5, alphaUcPeriod=3, romanLcPeriod=2, alphaLcParenR=2
+clrScheme name: Office=640, Стандартная=44, =39, Office Theme=28, LibreOffice=22, Default Design 1=15, Pakiet Office=10, Concourse=9, Default=9, IBS=8, ATK Color 2012_01=7, SUSE Infinity=6, Facet=6, Larissa=4, HuaWei colour 3=4, Simple Light=4, PwC Orange=4, Blank Presentation 1=3, Office Theme 1=3, Mentor Template C April 2010=3
+defRPr attributes: sz=498, kern=261, b=112, cap=99, i=97, u=97, strike=97, lang=21, baseline=13, spc=7
+defRPr children: latin=1003, solidFill=994, ea=436, cs=436, sym=102, uFillTx=7, effectLst=1, highlight=1
+endParaRPr attributes: lang=5384, sz=1935, b=851, strike=453, u=356, i=185, spc=166, kern=131, cap=103, baseline=93
+endParaRPr children: latin=1365, solidFill=1161, cs=746, effectLst=486, ea=315, uFillTx=276, ln=112, uFill=63, uLnTx=32, gradFill=9, noFill=6, sym=2, highlight=2
+external link target scheme: http=44, https=15, mailto=6, relative=1
+grpSpPr fill: inherited=1557, solidFill=1
+hlink action: (none)=69, ppaction://hlinksldjump=60, ppaction://media=14, ppaction://macro?…=13, ppaction://hlinkshowjump?…=12, ppaction://noaction=9, ppaction://hlinkfile=1
+hlink attributes: highlightClick=25, tooltip=1
+hlink relationship type: hyperlink=70, slide=60
+hlinkClick parent: cNvPr=94, rPr=83
+hlinkClr val: tx=12
+pPr attributes: algn=2082, marL=1476, indent=1234, lvl=864, fontAlgn=792, rtl=276
+pPr children: spcBef=1703, lnSpc=1320, spcAft=967, buFont=940, buChar=713, buNone=605, defRPr=573, tabLst=385, buClr=321, buSzPct=233, buFontTx=232, buAutoNum=206, buClrTx=139, buSzTx=136, buBlip=30, buSzPts=14
+prstGeom: rect=2582, ellipse=165, roundRect=118, line=78, straightConnector1=60, rightArrow=29, leftArrow=22, stripedRightArrow=21, bentConnector2=19, hexagon=18, wedgeRoundRectCallout=16, triangle=16, flowChartMerge=15, pie=12, chevron=8, bentConnector3=8, flowChartExtract=8, round2SameRect=6, homePlate=5, rightBrace=5
+rPr attributes: sz=10134, lang=7461, spc=5043, b=2192, i=657, u=545, strike=531, baseline=281, cap=162, kern=91
+rPr children: latin=8199, cs=6894, solidFill=2807, ea=661, effectLst=530, ln=167, uFillTx=93, hlinkClick=83, uFill=67, uLnTx=45, noFill=27, sym=23, gradFill=22, highlight=11, hlinkMouseOver=1
+run colour transforms: lumMod=184, lumOff=69, alpha=32, tint=14, satMod=13
+run solidFill colour kind: srgbClr=2454, schemeClr=2126, prstClr=362, sysClr=20
+run typeface kind: explicit=18802, +mn-lt=405, +mn-cs=369, +mn-ea=321, +mj-lt=70, +mj-ea=53, +mj-cs=35
+spPr fill: solidFill=2629, inherited=2201, noFill=1030, blipFill=212, gradFill=26, grpFill=2, pattFill=2
+spacing unit: lnSpc/spcPct=1226, spcBef/spcPct=931, spcBef/spcPts=772, spcAft/spcPts=755, spcAft/spcPct=212, lnSpc/spcPts=94
+tblStyle definitions per file: 0=447, 1=66, 2=20, 5=18, 3=11, 4=7
+tblStyle parts: wholeTbl=318, firstCol=289, firstRow=289, lastRow=283, band1H=257, lastCol=253, band1V=252, band2H=234, band2V=197, tblBg=51, seCell=21, swCell=21, neCell=14, nwCell=13
+theme majorFont latin: Calibri Light=349, Calibri=319, Arial=166, Aptos Display=39, Noto Sans=12, Trebuchet MS=8, Georgia=7, Verdana=5, Century Gothic=5, Poppins Medium=5, Times New Roman=4, Helvetica Neue=4, 等线 Light=4, Liberation Sans=4, Segoe UI=3, Lucida Sans Unicode=3, Open Sans=3, Arial Narrow=2, Arial Black=2, Tahoma=2
+theme minorFont latin: Calibri=670, Arial=174, Aptos=39, Trebuchet MS=8, Segoe UI=6, Times New Roman=5, Verdana=5, Century Gothic=5, Poppins Light=5, 等线=4, Liberation Sans=4, Helvetica=4, Lucida Sans Unicode=3, Open Sans=3, Broadway=3, Arial Narrow=2, Helvetica Neue=2, Cambria=2, Tahoma=2, Helvetica Neue Medium=2
+theme slot colour kind: srgbClr=10064, sysClr=1504
+u values: none=859, sng=137, heavy=2

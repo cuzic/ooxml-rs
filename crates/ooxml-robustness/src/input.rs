@@ -78,7 +78,8 @@ impl<'a> Input<'a> {
         s
     }
 
-    /// A short string of characters every writer must accept: letters,
+    /// A short string of characters the Phase0 docx/xlsx/pptx text writers
+    /// must accept: letters,
     /// digits, spaces (also at the edges and doubled), tab, LF, CR, and a
     /// few non-ASCII ones.
     pub fn printable(&mut self) -> String {

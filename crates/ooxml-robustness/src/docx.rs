@@ -53,10 +53,22 @@ fn read_all(doc: &Document) -> Vec<(usize, usize)> {
     let _ = (doc.write_gate(), doc.write_gates().len(), doc.update_fields_on_open(), doc.write_protection(), doc.is_marked_final());
     let mut settable = Vec::new();
     assert_eq!(doc.paragraphs().count(), doc.paragraph_count());
+    let mut depth = 0usize;
     for p in doc.paragraphs() {
         let _ = (p.text(), p.raw().name());
         assert_eq!(p.runs().count(), p.run_count());
         for r in p.runs() {
+            let before = depth;
+            let mut has = false;
+            for c in r.raw().elements().filter(|c| is_w(c, "fldChar")) {
+                has = true;
+                match c.attrs().iter().find(|a| a.name().ns() == W_NS && a.name().local() == "fldCharType").map(|a| a.value()) {
+                    Some("begin") => depth += 1,
+                    Some("end") => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
+            assert_eq!(r.in_field(), before > 0 || depth > 0 || has, "run ({}, {}): in_field disagrees with the fldChar recount", p.index(), r.index());
             let _ = (r.text(), r.context(), r.in_field(), r.raw().span());
             if r.check_settable().is_ok() {
                 settable.push((p.index(), r.index()));
@@ -178,7 +190,14 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
     assert_l1_except(zip, &base, &[], "docx zero-edit save");
     let main = doc.main_part_name().to_owned();
     let mut settable = read_all(&doc);
-    assert_l1_except(zip, &doc.to_bytes().expect("saved before"), &[], "docx save after reading");
+    // Large main parts (the 1.35 MB fixture costs about 6 s under ASan
+    // before any edit) skip the second save and get one edit, so a seed
+    // stays under libFuzzer's -timeout=10 on a loaded CI runner (review of
+    // PR #47 round 2, m5).
+    let large = main_bytes(&doc).len() > 512 * 1024;
+    if !large {
+        assert_l1_except(zip, &doc.to_bytes().expect("saved before"), &[], "docx save after reading");
+    }
 
     let mut runs: BTreeMap<(usize, usize), String> = BTreeMap::new();
     let mut appended: BTreeMap<usize, String> = BTreeMap::new();
@@ -188,7 +207,7 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
     // the largest fixture's 1.35 MB document.xml in release, more than ten
     // times that under ASan), so large main parts get fewer steps to stay
     // under libFuzzer's -timeout=10.
-    let max_steps = if main_bytes(&doc).len() > 512 * 1024 { 2 } else { 12 };
+    let max_steps = if large { 1 } else { 12 };
     while !ops.is_empty() && steps < max_steps {
         steps += 1;
         let kind = ops.u8() % 4;
@@ -206,6 +225,7 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
             (p, usize::from(ops.u8() % 8))
         };
         let mut kept: Option<RawNode> = None;
+        let mut body_has_ac = false;
         let (predicted, result) = match kind {
             0..=2 => {
                 let predicted = predict_set(&doc, p, r, &text);
@@ -226,6 +246,11 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
                 // One parse of the main part serves the prediction and the
                 // position check (the largest fixture's is 1.35 MB).
                 let parsed = XmlDocument::parse(&before_main).expect("the main part parsed at open");
+                body_has_ac = parsed
+                    .root()
+                    .elements()
+                    .find(|e| is_w(e, "body"))
+                    .is_some_and(|b| b.elements().any(|e| e.name().ns() == ooxml_core::name::MC_NS && e.name().local() == "AlternateContent"));
                 let predicted = predict_append(&doc, &parsed, &text);
                 let spans = body_spans(&parsed);
                 (predicted, doc.append_paragraph(&text).map(|i| {
@@ -257,12 +282,12 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
             }
         };
         // Refusal oracle (review M1): the outcome is the predicted one. An
-        // insertion the lens itself refuses (`mc:AlternateContent` among the
-        // body's children) is the one outcome not predicted here.
+        // insertion the lens itself refuses is accepted only when the body
+        // has an `mc:AlternateContent` child (A1).
         let actual = result.as_ref().map(|_| ()).map_err(|e| format!("{e:?}"));
         let lens_refusal = matches!(&result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
         assert!(
-            actual == predicted || (predicted.is_ok() && lens_refusal && kind == 3),
+            actual == predicted || (predicted.is_ok() && lens_refusal && kind == 3 && body_has_ac),
             "docx edit kind {kind} ({p}, {r}, {text:?}): predicted {predicted:?}, got {actual:?}"
         );
         match result {

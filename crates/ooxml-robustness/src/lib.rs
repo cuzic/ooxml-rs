@@ -19,6 +19,7 @@ pub mod input;
 pub mod lens;
 pub mod mutate;
 pub mod package;
+pub mod phase1_oracle;
 pub mod pptx;
 pub mod xlsx;
 pub mod xml;
