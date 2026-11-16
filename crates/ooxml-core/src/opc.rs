@@ -225,6 +225,14 @@ impl Relationships {
         self.rels.push(rel);
     }
 
+    /// Rewrites the `Target` of the relationship `id` (after
+    /// [`crate::RegistryPlan::set_relationship_target`]).
+    pub(crate) fn set_target(&mut self, id: &str, target: &str) {
+        for r in self.rels.iter_mut().filter(|r| xml_trim(&r.id) == xml_trim(id)) {
+            r.target = target.to_owned();
+        }
+    }
+
     /// The source part (`None` = package).
     pub fn source(&self) -> Option<&str> {
         self.source.as_deref()

@@ -20,6 +20,8 @@ const WS_CT: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml
 const REL_WS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 const REL_DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
 const REL_IMAGE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+const REL_OTHER: &str = "urn:x-test:other";
+const REL_CORE: &str = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties";
 const REL_HYPERLINK: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 const SHEET_XML: &[u8] = br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>"#;
 
@@ -325,8 +327,8 @@ fn refusals_change_nothing() {
     assert_matches!(e(pkg.add_relationship(Some("xl/workbook.xml"), REL_WS, Target::External("has space".into()))), RegistryRefusal::InvalidTarget);
     assert_matches!(e(pkg.add_relationship(Some("[Content_Types].xml"), REL_WS, Target::Part("xl/workbook.xml".into()))), RegistryRefusal::RegistryPart);
     // remove_relationship: still referenced by the source (sheet3 names rId1)
-    assert_matches!(refusal(pkg.remove_relationship(Some("xl/worksheets/sheet3.xml"), "rId1").unwrap_err()), RegistryRefusal::StillReferenced { .. });
-    assert_matches!(refusal(pkg.remove_relationship(Some("xl/worksheets/sheet3.xml"), "rId9").unwrap_err()), RegistryRefusal::RelationshipNotFound);
+    assert_matches!(refusal(pkg.remove_relationship(Some("xl/worksheets/sheet3.xml"), "rId1", &[REL_DRAWING]).unwrap_err()), RegistryRefusal::StillReferenced { .. });
+    assert_matches!(refusal(pkg.remove_relationship(Some("xl/worksheets/sheet3.xml"), "rId9", &[REL_DRAWING]).unwrap_err()), RegistryRefusal::RelationshipNotFound);
     // set_content_type
     assert_matches!(refusal(pkg.set_content_type("xl/nope.xml", WS_CT).unwrap_err()), RegistryRefusal::PartNotFound);
     assert_matches!(refusal(pkg.set_content_type("xl/workbook.xml", "nope").unwrap_err()), RegistryRefusal::InvalidContentType);
@@ -381,7 +383,7 @@ fn set_content_type_and_remove_relationship() {
     // a part covered by a Default gets an Override
     pkg.set_content_type("xl/worksheets/sheet3.xml", WS_CT).unwrap();
     // remove a relationship nobody refers to
-    pkg.remove_relationship(Some("xl/workbook.xml"), "R44c83fbb").unwrap();
+    pkg.remove_relationship(Some("xl/workbook.xml"), "R44c83fbb", &[REL_OTHER]).unwrap();
     let out = pkg.to_bytes().unwrap();
     assert_l1(&input, &out, &["[Content_Types].xml", "xl/_rels/workbook.xml.rels"], &[]);
     let ct = text(&out, "[Content_Types].xml");
@@ -426,7 +428,7 @@ fn remove_closed_set_with_own_relationships() {
     // relationships parts that were only scanned stay Raw (no parse leaks into the output state)
     assert_eq!(pkg.state("_rels/.rels"), Some(PartStateKind::Raw));
     // the image is an orphan now; remove it too
-    assert!(pkg.incoming_relationships("xl/media/image1.png").is_empty());
+    assert!(pkg.incoming_relationships("xl/media/image1.png").unwrap().is_empty());
     pkg.remove_parts(&["xl/media/image1.png"], &[]).unwrap();
     let out = pkg.to_bytes().unwrap();
     assert_l1(&input, &out, &["[Content_Types].xml", "xl/_rels/workbook.xml.rels"], &[]);
@@ -449,10 +451,22 @@ fn plan_mixing_adds_and_removes() {
         refusal(plan.add_relationship(&pkg, Some("xl/workbook.xml"), REL_WS, Target::Part("xl/worksheets/sheet3.xml".into())).unwrap_err()),
         RegistryRefusal::ConflictsWithPlan
     );
-    assert_matches!(
-        refusal(plan.add_part(&pkg, PartNameRequest::Exact("xl/worksheets/sheet3.xml".into()), WS_CT, SHEET_XML).unwrap_err()),
-        RegistryRefusal::NameInUse { .. }
-    );
+    // Exact may reuse a name removed in the same plan (review m3: a VBA
+    // project replaced in one plan); Numbered never does (below)
+    let mut replaced = plan.clone();
+    assert_eq!(replaced.add_part(&pkg, PartNameRequest::Exact("xl/worksheets/sheet3.xml".into()), WS_CT, SHEET_XML).unwrap(), "xl/worksheets/sheet3.xml");
+    let mut pkg3 = Package::from_bytes(input.clone()).unwrap();
+    let mut plan3 = RegistryPlan::new(&pkg3);
+    plan3.remove_parts(&pkg3, &["xl/worksheets/sheet3.xml", "xl/drawings/drawing1.xml"], &[REL_WS, REL_DRAWING]).unwrap();
+    plan3.add_part(&pkg3, PartNameRequest::Exact("xl/worksheets/sheet3.xml".into()), WS_CT, SHEET_XML).unwrap();
+    pkg3.apply(plan3).unwrap();
+    let out3 = pkg3.to_bytes().unwrap();
+    let again3 = Package::from_bytes(out3.clone()).unwrap();
+    assert_eq!(again3.read_part("xl/worksheets/sheet3.xml").unwrap(), SHEET_XML, "the new content");
+    assert_eq!(again3.content_type("xl/worksheets/sheet3.xml"), Some(WS_CT));
+    assert!(!again3.contains("xl/worksheets/_rels/sheet3.xml.rels"), "the old part's relationships went with it");
+    assert_eq!(text(&out3, "[Content_Types].xml").matches("/xl/worksheets/sheet3.xml").count(), 1, "one Override");
+    drop(replaced);
     let n = plan.add_part(&pkg, PartNameRequest::Numbered("xl/worksheets/sheet{}.xml".into()), WS_CT, SHEET_XML).unwrap();
     assert_eq!(n, "xl/worksheets/sheet4.xml");
     let id = plan.add_relationship(&pkg, Some("xl/workbook.xml"), REL_WS, Target::Part(n.clone())).unwrap();
@@ -499,7 +513,7 @@ fn package_relationships_cache_and_new_xml_parts_stay_editable() {
         .unwrap();
     assert_eq!(id, "rId2");
     assert!(pkg.package_relationships().by_id("rId2").is_some(), "cache updated");
-    pkg.remove_relationship(None, "rId2").unwrap();
+    pkg.remove_relationship(None, "rId2", &[REL_CORE]).unwrap();
     assert!(pkg.package_relationships().by_id("rId2").is_none());
     // a part added as a tree can be edited further, and is always written
     let name = pkg.add_part(PartNameRequest::Exact("xl/t.xml".into()), "application/xml", XmlDocument::parse(b"<t/>").unwrap()).unwrap();
@@ -526,7 +540,7 @@ fn staged_content_is_validated_with_the_registry_edits() {
     let pkg = Package::from_bytes(input.clone()).unwrap();
     let before = states(&pkg);
     let mut plan = RegistryPlan::new(&pkg);
-    plan.remove_relationship(&pkg, Some("xl/workbook.xml"), "R44c83fbb").unwrap();
+    plan.remove_relationship(&pkg, Some("xl/workbook.xml"), "R44c83fbb", &[REL_OTHER]).unwrap();
     let wb = WORKBOOK.replace("<sheets>", r#"<x r:id="R44c83fbb"/><sheets>"#);
     assert_matches!(refusal(plan.stage_part(&pkg, "xl/workbook.xml", wb.into_bytes()).unwrap_err()), RegistryRefusal::ConflictsWithPlan);
     assert_matches!(refusal(plan.stage_part(&pkg, "xl/workbook.xml", b"<not".to_vec()).unwrap_err()), RegistryRefusal::MalformedXml { .. });
@@ -553,15 +567,15 @@ fn copy_relationships_keeps_ids() {
         .add_part(&pkg, PartNameRequest::Numbered("xl/drawings/drawing{}.xml".into()), "application/vnd.openxmlformats-officedocument.drawing+xml", DRAWING.as_bytes())
         .unwrap();
     assert_eq!(drawing2, "xl/drawings/drawing2.xml");
-    let ids = plan.copy_relationships(&pkg, "xl/worksheets/sheet3.xml", &copy, &[("xl/drawings/drawing1.xml", &drawing2)]).unwrap();
+    let ids = plan.copy_relationships(&pkg, "xl/worksheets/sheet3.xml", &copy, &[("xl/drawings/drawing1.xml", &drawing2)], &[]).unwrap();
     assert_eq!(ids, ["rId1", "rId2"]);
     // a second copy into the same destination is refused
     assert_matches!(
-        refusal(plan.copy_relationships(&pkg, "xl/worksheets/sheet3.xml", &copy, &[]).unwrap_err()),
+        refusal(plan.copy_relationships(&pkg, "xl/worksheets/sheet3.xml", &copy, &[], &[]).unwrap_err()),
         RegistryRefusal::NameInUse { .. }
     );
     // the drawing's own image relationship, copied as well (shared image)
-    plan.copy_relationships(&pkg, "xl/drawings/drawing1.xml", &drawing2, &[]).unwrap();
+    plan.copy_relationships(&pkg, "xl/drawings/drawing1.xml", &drawing2, &[], &[]).unwrap();
     pkg.apply(plan).unwrap();
     let again = Package::from_bytes(pkg.to_bytes().unwrap()).unwrap();
     let r = again.relationships(&copy).unwrap();
@@ -569,13 +583,13 @@ fn copy_relationships_keeps_ids() {
     assert_eq!(r.by_id("rId2").unwrap().target, "https://example.com/");
     let r = again.relationships("xl/drawings/drawing2.xml").unwrap();
     assert_eq!(r.resolve(r.by_id("rId1").unwrap()).as_deref(), Some("xl/media/image1.png"));
-    assert_eq!(again.incoming_relationships("xl/media/image1.png").len(), 2);
+    assert_eq!(again.incoming_relationships("xl/media/image1.png").unwrap().len(), 2);
 
     // Ids that are not rId1..rIdN are copied as they are
     let mut pkg = Package::from_bytes(synthetic()).unwrap();
     let mut plan = RegistryPlan::new(&pkg);
     let wb2 = plan.add_part(&pkg, PartNameRequest::Exact("xl/workbook2.xml".into()), "application/xml", WORKBOOK.as_bytes()).unwrap();
-    let ids = plan.copy_relationships(&pkg, "xl/workbook.xml", &wb2, &[]).unwrap();
+    let ids = plan.copy_relationships(&pkg, "xl/workbook.xml", &wb2, &[], &[]).unwrap();
     assert_eq!(ids, ["rId1", "R44c83fbb", "rId3"]);
     pkg.apply(plan).unwrap();
     let r = Package::from_bytes(pkg.to_bytes().unwrap()).unwrap().relationships("xl/workbook2.xml").unwrap();
@@ -594,7 +608,7 @@ fn relationship_ids_stay_above_removed_ones_in_the_session() {
         .unwrap();
     assert_eq!(id, "rId4", "rId3 was removed in this session and is not reused");
     // also after remove_relationship in one plan and an add in the next
-    pkg.remove_relationship(Some("xl/workbook.xml"), "rId4").unwrap();
+    pkg.remove_relationship(Some("xl/workbook.xml"), "rId4", &[REL_WS]).unwrap();
     let id = pkg.add_relationship(Some("xl/workbook.xml"), REL_IMAGE, Target::Part("xl/worksheets/sheet1.xml".into())).unwrap();
     assert_eq!(id, "rId5");
 }
