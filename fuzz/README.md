@@ -11,7 +11,7 @@ tests and the stable smoke test run exactly the same code.
 | `xml_t1` | XML bytes | accepted ⇒ unedited `serialize()` == input (T1); a lower depth limit never accepts more; `Clone`/`Debug`/`Drop`/reads don't fail |
 | `xml_t1b` | XML bytes | `force_rerender` → reparse is `structurally_eq` (T1b), and re-rendering is a fixed point |
 | `lens_ops` | op stream (+ optional XML) | edit sequences on a small schema (`ooxml_robustness::lens`): every `Err` leaves the document unchanged (bytes, tree, dirty state); the output reparses with the same depth limit to the same tree |
-| `xlsx_edit` | `[fixture][part][ops_len][ops][payload]` | a fixture from `reference/fixtures/xlsx` with one part replaced by the payload; `Workbook` open, reads, `set_number`/`set_string`: refusals change nothing, successes read back before and after save/reopen, other parts L1-identical |
+| `xlsx_edit` | `[fixture][part][ops_len][ops][payload]` | a fixture from `reference/fixtures/xlsx` with one part replaced by the payload; `Workbook` open, reads, `set_number`/`set_string`: refusals change nothing, successes read back before and after save/reopen, other parts L1-identical, except exactly what ADR-0003 Phase1 may write (`phase1_oracle`: the dependents' `v`/`is`/`@t`, `calcPr/@fullCalcOnLoad`, and the calcChain part with its `Relationship`/`Override` when the formula set changed) |
 | `pptx_edit` | same layout, `reference/fixtures/pptx` | `Presentation` open, read every slide, text edits (body/paragraph/run/table cell): refusals change nothing, `TextBodyMut::set_text` reads back, other parts L1-identical, output reopens |
 
 Running (the toolchain and cargo-fuzz versions the findings were produced
