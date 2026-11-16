@@ -204,6 +204,11 @@ pub enum Error {
         id: String,
     },
 
+    /// The main part has more than one styles relationship: which one Word
+    /// reads is not specified, so the style setters refuse (fail closed).
+    #[error("the document has more than one styles part")]
+    AmbiguousStylesPart,
+
     /// `enable_update_fields_on_open` on a package without a settings part
     /// (creating one is Phase2).
     #[error("the document has no settings part")]

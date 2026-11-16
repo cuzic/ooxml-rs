@@ -92,6 +92,11 @@ fn run_properties_are_written_in_slot_order() {
 
 #[test]
 fn superseding_attributes_are_removed() {
+    // the complex-script slot's theme attribute is spelled `w:cstheme` (review m3)
+    let mut doc = open(r#"<w:p><w:r><w:rPr><w:rFonts w:cs="Arial" w:cstheme="minorBidi"/></w:rPr><w:t>a</w:t></w:r></w:p>"#);
+    let f = RunFormat { fonts: ooxml_docx::FontSlots { cs: Prop::Set("Times New Roman".into()), ..Default::default() }, ..RunFormat::default() };
+    doc.format_run(r(0, 0), &f).unwrap();
+    assert!(body_of(&doc).contains(r#"<w:rFonts w:cs="Times New Roman"/>"#), "{}", body_of(&doc));
     let mut doc = open(
         r#"<w:p><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:hint="eastAsia"/><w:color w:val="1F3864" w:themeColor="accent1" w:themeShade="80"/></w:rPr><w:t>a</w:t></w:r></w:p>"#,
     );
@@ -137,9 +142,26 @@ fn paragraph_properties_and_inherited_superseding_attributes() {
         body_of(&doc),
         r#"<w:p><w:pPr><w:spacing w:before="0" w:beforeAutospacing="0"/><w:ind w:firstLine="420" w:firstLineChars="0"/></w:pPr><w:r><w:t>a</w:t></w:r></w:p>"#
     );
-    // Clear removes the attributes and an element left empty
+    // Clear returns to the inherited value: the attribute, the superseding ones and
+    // the earlier "0" cancellation go, and an element left empty goes too (review m2)
     doc.format_paragraph(p(0), &ParagraphFormat { first_line: Prop::Clear, ..ParagraphFormat::default() }).unwrap();
-    assert!(body_of(&doc).contains(r#"<w:ind w:firstLineChars="0"/>"#), "{}", body_of(&doc));
+    assert_eq!(body_of(&doc), r#"<w:p><w:pPr><w:spacing w:before="0" w:beforeAutospacing="0"/></w:pPr><w:r><w:t>a</w:t></w:r></w:p>"#);
+    doc.format_paragraph(p(0), &ParagraphFormat { space_before: Prop::Clear, ..ParagraphFormat::default() }).unwrap();
+    assert_eq!(body_of(&doc), r#"<w:p><w:r><w:t>a</w:t></w:r></w:p>"#, "the emptied pPr goes too (n1)");
+    // review m2's case: direct *Chars/*Lines are cleared with their twips value
+    let mut doc = open(r#"<w:p><w:pPr><w:spacing w:before="100" w:beforeLines="50"/><w:ind w:left="720" w:leftChars="200" w:firstLine="100" w:firstLineChars="50"/></w:pPr></w:p>"#);
+    let f = ParagraphFormat { space_before: Prop::Clear, indent_left: Prop::Clear, first_line: Prop::Clear, ..ParagraphFormat::default() };
+    doc.format_paragraph(p(0), &f).unwrap();
+    assert_eq!(body_of(&doc), r#"<w:p></w:p>"#);
+    // m1: an undefined pStyle falls back to the default paragraph style
+    let mut doc = open_with(r#"<w:p><w:pPr><w:pStyle w:val="Missing"/></w:pPr></w:p>"#, Some(styles), None);
+    doc.format_paragraph(p(0), &ParagraphFormat { first_line: Prop::Set(FirstLine::Indent(10)), ..ParagraphFormat::default() }).unwrap();
+    assert!(body_of(&doc).contains(r#"<w:ind w:firstLine="10" w:firstLineChars="0"/>"#), "{}", body_of(&doc));
+    // n2: Auto line spacing on an element without lineRule (auto by default) is a no-op
+    let mut doc = open(r#"<w:p><w:pPr><w:spacing w:line="276"/></w:pPr></w:p>"#);
+    let before = doc.to_bytes().unwrap();
+    doc.format_paragraph(p(0), &ParagraphFormat { line_spacing: Prop::Set(LineSpacing::Auto(276)), ..ParagraphFormat::default() }).unwrap();
+    assert_eq!(doc.to_bytes().unwrap(), before);
     // a style chain that loops
     let looped = r#"<w:style w:type="paragraph" w:styleId="A"><w:basedOn w:val="B"/></w:style><w:style w:type="paragraph" w:styleId="B"><w:basedOn w:val="A"/></w:style>"#;
     let mut doc = open_with(r#"<w:p><w:pPr><w:pStyle w:val="A"/></w:pPr></w:p>"#, Some(looped), None);
@@ -149,6 +171,21 @@ fn paragraph_properties_and_inherited_superseding_attributes() {
 
 #[test]
 fn refusals_before_any_write() {
+    // M1: references out of range are errors, not panics, also for no-op style writes
+    let mut doc = open_with("<w:p><w:r><w:t>a</w:t></w:r></w:p>", Some(STYLES), None);
+    assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(5), Some("Rubrik1"))), Error::NoSuchParagraph(5));
+    assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(5), None)), Error::NoSuchParagraph(5));
+    assert_matches!(refused(&mut doc, |d| d.set_run_style(r(0, 3), Some("Rubrik1Char"))), Error::NoSuchRun { .. });
+    assert_matches!(refused(&mut doc, |d| d.set_run_style(r(4, 0), None)), Error::NoSuchParagraph(4) | Error::NoSuchRun { .. });
+    assert_matches!(refused(&mut doc, |d| d.format_run(r(0, 9), &bold())), Error::NoSuchRun { .. });
+    // M2: an invalid XML character in a font name refuses before any run is written
+    let mut doc = open("<w:p><w:r><w:t>a</w:t></w:r><w:r><w:t>b</w:t></w:r></w:p>");
+    let f = RunFormat { bold: Prop::Set(true), fonts: ooxml_docx::FontSlots { ascii: Prop::Set("A\u{1}".into()), ..Default::default() }, ..RunFormat::default() };
+    assert_matches!(refused(&mut doc, |d| d.format_paragraph_runs(p(0), &f)), Error::InvalidXmlChar { ch: '\u{1}' });
+    // n3: two styles relationships refuse the style setters
+    let st = story_xml("styles", r#"<w:style w:type="paragraph" w:styleId="A"><w:name w:val="A"/></w:style>"#);
+    let mut doc = Document::from_bytes(package(&document_xml("<w:p/>"), &[("styles", "styles.xml", &st), ("styles", "styles2.xml", &st)])).unwrap();
+    assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(0), Some("A"))), Error::AmbiguousStylesPart);
     // M2: a producer's out-of-order pPr (docxtemplater's shape) refuses before the first write
     let mut doc = open(r#"<w:p><w:pPr><w:sectPr/><w:pStyle w:val="x"/><w:bidi/><w:jc w:val="left"/><w:rPr/></w:pPr><w:r><w:t>a</w:t></w:r></w:p>"#);
     let f = ParagraphFormat { keep_next: Prop::Set(true), keep_lines: Prop::Set(true), ..ParagraphFormat::default() };
@@ -190,6 +227,25 @@ fn refusals_before_any_write() {
     let f = RunFormat { fonts: ooxml_docx::FontSlots { cs: Prop::Set(String::new()), ..Default::default() }, ..RunFormat::default() };
     assert_matches!(refused(&mut doc, |d| d.format_run(r(0, 0), &f)), Error::InvalidValue { .. });
     assert!(HalfPoints::new(0).is_none() && HalfPoints::new(3277).is_none() && HalfPoints::new(3276).is_some());
+}
+
+/// Review m3: formatting the run holding a ruby inserts its `w:rPr` before
+/// the `w:ruby`, which shifts the paths of the ruby base runs; the story is
+/// re-walked, so later edits find their runs.
+#[test]
+fn ruby_runs_after_an_rpr_insert() {
+    let body = r#"<w:p><w:r><w:ruby><w:rubyPr/><w:rt><w:r><w:t>かん</w:t></w:r></w:rt><w:rubyBase><w:r><w:t>漢</w:t></w:r></w:rubyBase></w:ruby></w:r><w:r><w:t>字</w:t></w:r></w:p>"#;
+    let mut doc = open(body);
+    let n = doc.paragraph(0).unwrap().run_count();
+    assert_eq!(n, 3);
+    doc.format_run(r(0, 0), &bold()).unwrap();
+    assert_matches!(doc.format_run(r(0, 1), &bold()), Err(Error::UnsupportedContext { ancestor: "w:ruby" }));
+    doc.format_run(r(0, 2), &bold()).unwrap();
+    doc.format_paragraph(p(0), &ParagraphFormat { keep_next: Prop::Set(true), ..ParagraphFormat::default() }).unwrap();
+    assert_eq!(
+        body_of(&doc),
+        r#"<w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:ruby><w:rubyPr/><w:rt><w:r><w:t>かん</w:t></w:r></w:rt><w:rubyBase><w:r><w:t>漢</w:t></w:r></w:rubyBase></w:ruby></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>字</w:t></w:r></w:p>"#
+    );
 }
 
 #[test]
@@ -234,7 +290,7 @@ fn styles_by_id() {
     doc.set_paragraph_style(p(1), Some("Rubrik1")).unwrap();
     assert_eq!(doc.to_bytes().unwrap(), before);
     doc.set_paragraph_style(p(1), None).unwrap();
-    assert!(body_of(&doc).ends_with("<w:p><w:pPr></w:pPr></w:p>"), "{}", body_of(&doc));
+    assert!(body_of(&doc).ends_with("<w:p></w:p>"), "the emptied pPr goes (n1): {}", body_of(&doc));
     // refusals
     assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(0), Some("Heading2"))), Error::UnknownStyle { latent_only: true, .. });
     assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(0), Some("rubrik1x"))), Error::UnknownStyle { latent_only: false, .. });

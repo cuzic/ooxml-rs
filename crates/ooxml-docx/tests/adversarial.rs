@@ -576,6 +576,12 @@ fn m13_self_referencing_link_is_refused() {
         (r#"LINK Word.Document.12 "C:\\x\\self.docx" "ole_link1" \r"#, "LINK (self reference)"),
         (r#"LINK Word.Document.12 "C:\\x\\self.docx" OLE_LINK1"#, "LINK (self reference)"),
         (r#"INCLUDETEXT "C:\\x\\self.docx" OLE_LINK1"#, "INCLUDETEXT (self reference)"),
+        // review m15: items after switches and around unquoted paths fail closed
+        (r#"LINK Word.Document.12 "self.docx" \a "OLE_LINK1" \r"#, "LINK (self reference)"),
+        (r#"LINK Word.Document.12 "self.docx" \a OLE_LINK1"#, "LINK (self reference)"),
+        (r#"INCLUDETEXT "self.docx" \! OLE_LINK1"#, "INCLUDETEXT (self reference)"),
+        (r#"INCLUDETEXT C:\\x\\self.docx OLE_LINK1"#, "INCLUDETEXT (self reference)"),
+        (r#"LINK Word.Document.12 C:\\x\\self.docx OLE_LINK1"#, "LINK (self reference)"),
         (r#"LINK Word.Document.12 "" "OLE_LINK1""#, "LINK (non-literal source)"),
         ("LINK Word.Document.12", "LINK (non-literal source)"),
     ] {
@@ -585,6 +591,10 @@ fn m13_self_referencing_link_is_refused() {
         assert_matches!(doc.set_run_text(0, 0, "Globex"), Err(Error::StaleFieldRisk { .. }), "{code}");
         assert_eq!(entries(&doc.to_bytes().unwrap()), entries(&input), "{code}");
     }
+    // review m16 (mutant N13): bookmark names are normalised (case) too.
+    let lower = r#"<w:p><w:bookmarkStart w:id="0" w:name="ole_link1"/><w:r><w:t>ACME</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p>"#;
+    let code = r#"LINK Word.Document.12 "C:\x\self.docx" "OLE_LINK1""#;
+    assert_eq!(refused_codes(docx(&format!("{lower}<w:p>{}</w:p>", fld(code)), None, None)), ["LINK (self reference)"]);
     // A bookmark in a header counts too.
     let header = r#"<w:p><w:bookmarkStart w:id="5" w:name="OLE_LINK2"/><w:r><w:t>h</w:t></w:r><w:bookmarkEnd w:id="5"/></w:p>"#;
     let body = format!("<w:p>{}</w:p>", fld(r#"LINK Word.Document.12 "C:\\x\\self.docx" "OLE_LINK2""#));
