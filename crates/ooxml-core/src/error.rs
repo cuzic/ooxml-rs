@@ -278,6 +278,12 @@ pub enum DetachRefusal {
     /// An extension list (`extLst`, any namespace) in the kept subtree: its
     /// content is open, so ids or references inside cannot be reviewed.
     ExtensionList,
+    /// Same-part copy ([`crate::Lens::detach_same_part_as`]): a prefix the
+    /// copy uses without declaring it is bound to another namespace (or
+    /// unbound) at the destination, so its bytes would mean something else
+    /// there. `name` is `{xmlns}prefix` (`{xmlns}xmlns` for the default
+    /// namespace).
+    NamespaceBinding,
 }
 
 impl std::fmt::Display for DetachRefusal {
@@ -291,6 +297,7 @@ impl std::fmt::Display for DetachRefusal {
             DetachRefusal::InheritedXmlSpace => "text under a different inherited xml:space",
             DetachRefusal::UniqueAttribute => "a document-unique id attribute with a non-default value",
             DetachRefusal::ExtensionList => "an extension list (extLst) in the subtree",
+            DetachRefusal::NamespaceBinding => "a prefix of the copy means another namespace at the destination",
         })
     }
 }

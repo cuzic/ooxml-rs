@@ -40,6 +40,9 @@ fn check_xml_chars(value: &str) -> Result<()> {
 }
 use crate::xml::{DocToken, RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
 
+mod same_part;
+pub use same_part::{SamePartDetached, SamePartOptions, ext_uri};
+
 fn check_root<E: ElementSpec>(root: &RawNode) -> Result<()> {
     if root.is(E::QNAME) {
         Ok(())
@@ -58,7 +61,8 @@ pub struct Lens<'a, E: ElementSpec> {
     node: &'a RawNode,
     path: Vec<usize>,
     /// The document the root belongs to, when the lens came from
-    /// [`crate::XmlDocument::lens`] (same-part copies need it).
+    /// [`crate::XmlDocument::lens`] / [`crate::XmlDocument::lens_at`]
+    /// (same-part copies need it).
     doc: Option<DocToken>,
     _e: PhantomData<fn() -> E>,
 }
@@ -212,128 +216,9 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
             return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &self.node.name));
         }
         let unique: Vec<UniqueAttr> = E::UNIQUE_ATTRS.iter().chain(C::UNIQUE_ATTRS).copied().collect();
-        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique, &CopyMode::OTHER_PART)?;
+        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique)?;
         root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
         Ok(Detached { root, text_inherits_space, _c: PhantomData })
-    }
-
-    /// A **same-part** copy (ADR-0002 note "same-part copy"): as
-    /// [`Self::detach_as`], except that attributes holding a relationship
-    /// id (`r:id`, `r:embed`, …, [`crate::name::RELATIONSHIP_ATTRIBUTES`])
-    /// are **kept**, and an `extLst` is kept when every `ext` in it has a
-    /// `uri` the caller allowed in `opts` ([`SamePartOptions::keep_extension`]).
-    /// The copy can only be inserted into the document it was taken from
-    /// ([`LensMut::insert_same_part`]): the ids stay valid because the part's
-    /// relationships are the same. Everything else [`Self::detach_as`]
-    /// refuses is still refused: document-unique attributes
-    /// ([`Detachable::UNIQUE_ATTRS`]: a non-zero `smtId`, effect container
-    /// names), Markup Compatibility, namespace declarations, ignorable
-    /// namespaces, inherited `xml:space`.
-    ///
-    /// The lens must come from [`crate::XmlDocument::lens`] (or a lens
-    /// derived from it): a lens from [`Lens::root`] / [`Lens::at`] does not
-    /// know its document and gives [`Error::WrongDocument`].
-    pub fn detach_same_part_as<C>(&self, skip: &[QName], opts: &SamePartOptions) -> Result<SamePartDetached<C>>
-    where
-        E: Detachable,
-        C: SameType<E> + Detachable,
-    {
-        let doc = self.doc.ok_or(Error::WrongDocument)?;
-        let ctx = ancestor_context(self.root, &self.path[..self.path.len().saturating_sub(1)], !self.path.is_empty());
-        let text_inherits_space = self.node.xml_space_preserve().is_none() && has_text(self.node);
-        if ctx.preserve && text_inherits_space {
-            return Err(not_detachable(DetachRefusal::InheritedXmlSpace, &self.node.name));
-        }
-        let unique: Vec<UniqueAttr> = E::UNIQUE_ATTRS.iter().chain(C::UNIQUE_ATTRS).copied().collect();
-        let mode = CopyMode { keep_relationship_ids: true, extension_uris: &opts.extension_uris };
-        let mut root = detach_node(self.node, skip, &ctx.ignorable, &unique, &mode)?;
-        root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, None);
-        Ok(SamePartDetached { copy: Detached { root, text_inherits_space, _c: PhantomData }, doc })
-    }
-}
-
-/// What a copy may keep beyond [`Lens::detach_as`]'s rules.
-struct CopyMode<'o> {
-    /// Same part: relationship-id attributes stay valid.
-    keep_relationship_ids: bool,
-    /// `ext/@uri` values whose `extLst` content may be copied (same part
-    /// only; compared ASCII case-insensitively).
-    extension_uris: &'o [String],
-}
-
-impl CopyMode<'static> {
-    const OTHER_PART: CopyMode<'static> = CopyMode { keep_relationship_ids: false, extension_uris: &[] };
-}
-
-/// Options of [`Lens::detach_same_part_as`].
-#[derive(Clone, Debug, Default)]
-pub struct SamePartOptions {
-    extension_uris: Vec<String>,
-}
-
-impl SamePartOptions {
-    /// Allows an `extLst` whose `ext` children all have one of the allowed
-    /// `uri`s (ASCII case-insensitive). An extension's content is open, so
-    /// the caller asserts, per extension, that it holds nothing
-    /// document-unique (the content still passes every other check, and
-    /// may keep same-part relationship ids). Example: DrawingML's hyperlink
-    /// colour, [`ext_uri::HYPERLINK_COLOR`].
-    pub fn keep_extension(mut self, uri: &str) -> Self {
-        self.extension_uris.push(uri.to_owned());
-        self
-    }
-}
-
-/// Extension URIs reviewed for same-part copies.
-pub mod ext_uri {
-    /// `a:hlinkClick/a:extLst/a:ext` holding `ahyp:hlinkClr` (MS-ODRAWXML
-    /// §2.5.13: whether the link takes the theme's hyperlink colour); a
-    /// boolean-like value, nothing document-unique. 12 in the 619-file
-    /// pptx corpus, the only extension below `a:rPr` there.
-    pub const HYPERLINK_COLOR: &str = "{A12FA001-AC4F-418D-AE19-62706E023703}";
-}
-
-/// A copy from [`Lens::detach_same_part_as`]: relationship ids and allowed
-/// extensions kept, so it can be inserted **only** into the document it was
-/// taken from ([`LensMut::insert_same_part`], else [`Error::WrongDocument`]).
-/// It cannot be passed to [`LensMut::insert_detached`] (another type).
-pub struct SamePartDetached<C: ElementSpec> {
-    copy: Detached<C>,
-    doc: DocToken,
-}
-
-impl<C: ElementSpec> Clone for SamePartDetached<C> {
-    fn clone(&self) -> Self {
-        SamePartDetached { copy: self.copy.clone(), doc: self.doc }
-    }
-}
-
-impl<C: ElementSpec> std::fmt::Debug for SamePartDetached<C> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SamePartDetached<{}>", C::SDK_NAME)
-    }
-}
-
-impl<C: ElementSpec> SamePartDetached<C> {
-    /// The copied subtree (prefix-less names, no spans).
-    pub fn raw(&self) -> &RawNode {
-        self.copy.raw()
-    }
-
-    /// Number of element levels of the copy.
-    pub fn height(&self) -> usize {
-        self.copy.height()
-    }
-
-    /// [`Detached::check_insert_under`] for a same-part copy: also
-    /// [`Error::WrongDocument`] when `doc` is not the document the copy was
-    /// taken from (checked first). Changes nothing; agrees with
-    /// [`LensMut::insert_same_part`] on lenses from `doc.lens_mut()`.
-    pub fn check_insert_under(&self, doc: &crate::XmlDocument, parent_path: &[usize], created: usize) -> Result<()> {
-        if doc.token() != self.doc {
-            return Err(Error::WrongDocument);
-        }
-        self.copy.check_insert_under(doc, parent_path, created)
     }
 }
 
@@ -514,20 +399,12 @@ fn holds_relationship_id(name: &XName) -> bool {
 
 /// Copies `n` (whose direct children named in `skip` are left out) with
 /// prefixes and spans cleared, refusing what [`Lens::detach_as`] refuses.
-fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr], mode: &CopyMode<'_>) -> Result<RawNode> {
-    detach_rec(n, skip, ignorable, unique, mode, false)
-}
-
-/// [`detach_node`]; `in_ext`: `n` is inside an allowed extension, where
-/// namespace declarations are kept (extension content commonly declares its
-/// own namespace locally, e.g. `ahyp:hlinkClr`).
-fn detach_rec(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr], mode: &CopyMode<'_>, in_ext: bool) -> Result<RawNode> {
+fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[UniqueAttr]) -> Result<RawNode> {
     if n.name.ns() == MC_NS {
         let reason = if n.is(MC_ALTERNATE_CONTENT) { DetachRefusal::AlternateContent } else { DetachRefusal::MarkupCompatibility };
         return Err(not_detachable(reason, &n.name));
     }
-    let allowed_ext = n.name.local() == "extLst";
-    if allowed_ext && !extensions_allowed(n, mode.extension_uris) {
+    if n.name.local() == "extLst" {
         return Err(not_detachable(DetachRefusal::ExtensionList, &n.name));
     }
     for u in unique.iter().filter(|u| n.is(u.element)) {
@@ -543,15 +420,10 @@ fn detach_rec(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniqu
     }
     let mut attrs = Vec::with_capacity(n.attrs.len());
     for a in &n.attrs {
-        if in_ext && a.name.ns() == XMLNS_NS {
-            // kept as written (prefix `xmlns`); `with_prefixes` honours it
-            attrs.push(a.clone());
-            continue;
-        }
         let reason = match a.name.ns() {
             XMLNS_NS => Some(DetachRefusal::NamespaceDeclaration),
             MC_NS => Some(DetachRefusal::MarkupCompatibility),
-            _ if !mode.keep_relationship_ids && holds_relationship_id(&a.name) => Some(DetachRefusal::RelationshipAttribute),
+            _ if holds_relationship_id(&a.name) => Some(DetachRefusal::RelationshipAttribute),
             u if ignorable.iter().any(|i| i == u) => Some(DetachRefusal::IgnorableNamespace),
             _ => None,
         };
@@ -564,7 +436,7 @@ fn detach_rec(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniqu
     for c in &n.children {
         children.push(match c {
             RawItem::Element(e) if skip.iter().any(|q| e.is(*q)) => continue,
-            RawItem::Element(e) => RawItem::Element(detach_rec(e, &[], ignorable, unique, mode, in_ext || allowed_ext)?),
+            RawItem::Element(e) => RawItem::Element(detach_node(e, &[], ignorable, unique)?),
             RawItem::Text(t) => RawItem::Text(RawText { value: t.value.clone(), span: None, cdata: t.cdata }),
             RawItem::Markup(m) => RawItem::Markup(m.clone()),
         });
@@ -575,26 +447,14 @@ fn detach_rec(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniqu
     Ok(out)
 }
 
-/// An `extLst` may be copied only when some extension URI is allowed (so
-/// [`Lens::detach_as`] and a same-part copy without options refuse every
-/// `extLst`), and every element child is an `ext` of the list's namespace
-/// whose `uri` is allowed.
-fn extensions_allowed(ext_lst: &RawNode, uris: &[String]) -> bool {
-    !uris.is_empty()
-        && ext_lst.elements().all(|e| {
-            e.name.local() == "ext"
-                && e.name.ns() == ext_lst.name.ns()
-                && e.attr(QName::new("", "uri")).is_some_and(|u| uris.iter().any(|a| a.eq_ignore_ascii_case(u)))
-        })
-}
-
 /// Mutable typed view: the part root plus a path of child indices.
 pub struct LensMut<'a, E: ElementSpec> {
     root: &'a mut RawNode,
     path: Vec<usize>,
     /// Depth limit for inserted elements (the root is depth 1).
     max_depth: usize,
-    /// As [`Lens`]'s `doc`: set by [`crate::XmlDocument::lens_mut`].
+    /// As [`Lens`]'s `doc`: set by [`crate::XmlDocument::lens_mut`] /
+    /// [`crate::XmlDocument::lens_mut_at`].
     doc: Option<DocToken>,
     _e: PhantomData<fn() -> E>,
 }
@@ -1017,29 +877,6 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         self.insert_detached_by(d, |_, _| false)
     }
 
-    /// Inserts a [`SamePartDetached`] copy exactly as
-    /// [`Self::insert_detached_by`] (same placement, prefix, destination and
-    /// depth rules), after checking that this lens is on the document the
-    /// copy was taken from: otherwise [`Error::WrongDocument`] and nothing
-    /// changes (a lens from [`LensMut::root`] knows no document and also
-    /// gives `WrongDocument`). Relationship-id attributes keep their values;
-    /// their prefix is chosen at the destination like any other.
-    pub fn insert_same_part_by<C: ChildOf<E>>(
-        &mut self,
-        d: &SamePartDetached<C>,
-        before: impl FnMut(usize, &RawNode) -> bool,
-    ) -> Result<LensMut<'_, C>> {
-        if self.doc != Some(d.doc) {
-            return Err(Error::WrongDocument);
-        }
-        self.insert_detached_by(&d.copy, before)
-    }
-
-    /// `insert_same_part_by` that appends at the end of the slot.
-    pub fn insert_same_part<C: ChildOf<E>>(&mut self, d: &SamePartDetached<C>) -> Result<LensMut<'_, C>> {
-        self.insert_same_part_by(d, |_, _| false)
-    }
-
     // ---- removal ----
 
     /// Removes the first `C` child (and its whole span). Returns whether one existed.
@@ -1242,26 +1079,10 @@ fn attr_prefix_in(decls: &[(usize, Option<&str>, &str)], uri: &str) -> Result<Op
 /// a parent with declarations `decls` and prefix `parent_prefix` (the copy
 /// declares nothing itself, so `decls` hold for the whole subtree).
 fn with_prefixes(mut n: RawNode, decls: &[(usize, Option<&str>, &str)], parent_prefix: Option<&str>) -> Result<RawNode> {
-    // Declarations the copy kept (same-part copies, inside an allowed
-    // extension) bind for this element and its subtree, innermost.
-    let own: Vec<(Option<String>, String)> = n
-        .attrs
-        .iter()
-        .filter(|a| a.name.ns() == XMLNS_NS)
-        .map(|a| (a.name.declared_prefix().map(str::to_owned), a.value.clone()))
-        .collect();
-    let extended: Vec<(usize, Option<&str>, &str)>;
-    let decls = if own.is_empty() {
-        decls
-    } else {
-        let depth = decls.iter().map(|d| d.0).max().unwrap_or(0) + 1;
-        extended = decls.iter().copied().chain(own.iter().map(|(p, u)| (depth, p.as_deref(), u.as_str()))).collect();
-        &extended
-    };
     let ns: Arc<str> = n.name.ns().into();
     let prefix = element_prefix_in(decls, parent_prefix, &ns)?;
     n.name = XName::new(ns, n.name.local(), prefix.as_deref());
-    for a in n.attrs.iter_mut().filter(|a| a.name.ns() != XMLNS_NS) {
+    for a in &mut n.attrs {
         let ans: Arc<str> = a.name.ns().into();
         let p = attr_prefix_in(decls, &ans)?;
         a.name = XName::new(ans, a.name.local(), p.as_deref());
