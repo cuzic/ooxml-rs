@@ -64,12 +64,12 @@ wb.save("new.xlsx")?;
 | Item | Behaviour |
 |---|---|
 | Census at open | Every worksheet, macro and dialog sheet is scanned with quick-xml events by element name: formula cells (normal, shared, array, data table), result ranges, XLDAPR dynamic arrays (`cm` + `metadata.xml`), `vm` cells. No tree is built; unedited parts stay raw-copied. |
-| Precedents | Sound by default: a formula gets precise rectangles only if every construct is allowlisted (A1 references and ranges, whole rows/columns, cross-sheet and 3-D references, absolute defined names with Excel's local/global/sheet-qualified resolution, operators, and the functions in `src/formula/functions.rs`, each with its evidence). Anything else (`INDIRECT`, `OFFSET`, `LOOKUP`, UDFs, structured and external references, unknown sheets or names, relative names, `ca`, data tables, `#SPILL!`) depends on everything. |
+| Precedents | Sound by default: a formula gets precise rectangles only if every construct is allowlisted (A1 references and ranges, whole rows/columns, cross-sheet and 3-D references, absolute defined names with Excel's local/global/sheet-qualified resolution, operators, and the functions in `src/formula/functions.rs`, each with its evidence). Anything else (`INDIRECT`, `OFFSET`, `LOOKUP`, UDFs, structured and external references, unknown sheets or names, sheet or defined names that fold alike, relative names, unqualified references inside names, shared groups with two masters for one `si`, `ca`, data tables, `#SPILL!`) depends on everything. |
 | Value edit | Every dependent (transitively; array and spill results included; a dependent dynamic array seeds its potential spill area) loses `v`, `t` and `is`, nothing else; `calcPr/@fullCalcOnLoad="1"` is set (inserted if needed) unless the workbook is in manual mode; `calcChain.xml` is kept. |
 | `set_formula`, `remove_formula`, value over a formula | As above, and `calcChain.xml` (part, relationship, content-type override) is removed when the set of formula cells changes. Overwriting a shared master hands the group to the first remaining member (text translated, `ref` = bounding rectangle). |
 | `CalcPolicy::KeepStaleCaches` | Opt-in, Excel only: keep stale caches, only set `fullCalcOnLoad`. |
 | Atomicity | Every edit is planned and validated without changing anything (only `workbook.xml` is cloned), then applied in place; a failure while applying (a bug) poisons the workbook (`Err(Poisoned)` for every later edit and save). |
-| Cost | 2.2 ms per edit on a 200,000-formula, 9.7 MB sheet (`examples/phase1_bench.rs`). |
+| Cost | Proportional to the dependent set: 2.0 ms per edit on a 200,000-formula, 9.7 MB sheet; 6.7 ms in the worst case where every formula is a dependent (`examples/phase1_bench.rs`, `WORST=1`). |
 
 ## Refusals (`Err`, nothing changed)
 
