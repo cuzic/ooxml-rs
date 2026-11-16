@@ -1,9 +1,7 @@
 //! `Package::from_bytes` → read → save → reopen.
 
-use ooxml_core::opc::rels_part_name;
 use ooxml_core::{Package, XmlDocument};
 
-use crate::known;
 use crate::zipcmp::assert_l1_except;
 
 /// Opens arbitrary bytes as a package and checks, if it opens:
@@ -17,19 +15,6 @@ use crate::zipcmp::assert_l1_except;
 ///   other entry is still Layer-1 identical and the re-rendered part parses
 ///   to a structurally equal tree.
 pub fn check_package(data: &[u8], pick: u8) {
-    if known::f2_entry_out_of_bounds(data) || known::f6_huge_declared_size(data) {
-        return;
-    }
-    // `[Content_Types].xml` and `_rels/.rels` are parsed inside `from_bytes`
-    // (F-1 would trip the parser's debug assertion there). Other parts with
-    // two BOMs only stay out of parsing; the Layer-1 checks still run.
-    if known::enabled()
-        && crate::fixtures::unzip(data).is_some_and(|parts| {
-            parts.iter().any(|(n, b)| (n == "[Content_Types].xml" || n == "_rels/.rels") && known::f1_double_bom(b))
-        })
-    {
-        return;
-    }
     let Ok(mut pkg) = Package::from_bytes(data.to_vec()) else { return };
     let names: Vec<String> = pkg.part_names().map(str::to_owned).collect();
     let _ = pkg.main_document_part();
@@ -37,19 +22,13 @@ pub fn check_package(data: &[u8], pick: u8) {
     let mut parsed = Vec::new();
     for name in &names {
         let _ = pkg.content_type(name);
-        let rels = rels_part_name(Some(name));
-        if !pkg.read_part(&rels).is_ok_and(|b| known::f1_double_bom(&b)) {
-            let _ = pkg.relationships(name);
-        }
-        let Ok(bytes) = pkg.read_part(name) else { continue };
-        if known::f1_double_bom(&bytes) {
+        let _ = pkg.relationships(name);
+        if pkg.read_part(name).is_err() {
             continue;
         }
         if let Ok(doc) = pkg.xml_part(name) {
             let _ = doc.serialize();
-            if !known::f4_inner_xml_decl(&bytes) && !known::f5_empty_name(doc.root()) {
-                parsed.push(name.clone());
-            }
+            parsed.push(name.clone());
         }
     }
     let Ok(out) = pkg.to_bytes() else { return };

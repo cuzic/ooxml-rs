@@ -1,10 +1,7 @@
 //! One regression test per fuzz finding of
 //! `docs/testing/fuzz-findings-2026-11.md`. Each test states the behaviour
-//! the contract asks for, so it fails until the finding is fixed; they are
-//! `#[ignore]`d to keep CI green. After a fix, remove the `#[ignore]` and
-//! the matching filter in `src/known.rs`.
-//!
-//! Run them: `cargo test -p ooxml-robustness --test fuzz_findings -- --ignored`
+//! the contract asks for. F-1…F-6 are fixed by PR #40 and F-7 by PR #14, so
+//! every test runs in CI as an ordinary regression test.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -60,7 +57,6 @@ fn patched_zip(field: usize, value: u32) -> Vec<u8> {
 /// counting it; `parse.rs` only checks this with a `debug_assert`). Any
 /// edit then writes the wrong source ranges.
 #[test]
-#[ignore = "fuzz finding F-1, see docs/testing/fuzz-findings-2026-11.md"]
 fn f1_double_bom_edit_writes_well_formed_xml() {
     let src = "\u{feff}\u{feff}<p xmlns=\"urn:t\"><item/>x</p>";
     let Ok(mut doc) = XmlDocument::parse(src.as_bytes()) else { return }; // refusing is fine
@@ -74,7 +70,6 @@ fn f1_double_bom_edit_writes_well_formed_xml() {
 /// F-1 through ooxml-xlsx: the write succeeds and the saved workbook no
 /// longer opens.
 #[test]
-#[ignore = "fuzz finding F-1, see docs/testing/fuzz-findings-2026-11.md"]
 fn f1_double_bom_xlsx_write_saves_a_workbook_that_reopens() {
     let fx = XLSX.iter().find(|f| f.name.ends_with("51850.xlsx")).expect("fixture poi/51850.xlsx");
     let sheet = "xl/worksheets/sheet1.xml";
@@ -114,7 +109,6 @@ fn f1_double_bom_xlsx_write_saves_a_workbook_that_reopens() {
 /// the archive is accepted, and the zero-edit save writes a different
 /// entry (Layer 1 broken) instead of refusing.
 #[test]
-#[ignore = "fuzz finding F-2, see docs/testing/fuzz-findings-2026-11.md"]
 fn f2_entry_past_end_of_archive_is_refused_or_copied_unchanged() {
     let control = patched_zip(0, 0);
     let pkg = Package::from_bytes(control.clone()).expect("control opens");
@@ -130,7 +124,6 @@ fn f2_entry_past_end_of_archive_is_refused_or_copied_unchanged() {
 /// not well-formed; rebinding it silently moves existing names to another
 /// namespace (the tree and the written bytes disagree).
 #[test]
-#[ignore = "fuzz finding F-3, see docs/testing/fuzz-findings-2026-11.md"]
 fn f3_lens_writes_to_namespace_declarations_keep_output_meaning() {
     let src = r#"<p xmlns="urn:t" xmlns:o="urn:o"><o:z/></p>"#;
     let decl = QName::new(XMLNS_NS, "o");
@@ -153,7 +146,6 @@ fn f3_lens_writes_to_namespace_declarations_keep_output_meaning() {
 /// well-formed) and dropped from the tree, so re-rendering loses it and the
 /// text around it becomes two items (T1b fails).
 #[test]
-#[ignore = "fuzz finding F-4, see docs/testing/fuzz-findings-2026-11.md"]
 fn f4_xml_declaration_inside_content_is_refused_or_kept() {
     for src in ["<a>x<?xml version=\"1.0\"?>y</a>", "<sst>r<?xml?>,</sst>"] {
         let Ok(doc) = XmlDocument::parse(src.as_bytes()) else { continue };
@@ -168,7 +160,6 @@ fn f4_xml_declaration_inside_content_is_refused_or_kept() {
 /// F-5 (Low): an element with an empty name (`< />`, `<\r/>`) is accepted;
 /// re-rendering writes `</>`, which no parser reads.
 #[test]
-#[ignore = "fuzz finding F-5, see docs/testing/fuzz-findings-2026-11.md"]
 fn f5_empty_element_name_is_refused() {
     for src in ["< />", "<\r/>", "<a>< /></a>", "<a:b xmlns:a=\"u\"><: /></a:b>"] {
         if let Ok(doc) = XmlDocument::parse(src.as_bytes()) {
@@ -183,7 +174,6 @@ fn f5_empty_element_name_is_refused() {
 /// as an OOM. With ZIP64 the declared size is unbounded and the process
 /// aborts: see `f6_zip64_declared_size_does_not_abort`.
 #[test]
-#[ignore = "fuzz finding F-6, see docs/testing/fuzz-findings-2026-11.md"]
 fn f6_declared_size_does_not_drive_allocation() {
     let control = Package::from_bytes(patched_zip(0, 0)).expect("control opens");
     assert_eq!(control.read_part("a.bin").unwrap(), b"0123456789");
@@ -208,10 +198,8 @@ fn many_entries(n: usize) -> Vec<u8> {
 /// its directory in 36 ms). Measured as a ratio so the test does not depend
 /// on machine speed: 4x the entries must cost well under 16x the time
 /// (best of 3 runs each, so one scheduling delay cannot decide it).
-/// Fixed by PR #14 (`core/remove-part`): remove the `#[ignore]` once it is
-/// merged.
+/// Fixed by PR #14 (`core/remove-part`).
 #[test]
-#[ignore = "fuzz finding F-7 (fixed by PR #14), see docs/testing/fuzz-findings-2026-11.md"]
 fn f7_open_is_not_quadratic_in_the_entry_count() {
     let time = |n: usize| {
         let z = many_entries(n);
@@ -268,7 +256,6 @@ const CHILD: &str = "OOXML_FUZZ_FINDINGS_CHILD";
 /// unwind, so `catch_unwind` cannot stop it). The body runs in a child
 /// process so that an abort fails this test only, not the whole binary.
 #[test]
-#[ignore = "fuzz finding F-6, see docs/testing/fuzz-findings-2026-11.md"]
 fn f6_zip64_declared_size_does_not_abort() {
     const NAME: &str = "f6_zip64_declared_size_does_not_abort";
     if std::env::var_os(CHILD).is_some_and(|v| v == NAME) {
@@ -290,10 +277,17 @@ fn f6_zip64_declared_size_does_not_abort() {
         return;
     }
     let out = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", NAME, "--ignored", "--nocapture", "--test-threads=1"])
+        .args(["--exact", NAME, "--include-ignored", "--nocapture", "--test-threads=1"])
         .env(CHILD, NAME)
         .output()
         .expect("spawn the test binary");
+    // The child must actually have run the body: a renamed test or a filter
+    // that selects nothing would otherwise "pass" (review of PR #36, M1').
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("1 passed"),
+        "child process did not run the test:\n{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
     assert!(
         out.status.success(),
         "child process failed ({}):\n{}",

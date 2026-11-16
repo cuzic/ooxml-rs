@@ -19,7 +19,7 @@ with, also pinned in `.github/workflows/fuzz-smoke.yml`; `fuzz/Cargo.lock` is
 committed because this directory is its own workspace):
 
 ```sh
-rustup toolchain install nightly-2026-11-13 && cargo +nightly-2026-11-13 install cargo-fuzz --version 0.13.2 --locked
+rustup toolchain install nightly-2026-11-14 && cargo +nightly-2026-11-14 install cargo-fuzz --version 0.13.2 --locked
 cargo run -p ooxml-robustness --example seed_corpus -- fuzz/corpus   # seeds from reference/fixtures (not committed)
 # optional 2nd argument: keep at most N seeds per target (the CI smoke uses 64)
 cd fuzz
@@ -28,9 +28,9 @@ cargo +nightly fuzz run xml_t1b corpus/xml_t1b -- -max_total_time=600
 cargo run -p ooxml-robustness --example replay -- xml_t1b fuzz/artifacts/xml_t1b/*
 ```
 
-Known findings are skipped by the filters in
-[`crates/ooxml-robustness/src/known.rs`](../crates/ooxml-robustness/src/known.rs)
-(`OOXML_FUZZ_ALL=1` turns them off). Findings, reproducers and regression tests:
+Every finding so far is fixed (PR #40, PR #14), so no inputs are filtered;
+its reproducers run as ordinary regression tests. Findings, reproducers and
+regression tests:
 [`docs/testing/fuzz-findings-2026-11.md`](../docs/testing/fuzz-findings-2026-11.md).
 
 `-max_total_time` counts from the end of libFuzzer's first pass over the

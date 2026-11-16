@@ -112,9 +112,6 @@ pub fn decode<'a>(fixtures: &[Fixture], data: &'a [u8]) -> Option<(Vec<u8>, Inpu
     let ops_len = usize::from(inp.u8());
     let ops = Input::new(inp.take(ops_len));
     let payload = inp.rest();
-    if crate::known::f1_double_bom(payload) {
-        return None;
-    }
     let replace = (part != 0xFF).then(|| usize::from(part) % fx.parts.len().max(1));
     let zip = build_zip(
         fx.parts

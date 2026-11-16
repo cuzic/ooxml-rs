@@ -7,7 +7,7 @@ use ooxml_xlsx::{CellValue, Workbook};
 
 use crate::fixtures::{XLSX, decode};
 use crate::input::Input;
-use crate::zipcmp::assert_l1_except;
+use crate::zipcmp::{assert_l1_except, assert_l1_except_removing};
 
 fn read_cell(wb: &mut Workbook, row: u32, col: u32) -> Option<CellValue> {
     let ws = wb.worksheet().ok()?;
@@ -45,6 +45,7 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
     let Ok(mut wb) = Workbook::from_bytes(zip.to_vec()) else { return };
     let _ = (wb.sheet_name().len(), wb.workbook_part().len(), wb.edit_refusal());
     let sheet = wb.worksheet_part().to_owned();
+    let workbook = wb.workbook_part().to_owned();
     let Ok(base) = wb.to_bytes() else { return };
     assert_l1_except(zip, &base, &[], "xlsx zero-edit save");
 
@@ -104,9 +105,32 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
         }
     }
     let out = wb.to_bytes().unwrap_or_else(|e| panic!("save after edits failed: {e}"));
-    assert_l1_except(&base, &out, &[&sheet], "xlsx save after edits");
+    // Phase1 (ADR-0003): a value edit strips the cached values of its
+    // dependents on any sheet and sets `calcPr/@fullCalcOnLoad` in the
+    // workbook part; when the set of formula cells changes, `calcChain.xml`
+    // goes, with its relationship and content-type override.
+    let names: Vec<String> = re_names(&base);
+    let base_pkg = ooxml_core::Package::from_bytes(base.clone()).expect("the zero-edit save reopens");
+    let mut except: Vec<&str> = names
+        .iter()
+        .map(String::as_str)
+        .filter(|n| is_sheet(&base_pkg, n) || *n == "[Content_Types].xml" || n.ends_with(".rels"))
+        .collect();
+    except.push(&workbook);
+    let removable: Vec<&str> = names.iter().map(String::as_str).filter(|n| n.ends_with("calcChain.xml")).collect();
+    assert_l1_except_removing(&base, &out, &except, &removable, "xlsx save after edits");
     let mut re = Workbook::from_bytes(out).unwrap_or_else(|e| panic!("edited workbook does not reopen: {e}"));
     for ((row, col), v) in &written {
         assert_eq!(read_cell(&mut re, *row, *col).as_ref(), Some(v), "({row},{col}) after reopen");
     }
+}
+
+fn re_names(zip: &[u8]) -> Vec<String> {
+    crate::zipcmp::raw_entries(zip).map(|v| v.into_iter().map(|e| e.name).collect()).unwrap_or_default()
+}
+
+/// A sheet part (worksheet, macro sheet, dialog sheet, chartsheet), by
+/// content type: a value edit may strip dependents' cached values there.
+fn is_sheet(pkg: &ooxml_core::Package, name: &str) -> bool {
+    pkg.content_type(name).is_some_and(|t| t.contains("sheet+xml") && !t.contains("sharedStrings") && !t.contains(".main+xml"))
 }

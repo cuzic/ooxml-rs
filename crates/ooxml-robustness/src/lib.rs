@@ -15,7 +15,6 @@
 
 pub mod fixtures;
 pub mod input;
-pub mod known;
 pub mod lens;
 pub mod mutate;
 pub mod package;

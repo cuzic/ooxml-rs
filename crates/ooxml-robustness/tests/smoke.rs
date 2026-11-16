@@ -3,8 +3,8 @@
 //!
 //! Bounded: `OOXML_SMOKE_ITERS` mutations per seed (default 1, a few
 //! seconds in a debug build). The `fuzz-smoke` workflow runs it with a
-//! larger value in release mode. Known findings are skipped by the filters
-//! in `src/known.rs`, so a failure here is a new problem: replay the
+//! larger value in release mode. Every finding is fixed (no filters remain),
+//! so a failure here is a new problem: replay the
 //! printed input with `cargo run -p ooxml-robustness --example replay`.
 
 use ooxml_robustness::fixtures::{Fixture, PPTX, XLSX};

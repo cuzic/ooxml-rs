@@ -119,7 +119,7 @@ fn main() -> std::io::Result<()> {
             }
         }
     }
-    println!("package_roundtrip: {} packages", packages.len());
+    println!("package_roundtrip: {} packages + {} synthetic variants", packages.len(), std::fs::read_dir(&pkg_dir)?.count() - packages.len());
 
     for t in ["xml_t1", "xml_t1b"] {
         let d = dir(t)?;

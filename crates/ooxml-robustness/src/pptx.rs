@@ -160,7 +160,7 @@ pub fn check_pptx(zip: &[u8], mut ops: Input<'_>) {
                 edited.insert(part.clone());
                 if let Some(path) = check_body {
                     let s = pres.slide(*si).expect("slide read after edit");
-                    let sh = s.shapes().into_iter().find(|x| x.path() == &path).expect("edited shape still there");
+                    let sh = s.shapes().into_iter().find(|x| x.path() == path).expect("edited shape still there");
                     let got = sh.text_body().expect("text body").text();
                     assert_eq!(got, normalize(&text), "TextBodyMut::set_text does not read back");
                 }
