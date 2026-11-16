@@ -8,10 +8,16 @@
 //!
 //! A custom harness instead of criterion: every case also reports its heap
 //! peak (counting global allocator), several cases take seconds per run,
-//! and the output is one Markdown table for the report. Each case is timed
-//! at least 3 times and until a 3 s budget is spent (at most 15 runs); a
-//! single run over the budget is reported as is (runs = 1). Quadratic
-//! cases are skipped at a size where they are predicted to exceed 60 s.
+//! and the output is one Markdown table for the report.
+//!
+//! Every case is timed **including the drop of whatever it returns** (the
+//! total cost to the caller; review PR #24 M1). After one untimed warm-up,
+//! a case is timed at least 3 times and until a 3 s budget is spent (at
+//! most 15 runs); a case whose warm-up alone exceeds the budget is reported
+//! from that one cold run (Runs = 1). Quadratic cases are skipped at a size
+//! where a quadratic extrapolation from the previous size exceeds 60 s; the
+//! extrapolation is a lower bound (the per-call cost grows faster than
+//! linearly, see the breakdown).
 
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -211,7 +217,7 @@ fn main() {
         });
         let id = "xlsx/read-all/ooxml-cell-api";
         if let Some(p) = quadratic(prev_read, n).filter(|p| *p > SKIP_AFTER) {
-            b.skipped(id, label, &format!("predicted ≈ {} (quadratic: Worksheet::cell scans every row)", fmt_dur(p)));
+            b.skipped(id, label, &format!("lower bound ≈ {} (quadratic extrapolation from {}k cells; Worksheet::cell scans every row)", fmt_dur(p), prev_read.map_or(0, |x| x.0 / 1000)));
         } else if let Some(s) = b.case(id, &format!("{label} (open + Worksheet::cell for every cell)"), Some((cells, "cells")), || {
             let mut wb = ooxml_xlsx::Workbook::from_bytes(bytes.clone()).unwrap();
             let ws = wb.worksheet().unwrap();
@@ -276,7 +282,7 @@ fn main() {
         });
         let id = "xlsx/write-new/ooxml";
         if let Some(p) = quadratic(prev_write, n).filter(|p| *p > SKIP_AFTER) {
-            b.skipped(id, &label, &format!("predicted ≈ {} (quadratic: each write scans every row)", fmt_dur(p)));
+            b.skipped(id, &label, &format!("lower bound ≈ {} (quadratic extrapolation from {}k cells; each write scans every row)", fmt_dur(p), prev_write.map_or(0, |x| x.0 / 1000)));
         } else if let Some(s) = b.case(id, &label, Some((cells, "cells")), || {
             let mut wb = ooxml_xlsx::Workbook::new().unwrap();
             {

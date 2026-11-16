@@ -37,12 +37,29 @@ fn part(bytes: &[u8], name: &str) -> Vec<u8> {
     v
 }
 
-/// Best of `n` runs.
+/// Best of `n` runs, **excluding** the drop of the result (dropped after
+/// the clock stops; review PR #24 M1). Drop is measured on its own where
+/// it matters.
 fn best<T>(n: usize, mut f: impl FnMut() -> T) -> Duration {
     (0..n)
         .map(|_| {
             let t = Instant::now();
-            std::hint::black_box(f());
+            let v = std::hint::black_box(f());
+            let dt = t.elapsed();
+            drop(v);
+            dt
+        })
+        .min()
+        .unwrap()
+}
+
+/// Best of `n` drops of a value made by `make` (untimed).
+fn best_drop<T>(n: usize, mut make: impl FnMut() -> T) -> Duration {
+    (0..n)
+        .map(|_| {
+            let v = make();
+            let t = Instant::now();
+            drop(v);
             t.elapsed()
         })
         .min()
@@ -77,8 +94,8 @@ fn main() {
     let inputs: Vec<(u32, Vec<u8>)> = [10_000u32, 100_000, 1_000_000].into_iter().map(|n| (n, generate_xlsx(n))).collect();
 
     println!("\n## XML tree cost (sheet1.xml)\n");
-    println!("| Cells | XML | Elements | Attributes | Text nodes | Allocations | Heap after parse | Heap / XML byte | Allocs / element | quick-xml events only | `XmlDocument::parse` | `drop` |");
-    println!("|---|---|---|---|---|---|---|---|---|---|---|---|");
+    println!("| Cells | XML | Elements | Attributes | Text nodes | Allocations (+ reallocations) | Heap after parse | Heap / XML byte | Allocs / element (+ reallocs) | quick-xml events only | `XmlDocument::parse` (no drop) | drop | parse / events | drop / parse |");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
     for (n, bytes) in &inputs {
         let sheet = part(bytes, "xl/worksheets/sheet1.xml");
         let events = best(3, || {
@@ -94,16 +111,15 @@ fn main() {
             k
         });
         let parse = best(3, || XmlDocument::parse(&sheet).unwrap());
-        let (a0, h0) = (ALLOC.count(), ALLOC.current());
+        let (a0, r0, h0) = (ALLOC.count(), ALLOC.reallocs(), ALLOC.current());
         let doc = XmlDocument::parse(&sheet).unwrap();
-        let (allocs, heap) = (ALLOC.count() - a0, ALLOC.current() - h0);
+        let (allocs, reallocs, heap) = (ALLOC.count() - a0, ALLOC.reallocs() - r0, ALLOC.current() - h0);
         let mut acc = (0, 0, 0);
         count(doc.root(), &mut acc);
-        let t = Instant::now();
         drop(doc);
-        let dropt = t.elapsed();
+        let dropt = best_drop(3, || XmlDocument::parse(&sheet).unwrap());
         println!(
-            "| {n} | {} | {} | {} | {} | {allocs} | {} | {:.1} | {:.2} | {} | {} | {} |",
+            "| {n} | {} | {} | {} | {} | {allocs} (+ {reallocs}) | {} | {:.1} | {:.2} (+ {:.2}) | {} | {} | {} | {:.1}× | {:.0}% |",
             fmt_bytes(sheet.len()),
             acc.0,
             acc.1,
@@ -111,15 +127,19 @@ fn main() {
             fmt_bytes(heap),
             heap as f64 / sheet.len() as f64,
             allocs as f64 / acc.0 as f64,
+            reallocs as f64 / acc.0 as f64,
             fmt_dur(events),
             fmt_dur(parse),
-            fmt_dur(dropt)
+            fmt_dur(dropt),
+            parse.as_secs_f64() / events.as_secs_f64(),
+            100.0 * dropt.as_secs_f64() / parse.as_secs_f64()
         );
     }
 
     println!("\n## `Workbook::from_bytes` phases\n");
-    println!("| Cells | `Package::from_bytes` | decompress sheet1.xml | parse sheet1.xml | quick-xml scan of sheet1.xml | `Workbook::from_bytes` total |");
-    println!("|---|---|---|---|---|---|");
+    println!("All columns exclude dropping the result; the last column is the drop of the opened `Workbook`.\n");
+    println!("| Cells | `Package::from_bytes` | decompress sheet1.xml | parse sheet1.xml | quick-xml scan of sheet1.xml | `Workbook::from_bytes` total | drop of the `Workbook` |");
+    println!("|---|---|---|---|---|---|---|");
     for (n, bytes) in &inputs {
         let pkg = best(3, || Package::from_bytes(bytes.clone()).unwrap());
         let p = Package::from_bytes(bytes.clone()).unwrap();
@@ -139,7 +159,8 @@ fn main() {
             f
         });
         let total = best(3, || ooxml_xlsx::Workbook::from_bytes(bytes.clone()).unwrap());
-        println!("| {n} | {} | {} | {} | {} | {} |", fmt_dur(pkg), fmt_dur(dec), fmt_dur(parse), fmt_dur(scan), fmt_dur(total));
+        let wb_drop = best_drop(3, || ooxml_xlsx::Workbook::from_bytes(bytes.clone()).unwrap());
+        println!("| {n} | {} | {} | {} | {} | {} | {} |", fmt_dur(pkg), fmt_dur(dec), fmt_dur(parse), fmt_dur(scan), fmt_dur(total), fmt_dur(wb_drop));
     }
 
     println!("\n## Per-call cost of the cell API (after open)\n");
@@ -183,7 +204,7 @@ fn main() {
         );
     }
 
-    println!("\n## From-scratch writes: cost of one row (10 cells) after k rows\n");
+    println!("\n## From-scratch writes: cost of one row (10 cells) after k rows (single measurement each)\n");
     println!("| k (rows already written) | one more row |");
     println!("|---|---|");
     let mut wb = ooxml_xlsx::Workbook::new().unwrap();

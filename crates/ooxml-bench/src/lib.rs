@@ -21,12 +21,18 @@ pub struct PeakAlloc {
     current: AtomicUsize,
     peak: AtomicUsize,
     count: AtomicUsize,
+    reallocs: AtomicUsize,
 }
 
 impl PeakAlloc {
     /// A new counter (use as `#[global_allocator] static A: PeakAlloc = PeakAlloc::new();`).
     pub const fn new() -> Self {
-        PeakAlloc { current: AtomicUsize::new(0), peak: AtomicUsize::new(0), count: AtomicUsize::new(0) }
+        PeakAlloc {
+            current: AtomicUsize::new(0),
+            peak: AtomicUsize::new(0),
+            count: AtomicUsize::new(0),
+            reallocs: AtomicUsize::new(0),
+        }
     }
 
     /// Live heap bytes now.
@@ -39,9 +45,14 @@ impl PeakAlloc {
         self.peak.load(Ordering::Relaxed)
     }
 
-    /// Number of allocations (including reallocations) so far.
+    /// Number of fresh allocations (`alloc`, `alloc_zeroed`) so far.
     pub fn count(&self) -> usize {
         self.count.load(Ordering::Relaxed)
+    }
+
+    /// Number of reallocations (a growing `Vec` or `String`) so far.
+    pub fn reallocs(&self) -> usize {
+        self.reallocs.load(Ordering::Relaxed)
     }
 
     /// Sets the peak to the current live bytes.
@@ -50,7 +61,6 @@ impl PeakAlloc {
     }
 
     fn add(&self, n: usize) {
-        self.count.fetch_add(1, Ordering::Relaxed);
         let now = self.current.fetch_add(n, Ordering::Relaxed) + n;
         self.peak.fetch_max(now, Ordering::Relaxed);
     }
@@ -73,6 +83,7 @@ unsafe impl GlobalAlloc for PeakAlloc {
         // SAFETY: forwarded unchanged.
         let p = unsafe { System.alloc(layout) };
         if !p.is_null() {
+            self.count.fetch_add(1, Ordering::Relaxed);
             self.add(layout.size());
         }
         p
@@ -82,6 +93,7 @@ unsafe impl GlobalAlloc for PeakAlloc {
         // SAFETY: forwarded unchanged.
         let p = unsafe { System.alloc_zeroed(layout) };
         if !p.is_null() {
+            self.count.fetch_add(1, Ordering::Relaxed);
             self.add(layout.size());
         }
         p
@@ -97,8 +109,11 @@ unsafe impl GlobalAlloc for PeakAlloc {
         // SAFETY: forwarded unchanged.
         let p = unsafe { System.realloc(ptr, layout, new_size) };
         if !p.is_null() {
-            self.sub(layout.size());
+            self.reallocs.fetch_add(1, Ordering::Relaxed);
+            // Count the new block before releasing the old one: a moving
+            // realloc holds both for a moment (conservative peak).
             self.add(new_size);
+            self.sub(layout.size());
         }
         p
     }
@@ -113,28 +128,38 @@ pub struct Sample {
     pub min: Duration,
     /// Number of timed runs.
     pub runs: usize,
-    /// Heap peak of the first timed run, above the live heap at its start.
+    /// Heap peak of the warm-up run (or the single cold run), above the
+    /// live heap at its start; deterministic for these workloads.
     pub peak_bytes: usize,
 }
 
-/// Times `f` at least `min_runs` times and until `budget` is used up, at
-/// most `max_runs` times; a single run longer than `budget` ends the
-/// measurement. There is no separate warm-up run: inputs are already in
-/// memory, and the median absorbs a cold first run.
+/// Times `f` **including dropping its result** (the total cost a caller
+/// pays for the operation), at least `min_runs` times and until `budget`
+/// is used up, at most `max_runs` times.
+///
+/// One untimed warm-up run comes first. If the warm-up itself takes at
+/// least `budget`, it is reported as the only sample (`runs == 1`, a cold
+/// run) instead of repeating a slow case.
 pub fn measure<T>(alloc: &PeakAlloc, budget: Duration, min_runs: usize, max_runs: usize, mut f: impl FnMut() -> T) -> Sample {
     let mut times = Vec::new();
     let mut peak_bytes = 0;
-    let started = Instant::now();
-    loop {
+    let mut run = |alloc: &PeakAlloc, peak: &mut usize| {
         let base = alloc.current();
         alloc.reset_peak();
         let t = Instant::now();
-        let out = f();
+        drop(std::hint::black_box(f()));
         let dt = t.elapsed();
-        if times.is_empty() {
-            peak_bytes = alloc.peak().saturating_sub(base);
-        }
-        drop(std::hint::black_box(out));
+        *peak = alloc.peak().saturating_sub(base);
+        dt
+    };
+    let warm = run(alloc, &mut peak_bytes);
+    if warm >= budget {
+        return Sample { median: warm, min: warm, runs: 1, peak_bytes };
+    }
+    let started = Instant::now();
+    loop {
+        let mut p = 0;
+        let dt = run(alloc, &mut p);
         times.push(dt);
         let spent = started.elapsed();
         if times.len() >= max_runs || (times.len() >= min_runs && spent >= budget) || dt >= budget {
