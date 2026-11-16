@@ -15,10 +15,12 @@
 > python-pptx・Apache POI・LibreOffice のソースと ECMA-376 の本文。
 > テキスト以外の要素は書き込まない。
 
-- Status: **Proposed** (revision 2)
+- Status: **Accepted** (revision 3)
 - Date: 2026-11-16
 - Review: [round 1](0008-opus-review-round1.md) (not converged: 5 Major, 12
-  Minor; all addressed in revision 2)
+  Minor; all addressed in revision 2), [round 2](0008-opus-review-round2.md)
+  (converged: Minor only, "Accepted after the Minor fixes"; fixed in
+  revision 3). Owner decision 2026-11-16 on Q1–Q6: see Open questions
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md),
   [ADR-0002](0002-schema-driven-code-generation.md) (with its post-acceptance
   notes "wildcard parents / XML characters", "parser depth limit" and
@@ -56,6 +58,23 @@
   | m12 `p:cTn` percentages unused | 11 overrides, `p:cTn` left as `DefaultMismatch` | §6 |
   | Q1–Q6 recommendations | recorded as proposed defaults | Open questions |
 
+- **Revision 3 (2026-11-16): Accepted.** The round-2 review converged
+  (Major 0). Its ten Minor findings are fixed:
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | r2-m1 attributes of a group's member element were looked up per attribute | read only from the element that won the group; absent → that element's XSD default, `Set` with `defaulted: true` | §1.3, §1.6, §5, §7 S12 |
+  | r2-m2 three POI statements | master placeholder chosen by the slide type in POI; POI never uses `defaultTextStyle` for placeholders (step 8 rests on ECMA only, with counts); POI pinned to `47dcff769bb3`; O2b table extended | §1.2, §1.3, §7 O2b, Sources |
+  | r2-m3 spike's `LinkSplitByBreak` saw `a:hlinkClick` only | spike fixed and rerun; O5 has an `a:hlinkMouseOver`-only case (implementation: PR #48) | §4, §7 O5 |
+  | r2-m4 `p:cNvSpPr` and the 47/77 split | `p:cNvSpPr@txBox` read raw; table header fixed | §6 |
+  | r2-m5 stale numbers | colour counts and autofit chains recounted | §1.4, §1.6 |
+  | r2-m6 notes and layout/master contexts | colour map, theme and geometry for notes; chains for layout/master shapes | §1.7 |
+  | r2-m7 `themeOverride` | not applied; theme lookups on such a slide `Unresolved(ThemeOverride)` | §1.4 |
+  | r2-m8 explicit idx missing from the layout | added to M2 with counts | §7 M2 |
+  | r2-m9 invalid `lvl` | resolution stops at the first level-dependent step | §1.3 |
+  | r2-m10 hyperlink colour scope | `a:hlinkClick` only; non-URL actions in M7 | §1.6, §7 M7 |
+  | Owner decision 2026-11-16 | Q1–Q5 defaults accepted (Q1 with r2-m2's corrections); Q6 synthetic until a real fixture arrives | Open questions |
+
 Phase 1 builds on Phase 0.1. Wherever this ADR says "the Phase 0 rules", it
 means ADR-0005 §3 and §6 **as amended by revision 4 §9** (format sources are
 copied as whole subtrees without `a:hlinkClick`/`a:hlinkMouseOver`). If PR
@@ -90,7 +109,7 @@ presentations, 1,272 slides, `spikes/pptx-phase1/README.md`):
 Three reference implementations resolve parts of the chain, and they
 disagree (sources at the end):
 
-| Question | python-pptx 1.0.2 | Apache POI XSLF (trunk) | LibreOffice oox (`2e885d0bda9b`) | ECMA-376 Part 1 |
+| Question | python-pptx 1.0.2 | Apache POI XSLF (`47dcff769bb3`) | LibreOffice oox (`2e885d0bda9b`) | ECMA-376 Part 1 |
 |---|---|---|---|---|
 | slide → layout placeholder | first layout placeholder with the same `idx` (absent = 0), top-level shapes only (`shapes/placeholder.py` `_BaseSlidePlaceholder._base_placeholder`, `LayoutPlaceholders.get`) | by `idx` **only if `@idx` is present**, then by exact `type`, idx-0 preferred (`XSLFSheet.getPlaceholder`, `initPlaceholders`) | by index for text styles (`PPTShape::findPlaceholderByIndex`); geometry by a type/idx priority (`findPlaceholder`) | `idx` "is used … to match a placeholder on one template/master to another" (§19.3.1.36); no algorithm |
 | layout → master placeholder | mapped type (`ctrTitle→title`, others→`body`) (`LayoutPlaceholder._base_placeholder`) | mapped type (`XSLFShape.getPlaceholderType`) | by index | — |
@@ -172,8 +191,12 @@ Notes slides match the notes master by step 3 only (python-pptx
 type on notes pages).
 
 **Layout → master**: the first master placeholder of the same family as
-the *layout* placeholder (as python-pptx's and POI's mapping; the slide's
-own type is not used here). An orphan uses the slide placeholder's family.
+the *layout* placeholder (python-pptx's `LayoutPlaceholder._base_placeholder`
+uses the layout's type; POI's `XSLFShape.fetchShapeProperty`, l. 341–362,
+uses `getPlaceholderType` of the **slide** placeholder — review r2-m2a). The
+two differ only when the matched layout placeholder is of another family
+(`IdxTypeMismatch`, 0 in the corpus); the difference is in O2b's table. An
+orphan uses the slide placeholder's family.
 None (masters without placeholders exist: 111 slide placeholders, mostly
 LibreOffice-made decks) → the master-placeholder steps are skipped; the
 master's `p:txStyles` still apply.
@@ -209,18 +232,31 @@ are **never** returned as resolved values: a chain that ends without a
 value is `Lookup::Unset` (§5), and the documented XSD default is available
 separately (`xsd_default()`) for callers who want the specification's
 fallback. Attributes on the chains whose XSD default would otherwise leak
-(vendored Transitional XSDs): `a:CT_TextCharacterProperties` `cap="none"`,
-`dirty`, `err`, `smtClean`, `smtId`; `a:CT_TextBodyProperties`
-`upright="false"`; `a:CT_Transform2D` and `a:CT_GroupTransform2D` `rot`,
-`flipH`, `flipV`; `a:CT_TextNormalAutofit` `fontScale`, `lnSpcReduction`;
-`a:CT_TextAutonumberBullet` `startAt`; `a:CT_TextFont` `pitchFamily`,
-`charset`; `p:CT_Placeholder` `type="obj"`, `idx="0"`, `orient`, `sz`,
-`hasCustomPrompt` (§1.2 step 2 needs presence); `a:CT_Hyperlink`
-`history`, `highlightClick`, `endSnd`, `action`, `tooltip`, `invalidUrl`,
-`tgtFrame` (direct values only, §3.1). The review's probe found 37 slide
-runs whose `a:rPr` has no `cap` while a layout, master or `txStyles` level
-sets `cap="all"` (`60810.pptx`): a defaulted accessor would have reported
-`none` from the run.
+(vendored Transitional XSDs), in two kinds:
+
+- **Inherited one by one** (each walks the chain on its own):
+  `a:CT_TextCharacterProperties` `cap="none"`, `dirty`, `err`, `smtClean`,
+  `smtId`; `a:CT_TextBodyProperties` `upright="false"`. The review's probe
+  found 37 slide runs whose `a:rPr` has no `cap` while a layout, master or
+  `txStyles` level sets `cap="all"` (`60810.pptx`): a defaulted accessor
+  would have reported `none` from the run.
+- **Attributes of a group's member element** (review r2-m1): they are read
+  **only from the element that won the group** and never looked up further
+  along the chain. If that element lacks the attribute, the result is its
+  XSD default as `Set`, with the winning element as `source` and
+  `defaulted: true`. These are `a:CT_TextNormalAutofit` `fontScale`,
+  `lnSpcReduction` (autofit group); `a:CT_TextAutonumberBullet` `startAt`
+  (bullet type); `a:CT_TextFont` `pitchFamily`, `charset` (`a:latin` etc.);
+  `a:CT_Transform2D`/`a:CT_GroupTransform2D` `rot`, `flipH`, `flipV` (the
+  `xfrm` unit, §1.5). A slide `<a:normAutofit/>` under a layout
+  `fontScale="90000"` means 100 %, not 90 % (2 `fontScale` and 4
+  `lnSpcReduction` cases in the corpus, `bullet-indent.pptx`,
+  `slide-section-test.pptx`; review probe 2). Leaks of `startAt`, `rot`,
+  `flip*`: 0 in the corpus.
+- **Direct only** (never inherited): `p:CT_Placeholder` `type="obj"`,
+  `idx="0"`, `orient`, `sz`, `hasCustomPrompt` (§1.2 step 2 needs presence);
+  `a:CT_Hyperlink` `history`, `highlightClick`, `endSnd`, `action`,
+  `tooltip`, `invalidUrl`, `tgtFrame` (§3.1).
 
 The **level** of a paragraph is `a:pPr@lvl` (default 0, 0–8); "list style
 at level L" is the list style's `a:lvl{L+1}pPr` (§21.1.2.4.13). The level
@@ -230,8 +266,11 @@ files (`txStyles.level_missing_lower_present`); Phase 1 does not, and the
 manual check covers it. `a:defPPr` is **not** consulted (POI and
 LibreOffice do not; 24 non-trivial `defPPr` in the corpus, Q3). An invalid
 `lvl` (not an integer 0–8, review m11) is reported as `AttrError` on
-`ParaProps::level`; steps 1–2 still apply and every level-dependent step
-yields `Lookup::Unresolved(InvalidLevel)` — no level is guessed.
+`ParaProps::level`; steps 1–2 still apply, and the lookup **stops** at the
+first level-dependent step it reaches (step 3) with
+`Lookup::Unresolved(InvalidLevel)` — no level is guessed, and step 4 is not
+consulted, since a value there would hide a step 3 value that cannot be
+checked (review r2-m9).
 
 Run properties of an `a:r` or `a:fld` (and of `a:endParaRPr` for the
 paragraph-end format) are looked up in this order; the **first element that
@@ -247,7 +286,7 @@ as `AttrError` with the raw string, ADR-0002 §1.2 "never lossy"):
 | 5 | layout placeholder `a:lstStyle`, level L | presentation `p:defaultTextStyle`, level L | `Placeholder{Layout}` / `PresentationDefault` |
 | 6 | master placeholder `a:lstStyle`, level L | master `p:txStyles/p:otherStyle`, level L (Q1) | `Placeholder{Master}` / `MasterTextStyle{Other}` |
 | 7 | master `p:txStyles`, chosen by the **slide placeholder's own** family: `titleStyle` (title), `otherStyle` (dt, ftr, sldNum, hdr), `bodyStyle` (body); none for `sldImg` | — | `MasterTextStyle` |
-| 8 | presentation `p:defaultTextStyle`, level L | — | `PresentationDefault` |
+| 8 | presentation `p:defaultTextStyle`, level L (ECMA §19.2.1.8 only: POI's `ParagraphPropertyFetcher.getThemeProps` returns `null` for placeholders, review r2-m2b; decides `marL` 327, `b` 5, `sz` 4, fill 4, latin 3, `algn` 3 values in the corpus) | — | `PresentationDefault` |
 
 **Step 4, precisely (review M2).** Only the `p:style` of the shape itself
 (a layout or master placeholder's `p:style` is not consulted: 25 layout
@@ -367,8 +406,14 @@ step decides and that would change without it, `chain-633.txt`):
   the layout's override, and so does Phase 1. All 10 slides in the corpus
   that inherit a layout override carry `a:masterClrMapping`; in 6 the
   layout's map differs from the master's. Manual check M6 decides.
-  Corpus: 5,567 scheme colours, all resolve (4,870 through `bg/tx`
-  mapping); 3 slides override the map themselves.
+  Corpus (`chain-633.txt`, revision 2 rules): 5,616 scheme colours, all
+  resolve (4,848 through `bg/tx` mapping, 768 direct); 3 slides override
+  the map themselves. **`themeOverride`** (review r2-m7): a slide or layout
+  may relate to a theme-override part (`…/relationships/themeOverride`; 1 in
+  the corpus, `60810.pptx` slide 18, a `a:clrScheme` equal to the master's
+  theme). Phase 1 does not apply it: on a part with such a relationship,
+  every theme-dependent lookup (scheme colours, `+mj`/`+mn` fonts) is
+  `Lookup::Unresolved(ThemeOverride)`.
   `a:srgbClr`, `a:sysClr` (`@lastClr`), `a:prstClr`, `a:hslClr`,
   `a:scrgbClr` are returned as written. **Colour transforms** (`a:lumMod`,
   `a:tint`, `a:alpha`, …) are returned as a list of
@@ -410,8 +455,11 @@ inputs, not applied:
   numbers are a layout cache computed for **one** shape (64 slide
   placeholders in the corpus carry them, e.g. `fontScale="92500"
   lnSpcReduction="10000"` in `60810.pptx`): set on the shape itself they are
-  `Set`; reached from a layout or master (10 chains) they are
-  `Unresolved(InheritedAutofitScale)`. The displayed size is
+  `Set` (absent on the winning element → its XSD default, 100 %/0 %,
+  `defaulted: true`, §1.3); when the winning `normAutofit` is a layout's or
+  master's, they are `Unresolved(InheritedAutofitScale)` (review probe 2:
+  4 slide bodies inherit a `fontScale` this way, all in `tdf128550.pptx`,
+  from the master). The displayed size is
   `sz × fontScale` and the line spacing is reduced by `lnSpcReduction`; the
   caller decides whether to apply them. If no element of the chain has the
   group, the result is `Unset`. ECMA §21.1.2.1.2–4 says noAutofit is then
@@ -426,7 +474,34 @@ inputs, not applied:
   re-verified here; manual check M7). Of 83 linked runs, 33 have their own
   `a:solidFill` and 12 have `ahyp:hlinkClr` (review probe 5).
   `Link::color_rule()` returns `ThemeHyperlink` or `RunColor` from that
-  extension (read raw); `RunProps::fill` stays the specified fill.
+  extension (read raw); `RunProps::fill` stays the specified fill. The rule
+  is about `a:hlinkClick` only: `a:hlinkMouseOver` does not change the
+  colour, so `color_rule()` is `None` for a run with only a mouse-over link
+  (review r2-m10). Linked runs whose action is not a URL (in the corpus:
+  `hlinksldjump` 18, `macro` 11, `hlinkshowjump` 1, `hlinkfile` 1) are
+  assumed to follow the same rule; manual check M7 confirms.
+
+#### 1.7 Notes, layouts and masters as contexts (review r2-m6)
+
+**Notes slides.** The colour map is the notes slide's `p:clrMapOvr`, else
+the notes master's `p:clrMap`; the theme is the notes master's; geometry
+is notes slide → notes-master placeholder (by type, §1.2); text as §1.3
+"Notes".
+
+**Shapes on layouts and masters** (`LayoutRef`/`MasterRef` shapes, read by
+the same API) resolve in their own part's context:
+
+- a layout placeholder: steps 1–4 on the layout shape → the master
+  placeholder of its family → master `txStyles` (by its own family) →
+  `defaultTextStyle`; geometry layout → master placeholder; colour map the
+  layout's `p:clrMapOvr`, else the master's `p:clrMap`;
+- a master placeholder: steps 1–4 → master `txStyles` → `defaultTextStyle`;
+  geometry its own; colour map the master's;
+- a non-placeholder shape on a layout or master: steps 1–4 →
+  `defaultTextStyle` → master `otherStyle`.
+
+POI skips steps 2–5 for shapes on a master (`fetchProperty` checks
+`sheet instanceof XSLFSlideMaster`); that difference is in O2b's table.
 
 ### 2. Notes: read and edit existing notes slides
 
@@ -714,7 +789,12 @@ the first `\v` has the start run's `a:rPr`, and every inserted character
 after it has the start run's `a:rPr` without links (an inserted `a:br` has
 none). Replacements with `\v`: 85,742 / 111,064 applied with both
 invariants holding (358 / 506 in paragraphs that contain a linked run);
-124 / 158 refused with `LinkSplitByBreak`. (Revision 1's figure for the
+124 / 158 refused with `LinkSplitByBreak`. Revision 3 reran the spike with
+`a:hlinkMouseOver` counted as a link (review r2-m3; the earlier spike saw
+`a:hlinkClick` only, so a mouse-over-only start run would have broken F):
+the counts are unchanged, since no probe match in the corpus ends inside a
+mouse-over-only run; the case is covered by a synthetic test in the
+implementation (PR #48, `rule_5_link_split_by_break`). (Revision 1's figure for the
 link subset, 0.2 %, double-counted matches; corrected to 0.1 %.)
 
 ### 5. API sketch over the ADR-0002 views
@@ -769,11 +849,15 @@ pub enum Lookup<'a, T> {
     Unresolved(Reason<'a>), // the chain cannot decide in Phase 1
 }
 pub enum Reason<'a> {
-    TableStyle, PlaceholderColor /* phClr */, InvalidLevel, GroupCoordinates,
+    TableStyle, PlaceholderColor /* phClr */, InvalidLevel, GroupCoordinates, ThemeOverride,
     InheritedAutofitScale { from: Source<'a> },
     ScriptDependent { slot: ThemeFontSlot /* MajorEa, MinorCs, … */, script_fonts: Vec<(&'a str, &'a str)> },
 }
-pub struct Resolved<'a, T> { pub value: Result<T, AttrError>, pub source: Source<'a> }
+pub struct Resolved<'a, T> {
+    pub value: Result<T, AttrError>,
+    pub source: Source<'a>,
+    pub defaulted: bool,    // the winning group member lacked the attribute: its XSD default (§1.3, r2-m1)
+}
 pub enum Source<'a> {
     Direct,                                     // on the element asked about
     ParagraphDefault, ShapeListStyle { level: u8 }, ShapeStyle,
@@ -812,7 +896,7 @@ writes text only, through Phase 0's write entries and core's
 `p14:` and `p188:` entries go in `pml.toml` (the feature group is the file,
 ADR-0002 post-acceptance note).
 
-| Group | `pml.toml` (48) | `dml.toml` (76) |
+| Group | `pml.toml` (47) | `dml.toml` (77) |
 |---|---|---|
 | parts | `p:CT_SlideLayout/p:sldLayout`, `p:CT_SlideMaster/p:sldMaster`, `p:CT_NotesSlide/p:notes`, `p:CT_NotesMaster/p:notesMaster` | `a:CT_OfficeStyleSheet/a:theme` |
 | text styles | `p:CT_SlideMasterTextStyles/p:txStyles`, `a:CT_TextListStyle/p:{titleStyle,bodyStyle,otherStyle,notesStyle,defaultTextStyle}` | `a:CT_TextListStyle/a:lstStyle`, `a:CT_TextParagraphProperties/a:{defPPr,lvl1pPr…lvl9pPr}`, `a:CT_TextCharacterProperties/a:defRPr` |
@@ -826,7 +910,8 @@ ADR-0002 post-acceptance note).
 | sections | `p:CT_PresentationExtensionList/p:extLst`, `p:CT_PresentationExtension/p:ext`, `p14:CT_SectionList/p14:sectionLst`, `p14:CT_Section/p14:section`, `p14:CT_SectionSlideIdList/p14:sldIdLst`, `p14:CT_SectionSlideIdListEntry/p14:sldId` | — |
 
 Read **raw** (QName + attribute strings, as Phase 0's `refs.rs` does), not
-allowlisted: transition kinds (40 SDK children of `p:transition` plus
+allowlisted: `p:cNvSpPr@txBox` for `ShapeRef::is_text_box` (one boolean;
+review r2-m4), transition kinds (40 SDK children of `p:transition` plus
 `p15:prstTrans`; `p159:morph` is not in the SDK data), timing containers
 (`p:par`, `p:seq`, `p:childTnLst`, …), comment anchor monikers (`ac:*`,
 `pc:*`), colour transforms, the fills other than `a:solidFill`/`a:noFill`
@@ -916,7 +1001,7 @@ difference table below), so an author's guess cannot hide as a fact.
   layout `lvl1pPr/defRPr cap="all"` under a slide `<a:rPr lang="…"/>` (an
   XSD default must not stop the chain, M1), S11 a placeholder with its own
   `p:style/a:fontRef` and one inheriting from a layout placeholder with
-  `p:style` (M2), S12 autofit set on the slide, inherited, and absent (M4),
+  `p:style` (M2), S12 autofit set on the slide, inherited, absent, and a slide `<a:normAutofit/>` under a layout `fontScale="90000"` (100 %, `defaulted`; r2-m1) (M4),
   S13 linked runs with and without `ahyp:hlinkClr` (M4), S14 a slide
   `a:custGeom` under a layout `prstGeom`, and a placeholder in a group (m5). Each has a committed JSON table `(slide, shape, paragraph, run,
   property) → (value, source)`. Plus the roadmap's two real fixtures,
@@ -924,14 +1009,19 @@ difference table below), so an author's guess cannot hide as a fact.
   hand-checked tables. Optional, not gating: render S1–S9 with LibreOffice
   (`soffice --convert-to pdf`) and compare sizes/fonts/colours where
   LibreOffice's rules agree with §1.3 (they differ on S4/S5 by design).
-- **O2b text properties vs POI (optional, review m10a).** POI resolves
-  text properties too (`CharacterPropertyFetcher.fetchProperty`: run →
-  `pPr/defRPr` → shape → `defaultTextStyle` → `getDefaultMasterStyle`), so
-  it is an independent reader for `sz`, `b`, latin typeface, fill and
-  `algn` on every fixture paragraph. Its known differences are committed as
-  a table (level fall-back in `txStyles`, matching without `@idx`, no
-  `fontRef` step, `notesStyle` for every type) and the job fails only on a
-  difference outside the table. It runs in a separate, non-gating Java CI
+- **O2b text properties vs POI (optional, review m10a).** POI
+  (`47dcff769bb3`) resolves text properties too
+  (`CharacterPropertyFetcher.fetchProperty`: run → `pPr/defRPr` →
+  `fetchShapeProperty` (shape `lstStyle`; for placeholders layout, then
+  master) → `defaultTextStyle` for **non-placeholders only** →
+  `getDefaultMasterStyle`), so it is an independent reader for `sz`, `b`,
+  latin typeface, fill and `algn` on every fixture paragraph. Its known
+  differences are committed as a table and the job fails only on a
+  difference outside it: level fall-back in `txStyles`; matching without
+  `@idx`; no `fontRef` step; `notesStyle` for every notes type; the master
+  placeholder chosen by the slide's type (§1.2); **no step 8 for
+  placeholders** (the corpus values listed in §1.3); steps 2–5 skipped on
+  masters (§1.7). It runs in a separate, non-gating Java CI
   job, because the sandbox has no JVM.
 - **O3 links vs python-pptx:** every shape `click_action` (action, address,
   target slide id) and run `hyperlink.address` equals ours, excluding runs
@@ -945,7 +1035,8 @@ difference table below), so an author's guess cannot hide as a fact.
 - **O5 find/replace:** in `cargo test`, invariants T and F (§4) on every
   paragraph of every fixture for a probe set of 1–3-word phrases, plus
   deletion and replacements containing `\v` (review M5), and
-  `LinkSplitByBreak` on `shapes.pptx`/`with_japanese.pptx` linked runs; T2 locality (only touched runs change); refusals byte-identical.
+  `LinkSplitByBreak` on `shapes.pptx`/`with_japanese.pptx` linked runs and
+  on a synthetic run that has only `a:hlinkMouseOver` (review r2-m3); T2 locality (only touched runs change); refusals byte-identical.
   Independently in the `pptx-readback` job: `check.py` performs the same
   edits on python-pptx's lxml tree from the rules of §4 and compares the
   whole-deck model; python-pptx's paragraph text equals Python's
@@ -967,7 +1058,7 @@ difference table below), so an author's guess cannot hide as a fact.
   PowerPoint shows for (i) a text box (`txBox="1"`), (ii) a shape and
   (iii) a placeholder with `p:style`, and for dt/ftr/sldNum, when
   `defaultTextStyle`, `otherStyle`, `bodyStyle` and `fontRef` disagree,
-  and whether a layout placeholder's `p:style` reaches the slide; **M2** the idx-0 tie and implicit-idx
+  and whether a layout placeholder's `p:style` reaches the slide; **M2** the idx-0 tie, implicit-idx, and explicit-idx-missing-from-the-layout (review r2-m8: 49 slide placeholders have an `@idx` no layout placeholder has, mostly `4294967295` — title 23, obj 10, body 7, sldNum 5, ctrTitle/ftr/pic 1 each; check a `4294967295` title with and without a layout title)
   decks — which layout placeholder PowerPoint links (seen by "Reset
   slide"); **M3** a layout transition with a slide that has none; **M4** a
   notes edit with a formatted multi-line body opens without repair; **M5**
@@ -977,7 +1068,8 @@ difference table below), so an author's guess cannot hide as a fact.
   (which colours `tx1`/`bg1` show, review m2); **M7** a body with no autofit
   element anywhere in its chain vs one inheriting `normAutofit` (does text
   shrink?), and linked runs with and without `ahyp:hlinkClr val="tx"`
-  (review M4).
+  (review M4), including links whose action is not a URL
+  (`hlinksldjump`, `macro`, `hlinkshowjump`, `hlinkfile`; review r2-m10).
 
 ### 8. Consequences
 
@@ -1025,8 +1117,15 @@ difference table below), so an author's guess cannot hide as a fact.
 
 ## Open questions for the project owner
 
-Each has a **proposed default** (the round-1 review's recommendation),
-which the implementation follows until the owner decides otherwise.
+**Owner decision 2026-11-16:** the proposed defaults of **Q1–Q5** below are
+accepted, Q1 with the POI corrections of review r2-m2 (POI uses the slide
+placeholder's type for the master placeholder and never applies
+`defaultTextStyle` to placeholders; §1.2, §1.3). The manual checks M1–M7
+remain the way to revisit a default if PowerPoint behaves differently.
+**Q6:** the owner has been asked for a real modern-comment fixture; until
+it arrives, O6 uses synthetic inputs.
+
+Each item records its default (the round-1 review's recommendation):
 
 - **Q1** (ADR-0005 Q6) Non-placeholder text. *Default:* `defaultTextStyle`
   then `otherStyle` (POI) for text boxes and shapes alike, with `Source`
@@ -1074,7 +1173,7 @@ which the implementation follows until the owner decides otherwise.
   (`LayoutPlaceholders.get`, `MasterPlaceholders.get`), `action.py`
   (`ActionSetting.action`, `target_slide`), `text/text.py`
   (`_Hyperlink.address`).
-- Apache POI XSLF (trunk, 2026-11-16): `XSLFSheet.getPlaceholder`,
+- Apache POI XSLF (`apache/poi` `47dcff769bb3`, the copy the spike read): `XSLFSheet.getPlaceholder`,
   `initPlaceholders`, `mapSchemeColor`; `XSLFShape.fetchShapeProperty`,
   `getPlaceholderType`; `XSLFTextParagraph.getDefaultMasterStyle`;
   `XSLFTextRun` (theme fonts); `model/ParagraphPropertyFetcher`,

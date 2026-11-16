@@ -39,10 +39,13 @@ def canon(e, drop=()):
 
 
 def link(rpr):
+    """The run's links (click and mouse-over), or None when it has neither.
+    Revision 3 (review r2-m3): a:hlinkMouseOver counts too."""
     if rpr is None:
         return None
-    h = rpr.find(q('a:hlinkClick'))
-    return None if h is None else (h.get(q('r:id')), h.get('action'))
+    out = tuple((h.get(q('r:id')), h.get('action')) if h is not None else None
+                for h in (rpr.find(q('a:hlinkClick')), rpr.find(q('a:hlinkMouseOver'))))
+    return None if out == (None, None) else out
 
 
 def items_of(p):

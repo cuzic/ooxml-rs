@@ -20,7 +20,7 @@
   [research memo](../research/2026-11-16-word-powerpoint-applicability.md)
 - Phase 0 design: [ADR-0005](../adr/0005-pptx-phase0.md) (Proposed)
 - Phase 1 design: [ADR-0008](../adr/0008-pptx-phase1-deck-reading.md)
-  (Proposed; evidence `spikes/pptx-phase1/`, 633 files)
+  (Accepted, revision 3; evidence `spikes/pptx-phase1/`, 633 files)
 
 ## 1. Evidence base
 
@@ -369,7 +369,7 @@ case has a real or documented synthetic input; manual check in PowerPoint
 
 Implemented in `crates/ooxml-pptx` (milestone `pptx-phase0`).
 
-### Phase 1 — read the whole deck (ADR-0008, Proposed)
+### Phase 1 — read the whole deck (ADR-0008, Accepted)
 
 Value: inspection, extraction, search, QA tools. Risk: medium (inheritance
 semantics). Design: [ADR-0008](../adr/0008-pptx-phase1-deck-reading.md);
