@@ -735,6 +735,8 @@ invents structure.
 - **Recognized shape:**
   - `HeadingPairs` is a `vt:vector` of (`vt:lpstr` label, `vt:i4` count) pairs;
   - `TitlesOfParts` is a `vt:lpstr` vector whose size equals the sum of the counts;
+  - each vector's `size` equals its child count and its `baseType` is `variant` /
+    `lpstr` (PR #55 review m3); titles are plain `xsd:string` text, not ST_Xstring (m2);
   - the first block lists the worksheets that are not `veryHidden`, in workbook order.
 
   This holds in 290/294 corpus files that have both elements.
@@ -744,7 +746,9 @@ invents structure.
   - the "Named Ranges" block, if it exists;
   - the `vt:vector/@size` attributes.
 
-  Labels are never changed or translated, and blocks are never created or removed. If an
+  Labels are never changed or translated, and blocks are never created. A block that the
+  operation empties is removed with its pair, as Excel writes the part (no count-0 pairs;
+  PR #55 review m1, implementation note); a block already empty in the input is left as it is. If an
   operation would need a block that does not exist (e.g. the first chart sheet), **all of**
   `app.xml` is left untouched for that operation, so a partial update never leaves the counts
   inconsistent.
@@ -753,8 +757,8 @@ invents structure.
     (review m1).
 - **Unrecognized, stale or absent** `app.xml` (48 of 342 packages lack the elements or the
   part; 4 are stale) is left untouched (L1).
-- This is a Layer 2 edit of `app.xml` with an allowlist entry for `ep:HeadingPairs`,
-  `ep:TitlesOfParts`, `vt:vector`, `vt:variant`, `vt:lpstr`, `vt:i4`.
+- This is a Layer 2 edit of `app.xml` with an allowlist entry for `ap:HeadingPairs`,
+  `ap:TitlesOfParts`, `vt:vector`, `vt:variant`, `vt:lpstr`, `vt:i4`.
 
 ### 12. Interaction with Phase1 and Phase2 (summary)
 

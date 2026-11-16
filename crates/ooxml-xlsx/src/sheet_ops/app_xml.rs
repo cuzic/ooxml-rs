@@ -11,10 +11,16 @@
 //!   any other block (e.g. "Named Ranges") keeps its titles, except that a
 //!   rename rewrites sheet-prefixed titles (`'Old'!Print_Area`) and a delete
 //!   drops titles prefixed with the deleted sheet.
-//! - Labels are never changed; blocks are never created or removed. If the
-//!   result would need a block that does not exist (a kind with sheets to
-//!   list and no block, where the old list was empty), or if the shape is not
-//!   recognized, app.xml is left untouched for the operation.
+//! - Labels are never changed and blocks are never created. A block that an
+//!   operation empties is removed with its pair, as Excel writes it (no
+//!   count-0 pairs; PR #55 review m1). If the result would need a block that
+//!   does not exist (a kind with sheets to list and no block, where the old
+//!   list was empty), or if the shape is not recognized, app.xml is left
+//!   untouched for the operation.
+//! - Titles are `xsd:string` (plain text, not ST_Xstring): read and written
+//!   as they are (review m2).
+//! - Recognition includes each vector's `size` (equal to its child count)
+//!   and `baseType` (`variant` / `lpstr`) (review m3).
 
 use ooxml_core::{ElementSpec, XmlDocument};
 use ooxml_schema::props;
@@ -43,15 +49,23 @@ fn blocks(doc: &XmlDocument) -> Option<Vec<(String, Vec<String>)>> {
     let p = props::PropertiesView(doc.lens::<props::Properties>().ok()?);
     let hp = p.heading_pairs()?.vt_vector()?;
     let tp = p.titles_of_parts()?.vt_vector()?;
-    // every child of both vectors must be what the shape says
+    // every child of both vectors must be what the shape says, and each
+    // vector's size and baseType must agree with them
     if hp.raw().elements().any(|e| !e.is(props::Variant::QNAME)) || tp.raw().elements().any(|e| !e.is(props::VTLPSTR::QNAME)) {
+        return None;
+    }
+    let base = |v: &ooxml_core::RawNode| v.attr(ooxml_core::QName::new("", "baseType")).map(str::trim).map(str::to_owned);
+    if base(hp.raw()).as_deref() != Some("variant") || base(tp.raw()).as_deref() != Some("lpstr") {
+        return None;
+    }
+    if hp.size().ok().flatten() != Some(hp.raw().elements().count() as u32) || tp.size().ok().flatten() != Some(tp.raw().elements().count() as u32) {
         return None;
     }
     let variants: Vec<_> = hp.variant_iter().collect();
     if !variants.len().is_multiple_of(2) {
         return None;
     }
-    let titles: Vec<String> = tp.vtlpstr_iter().map(|t| crate::escape::decode(&t.0.text()).into_owned()).collect();
+    let titles: Vec<String> = tp.vtlpstr_iter().map(|t| t.0.text().into_owned()).collect();
     let mut out = Vec::new();
     let mut at = 0usize;
     for pair in variants.chunks(2) {
@@ -119,18 +133,25 @@ pub(crate) fn update(doc: &XmlDocument, before: &[Listed], after: &[Listed], edi
     if new_blocks == old {
         return Ok(None);
     }
+    // a block the operation emptied goes, with its pair (review m1)
+    let gone: Vec<usize> = (0..old.len()).filter(|&i| !old[i].1.is_empty() && new_blocks[i].1.is_empty()).collect();
     let mut out = doc.clone();
-    write(&mut out, &new_blocks)?;
+    write(&mut out, &new_blocks, &gone)?;
     Ok(Some(out))
 }
 
-fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)]) -> Result<()> {
+/// Writes `blocks` (one per existing pair); the pairs of `gone` (emptied
+/// blocks) are removed.
+fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)], gone: &[usize]) -> Result<()> {
     let titles: Vec<&String> = blocks.iter().flat_map(|(_, t)| t).collect();
     let mut p = props::PropertiesViewMut(doc.lens_mut::<props::Properties>()?);
     {
         let mut hp = p.heading_pairs_mut().expect("recognized");
         let mut v = hp.vt_vector_mut().expect("recognized");
         for (bi, (_, t)) in blocks.iter().enumerate() {
+            if gone.contains(&bi) {
+                continue;
+            }
             let n = 2 * bi + 1;
             let var = v.0.nth_child_mut::<props::Variant>(n).expect("recognized");
             let mut var = props::VariantViewMut(var);
@@ -139,19 +160,24 @@ fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)]) -> Result<()> 
                 i4.set_text(&t.len().to_string())?;
             }
         }
+        for &bi in gone.iter().rev() {
+            for k in [2 * bi + 1, 2 * bi] {
+                let idx = v.0.node().indexed_elements().filter(|(_, e)| e.is(props::Variant::QNAME)).nth(k).map(|(i, _)| i).expect("recognized");
+                v.0.remove_at(idx);
+            }
+        }
     }
     let mut tp = p.titles_of_parts_mut().expect("recognized");
     let mut v = tp.vt_vector_mut().expect("recognized");
     let old_len = v.as_view().vtlpstr_iter().count();
     for (i, t) in titles.iter().enumerate() {
-        let enc = crate::escape::encode(t);
         if i < old_len {
             let mut l = props::VTLPSTRViewMut(v.0.nth_child_mut::<props::VTLPSTR>(i).expect("counted"));
-            if crate::escape::decode(&l.as_view().0.text()) != t.as_str() {
-                l.set_text(&enc)?;
+            if l.as_view().0.text() != t.as_str() {
+                l.set_text(t)?;
             }
         } else {
-            v.insert_vtlpstr()?.set_text(&enc)?;
+            v.insert_vtlpstr()?.set_text(t)?;
         }
     }
     for i in (titles.len()..old_len).rev() {
@@ -163,7 +189,7 @@ fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)]) -> Result<()> 
     }
     let mut hp = p.heading_pairs_mut().expect("recognized");
     let mut hv = hp.vt_vector_mut().expect("recognized");
-    let pairs = 2 * blocks.len() as u32;
+    let pairs = 2 * (blocks.len() - gone.len()) as u32;
     if hv.as_view().size().ok().flatten() != Some(pairs) {
         hv.set_size(pairs)?;
     }

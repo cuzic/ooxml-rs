@@ -41,14 +41,17 @@ fn expected_worksheets(bytes: &[u8]) -> Vec<String> {
     let doc = XmlDocument::parse(&wb.package().read_part(&part).unwrap()).unwrap();
     let sheets = doc.root().elements().find(|e| e.name().local() == "sheets").unwrap();
     let rels = wb.package().relationships(&part).unwrap();
+    // names as the crate reads them (ST_Xstring decoded), in workbook order
+    let shown: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
     sheets
         .elements()
-        .filter(|s| s.attr(ooxml_core::QName::new("", "state")) != Some("veryHidden"))
-        .filter(|s| {
+        .zip(shown)
+        .filter(|(s, _)| s.attr(ooxml_core::QName::new("", "state")) != Some("veryHidden"))
+        .filter(|(s, _)| {
             let id = s.attrs().iter().find(|a| a.name().local() == "id").map(|a| a.value().to_owned()).unwrap_or_default();
             rels.by_id(&id).is_some_and(|r| r.rel_type.ends_with("/worksheet"))
         })
-        .map(|s| s.attr(ooxml_core::QName::new("", "name")).unwrap_or_default().to_owned())
+        .map(|(_, n)| n)
         .collect()
 }
 
@@ -264,4 +267,78 @@ fn counts_short_of_the_titles_are_not_recognized() {
     let mut wb = Workbook::from_bytes(input.clone()).unwrap();
     wb.add_sheet("C", 2).unwrap();
     assert_eq!(app(&input), app(&wb.to_bytes().unwrap()));
+}
+
+// ---- PR #55 review round 1 (docs/reviews/pr55-round1.md) ----
+
+/// m1: a block an operation empties goes with its pair (no count-0 pair);
+/// unhiding afterwards finds no block and leaves app.xml untouched.
+#[test]
+fn an_emptied_block_is_removed() {
+    let input = with_chart_sheet("", &app_of(&[("Worksheets", &["A"]), ("Charts", &["C"])]));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.set_sheet_state("C", SheetState::VeryHidden).unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert_eq!(app_blocks(&out).unwrap(), vec![("Worksheets".to_owned(), vec!["A".to_owned()])]);
+    assert!(String::from_utf8(app(&out).unwrap()).unwrap().contains(r#"<vt:vector size="2" baseType="variant">"#));
+    wb.set_sheet_state("C", SheetState::Visible).unwrap();
+    assert_eq!(app(&out), app(&wb.to_bytes().unwrap()));
+    // Named Ranges emptied by a delete
+    let base = common::p1::book(&[("A", ""), ("B", "")], "", "");
+    let input = with_app(&base, &app_of(&[("Worksheets", &["A", "B"]), ("Named Ranges", &["B!Print_Area"])]));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.delete_sheet("B").unwrap();
+    assert_eq!(app_blocks(&wb.to_bytes().unwrap()).unwrap(), vec![("Worksheets".to_owned(), vec!["A".to_owned()])]);
+}
+
+/// V4: a count-0 block already in the input is not a kind's block: unhiding
+/// the chart sheet does not fill it.
+#[test]
+fn an_existing_empty_block_is_not_filled() {
+    let input = with_chart_sheet(r#" state="veryHidden""#, &app_of(&[("Worksheets", &["A"]), ("Charts", &[])]));
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    wb.set_sheet_state("C", SheetState::Visible).unwrap();
+    assert_eq!(app(&input), app(&wb.to_bytes().unwrap()));
+}
+
+/// m2 / V10: titles are plain text, not ST_Xstring.
+#[test]
+fn titles_are_plain_text() {
+    let base = common::p1::book(&[("A", ""), ("B", "")], "", "");
+    let input = with_app(&base, &app_of(&[("Worksheets", &["A", "B"])]));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.rename_sheet("A", "x_x0041_y").unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert_eq!(app_blocks(&out).unwrap()[0].1, vec!["x_x0041_y".to_owned(), "B".into()]);
+    // and the next operation still recognizes it
+    let mut wb = Workbook::from_bytes(out).unwrap();
+    wb.add_sheet("C", 2).unwrap();
+    assert_eq!(app_blocks(&wb.to_bytes().unwrap()).unwrap()[0].1, vec!["x_x0041_y".to_owned(), "B".into(), "C".into()]);
+}
+
+/// m3 / V9, V16, V17: size, baseType and the children's types are part of
+/// recognition; anything else is left untouched.
+#[test]
+fn vector_shape_is_part_of_recognition() {
+    let base = common::p1::book(&[("A", ""), ("B", "")], "", "");
+    let good = app_of(&[("Worksheets", &["A", "B"])]);
+    let bad = [
+        good.replace(r#"size="2" baseType="lpstr""#, r#"size="5" baseType="lpstr""#),
+        good.replace(r#"size="2" baseType="variant""#, r#"size="6" baseType="variant""#),
+        good.replace(r#"<vt:vector size="2" baseType="lpstr">"#, r#"<vt:vector baseType="lpstr">"#),
+        good.replace(r#"baseType="lpstr""#, r#"baseType="variant""#),
+        good.replace("<vt:lpstr>B</vt:lpstr>", "<vt:lpwstr>B</vt:lpwstr>"),
+        good.replace("<vt:i4>2</vt:i4>", "<vt:i4>2</vt:i4><vt:i4>2</vt:i4>"),
+    ];
+    for b in bad {
+        let input = with_app(&base, &b);
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        wb.add_sheet("C", 2).unwrap();
+        assert_eq!(app(&input), app(&wb.to_bytes().unwrap()), "{b}");
+    }
+    // the good shape is updated, sizes included
+    let mut wb = Workbook::from_bytes(with_app(&base, &good)).unwrap();
+    wb.add_sheet("C", 2).unwrap();
+    let a = String::from_utf8(app(&wb.to_bytes().unwrap()).unwrap()).unwrap();
+    assert!(a.contains(r#"<vt:vector size="3" baseType="lpstr">"#), "{a}");
 }
