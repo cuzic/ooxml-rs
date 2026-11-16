@@ -23,6 +23,9 @@ const MERGE_CLEARING: &[Allowed] = &[
     sheet("mergeCells/mergeCell", Kind::Create),
     // composed with ADR-0003 §7's allowed diff for each cleared cell
     sheet("sheetData", Kind::Cells),
+    // Phase1's write path grows an understated dimension (ADR-0003 §7's T2
+    // region); found by the corpus sweep (64508.xlsx)
+    sheet("dimension", Kind::EditAttrs(&["ref"])),
     Allowed { part: Part::OtherSheetCells, path: "sheetData", kind: Kind::Cells, only: &[] },
     // ADR-0003 §7: calcPr is created, or gains fullCalcOnLoad; nothing else
     workbook("calcPr", Kind::Create),
@@ -238,7 +241,40 @@ fn a_disallowed_change_inside_an_allowed_path_fails_the_oracle() {
     }
 }
 
-/// Corpus sweep (ignored; `OOXML_XLSX_CORPUS=<dir>` of POI `test-data/
+/// The first cell of the sheet with a value or formula, as a 2×2 range.
+fn used_2x2(ws: &ooxml_xlsx::Worksheet<'_>) -> Option<String> {
+    let c = ws.cells().filter_map(Result::ok).find(|c| c.raw().elements().next().is_some()).and_then(|c| ooxml_xlsx::CellIndex::parse(c.reference()).ok())?;
+    let last = ooxml_xlsx::CellIndex::new(c.row + 1, c.col + 1).ok()?;
+    Some(format!("{c}:{last}"))
+}
+
+/// For `merge_clearing`: the cells whose `c` changed. Inside the range any
+/// change is allowed; outside it, only Phase1's strip of a dependent's
+/// cached value (`stripped`). Returns their A1 refs for the oracle.
+fn cleared_cells(input: &[u8], output: &[u8], range: &str) -> Result<Vec<String>, String> {
+    use common::p1::{cell_spans, sheet_parts, stripped};
+    let r = ooxml_xlsx::CellRange::parse(range).unwrap();
+    let mut out = Vec::new();
+    for (sheet, p) in sheet_parts(input) {
+        let (a, b) = (cell_spans(&part(input, &p)), cell_spans(&part(output, &p)));
+        for (at, span) in &a {
+            if b.get(at) == Some(span) {
+                continue;
+            }
+            let in_range = r.contains(*at);
+            if !in_range && b.get(at).map(String::as_str) != Some(stripped(span).as_str()) {
+                return Err(format!("{sheet}!{at}: changed beyond a cache strip"));
+            }
+            out.push(at.to_string());
+        }
+        if let Some(at) = b.keys().find(|k| !a.contains_key(k)) {
+            return Err(format!("{sheet}!{at}: a cell appeared"));
+        }
+    }
+    Ok(out)
+}
+
+/// Corpus sweep (ignored;/// Corpus sweep (ignored; `OOXML_XLSX_CORPUS=<dir>` of POI `test-data/
 /// spreadsheet` at 47dcff76). On the first worksheet of every readable
 /// package, each call is either refused with every byte unchanged, or its
 /// output reopens and passes the byte-exact oracle for its row.
@@ -249,15 +285,34 @@ fn corpus_sweep() {
     let dir = std::env::var("OOXML_XLSX_CORPUS").expect("OOXML_XLSX_CORPUS");
     let mut files: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).filter(|p| p.extension().is_some_and(|x| x == "xlsx" || x == "xlsm")).collect();
     files.sort();
-    type Op = fn(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<()>;
-    let ops: [(&str, &str, Op); 4] = [
-        ("merge", "`merge`", |ws| ws.merge("XFA1048570:XFB1048571")),
-        ("set_autofilter", "`set_autofilter`", |ws| ws.set_autofilter("XFA1048570:XFB1048571")),
-        ("protect_sheet", "`protect_sheet`/`unprotect_sheet`", |ws| ws.protect_sheet(&Protection::new().password("p").with_salt([3; 16]).with_spin_count(10))),
-        ("unprotect_sheet", "", |ws| ws.unprotect_sheet().map(drop)),
+    // `None`: the call does not apply to this sheet
+    type Op = fn(&mut ooxml_xlsx::Worksheet<'_>) -> Option<ooxml_xlsx::Result<String>>;
+    let ops: [(&str, &str, Op); 8] = [
+        ("merge", "`merge`", |ws| Some(ws.merge("XFA1048570:XFB1048571").map(|()| String::new()))),
+        ("set_autofilter", "`set_autofilter`", |ws| Some(ws.set_autofilter("XFA1048570:XFB1048571").map(|()| String::new()))),
+        ("protect_sheet", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&Protection::new().password("p").with_salt([3; 16]).with_spin_count(10)).map(|()| String::new()))),
+        ("unprotect_sheet", "", |ws| Some(ws.unprotect_sheet().map(|_| String::new()))),
+        // round 1 m6: existing merges and autofilters, and used cells
+        ("unmerge", "`unmerge`", |ws| {
+            let m = ws.merged_ranges().first().copied()?;
+            Some(ws.unmerge(&m.to_string()).map(|()| String::new()))
+        }),
+        ("remove_autofilter", "`remove_autofilter`", |ws| match ws.remove_autofilter() {
+            Ok(false) => None,
+            r => Some(r.map(|_| String::new())),
+        }),
+        ("merge(used)", "`merge`", |ws| {
+            let r = used_2x2(ws)?;
+            Some(ws.merge(&r).map(|()| String::new()))
+        }),
+        ("merge_clearing(used)", "`merge_clearing`", |ws| {
+            let r = used_2x2(ws)?;
+            Some(ws.merge_clearing(&r).map(|()| r))
+        }),
     ];
     let (mut ok, mut opened) = (0, 0);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
+    let mut applied: BTreeMap<&str, usize> = BTreeMap::new();
     for f in &files {
         let input = std::fs::read(f).unwrap();
         let Ok(mut probe) = Workbook::from_bytes(input.clone()) else { continue };
@@ -266,13 +321,15 @@ fn corpus_sweep() {
         opened += 1;
         for (name, row, op) in ops {
             let mut wb = Workbook::from_bytes(input.clone()).unwrap();
-            let r = op(&mut wb.worksheet().unwrap());
+            let Some(r) = op(&mut wb.worksheet().unwrap()) else { continue };
+            *applied.entry(name).or_default() += 1;
             match r {
-                Ok(()) => {
+                Ok(range) => {
                     let out = wb.to_bytes().unwrap();
                     Workbook::from_bytes(out.clone()).unwrap_or_else(|e| panic!("{f:?} {name}: reopen: {e}"));
                     let allowed = if row.is_empty() { UNPROTECT_SHEET } else { rows(row) };
-                    check(&input, &out, &sheet_part, allowed, &[]).unwrap_or_else(|e| panic!("{f:?} {name}: {e}"));
+                    let cells = if range.is_empty() { Vec::new() } else { cleared_cells(&input, &out, &range).unwrap_or_else(|e| panic!("{f:?} {name}: {e}")) };
+                    check(&input, &out, &sheet_part, allowed, &cells).unwrap_or_else(|e| panic!("{f:?} {name}: {e}"));
                     ok += 1;
                 }
                 Err(e) => {
@@ -284,6 +341,7 @@ fn corpus_sweep() {
             }
         }
     }
+    println!("corpus sweep: applied {applied:?}");
     println!("corpus sweep: {opened} packages, {ok} ok, refused {refused:?}");
     assert!(ok > 0);
 }

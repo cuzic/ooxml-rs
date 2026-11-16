@@ -54,7 +54,7 @@ fn merge_clearing_checks_every_cell_first() {
         r#"<calcPr calcId="191029" iterate="1"/>"#,
     );
     let (mut wb, r) = try_on(&input, 0, |ws| ws.merge_clearing("A1:C1"));
-    assert_matches!(r, Err(Error::IterativeCalculation { .. }));
+    assert_matches!(r, Err(Error::IterativeCalculation));
     wb.worksheet().unwrap().merge_clearing("A1:B1").unwrap(); // not poisoned
 }
 

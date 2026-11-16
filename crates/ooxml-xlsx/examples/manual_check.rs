@@ -285,6 +285,13 @@ const P4_CASES: &[P1Case] = &[
         look_for: "Typing into a cell is refused (sheet protected). Review > Unprotect Sheet asks for a password; `pwd` unprotects, `x` does not. No repair dialog.",
         edit: |wb| wb.worksheet()?.protect_sheet(&ooxml_xlsx::Protection::new().password("pwd")),
     },
+    P1Case {
+        out: "28-autofilter-sheet-true.xlsx",
+        input: "fixtures/xlsx/synthetic/p4_sheet_true.xlsx",
+        edits: "TRUE!A1:B2 autofilter; the new _xlnm._FilterDatabase is written `TRUE!$A$1:$B$2`, unquoted (PR #58 round 1 m7)",
+        look_for: "No repair dialog; filter arrows on A1 and B1. Formulas > Name Manager (show hidden names if possible) or a re-save: does Excel keep `TRUE!` or write `'TRUE'!`? Note which.",
+        edit: |wb| wb.worksheet()?.set_autofilter("A1:B2"),
+    },
 ];
 
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
