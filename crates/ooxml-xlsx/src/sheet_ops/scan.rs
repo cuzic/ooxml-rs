@@ -125,12 +125,16 @@ pub(crate) fn scan_part(part: &str, bytes: &[u8], kind: PartKind, name: &str) ->
                 flush(&mut buf, &stack)?;
                 let local = e.local_name().into_inner().to_owned();
                 stack.push((ns, local));
+                // an External `#Sheet!…` target names this workbook, but only
+                // Internal targets are retargeted (review R2-m1)
+                let external = kind == PartKind::Relationships
+                    && e.attributes().flatten().any(|a| a.key.local_name().into_inner() == "TargetMode" && a.normalized_value(XmlVersion::Implicit1_0).is_ok_and(|v| v.trim() == "External"));
                 for a in e.attributes().with_checks(true) {
                     let Ok(a) = a else { return scan_text(part, &as_text(), name) };
                     let Ok(v) = a.normalized_value(XmlVersion::Implicit1_0) else { return scan_text(part, &as_text(), name) };
                     if mentions_prefix(&decode(&v), name) {
                         let an = a.key.local_name().into_inner().to_owned();
-                        let attr_ok = a.key.prefix().is_none() && allowed(kind, &stack, Some(&an));
+                        let attr_ok = a.key.prefix().is_none() && allowed(kind, &stack, Some(&an)) && !(external && v.trim_start().starts_with('#'));
                         if !attr_ok {
                             return refuse(describe(&stack, Some(&an)));
                         }

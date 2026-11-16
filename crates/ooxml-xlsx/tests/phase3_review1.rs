@@ -368,6 +368,56 @@ fn rows() -> Vec<Row> {
             types: vec![("xl/drawings/drawing1.xml", DRAWING_CT)],
             rewritten: true,
         },
+        // round 2 (R2-m3): the remaining rows of ADR §6's table, all refused
+        Row { label: "chart c15:sqref", edits: vec![("xl/charts/chart1.xml", chart(r#"<c:extLst><c:ext uri="{X}"><c15:filteredLineSeries><c15:sqref>'Sheet 1'!$A$1</c15:sqref></c15:filteredLineSeries></c:ext></c:extLst>"#))], types: vec![("xl/charts/chart1.xml", CHART_CT)], rewritten: false },
+        Row {
+            label: "chartEx cx:f",
+            edits: vec![("xl/charts/chartEx1.xml", r#"<cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:f>'Sheet 1'!$A$1:$A$3</cx:f></cx:numDim></cx:data></cx:chartData></cx:chartSpace>"#.into())],
+            types: vec![("xl/charts/chartEx1.xml", "application/vnd.ms-office.chartex+xml")],
+            rewritten: false,
+        },
+        Row {
+            label: "2007 cfvo/@val",
+            edits: vec![(SHEET2, w(r#"<sheetData/><conditionalFormatting sqref="A1"><cfRule type="colorScale" priority="1"><colorScale><cfvo type="formula" val="'Sheet 1'!$A$1"/><cfvo type="max"/><color rgb="FF000000"/><color rgb="FFFFFFFF"/></colorScale></cfRule></conditionalFormatting>"#))],
+            types: vec![],
+            rewritten: false,
+        },
+        Row {
+            label: "x14 sparkline xm:f",
+            edits: vec![(SHEET2, w(r#"<sheetData/><extLst><ext uri="{05C60535-1F16-4fd2-B633-F4F36F0B64E0}"><x14:sparklineGroups><x14:sparklineGroup><x14:sparklines><x14:sparkline><xm:f>'Sheet 1'!A1:E1</xm:f><xm:sqref>F1</xm:sqref></x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext></extLst>"#))],
+            types: vec![],
+            rewritten: false,
+        },
+        Row {
+            label: "x14 CF xm:f",
+            edits: vec![(SHEET2, w(r#"<sheetData/><extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}"><x14:conditionalFormattings><x14:conditionalFormatting><x14:cfRule type="expression" priority="1" id="{0}"><xm:f>'Sheet 1'!A1&gt;0</xm:f></x14:cfRule><xm:sqref>A1</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>"#))],
+            types: vec![],
+            rewritten: false,
+        },
+        Row {
+            label: "table totalsRowFormula",
+            edits: vec![("xl/tables/table9.xml", format!(r#"<table xmlns="{WS_NS}" id="9" name="T9" displayName="T9" ref="A1:A3"><tableColumns count="1"><tableColumn id="1" name="x" totalsRowFunction="custom"><totalsRowFormula>SUM('Sheet 1'!A1)</totalsRowFormula></tableColumn></tableColumns></table>"#))],
+            types: vec![("xl/tables/table9.xml", TABLE_CT)],
+            rewritten: false,
+        },
+        Row {
+            label: "controlPr/@linkedCell",
+            edits: vec![(SHEET2, w(r#"<sheetData/><controls><control shapeId="1025" r:id="rId9" name="c"><controlPr linkedCell="'Sheet 1'!$A$1"/></control></controls>"#))],
+            types: vec![],
+            rewritten: false,
+        },
+        Row {
+            label: "cdr:sp/@textlink",
+            edits: vec![("xl/drawings/drawing9.xml", r#"<c:userShapes xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:cdr="http://schemas.openxmlformats.org/drawingml/2006/chartDrawing"><cdr:relSizeAnchor><cdr:sp textlink="'Sheet 1'!$A$1"/></cdr:relSizeAnchor></c:userShapes>"#.into())],
+            types: vec![("xl/drawings/drawing9.xml", "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml")],
+            rewritten: false,
+        },
+        Row {
+            label: "workbook extLst",
+            edits: vec![("xl/workbook.xml", String::new())],
+            types: vec![],
+            rewritten: false,
+        },
     ]
 }
 
@@ -379,16 +429,33 @@ fn names_book() -> Vec<u8> {
     )
 }
 
+/// The fixture for one row; an empty `xl/workbook.xml` edit means "the
+/// base workbook with the mention in an `extLst`" (review R2, X13).
+fn row_input(row: &Row) -> Vec<u8> {
+    let base = names_book();
+    let mut edits: Vec<(&str, Vec<u8>)> = row
+        .edits
+        .iter()
+        .map(|(p, b)| {
+            let b = if *p == "xl/workbook.xml" && b.is_empty() {
+                text(&base, p).replace("</workbook>", r#"<extLst><ext uri="{X}"><y>'Sheet 1'!A1</y></ext></extLst></workbook>"#)
+            } else {
+                b.clone()
+            };
+            (*p, b.into_bytes())
+        })
+        .collect();
+    let ct: String = row.types.iter().map(|(p, t)| override_(p, t)).collect();
+    if !ct.is_empty() {
+        edits.push(ct_add(&base, &ct));
+    }
+    rebuild(&base, &edits)
+}
+
 #[test]
 fn every_location_is_rewritten_or_refused() {
     for row in rows() {
-        let base = names_book();
-        let mut edits: Vec<(&str, Vec<u8>)> = row.edits.iter().map(|(p, b)| (*p, b.clone().into_bytes())).collect();
-        let ct: String = row.types.iter().map(|(p, t)| override_(p, t)).collect();
-        if !ct.is_empty() {
-            edits.push(ct_add(&base, &ct));
-        }
-        let input = rebuild(&base, &edits);
+        let input = row_input(&row);
         let mut wb = Workbook::from_bytes(input.clone()).unwrap();
         let r = wb.rename_sheet("Sheet 1", "New 1");
         let vi = residual::values(&input);
@@ -413,13 +480,7 @@ fn every_location_is_rewritten_or_refused() {
 #[test]
 fn every_location_after_a_delete() {
     for row in rows() {
-        let base = names_book();
-        let mut edits: Vec<(&str, Vec<u8>)> = row.edits.iter().map(|(p, b)| (*p, b.clone().into_bytes())).collect();
-        let ct: String = row.types.iter().map(|(p, t)| override_(p, t)).collect();
-        if !ct.is_empty() {
-            edits.push(ct_add(&base, &ct));
-        }
-        let input = rebuild(&base, &edits);
+        let input = row_input(&row);
         let mut wb = Workbook::from_bytes(input.clone()).unwrap();
         match wb.delete_sheet("Sheet 1") {
             Ok(_) => {
@@ -602,4 +663,101 @@ fn unsupported_sheet_parts_refuse_delete() {
         ct_add(&base, &override_("xl/pivotTables/pivotTable1.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml")),
     ]);
     assert_matches!(refuses(&input, |wb| wb.delete_sheet("Data")), Error::SheetHasUnsupportedParts { .. });
+}
+
+// ---- round 2 (docs/reviews/pr53-round2.md) ----
+
+/// R2-B1: raw names are matched after XML and ST_Xstring decoding.
+#[test]
+fn raw_names_with_entities() {
+    for (sheet, attr) in [("R&D", "R&amp;D"), ("It's", "It&apos;s"), ("Data", "D&#97;ta"), ("a<b\"c", "a&lt;b&quot;c")] {
+        let base = common::p1::book(&[("A", ""), (&sheet.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;"), "")], "", "");
+        let input = with_pivot(&base, &pivot(&format!(r#"<worksheetSource ref="A1:B3" sheet="{attr}"/>"#)));
+        let mut wb = Workbook::from_bytes(input).unwrap();
+        assert_eq!(wb.sheet_names().nth(1), Some(sheet));
+        let rw = wb.rename_sheet(sheet, "New").unwrap();
+        assert!(rw.iter().any(|r| r.location == "worksheetSource sheet" && r.before == sheet), "{sheet}: {rw:?}");
+        assert!(text(&wb.to_bytes().unwrap(), "xl/pivotCache/pivotCacheDefinition1.xml").contains(r#"sheet="New""#), "{sheet}");
+        // consolidation and dataRef refuse
+        let cons = r#"<consolidation><rangeSets count="1"><rangeSet ref="A1:B3" sheet="ATTR"/></rangeSets></consolidation>"#.replace("ATTR", attr);
+        let input = with_pivot(&base, &pivot(&cons).replace(r#"type="worksheet""#, r#"type="consolidation""#));
+        assert_matches!(refuses(&input, |wb| wb.rename_sheet(sheet, "New")), Error::UnrewritableReference { .. }, "{sheet}");
+        let dr = format!(r#"<sheetData/><dataConsolidate><dataRefs count="1"><dataRef ref="A1:B3" sheet="{attr}"/></dataRefs></dataConsolidate>"#);
+        let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", ws(&dr))]);
+        assert_matches!(refuses(&input, |wb| wb.rename_sheet(sheet, "New")), Error::UnrewritableReference { .. }, "{sheet}");
+    }
+}
+
+/// R2-B1: this crate's own output round-trips: rename to `P&L` (and a
+/// name with `<`, `"` and LF), then rename again.
+#[test]
+fn raw_names_round_trip() {
+    for mid in ["P&L", "a<b\"c", "x\ny"] {
+        let input = with_pivot(&two_sheets(), &pivot(r#"<worksheetSource ref="A1:B3" sheet="Data"/>"#));
+        let mut wb = Workbook::from_bytes(input).unwrap();
+        wb.rename_sheet("Data", mid).unwrap();
+        let mut wb = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+        assert_eq!(wb.sheet_names().nth(1), Some(mid));
+        let rw = wb.rename_sheet(mid, "Back").unwrap();
+        assert!(rw.iter().any(|r| r.location == "worksheetSource sheet"), "{mid:?}");
+        assert!(text(&wb.to_bytes().unwrap(), "xl/pivotCache/pivotCacheDefinition1.xml").contains(r#"sheet="Back""#), "{mid:?}");
+    }
+}
+
+/// R2-m1: an External relationship with a `#Sheet!` target is not
+/// retargeted, so it refuses.
+#[test]
+fn external_fragment_targets_refuse() {
+    let rels = r##"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#Data!A1" TargetMode="External"/></Relationships>"##;
+    let input = rebuild(&two_sheets(), &[("xl/worksheets/_rels/sheet1.xml.rels", rels.as_bytes().to_vec())]);
+    assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
+    // another file's sheet is not ours
+    let other = rels.replace("#Data!A1", "other.xlsx#Data!A1");
+    let input = rebuild(&two_sheets(), &[("xl/worksheets/_rels/sheet1.xml.rels", other.into_bytes())]);
+    Workbook::from_bytes(input).unwrap().rename_sheet("Data", "New").unwrap();
+}
+
+/// R2-m2: a pivot source through a chain of names.
+#[test]
+fn pivot_source_through_a_name_chain_refuses_delete() {
+    let dn = r#"<definedName name="Src">Data!$A$1:$B$3</definedName><definedName name="Src2">Src</definedName><definedName name="Loop1">Loop2</definedName><definedName name="Loop2">Loop1</definedName>"#;
+    let base = common::p1::book(&[("A", ""), ("Data", "")], dn, "");
+    let input = with_pivot(&base, &pivot(r#"<worksheetSource name="Src2"/>"#));
+    assert_matches!(refuses(&input, |wb| wb.delete_sheet("Data")), Error::SheetIsPivotSource(_));
+    let input = with_pivot(&base, &pivot(r#"<worksheetSource name="Loop1"/>"#));
+    Workbook::from_bytes(input).unwrap().delete_sheet("Data").unwrap();
+}
+
+/// X9: strict delete counts an Internal `#Sheet!` relationship target.
+#[test]
+fn strict_counts_internal_fragment_targets() {
+    let rels = r##"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#Data!A1"/></Relationships>"##;
+    let input = rebuild(&two_sheets(), &[("xl/worksheets/_rels/sheet1.xml.rels", rels.as_bytes().to_vec())]);
+    assert_matches!(refuses(&input, |wb| wb.delete_sheet_strict("Data")), Error::SheetInUse { count: 1, .. });
+}
+
+/// R2-m4: a name holding `_xHHHH_` literally is protected on write and
+/// reads back as given.
+#[test]
+fn xstring_names_round_trip() {
+    let mut wb = Workbook::from_bytes(two_sheets()).unwrap();
+    wb.rename_sheet("A", "x_x0041_y").unwrap();
+    assert_eq!(wb.sheet_names().next(), Some("x_x0041_y"));
+    assert!(text(&wb.to_bytes().unwrap(), "xl/workbook.xml").contains(r#"name="x_x005F_x0041_y""#));
+    let mut wb = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    assert_eq!(wb.sheet_names().next(), Some("x_x0041_y"));
+    wb.rename_sheet("x_x0041_y", "Z").unwrap();
+}
+
+/// Review R2 nits: an external pivot source (`r:id`) does not block a
+/// delete; another workbook's names in an external link do not block a
+/// rename.
+#[test]
+fn other_workbooks_do_not_refuse() {
+    let input = with_pivot(&two_sheets(), &pivot(r#"<worksheetSource ref="A1:B3" sheet="Data" r:id="rId1"/>"#));
+    Workbook::from_bytes(input).unwrap().delete_sheet("Data").unwrap();
+    let base = two_sheets();
+    let el = format!(r#"<externalLink xmlns="{WS_NS}"><externalBook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"><definedNames><definedName name="X" refersTo="=Data!$A$1"/></definedNames></externalBook></externalLink>"#);
+    let input = rebuild(&base, &[("xl/externalLinks/externalLink1.xml", el.into_bytes()), ct_add(&base, &override_("xl/externalLinks/externalLink1.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"))]);
+    Workbook::from_bytes(input).unwrap().rename_sheet("Data", "New").unwrap();
 }

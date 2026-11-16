@@ -562,7 +562,8 @@ fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships) -
                 return Err(Error::Malformed(format!("{workbook_part}: <sheet> without name or r:id")));
             };
             let visible = matches!(s.state(), EnumValue::Known(SheetStateValues::Visible));
-            raw.push((name.to_owned(), id.to_owned(), visible));
+            // ST_Xstring: the name as Excel shows it (PR #53 review R2-m4)
+            raw.push((crate::escape::decode(name).into_owned(), id.to_owned(), visible));
         }
         if let Some(dn) = wb.defined_names() {
             for d in dn.defined_name_iter() {

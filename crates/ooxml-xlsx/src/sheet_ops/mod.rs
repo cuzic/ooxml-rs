@@ -988,7 +988,10 @@ impl Workbook {
             .collect();
         for p in parts {
             let bytes = self.pkg.read_part(&p)?;
-            if !fold(&String::from_utf8_lossy(&bytes)).contains(&of) {
+            // pre-filter on the element names, which XML cannot escape: the
+            // name itself may be written with entities (`R&amp;D`, `D&#97;ta`)
+            // or `_xHHHH_` (PR #53 review R2-B1)
+            if !["worksheetSource", "rangeSet", "dataRef"].iter().any(|e| bytes.windows(e.len()).any(|w| w == e.as_bytes())) {
                 continue;
             }
             let pivot = self.pkg.content_type(&p).is_some_and(|ct| ct.ends_with("pivotCacheDefinition+xml"));
@@ -1011,21 +1014,22 @@ impl Workbook {
                     continue;
                 }
                 let Some(sheet) = n.attr(ooxml_core::QName::new("", "sheet")) else { continue };
-                if fold(sheet) != of || n.attrs().iter().any(|a| a.name().local() == "id" && a.name().ns() == R_NS) {
+                if fold(&crate::escape::decode(sheet)) != of || n.attrs().iter().any(|a| a.name().local() == "id" && a.name().ns() == R_NS) {
                     continue;
                 }
                 let at_source = local == "worksheetSource" && pivot && path.len() == 2;
                 if !at_source {
                     return Err(Error::UnrewritableReference { part: p, location: format!("<{local}> attribute sheet") });
                 }
-                rewrite = Some(sheet.to_owned());
+                rewrite = Some(crate::escape::decode(sheet).into_owned());
             }
             if let Some(before) = rewrite {
                 let doc = change.doc(&mut self.pkg, &p)?;
                 let def = doc.lens_mut::<sml::PivotCacheDefinition>()?;
                 let src = def.into_child_by::<sml::CacheSource>(|_| true).ok_or_else(|| malformed("cacheSource"))?;
                 let ws = src.into_child_by::<sml::WorksheetSource>(|_| true).ok_or_else(|| malformed("worksheetSource"))?;
-                sml::WorksheetSourceViewMut(ws).set_sheet(new)?;
+                // ST_Xstring, as `sheet/@name` (review R2 nit)
+                sml::WorksheetSourceViewMut(ws).set_sheet(&crate::escape::encode(new))?;
                 change.rewritten.push(RewrittenLocation { part: p, location: "worksheetSource sheet".into(), before, after: new.to_owned() });
             }
         }
@@ -1061,6 +1065,8 @@ impl Workbook {
                 || essence.contains("comments")
                 || essence.contains("threadedcomments")
                 || essence.ends_with("person+xml")
+                // another workbook's names and sheets (review R2 nit)
+                || essence.ends_with("externallink+xml")
             {
                 PartKind::NonReference
             } else {
@@ -1312,7 +1318,24 @@ impl Workbook {
         }
         let sf = fold(sheet_name);
         let wb_names = self.pkg.parsed_part(&self.workbook_part).map(defined_names).unwrap_or_default();
-        let names_on_sheet: Vec<String> = wb_names.iter().filter(|(_, _, _, t)| names::mentions_prefix(t, sheet_name)).map(|(_, n, _, _)| fold(n)).collect();
+        // names that refer to the sheet, directly or through other names
+        // (`Src2 = Src`, `Src = Data!A1`; review R2-m2). The set only grows,
+        // so a cycle of names ends the loop.
+        let mut names_on_sheet: Vec<String> = wb_names.iter().filter(|(_, _, _, t)| names::mentions_prefix(t, sheet_name)).map(|(_, n, _, _)| fold(n)).collect();
+        loop {
+            let more: Vec<String> = wb_names
+                .iter()
+                .filter(|(_, n, _, _)| !names_on_sheet.contains(&fold(n)))
+                .filter(|(_, _, _, t)| {
+                    lex(t).is_ok_and(|toks| toks.iter().any(|k| matches!(&k.kind, TokKind::Name { name, .. } if names_on_sheet.contains(&fold(name)))))
+                })
+                .map(|(_, n, _, _)| fold(n))
+                .collect();
+            if more.is_empty() {
+                break;
+            }
+            names_on_sheet.extend(more);
+        }
         let parts: Vec<String> = self.pkg.part_names().filter(|p| !set.iter().any(|x| x == p)).map(str::to_owned).collect();
         for p in parts {
             let ct = self.pkg.content_type(&p).unwrap_or_default().to_ascii_lowercase();
@@ -1348,8 +1371,8 @@ impl Workbook {
                             return Err(Error::TableInUse(name.clone()));
                         }
                     }
-                    "worksheetSource" => {
-                        let s = attr("sheet").map(fold);
+                    "worksheetSource" if !n.attrs().iter().any(|a| a.name().local() == "id" && a.name().ns() == R_NS) => {
+                        let s = attr("sheet").map(|v| fold(&crate::escape::decode(v)));
                         let nm = attr("name").map(fold);
                         let by_table = nm.as_ref().is_some_and(|nm| tables.iter().any(|(t, _)| fold(t) == *nm));
                         let by_name = nm.as_ref().is_some_and(|nm| names_on_sheet.contains(nm));
@@ -1357,7 +1380,7 @@ impl Workbook {
                             return Err(Error::SheetIsPivotSource(sheet_name.to_owned()));
                         }
                     }
-                    "rangeSet" | "dataRef" if attr("sheet").map(fold).as_deref() == Some(sf.as_str()) => {
+                    "rangeSet" | "dataRef" if attr("sheet").map(|v| fold(&crate::escape::decode(v))).as_deref() == Some(sf.as_str()) => {
                         return Err(Error::UnrewritableReference { part: p.clone(), location: format!("<{}> attribute sheet", n.name().local()) });
                     }
                     _ => {}
