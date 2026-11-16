@@ -5,6 +5,12 @@
   (b) python-pptx(output) == ooxml-pptx(output)        -- read agreement
   (c) python-pptx(input)  == ooxml-pptx(input)         -- read agreement
 
+Find/replace cases (ADR-0008 §7 O5, review #48 M1) carry deck-wide
+`replace_all` calls: `edit` finds every match itself on python-pptx's
+paragraphs, checks that ooxml-pptx's accepted matches are exactly its own
+matches minus the refused ones (refusals are tested in Rust), and applies
+the ADR-0008 §4 rules 2–5 to the lxml tree independently; then (a)–(c).
+
 `edit` (review R2-3) does not mirror the Rust oracle's model arithmetic:
 it opens the *input* with python-pptx and performs each edit on
 python-pptx's own lxml tree, following the edit rules of ADR-0005 §3
@@ -176,11 +182,151 @@ def edit(body, op, a):
         raise ValueError(op)
 
 
-def expected(path, edits, site):
+# ---------------------------------------------------------------------------
+# Find/replace (ADR-0008 §4) on lxml elements
+
+CONTENT = (A + 'r', A + 'br', A + 'fld')
+
+
+def item_text(el):
+    if el.tag == A + 'br':
+        return '\v'
+    t = el.find(A + 't')
+    return (t.text or '') if t is not None else ''
+
+
+def set_run_text(r, text):
+    t = r.find(A + 't')
+    if t is None:
+        t = make(r, 't')
+        r.append(t)
+    t.text = text
+
+
+def replace_one(p, s, e, segments, touched):
+    """Rules 2–5 for one accepted match [s, e) (character offsets in the
+    paragraph's current text)."""
+    items = [c for c in p if c.tag in CONTENT]
+    spans, off = [], 0
+    for it in items:
+        n = len(item_text(it))
+        spans.append((off, off + n))
+        off += n
+    cov = [i for i, (a, b) in enumerate(spans) if a < e and b > s]
+    first, last = cov[0], cov[-1]
+    start = items[first]
+    assert start.tag == A + 'r', 'an accepted match starts in a run'
+    tail = item_text(items[last])[e - spans[last][0]:]
+    suffix = tail if first == last else ''
+    prefix = item_text(start)[:s - spans[first][0]]
+    if len(segments) == 1:
+        set_run_text(start, prefix + segments[0] + suffix)
+    else:
+        set_run_text(start, prefix + segments[0])
+    touched.add(start)
+    if first != last:
+        for i in cov[1:-1]:
+            p.remove(items[i])
+        if tail == '':
+            p.remove(items[last])
+        else:
+            set_run_text(items[last], tail)
+            touched.add(items[last])
+    anchor = start
+    for k, seg in enumerate(segments[1:], 1):
+        br = make(p, 'br')
+        anchor.addnext(br)
+        anchor = br
+        text = seg + (suffix if k == len(segments) - 1 else '')
+        if text:
+            r = new_run(p, text, start.find(A + 'rPr'))
+            anchor.addnext(r)
+            anchor = r
+
+
+def finish_paragraph(p, touched):
+    """Rule 4: touched runs left empty are removed unless no run remains."""
+    runs = [c for c in p if c.tag == A + 'r']
+    empty = [r for r in runs if r in touched and item_text(r) == '']
+    if len(empty) < len(runs):
+        drop = empty
+    else:
+        drop = empty[1:]
+    for r in drop:
+        p.remove(r)
+
+
+def paragraphs_of(prs, site):
+    """(slide index, shape id, cell, paragraph index, a:p) for every
+    paragraph python-pptx sees, in the order of readback.dump_prs."""
+    _, qn, GroupShape, _ = readback.import_pptx(site)
+    out = []
+
+    def bodies(shapes):
+        for sh in shapes:
+            if isinstance(sh, GroupShape):
+                yield from bodies(sh.shapes)
+            elif getattr(sh, 'has_table', False) and sh.has_table:
+                for ri, row in enumerate(sh.table.rows):
+                    for ci, cell in enumerate(row.cells):
+                        yield sh.shape_id, [ri, ci], cell._tc.find(qn('a:txBody'))
+            elif sh._element.tag == qn('p:sp'):
+                yield sh.shape_id, None, sh._element.find(qn('p:txBody'))
+
+    for si, (_, _, part) in enumerate(readback.slide_parts(prs)):
+        for sid, cell, body in bodies(part.slide.shapes):
+            if body is None:
+                continue
+            for k, p in enumerate(kids(body, 'p')):
+                out.append((si, sid, cell, k, p))
+    return out
+
+
+def apply_replace(prs, r, site):
+    """Returns a list of mismatches between ooxml-pptx's accepted matches
+    and python's (own matches minus refused); applies the accepted ones."""
+    key = lambda d: (d['slide'], d['shape_id'], tuple(d['cell']) if d['cell'] else None,  # noqa: E731
+                     d['paragraph'], d['start'], d['end'])
+    refused = {key(d) for d in r['refused']}
+    rust = {key(d) for d in r['replaced']}
+    pattern, segments = r['pattern'], r['replacement'].split('\v')
+    ours = set()
+    for si, sid, cell, k, p in paragraphs_of(prs, site):
+        text = ''.join(item_text(c) for c in p if c.tag in CONTENT)
+        found, i = [], 0
+        while True:
+            j = text.find(pattern, i)
+            if j < 0:
+                break
+            found.append((j, j + len(pattern)))
+            i = j + len(pattern)
+        b = lambda n: len(text[:n].encode('utf-8'))  # noqa: E731
+        accepted = []
+        for s, e in found:
+            kk = (si, sid, tuple(cell) if cell else None, k, b(s), b(e))
+            if kk not in refused:
+                accepted.append((s, e))
+                ours.add(kk)
+        touched = set()
+        for s, e in reversed(accepted):
+            replace_one(p, s, e, segments, touched)
+        if accepted:
+            finish_paragraph(p, touched)
+    problems = []
+    if ours != rust:
+        problems.append(f'accepted matches differ: only python {sorted(ours - rust)[:3]}, only ooxml {sorted(rust - ours)[:3]}')
+    return problems
+
+
+def expected(path, edits, site, replaces=(), problems=None):
     Presentation = readback.import_pptx(site)[0]
     prs = Presentation(path)
     for e in edits:
         edit(find_body(prs, site, e), e['op'], e['args'])
+    for r in replaces:
+        found = apply_replace(prs, r, site)
+        if problems is not None:
+            problems.extend(found)
     return readback.dump_prs(prs, site)
 
 
@@ -221,7 +367,11 @@ def main():
         fixture = os.path.join(fixtures, c['fixture'])
         src = norm(readback.dump(fixture, site))
         out = norm(readback.dump(os.path.join(outdir, c['output']), site))
-        want = norm(expected(fixture, c['edits'], site))
+        problems = []
+        want = norm(expected(fixture, c['edits'], site, c.get('replace', []), problems))
+        for pr in problems:
+            failures += 1
+            print(f'FAIL {c["name"]}: {pr}')
         rust_in = json.load(open(os.path.join(outdir, c['name'] + '.input.ooxml.json'), encoding='utf-8'))
         rust_out = json.load(open(os.path.join(outdir, c['name'] + '.ooxml.json'), encoding='utf-8'))
         edits += len(c['edits'])
@@ -231,7 +381,8 @@ def main():
             if d:
                 failures += 1
                 print(f'FAIL {c["name"]}: {label}: {d}')
-    print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {failures} failures')
+    replaces = sum(len(r['replaced']) for c in cases for r in c.get('replace', []))
+    print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {replaces} replaced matches, {failures} failures')
     sys.exit(1 if failures else 0)
 
 
