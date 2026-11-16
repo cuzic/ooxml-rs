@@ -1,6 +1,6 @@
 # ADR-0002: Schema-driven code generation for the typed lens
 
-- Status: **Proposed** (revision 3, after `0002-opus-review-round2.md`)
+- Status: **Accepted** (revision 4; round-3 review `0002-opus-review-round3.md` found no Blocker/Major and approved acceptance after its Minor fixes, all applied)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md)
 
@@ -31,6 +31,14 @@
   `insert_by` sees the index within the slot (R2-m3); `mergeCells` and
   the read-only parse scope are added to Phase0 (R2-m4); plus
   R2-m5–m8. The spike was updated to the revision-3 rules.
+- **Revision 4** (after `0002-opus-review-round3.md`, Minor only):
+  repetition lifts limits by multiplication and the choice rules cover
+  alternatives that lower to one slot (R3-m1); top-level repeating
+  multi-slot sequences are unsupported, recounted (R3-m2); `set_text`
+  primitive with its dirty and `xml:space` duties (R3-m3);
+  `MissingReference` applies when any sibling lacks `r`, for reads too
+  (R3-m4); prefix-rule wording and an ADR-0001 note on `RawNode` names
+  (R3-m5); `set_type` override (R3-m6).
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
@@ -140,6 +148,11 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
      files inside `mc:AlternateContent`, not directly (§4.3).
    - `set_content { on, slots }` — replace a content model whose SDK
      lowering disagrees with the ECMA order (§4.1).
+   - `set_type { on, attribute, type }` — e.g. swap an SDK `Int32Value`
+     for the core's Transitional union type (`ST_Percentage`), so that a
+     valid `sx="50%"` reads as a value instead of an `AttrError`. Needed
+     before DrawingML/PresentationML/charts enter the allowlist; not for
+     Phase0.
    `ooxmlsdk`'s own overrides (`sdk_data/schema_extensions/`) already
    need every one of these operations for SpreadsheetML alone (e.g.
    `xr:uid`, `xr:revisionPtr`, `SheetStateValues::show`, MCE-wrapped
@@ -231,8 +244,12 @@ re-rendered). Choosing a prefix for something newly written:
   the element's URI. Otherwise it uses the innermost in-scope binding
   for the URI. If one element declares both the default namespace and a
   prefix for the URI, the default namespace (empty prefix) is used.
-- If no binding is in scope the write returns `Err(NamespaceNotInScope)`.
-  Phase0 never declares namespaces.
+  Only bindings that are **in effect** at the insertion point count: a
+  prefix that an inner element re-declares to another URI is excluded.
+- If no usable binding is in effect, the write returns
+  `Err(NamespaceNotInScope)`. For an attribute this includes the case
+  where the URI is bound only as the default namespace. Phase0 never
+  declares namespaces.
 
 Hand-written (`ooxml-core`), shown in the shape the spike compiled
 *(spike: `ws/core`)*:
@@ -348,19 +365,27 @@ QNames sharing one schema rank, with two limits: `max_each` (per QName)
 and `max_total` (the whole slot). Insertion checks both.
 
 - Each element of a sequence is its own slot, with its own `maxOccurs`.
-- A **repeating** `Choice` (`maxOccurs > 1`) is one slot containing all
-  its alternatives. Its children may appear in any order relative to
-  each other, and both limits come from the choice's `maxOccurs` and
-  each alternative's.
-- A **non-repeating** `Choice` whose alternatives are all single
-  elements with `maxOccurs = 1` is one slot with `max_total = 1`.
+- Below, an *alternative* is any choice branch that itself lowers to
+  exactly one slot (a single element, an `Any`, or a nested
+  sequence/group/choice that lowers to one slot).
+- A **repeating** `Choice` (`maxOccurs = r > 1`) is one slot containing
+  all its alternatives' names. Its children may appear in any order
+  relative to each other.
+- A **non-repeating** `Choice` whose alternatives all allow at most one
+  occurrence is one slot with `max_total = 1`.
 - A **non-repeating** `Choice` where two or more alternatives exist and
   any of them may repeat means "a run of one kind only". This is not
   representable as a slot, so the model is **unsupported**
   (`p188:CT_Comment`, `x:CT_SortState`, …).
 - A nested `Sequence`/`Group` with `maxOccurs ≤ 1` is spliced in place.
-  A repeating one that lowers to a single slot lifts its cardinality
-  onto that slot.
+- **Repetition multiplies.** When a particle with upper bound `r` lowers
+  to a single slot (a repeating choice, or a repeating group/sequence
+  around one slot), each `max_each` and `max_total` inside it is
+  multiplied by `r`; unbounded × anything = unbounded. For example,
+  `a:duotone` (`Group{2..2}[color choice]`) allows exactly 2 colours,
+  and `w:sectPr` allows up to 6 header/footer references. A repeating
+  particle that lowers to **more than one** slot is unsupported, at any
+  depth including the top level.
 - `All` becomes one slot with `max_each = 1` and `max_total` unbounded.
 - `Any` becomes a wildcard slot. The SDK data gives a `Namespace` for
   only 6 of 142 `Any` particles; a missing one is read as `##any`. Even
@@ -385,12 +410,14 @@ Phase0: `xne:macrosheet`, `x:fieldGroup`, four WordprocessingML
 border/margin types with `left`/`start`, `w:sdtPr`, `w:fieldMapData`.
 `CT_Filters` is already unsupported by the exclusive-choice rule.)*
 
-Measured on the data *(spike: `slottable.py`, a heuristic reading of
-`Occurs`)*: of 2,122 content models, 1,574 lower to single-QName slots
-only, 483 to slots that include multi-QName (choice) slots, and **65
+Measured on the data *(spike: `slottable.py`; a heuristic reading of
+`Occurs`, where a present `Occurs` without `Max` is taken as
+unbounded)*: of 2,122 content models, 1,573 lower to single-QName slots
+only, 483 to slots that include multi-QName (choice) slots, and **66
 are unsupported** (55 exclusive choices of repeating alternatives, 8
-multi-slot alternatives, 2 repeating multi-slot groups), before the 8
-ECMA-order disagreements above. Where particle `Occurs` differ by Office
+multi-slot alternatives, 3 repeating multi-slot groups, one of them
+top-level: `x:CT_RPrElt/x:rPr`), before the 8 ECMA-order disagreements
+above. Where particle `Occurs` differ by Office
 version (3 entries, none in Phase0), the most permissive one is used.
 
 All Phase0 entries are flat sequences or leaves (verified against the
@@ -407,15 +434,20 @@ data): `worksheet` (38 elements), `sheetData` (`row*`), `row`
 | `get_or_insert::<C>()` | Existing child of `C`'s QName, or `insert`. The normal path for `maxOccurs = 1` children. |
 | `remove::<C>()` / `remove_at` | Remove the child node and its whole span. |
 | `set_attr` / `remove_attr` | Typed and untyped (by QName) variants. |
+| `set_text(value)` | Only on `Content::Text` elements. Replaces the element's text content. If `value` has leading or trailing whitespace and the element's `ATTRS` declare `xml:space`, it also sets `xml:space="preserve"` (ADR-0001 R2-M5). It never removes an existing `xml:space`. |
 
 Callers own the within-slot order. `ooxml-xlsx` compares row numbers
 when inserting into `sheetData` and column numbers when inserting into
 `row`, which is what ADR-0001's T2 checks *(spike: B1, D1 + insert A1,
 C1 → A1, B1, C1, D1, extLst)*. Because `before` also receives the index
 within the slot, a sheet whose `row`/`c` elements omit `r` (legal,
-position-implied) can be handled. Phase0 does not: a write into a
-`sheetData` or `row` whose existing children lack `r` returns
-`Err(MissingReference)`.
+position-implied) can be handled later. Phase0 does not handle it: if
+**any** `row` in `sheetData`, or any `c` in the row concerned, lacks
+`r`, then both writes **and reads** there return
+`Err(MissingReference)`. A read that silently returned `None` for a
+cell with a value would break ADR-0001's fail-honestly stance. Rows and
+cells created by ooxml-rs always carry `r`, and the from-scratch
+template's `<sheetData/>` has no children, so neither path is affected.
 
 **Node id.** A node is identified by its path of child indices from the
 part root, which keeps ADR-0001's nested `RawNode` (no parent links).
@@ -427,13 +459,14 @@ instead of handing out paths.
 
 **Dirty-flag duties are the primitives'**, never generated code's:
 
-- every insert, remove and attribute write sets `subtree_dirty` on the
-  changed node and on every ancestor along the path, up to the part
-  root (ADR-0001 Layer 2);
+- every insert, remove, attribute write and `set_text` sets
+  `subtree_dirty` on the changed node and on every ancestor along the
+  path, up to the part root (ADR-0001 Layer 2);
 - an attribute write sets `own_dirty` on that node;
 - a parent gets `own_dirty` from a child change **only** when its
   original span was self-closing (`span.close == None`) and it gains its
-  first child (ADR-0001's R2-B2 case);
+  first child, element or text (ADR-0001's R2-B2 case; e.g. `<t/>`
+  receiving text through `set_text`);
 - a parent that had a close tag keeps its original open and close tags
   verbatim even when it loses its last child (`<row …></row>` is
   well-formed), so the byte diff stays local;
@@ -590,13 +623,13 @@ differ; it is identified by relationship type.)
   messages; ordering and cardinality are enforced in one place, the
   core primitives, and ADR-0001's row/column ordering has an explicit
   hook (`insert_by`).
-- Positive: slot lowering supports insertion for 2,057 of 2,122 content
+- Positive: slot lowering supports insertion for 2,056 of 2,122 content
   models (minus the 8 ECMA-order disagreements until overridden), not
   only the flat ones.
 - Negative: two upstream data sets plus overrides to keep pinned,
   attributed and in sync. A future SDK bump can change both structure
   and the default join, so the generated diff must be read, not skimmed.
-- Negative: 65 content models (exclusive choices of repeating
+- Negative: 66 content models (exclusive choices of repeating
   alternatives, repeating multi-slot groups) plus the 8 ECMA-order
   disagreements stay read-only until overrides or a later ADR cover
   them. Any parent with
@@ -637,4 +670,5 @@ differ; it is identified by relationship type.)
   RFC 3698 (https://rust-lang.github.io/rfcs/3698-declarative-derive-macros.html);
   E0116 (https://doc.rust-lang.org/error_codes/E0116.html)
 - Spike: `spikes/adr-0002/` (rustc 1.99.1, 2026-11-16)
-- Reviews: `docs/adr/0002-opus-review-round1.md`, `docs/adr/0002-opus-review-round2.md`
+- Reviews: `docs/adr/0002-opus-review-round1.md`, `docs/adr/0002-opus-review-round2.md`,
+  `docs/adr/0002-opus-review-round3.md`

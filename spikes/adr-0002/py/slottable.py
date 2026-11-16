@@ -9,8 +9,9 @@ def maxocc(x):
     m = [e.get('Max') for e in o]
     return None if any(v is None for v in m) else max(m)
 class NS(Exception): pass
+def mul(a, b): return None if a is None or b is None else a * b
 def lower(x, top=True):
-    """-> list of slots; slot = dict qname->max (None=unbounded)."""
+    """-> list of slots; slot = dict qname->max_each (None=unbounded). Repetition multiplies."""
     k = x.get('Kind', 'Element')
     if k == 'Element': return [{x['Name'].split('/')[-1]: maxocc(x)}]
     if k == 'Any': return [{'*ANY*': maxocc(x)}]
@@ -24,9 +25,9 @@ def lower(x, top=True):
         out = []
         for i in items: out += lower(i, False)
         r = maxocc(x)
-        if not top and (r is None or r > 1) and len(out) > 1: raise NS('repeating multi-slot group')
-        if r is None or (r or 1) > 1:   # single-slot repeating group: lift cardinality
-            out = [{q: None for q in sl} for sl in out]
+        if (r is None or r > 1) and len(out) > 1: raise NS('repeating multi-slot group')
+        if r != 1:   # single-slot repeating group: lift cardinality by multiplication
+            out = [{q: mul(m, r) for q, m in sl.items()} for sl in out]
         return out
     if k == 'Choice':
         s = {}; rep = maxocc(x)
@@ -36,7 +37,7 @@ def lower(x, top=True):
             s.update(b[0])
         if rep == 1 and len(s) > 1 and any(v is None or v > 1 for v in s.values()):
             raise NS('exclusive choice of repeating alternatives')
-        if rep is None or rep > 1: s = {q: None for q in s}
+        if rep != 1: s = {q: mul(m, rep) for q, m in s.items()}
         return [s]
     raise NS(k)
 # ---- ECMA side: ordered slot ranks by local name ----
