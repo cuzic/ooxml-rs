@@ -5,7 +5,7 @@ use std::assert_matches;
 use std::io::{Cursor, Read, Write};
 use std::path::PathBuf;
 
-use ooxml_core::{Error, Package, PartStateKind, QName};
+use ooxml_core::{Error, Package, PartStateKind, QName, RemoveRefusal};
 use zip::ZipArchive;
 use zip::write::SimpleFileOptions;
 
@@ -227,7 +227,7 @@ fn indented_package() -> Vec<u8> {
         ),
         (
             "xl/workbook.xml",
-            "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><x r:id=\"rId1\"/><y id=\"rId2\"/></workbook>",
+            "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><x r:id=\"rId1\"/><y id=\"rId22\"/></workbook>",
         ),
         ("xl/calcChain.xml", "<calcChain xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"/>"),
         ("xl/linked.xml", "<a/>"),
@@ -239,13 +239,47 @@ fn indented_package() -> Vec<u8> {
     zw.finish().unwrap().into_inner()
 }
 
+const CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
+const CORE_PROPS: &str = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties";
+const CT_MIN: &str = r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/></Types>"#;
+const PKG_RELS: &str = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>"#;
+
+fn zip_of(files: &[(&str, &str)]) -> Vec<u8> {
+    let mut zw = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    for (n, b) in files {
+        zw.start_file(*n, SimpleFileOptions::default()).unwrap();
+        zw.write_all(b.as_bytes()).unwrap();
+    }
+    zw.finish().unwrap().into_inner()
+}
+
+fn states(pkg: &Package) -> Vec<(String, Option<PartStateKind>)> {
+    pkg.part_names().map(|n| (n.to_owned(), pkg.state(n))).collect()
+}
+
+/// A refusal changes nothing: same part states, L1 output.
+fn assert_refused(pkg: &mut Package, input: &[u8], name: &str, allowed: &[&str], want: impl Fn(&RemoveRefusal) -> bool) {
+    let before = states(pkg);
+    match pkg.check_remove_part(name, allowed) {
+        Err(Error::RemovePartRefused { reason, .. }) => assert!(want(&reason), "check {name}: {reason:?}"),
+        r => panic!("check {name}: {r:?}"),
+    }
+    match pkg.remove_part(name, allowed) {
+        Err(Error::RemovePartRefused { reason, .. }) => assert!(want(&reason), "remove {name}: {reason:?}"),
+        r => panic!("remove {name}: {r:?}"),
+    }
+    assert_eq!(states(pkg), before, "{name}: part states unchanged");
+    assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(input), "{name}: output unchanged");
+}
+
 #[test]
 fn remove_part_drops_the_part_its_relationship_and_override_only() {
     let input = std::fs::read(SHARED_FORMULAS).unwrap();
     let mut pkg = Package::from_bytes(input.clone()).unwrap();
-    pkg.check_remove_part("xl/calcChain.xml").unwrap();
-    assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(&input), "a check changes nothing");
-    let removed = pkg.remove_part("xl/calcChain.xml").unwrap();
+    let before = states(&pkg);
+    pkg.check_remove_part("xl/calcChain.xml", &[CALC_CHAIN]).unwrap();
+    assert_eq!(states(&pkg), before, "a check changes no state");
+    let removed = pkg.remove_part("XL/calcchain.XML", &[CALC_CHAIN]).unwrap();
     assert_eq!(removed.relationships, vec![("xl/_rels/workbook.xml.rels".to_owned(), "rId5".to_owned())]);
     assert!(removed.content_type_override);
     assert!(!pkg.contains("xl/calcChain.xml"));
@@ -264,14 +298,12 @@ fn remove_part_drops_the_part_its_relationship_and_override_only() {
             assert_eq!(*x, y, "{} must be raw-copied", x.0);
         }
     }
-    // Exactly one element removed from each registry, every other byte kept.
     let ct = String::from_utf8(decompressed(&input, "[Content_Types].xml")).unwrap();
     let override_el = r#"<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/>"#;
     assert_eq!(String::from_utf8(decompressed(&out, "[Content_Types].xml")).unwrap(), ct.replacen(override_el, "", 1));
     let rels = String::from_utf8(decompressed(&input, "xl/_rels/workbook.xml.rels")).unwrap();
     let rel_el = r#"<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/>"#;
     assert_eq!(String::from_utf8(decompressed(&out, "xl/_rels/workbook.xml.rels")).unwrap(), rels.replacen(rel_el, "", 1));
-    // The result re-opens.
     let re = Package::from_bytes(out).unwrap();
     assert!(!re.contains("xl/calcChain.xml"));
 }
@@ -280,7 +312,7 @@ fn remove_part_drops_the_part_its_relationship_and_override_only() {
 fn remove_part_takes_the_preceding_whitespace_with_it() {
     let input = indented_package();
     let mut pkg = Package::from_bytes(input.clone()).unwrap();
-    pkg.remove_part("xl/calcChain.xml").unwrap();
+    pkg.remove_part("xl/calcChain.xml", &[CALC_CHAIN]).unwrap();
     let out = pkg.to_bytes().unwrap();
     let ct = String::from_utf8(decompressed(&out, "[Content_Types].xml")).unwrap();
     assert_eq!(
@@ -300,19 +332,154 @@ fn remove_part_takes_the_preceding_whitespace_with_it() {
 fn remove_part_refusals_change_nothing() {
     let input = indented_package();
     let mut pkg = Package::from_bytes(input.clone()).unwrap();
-    // Still referenced by r:id in the source part (a plain `id` attribute does not count).
-    assert_matches!(pkg.remove_part("xl/linked.xml"), Err(Error::RemovePartRefused { .. }));
-    assert_matches!(pkg.check_remove_part("xl/linked.xml"), Err(Error::RemovePartRefused { .. }));
-    assert_matches!(pkg.remove_part("xl/missing.xml"), Err(Error::PartNotFound(_)));
-    assert_matches!(pkg.remove_part("[Content_Types].xml"), Err(Error::RemovePartRefused { .. }));
-    assert_matches!(pkg.remove_part("xl/_rels/workbook.xml.rels"), Err(Error::RemovePartRefused { .. }));
-    // Has relationships of its own.
-    assert_matches!(pkg.remove_part("xl/workbook.xml"), Err(Error::RemovePartRefused { .. }));
-    assert!(pkg.part_names().all(|n| !matches!(pkg.state(n), Some(PartStateKind::Parsed { dirty: true }))));
-    assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(&input));
-    // A replaced registry cannot be edited in place.
+    // Still referenced by r:id in the source part (any attribute whose value
+    // equals the Id counts; `id="rId22"` is not equal to either Id).
+    assert_refused(&mut pkg, &input, "xl/linked.xml", &["urn:t"], |r| {
+        matches!(r, RemoveRefusal::StillReferenced { source, id } if source == "xl/workbook.xml" && id == "rId1")
+    });
+    assert_matches!(pkg.remove_part("xl/missing.xml", &[]), Err(Error::PartNotFound(_)));
+    assert_refused(&mut pkg, &input, "[Content_Types].xml", &[], |r| *r == RemoveRefusal::RegistryPart);
+    assert_refused(&mut pkg, &input, "xl/_rels/workbook.xml.rels", &[], |r| *r == RemoveRefusal::RegistryPart);
+    assert_refused(&mut pkg, &input, "xl/workbook.xml", &[], |r| matches!(r, RemoveRefusal::HasOwnRelationships { .. }));
+    // m1: a type the caller did not allow (implicit references by type).
+    assert_refused(&mut pkg, &input, "xl/calcChain.xml", &[], |r| matches!(r, RemoveRefusal::RelationshipTypeNotAllowed { rel_type, .. } if rel_type == CALC_CHAIN));
+    // m2: a replaced registry that must change.
     let ct = decompressed(&input, "[Content_Types].xml");
     pkg.set_part("[Content_Types].xml", ct).unwrap();
-    assert_matches!(pkg.remove_part("xl/calcChain.xml"), Err(Error::Package(_)));
+    let replaced = pkg.to_bytes().unwrap();
+    assert_refused(&mut pkg, &replaced, "xl/calcChain.xml", &[CALC_CHAIN], |r| matches!(r, RemoveRefusal::RegistryNotEditable { part, .. } if part == "[Content_Types].xml"));
     assert!(pkg.contains("xl/calcChain.xml"));
 }
+
+/// M1: VML `o:relid` and escaped values are references too.
+#[test]
+fn remove_part_sees_every_reference_form() {
+    let vml = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        ("docProps/core.xml", "<c/>"),
+        ("xl/drawings/vmlDrawing1.vml", r#"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><v:shape><v:imagedata o:relid="rId1" o:title=""/></v:shape></xml>"#),
+        ("xl/drawings/_rels/vmlDrawing1.vml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="urn:image" Target="../media/image1.png"/></Relationships>"#),
+        ("xl/media/image1.png", "PNG"),
+    ]);
+    let mut pkg = Package::from_bytes(vml.clone()).unwrap();
+    assert_refused(&mut pkg, &vml, "xl/media/image1.png", &["urn:image"], |r| matches!(r, RemoveRefusal::StillReferenced { id, .. } if id == "rId1"));
+    for src in [
+        r#"<w xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><x r:id="rId&#57;"/></w>"#,
+        r#"<w xmlns:r="http://purl.oclc.org/ooxml/officeDocument/relationships"><x r:id="rId9"/></w>"#,
+        r#"<w><x anything="rId9"/></w>"#,
+    ] {
+        let b = zip_of(&[
+            ("[Content_Types].xml", CT_MIN),
+            ("_rels/.rels", PKG_RELS),
+            ("docProps/core.xml", "<c/>"),
+            ("xl/workbook.xml", src),
+            ("xl/_rels/workbook.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId9" Type="urn:x" Target="linked.xml"/></Relationships>"#),
+            ("xl/linked.xml", "<c/>"),
+        ]);
+        let mut pkg = Package::from_bytes(b.clone()).unwrap();
+        assert_refused(&mut pkg, &b, "xl/linked.xml", &["urn:x"], |r| matches!(r, RemoveRefusal::StillReferenced { id, .. } if id == "rId9"));
+    }
+    // A source that is not XML cannot be shown reference-free.
+    let b = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("docProps/core.xml", "<c/>"),
+        ("xl/workbook.xml", "\u{1}binary<<"),
+        ("xl/_rels/workbook.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId9" Type="urn:x" Target="linked.xml"/></Relationships>"#),
+        ("xl/linked.xml", "<c/>"),
+    ]);
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/linked.xml", &["urn:x"], |r| matches!(r, RemoveRefusal::SourceNotScannable { .. }));
+}
+
+/// M2 + m6: `_rels/.rels` edited through a lens, then a removal from it:
+/// no panic, and the package relationship cache is updated.
+#[test]
+fn remove_part_from_package_rels_after_a_lens_edit() {
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("docProps/core.xml", "<c/>")]);
+    // plain case: the cache loses rId2
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert!(pkg.package_relationships().by_id("rId2").is_some());
+    pkg.remove_part("docProps/core.xml", &[CORE_PROPS]).unwrap();
+    assert!(pkg.package_relationships().by_id("rId2").is_none(), "package_rels cache updated");
+    assert!(pkg.package_relationships().by_id("rId1").is_some());
+    assert_eq!(pkg.main_document_part().as_deref(), Some("xl/workbook.xml"));
+    let out = pkg.to_bytes().unwrap();
+    assert!(!String::from_utf8(decompressed(&out, "_rels/.rels")).unwrap().contains("rId2"));
+    // after a lens edit that leaves another Relationship without Type
+    let mut pkg = Package::from_bytes(b).unwrap();
+    {
+        let d = pkg.xml_part_mut("_rels/.rels").unwrap();
+        let mut root = d.lens_mut::<Rels>().unwrap();
+        root.nth_child_mut::<Rel>(0).unwrap().remove_attr(QName::new("", "Type")).unwrap();
+    }
+    pkg.check_remove_part("docProps/core.xml", &[CORE_PROPS]).unwrap();
+    pkg.remove_part("docProps/core.xml", &[CORE_PROPS]).unwrap();
+    assert!(!pkg.contains("docProps/core.xml"));
+}
+
+/// m2/m3/m4/m5: an unrelated broken `.rels` does not block; case-insensitive
+/// own `.rels`; every duplicate Override goes; several relationships to the
+/// part in one and in several `.rels` parts all go.
+#[test]
+fn remove_part_edge_cases() {
+    let b = zip_of(&[
+        ("[Content_Types].xml", r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/calcChain.xml" ContentType="a/b"/><Override PartName="/XL/calcchain.xml" ContentType="a/c"/></Types>"#),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        ("docProps/core.xml", "<c/>"),
+        ("xl/_rels/workbook.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId8" Type="urn:x" Target="calcChain.xml"/><Relationship Id="rId9" Type="urn:x" Target="/xl/calcChain.xml"/></Relationships>"#),
+        ("docProps/_rels/core.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="urn:x" Target="../xl/calcChain.xml"/></Relationships>"#),
+        ("xl/calcChain.xml", "<c/>"),
+        ("zz/_rels/orphan.xml.rels", "<notRels/>"),
+        ("xl/foo.xml", "<f/>"),
+        ("xl/_rels/FOO.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>"#),
+    ]);
+    let mut pkg = Package::from_bytes(b.clone()).unwrap();
+    assert_refused(&mut pkg, &b, "xl/foo.xml", &[], |r| matches!(r, RemoveRefusal::HasOwnRelationships { rels } if rels == "xl/_rels/FOO.xml.rels"));
+    let removed = pkg.remove_part("xl/calcChain.xml", &["urn:x"]).unwrap();
+    assert_eq!(removed.relationships.len(), 3);
+    assert_eq!(pkg.content_type("xl/calcChain.xml"), Some("application/xml"), "both overrides gone (cache)");
+    let out = pkg.to_bytes().unwrap();
+    let ct = String::from_utf8(decompressed(&out, "[Content_Types].xml")).unwrap();
+    assert!(!ct.to_ascii_lowercase().contains("calcchain"), "{ct}");
+    for r in ["xl/_rels/workbook.xml.rels", "docProps/_rels/core.xml.rels"] {
+        assert!(!String::from_utf8(decompressed(&out, r)).unwrap().contains("Relationship "), "{r}");
+    }
+    assert_eq!(decompressed(&out, "zz/_rels/orphan.xml.rels"), b"<notRels/>");
+    // A broken .rels that names the part's file blocks (it might refer to it).
+    let b2 = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        ("docProps/core.xml", "<c/>"),
+        ("xl/calcChain.xml", "<c/>"),
+        ("zz/_rels/orphan.xml.rels", "<broken calcChain.xml"),
+    ]);
+    let mut pkg = Package::from_bytes(b2.clone()).unwrap();
+    assert_refused(&mut pkg, &b2, "xl/calcChain.xml", &[CALC_CHAIN], |r| matches!(r, RemoveRefusal::RegistryNotEditable { part, .. } if part == "zz/_rels/orphan.xml.rels"));
+}
+
+const PR_NS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
+enum Rels {}
+enum Rel {}
+impl ooxml_core::ElementSpec for Rels {
+    const QNAME: QName = QName::new(PR_NS, "Relationships");
+    const SDK_NAME: &'static str = "test:Relationships";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(&[ooxml_core::Slot {
+        names: &[QName::new(PR_NS, "Relationship")],
+        wildcard: None,
+        max_each: None,
+        max_total: None,
+    }]);
+}
+impl ooxml_core::ElementSpec for Rel {
+    const QNAME: QName = QName::new(PR_NS, "Relationship");
+    const SDK_NAME: &'static str = "test:Relationship";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+impl ooxml_core::ChildOf<Rels> for Rel {}

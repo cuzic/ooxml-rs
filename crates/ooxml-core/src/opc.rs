@@ -61,13 +61,11 @@ impl ContentTypes {
         &self.overrides
     }
 
-    /// Drops the override for `part` (after [`crate::Package::remove_part`]
+    /// Drops every override for `part` (after [`crate::Package::remove_part`]
     /// removed it from the XML).
     pub(crate) fn remove_override(&mut self, part: &str) {
         let part = part.trim_start_matches('/');
-        if let Some(i) = self.overrides.iter().position(|(p, _)| p.eq_ignore_ascii_case(part)) {
-            self.overrides.remove(i);
-        }
+        self.overrides.retain(|(p, _)| !p.eq_ignore_ascii_case(part));
     }
 
     /// Content type of a part: an override, else the extension default.
@@ -142,6 +140,12 @@ impl Relationships {
     /// An empty set (for parts without a relationships part).
     pub fn empty(source: Option<&str>) -> Self {
         Relationships { source: source.map(String::from), rels: Vec::new() }
+    }
+
+    /// The same set without the relationships whose `Id` is in `ids`
+    /// (after [`crate::Package::remove_part`]; no re-parse, so it cannot fail).
+    pub(crate) fn without_ids(&self, ids: &[String]) -> Relationships {
+        Relationships { source: self.source.clone(), rels: self.rels.iter().filter(|r| !ids.contains(&r.id)).cloned().collect() }
     }
 
     /// The source part (`None` = package).
