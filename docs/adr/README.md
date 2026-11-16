@@ -4,14 +4,14 @@ ADRs are proposed and reviewed in PRs. A review round's findings are committed n
 (`NNNN-opus-review-roundK.md`), and an ADR is marked Accepted once a round finds no Blocker or
 Major issue. See [`docs/process.md`](../process.md).
 
-The status column is the status **on `main`** as of 2026-11-16. ADRs that are still in review
-live only on their PR branch until it merges.
+The status column is the status **on `main`** as of 2026-11-16. Newer ADRs that are still in review live only on their PR branch until it merges; the first
+plan PRs (#3–#5) merged ADR-0003/0004/0005 while still Proposed.
 
 | ADR | Title | Status on `main` | Reviews |
 |---|---|---|---|
 | [0001](0001-lossless-round-trip-architecture.md) | Lossless round-trip architecture for OOXML read/write/edit | **Accepted** (rev 3) | [r1](opus-review-round1.md), [r2](opus-review-round2.md), [r3](opus-review-round3.md) |
 | [0002](0002-schema-driven-code-generation.md) | Schema-driven code generation for the typed lens | **Accepted** (rev 5) | [r1](0002-opus-review-round1.md), [r2](0002-opus-review-round2.md), [r3](0002-opus-review-round3.md), [r4](0002-opus-review-round4.md) |
-| [0003](0003-xlsx-phase1-formula-and-calc-state.md) | xlsx Phase1: formula-aware edits and calculation state | Proposed (rev 2); rev 3 and its implementation are in [#20](https://github.com/cuzic/ooxml-rs/pull/20) | [r1](0003-opus-review-round1.md); later rounds in #20 |
+| [0003](0003-xlsx-phase1-formula-and-calc-state.md) | xlsx Phase1: formula-aware edits and calculation state | Proposed (rev 2); rev 4 and its implementation are in [#20](https://github.com/cuzic/ooxml-rs/pull/20) | [r1](0003-opus-review-round1.md); later rounds in #20 |
 | [0004](0004-docx-phase0.md) | Word Phase0: text edits and paragraph append | **Accepted** (rev 4); Minor follow-ups in [#34](https://github.com/cuzic/ooxml-rs/pull/34) | [r1](0004-opus-review-round1.md), [r2](0004-opus-review-round2.md), [r3](0004-opus-review-round3.md), [r4](0004-opus-review-round4.md) |
 | [0005](0005-pptx-phase0.md) | PowerPoint Phase 0: text edits in existing shapes | **Accepted** (rev 3) | [r1](0005-opus-review-round1.md), [r2](0005-opus-review-round2.md), [r3](0005-opus-review-round3.md) |
 | [0006](0006-xlsx-phase2-shared-strings-and-styles.md) | xlsx Phase2: shared-string and style registries | **Accepted** (rev 3) | [r1](0006-opus-review-round1.md), [r2](0006-opus-review-round2.md) |

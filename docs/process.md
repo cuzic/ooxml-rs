@@ -5,11 +5,11 @@ wish-list.
 
 ## Units of work
 
-- **One PR per milestone.** A design (ADR plus spike), an implementation phase, or a single core
+- **One PR per milestone.** A design (ADR plus its spike; occasionally a larger prototype is a separate draft PR), an implementation phase, or a single core
   primitive (e.g. `remove_part`, `insert_at`, the depth limit). Core changes needed by a format
   phase go in their own PR, so they are reviewed on their own.
 - **Several agents work in parallel**, each in its own `git worktree` and branch
-  (`plan/…`, `impl/…`, `core/…`, `perf/…`, `fix/…`, `docs/…`). Shared checkouts are not
+  (`plan/…`, `impl/…`, `core/…`, `perf/…`, `fix/…`, `docs/…`, `chore/…`, `ci/…`, `test/…`, `spike/…`). Shared checkouts are not
   switched between branches.
 - **Stacked PRs** say so in their title ("stacked on #14, merge after #14").
 
@@ -24,11 +24,11 @@ wish-list.
   anything downloaded.
 - **Library comparisons** (python-docx, Apache POI, docx-rs, openpyxl, rust_xlsxwriter, …) cite
   source files and lines at pinned revisions.
-- Claims that depend on Office behaviour that could not be checked are marked *(u)*.
+- Claims that depend on Office behaviour that could not be checked are flagged as unverified (some ADRs use a *(u)* marker).
 
 ## Adversarial review rounds
 
-- Every ADR and every implementation PR is reviewed by an independent Opus reviewer that tries
+- From the second round of PRs onward, every ADR and implementation PR is reviewed by an independent Opus reviewer that tries
   to break it: probes, mutation tests, corpus scans, and the actual code of the branches it
   interacts with.
 - Findings are graded **Blocker / Major / Minor**. The author fixes them in a new revision, with
@@ -36,7 +36,7 @@ wish-list.
 - Rounds continue until a round finds **no Blocker or Major**. The ADR is then marked Accepted,
   or the implementation PR is merged. Remaining Minors may go to a follow-up PR.
 - **Review files are committed** with the work they review: `docs/adr/NNNN-opus-review-roundK.md`
-  for ADRs, and `docs/reviews/prNN-roundK.md` or `<area>-impl-roundK.md` for implementation PRs.
+  for ADRs (ADR-0001's predate the numbering: `opus-review-roundK.md`), and `docs/reviews/prNN-roundK.md` or `<area>-impl-roundK.md` for implementation PRs.
 - The project owner decides open questions; reviewers' recommendations are recorded as proposed
   answers until then.
 
@@ -59,3 +59,5 @@ wish-list.
   normally. No force-pushes to PR branches; generated files are regenerated on conflict.
 - **Small commits.** Commits written by agents carry a `Co-Authored-By` trailer.
 - **The owner merges PRs.** Agents open PRs and update them, but do not merge.
+
+Note: the first foundation PRs (#6, #9, #10) were merged on CI before the review-until-converged rule was adopted; Phase0 implementations merged on CI alone were reviewed afterwards (e.g. `docs/reviews/xlsx-phase0-impl-round*.md`).
