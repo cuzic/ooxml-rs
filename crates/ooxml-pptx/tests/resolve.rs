@@ -23,12 +23,15 @@ fn src_name(s: Option<&Source<'_>>, direct: &str) -> String {
         Some(Source::ShapeStyle) => "shape.style.fontRef".into(),
         Some(Source::Placeholder { role: ooxml_pptx::Role::Layout, .. }) => "layout.ph.lstStyle".into(),
         Some(Source::Placeholder { role: ooxml_pptx::Role::Master, .. }) => "master.ph.lstStyle".into(),
+        Some(Source::Placeholder { role: ooxml_pptx::Role::NotesMaster, .. }) => "notesMaster.ph.lstStyle".into(),
+        Some(Source::MasterTextStyle { style: TextStyleKind::Notes, .. }) => "notesMaster.notesStyle".into(),
         Some(Source::MasterTextStyle { style, .. }) => format!(
             "master.txStyles.{}",
             match style {
                 TextStyleKind::Title => "titleStyle",
                 TextStyleKind::Body => "bodyStyle",
                 TextStyleKind::Other => "otherStyle",
+                _ => "other",
             }
         ),
         Some(Source::PresentationDefault { .. }) => "presentation.defaultTextStyle".into(),
@@ -52,6 +55,7 @@ fn count(bytes: &[u8], c: &mut BTreeMap<String, usize>) {
     let Ok(deck) = pres.deck() else { return };
     for i in 0..deck.slide_count() {
         let Ok(s) = deck.slide(i) else { continue };
+        count_notes(&s, c);
         if s.chain_parts().is_err() {
             continue;
         }
@@ -99,7 +103,38 @@ fn count(bytes: &[u8], c: &mut BTreeMap<String, usize>) {
     }
 }
 
-const COMPARED: &[&str] = &["ph.slide", "ph.runs", "nonph.runs", "match.layout.", "geometry.from_", "ph.run.sz.", "nonph.run.sz.", "ph.run.b.", "nonph.run.b.", "ph.para.", "nonph.para."];
+/// The notes counters of `chain.py` (ADR-0008 §1.3 "Notes", §1.7): body
+/// placeholders of the notes shape tree (group members included) and the
+/// source of each run's `sz`.
+fn count_notes(s: &ooxml_pptx::DeckSlide<'_, '_>, c: &mut BTreeMap<String, usize>) {
+    let Some(n) = s.notes_sheet() else { return };
+    *c.entry("notes.slide".into()).or_default() += 1;
+    if n.master().is_err() {
+        *c.entry("notes.no_notes_master".into()).or_default() += 1;
+        return;
+    }
+    for sh in n.shapes() {
+        if *sh.kind() != ShapeKind::Shape || sh.placeholder().is_none_or(|ph| ph.view().0.attr(ooxml_core::QName::new("", "type")) != Some("body")) {
+            continue;
+        }
+        *c.entry("notes.body_ph".into()).or_default() += 1;
+        let m = n.placeholder_match(&sh).unwrap().unwrap();
+        if m.master.is_none() {
+            *c.entry("notes.body_ph_without_master_body".into()).or_default() += 1;
+            continue;
+        }
+        let Some(body) = sh.text_body() else { continue };
+        for para in body.paragraphs() {
+            for it in para.items() {
+                let TextItem::Run(r) = it else { continue };
+                let rp = n.run_props(&sh, body, para, RunItem::Run(r)).unwrap();
+                *c.entry(format!("notes.run.sz.from_{}", src_name(rp.size.source(), "run"))).or_default() += 1;
+            }
+        }
+    }
+}
+
+const COMPARED: &[&str] = &["notes.", "ph.slide", "ph.runs", "nonph.runs", "match.layout.", "geometry.from_", "ph.run.sz.", "nonph.run.sz.", "ph.run.b.", "nonph.run.b.", "ph.para.", "nonph.para."];
 
 /// Opt-in: `OOXML_PPTX_CORPUS=dir:dir cargo test -p ooxml-pptx --test resolve -- --ignored`.
 /// With the 633-file corpus of `spikes/pptx-phase1/README.md`, every

@@ -166,6 +166,16 @@ pub enum Error {
     /// the link (ADR-0008 §4 rule 5).
     #[error("a line break in the replacement would split a hyperlink run")]
     LinkSplitByBreak,
+    /// The slide has no notes slide (creating one is not part of Phase 1,
+    /// ADR-0008 §2).
+    #[error("slide id {slide_id} has no notes slide")]
+    NoNotesSlide {
+        /// `p:sldId@id`.
+        slide_id: u32,
+    },
+    /// The notes slide has no body placeholder (`p:ph@type="body"`).
+    #[error("the notes slide has no body placeholder")]
+    NoNotesBody,
     /// A link of the slide → layout → master → theme chain is missing or
     /// does not parse (ADR-0008 §1.1). Only resolver calls that need the
     /// link fail; Phase 0 reads and writes on that slide keep working.
@@ -188,6 +198,7 @@ impl Error {
             Error::InvalidShapeId => Error::InvalidShapeId,
             Error::InsideAlternateContent => Error::InsideAlternateContent,
             Error::NoTextBody => Error::NoTextBody,
+            Error::NoNotesBody => Error::NoNotesBody,
             Error::NotATable => Error::NotATable,
             Error::CellNotFound { row, col } => Error::CellNotFound { row: *row, col: *col },
             Error::MergedCell { row, col } => Error::MergedCell { row: *row, col: *col },

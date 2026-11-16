@@ -9,7 +9,9 @@ every fixture and its
   O3  shape click actions (action, URL address, target slide id) and run
       hyperlink addresses must equal ooxml-pptx's links (runs whose
       hyperlink python-pptx cannot read, an action with an empty r:id, are
-      skipped).
+      skipped);
+  §2  each notes slide's text (python-pptx notes_text_frame.text, None
+      without a body placeholder) must equal ooxml-pptx's NotesRef text.
 
     python3 -I resolve_check.py [--site DIR] DUMP.json FIXTURES_DIR
 """
@@ -36,7 +38,7 @@ def main():
             'previousslide': PP_ACTION.PREVIOUS_SLIDE, 'endshow': PP_ACTION.END_SHOW, 'lastslideviewed': PP_ACTION.LAST_SLIDE_VIEWED}
     verb = {'hlinkpres': PP_ACTION.PLAY, 'hlinkfile': PP_ACTION.OPEN_FILE, 'customshow': PP_ACTION.NAMED_SLIDE_SHOW,
             'ole': PP_ACTION.OLE_VERB, 'macro': PP_ACTION.RUN_MACRO, 'program': PP_ACTION.RUN_PROGRAM}
-    failures, geo_n, link_n, used_known = 0, 0, 0, set()
+    failures, geo_n, link_n, used_known, total_notes = 0, 0, 0, set(), 0
     for fixture, d in dump.items():
         prs = Presentation(os.path.join(fixtures, fixture))
         by_id = {}
@@ -44,7 +46,7 @@ def main():
             by_id[sldId.id] = None
         slides = {s.slide_id: s for s in prs.slides}
 
-        def shapes_of(sid):
+        def shapes_of(sid, notes=False):
             out = {}
 
             def walk(shapes):
@@ -52,16 +54,19 @@ def main():
                     out[sh.shape_id] = sh
                     if isinstance(sh, GroupShape):
                         walk(sh.shapes)
-            walk(slides[sid].shapes)
+            if notes:
+                walk(slides[sid].notes_slide.shapes)
+            else:
+                walk(slides[sid].shapes)
             return out
         for g in d['geometry']:
-            sh = shapes_of(g['slide_id']).get(g['shape_id'])
+            sh = shapes_of(g['slide_id'], g.get('notes', False)).get(g['shape_id'])
             if sh is None:
                 continue
             theirs = [sh.left, sh.top, sh.width, sh.height]
             theirs = None if all(v is None for v in theirs) else theirs
             geo_n += 1
-            key = (fixture, g['slide_id'], g['shape_id'])
+            key = (fixture, g['slide_id'], g['shape_id']) if not g.get('notes') else (fixture, g['slide_id'], g['shape_id'], 'notes')
             if theirs != g['xywh']:
                 if key in known:
                     used_known.add(key)
@@ -99,11 +104,21 @@ def main():
             if not ok:
                 failures += 1
                 print(f'FAIL O3 {fixture} slide {ln["slide_id"]} shape {ln["shape_id"]} run {ln["run"]}: {t}')
+        notes_n = 0
+        for nt in d.get('notes', []):
+            sl = slides[nt['slide_id']]
+            tf = sl.notes_slide.notes_text_frame if sl.has_notes_slide else None
+            theirs = None if tf is None else tf.text
+            notes_n += 1
+            if theirs != nt['text']:
+                failures += 1
+                print(f'FAIL notes {fixture} slide {nt["slide_id"]}: ooxml {nt["text"]!r} vs python-pptx {theirs!r}')
+        total_notes += notes_n
     stale = set(known) - used_known
     for k in sorted(stale):
         failures += 1
         print(f'FAIL known difference no longer differs (remove it): {k}')
-    print(f'O1 geometry: {geo_n} placeholders ({len(used_known)} known differences); O3 links: {link_n}; {failures} failures')
+    print(f'O1 geometry: {geo_n} placeholders ({len(used_known)} known differences); O3 links: {link_n}; notes text: {total_notes}; {failures} failures')
     sys.exit(1 if failures else 0)
 
 

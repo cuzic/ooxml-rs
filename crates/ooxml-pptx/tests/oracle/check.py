@@ -39,6 +39,10 @@ A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 def find_body(prs, site, e):
     _, qn, GroupShape, _ = readback.import_pptx(site)
     _, _, part = readback.slide_parts(prs)[e['slide']]
+    if e.get('notes'):
+        ph = part.slide.notes_slide.notes_placeholder
+        assert ph is not None, 'notes body'
+        return ph._element.find(qn('p:txBody'))
 
     def walk(shapes):
         for sh in shapes:
@@ -258,8 +262,8 @@ def finish_paragraph(p, touched):
         p.remove(r)
 
 
-def paragraphs_of(prs, site):
-    """(slide index, shape id, cell, paragraph index, a:p) for every
+def paragraphs_of(prs, site, notes=False):
+    """(slide index, in notes, shape id, cell, paragraph index, a:p) for every
     paragraph python-pptx sees, in the order of readback.dump_prs."""
     _, qn, GroupShape, _ = readback.import_pptx(site)
     out = []
@@ -280,7 +284,14 @@ def paragraphs_of(prs, site):
             if body is None:
                 continue
             for k, p in enumerate(kids(body, 'p')):
-                out.append((si, sid, cell, k, p))
+                out.append((si, False, sid, cell, k, p))
+        # the notes body (ADR-0008 §2), searched with notes=True
+        if notes and part.slide.has_notes_slide:
+            ph = part.slide.notes_slide.notes_placeholder
+            body = ph._element.find(qn('p:txBody')) if ph is not None else None
+            if body is not None:
+                for k, p in enumerate(kids(body, 'p')):
+                    out.append((si, True, ph.shape_id, None, k, p))
     return out
 
 
@@ -337,14 +348,14 @@ def apply_replace(prs, r, site):
     (rules 1, 5, 6) itself and compares them, kind included, with
     ooxml-pptx's; body-level locks are taken from ooxml-pptx. Then applies
     the accepted matches by rules 2–5 and returns the mismatches."""
-    key = lambda d: (d['slide'], d['shape_id'], tuple(d['cell']) if d['cell'] else None,  # noqa: E731
+    key = lambda d: (d['slide'], d.get('notes', False), d['shape_id'], tuple(d['cell']) if d['cell'] else None,  # noqa: E731
                      d['paragraph'], d['start'], d['end'])
     refused = {key(d): d['error'].split(' ')[0].split('{')[0].split('(')[0] for d in r['refused']}
     rust = {key(d) for d in r['replaced']}
     pattern, replacement = r['pattern'], r['replacement']
     segments = replacement.split('\v')
     ours, seen, problems = set(), set(), []
-    for si, sid, cell, k, p in paragraphs_of(prs, site):
+    for si, nt, sid, cell, k, p in paragraphs_of(prs, site, r.get('notes', False)):
         items = [c for c in p if c.tag in CONTENT]
         text = ''.join(item_text(c) for c in items)
         found, i = [], 0
@@ -357,7 +368,7 @@ def apply_replace(prs, r, site):
         b = lambda n: len(text[:n].encode('utf-8'))  # noqa: E731
         accepted = []
         for s, e in found:
-            kk = (si, sid, tuple(cell) if cell else None, k, b(s), b(e))
+            kk = (si, nt, sid, tuple(cell) if cell else None, k, b(s), b(e))
             seen.add(kk)
             theirs = refused.get(kk)
             if theirs in BODY_REFUSALS:
@@ -377,7 +388,7 @@ def apply_replace(prs, r, site):
             # ADR-0008 §7 O5 as worded: the paragraph text is str.replace's
             after = ''.join(item_text(c) for c in p if c.tag in CONTENT)
             if after != text.replace(pattern, replacement):
-                problems.append(f'paragraph text at {(si, sid, cell, k)} is not str.replace: {after!r}')
+                problems.append(f'paragraph text at {(si, nt, sid, cell, k)} is not str.replace: {after!r}')
     if ours != rust:
         problems.append(f'accepted matches differ: only python {sorted(ours - rust)[:3]}, only ooxml {sorted(rust - ours)[:3]}')
     if set(refused) - seen:

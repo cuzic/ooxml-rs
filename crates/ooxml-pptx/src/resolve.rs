@@ -24,7 +24,7 @@
 use ooxml_core::{AttrError, QName, RawNode};
 use ooxml_core::value::{DmlPercent, parse_dml_percent};
 
-use crate::deck::{DeckSlide, a, child, p, un};
+use crate::deck::{DeckSlide, Sheet, SheetKind, a, child, p, un};
 use crate::error::Result;
 use crate::read::{ParagraphRef, ShapeRef, TextBodyRef, ac_representative};
 
@@ -148,15 +148,19 @@ pub enum Source<'a> {
 
 /// Layout or master.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Role {
     /// The slide layout.
     Layout,
     /// The slide master.
     Master,
+    /// The notes master (§1.7).
+    NotesMaster,
 }
 
 /// `p:txStyles` member.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TextStyleKind {
     /// `p:titleStyle`.
     Title,
@@ -164,10 +168,13 @@ pub enum TextStyleKind {
     Body,
     /// `p:otherStyle`.
     Other,
+    /// The notes master's `p:notesStyle` (§1.3 "Notes").
+    Notes,
 }
 
 /// How a slide placeholder found its layout placeholder (ADR-0008 §1.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MatchKind {
     /// Same effective idx, same type.
     Idx,
@@ -187,6 +194,8 @@ pub enum MatchKind {
     Orphan,
     /// Layout → master (by the layout placeholder's family).
     MasterFamily,
+    /// A placeholder on a master: it inherits from no placeholder (§1.7).
+    OnMaster,
 }
 
 /// The layout and master placeholders a slide placeholder inherits from.
@@ -412,6 +421,7 @@ pub struct ClrMap<'a> {
 
 /// Which element supplied the colour map.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MapSource {
     /// The slide's `p:clrMapOvr/a:overrideClrMapping`.
     SlideOverride,
@@ -419,22 +429,46 @@ pub enum MapSource {
     LayoutOverride,
     /// The master's `p:clrMap`.
     Master,
+    /// The notes slide's own `p:clrMapOvr/a:overrideClrMapping` (§1.7).
+    NotesOverride,
+    /// The notes master's `p:clrMap`.
+    NotesMaster,
 }
 
-impl<'a> DeckSlide<'a, '_> {
+impl<'a> Sheet<'a> {
     /// The effective colour map: slide override, else layout override, else
     /// the master's `p:clrMap` (ADR-0008 §1.4; POI's `mapSchemeColor`,
     /// LibreOffice's `layout-clrmap-override.pptx`; ECMA §19.3.1.7 says
     /// `a:masterClrMapping` means the master's, review m2).
     pub fn color_map(&self) -> Result<Option<ClrMap<'a>>> {
         let ovr = |root: &'a RawNode| child(child(root, p("clrMapOvr"))?, a("overrideClrMapping"));
-        if let Some(n) = ovr(self.doc.root()) {
-            return Ok(Some(ClrMap { node: n, from: MapSource::SlideOverride }));
+        let own = self.own.root();
+        let master = |from| -> Result<Option<ClrMap<'a>>> { Ok(child(self.master()?.root(), p("clrMap")).map(|n| ClrMap { node: n, from })) };
+        match self.kind {
+            SheetKind::Notes => {
+                // §1.7: the notes slide's override, else the notes master's map
+                if let Some(n) = ovr(own) {
+                    return Ok(Some(ClrMap { node: n, from: MapSource::NotesOverride }));
+                }
+                master(MapSource::NotesMaster)
+            }
+            SheetKind::Master => master(MapSource::Master),
+            SheetKind::Layout => {
+                if let Some(n) = ovr(own) {
+                    return Ok(Some(ClrMap { node: n, from: MapSource::LayoutOverride }));
+                }
+                master(MapSource::Master)
+            }
+            _ => {
+                if let Some(n) = ovr(own) {
+                    return Ok(Some(ClrMap { node: n, from: MapSource::SlideOverride }));
+                }
+                if let Some(n) = ovr(self.layout()?.root()) {
+                    return Ok(Some(ClrMap { node: n, from: MapSource::LayoutOverride }));
+                }
+                master(MapSource::Master)
+            }
         }
-        if let Some(n) = ovr(self.layout()?.root()) {
-            return Ok(Some(ClrMap { node: n, from: MapSource::LayoutOverride }));
-        }
-        Ok(child(self.master()?.root(), p("clrMap")).map(|n| ClrMap { node: n, from: MapSource::Master }))
     }
 
     /// The layout and master placeholders of a slide placeholder (§1.2);
@@ -442,13 +476,42 @@ impl<'a> DeckSlide<'a, '_> {
     pub fn placeholder_match(&self, shape: &ShapeRef<'a>) -> Result<Option<PlaceholderMatch<'a>>> {
         let node = representative(shape);
         let Some(sp) = ph_of(node, shape.depth() > 0) else { return Ok(None) };
-        let (layout, master) = (self.layout()?, self.master()?);
-        let lph = placeholders(layout.root());
-        let mph = placeholders(master.root());
-        let (lp, kind, ambiguous, candidates) = match_layout(&sp, &lph);
-        let fam_ty = lp.map_or(sp.ty, |l| l.ty);
-        let mp = mph.iter().find(|m| Family::of(m.ty) == Family::of(fam_ty)).map(|m| m.shape);
-        Ok(Some(PlaceholderMatch { layout: lp.map(|l| l.shape), master: mp, kind, ambiguous, candidates, family: Family::of(sp.ty) }))
+        let family = Family::of(sp.ty);
+        let none = |kind| PlaceholderMatch { layout: None, master: None, kind, ambiguous: false, candidates: 0, family };
+        match self.kind {
+            // §1.7: a master placeholder inherits from no placeholder
+            SheetKind::Master => Ok(Some(none(MatchKind::OnMaster))),
+            // §1.7: a layout placeholder → the master placeholder of its family
+            SheetKind::Layout => {
+                let mph = placeholders(self.master()?.root());
+                let mp = mph.iter().find(|m| Family::of(m.ty) == family).map(|m| m.shape);
+                Ok(Some(PlaceholderMatch { master: mp, ..none(MatchKind::MasterFamily) }))
+            }
+            // §1.2: notes slides match the notes master by step 3 only
+            // (type, then family); no further master
+            SheetKind::Notes => {
+                let nph = placeholders(self.master()?.root());
+                let by_type: Vec<Ph<'a>> = nph.iter().filter(|x| x.ty == sp.ty).copied().collect();
+                let by_fam: Vec<Ph<'a>> = nph.iter().filter(|x| Family::of(x.ty) == family).copied().collect();
+                let (found, kind, v) = match first_canon(&by_type) {
+                    Some(f) => (Some(f), MatchKind::Type, by_type),
+                    None => match first_canon(&by_fam) {
+                        Some(f) => (Some(f), MatchKind::Family, by_fam),
+                        None => (None, MatchKind::Orphan, Vec::new()),
+                    },
+                };
+                Ok(Some(PlaceholderMatch { master: found.map(|f| f.shape), ambiguous: v.len() > 1, candidates: v.len(), ..none(kind) }))
+            }
+            _ => {
+                let (layout, master) = (self.layout()?, self.master()?);
+                let lph = placeholders(layout.root());
+                let mph = placeholders(master.root());
+                let (lp, kind, ambiguous, candidates) = match_layout(&sp, &lph);
+                let fam_ty = lp.map_or(sp.ty, |l| l.ty);
+                let mp = mph.iter().find(|m| Family::of(m.ty) == Family::of(fam_ty)).map(|m| m.shape);
+                Ok(Some(PlaceholderMatch { layout: lp.map(|l| l.shape), master: mp, kind, ambiguous, candidates, family }))
+            }
+        }
     }
 
     fn chain(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: Option<ParagraphRef<'a>>, level: Option<u8>, run_level: bool) -> Result<Chain<'a>> {
@@ -458,7 +521,7 @@ impl<'a> DeckSlide<'a, '_> {
         let theme = self.theme().ok().map(|t| t.root());
         let mut steps = Vec::new();
         let clr_map = self.color_map().ok().flatten();
-        let mut chain = Chain { steps: Vec::new(), stop_after: None, tail: Tail::Unset, theme, theme_override: self.chain.theme_override, clr_map };
+        let mut chain = Chain { steps: Vec::new(), stop_after: None, tail: Tail::Unset, theme, theme_override: self.theme_override, clr_map };
         // steps 1–2 are added by the caller (they depend on the item)
         let _ = para;
         let pre = |steps: &mut Vec<Step<'a>>, source: Source<'a>, n: Option<&'a RawNode>| steps.push(Step { source, node: n, font_ref: false });
@@ -477,7 +540,23 @@ impl<'a> DeckSlide<'a, '_> {
         if run_level && let Some(fr) = child(node, p("style")).and_then(|s| child(s, a("fontRef"))) {
             steps.push(Step { source: Source::ShapeStyle, node: Some(fr), font_ref: true });
         }
+        let notes = self.kind == SheetKind::Notes;
         match self.placeholder_match(shape)? {
+            Some(m) if notes => {
+                // §1.3 "Notes": the notes-master placeholder, then
+                // p:notesStyle for the body family only; no defaultTextStyle
+                let nm = self.master()?;
+                if let Some(mp) = m.master {
+                    pre(&mut steps, Source::Placeholder { role: Role::NotesMaster, part: nm.name, shape_id: shape_id(mp), matched: m.kind, level: Some(lvl) }, level_el(lst_style(txbody(mp)), lvl));
+                }
+                if m.family == Family::Body {
+                    let st = child(nm.root(), p("notesStyle"));
+                    pre(&mut steps, Source::MasterTextStyle { part: nm.name, style: TextStyleKind::Notes, level: lvl }, level_el(st, lvl));
+                }
+            }
+            // a non-placeholder on a notes slide: steps 1–4 only (§1.3:
+            // p:defaultTextStyle is not consulted for notes)
+            None if notes => {}
             Some(m) => {
                 let master = self.master()?;
                 if let Some(l) = m.layout {
@@ -491,15 +570,15 @@ impl<'a> DeckSlide<'a, '_> {
                     let local = match kind {
                         TextStyleKind::Title => "titleStyle",
                         TextStyleKind::Body => "bodyStyle",
-                        TextStyleKind::Other => "otherStyle",
+                        TextStyleKind::Other | TextStyleKind::Notes => "otherStyle",
                     };
                     let st = child(master.root(), p("txStyles")).and_then(|t| child(t, p(local)));
                     pre(&mut steps, Source::MasterTextStyle { part: master.name, style: kind, level: lvl }, level_el(st, lvl));
                 }
-                pre(&mut steps, Source::PresentationDefault { level: lvl }, level_el(self.deck.default_text_style(), lvl));
+                pre(&mut steps, Source::PresentationDefault { level: lvl }, level_el(self.default_text_style, lvl));
             }
             None => {
-                pre(&mut steps, Source::PresentationDefault { level: lvl }, level_el(self.deck.default_text_style(), lvl));
+                pre(&mut steps, Source::PresentationDefault { level: lvl }, level_el(self.default_text_style, lvl));
                 let master = self.master()?;
                 let st = child(master.root(), p("txStyles")).and_then(|t| child(t, p("otherStyle")));
                 pre(&mut steps, Source::MasterTextStyle { part: master.name, style: TextStyleKind::Other, level: lvl }, level_el(st, lvl));
@@ -567,13 +646,19 @@ impl<'a> DeckSlide<'a, '_> {
             }
             if let Some(mp) = m.master {
                 steps.push(Step {
-                    source: Source::Placeholder { role: Role::Master, part: self.master()?.name, shape_id: shape_id(mp), matched: MatchKind::MasterFamily, level: None },
+                    source: self.master_source(&m, mp)?,
                     node: txbody(mp).and_then(|b| child(b, a("bodyPr"))),
                     font_ref: false,
                 });
             }
         }
         Ok(BodyProps::resolve(&steps))
+    }
+
+    /// The source of a value from the master-side placeholder `mp`.
+    fn master_source(&self, m: &PlaceholderMatch<'a>, mp: &'a RawNode) -> Result<Source<'a>> {
+        let (role, matched) = if self.kind == SheetKind::Notes { (Role::NotesMaster, m.kind) } else { (Role::Master, MatchKind::MasterFamily) };
+        Ok(Source::Placeholder { role, part: self.master()?.name, shape_id: shape_id(mp), matched, level: None })
     }
 
     fn geometry_steps(&self, shape: &ShapeRef<'a>) -> Result<std::result::Result<Vec<Step<'a>>, Reason<'a>>> {
@@ -583,7 +668,12 @@ impl<'a> DeckSlide<'a, '_> {
         };
         let mut steps = vec![Step { source: Source::Direct, node: own(node), font_ref: false }];
         if let Some(m) = self.placeholder_match(shape)? {
-            let in_group_layout = m.layout.is_some_and(|l| placeholders(self.layout().map(|x| x.root()).unwrap_or(l)).iter().any(|x| std::ptr::eq(x.shape, l) && x.in_group));
+            // the placeholder it inherits from directly sits in a group of its part
+            let in_group_layout = match (m.layout, m.master) {
+                (Some(l), _) => placeholders(self.layout()?.root()).iter().any(|x| std::ptr::eq(x.shape, l) && x.in_group),
+                (None, Some(mp)) if self.kind != SheetKind::Slide => placeholders(self.master()?.root()).iter().any(|x| std::ptr::eq(x.shape, mp) && x.in_group),
+                _ => false,
+            };
             if shape.depth() > 0 || in_group_layout {
                 return Ok(Err(Reason::GroupCoordinates));
             }
@@ -591,7 +681,7 @@ impl<'a> DeckSlide<'a, '_> {
                 steps.push(Step { source: Source::Placeholder { role: Role::Layout, part: self.layout()?.name, shape_id: shape_id(l), matched: m.kind, level: None }, node: own(l), font_ref: false });
             }
             if let Some(mp) = m.master {
-                steps.push(Step { source: Source::Placeholder { role: Role::Master, part: self.master()?.name, shape_id: shape_id(mp), matched: MatchKind::MasterFamily, level: None }, node: own(mp), font_ref: false });
+                steps.push(Step { source: self.master_source(&m, mp)?, node: own(mp), font_ref: false });
             }
         }
         Ok(Ok(steps))
@@ -642,6 +732,38 @@ impl<'a> DeckSlide<'a, '_> {
             }
         }
         Ok(Lookup::Unset)
+    }
+}
+
+/// The resolvers of a slide: [`Sheet`]'s, in the slide's context.
+impl<'a> DeckSlide<'a, '_> {
+    /// [`Sheet::color_map`] of the slide.
+    pub fn color_map(&self) -> Result<Option<ClrMap<'a>>> {
+        self.sheet().color_map()
+    }
+    /// [`Sheet::placeholder_match`] of a slide shape.
+    pub fn placeholder_match(&self, shape: &ShapeRef<'a>) -> Result<Option<PlaceholderMatch<'a>>> {
+        self.sheet().placeholder_match(shape)
+    }
+    /// [`Sheet::run_props`] of a slide shape.
+    pub fn run_props(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: ParagraphRef<'a>, item: RunItem<'a>) -> Result<RunProps<'a>> {
+        self.sheet().run_props(shape, body, para, item)
+    }
+    /// [`Sheet::para_props`] of a slide shape.
+    pub fn para_props(&self, shape: &ShapeRef<'a>, body: TextBodyRef<'a>, para: ParagraphRef<'a>) -> Result<ParaProps<'a>> {
+        self.sheet().para_props(shape, body, para)
+    }
+    /// [`Sheet::body_props`] of a slide shape.
+    pub fn body_props(&self, shape: &ShapeRef<'a>) -> Result<BodyProps<'a>> {
+        self.sheet().body_props(shape)
+    }
+    /// [`Sheet::geometry`] of a slide shape.
+    pub fn geometry(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Xfrm>> {
+        self.sheet().geometry(shape)
+    }
+    /// [`Sheet::outline`] of a slide shape.
+    pub fn outline(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Outline<'a>>> {
+        self.sheet().outline(shape)
     }
 }
 

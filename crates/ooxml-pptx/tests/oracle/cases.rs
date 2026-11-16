@@ -13,7 +13,7 @@
 
 use std::path::PathBuf;
 
-use ooxml_pptx::{Error, Match, MixedFormat, Presentation, ReplaceOptions, ShapeKind, TextBodyMut, TextItem};
+use ooxml_pptx::{Error, FindOptions, Match, MixedFormat, Presentation, ReplaceOptions, Scope, ShapeKind, TextBodyMut, TextItem};
 use serde_json::{Value, json};
 
 pub fn fixtures_dir() -> PathBuf {
@@ -69,6 +69,8 @@ pub struct Edit {
     pub slide: usize,
     pub shape_id: u32,
     pub cell: Option<(usize, usize)>,
+    /// The slide's notes body (ADR-0008 §2); `shape_id` is the body's.
+    pub notes: bool,
     pub op: Op,
 }
 
@@ -85,7 +87,7 @@ impl Edit {
             Op::RemoveParagraph { p } => ("remove_paragraph", json!({"p": p})),
             Op::BodySetText { text } => ("body_set_text", json!({"text": text})),
         };
-        json!({"slide": self.slide, "shape_id": self.shape_id, "cell": self.cell.map(|(r, c)| [r, c]), "op": name, "args": args})
+        json!({"slide": self.slide, "shape_id": self.shape_id, "cell": self.cell.map(|(r, c)| [r, c]), "notes": self.notes, "op": name, "args": args})
     }
 }
 
@@ -105,6 +107,10 @@ fn run_op(b: &mut TextBodyMut<'_>, op: &Op) -> Result<(), Error> {
 
 /// Applies one edit through the public API.
 pub fn apply_edit(pres: &mut Presentation, e: &Edit) -> Result<(), Error> {
+    if e.notes {
+        let mut notes = pres.notes_mut(e.slide)?;
+        return run_op(&mut notes.body_mut()?, &e.op);
+    }
     let mut slide = pres.slide_mut(e.slide)?;
     let mut shape = slide.shape_mut_by_id(e.shape_id)?;
     let mut body = match e.cell {
@@ -119,6 +125,7 @@ struct Target {
     slide: usize,
     shape_id: u32,
     cell: Option<(usize, usize)>,
+    notes: bool,
     paragraphs: usize,
     /// (run count, field count) of each paragraph
     shape: Vec<(usize, usize)>,
@@ -141,6 +148,11 @@ fn summary(b: ooxml_pptx::TextBodyRef<'_>) -> (usize, Vec<(usize, usize)>) {
 
 /// The current summary of one target (after earlier edits).
 fn reread(pres: &mut Presentation, t: &Target) -> Target {
+    if t.notes {
+        let n = pres.notes(t.slide).expect("notes").expect("notes slide");
+        let (paragraphs, shape) = summary(n.body().expect("notes body"));
+        return Target { slide: t.slide, shape_id: t.shape_id, cell: None, notes: true, paragraphs, shape };
+    }
     let slide = pres.slide(t.slide).expect("slide");
     let s = slide.shape_by_id(t.shape_id).expect("unique id").expect("shape");
     let b = match t.cell {
@@ -149,7 +161,7 @@ fn reread(pres: &mut Presentation, t: &Target) -> Target {
     }
     .expect("body");
     let (paragraphs, shape) = summary(b);
-    Target { slide: t.slide, shape_id: t.shape_id, cell: t.cell, paragraphs, shape }
+    Target { slide: t.slide, shape_id: t.shape_id, cell: t.cell, notes: false, paragraphs, shape }
 }
 
 fn targets(pres: &mut Presentation) -> Vec<Target> {
@@ -165,7 +177,7 @@ fn targets(pres: &mut Presentation) -> Vec<Target> {
             }
             let mut push = |cell, b: ooxml_pptx::TextBodyRef<'_>| {
                 let (paragraphs, shape) = summary(b);
-                out.push(Target { slide: si, shape_id: id, cell, paragraphs, shape });
+                out.push(Target { slide: si, shape_id: id, cell, notes: false, paragraphs, shape });
             };
             match s.kind() {
                 ShapeKind::Shape => {
@@ -184,6 +196,14 @@ fn targets(pres: &mut Presentation) -> Vec<Target> {
                 }
                 _ => {}
             }
+        }
+    }
+    // notes bodies last, so that the slide targets keep their operations
+    for si in 0..pres.slide_count() {
+        let Some(n) = pres.notes(si).expect("notes") else { continue };
+        if let (Some(sh), Some(b)) = (n.body_shape(), n.body()) {
+            let (paragraphs, shape) = summary(b);
+            out.push(Target { slide: si, shape_id: sh.id().unwrap_or(0), cell: None, notes: true, paragraphs, shape });
         }
     }
     out
@@ -283,7 +303,7 @@ pub fn sweep_case(fixture: &str) -> Case {
         targets(pres)
             .iter()
             .enumerate()
-            .map(|(k, t)| Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, op: op_for(k, t) })
+            .map(|(k, t)| Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, notes: t.notes, op: op_for(k, t) })
             .collect()
     })
 }
@@ -297,7 +317,7 @@ pub fn multi_case(fixture: &str) -> Case {
     for (k, t0) in targets(&mut pres).iter().enumerate() {
         for j in 0..3 {
             let t = reread(&mut pres, t0);
-            let e = Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, op: op_multi(k, j, &t) };
+            let e = Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, notes: t.notes, op: op_multi(k, j, &t) };
             match apply_edit(&mut pres, &e) {
                 Ok(()) => edits.push(e),
                 Err(err) => refused.push((e, format!("{err:?}"))),
@@ -310,7 +330,7 @@ pub fn multi_case(fixture: &str) -> Case {
 
 /// Named cases with hand-picked targets (ids from the fixtures).
 pub fn named_cases() -> Vec<Case> {
-    let e = |slide, shape_id, cell, op| Edit { slide, shape_id, cell, op };
+    let e = |slide, shape_id, cell, op| Edit { slide, shape_id, cell, notes: false, op };
     vec![
         run_case("title-and-body".into(), "poi/sample.pptx", |pres| {
             let ph = pres.slide(0).unwrap().placeholders();
@@ -470,12 +490,14 @@ fn whole_run_text(pres: &mut Presentation) -> Option<String> {
 }
 
 fn location(input: &mut Presentation, m: &Match) -> Value {
-    let id = input
-        .slide(m.location.slide)
-        .ok()
-        .and_then(|s| s.shapes().into_iter().find(|x| x.path() == m.location.shape).and_then(|x| x.id().ok()));
+    let id = if m.location.notes {
+        input.notes(m.location.slide).ok().flatten().and_then(|n| n.shapes().into_iter().find(|x| x.path() == m.location.shape).and_then(|x| x.id().ok()))
+    } else {
+        input.slide(m.location.slide).ok().and_then(|s| s.shapes().into_iter().find(|x| x.path() == m.location.shape).and_then(|x| x.id().ok()))
+    };
     json!({
         "slide": m.location.slide,
+        "notes": m.location.notes,
         "shape_id": id,
         "cell": m.location.cell.map(|(r, c)| [r, c]),
         "paragraph": m.location.paragraph,
@@ -484,9 +506,13 @@ fn location(input: &mut Presentation, m: &Match) -> Value {
     })
 }
 
-pub fn replace_case(name: String, fixture: &str, pattern: &str, replacement: &str, refuse_mixed: bool) -> Case {
+/// `notes`: search notes bodies too ([`Scope::SlidesAndNotes`], ADR-0008 §2).
+pub fn replace_case(name: String, fixture: &str, pattern: &str, replacement: &str, refuse_mixed: bool, notes: bool) -> Case {
     let mut pres = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
-    let o = ReplaceOptions::default().mixed_format(if refuse_mixed { MixedFormat::Refuse } else { MixedFormat::Allow });
+    let scope = if notes { Scope::SlidesAndNotes } else { Scope::Slides };
+    let o = ReplaceOptions::default()
+        .find(FindOptions::default().scope(scope))
+        .mixed_format(if refuse_mixed { MixedFormat::Refuse } else { MixedFormat::Allow });
     let rep = pres.replace_all(pattern, replacement, &o).expect("replace_all");
     let output = pres.to_bytes().expect("save");
     let mut input = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
@@ -500,7 +526,7 @@ pub fn replace_case(name: String, fixture: &str, pattern: &str, replacement: &st
             v
         })
         .collect();
-    let spec = json!({"pattern": pattern, "replacement": replacement, "refuse_mixed": refuse_mixed, "replaced": replaced, "refused": refused});
+    let spec = json!({"pattern": pattern, "replacement": replacement, "refuse_mixed": refuse_mixed, "notes": notes, "replaced": replaced, "refused": refused});
     Case { name, fixture: fixture.to_owned(), edits: Vec::new(), refused: Vec::new(), output, replaces: vec![spec] }
 }
 
@@ -511,20 +537,20 @@ pub fn replace_cases() -> Vec<Case> {
     let mut out = Vec::new();
     for f in FIXTURES {
         let tag = f.replace(['/', '.'], "-");
-        out.push(replace_case(format!("replace-e-{tag}"), f, "e", "\u{1E8C}\u{b}Q", false));
-        out.push(replace_case(format!("replace-the-{tag}"), f, "the", "", false));
+        out.push(replace_case(format!("replace-e-{tag}"), f, "e", "\u{1E8C}\u{b}Q", false, true));
+        out.push(replace_case(format!("replace-the-{tag}"), f, "the", "", false, true));
         let mut pres = Presentation::from_bytes(read_fixture(f)).expect(f);
         if let Some(whole) = whole_run_text(&mut pres) {
             // deletes a whole run of a multi-run paragraph (rule 4)
-            out.push(replace_case(format!("replace-whole-run-{tag}"), f, &whole, "", false));
+            out.push(replace_case(format!("replace-whole-run-{tag}"), f, &whole, "", false, false));
         }
         if let Some(phrase) = field_phrase(&mut pres) {
-            out.push(replace_case(format!("replace-field-{tag}"), f, &phrase, "F", false));
+            out.push(replace_case(format!("replace-field-{tag}"), f, &phrase, "F", false, false));
         }
         if let Some(phrase) = cross_run_phrase(&mut pres) {
-            out.push(replace_case(format!("replace-cross-{tag}"), f, &phrase, "置換", false));
+            out.push(replace_case(format!("replace-cross-{tag}"), f, &phrase, "置換", false, false));
             if matches!(*f, "poi/with_japanese.pptx" | "poi/shapes.pptx") {
-                out.push(replace_case(format!("replace-cross-refuse-{tag}"), f, &phrase, "置換\u{b}X", true));
+                out.push(replace_case(format!("replace-cross-refuse-{tag}"), f, &phrase, "置換\u{b}X", true, false));
             }
         }
     }

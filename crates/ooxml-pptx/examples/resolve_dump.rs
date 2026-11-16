@@ -1,6 +1,6 @@
 //! Writes ooxml-pptx's resolved placeholder geometry and links for every
 //! fixture as JSON, for the independent python-pptx check (ADR-0008 §7 O1,
-//! O3):
+//! O3) and the notes text (§2, `notes_text_frame.text`):
 //!
 //! ```text
 //! cargo run -p ooxml-pptx --example resolve_dump -- OUT.json
@@ -39,10 +39,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for f in cases::FIXTURES {
         let mut pres = Presentation::from_bytes(cases::read_fixture(f))?;
         let deck = pres.deck()?;
-        let (mut geometry, mut links) = (Vec::new(), Vec::new());
+        let (mut geometry, mut links, mut notes) = (Vec::new(), Vec::new(), Vec::new());
         for i in 0..deck.slide_count() {
             let Ok(s) = deck.slide(i) else { continue };
             let sid = s.info().slide_id;
+            if let Some(n) = s.notes() {
+                notes.push(json!({"slide_id": sid, "text": n.body().map(|b| b.text())}));
+                // notes placeholder geometry (§1.7: notes slide → notes master by type)
+                if let Some(ns) = s.notes_sheet().filter(|x| x.master().is_ok()) {
+                    for sh in n.shapes() {
+                        if sh.depth() > 0 || *sh.kind() == ShapeKind::AlternateContent || ns.placeholder_match(&sh)?.is_none() {
+                            continue;
+                        }
+                        let Ok(id) = sh.id() else { continue };
+                        let v = match ns.geometry(&sh)? {
+                            Lookup::Set(r) => r.value.as_ref().ok().map(|x| json!([x.x, x.y, x.cx, x.cy])),
+                            _ => None,
+                        };
+                        geometry.push(json!({"slide_id": sid, "shape_id": id, "xywh": v, "source": "notes", "notes": true}));
+                    }
+                }
+            }
             for sh in s.slide().shapes() {
                 if *sh.kind() == ShapeKind::AlternateContent {
                     continue;
@@ -80,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        all.insert((*f).to_owned(), json!({"geometry": geometry, "links": links}));
+        all.insert((*f).to_owned(), json!({"geometry": geometry, "links": links, "notes": notes}));
     }
     std::fs::write(&out, serde_json::to_string_pretty(&Value::Object(all))?)?;
     println!("{} fixtures written to {out}", cases::FIXTURES.len());

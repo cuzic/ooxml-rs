@@ -2,7 +2,8 @@
 //! edit's byte diff on the slide part must stay inside the span the edit
 //! targets (a run's `a:t`, a paragraph, a body), or be exactly an insertion
 //! at the slot boundary / exactly the removed element's span. Setting a
-//! run to its current text changes no byte at all.
+//! run to its current text changes no byte at all. Notes bodies (ADR-0008
+//! §2, §7 O4) get the same edit set through `notes_mut`.
 
 #[path = "oracle/cases.rs"]
 mod cases;
@@ -24,6 +25,8 @@ struct Body {
     slide: usize,
     id: u32,
     cell: Option<(usize, usize)>,
+    /// The slide's notes body.
+    notes: bool,
     part: String,
     span: ElementSpan,
     paras: Vec<Para>,
@@ -72,7 +75,7 @@ fn bodies(f: &str) -> Vec<Body> {
                 ShapeKind::Shape => {
                     if let Some(b) = s.text_body() {
                         let (span, paras) = collect(b);
-                        out.push(Body { slide: si, id, cell: None, part: part.clone(), span, paras });
+                        out.push(Body { slide: si, id, cell: None, notes: false, part: part.clone(), span, paras });
                     }
                 }
                 ShapeKind::Table => {
@@ -80,13 +83,19 @@ fn bodies(f: &str) -> Vec<Body> {
                         for (c, cell) in row.iter().enumerate() {
                             if let Some(b) = cell.text_body() {
                                 let (span, paras) = collect(b);
-                                out.push(Body { slide: si, id, cell: Some((r, c)), part: part.clone(), span, paras });
+                                out.push(Body { slide: si, id, cell: Some((r, c)), notes: false, part: part.clone(), span, paras });
                             }
                         }
                     }
                 }
                 _ => {}
             }
+        }
+        if let Some(n) = pres.notes(si).unwrap()
+            && let (Some(sh), Some(b)) = (n.body_shape(), n.body())
+        {
+            let (span, paras) = collect(b);
+            out.push(Body { slide: si, id: sh.id().unwrap_or(0), cell: None, notes: true, part: n.part_name().to_owned(), span, paras });
         }
     }
     out
@@ -104,7 +113,9 @@ fn run(f: &str, b: &Body, st: &mut Stats, what: &'static str, edit: impl FnOnce(
     let input = cases::read_fixture(f);
     let mut pres = Presentation::from_bytes(input.clone()).unwrap();
     let src = String::from_utf8(pres.package().read_part(&b.part).unwrap()).unwrap();
-    let res = {
+    let res = if b.notes {
+        pres.notes_mut(b.slide).unwrap().body_mut().and_then(|mut body| edit(&mut body))
+    } else {
         let mut slide = pres.slide_mut(b.slide).unwrap();
         let mut shape = slide.shape_mut_by_id(b.id).unwrap();
         match b.cell {
@@ -112,7 +123,8 @@ fn run(f: &str, b: &Body, st: &mut Stats, what: &'static str, edit: impl FnOnce(
             Some((r, c)) => shape.table_cell_mut(r, c).and_then(|mut body| edit(&mut body)),
         }
     };
-    let out = pres.slide(b.slide).unwrap().document().serialize();
+    let out = if b.notes { pres.notes(b.slide).unwrap().unwrap().document().serialize() } else { pres.slide(b.slide).unwrap().document().serialize() };
+    let what: &'static str = if b.notes { Box::leak(format!("notes {what}").into_boxed_str()) } else { what };
     match res {
         Ok(()) => {
             *st.checked.entry(what).or_default() += 1;
@@ -160,7 +172,7 @@ fn t2_every_edit_stays_local() {
     let mut st = Stats::default();
     for f in cases::FIXTURES {
         for b in bodies(f) {
-            let ctx = |w: &str| format!("{f} slide {} shape {} cell {:?}: {w}", b.slide, b.id, b.cell);
+            let ctx = |w: &str| format!("{f} slide {} shape {} cell {:?} notes {}: {w}", b.slide, b.id, b.cell, b.notes);
             for (pi, p) in b.paras.iter().enumerate() {
                 for (ri, (rspan, t, text)) in p.runs.iter().enumerate() {
                     // same value: no byte changes
@@ -202,4 +214,5 @@ fn t2_every_edit_stays_local() {
     eprintln!("T2 checked: {:?}", st.checked);
     eprintln!("T2 refused (bytes unchanged): {:?}", st.refused);
     assert!(st.checked["run set"] >= 515, "{:?}", st.checked);
+    assert!(st.checked["notes run set"] > 0 && st.checked["notes body set"] > 0, "{:?}", st.checked);
 }

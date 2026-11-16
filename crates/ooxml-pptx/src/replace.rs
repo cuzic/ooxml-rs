@@ -37,8 +37,8 @@
 //!   every slide changed by the call is restored and `Err` is returned.
 //!
 //! Differences from the API sketch of ADR-0008 §4: `Match` has no `items`
-//! range yet; [`Scope`] has no notes variants yet (notes editing, ADR-0008
-//! §2, is not implemented; `Scope` is `#[non_exhaustive]`);
+//! range yet; the notes scopes are [`Scope::SlidesAndNotes`] and
+//! [`Scope::Notes`] (`TextLocation::notes` marks a notes match);
 //! [`ReplaceReport::aborted`] is added; options are built with setters
 //! because the structs are `#[non_exhaustive]`.
 
@@ -50,7 +50,7 @@ use ooxml_schema::dml::{Break, Field, Paragraph, Run, RunProperties, Text};
 use crate::error::{Error, Result};
 use crate::read::{self, ShapeKind, ShapePath};
 use crate::text;
-use crate::write::{CheckInsert, Guard, LINKS, SlideMut, detach, node_at, para_shape};
+use crate::write::{CheckInsert, Guard, LINKS, detach, node_at, para_shape};
 
 /// The `a:rPr` of a created run: a subtree copy of the start run's, links
 /// skipped (ADR-0005 §9, Phase 0.1).
@@ -65,6 +65,12 @@ pub enum Scope {
     Slides,
     /// One slide (0-based index).
     Slide(usize),
+    /// Every slide, each followed by its notes body (ADR-0008 §2; slides
+    /// without notes or without a notes body are skipped).
+    SlidesAndNotes,
+    /// The notes body of one slide ([`crate::Error::NoNotesSlide`],
+    /// [`crate::Error::NoNotesBody`] if there is none).
+    Notes(usize),
 }
 
 /// Options of [`crate::Presentation::find`]. Build with
@@ -153,6 +159,9 @@ impl ReplaceOptions {
 pub struct TextLocation {
     /// Slide index.
     pub slide: usize,
+    /// In the slide's notes body (then `shape` and `paragraph` refer to the
+    /// notes slide).
+    pub notes: bool,
     /// The shape (for a shape in `mc:AlternateContent`: the AC entry).
     pub shape: ShapePath,
     /// `(row, col)` for a table cell (`col` counts `a:tc` in the row).
@@ -506,25 +515,25 @@ pub(crate) fn plan_paragraph(
 }
 
 /// Applies a plan to the paragraph at `para` (a node path from the slide root).
-pub(crate) fn apply_plan(slide: &mut SlideMut<'_>, body: &[usize], para_child: usize, plan: &ParaPlan) -> Result<()> {
+pub(crate) fn apply_plan(doc: &mut XmlDocument, body: &[usize], para_child: usize, plan: &ParaPlan) -> Result<()> {
     if !plan.changes() {
         return Ok(());
     }
-    fn lens<'s>(slide: &'s mut SlideMut<'_>, body: &[usize], para_child: usize) -> Result<ooxml_core::LensMut<'s, Paragraph>> {
-        crate::write::paragraph_lens(slide.doc, body, para_child)
+    fn lens<'s>(doc: &'s mut XmlDocument, body: &[usize], para_child: usize) -> Result<ooxml_core::LensMut<'s, Paragraph>> {
+        crate::write::paragraph_lens(doc, body, para_child)
     }
     for (child, t) in &plan.texts {
-        let p = lens(slide, body, para_child)?;
+        let p = lens(doc, body, para_child)?;
         let mut r = p.into_child_at::<Run>(*child).ok_or(Error::RunNotFound(*child))?;
         r.get_or_insert::<Text>()?.set_text(t)?;
     }
     let mut removed = plan.removed.clone();
     removed.sort_unstable();
     for &child in removed.iter().rev() {
-        lens(slide, body, para_child)?.remove_at(child);
+        lens(doc, body, para_child)?.remove_at(child);
     }
     for (pos, kind, t, fmt) in &plan.created {
-        let mut p = lens(slide, body, para_child)?;
+        let mut p = lens(doc, body, para_child)?;
         match kind {
             Kind::Break => {
                 p.insert_by::<Break>(|k, _| k == *pos)?;
