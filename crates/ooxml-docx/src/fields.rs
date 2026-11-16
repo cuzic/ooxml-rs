@@ -109,8 +109,12 @@ pub const NON_LITERAL_SOURCE: &str = " (non-literal source)";
 
 /// Marks the item argument in a [`FILE_SOURCE`] key: the bookmark of
 /// `INCLUDETEXT` (second argument) and the item of `LINK` (third), e.g.
-/// `INCLUDETEXT (item BM)`. Such a key is safe unless the item names a
-/// bookmark of this document (review round 4, m13: Word's "paste link"
+/// `INCLUDETEXT (item BM)`. Since review m15 the key lists **every** token
+/// after the ProgID and the file argument as a candidate, separated by
+/// [`ITEM_SEPARATOR`]: tokens after switches (`\a OLE_LINK1`) and the pieces
+/// of an unquoted path (`C:\\x\\self.docx OLE_LINK1`) count too, so a
+/// self-reference fails closed whichever token Word reads as the item *(u)*.
+/// Such a key is safe unless the item names a bookmark of this document (review round 4, m13: Word's "paste link"
 /// inside one document writes `LINK Word.Document.12 "<own path>"
 /// "OLE_LINK1"` and the bookmark `OLE_LINK1`); then the document reports
 /// [`SELF_REFERENCE`]. The check is syntactic: whether the path names this
@@ -266,15 +270,73 @@ fn key(instruction: &str, nested: bool) -> String {
                 _ => (0, None),
             };
             if nested || argument(rest, file).is_none() {
-                format!("{code}{NON_LITERAL_SOURCE}")
-            } else if let Some(item) = item.and_then(|i| argument(rest, i)) {
-                format!("{code}{ITEM_ARGUMENT}{item})")
-            } else {
-                code
+                return format!("{code}{NON_LITERAL_SOURCE}");
             }
+            if item.is_none() {
+                return code;
+            }
+            // Item candidates (review m15): every token after the code except
+            // the ProgID and the file argument, also after switches and
+            // inside unquoted paths, so a self-reference fails closed
+            // whichever token Word takes as the item.
+            let mut skip: Vec<String> = (0..=file).filter_map(|i| argument(rest, i)).collect();
+            let cands: Vec<String> = item_tokens(rest)
+                .into_iter()
+                .filter(|t| match skip.iter().position(|s| s == t) {
+                    Some(k) => {
+                        skip.remove(k);
+                        false
+                    }
+                    None => true,
+                })
+                .collect();
+            if cands.is_empty() { code } else { format!("{code}{ITEM_ARGUMENT}{})", cands.join(ITEM_SEPARATOR)) }
         }
         _ => code,
     }
+}
+
+/// Separates the candidates of an [`ITEM_ARGUMENT`] key (U+001F, which
+/// cannot occur in a field instruction written by Word).
+pub const ITEM_SEPARATOR: &str = "\u{1F}";
+
+/// Every token of `rest`, normalised ([`normalize_name`]): quoted strings
+/// (to the next quotation mark of any kind, or the end), and bare tokens up
+/// to whitespace, a quotation mark or `\`. A `\` and the one character after
+/// it (a switch name such as `\a`, `\!`, `\*`, or the second backslash of an
+/// escaped one) are skipped; switch arguments are tokens.
+fn item_tokens(rest: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut chars = rest.chars().peekable();
+    let mut cur = String::new();
+    let flush = |cur: &mut String, out: &mut Vec<String>| {
+        let t = normalize_name(cur);
+        if !t.is_empty() {
+            out.push(t);
+        }
+        cur.clear();
+    };
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            flush(&mut cur, &mut out);
+            chars.next();
+        } else if QUOTES.contains(&c) {
+            flush(&mut cur, &mut out);
+            for q in chars.by_ref() {
+                if QUOTES.contains(&q) {
+                    break;
+                }
+                cur.push(q);
+            }
+            flush(&mut cur, &mut out);
+        } else if c.is_whitespace() {
+            flush(&mut cur, &mut out);
+        } else {
+            cur.push(c);
+        }
+    }
+    flush(&mut cur, &mut out);
+    out
 }
 
 /// Is this key (from [`field_key`]) safe under Phase0?
@@ -284,6 +346,10 @@ fn key(instruction: &str, nested: bool) -> String {
 /// - `DOCPROPERTY X` is safe when `X` is in [`DOCPROPERTY_SAFE`] (an
 ///   allow-list). Custom properties are decided with `docProps/custom.xml`
 ///   when the document is opened.
+/// - `<CODE> (item X)` ([`ITEM_ARGUMENT`]) is safe **here**; the document
+///   compares `X` with its bookmarks when it is opened and refuses a match
+///   as `<CODE> (self reference)` ([`SELF_REFERENCE`]). A caller of
+///   `is_safe(&field_key(..))` does not see that check (review n1).
 /// - Everything else: listed in [`SAFE`].
 pub fn is_safe(key: &str) -> bool {
     if let Some(arg) = key.strip_prefix("INFO ") {
@@ -529,7 +595,8 @@ pub(crate) fn bookmark_names(node: &RawNode, out: &mut BTreeSet<String>) {
 ///   arguments Word may read further than ooxml-rs (a nested field's result
 ///   is not part of the instruction).
 /// - `<CODE> (item X)` ([`ITEM_ARGUMENT`]) becomes `<CODE> (self reference)`
-///   when `X` is one of `bookmarks`, and is safe otherwise.
+///   when any candidate of `X` ([`ITEM_SEPARATOR`]) is one of `bookmarks`,
+///   and is safe otherwise.
 pub(crate) fn refused(codes: impl IntoIterator<Item = String>, custom: &CustomNames, bookmarks: &BTreeSet<String>) -> Vec<String> {
     let classify = |c: String| -> Option<String> {
         if let Some(a) = c.strip_prefix("DOCPROPERTY ") {
@@ -543,7 +610,8 @@ pub(crate) fn refused(codes: impl IntoIterator<Item = String>, custom: &CustomNa
             && FILE_SOURCE.contains(&base)
         {
             let item = item.strip_suffix(')').unwrap_or(item);
-            return bookmarks.contains(item).then(|| format!("{base}{SELF_REFERENCE}"));
+            let hit = item.split(ITEM_SEPARATOR).any(|t| bookmarks.contains(t));
+            return hit.then(|| format!("{base}{SELF_REFERENCE}"));
         }
         (!is_safe(&c)).then_some(c)
     };
@@ -575,6 +643,13 @@ mod tests {
         assert_eq!(field_key("BARCODE bm\\b"), "BARCODE \\b");
         assert_eq!(field_key("BARCODE bm \\B \\u"), "BARCODE \\b");
         assert_eq!(field_key("INCLUDETEXT \"c:\\\\a.docx\" bm"), "INCLUDETEXT (item BM)");
+        // m15: tokens after switches and inside unquoted paths are candidates
+        assert_eq!(field_key("INCLUDETEXT \"self.docx\" \\! OLE_LINK1"), "INCLUDETEXT (item OLE_LINK1)");
+        assert_eq!(field_key("LINK Word.Document.12 \"self.docx\" \\a OLE_LINK1"), "LINK (item OLE_LINK1)");
+        assert_eq!(field_key("INCLUDETEXT C:\\\\x\\\\self.docx OLE_LINK1"), "INCLUDETEXT (item X\u{1F}SELF.DOCX\u{1F}OLE_LINK1)");
+        // m16 (mutant M16): `nested` alone makes a literal-looking source non-literal
+        assert_eq!(key("INCLUDETEXT \"a.docx\" bm", true), "INCLUDETEXT (non-literal source)");
+        assert_eq!(key("LINK Word.Document.12 \"a.docx\" \"R1C1\"", true), "LINK (non-literal source)");
         assert_eq!(field_key("INCLUDETEXT \"c:\\\\a.docx\""), "INCLUDETEXT");
         // m13: LINK's file is its second argument; the third is the item.
         assert_eq!(field_key("LINK Word.Document.12 \"C:\\\\x\\\\self.docx\" \"OLE_LINK1\" \\a \\r"), "LINK (item OLE_LINK1)");
