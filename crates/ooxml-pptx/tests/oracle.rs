@@ -155,12 +155,3 @@ fn t3_detects_wrong_target() {
     let mut output = Presentation::from_bytes(case.output.clone()).unwrap();
     assert_ne!(model::dump(&mut output), expected);
 }
-
-#[test]
-fn t3_refusals_are_reported_per_case() {
-    for case in cases::all_cases() {
-        for (e, r) in &case.refused {
-            eprintln!("{}: {:?} -> {r}", case.name, e.to_json());
-        }
-    }
-}

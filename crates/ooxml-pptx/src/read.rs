@@ -35,6 +35,11 @@ impl ShapePath {
     pub fn as_slice(&self) -> &[usize] {
         &self.0
     }
+
+    /// A path from raw child indices (validated when used).
+    pub fn from_slice(path: &[usize]) -> Self {
+        ShapePath(path.to_vec())
+    }
 }
 
 /// What kind of shape a [`ShapeRef`] is.
