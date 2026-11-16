@@ -15,6 +15,8 @@ use ooxml_schema::sml;
 use ooxml_xlsx::{CellIndex, CellValue, Workbook};
 use zip::ZipArchive;
 
+pub mod p1;
+
 pub const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference");
 
 /// Path of a fixture: `"poi/61605.xlsx"`, `"calamine/…"`, or `"minimal"`.
