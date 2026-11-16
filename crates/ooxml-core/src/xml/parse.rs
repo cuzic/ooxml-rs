@@ -73,7 +73,7 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
         return Err(not_wf(p, WellFormedness::NullCharacter));
     }
     let root = Parser::new(&source, options.max_depth).run()?;
-    Ok(XmlDocument { source, root, max_depth: options.max_depth })
+    Ok(XmlDocument { source, root, max_depth: options.max_depth, token: super::DocToken::new() })
 }
 
 struct Parser<'s> {
