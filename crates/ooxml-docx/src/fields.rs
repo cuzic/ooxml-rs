@@ -428,6 +428,54 @@ pub(crate) fn refused(codes: impl IntoIterator<Item = String>, custom: &CustomNa
     codes.into_iter().filter(|c| !safe(c)).collect::<BTreeSet<_>>().into_iter().collect()
 }
 
+/// An operation class for the per-operation W2 gate (ADR-0007 §6.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Operation {
+    /// Text writes: `set_run_text`, `replace`, `replace_at`,
+    /// `replace_matches` (and, later, paragraph and cell text).
+    Text,
+    /// `append_paragraph`.
+    Append,
+    /// Direct formatting setters (ADR-0007 §4).
+    Format,
+    /// Style references (ADR-0007 §5). Gated by the document-wide W2: no
+    /// column of its own (revision 2, review M4).
+    Style,
+}
+
+/// Codes a text edit or an append cannot make stale, beyond [`SAFE`]
+/// (ADR-0007 §6.1): they depend on the number and order of fields or
+/// paragraphs, their own instruction, note numbering or outline levels,
+/// none of which a text edit or an append changes.
+pub const TEXT_ALLOWED: &[&str] = &["SEQ", "TC", "XE", "NOTEREF", "LISTNUM", "AUTONUM", "AUTONUMLGL", "AUTONUMOUT"];
+
+/// Codes a formatting change cannot make stale, beyond [`SAFE`] and
+/// [`TEXT_ALLOWED`] (ADR-0007 §6.1): word and character statistics and
+/// formulas. `REF` is not listed (its result copies the source's
+/// formatting), nor are line or page statistics (layout).
+pub const FORMAT_ALLOWED: &[&str] = &[
+    "NUMWORDS",
+    "NUMCHARS",
+    "INFO NUMWORDS",
+    "INFO NUMCHARS",
+    "DOCPROPERTY WORDS",
+    "DOCPROPERTY CHARACTERS",
+    "DOCPROPERTY CHARACTERSWITHSPACES",
+    "=",
+];
+
+/// Is the refused key `key` ([`field_key`]) allowed for `op` by its column
+/// of ADR-0007 §6.1? Keys refused for every operation (`TOC`, `REF`, `IF`,
+/// [`MALFORMED`], …) return `false`.
+pub fn allowed_for(op: Operation, key: &str) -> bool {
+    match op {
+        Operation::Text | Operation::Append => TEXT_ALLOWED.contains(&key),
+        Operation::Format => TEXT_ALLOWED.contains(&key) || FORMAT_ALLOWED.contains(&key),
+        Operation::Style => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
