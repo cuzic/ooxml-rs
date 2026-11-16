@@ -1,6 +1,7 @@
 //! Errors of `ooxml-docx` (ADR-0004 §6).
 
 use crate::RunContext;
+use crate::replace::Refusal;
 
 /// Errors from `ooxml-docx`.
 ///
@@ -110,6 +111,33 @@ pub enum Error {
         /// The offending character.
         ch: char,
     },
+
+    /// `find`/`replace` with an empty needle (ADR-0007 §1.1).
+    #[error("the needle is empty")]
+    EmptyNeedle,
+
+    /// `replace` refused at least one match and `on_refused` is
+    /// `Refuse`: nothing was written (ADR-0007 §1.4). Every refused match is
+    /// listed.
+    #[error("{} match(es) refused, nothing replaced (first: {})", refused.len(), refused.first().map(|r| r.reason.to_string()).unwrap_or_default())]
+    ReplaceRefused {
+        /// The refused matches, in document order.
+        refused: Vec<Refusal>,
+    },
+
+    /// `replace_at` / `replace_matches` with a [`crate::Match`] from another
+    /// document, from before the last write to its paragraph, or whose text
+    /// is no longer at its range (ADR-0007 §7).
+    #[error("the match is stale: its paragraph changed since find, or it belongs to another document")]
+    StaleMatch,
+
+    /// `replace_matches` with two matches that overlap.
+    #[error("two matches overlap")]
+    OverlappingMatches,
+
+    /// No story at that index or with that id.
+    #[error("no such story")]
+    NoSuchStory,
 
     /// No paragraph with that index.
     #[error("no paragraph {0}")]

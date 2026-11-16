@@ -293,7 +293,17 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::Slide {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::ViewProperties {}
 #[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Comments {}
+#[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Document {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Endnotes {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Footnotes {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Footer {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Header {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
 /// Read-only view of [`GraphicData`].
@@ -362,9 +372,34 @@ impl<'a> GraphicDataView<'a> {
             .map(super::pml::ViewPropertiesView)
     }
     #[cfg(feature = "wml")]
+    /// `w:comments` children in document order.
+    pub fn comments_iter(&self) -> impl Iterator<Item = super::wml::CommentsView<'a>> {
+        self.0.children::<super::wml::Comments>().map(super::wml::CommentsView)
+    }
+    #[cfg(feature = "wml")]
     /// `w:document` children in document order.
     pub fn document_iter(&self) -> impl Iterator<Item = super::wml::DocumentView<'a>> {
         self.0.children::<super::wml::Document>().map(super::wml::DocumentView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:endnotes` children in document order.
+    pub fn endnotes_iter(&self) -> impl Iterator<Item = super::wml::EndnotesView<'a>> {
+        self.0.children::<super::wml::Endnotes>().map(super::wml::EndnotesView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:footnotes` children in document order.
+    pub fn footnotes_iter(&self) -> impl Iterator<Item = super::wml::FootnotesView<'a>> {
+        self.0.children::<super::wml::Footnotes>().map(super::wml::FootnotesView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:ftr` children in document order.
+    pub fn footer_iter(&self) -> impl Iterator<Item = super::wml::FooterView<'a>> {
+        self.0.children::<super::wml::Footer>().map(super::wml::FooterView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:hdr` children in document order.
+    pub fn header_iter(&self) -> impl Iterator<Item = super::wml::HeaderView<'a>> {
+        self.0.children::<super::wml::Header>().map(super::wml::HeaderView)
     }
     #[cfg(feature = "wml")]
     /// `w:settings` children in document order.
@@ -2147,7 +2182,17 @@ const _: () = ooxml_core::schema::assert_child::<
     super::pml::ViewProperties,
 >();
 #[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Comments>();
+#[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Document>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Endnotes>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Footnotes>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Footer>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Header>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
