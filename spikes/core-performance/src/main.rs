@@ -5,6 +5,9 @@
 //! cd spikes/core-performance && cargo run --release
 //! ```
 
+/// The interner's hasher (ADR-0010 §1): keyed per process (random seed).
+pub type NameHasher = foldhash::fast::RandomState;
+
 mod compact;
 mod rows;
 

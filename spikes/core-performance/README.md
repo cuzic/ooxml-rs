@@ -57,9 +57,22 @@ These were measured on the same shared AMD EPYC 7313P as
   reallocations are counted separately.
 - **Interner fix (ADR-0010 rev 2, round-1 m1).** These numbers are after the fix. The
   interner now keys on `(prefix, local)` borrowed from the source plus the interned namespace
-  URI's address, hashed with FNV-1a. Revision 1 formatted a key string with the namespace URI
-  for every lookup and hashed it with SipHash, which made `word/document.xml` 30–38% slower than
-  core (21.0 ms against 15.2 ms in one session).
+  URI's address. Revision 1 formatted a key string with the namespace URI for every lookup and
+  hashed it with SipHash, which made `word/document.xml` 30–38% slower than core (21.0 ms
+  against 15.2 ms in one session).
+- **Keyed hasher (ADR-0010 rev 3, round-2 N1).**
+  - Revision 2 hashed the interner key with **unkeyed FNV-1a**. Crafted element names made the
+    parse quadratic: 65,536 names took 1.11 s against 49 ms for random names, and 18.8 MiB took
+    111 s in the reviewer's run.
+  - The interner is now generic over its hasher (`compact::parse_with::<S>`). `parse` uses
+    `foldhash::fast::RandomState`, keyed with a per-process random seed.
+  - `cargo run --release --bin hashdos -- dos <blocks>` compares unkeyed FNV, std
+    `RandomState`, ahash and foldhash with core on colliding and random names.
+    `cargo run --release --bin hashdos -- docx` does the same on the largest `word/document.xml`.
+    The results are in ADR-0010 §1.
+  - The table below predates the hasher change; foldhash measured within 1–4% of core on the
+    docx in the same session, so its conclusions stand.
+  - The correctness check (1,589 fixture parts: T1, same tree, re-render) passes with foldhash.
 
 | Input | XML | Tree | Parse (no drop) | Allocations (+ reallocations) | Allocs/element (+ reallocs) | Heap retained | Heap/XML byte | Drop | Unedited serialize | Full re-render |
 |---|---|---|---|---|---|---|---|---|---|---|

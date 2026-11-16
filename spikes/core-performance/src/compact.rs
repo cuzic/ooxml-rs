@@ -134,30 +134,19 @@ pub struct CompactDoc {
 
 /// Per-parse name interner. Keys borrow the source (the raw prefix and
 /// local name) and identify the namespace by the address of its interned
-/// URI, so a lookup neither formats nor allocates; FNV-1a instead of SipHash
-/// because keys are short and trusted to be few.
-struct Interner<'s> {
-    map: HashMap<(Option<&'s str>, &'s str, usize), Name, std::hash::BuildHasherDefault<Fnv>>,
+/// URI, so a lookup neither formats nor allocates.
+///
+/// The keys are element and attribute names, i.e. **untrusted input**. The
+/// hasher must be keyed with a per-process random seed (ADR-0010 rev 3,
+/// review round 2 N1): revision 2's unkeyed FNV-1a let crafted names collide
+/// in the low bits and made parsing quadratic (18.8 MiB: 111 s). The hasher
+/// is a type parameter so the `hashdos` bench can compare candidates; `parse`
+/// uses the crate root's `NameHasher` (`foldhash::fast::RandomState`).
+struct Interner<'s, S> {
+    map: HashMap<(Option<&'s str>, &'s str, usize), Name, S>,
 }
 
-#[derive(Default)]
-struct Fnv(u64);
-
-impl std::hash::Hasher for Fnv {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-    fn write(&mut self, bytes: &[u8]) {
-        let mut h = if self.0 == 0 { 0xcbf2_9ce4_8422_2325 } else { self.0 };
-        for b in bytes {
-            h ^= u64::from(*b);
-            h = h.wrapping_mul(0x0100_0000_01b3);
-        }
-        self.0 = h;
-    }
-}
-
-impl<'s> Interner<'s> {
+impl<'s, S: std::hash::BuildHasher> Interner<'s, S> {
     fn get(&mut self, ns: &Arc<str>, local: &'s str, prefix: Option<&'s str>) -> Name {
         let key = (prefix, local, Arc::as_ptr(ns) as *const u8 as usize);
         if let Some(n) = self.map.get(&key) {
@@ -176,10 +165,10 @@ struct Open {
     scope_mark: usize,
 }
 
-struct Ctx<'s> {
+struct Ctx<'s, S> {
     src: &'s str,
     source: Arc<str>,
-    names: Interner<'s>,
+    names: Interner<'s, S>,
     uris: HashMap<String, Arc<str>>,
     empty: Arc<str>,
     xmlns: Arc<str>,
@@ -189,7 +178,7 @@ struct Ctx<'s> {
     max_depth: usize,
 }
 
-impl<'s> Ctx<'s> {
+impl<'s, S: std::hash::BuildHasher> Ctx<'s, S> {
     fn uri(&mut self, u: &str) -> Arc<str> {
         if let Some(a) = self.uris.get(u) {
             return a.clone();
@@ -276,14 +265,19 @@ impl<'s> Ctx<'s> {
 }
 
 pub fn parse(bytes: &[u8], max_depth: usize) -> Result<CompactDoc, String> {
+    parse_with::<super::NameHasher>(bytes, max_depth)
+}
+
+/// `parse` with the interner hasher given explicitly (the `hashdos` bench).
+pub fn parse_with<S: std::hash::BuildHasher + Default>(bytes: &[u8], max_depth: usize) -> Result<CompactDoc, String> {
     let s = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
     let source: Arc<str> = Arc::from(s);
     let src: &str = &source;
-    let root = parse_src(src, &source, max_depth)?;
+    let root = parse_src::<S>(src, &source, max_depth)?;
     Ok(CompactDoc { source: source.clone(), root })
 }
 
-fn parse_src(src: &str, source: &Arc<str>, max_depth: usize) -> Result<Node, String> {
+fn parse_src<S: std::hash::BuildHasher + Default>(src: &str, source: &Arc<str>, max_depth: usize) -> Result<Node, String> {
     let base = if src.starts_with('\u{feff}') { 3 } else { 0 };
     let mut reader = Reader::from_str(&src[base..]);
     let cfg = reader.config_mut();
@@ -293,7 +287,7 @@ fn parse_src(src: &str, source: &Arc<str>, max_depth: usize) -> Result<Node, Str
     let mut cx = Ctx {
         src,
         source: source.clone(),
-        names: Interner { map: HashMap::default() },
+        names: Interner { map: HashMap::<_, _, S>::default() },
         uris: HashMap::new(),
         empty: Arc::from(""),
         xmlns: Arc::from(XMLNS_NS),

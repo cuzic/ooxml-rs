@@ -1,6 +1,6 @@
 # ADR-0010: Core performance: compact Layer 2 tree, deferred subtrees, save and read paths
 
-- Status: **Proposed** (revision 2)
+- Status: **Proposed** (revision 3)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, serialization rule,
   T1/T1b/T2, "large-sheet performance is a known future redesign point"),
@@ -57,6 +57,40 @@
     (level 3 default; the arena decided after stage 2; pptx owned read API or `release_slide`,
     no LRU).
 
+- **Revision 3** (after `0010-opus-review-round2.md`: 1 Major, 6 Minor; taken over from the Word
+  owner):
+  - **N1 (HashDoS).** Revision 2's unkeyed FNV-1a made parsing quadratic on crafted names
+    (18.8 MiB: 111 s). The interner's hasher is now **keyed with a per-process random seed**:
+    `foldhash::fast::RandomState` (§1).
+    - std's `RandomState` was weighed first, per the std-first policy: it is equally safe, but
+      measured about 19% slower than core on the largest `word/document.xml`, which would fail
+      stage 1's "no parse regression".
+    - The spike is fixed and measured (`src/bin/hashdos.rs`).
+    - Stage 1 gains a colliding-input test and a bound for inputs with many distinct names.
+  - **N2:** `RawNode` moves to a leaf module (`xml/node.rs`), so privacy really reaches the
+    serializer. An unexpanded deferred node whose own attributes changed (`own_dirty`) is a
+    defined state with a defined rendering, self-closing nodes included. Attribute edits no
+    longer expand (§2.3).
+  - **N3:** stage 1b's accessors are operation-level (`insert_child`, `remove_child`,
+    `splice_children`, `retain_children`, `set_children`); there is no `&mut Vec`. The
+    inventory of direct accesses is completed across main, #18, #38 and #26.
+  - **N4:** the targets are reconciled:
+    - heap targets per part kind;
+    - edit + save excludes open;
+    - the open-time basis gains the shared strings, the census's second inflate and the
+      deferred-row construction cost, and is marked to be confirmed by a stage-2 breakdown;
+    - the 80 MiB heap target requires the shared strings to be read uncached.
+  - **N5:** every `RowEntry` value derived from row content is lazy, and bulk reads should use
+    `release_children` (or core's non-building mode), not a second decoder (§2.5).
+  - **N6:** `ParseOptions` builders, `xml_part_with` and `parse_part_with`, the depth floor, a
+    test for parse order, `Option<Box<Deferred>>` with a size assert, a `u32` depth, nested
+    deferral (§2.1, §2.4, §5).
+  - **N7:** #40 and #36 are in the interaction table.
+  - **Nits:**
+    - `SaveOptions` is validated in `to_bytes_with` too;
+    - `release_part` invalidating unrelated plans is accepted and documented;
+    - duplicate `XName`s for one URI are harmless.
+
 ## Context
 
 The 2026-11 baseline (revision 2, run 3 on a shared host; see its caveats) puts ooxml-rs far from the xlsx Phase6 goal
@@ -105,12 +139,12 @@ The representation changes; the accessors do not.
 
 | Today | Decision | Why it is safe |
 |---|---|---|
-| `XName { ns: Arc<str>, local: Box<str>, prefix: Option<Box<str>> }`, 48 B and 1–2 allocations per name | `XName(Arc<XNameData>)`: one thin pointer (8 B), interned per parse by `(prefix, local, ns)`. `XName::new` stays (it allocates; it is only used for inserted nodes). `ns()`, `local()`, `prefix()`, `is()`, `display()` and `Eq`/`Hash` keep their meaning. Equality compares by pointer first, then by content; `Hash` is computed from the content, never the pointer, so it agrees with `Eq`. The derived `Debug` output changes shape (a wrapped struct), which no test depends on. | Names are immutable once built. Interning is per document, so a subtree copied between documents (`detach_as`, #18) carries its own `Arc`s. |
+| `XName { ns: Arc<str>, local: Box<str>, prefix: Option<Box<str>> }`, 48 B and 1–2 allocations per name | `XName(Arc<XNameData>)`: one thin pointer (8 B), interned per parse by `(prefix, local, ns)`. `XName::new` stays (it allocates; it is only used for inserted nodes). `ns()`, `local()`, `prefix()`, `is()`, `display()` and `Eq`/`Hash` keep their meaning. Equality compares by pointer first, then by content; `Hash` is computed from the content, never the pointer, so it agrees with `Eq`. The derived `Debug` output changes shape (a wrapped struct), which no test depends on. One URI can occur under two addresses (`xmlns=""`, an explicit binding of the `xml` URI), giving two `XName`s with equal content. That is harmless: `Eq` falls back to content, and each `XName` holds its URI's `Arc`, so an address is never reused while a name refers to it (round-2 nit). | Names are immutable once built. Interning is per document, so a subtree copied between documents (`detach_as`, #18) carries its own `Arc`s. |
 | `RawAttr.value: String`, `RawText.value: String`, `RawMarkup.raw: Box<str>` | `SStr`: an `Arc<str>` of the part's source plus a `u32` range (24 B, no allocation). When the decoded value differs from its source bytes (entities, CR/LF/tab normalization, text merged across an entity reference), the value is owned instead: the same type, with a buffer of its own. `value()`, `raw()` and `text()` still return `&str` / `Cow<str>`. | Values are only rewritten through the lens primitives, which install an owned `SStr`, and the dirty flags work exactly as today. The `Arc` keeps a value valid when its node is cloned or moved to another document. |
 | `XmlDocument.source: Box<str>` | `Arc<str>`, shared by the values. `source() -> &str` is unchanged. | — |
 | `ElementSpan { start, open_end, close: Option<(usize, usize)> }` stored as is | Stored as four `u32` offsets, with the two dirty flags packed into the same word. `span()` still returns the public `ElementSpan` with `usize` fields. | Parts are capped at 4 GiB, which zip64 aside is far above any real part. A larger part is refused with a typed error rather than truncated. |
 | `attrs: Vec<RawAttr>` (grows while parsing) | A boxed slice, allocated once per start tag with the exact count. The lens's `set_attr`/`remove_attr` rebuild it; edits are rare. `attrs() -> &[RawAttr]` is unchanged. | — |
-| `children: Vec<RawItem>` (grows by doubling while parsing) | Collected in a per-depth scratch vector and moved into an exact-capacity `Vec` when the element closes. The field becomes private to the module that defines `RawNode`, reachable only through `children()` and `children_mut()`. Stage 4 adds an arena (below). | Every reader and writer of children goes through the accessors, which §2.3 needs and which make stage 4 a change of lens internals only. |
+| `children: Vec<RawItem>` (grows by doubling while parsing) | Collected in a per-depth scratch vector and moved into an exact-capacity `Vec` when the element closes. `RawNode` moves to a **leaf module** (`xml/node.rs`), where the field is private: the parser builds nodes through a `pub(super)` builder, and everyone else, `xml/write.rs` and `xml/mod.rs` included, goes through `children()` and the **operation-level** mutators `insert_child`, `remove_child`, `splice_children`, `retain_children`, `set_children` (revision 3, review N2, N3). No `&mut Vec` is handed out. Stage 4 adds an arena (below). | Every reader and writer of children goes through the accessors, which §2.3 needs. Because no caller holds a `&mut Vec`, stage 4 stays a change inside `xml/node.rs` and the lens. |
 
 **Measured** (spike `src/compact.rs`, same inputs as the baseline; full tables in the spike's
 README):
@@ -134,7 +168,43 @@ README):
   containing the namespace URI and hashed it with SipHash. Text-heavy WordprocessingML has many
   attributes per element (rsids, `w14:paraId`), so it paid most.
   - The interner now keys on `(prefix, local)` borrowed from the source plus the address of the
-    interned namespace URI, with FNV-1a. A lookup neither formats nor allocates.
+    interned namespace URI. A lookup neither formats nor allocates.
+- **The interner's hasher is keyed (revision 3, review N1).** The keys are element and attribute
+  names, which the part's author controls.
+  - Revision 2 hashed them with **unkeyed FNV-1a**. Names whose hashes agree in the low bits are
+    cheap to construct (one 4-letter birthday collision per block, chained), and they put every
+    name into one probe sequence, so parsing became **quadratic**: 18.8 MiB of such names took
+    111 s against 0.37 s for random names.
+  - core's current parser has no name hash table, so revision 2 would have **introduced** this
+    denial of service.
+  - **Decision:** the interner uses a hasher **keyed with a per-process random seed**,
+    `foldhash::fast::RandomState`. foldhash has no dependencies, is MIT/Zlib licensed, and is
+    the default hasher of `hashbrown`. Hash values are never exposed, so an attacker cannot learn
+    the seed from output.
+  - **std first, weighed (CLAUDE.md).** std's `RandomState` (SipHash-1-3, keyed per process) is
+    equally safe and needs no dependency. It was rejected on measurement: on the largest
+    `word/document.xml` it parses about 19% slower than core, and stage 1's acceptance requires
+    no parse regression. If the owner prefers std anyway, the cost is that regression on
+    text-heavy parts (Open question 5).
+  - **Measured** (`spikes/core-performance/src/bin/hashdos.rs`, one session, load 11–25, best of
+    3; "colliding" = names crafted against revision 2's FNV; "random" = as many random names of
+    the same length):
+
+    | Names (part size) | FNV colliding / random | std `RandomState` | ahash | **foldhash** | core |
+    |---|---|---|---|---|---|
+    | 4,096 (0.2 MiB) | 5.1 / 1.6 ms | 1.3 / 1.3 ms | 0.93 / 0.92 ms | **0.92 / 0.90 ms** | 0.51 / 0.55 ms |
+    | 16,384 (0.9 MiB) | 66 / 7.4 ms | 5.5 / 5.5 ms | 3.9 / 3.9 ms | **3.8 / 3.7 ms** | 2.0 / 1.9 ms |
+    | 65,536 (4.2 MiB) | **1.11 s** / 49 ms | 37 / 37 ms | 30 / 30 ms | **31 / 33 ms** | 9.1 / 8.8 ms |
+    | 262,144 (18.8 MiB) | (quadratic, not run) / 268 ms | 195 / 204 ms | 162 / 166 ms | **164 / 165 ms** | 69 / 59 ms |
+    | largest `word/document.xml` (1.3 MiB), best of 15, 5 rounds | 15.1–15.3 ms | 16.5–16.7 ms | 14.6–14.9 ms | **14.1–14.6 ms** | 13.9–14.1 ms |
+
+    - With a keyed hasher, colliding names cost the same as random ones (linear).
+    - foldhash is within 1–4% of core on the docx and 2.5–3.5× faster than std on these
+      synthetic names.
+  - **Many distinct names are a cost of interning.** A part made of 262,144 *different* names
+    parses about 2.4–2.8× slower than core: every name is a table insert plus an `Arc`. Real
+    parts use a few hundred distinct names, so stage 1 bounds this case instead of optimising
+    it (acceptance below).
   - That removed the regression and made sheets 1.6–1.8× faster at 100k–1M cells (before the fix:
     1.1–1.3×).
   - Stage 1's acceptance includes "no parse regression on the largest docx/pptx fixtures" so that
@@ -157,15 +227,27 @@ This is a general Layer 2 mechanism; row-based `sheetData` is its first user.
 
 - `ParseOptions::defer: &'static [QName]`, e.g. `&[sml::Row::QNAME]`. `QName` is a pair of
   `&'static str`, so `ParseOptions` stays `Copy`, `Eq` and lifetime-free.
+- **Builders (revision 3, review N6).** `ParseOptions` is `#[non_exhaustive]`, so other crates
+  cannot write a struct literal. Core adds `with_defer(&'static [QName])` and
+  `with_count(&'static [QName])` beside `with_max_depth`. #40's `max_part_bytes` and
+  `max_package_bytes` get builders of their own, and the fields do not overlap.
 - An element whose name is in `defer` is a **deferred node**:
   - the parser builds the node itself: name, attributes, span;
   - it does not build the children;
   - the content stays in the source until it is asked for.
 - **Opt-in per part, not per package.** The package keeps one default `ParseOptions`.
   `Package::xml_part_with(name, &ParseOptions)` parses one part with other options, for example
-  ooxml-xlsx's worksheets with `defer = &[sml:row]`. An already-parsed part keeps the options it
-  was parsed with. Deferring package-wide would also defer `sheetData/row` in external-link parts,
-  which is harmless but pointless, so it is not done.
+  ooxml-xlsx's worksheets with `defer = &[sml:row]`.
+  - It applies the same **metadata depth floor** as `ensure_parsed` (#16), so a caller cannot
+    lower the depth limit below it.
+  - An already-parsed part keeps the options it was parsed with. That is order-dependent: if any
+    path calls `xml_part(sheet)` first, the deferral is silently lost. Only performance suffers,
+    but stage 2x's acceptance includes a test that **after `Workbook::open`, every worksheet's
+    root holds deferred rows**.
+  - Deferring package-wide would also defer `sheetData/row` in external-link parts, which is
+    harmless but pointless, so it is not done.
+- **Nested deferral (N6).** When a deferred element is expanded, its descendants whose names are
+  in `defer` are deferred again. Expansion is one level at a time, and laziness is kept.
 
 #### 2.2 The skip: a non-building mode of the same parser loop
 
@@ -200,42 +282,70 @@ switched into a mode that builds nothing.
   Validation roughly doubles the scan, which revision 1 had called "a fraction" of it. The skip is
   still about 2.2× faster than a full compact parse, and it allocates almost nothing.
 
-#### 2.3 Invariant: every `&mut` access to a deferred node expands it first
+#### 2.3 Invariant: a deferred node's *children* are never changed unexpanded
 
-- A deferred node must never become dirty while unexpanded. If it did, today's serializer would
-  render `own_dirty` with "no children" and write `<row …/>`, losing every cell.
+- A deferred node's children must never be changed while unexpanded. If they were, today's
+  serializer would render `own_dirty` with "no children" and write `<row …/>`, losing every cell.
 - Therefore:
-  - **Reads:** `children(&self)` expands on first use into a `OnceLock<Vec<RawItem>>`. Expansion
-    cannot fail, because §2.2 already validated the content.
-  - **Writes:** `children_mut(&mut self)`, and every `&mut` path that reaches a deferred node,
-    expand it first. That includes `LensMut` on the deferred node itself, for example setting
-    `row/@ht` without descending.
-  - **No other access.** No code in ooxml-core reads or writes the `children` field directly. The
-    field is private to the `RawNode` module. The following all go through the accessors:
-    - the serializer (`write.rs`), `structurally_eq` and `force_rerender`;
-    - the lens (`insert`, `insert_at` of #26, `remove_at`);
-    - PR #14's `remove_root_child_with_leading_ws`;
-    - PR #18's `detach_node` and `Detached::height`;
-    - core/add-part's `apply` (`root.children.get_mut`, `e.attrs.iter_mut`).
+  - **Reads:** `children(&self)` expands on first use into the node's `OnceLock<Vec<RawItem>>`.
+    Expansion cannot fail, because §2.2 already validated the content.
+  - **Child writes:** every operation-level mutator (`insert_child`, `remove_child`,
+    `splice_children`, `retain_children`, `set_children`; §1) expands first. So does every
+    lens path that **descends** into a deferred node.
+  - **Attribute-only writes do not expand (revision 3, review N2, option b).** The lens's
+    `set_attr`/`remove_attr`, #38's `apply` (`e.attrs.iter_mut()`, `own_dirty = true`) and
+    #18's `with_prefixes` may change a deferred node's **own** attributes and flags. They leave
+    the node unexpanded and `own_dirty`. That is a **defined state** with a defined rendering,
+    not an invariant violation. It is also what makes `row/@ht` cheap.
+- **Rendering an unexpanded, `own_dirty` deferred node** (`xml/write.rs`):
+  - with a close tag: the re-rendered open tag (new attributes), then the content
+    `source[open_end..close.0]` copied **verbatim from the node's own `Arc<str>` source**, then
+    the close tag as in the source;
+  - self-closing in the source (`close == None`, `<row r="5"/>`): rendered self-closing with the
+    new attributes. There is no content to copy.
 
-    Stage 1b introduces the accessors, before any deferral exists, so stage 2 changes no caller.
-- **Defence in depth.** If the serializer ever meets an unexpanded deferred node with `own_dirty`
-  set, it renders the open tag, copies the content `src[open_end..close.0]` verbatim, and renders
-  the close tag. A `debug_assert!` marks the invariant violation.
+  This is byte-identical to expanding and rendering clean children. Every clean child, text and
+  markup is emitted from its span, and together they cover `open_end..close.0` without gaps
+  (verified by the round-2 reviewer). The prefix bindings of the content do not change, because
+  #40's lens refuses adding or removing `xmlns` declarations (`NamespaceDeclaration`), so the
+  re-rendered open tag binds the same prefixes. No `debug_assert!` fires on this path.
+- **Enforced by privacy, for real (N2).** `RawNode` is defined in the leaf module `xml/node.rs`.
+  Its `children` field is private there, so `xml/write.rs`, `xml/parse.rs` and `xml/mod.rs` (for
+  example `structurally_eq`, `force_rerender`, `node_at`/`node_at_mut`, `text()`) can no longer
+  touch it. The parser builds nodes through a `pub(super)` builder. `attrs` and the dirty flags
+  stay `pub(crate)`, which option (b) makes safe.
+- **Every direct `children` access to migrate (N3)**, by PR. The compiler finds all of them once
+  the field is private; the list tells each PR's owner the size of the change:
+
+  | Where | Direct accesses |
+  |---|---|
+  | main, `lens.rs` | `Lens::node`; `LensMut::node_mut` and `mark_path` (L134, L234, L569: the main `&mut` descent); the `first` check (L267); `place` (L376); `set_text` (L538–548) |
+  | main, `xml/mod.rs`, `xml/write.rs` | `node_at`/`node_at_mut` (L274, L280), `structurally_eq`, `force_rerender`, `text()`, the serializer |
+  | #14 `remove_part` | `remove_root_child_with_leading_ws` |
+  | #18 `detach_as` | `detach_node` (`out.children = children`), `with_prefixes` (`mem::take(&mut n.children)`), `ancestor_context`, `element_at`, `has_text`, `declarations`, `insert_detached` (L746–749), `Detached::height` |
+  | #38 `RegistryPlan` | `element()`/`append_root_child` (`root.children.splice`), the `Id` attribute rewrite, `self.root.children`, `apply` |
+  | #26 `insert_at` | `check_insert_at` (`&self.node().children`), `insert_at` (`children.insert`) |
+
+  `splice_children`/`set_children` cover the whole-list rewrites of #18 and #38.
 - **Acceptance (stage 2):**
-  - a test that `ooxml-core` contains no direct `.children` access outside the accessor module,
-    enforced by the field's privacy;
+  - `RawNode` lives in `xml/node.rs`, and the field's privacy is the proof that no other module
+    reads `children` directly;
   - property tests that change only the attributes of deferred nodes, with no descent, and check
-    that the output keeps their content.
+    that the output keeps their content, for self-closing rows too.
 
 #### 2.4 What a deferred node carries
 
 `RawNode::children(&self)` has no access to the document, so a deferred node holds what
-expansion needs:
+expansion needs, **in a box** (revision 3, review N6): `RawNode` keeps one
+`Option<Box<Deferred>>` (8 B, `None` for every ordinary node). The alternative layout is
+`children: enum { Built(Vec<RawItem>), Deferred(Box<Deferred>) }`. Putting the payload inline
+would bring every node back to about 150 B and erase stage 1's gain. A compile-time
+`const { assert!(size_of::<RawNode>() <= 72) }` guards it. `Deferred` holds:
 
 - the source (`Arc<str>`, shared);
 - the parse options (`Copy`);
-- its **depth** (`u16`): expansion counts the limit from there;
+- its **depth** (`u32`; revision 2's `u16` would truncate a `with_max_depth` above 65,535):
+  expansion counts the limit from there;
 - an `Arc` of the in-scope namespace bindings, shared by consecutive siblings;
 - the `OnceLock` for the expanded children.
 
@@ -271,12 +381,20 @@ Non-expanding read accessors:
   section's gain. Stage 2x requires the following of ooxml-xlsx:
   1. The sheet-level checks (`SheetErr`: a row without `r`, an invalid `r`, rows out of order) use
      only the row nodes' attributes, which are available without expansion.
-  2. `RowEntry`'s cell positions, and its `RowErr`, are computed on the first lookup in that
-     row. That is also when today's index reports `RowErr`, so the error semantics do not change.
-  3. The bulk cell iterator does not expand rows. Clean rows are read by scanning
-     `content_span()` with quick-xml; rows that are already expanded, or dirty, are read through
-     the tree. Alternatively, it may release each clean row after reading it (`release_children`).
-     Either way, reading every cell must not leave every row expanded.
+  2. **Every `RowEntry` value derived from the row's content** is computed on the first lookup
+     in that row (revision 3, review N5). That covers:
+     - the cell positions and `RowErr`;
+     - `alternate` (`has_ac`: an `mc:AlternateContent` inside the row);
+     - `cells_end` and `misordered` (`row_tail`).
+
+     That is also when today's index reports `RowErr`, so the error semantics do not change.
+  3. The bulk cell iterator does not leave every row expanded. **Recommended:** expand a clean
+     row, read it through the tree, and `release_children` it afterwards.
+     - If ooxml-xlsx scans `content_span()` instead, it uses core's non-building mode (§2.2),
+       exposed for that purpose, not a second value decoder of its own. A second decoder
+       (entities, CR/LF normalization, text merged across entities) could disagree with the
+       tree.
+     - Rows already expanded, or dirty, are read through the tree.
 - These are requirements for ooxml-xlsx to agree to, not decisions this ADR can make. They are
   recorded in the interaction table and must be agreed with the Excel owner before stage 2x
   starts.
@@ -298,7 +416,7 @@ Non-expanding read accessors:
 
 ### 3. Census during the parse (single pass)
 
-`ParseOptions::count: &'static [QName]` makes the parser count elements with those names,
+`ParseOptions::count: &'static [QName]` (builder `with_count`) makes the parser count elements with those names,
 deferred content included (the skip of §2.2 sees every start tag), in the same pass. The counts are reported by `XmlDocument::census(QName) ->
 usize`. ooxml-xlsx's formula census (`f` elements) for the worksheet it parses then needs no
 second scan. Other worksheets are still scanned once each, without a tree, as today. Measured
@@ -323,9 +441,11 @@ impl Package { pub fn to_bytes_with(&self, o: &SaveOptions) -> Result<Vec<u8>>; 
 
   Raw-copied parts keep their original compressed bytes, so Layer 1's equality guarantee is
   untouched. A part originally `Stored` stays `Stored`, as today.
-- **Validation.** `Level(n)` must be in `0..=9`, else `SaveOptions::new` returns
-  `Err(InvalidCompressionLevel(n))`. The named presets map to 1 (`Fastest`), 3 (`Balanced`) and
-  9 (`Smallest`).
+- **Validation.** `Level(n)` must be in `0..=9`, else `Err(InvalidCompressionLevel(n))`.
+  - `SaveOptions::new` checks it.
+  - **So do `to_bytes_with` and `save_with`** (revision 3, nit): `compression` is a public field,
+    and `#[non_exhaustive]` forbids building the struct elsewhere, but not assigning the field.
+  - The named presets map to 1 (`Fastest`), 3 (`Balanced`) and 9 (`Smallest`).
 - Measured on the rewritten 33 MiB sheet:
 
   | Level | Time | Compressed size |
@@ -363,6 +483,9 @@ impl Package { pub fn to_bytes_with(&self, o: &SaveOptions) -> Result<Vec<u8>>; 
   It parses with the package's options and the same metadata depth floor as `xml_part` (#16).
   core/add-part's internal `parse_raw` becomes this function, so there is one implementation.
   `parse_part` changes no state and does not bump the generation.
+- **`Package::parse_part_with(&self, name, &ParseOptions)`** (revision 3, review N6) is the
+  same with explicit options, under the same depth floor. A worksheet read uncached therefore
+  defers its rows too.
 - **`Package::release_part(&mut self, name) -> bool`** drops a `Parsed` tree that has no dirty
   node back to `Raw`.
   - It returns `false`, and does nothing, if the tree is dirty, or if the part is `Replaced` or
@@ -371,6 +494,10 @@ impl Package { pub fn to_bytes_with(&self, o: &SaveOptions) -> Result<Vec<u8>>; 
     the release recorded the part as parsed (`install: None`). Its `apply` would find a `Raw`
     part and skip the registry edit: today a `debug_assert!`, silently in release builds. With
     the generation bumped, such a plan is reported `Stale` and must be re-planned.
+  - That also invalidates **unrelated** plans, for example a `release_slide` in the middle of
+    planning. This is accepted and documented (round-2 nit). The alternative, `apply`
+    re-parsing a `Raw` part when `install: None`, cannot fail, since those bytes parsed before,
+    but it hides a surprising state change, so it is not chosen.
 - **pptx.** `Presentation::slide` (read) can then stop retaining slides.
   - Recommended (owner question 3): keep `slide()`'s signature and caching, and add an owned
     read, `Presentation::read_slide(&self, i) -> Result<SlideDoc>`, built on `parse_part`,
@@ -403,11 +530,11 @@ on all fixtures.
 |---|---|---|
 | 0 | Land `crates/ooxml-bench` (#24, merged) as the yardstick. Copy today's parser into `ooxml-core/tests/support/frozen_parser.rs` as the oracle for stage 1 (a hand-kept copy, not generated code). Port the spike's checks against it: T1, same tree, rerender equality. | none |
 | 1a | Interned `XName` (§1, row 1). | none (`XName` internals; `Debug` output) |
-| 1b | `SStr` values, `Arc<str>` source, `u32` spans, boxed attribute slices, exact-size children, and **the `children`/`children_mut` accessors with the field made private** (§1, §2.3). | none: public accessors unchanged |
-| 2 | Deferred subtrees (§2) as a non-building mode of the parser loop, plus `xml_part_with`, `is_deferred`, `content_span`, `release_children`; census (§3). | additive |
+| 1b | `SStr` values, `Arc<str>` source, `u32` spans, boxed attribute slices, exact-size children, and **`RawNode` moved to `xml/node.rs` with the field private, `children()` and the operation-level mutators** (§1, §2.3). | none: public accessors unchanged; crate-internal callers (#14, #18, #26, #38) move to the mutators |
+| 2 | Deferred subtrees (§2) as a non-building mode of the parser loop, plus the `with_defer`/`with_count` builders, `xml_part_with`, `is_deferred`, `content_span`, `release_children`; census (§3). | additive |
 | 2x | ooxml-xlsx opts in for worksheets (`defer = &[sml:row]`, census of `f`), with PR #29's index made lazy per row (§2.5). | ooxml-xlsx internal; done by or with the Excel owner |
-| 3 | `SaveOptions` and the default level (§4); `parse_part`/`release_part` with the generation bump (§5). | additive; default bytes of rewritten parts change |
-| 4 | Optional children arena (§1), decided on stage 2's numbers. | lens internals only, thanks to stage 1b's accessors |
+| 3 | `SaveOptions` and the default level (§4); `parse_part`/`parse_part_with`/`release_part` with the generation bump (§5). | additive; default bytes of rewritten parts change |
+| 4 | Optional children arena (§1), decided on stage 2's numbers. | `xml/node.rs` and lens internals only, because stage 1b's mutators hand out no `&mut Vec` |
 
 ### Interaction with open work
 
@@ -420,6 +547,8 @@ on all fixtures.
 | #26 `insert_at` | `children.insert` | Stage 1b: through `children_mut`. |
 | #29 xlsx row index | `SheetIndex::build` reads every row's children | Stage 2x requirements (§2.5): per-row lazy cell positions, sheet-level checks from row attributes only, bulk reads that do not leave every row expanded. To be agreed with the Excel owner. |
 | ooxml-pptx (ADR-0005) | `Slide<'a>` holds `&'a XmlDocument` | Stage 3: an owned `read_slide` and/or `release_slide` is added beside `slide()`; slides only, with layouts and masters still cached (§5). |
+| #40 `fix/core-fuzz-findings` | adds `ParseOptions::max_part_bytes`/`max_package_bytes`; new parser checks (BOM, NUL, `PositionMismatch`, `EmptyName`, `EmptyPrefixBinding`, XML-declaration position); the lens's `NamespaceDeclaration` refusal | `defer`/`count` are laid out beside the new limits, each with a builder (§2.1). Every new check sits on the **shared** path of the parser loop, which §2.2's "same errors by construction" relies on: the round-2 reviewer's probe found 49 of 49 malformed inputs giving the same error in both modes. The `NamespaceDeclaration` refusal is a premise of §2.3's rendering of `own_dirty` deferred nodes. |
+| #36 fuzz harness | fuzz targets and a corpus for core, xlsx and pptx | Stage 2's "identical errors" property test takes its inputs from the fuzz corpus as well as from mutated fixtures. |
 
 ### Acceptance for each stage
 
@@ -429,37 +558,70 @@ on all fixtures.
 - **Stage 1:**
   - the parse-equivalence test against the frozen parser (all fixtures and generated inputs);
   - **no parse-time regression** against `main` on the largest docx and pptx fixtures, and on the
-    sheets (round-1 m1).
+    sheets (round-1 m1);
+  - **hostile names stay linear** (revision 3, N1). A part of 262,144 element names crafted to
+    collide under an unkeyed hash, like `hashdos.rs`'s FNV construction, parses within 1.25×
+    the time of the same number of random names. Quadrupling the names at most quintuples the
+    time;
+  - **many distinct names have a bounded cost**: on 262,144 distinct random names, parse time is
+    at most 3× `main`'s. Measured 2.4–2.8× with foldhash.
 - **Stage 2:**
   - a property test that deferred and full parses serialize identically, with and without edits
     (attribute-only edits on deferred nodes included, §2.3);
   - a property test that errors are identical, kind and position, on corrupted inputs;
   - the depth-limit tests (10k/40k-deep inputs) still refuse at parse time even when the deep
     content is inside a deferred element;
-  - no direct `children` access outside the accessor module.
+  - no direct `children` access outside `xml/node.rs` (privacy);
+  - stage 2x: after `Workbook::open`, every worksheet's root holds deferred rows (N6).
 
 ### Targets
 
 All targets are relative to `main` in the same session, and absolute on a quiet host.
 
-- **Stage 1** (all parts):
-  - heap of a parsed tree ≤ 1/4 of `main` (measured 1/5 on sheets, 1/2.7 on the largest
-    `word/document.xml`);
+- **Stage 1** (revision 3, review N4: per part kind):
+  - heap of a parsed tree: **≤ 1/4 of `main` for worksheets** (measured 1/5);
+    **≤ 1/2.5 for docx and pptx parts** (measured 1/2.7 on the largest `word/document.xml`,
+    1/2.85 on a pptx slide);
   - drop time ≤ 1/3 of `main` (measured 1/3.5–1/6 on sheets, 1/5 on the largest `word/document.xml`);
-  - parse time no worse than `main` on any measured input.
+  - parse time no worse than `main` on any measured input, and the two hostile-input bounds of
+    the stage-1 acceptance.
 
   The spike's sheet parse is 1.35–1.8× faster after the interner fix, but parse speed is not
   stage 1's target.
 - **Stages 2 + 2x** (1M-cell sheet, quiet host):
-  - `Workbook::from_bytes` ≤ 0.6 s;
-  - heap ≤ 80 MiB;
-  - open + edit 1,000 cells + save ≤ 0.5 s at level 3.
+  - `Workbook::from_bytes` ≤ 0.6 s, **to be confirmed by a stage-2 breakdown measurement**
+    before stage 2x starts (see the basis);
+  - heap ≤ 80 MiB, with the shared strings read **uncached** (below);
+  - **edit 1,000 cells + save ≤ 0.5 s at level 3, open excluded** (revision 2's "open + edit +
+    save ≤ 0.5 s" contradicted the 0.6 s open target).
 
   The basis:
-  - **Open time:** validated skip about 0.31 s, decompression about 0.05 s, shared strings and
-    workbook parts about 0.1–0.2 s *(estimated from the baseline breakdown)*.
-  - **Memory:** retained source text 33 MiB, deferred row nodes 15–25 MiB (§2.4), the
-    shared-strings tree, and the expanded rows.
+  - **Open time** (revision 3, N4). The parts:
+    - validated skip, about 0.31 s;
+    - decompression, about 0.05 s;
+    - constructing the 100k deferred row nodes. That is not in the skip's figure: the round-2
+      reviewer's probe, building row nodes in today's representation, took 0.39–0.42 s for
+      skip plus rows, at load 40–48;
+    - the shared strings, 50–66 ms as a compact tree (88–100 ms in core);
+    - the `Vec<String>` built from them.
+
+    The census's second inflate of the sheet (`formula_census` re-reads it, about 48 ms) goes
+    away with §3's in-parse census. The baseline's open residual is
+    1.95 − 1.25 − 0.29 − 0.05 ≈ 0.36 s.
+
+    0.6 s is plausible on a quiet host but has no margin. Stage 2 measures this breakdown, and
+    the target is revised then if needed.
+  - **Memory:**
+    - retained source text: 33 MiB;
+    - deferred row nodes: 15–25 MiB (§2.4);
+    - the expanded rows;
+    - the shared strings, which are the reason for the second stage-2x requirement below. The
+      1M-cell sheet's `sharedStrings.xml` (2.4 MiB) is a **23 MiB** compact tree (131 MiB in
+      core), plus about 4 MiB of `Vec<String>`. Kept in `Package`, that would put the total at
+      75–85 MiB before any row is expanded.
+  - **Stage 2x therefore also requires** ooxml-xlsx to read `sharedStrings.xml` with
+    `parse_part` (§5, uncached) into its `Vec<String>`, and to take the formula census during
+    the worksheet parse (§3). That brings the estimate to about 60 MiB.
 
   The baseline's calamine full read takes 0.65 s and 77 MiB, so open within 2× of calamine is
   reachable.
@@ -538,11 +700,21 @@ decision.
    an owned `read_slide(&self, i) -> SlideDoc` on `parse_part` and/or `release_slide(i)`. No
    LRU. Layouts and masters stay cached.
 4. **Stage 2x requirements on PR #29** (§2.5). To be agreed with the Excel owner before stage 2x.
+5. **The interner's hasher** (revision 3, N1). Proposed: `foldhash::fast::RandomState`, keyed
+   per process, a new small dependency of `ooxml-core`. The std-first alternative is
+   `std::hash::RandomState`: equally safe against crafted names, no dependency, but about 19%
+   slower than core on text-heavy parts (14.1–14.6 ms against 16.5–16.7 ms on the largest
+   `word/document.xml`), which fails stage 1's "no regression". Which does the owner prefer?
 
 ## Sources
 
 - `docs/testing/performance-baseline-2026-11.md`, `crates/ooxml-bench` (PR #24).
-- `spikes/core-performance/` (README, `src/compact.rs`, `src/rows.rs`, `src/main.rs`).
+- `spikes/core-performance/` (README, `src/compact.rs`, `src/rows.rs`, `src/main.rs`,
+  `src/bin/hashdos.rs` since revision 3).
+- `docs/adr/0010-opus-review-round2.md` and its probes (`probe2.rs`: the FNV collision
+  construction; `probe3.rs`: the shared-strings tree size; `pr40/` + `skipprobe/`: error
+  equality of the non-building mode on #40's parser).
+- foldhash 0.2 (`fast::RandomState`); ahash 0.8 (compared only).
 - `docs/adr/0010-opus-review-round1.md` and its probe (validated skip, real-corpus compression
   sizes, PR #29 and core/add-part source references).
 - ADR-0001 "Large-sheet performance is explicitly a non-goal for Phase0 and a known future
