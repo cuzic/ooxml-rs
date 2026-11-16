@@ -26,9 +26,9 @@ pub(crate) enum Expr {
     Intersect(Box<Expr>, Box<Expr>),
 }
 
-/// Lexes and parses a formula (one leading `=` is tolerated).
+/// Lexes and parses a formula as stored in `f` (no leading `=`; a leading
+/// `=` is an error, review R3-m2).
 pub(crate) fn parse(text: &str) -> Result<Expr, LexError> {
-    let text = text.strip_prefix('=').unwrap_or(text);
     let toks = lex(text)?;
     let mut p = Parser { toks: &toks, pos: 0 };
     let e = p.expr(0, true)?;
@@ -227,7 +227,8 @@ mod tests {
         assert_eq!(p("A1:INDEX(B:B,2)"), "(ref:A1:INDEX(ref:B:B,lit))");
         assert_eq!(p("IF(A1>0,,1)"), "IF((ref:A1 Gt lit),_,lit)");
         assert_eq!(p("NOW()"), "NOW()");
-        assert_eq!(p("=50%"), "u(lit)");
+        assert_eq!(p("50%"), "u(lit)");
+        assert!(parse("=A1").is_err(), "stored text never starts with '='");
         assert_eq!(p("A1&\"x\"<>B1"), "((ref:A1 Concat lit) Ne ref:B1)");
     }
 

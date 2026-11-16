@@ -60,7 +60,14 @@ pub(crate) fn translate(text: &str, dr: i64, dc: i64, is_name: &dyn Fn(&str) -> 
     for t in &toks {
         let TokKind::Ref(r) = &t.kind else { continue };
         let tok_text = &text[t.start..t.end];
-        if r.area_offset == 0 && is_name(tok_text) {
+        // A reference-shaped token that is also a defined name, with or
+        // without a sheet prefix (`Sheet1!TAX2024`), cannot be moved
+        // (ADR-0003 §2.4; review R3-m1).
+        if let Area::Cell { col, row } = r.area
+            && !col.abs
+            && !row.abs
+            && is_name(&render_area(&r.area))
+        {
             return Err(TranslateError::NameCollision(tok_text.to_owned()));
         }
         let area = shift_area(&r.area, dr, dc).ok_or_else(|| TranslateError::OutOfBounds(tok_text.to_owned()))?;
@@ -103,6 +110,7 @@ mod tests {
         assert!(matches!(tr("A1048576", 1, 0), Err(TranslateError::OutOfBounds(_))));
         assert_eq!(tr("$A$1", -5, -5).unwrap(), "$A$1");
         assert!(matches!(tr("TAX2024+A1", 1, 1), Err(TranslateError::NameCollision(_))));
+        assert!(matches!(tr("Sheet1!TAX2024+A1", 1, 1), Err(TranslateError::NameCollision(_))));
         assert!(matches!(tr("\"abc", 1, 1), Err(TranslateError::Lex(_))));
     }
 

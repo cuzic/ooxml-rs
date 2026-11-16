@@ -184,13 +184,22 @@ impl Workbook {
         }
 
         // ---- apply ----
+        // Poisoned *before* apply and cleared only on success: a panic inside
+        // apply (a bug) that a caller catches also leaves the workbook
+        // poisoned (review R3-m3).
+        self.poisoned = Some("an edit was interrupted while being applied".into());
         let result = self.apply(sheet, &part, at, &target_plan, &op, target, chain, staged, &strip, handoff);
-        if let Err(e) = result {
-            let msg = e.to_string();
-            self.poisoned = Some(msg.clone());
-            return Err(Error::Poisoned(msg));
+        match result {
+            Ok(()) => {
+                self.poisoned = None;
+                Ok(())
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                self.poisoned = Some(msg.clone());
+                Err(Error::Poisoned(msg))
+            }
         }
-        Ok(())
     }
 
     fn plan_handoff(&mut self, m: &FCell, si: u32, part: &str) -> Result<Option<HandOff>> {
@@ -200,6 +209,12 @@ impl Workbook {
             .filter(|(_, c)| c.sheet == m.sheet && c.kind == FKind::Shared { si, master: false })
             .map(|(i, c)| (i, c.at))
             .collect();
+        if m.ambiguous_group {
+            return Err(Error::SharedFormulaMaster {
+                cell: m.at.to_string(),
+                reason: format!("two masters share si {si} on this sheet"),
+            });
+        }
         if members.is_empty() {
             return Ok(None);
         }
@@ -355,6 +370,7 @@ impl Workbook {
                 volatile: false,
                 dynamic: false,
                 spill_error: false,
+                ambiguous_group: false,
                 has_cache: false,
                 results_stripped: false,
                 text: text.clone(),

@@ -540,7 +540,7 @@ impl CellMut<'_, '_> {
     }
 
     /// Writes a formula (ADR-0003 §4.1): `<f>text</f>` with no cached value
-    /// and no `t`; one leading `=` is dropped. Dependents lose their cached
+    /// and no `t`; one leading `=` is dropped (so `"==A1"` is refused). Dependents lose their cached
     /// values, `fullCalcOnLoad` is set (except in manual calculation mode),
     /// and `calcChain.xml` is removed when the cell was not a formula cell.
     ///

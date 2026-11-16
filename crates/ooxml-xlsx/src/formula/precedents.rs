@@ -59,14 +59,23 @@ pub(crate) struct NameDef {
 
 impl NameDef {
     pub(crate) fn new(name: &str, scope: Scope, text: &str) -> Self {
-        NameDef { name_lc: name.to_lowercase(), scope, expr: parse(text).ok() }
+        NameDef { name_lc: fold(name), scope, expr: parse(text).ok() }
     }
+}
+
+/// Case folding for sheet and defined names. Deliberately broad (upper then
+/// lower case, so e.g. the Kelvin sign folds with `k`): two names that fold
+/// alike are treated as ambiguous and resolve to nothing, which makes the
+/// formula depend on everything (ADR-0003 §2.4, review R3-M1 c). A broader
+/// fold can only cause more `Everything`, never a precise wrong set.
+pub(crate) fn fold(s: &str) -> String {
+    s.to_uppercase().to_lowercase()
 }
 
 /// What the analysis needs to know about the workbook.
 #[derive(Debug, Default)]
 pub(crate) struct Env {
-    /// Lower-cased sheet names in `<sheets>` order.
+    /// Folded ([`fold`]) sheet names in `<sheets>` order.
     pub(crate) sheets_lc: Vec<String>,
     pub(crate) names: Vec<NameDef>,
     /// Some formula assigns a name (`f/@bx`): every name use is `Everything`.
@@ -81,37 +90,49 @@ struct Everything;
 type R = Result<(), Everything>;
 
 impl Env {
+    /// The one sheet with this (folded) name; `None` if there is none or
+    /// several fold alike (ambiguous).
     fn sheet(&self, name: &str) -> Option<usize> {
-        let lc = name.to_lowercase();
-        self.sheets_lc.iter().position(|s| *s == lc)
+        let f = fold(name);
+        let mut it = self.sheets_lc.iter().enumerate().filter(|(_, s)| **s == f).map(|(i, _)| i);
+        let first = it.next()?;
+        it.next().is_none().then_some(first)
     }
 
-    /// Does some defined name have this text (case-insensitive)?
+    /// Does some defined name have this text (folded)?
     pub(crate) fn is_name(&self, text: &str) -> bool {
-        let lc = text.to_lowercase();
-        self.names.iter().any(|n| n.name_lc == lc)
+        let f = fold(text);
+        self.names.iter().any(|n| n.name_lc == f)
     }
 
     /// §2.4: resolves a name use. `own`: the using formula's sheet, or the
     /// scope sheet of the name being analysed (`None` inside a global name).
     fn resolve(&self, prefix: &Prefix, name: &str, own: Option<usize>) -> Option<&NameDef> {
-        let lc = name.to_lowercase();
-        let mut matches = self.names.iter().filter(|n| n.name_lc == lc).peekable();
-        matches.peek()?;
-        let matches: Vec<&NameDef> = matches.collect();
-        if matches.iter().any(|n| n.scope == Scope::Invalid) {
+        let f = fold(name);
+        let matches: Vec<&NameDef> = self.names.iter().filter(|n| n.name_lc == f).collect();
+        if matches.is_empty() || matches.iter().any(|n| n.scope == Scope::Invalid) {
             return None;
         }
-        let local = |s: usize| matches.iter().copied().find(|n| n.scope == Scope::Local(s));
-        let global = || matches.iter().copied().find(|n| n.scope == Scope::Global);
+        // Exactly one name in a scope; two that fold alike are ambiguous
+        // (R3-M1 c) and resolve to nothing.
+        let one = |scope: Scope| {
+            let mut it = matches.iter().copied().filter(move |n| n.scope == scope);
+            let first = it.next();
+            if it.next().is_some() { Err(()) } else { Ok(first) }
+        };
+        let local = |s: usize| one(Scope::Local(s));
+        let global = || one(Scope::Global);
         match prefix {
             Prefix::None => match own {
-                Some(s) => local(s).or_else(global),
-                // Inside a global name: ambiguous if any local name shares the text.
+                Some(s) => match local(s).ok()? {
+                    Some(n) => Some(n),
+                    None => global().ok()?,
+                },
+                // Inside a name: ambiguous if any local name shares the text.
                 None if matches.iter().any(|n| matches!(n.scope, Scope::Local(_))) => None,
-                None => global(),
+                None => global().ok()?,
             },
-            Prefix::Sheet(sheet) => local(self.sheet(sheet)?),
+            Prefix::Sheet(sheet) => local(self.sheet(sheet)?).ok()?,
             Prefix::Sheets(..) | Prefix::External => None,
         }
     }
@@ -131,8 +152,8 @@ impl Env {
 struct Walker<'e, 'o> {
     env: &'e Env,
     out: &'o mut Vec<Rect>,
-    /// The sheet unqualified references and names refer to (`None` inside a
-    /// global name: unqualified references are then `Everything`).
+    /// The sheet unqualified references and names refer to (`None` inside
+    /// any defined name: unqualified references are then `Everything`).
     own: Option<usize>,
     dr: i64,
     dc: i64,
@@ -209,7 +230,7 @@ impl<'e> Walker<'e, '_> {
                         let sub = Walker {
                             env: self.env,
                             out: &mut scratch,
-                            own: name_own(def),
+                            own: None,
                             dr: 0,
                             dc: 0,
                             in_name: true,
@@ -247,10 +268,14 @@ impl<'e> Walker<'e, '_> {
             Expr::Name { prefix, name } => {
                 let def = self.name_def(prefix, name)?;
                 let expr = def.expr.as_ref().ok_or(Everything)?;
+                // Unqualified references inside a name, local or global, are
+                // read on the *using* cell's sheet in Excel and relative to
+                // the calculating sheet in LibreOffice: not shown, so
+                // `Everything` (own = None; review R3-M1 a).
                 let mut sub = Walker {
                     env: self.env,
                     out: &mut *self.out,
-                    own: name_own(def),
+                    own: None,
                     dr: 0,
                     dc: 0,
                     in_name: true,
@@ -314,21 +339,13 @@ impl<'e> Walker<'e, '_> {
     }
 }
 
-/// The sheet unqualified uses inside a name refer to.
-fn name_own(def: &NameDef) -> Option<usize> {
-    match def.scope {
-        Scope::Local(s) => Some(s),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn env() -> Env {
         Env {
-            sheets_lc: ["sheet1", "sheet2", "sheet3", "defines"].map(String::from).to_vec(),
+            sheets_lc: ["sheet1", "sheet2", "sheet3", "defines"].map(fold).to_vec(),
             names: vec![
                 NameDef::new("Rate", Scope::Global, "Sheet2!$A$1"),
                 NameDef::new("Rate", Scope::Local(0), "Sheet1!$B$1"),
@@ -340,6 +357,9 @@ mod tests {
                 NameDef::new("Loop", Scope::Global, "Loop"),
                 NameDef::new("Col", Scope::Global, "Sheet3!$A$1:$A$5"),
                 NameDef::new("Bad", Scope::Invalid, "Sheet1!$A$1"),
+                NameDef::new("LocBare", Scope::Local(1), "$A$1"),
+                NameDef::new("Dup", Scope::Global, "Sheet1!$A$1"),
+                NameDef::new("DUP", Scope::Global, "Sheet1!$B$1"),
             ],
             bx_any: false,
         }
@@ -398,10 +418,18 @@ mod tests {
             "A1#",
             "_xlfn.XLOOKUP(1,A:A,B:B)",
             "SUBTOTAL(9,A1:A3)",
+            "Sheet2!LocBare",
+            "LocBare",
+            "Dup",
         ] {
             assert_eq!(p(&e, s, 0), Prec::Everything, "{s}");
         }
         assert_eq!(e.precedents(&parse("A1").unwrap(), 0, -1, 0), Prec::Everything, "translation leaves the sheet");
+        // Sheets that fold alike (Kelvin sign and k) are ambiguous.
+        let k = Env { sheets_lc: vec![fold("k"), fold("\u{212A}"), fold("S")], ..env() };
+        assert_eq!(p(&k, "'\u{212A}'!A1", 2), Prec::Everything);
+        assert_eq!(p(&k, "k!A1", 2), Prec::Everything);
+        assert_eq!(p(&k, "s!A1", 0), Prec::Cells(vec![r(2, "A1")]));
         let bx = Env { bx_any: true, ..env() };
         assert_eq!(p(&bx, "Rate", 0), Prec::Everything);
         assert_eq!(p(&bx, "A1", 0), Prec::Cells(vec![r(0, "A1")]));

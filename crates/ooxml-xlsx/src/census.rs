@@ -60,6 +60,11 @@ pub(crate) struct FCell {
     pub(crate) has_cache: bool,
     /// The non-anchor result cells already lost their cached values.
     pub(crate) results_stripped: bool,
+    /// A shared group with two or more masters for its `si` on this sheet:
+    /// readers disagree on which master a member follows (LibreOffice takes
+    /// the first), so the whole group depends on everything and cannot be
+    /// handed off (review R3-M1 b).
+    pub(crate) ambiguous_group: bool,
     /// The formula text (empty for shared members).
     pub(crate) text: String,
 }
@@ -323,6 +328,19 @@ pub(crate) fn scan_sheet(
         census.block(EditBlock::UnknownCellMetadata { part: part.to_owned(), cell });
     }
     census.bx_any |= bx;
+    let mut masters: HashMap<u32, usize> = HashMap::new();
+    for f in &found {
+        if let FKind::Shared { si, master: true } = f.kind {
+            *masters.entry(si).or_default() += 1;
+        }
+    }
+    for f in &mut found {
+        if let FKind::Shared { si, .. } = f.kind
+            && masters.get(&si).is_some_and(|n| *n > 1)
+        {
+            f.ambiguous_group = true;
+        }
+    }
     census.vm_cells.extend(vm_cells.into_iter().map(|c| (sheet, c)));
     for f in found {
         census.push(f);
@@ -412,6 +430,7 @@ fn finish_cell(
         spill_error,
         has_cache: c.v.is_some() || c.t.is_some() || c.is,
         results_stripped: false,
+        ambiguous_group: false,
         text,
     });
     Ok(false)

@@ -15,6 +15,11 @@ const MAX_BUCKETS: u32 = 64;
 
 #[derive(Debug, Default)]
 pub(crate) struct Graph {
+    /// The closure of the `Everything` formulas: the same for every edit, so
+    /// it is computed once and reused until a formula is added (review
+    /// R3-m4: a dependent spill anchor at the top-left otherwise makes every
+    /// edit walk the whole sheet).
+    everything_closure: std::cell::OnceCell<Dependents>,
     /// Formula ids whose precedents are `Everything`.
     everything: Vec<usize>,
     /// (sheet, row bucket) -> (rectangle, formula id).
@@ -23,7 +28,7 @@ pub(crate) struct Graph {
 }
 
 /// The result of a dependents search.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Dependents {
     /// Formula cells (ids), in discovery order.
     pub(crate) formulas: Vec<usize>,
@@ -45,7 +50,7 @@ pub(crate) fn precedents_of(
     master_of: &dyn Fn(usize, u32) -> Option<usize>,
     masters: &mut HashMap<usize, Option<Expr>>,
 ) -> Prec {
-    if c.volatile || c.spill_error || c.kind == FKind::DataTable {
+    if c.volatile || c.spill_error || c.ambiguous_group || c.kind == FKind::DataTable {
         return Prec::Everything;
     }
     match c.kind {
@@ -74,13 +79,14 @@ impl Graph {
     pub(crate) fn build(env: &Env, census: &Census) -> Self {
         let mut g = Graph::default();
         let mut masters = HashMap::new();
-        let by_si: HashMap<(usize, u32), usize> = census
-            .alive()
-            .filter_map(|(fid, c)| match c.kind {
-                FKind::Shared { si, master: true } => Some(((c.sheet, si), fid)),
-                _ => None,
-            })
-            .collect();
+        // The first master of an `si` wins, as in LibreOffice (groups with two
+        // masters are `Everything` anyway).
+        let mut by_si: HashMap<(usize, u32), usize> = HashMap::new();
+        for (fid, c) in census.alive() {
+            if let FKind::Shared { si, master: true } = c.kind {
+                by_si.entry((c.sheet, si)).or_insert(fid);
+            }
+        }
         let lookup = |sheet: usize, si: u32| by_si.get(&(sheet, si)).copied();
         for (fid, c) in census.alive() {
             let p = precedents_of(env, census, c, &lookup, &mut masters);
@@ -90,6 +96,7 @@ impl Graph {
     }
 
     pub(crate) fn add(&mut self, fid: usize, p: Prec) {
+        self.everything_closure = std::cell::OnceCell::new();
         match p {
             Prec::Everything => self.everything.push(fid),
             Prec::Cells(rects) => {
@@ -110,33 +117,29 @@ impl Graph {
     /// Every formula (transitively) reading a seed, plus result ranges.
     /// Removed formulas (dead ids) are skipped.
     pub(crate) fn dependents(&self, census: &Census, seeds: Vec<Rect>) -> Dependents {
+        let base = self.everything_closure.get_or_init(|| {
+            let mut seen = vec![false; census.cells.len()];
+            let mut out = Dependents::default();
+            let mut queue = Vec::new();
+            for &fid in &self.everything {
+                mark(census, fid, &mut seen, &mut out, &mut queue);
+            }
+            self.walk(census, &mut seen, &mut out, queue);
+            out
+        });
         let mut seen = vec![false; census.cells.len()];
-        let mut out = Dependents::default();
-        let mut queue = seeds;
-        let mark = |fid: usize, seen: &mut Vec<bool>, out: &mut Dependents, queue: &mut Vec<Rect>| {
-            if seen[fid] {
-                return;
-            }
-            let Some(c) = census.get(fid) else { return };
+        for &fid in &base.formulas {
             seen[fid] = true;
-            out.formulas.push(fid);
-            queue.push(Rect::cell(c.sheet, c.at.row, c.at.col));
-            if let Some(r) = c.result_range() {
-                let r = rect_of(c.sheet, r);
-                out.results.push((fid, r));
-                queue.push(r);
-            }
-            if c.dynamic || c.spill_error {
-                // R2-M1 (1): the potential spill area, to the sheet's end.
-                if let Some(r) = c.range {
-                    out.results.push((fid, rect_of(c.sheet, r)));
-                }
-                queue.push(Rect { sheet: c.sheet, r1: c.at.row, c1: c.at.col, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 });
-            }
-        };
-        for &fid in &self.everything {
-            mark(fid, &mut seen, &mut out, &mut queue);
         }
+        let mut out = Dependents {
+            formulas: base.formulas.iter().copied().filter(|f| census.get(*f).is_some()).collect(),
+            results: base.results.iter().copied().filter(|(f, _)| census.get(*f).is_some()).collect(),
+        };
+        self.walk(census, &mut seen, &mut out, seeds);
+        out
+    }
+
+    fn walk(&self, census: &Census, seen: &mut [bool], out: &mut Dependents, mut queue: Vec<Rect>) {
         while let Some(seed) = queue.pop() {
             let (b1, b2) = (seed.r1 / BUCKET_ROWS, seed.r2 / BUCKET_ROWS);
             let mut hits = Vec::new();
@@ -145,9 +148,31 @@ impl Graph {
             }
             hits.extend(self.wide.iter().filter(|(r, fid)| !seen[*fid] && r.intersects(&seed)).map(|(_, f)| *f));
             for fid in hits {
-                mark(fid, &mut seen, &mut out, &mut queue);
+                mark(census, fid, seen, out, &mut queue);
             }
         }
-        out
+    }
+}
+
+/// Adds a dependent formula and seeds what it makes stale.
+fn mark(census: &Census, fid: usize, seen: &mut [bool], out: &mut Dependents, queue: &mut Vec<Rect>) {
+    if seen[fid] {
+        return;
+    }
+    let Some(c) = census.get(fid) else { return };
+    seen[fid] = true;
+    out.formulas.push(fid);
+    queue.push(Rect::cell(c.sheet, c.at.row, c.at.col));
+    if let Some(r) = c.result_range() {
+        let r = rect_of(c.sheet, r);
+        out.results.push((fid, r));
+        queue.push(r);
+    }
+    if c.dynamic || c.spill_error {
+        // R2-M1 (1): the potential spill area, to the sheet's end.
+        if let Some(r) = c.range {
+            out.results.push((fid, rect_of(c.sheet, r)));
+        }
+        queue.push(Rect { sheet: c.sheet, r1: c.at.row, c1: c.at.col, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 });
     }
 }

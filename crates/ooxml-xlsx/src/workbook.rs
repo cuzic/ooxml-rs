@@ -11,7 +11,7 @@ use ooxml_schema::sml::{self, CalculateModeValues, SheetStateValues};
 
 use crate::census::{self, Census, EditBlock, SheetEntry, SheetKind};
 use crate::error::{Error, Result};
-use crate::formula::precedents::{Env, NameDef, Scope};
+use crate::formula::precedents::{Env, NameDef, Scope, fold};
 use crate::graph::Graph;
 use crate::reference::{CellIndex, CellRange};
 use crate::worksheet::{Worksheet, text_of};
@@ -167,7 +167,7 @@ impl Workbook {
         let census = formula_census(&pkg, &wb_rels, &sheets)?;
         let shared_strings = load_shared_strings(&mut pkg, &wb_rels)?;
         let env = Env {
-            sheets_lc: sheets.iter().map(|s| s.name.to_lowercase()).collect(),
+            sheets_lc: sheets.iter().map(|s| fold(&s.name)).collect(),
             names: names
                 .into_iter()
                 .map(|(name, local, text)| {
@@ -239,14 +239,26 @@ impl Workbook {
     /// A worksheet by name (case-insensitive, as Excel compares sheet names).
     /// Hidden sheets are included. Errors: [`Error::NoSuchSheet`];
     /// [`Error::NotAWorksheet`] for a chartsheet, macro or dialog sheet.
+    ///
+    /// An exact match wins; otherwise the name must match exactly one sheet
+    /// case-insensitively (two sheets whose names fold alike, which Excel
+    /// itself never writes, make the folded lookup ambiguous: `NoSuchSheet`).
     pub fn worksheet_by_name(&mut self, name: &str) -> Result<Worksheet<'_>> {
-        let lc = name.to_lowercase();
-        let i = self
-            .sheets
-            .iter()
-            .position(|s| s.name.to_lowercase() == lc)
-            .ok_or_else(|| Error::NoSuchSheet(name.to_owned()))?;
+        let i = self.sheet_index(name)?;
         self.worksheet_at(i)
+    }
+
+    fn sheet_index(&self, name: &str) -> Result<usize> {
+        if let Some(i) = self.sheets.iter().position(|s| s.name == name) {
+            return Ok(i);
+        }
+        let f = fold(name);
+        let mut it = self.sheets.iter().enumerate().filter(|(_, s)| fold(&s.name) == f).map(|(i, _)| i);
+        match (it.next(), it.next()) {
+            (Some(i), None) => Ok(i),
+            (Some(_), Some(_)) => Err(Error::NoSuchSheet(format!("{name} (ambiguous: several sheet names fold alike)"))),
+            _ => Err(Error::NoSuchSheet(name.to_owned())),
+        }
     }
 
     /// A worksheet by 0-based position in `<sheets>` (workbook order, hidden
@@ -331,12 +343,7 @@ impl Workbook {
     /// dependent array, data-table and spill anchors, as (sheet name, cell),
     /// sorted. The cell itself is not included.
     pub fn dependents(&mut self, sheet: &str, cell: CellIndex) -> Result<Vec<(String, CellIndex)>> {
-        let lc = sheet.to_lowercase();
-        let s = self
-            .sheets
-            .iter()
-            .position(|x| x.name.to_lowercase() == lc)
-            .ok_or_else(|| Error::NoSuchSheet(sheet.to_owned()))?;
+        let s = self.sheet_index(sheet)?;
         let d = self.compute_dependents(s, cell);
         let mut out: Vec<(String, CellIndex)> = d
             .cells
@@ -349,7 +356,13 @@ impl Workbook {
         Ok(out)
     }
 
-    /// The underlying package (part states, content types, relationships).
+    /// The underlying package (part states, content types, relationships),
+    /// for inspection.
+    ///
+    /// **Do not save through it** when [`Self::edit_refusal`] reports
+    /// [`Error::Poisoned`]: the package may then hold a partial edit, and
+    /// `Package::save`/`to_bytes` do not know about poisoning. Use
+    /// [`Self::save`]/[`Self::to_bytes`], which refuse.
     pub fn package(&self) -> &Package {
         &self.pkg
     }

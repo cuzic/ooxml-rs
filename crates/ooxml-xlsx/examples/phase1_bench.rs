@@ -2,17 +2,25 @@
 //! formula sheet, compared with revision 2's per-edit staged clone.
 //!
 //! `cargo run --release -p ooxml-xlsx --example phase1_bench [rows]`
+//!
+//! `WORST=1`: `B1` caches `#SPILL!` (depends on everything and seeds its
+//! potential spill area, i.e. the whole sheet below and right of it): the
+//! worst case for the dependents search (review R3-m4).
 
 use std::fmt::Write as _;
 use std::io::{Cursor, Write};
 use std::time::Instant;
 
-fn book(rows: u32) -> Vec<u8> {
+fn book(rows: u32, worst: bool) -> Vec<u8> {
     let mut sd = String::with_capacity(rows as usize * 400);
     for r in 1..=rows {
         let _ = write!(sd, r#"<row r="{r}"><c r="A{r}"><v>{r}</v></c>"#);
         for (i, c) in "BCDEFGHIJK".chars().enumerate() {
             let prev = (b'A' + i as u8) as char;
+            if worst && r == 1 && c == 'B' {
+                let _ = write!(sd, r#"<c r="B1" t="e"><f>_xlfn.SEQUENCE(A1)</f><v>#SPILL!</v></c>"#);
+                continue;
+            }
             let _ = write!(sd, r#"<c r="{c}{r}"><f>{prev}{r}+1</f><v>{}</v></c>"#, r as usize + i + 1);
         }
         sd.push_str("</row>");
@@ -35,7 +43,8 @@ fn book(rows: u32) -> Vec<u8> {
 
 fn main() {
     let rows: u32 = std::env::args().nth(1).map_or(20_000, |s| s.parse().unwrap());
-    let bytes = book(rows);
+    let worst = std::env::var("WORST").is_ok_and(|v| v == "1");
+    let bytes = book(rows, worst);
     let t = Instant::now();
     let mut wb = ooxml_xlsx::Workbook::from_bytes(bytes).unwrap();
     let open = t.elapsed();
@@ -64,7 +73,7 @@ fn main() {
     let t = Instant::now();
     let out = wb.to_bytes().unwrap();
     let save = t.elapsed();
-    println!("rows {rows}, formulas {}, sheet {:.1} MB", rows * 10, sheet_len as f64 / 1e6);
+    println!("rows {rows}, formulas {}, sheet {:.1} MB, worst case {worst}", rows * 10, sheet_len as f64 / 1e6);
     println!("open (census)                         {open:?}");
     println!("clone of the sheet tree (rev 2)       {clone:?} per edit");
     println!("first edit (graph build + 10 strips)  {first:?}");
