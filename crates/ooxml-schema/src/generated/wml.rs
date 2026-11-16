@@ -76,6 +76,38 @@ impl ooxml_core::EnumType for FieldCharValues {
         self as usize
     }
 }
+/// `w:ST_FtnEdn` — FootnoteEndnoteValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FootnoteEndnoteValues {
+    /// `normal`
+    Normal,
+    /// `separator`
+    Separator,
+    /// `continuationSeparator`
+    ContinuationSeparator,
+    /// `continuationNotice`
+    ContinuationNotice,
+}
+impl ooxml_core::EnumType for FootnoteEndnoteValues {
+    const VALUES: &'static [&'static str] = &[
+        "normal",
+        "separator",
+        "continuationSeparator",
+        "continuationNotice",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Normal),
+            1 => Some(Self::Separator),
+            2 => Some(Self::ContinuationSeparator),
+            3 => Some(Self::ContinuationNotice),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_BrType` — BreakValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BreakValues {
@@ -447,6 +479,152 @@ impl<'a> BreakViewMut<'a> {
     /// Removes `w:clear`.
     pub fn remove_clear(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Break::ATTR_W_CLEAR)
+    }
+}
+/// `w:CT_Comment/w:comment` — Comment Content.
+#[derive(Debug)]
+pub enum Comment {}
+impl Comment {
+    /// `w:initials`
+    pub const ATTR_W_INITIALS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "initials",
+    );
+    /// `w:author`
+    pub const ATTR_W_AUTHOR: ooxml_core::QName = ooxml_core::QName::new(NS_W, "author");
+    /// `w:date`
+    pub const ATTR_W_DATE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "date");
+    /// `w16du:dateUtc`
+    pub const ATTR_W16DU_DATE_UTC: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16DU,
+        "dateUtc",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for Comment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "comment");
+    const SDK_NAME: &'static str = "w:CT_Comment/w:comment";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_INITIALS,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_AUTHOR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_DATE,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W16DU_DATE_UTC,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Comment> for Paragraph {}
+impl ooxml_core::ChildOf<Comment> for Table {}
+/// Read-only view of [`Comment`].
+#[derive(Clone, Debug)]
+pub struct CommentView<'a>(pub ooxml_core::Lens<'a, Comment>);
+impl<'a> CommentView<'a> {
+    /// `w:initials` — initials
+    pub fn initials(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_INITIALS)
+    }
+    /// `w:author` — author
+    pub fn author(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_AUTHOR)
+    }
+    /// `w:date` — date
+    pub fn date(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_DATE)
+    }
+    /// `w16du:dateUtc` — dateUtc
+    pub fn date_utc(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W16DU_DATE_UTC)
+    }
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_ID)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Comments/w:comments` — Comments Collection.
+#[derive(Debug)]
+pub enum Comments {}
+impl ooxml_core::ElementSpec for Comments {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "comments");
+    const SDK_NAME: &'static str = "w:CT_Comments/w:comments";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "comment")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Comments> for Comment {}
+/// Read-only view of [`Comments`].
+#[derive(Clone, Debug)]
+pub struct CommentsView<'a>(pub ooxml_core::Lens<'a, Comments>);
+impl<'a> CommentsView<'a> {
+    /// `w:comment` children in document order.
+    pub fn comment_iter(&self) -> impl Iterator<Item = CommentView<'a>> {
+        self.0.children::<Comment>().map(CommentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `w:CT_DocProtect/w:documentProtection` — Document Editing Restrictions.
@@ -926,6 +1104,38 @@ impl<'a> TabCharViewMut<'a> {
         TabCharView(self.0.as_lens())
     }
 }
+/// `w:CT_Endnotes/w:endnotes` — Document Endnotes.
+#[derive(Debug)]
+pub enum Endnotes {}
+impl ooxml_core::ElementSpec for Endnotes {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnotes");
+    const SDK_NAME: &'static str = "w:CT_Endnotes/w:endnotes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "endnote")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Endnotes> for Endnote {}
+/// Read-only view of [`Endnotes`].
+#[derive(Clone, Debug)]
+pub struct EndnotesView<'a>(pub ooxml_core::Lens<'a, Endnotes>);
+impl<'a> EndnotesView<'a> {
+    /// `w:endnote` children in document order.
+    pub fn endnote_iter(&self) -> impl Iterator<Item = EndnoteView<'a>> {
+        self.0.children::<Endnote>().map(EndnoteView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `w:CT_FldChar/w:fldChar` — Complex Field Character.
 #[derive(Debug)]
 pub enum FieldChar {}
@@ -995,6 +1205,464 @@ impl<'a> FieldCharView<'a> {
     /// `w:dirty` — Field Result Invalidated
     pub fn dirty(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
         self.0.attr_parsed(FieldChar::ATTR_W_DIRTY, ooxml_core::value::parse_on_off)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Footnotes/w:footnotes` — Document Footnotes.
+#[derive(Debug)]
+pub enum Footnotes {}
+impl ooxml_core::ElementSpec for Footnotes {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnotes");
+    const SDK_NAME: &'static str = "w:CT_Footnotes/w:footnotes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "footnote")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Footnotes> for Footnote {}
+/// Read-only view of [`Footnotes`].
+#[derive(Clone, Debug)]
+pub struct FootnotesView<'a>(pub ooxml_core::Lens<'a, Footnotes>);
+impl<'a> FootnotesView<'a> {
+    /// `w:footnote` children in document order.
+    pub fn footnote_iter(&self) -> impl Iterator<Item = FootnoteView<'a>> {
+        self.0.children::<Footnote>().map(FootnoteView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdn/w:endnote` — Endnote Content.
+#[derive(Debug)]
+pub enum Endnote {}
+impl Endnote {
+    /// `w:type`
+    pub const ATTR_W_TYPE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "type");
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for Endnote {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnote");
+    const SDK_NAME: &'static str = "w:CT_FtnEdn/w:endnote";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Endnote::ATTR_W_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <FootnoteEndnoteValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Endnote::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Endnote> for Paragraph {}
+impl ooxml_core::ChildOf<Endnote> for DeletedRun {}
+impl ooxml_core::ChildOf<Endnote> for InsertedRun {}
+impl ooxml_core::ChildOf<Endnote> for MoveFromRun {}
+impl ooxml_core::ChildOf<Endnote> for MoveToRun {}
+impl ooxml_core::ChildOf<Endnote> for Table {}
+/// Read-only view of [`Endnote`].
+#[derive(Clone, Debug)]
+pub struct EndnoteView<'a>(pub ooxml_core::Lens<'a, Endnote>);
+impl<'a> EndnoteView<'a> {
+    /// `w:type` — Footnote/Endnote Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, FootnoteEndnoteValues>> {
+        self.0.attr_enum(Endnote::ATTR_W_TYPE)
+    }
+    /// `w:id` — Footnote/Endnote ID
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Endnote::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdn/w:footnote` — Footnote Content.
+#[derive(Debug)]
+pub enum Footnote {}
+impl Footnote {
+    /// `w:type`
+    pub const ATTR_W_TYPE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "type");
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for Footnote {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnote");
+    const SDK_NAME: &'static str = "w:CT_FtnEdn/w:footnote";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Footnote::ATTR_W_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <FootnoteEndnoteValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Footnote::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Footnote> for Paragraph {}
+impl ooxml_core::ChildOf<Footnote> for DeletedRun {}
+impl ooxml_core::ChildOf<Footnote> for InsertedRun {}
+impl ooxml_core::ChildOf<Footnote> for MoveFromRun {}
+impl ooxml_core::ChildOf<Footnote> for MoveToRun {}
+impl ooxml_core::ChildOf<Footnote> for Table {}
+/// Read-only view of [`Footnote`].
+#[derive(Clone, Debug)]
+pub struct FootnoteView<'a>(pub ooxml_core::Lens<'a, Footnote>);
+impl<'a> FootnoteView<'a> {
+    /// `w:type` — Footnote/Endnote Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, FootnoteEndnoteValues>> {
+        self.0.attr_enum(Footnote::ATTR_W_TYPE)
+    }
+    /// `w:id` — Footnote/Endnote ID
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Footnote::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_HdrFtr/w:ftr` — Footer.
+#[derive(Debug)]
+pub enum Footer {}
+impl ooxml_core::ElementSpec for Footer {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ftr");
+    const SDK_NAME: &'static str = "w:CT_HdrFtr/w:ftr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Footer> for Paragraph {}
+impl ooxml_core::ChildOf<Footer> for DeletedRun {}
+impl ooxml_core::ChildOf<Footer> for InsertedRun {}
+impl ooxml_core::ChildOf<Footer> for MoveFromRun {}
+impl ooxml_core::ChildOf<Footer> for MoveToRun {}
+impl ooxml_core::ChildOf<Footer> for Table {}
+/// Read-only view of [`Footer`].
+#[derive(Clone, Debug)]
+pub struct FooterView<'a>(pub ooxml_core::Lens<'a, Footer>);
+impl<'a> FooterView<'a> {
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_HdrFtr/w:hdr` — Header.
+#[derive(Debug)]
+pub enum Header {}
+impl ooxml_core::ElementSpec for Header {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "hdr");
+    const SDK_NAME: &'static str = "w:CT_HdrFtr/w:hdr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Header> for Paragraph {}
+impl ooxml_core::ChildOf<Header> for DeletedRun {}
+impl ooxml_core::ChildOf<Header> for InsertedRun {}
+impl ooxml_core::ChildOf<Header> for MoveFromRun {}
+impl ooxml_core::ChildOf<Header> for MoveToRun {}
+impl ooxml_core::ChildOf<Header> for Table {}
+/// Read-only view of [`Header`].
+#[derive(Clone, Debug)]
+pub struct HeaderView<'a>(pub ooxml_core::Lens<'a, Header>);
+impl<'a> HeaderView<'a> {
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -4772,6 +5440,11 @@ const _: () = ooxml_core::schema::assert_child::<Body, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, SectionProperties>();
 const _: () = ooxml_core::schema::assert_child::<Body, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Break>();
+const _: () = ooxml_core::schema::assert_spec::<Comment>();
+const _: () = ooxml_core::schema::assert_child::<Comment, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Comment, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Comments>();
+const _: () = ooxml_core::schema::assert_child::<Comments, Comment>();
 const _: () = ooxml_core::schema::assert_spec::<DocumentProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Document>();
 const _: () = ooxml_core::schema::assert_child::<Document, Body>();
@@ -4780,7 +5453,39 @@ const _: () = ooxml_core::schema::assert_spec::<LastRenderedPageBreak>();
 const _: () = ooxml_core::schema::assert_spec::<NoBreakHyphen>();
 const _: () = ooxml_core::schema::assert_spec::<SoftHyphen>();
 const _: () = ooxml_core::schema::assert_spec::<TabChar>();
+const _: () = ooxml_core::schema::assert_spec::<Endnotes>();
+const _: () = ooxml_core::schema::assert_child::<Endnotes, Endnote>();
 const _: () = ooxml_core::schema::assert_spec::<FieldChar>();
+const _: () = ooxml_core::schema::assert_spec::<Footnotes>();
+const _: () = ooxml_core::schema::assert_child::<Footnotes, Footnote>();
+const _: () = ooxml_core::schema::assert_spec::<Endnote>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Footnote>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Footer>();
+const _: () = ooxml_core::schema::assert_child::<Footer, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Footer, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Header>();
+const _: () = ooxml_core::schema::assert_child::<Header, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Header, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Run>();

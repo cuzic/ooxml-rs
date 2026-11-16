@@ -33,6 +33,15 @@
     (`UnrewritableReference`), not rewritten, in this version.
   - Raw-name rows (§6, review B2): a pivot cache's `worksheetSource/@sheet` is rewritten; a
     consolidation `rangeSet/@sheet` or `dataRef/@sheet` naming the sheet refuses.
+    Raw names are compared after XML and `_xHHHH_` decoding and written as ST_Xstring
+    (PR #53 review round 2, R2-B1). `webPublishItem/@sourceObject` is a raw-name location
+    this version does not know: it is left as it was (the known blind spot above; 0 in the
+    corpus).
+  - Over-refusals kept on purpose (each refuses rather than risk a stale reference): an
+    External relationship whose target is `#Sheet!…` (only Internal targets are retargeted);
+    a pivot cache that does not parse; a chart that does not parse but mentions the sheet.
+    Another workbook's names (`externalLink` parts) and pivot sources with `r:id` do not
+    refuse.
 
 ## Revision history
 
