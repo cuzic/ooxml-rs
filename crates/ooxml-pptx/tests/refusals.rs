@@ -661,7 +661,7 @@ fn group_without_id() {
     });
     let mut p = Presentation::from_bytes(noid).unwrap();
     let member = path_of(&mut p, 2, |s| s.depth() > 0 && *s.kind() == ShapeKind::Shape);
-    assert!(p.slide(2).unwrap().shapes().iter().any(|s| s.path() == &member && s.id().is_ok()), "the member's own id is valid");
+    assert!(p.slide(2).unwrap().shapes().iter().any(|s| s.path() == member && s.id().is_ok()), "the member's own id is valid");
     let e = refused(&mut p, |p| p.slide_mut(2)?.shape_mut(&member).map(|_| ()));
     assert_matches!(e, Error::InvalidShapeId);
 }
@@ -765,4 +765,63 @@ fn unreadable_comment_parts_fail_closed() {
         let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
         assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 }, "{what}");
     }
+}
+
+#[test]
+fn too_deep_comment_part_fails_closed() {
+    // PR #16 (depth limit 256) + its review m4: a comment part nested
+    // deeper than the limit does not parse (`TooDeep`), and the slide's text
+    // is then locked. SYNTHETIC: the real anchor of modern-comments.pptx is
+    // a whole-shape `ac:deMkLst` (allowed); 300 extra levels inside it make
+    // the part unparsable, and only that turns the edit into a refusal.
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    let deep = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        replace_once(&x, "</ac:deMkLst>", &format!("{}{}</ac:deMkLst>", "<ac:x>".repeat(300), "</ac:x>".repeat(300)))
+    });
+    let part = Package::from_bytes(deep.clone()).unwrap().read_part(PART).unwrap();
+    assert_matches!(ooxml_core::XmlDocument::parse(&part), Err(ooxml_core::Error::TooDeep { limit: 256, .. }));
+    let mut p = Presentation::from_bytes(deep).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 2 });
+    // control: 200 extra levels parse, and the whole-shape anchor allows the edit
+    let ok = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        replace_once(&x, "</ac:deMkLst>", &format!("{}{}</ac:deMkLst>", "<ac:x>".repeat(200), "</ac:x>".repeat(200)))
+    });
+    let mut p = Presentation::from_bytes(ok).unwrap();
+    p.slide_mut(0).unwrap().shape_mut_by_id(2).unwrap().text_body_mut().unwrap().set_text("x").unwrap();
+}
+
+#[test]
+fn edits_that_would_pass_the_depth_limit_are_refused_before_any_change() {
+    // PR #16: the lens refuses inserts beyond the depth limit (256) only at
+    // the insert that crosses it. A text edit makes several inserts, so the
+    // setter checks the deepest one first. SYNTHETIC: a slide whose text
+    // body sits 248 groups deep, with an empty paragraph whose a:endParaRPr
+    // has a child at depth 256 (the limit). Filling it creates a:r (255),
+    // a:rPr (256) and the copied a:latin (257): refused, nothing changed.
+    const N: usize = 248;
+    let mut x = String::from(concat!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+        r#"<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">"#,
+        r#"<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>"#
+    ));
+    for k in 0..N {
+        x.push_str(&format!(r#"<p:grpSp><p:nvGrpSpPr><p:cNvPr id="{}" name="g"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>"#, 10 + k));
+    }
+    x.push_str(r#"<p:sp><p:nvSpPr><p:cNvPr id="5" name="t"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:p><a:endParaRPr lang="en-US"><a:latin typeface="X"/></a:endParaRPr></a:p></p:txBody></p:sp>"#);
+    x.push_str(&"</p:grpSp>".repeat(N));
+    x.push_str("</p:spTree></p:cSld></p:sld>");
+    let deep = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |_| x.clone());
+    let mut p = Presentation::from_bytes(deep).unwrap();
+    type Op = fn(&mut ooxml_pptx::TextBodyMut<'_>) -> Result<(), Error>;
+    let ops: [Op; 3] = [|b| b.paragraph_mut(0)?.set_text("x"), |b| b.set_text("x"), |b| b.set_text("a\nb")];
+    for op in ops {
+        let e = refused(&mut p, |p| op(&mut p.slide_mut(0)?.shape_mut_by_id(5)?.text_body_mut()?));
+        assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { limit: 256, .. }));
+    }
+    // unformatted text fits: a:r 255, a:t 256
+    p.slide_mut(0).unwrap().shape_mut_by_id(5).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().add_run("fits").unwrap();
+    let out = p.to_bytes().unwrap();
+    let part = Package::from_bytes(out).unwrap().read_part("ppt/slides/slide1.xml").unwrap();
+    ooxml_core::XmlDocument::parse(&part).expect("the edited part parses again under the default limit");
 }
