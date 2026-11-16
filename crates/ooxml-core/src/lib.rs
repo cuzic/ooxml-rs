@@ -27,7 +27,7 @@ pub mod value;
 pub mod xml;
 
 pub use error::{DetachRefusal, Error, MoveRefusal, Result, WellFormedness};
-pub use lens::{Detached, Lens, LensMut, MoveSource, NsDecl};
+pub use lens::{Detached, Lens, LensMut, MoveSource, NsDecl, SamePartDetached, SamePartOptions};
 pub use name::{QName, XName};
 pub use package::{
     IncomingRelationship, Package, PartContent, PartNameRequest, PartState, PartStateKind, RegistryPlan, RegistryRefusal, RemoveRefusal,
