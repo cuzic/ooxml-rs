@@ -1,27 +1,32 @@
 # ADR-0016: PowerPoint Phase 3 — formatting writes and links
 
-- Status: **Proposed** (revision 4)
+- Status: **Accepted** (revision 5)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (Layer 3
   append-only registries), [ADR-0002](0002-schema-driven-code-generation.md)
   (generated typed setters for `[write]` entries; post-acceptance notes
   "detach/insert", "parser depth limit"),
   [ADR-0005](0005-pptx-phase0.md) (Phase 0/0.1 text edits, locks, format
-  sources), ADR-0008 (PR #28, Proposed: inheritance chain with
-  provenance, `Resolved`/`Source`, read APIs for links and notes), the
+  sources), [ADR-0008](0008-pptx-phase1-deck-reading.md) (Accepted rev 3:
+  inheritance chain with provenance, `Resolved`/`Source`, read APIs for
+  links and notes), the
   core registry transaction of PR #38 (branch `core/add-part`:
   `RegistryPlan`, `stage_part`, `Package::apply`; ADR-0001 note "registry
   writes"), [ADR-0012](0012-pptx-phase2-slides-and-shapes.md) (Accepted rev 3:
   transaction shape §2, id and part-name rules, embedded template,
-  `ensure_notes_slide`), ADR-0013
-  (PR #33, Proposed: table structure and cell properties).
+  `ensure_notes_slide`), [ADR-0013](0013-pptx-phase1b-tables-and-smartart.md)
+  (Accepted rev 4: table structure and cell properties, built-in table
+  style ids), and the core PR #49 (`core/detach-same-part`, head
+  `397bd86`: the same-part clone of §3; ADR-0002 post-acceptance note
+  "same-part copy").
 - Evidence: [`spikes/pptx-phase3/`](../../spikes/pptx-phase3/README.md)
   (`formatting.py`; 619 distinct presentations, 1,269 slides; output in
   `results/`); python-pptx 1.0.2, Apache POI `47dcff76` and LibreOffice
   `2e885d0b` source, cited in §12.
 - Review: [round 1](0016-opus-review-round1.md) (not converged: M1, M2,
   m1–m14), [round 2](0016-opus-review-round2.md) (not converged: N1;
-  N2–N7)
+  N2–N7), [round 3](0016-opus-review-round3.md) (converged: Accepted
+  after Minor only)
 
 ## Revision history
 
@@ -62,7 +67,7 @@
   | nits | ADR-0012 linked; `ahyp` declared on `ahyp:hlinkClr` itself; 12 (slides) / 14 (with layouts and masters) | header, §7 |
 
 - **Revision 4** (alignment with the core PR #49 `core/detach-same-part`,
-  head `f8b2998`; no change of rule). #49's review round 1 (P49-m1) was
+  head `397bd86`; no change of rule). #49's review round 1 (P49-m1) was
   made on `276879f`, a prefix-re-choosing variant of #18's detach that
   kept declarations only inside allowed extensions; #49 has since been
   rewritten as the span-preserving clone this ADR's §3 describes
@@ -73,6 +78,17 @@
   check twin `SamePartDetached::check_insert_under`, `WrongDocument`), and
   records P49-m2: inside a transaction the copy and its check are taken
   from the **staged clone**, not from the package's parsed tree.
+
+- **Revision 5** (after `0016-opus-review-round3.md`: converged,
+  Accepted after Minor only). Status: Accepted.
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | R3-m1 `Source::Theme`, override "as source" | no such `Source`: after a theme edit the referring element's `Source` is unchanged and the new value shows in the resolved `Font.theme`/`Color`; parts with `themeOverride` stay `Unresolved(ThemeOverride)` (ADR-0008 §1.4) | §10 |
+  | R3-m2 `TableStyle::BuiltIn` | dropped: ADR-0013 §3's `set_style(Some(id))` already accepts the 74 built-in ids (case-insensitive); Phase 3 only keeps generated ids clear of them; Q4 closed | §9, Q4 |
+  | R3-m3 header | ADR-0008/0013 Accepted and linked; #49 (`397bd86`, ADR-0002 note "same-part copy") in Depends on and Sources; origin/main merged | header, Sources |
+  | R3-m4 notes master row | no 4:3 variant | §12 |
+  | nits | copies taken from the document being edited; MC attribute values dropped from the checks (MC is refused); §11 mapping of #49's refusals; `remove_relationship` types; corpus populations; `RunFormat` items as `Set(v)`/`Clear` | §3, §4, §7, §8, §9, §11 |
 
 ## Context
 
@@ -212,8 +228,9 @@ appearance `underline_line(LineSpec | FollowText)` /
 of the old value survives to mix with an inherited one.
 
 - **Character ranges.** `ParagraphMut::format_range(start, end, &RunFormat)`
-  takes the formatting as a **value** (`RunFormat`: the setters above as
-  optional fields, plus explicit clears), not a closure, so that it is
+  takes the formatting as a **value** (`RunFormat`: one optional field per
+  setter above, each `Set(v)` or `Clear`, so an item cannot be both set
+  and cleared), not a closure, so that it is
   validated completely (ranges, enums, colours) **before** any run is
   split; a `ValueOutOfRange` never leaves a split behind (review M2).
   Then it splits the runs at the range boundaries and writes the values
@@ -235,8 +252,10 @@ of the old value survives to mix with an inherited one.
   clone**: the `a:rPr` node is cloned with its spans, so its bytes —
   prefixes and the declarations inside it included — are written
   unchanged, and the clone is checked exactly like PR #44's same-part
-  move (`check_move_in_by`): every free prefix of the subtree (element,
-  attribute, MC attribute values) is bound to the same namespace at the
+  move (`check_move_in_by`): every free prefix of the subtree (element
+  and attribute names; MC is refused, so no MC attribute values occur,
+  and QNames inside other attribute values are not checked — #49's
+  documented limit) is bound to the same namespace at the
   destination, `mc:Ignorable` status and inherited `xml:space` are the
   same, and the depth limit holds. For a split the clone is a sibling in
   the same `a:p`, so these checks always pass; they guard other uses.
@@ -262,17 +281,18 @@ of the old value survives to mix with an inherited one.
 - **Checks before the first split** (round 2 N4). A range splits at
   most two runs (its start and its end). Before either split, all of
   these are checked: the `RunFormat` values; `RangeSplitsField`; that
-  **both** boundary runs' `a:rPr` can be cloned (above); and that no
-  item is both set and cleared in the same `RunFormat` (refused as
-  `ValueOutOfRange`). "Already has every value" (principle 4) compares
+  **both** boundary runs' `a:rPr` can be cloned (above). "Already has every value" (principle 4) compares
   the run's **own** `a:rPr`, not resolved values: a run bold by
   inheritance still gets a direct `b="1"`, so ADR-0008 then reports it
   as `Source::Direct`, as principle 1 promises. The copies and their
-  check are taken from the **staged clone** of the slide (principle 6),
-  not from the package's parsed tree: #49 binds a copy to the document it
-  was taken from, and a clone is another document, so a copy from the
-  parsed tree inserted into the clone is `Error::WrongDocument` (#49
-  review P49-m2; a false refusal, never a wrong write).
+  check are taken from **the document being edited**: in a transaction
+  the clone that is staged (principle 6), in principle 6's degenerate
+  case (one part's tree, no registry change — a `format_range` that adds
+  or removes no link) the parsed tree edited in place. #49 binds a copy
+  to the document it was taken from, and a clone is another document, so
+  a copy from the parsed tree inserted into the clone is
+  `Error::WrongDocument` (#49 review P49-m2; a false refusal, never a
+  wrong write).
 - **`a:endParaRPr`** gets the same setters (`ParagraphMut::end_format`):
   it decides the formatting of text typed at the end and the height of an
   empty line (ADR-0005 R2-5).
@@ -296,7 +316,8 @@ with the old one's appearance. Picture bullets (`a:buBlip`, 30) need an
 image relationship: creating one is `UnsupportedBullet` in Phase 3.
 Replacing an existing `a:buBlip` removes the element; its image
 relationship is then removed only when no attribute of the part still
-carries its `Id`, as in §7, and the image part stays (removing parts is
+carries its `Id`, as in §7 (`remove_relationship` with the allowed
+type `…/relationships/image`), and the image part stays (removing parts is
 not a Phase 3 operation; an unreferenced media part is harmless, as in
 Phase 0.1). Tab stops (`a:tabLst`) are written as a whole list.
 
@@ -428,7 +449,9 @@ pub struct LinkSpec { pub target: LinkTarget, pub tooltip: Option<String>, pub h
   or notes slide (review m10).
 - **Removing or replacing** a link removes the element; its relationship
   is removed **only when no attribute of the part still carries that
-  `Id`**: `RegistryPlan::remove_relationship` on the staged clone, which
+  `Id`**: `RegistryPlan::remove_relationship` on the staged clone (with
+  the allowed types `…/relationships/hyperlink` and `…/relationships/slide`,
+  the two a link uses), which
   the core refuses while any attribute (any namespace) still names it, so
   Phase 3 only asks when its own count is zero (a run split by §3 shares
   a relationship between two runs). **Replacing** a link runs in this
@@ -480,7 +503,7 @@ transaction (principle 6).
      ShapeCrawler output, has 45 notes slides and no master): refused
      (`NotesWithoutMaster`), because a new master would not be the one
      the existing notes use.
-   - Neither (460 of 616 files with slides): add the notes master and its
+   - Neither (460 of the spike's 616 files with slides, of 619): add the notes master and its
      theme from the embedded template of ADR-0012 §8 (`add_part`
      `Numbered` for `notesMaster{}.xml` and `theme{}.xml`, their
      relationships, `Override`s), a presentation → `notesMaster`
@@ -489,7 +512,8 @@ transaction (principle 6).
      `p:sldMasterIdLst`). The list is always written (Q2).
 2. **Page and slide size** (review m2, round 2 N5). The template's
    notes master is laid out for its own `p:notesSz` (6858000 × 9144000)
-   and 16:9 slides. Of the 449 corpus decks without a notes master, 392
+   and 16:9 slides. Of the 449 decks without a notes master in the
+   round-2 review's 606 files (619 deduplicated by SHA-256), 392
    use that `notesSz`; the rest use A4 (35), Letter (15), landscape (2)
    or others (5), and their `sldSz` is 16:9 in 271, 4:3 in 127 and other
    ratios in 51. The created notes master is therefore adapted to the
@@ -517,7 +541,7 @@ transaction (principle 6).
   `a:tblStyle` to `ppt/tableStyles.xml` (edited on a clone and staged,
   principle 6). The part is found through the presentation's
   `tableStyles` **relationship**, not by name (round 2 N7, like m1). When
-  there is none (50 of 606 files), it is created
+  there is none (50 of the round-2 review's 606 deduplicated files), it is created
   (`add_part(PartNameRequest::Exact("ppt/tableStyles.xml"))`,
   presentation relationship, `Override`; a dangling relationship or a
   left-over `Override` using that name makes the core refuse with
@@ -540,11 +564,10 @@ transaction (principle 6).
   `\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}`
   (`shared-commonSimpleTypes.xsd`): braces and **uppercase** hex (UUID
   libraries format lowercase by default).
-- **Built-in styles by id.** ADR-0013's `set_style` accepts, with an
-  explicit `TableStyle::BuiltIn(guid)`, a GUID from that 74-entry list
-  without adding a definition (8 corpus tables do this; PowerPoint and
-  LibreOffice render them, POI does not); other undefined ids stay
-  `TableStyleNotDefined`.
+- **Built-in styles by id** are ADR-0013 §3's: `set_style(Some(id))`
+  already accepts the 74 built-in ids (compared case-insensitively)
+  without a definition. Phase 3 only guarantees that the ids it generates
+  never equal one of them (above).
 - Existing definitions are never modified: other tables may use them.
   This is this ADR's own rule; `tableStyles.xml` is a format part, not one
   of ADR-0001's Layer 3 registries (review m9).
@@ -556,15 +579,20 @@ transaction (principle 6).
 and `set_major_font` / `set_minor_font` (latin, ea, cs typefaces; script
 fonts `a:font@script` are kept — 27,129 entries in the corpus). The
 change applies to every slide that uses the master (that is what a theme
-is); ADR-0008 reads show it with `Source::Theme`. A theme part referenced
+is). ADR-0008 has no theme `Source`: after the edit, a read of an element
+that refers to the theme keeps its `Source` (e.g. `Direct` for a
+`schemeClr` written on the run) and shows the new value in the resolved
+`Font.theme` / `Color` (`mapped`, `base_rgb`); §13's provenance oracle
+checks exactly that. A theme part referenced
 by more than one master or by a master and a notes master is edited only
 with `allow_shared: true` (`SharedTheme`; 0 shared between masters in the
 corpus). No theme part is created or renamed; style matrices
 (`fmtScheme`) are not edited. The edited theme is a clone staged in one
 transaction (principle 6). A slide, layout, notes slide or chart with a
 `themeOverride` keeps its override: theme edits do not reach colours or
-fonts the override replaces (review m14), and ADR-0008 reports those
-with the override as source.
+fonts the override replaces (review m14). ADR-0008 does not apply
+`themeOverride` (§1.4): theme-dependent lookups on such a part stay
+`Unresolved(ThemeOverride)`, and Phase 3 does not change that.
 
 ### 11. Errors
 
@@ -578,12 +606,12 @@ with the override as source.
 | `UnsafeLinkScheme`, `InvalidLinkTarget`, `UnsupportedAction` | §7 |
 | `SlideNotFound` (by `sldId`) | link or notes target |
 | `NotesWithoutMaster` | §8: notes slides exist but no presentation → `notesMaster` relationship |
-| `FormatNotCopyable` (Phase 0.1) | §3: a boundary run whose `a:rPr` the same-part clone refuses (non-zero `smtId`, `a:effectDag`/`a:cont@name`, an `a:ext` not on the allowlist, MC inside; links and `a:extLst` until `core/detach-same-part` lands) |
+| `FormatNotCopyable` (Phase 0.1) | §3: a boundary run whose `a:rPr` the same-part clone refuses at the source — #49's `NotDetachable` with `UniqueAttribute` (non-zero `smtId`, `a:effectDag`/`a:cont@name`), `ExtensionList` (an `a:ext` not on the allowlist), `MarkupCompatibility` or `AlternateContent`; links and `a:extLst` until #49 lands |
 | ADR-0005 lock errors | §7: removing/replacing a link anchored by a modern comment (`oac:hlinkMkLst`) |
 | `SharedTheme` | §10 |
 | `TableStyleNotDefined` (ADR-0013) | an undefined, non-built-in id |
 | Phase 0 refusals | `InsideAlternateContent`, `UnsupportedContent`, … |
-| `Core(…)` | `RegistryPlan` validation (name/relationship conflicts, a remaining reference), `TooDeep`, `NamespaceNotInScope` — all before `apply` |
+| `Core(…)` | `RegistryPlan` validation (name/relationship conflicts, a remaining reference), `TooDeep`, and #49's destination refusals (`NotDetachable` with `NamespaceBinding`, `IgnorableNamespace`, `InheritedXmlSpace`; `WrongDocument`), which a split never meets (the clone is a sibling in the same document) and so indicate a bug — all before `apply` |
 
 ### 12. Reference implementations (source-verified)
 
@@ -595,7 +623,7 @@ with the override as source.
 | group extents | `recalculate_extents` sets `chOff=off`, `chExt=ext` (`oxml/shapes/groupshape.py`) | `setAnchor` / `setInteriorAnchor` separately (`XSLFGroupShape`) | never implicit; explicit `fit_to_children` keeping member positions |
 | external link | new external relationship; old one dropped if referenced < 2 times by `r:id` (`text/text.py` `_Hyperlink.address`, `opc/package.py` `drop_rel`) | `linkToExternal` removes the old relationship unconditionally; tooltip = URL (`XSLFHyperlink`) | remove only when no attribute references it |
 | slide jump | `ActionSetting.target_slide`: relationship to the slide + `ppaction://hlinksldjump` (`action.py`) | `linkToSlide` (same); `linkToNextSlide` etc. → `ppaction://hlinkshowjump?jump=…` | same actions; slide by `sldId` |
-| notes master | `NotesMasterPart.create_default` + presentation relationship, **no** `p:notesMasterIdLst` (`parts/presentation.py`, `parts/slide.py`) | `createNotesMaster` from its template (`XMLSlideShow`) | detected by relationship; template part (16:9 or 4:3) + relationship + `p:notesMasterId` |
+| notes master | `NotesMasterPart.create_default` + presentation relationship, **no** `p:notesMasterIdLst` (`parts/presentation.py`, `parts/slide.py`) | `createNotesMaster` from its template (`XMLSlideShow`) | detected by relationship; template part scaled to `p:notesSz`, `sldImg` fitted to `p:sldSz`, + relationship + `p:notesMasterId` |
 | autofit | `auto_size`; `fit_text` computes a size from a font file | — | settings only; no computation |
 | table styles, theme | none | read-only (`XSLFTableStyles`, `XSLFTheme`) | append definitions; minimal theme setters |
 | built-in table style ids | — | — | LibreOffice's 74 ids (`oox/source/drawingml/table/predefined-table-styles.cxx`) |
@@ -684,10 +712,9 @@ vs. largest + 1 part number) is settled by the core ADR-0001 note
   know; split runs keep it through the same-part clone (§3), which
   preserves its own `xmlns:ahyp` declaration and is allowlisted by its
   extension URI.
-- **Q4** Built-in table-style GUIDs without definitions (§9). *Default:*
-  allowed. PowerPoint writes them itself (8 corpus tables), LibreOffice
-  knows the 74 ids; POI not rendering them is POI's limit. The 74-id list
-  is pinned with its provenance; other undefined ids stay
+- **Q4** Built-in table-style GUIDs without definitions (§9). *Closed:*
+  decided in ADR-0013 §3 (accepted, owner decision 2026-11-16): the 74
+  built-in ids are accepted; other undefined ids stay
   `TableStyleNotDefined`.
 
 ## Sources
@@ -720,5 +747,8 @@ vs. largest + 1 part number) is settled by the core ADR-0001 note
 - MS-ODRAWXML `CT_TextCharRangeContext` (`oac:context@hash` over plain
   text).
 - Core: PR #38 (`core/add-part`, `RegistryPlan`, ADR-0001 note "registry
-  writes"); PR #18 (`detach_as`, ADR-0002 note "detach/insert"); the
-  namespace-declaration core PR `core/insert-with-ns`.
+  writes"); PR #18 (`detach_as`, ADR-0002 note "detach/insert"); PR #45
+  (`core/insert-with-ns`, `insert_with_ns`); PR #49
+  (`core/detach-same-part`, head `397bd86`: `detach_same_part_as`,
+  `SamePartOptions`, `insert_same_part_by`, ADR-0002 note "same-part
+  copy").
