@@ -1,0 +1,20 @@
+# Standalone spike for ADR-0010 (core performance). Its own workspace, so the
+# main workspace never builds it; depends on ooxml-core by path and changes
+# no crate.
+[workspace]
+
+[package]
+name = "core-performance-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[dependencies]
+ooxml-core = { path = "../../crates/ooxml-core" }
+quick-xml = "0.42"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+rust_xlsxwriter = "0.102"
+
+[profile.release]
+debug = "line-tables-only"
