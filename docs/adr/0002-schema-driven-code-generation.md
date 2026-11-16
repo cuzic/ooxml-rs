@@ -203,24 +203,39 @@
   PowerPoint declares `a16` on each `a16:rowId`.
   - **New API.** The insert primitives gain `*_with_ns` variants
     (`insert_with_ns`, `insert_by_with_ns`, `insert_in_slot_with_ns`,
-    `get_or_insert_with_ns`). Each takes `NsDecl { prefix, uri }` requests to
+    `insert_at_with_ns`, `get_or_insert_with_ns`). Each takes `NsDecl { prefix, uri }` requests to
     be declared **on the new element**.
   - **Choosing the prefix.**
     - A URI that already has a prefixed binding in scope is not redeclared;
       the existing binding is used.
     - Otherwise the new element gets `xmlns:{p}`, where `p` is the requested
       prefix if unbound in scope, else the first free `{prefix}N` (N = 1, 2,
-      …). Existing bindings are never shadowed.
+      …). Existing bindings are never shadowed. Requests are decided in
+      order, so an earlier request's fallback takes its suffix first.
     - The new element's own prefix, and those of later descendants and
       their attributes, then follow §3 with the new bindings in scope.
   - **Refusals.** `InvalidNamespaceDeclaration` covers: an empty URI, the
-    `xml` or `xmlns` URI, a prefix that is not an NCName or starts with `xml`
-    (any case), and a prefix or URI requested twice. A URI with a character
+    `xml` or `xmlns` URI, a prefix that is not an NCName (by the XML 1.0
+    5th-edition `NameStartChar`/`NameChar` productions, not Unicode
+    "alphabetic", which admits `µ`, `ª`, `²` that strict parsers reject) or
+    starts with `xml` (any case), and a prefix or URI requested twice.
+    Requests are validated first, even when nothing would be declared. A URI with a character
     XML cannot hold gives `InvalidXmlChar`. Every refusal comes before any
     change.
   - **Checks.** Every insert, plain and `_with_ns`, has a `check_*` twin
     computed by the same planning function, so check and insert cannot
-    disagree (brute-force parity test).
+    disagree (brute-force parity test). The `_with_ns` twins return the
+    declarations the insert would write, `(prefix, uri)` (ADR-0011 rev 3
+    asks for the prefixes actually used; the prefixes of later descendants
+    then follow §3 automatically). A check cannot dry-run an insert under a
+    parent that does not exist yet; a multi-level creation is validated by
+    running every step on a clone of the `XmlDocument` first.
+  - **`mc:Ignorable`.** Declaring a namespace does not make it ignorable,
+    and this API does not edit `mc:Ignorable` (the root's start tag stays
+    untouched). The ADR-0011/0013 users do not need it (`a`/`pic`/`r` are
+    standard namespaces; `a16:rowId` sits in an extension list, skipped by
+    `uri`). A caller that puts a namespace Office 2007 does not know
+    outside an extension list must handle compatibility itself, or refuse.
   - **T2.** The declarations are inside the created element's start tag, so
     T2 holds as for any insertion.
   - **Interaction with attribute writes.** `set_attr` never creates a namespace
@@ -229,8 +244,12 @@
     Declarations on an original element would make its start tag dirty and
     stay refused, as ADR-0011 §1.3 requires.
   - **Extension points.**
-    - PR #26's `insert_at` and `check_insert_at` add `_with_ns` twins through
-      the same plan (`plan_declarations` on the parent's scope).
+    - PR #26's `insert_at` and `check_insert_at` have `_with_ns` twins
+      (`insert_at_with_ns`, `check_insert_at_with_ns`) through the same plan.
+    - PR #18's `detach_as` refuses a subtree with `xmlns` declarations
+      (`DetachRefusal::NamespaceDeclaration`): a subtree created with these
+      inserts, or Office's own `a16:rowId` ext, cannot be copied; ADR-0013's
+      row copy skips `a:extLst` and recreates it with `insert_with_ns`.
     - PR #18's `insert_detached` declares the requested namespaces on the
       inserted subtree's root the same way. Its re-check of prefixes against
       the destination scope then counts them, so a detached copy whose URIs

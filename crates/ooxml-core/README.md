@@ -134,22 +134,37 @@ innermost binding in effect (default namespace preferred on the same
 element); attributes need a non-empty prefix; `xml:` always works.
 
 Namespace declarations on new elements. `insert_with_ns`, `insert_by_with_ns`,
-`insert_in_slot_with_ns` and `get_or_insert_with_ns` take a list of `NsDecl { prefix, uri }`
+`insert_in_slot_with_ns`, `insert_at_with_ns` and `get_or_insert_with_ns` take a list of `NsDecl { prefix, uri }`
 to declare on the **new** element. Word, for example, declares `a:` on `a:graphic` and `pic:`
 on `pic:pic`, and PowerPoint declares `a16:` on each `a16:rowId`.
 
 - If a URI already has a prefixed binding in scope, nothing is declared and that binding is
   used.
 - Otherwise `xmlns:{p}` is added. `p` is the requested prefix if it is unbound in scope, else
-  the first free `{prefix}1`, `{prefix}2`, …. Existing bindings are never shadowed.
+  the first free `{prefix}1`, `{prefix}2`, …. Existing bindings are never shadowed. Requests
+  are decided in order, so an earlier request's fallback takes a suffix first.
 - The new element, and anything later inserted below it, then use these bindings under the
   rules above.
 - Bad requests are refused with `InvalidNamespaceDeclaration`: an empty or `xml`/`xmlns` URI,
-  a prefix that is not an NCName or starts with `xml`, or a prefix or URI given twice.
+  a prefix that is not an NCName (XML 1.0 5th-edition `NameStartChar`/`NameChar` without `:`;
+  Unicode "alphabetic" is not enough: `µ`, `ª`, `²` are not name characters) or starts with
+  `xml`, or a prefix or URI given twice. Requests are validated before anything else, even when
+  nothing would be declared (URI already bound, or `get_or_insert_with_ns` finding the child).
 - The declarations are part of the new element's start tag only, so T2 locality holds.
 - Every insert has a `check_*` twin (`check_insert`, `check_insert_by`, `check_insert_in_slot`,
-  `check_get_or_insert`, each also `_with_ns`). A twin returns exactly the insert's result and
-  changes nothing.
+  `check_insert_at`, `check_get_or_insert`, each also `_with_ns`). A twin returns exactly the
+  insert's result and changes nothing; the `_with_ns` twins return the declarations the insert
+  would write, as `(prefix, uri)`.
+- A check sees the tree as it is, so it cannot dry-run an insert under a parent that does not
+  exist yet (`pic:pic` under a planned `a:graphicData`). To validate a multi-level creation
+  before the first change, run all steps on a clone of the `XmlDocument` and apply only if they
+  all succeed.
+- Declaring does not make a namespace ignorable: `mc:Ignorable` is not touched (the root's start
+  tag stays untouched). A caller that puts a namespace Office 2007 does not know **outside** an
+  extension list must arrange compatibility itself, or refuse.
+- `detach_as` refuses a subtree that declares namespaces (`DetachRefusal::NamespaceDeclaration`),
+  so a subtree created with these inserts, or an Office `a16:rowId` ext, cannot be copied with
+  it; recreate such parts with a `_with_ns` insert instead.
 
 ## Schema description types
 
