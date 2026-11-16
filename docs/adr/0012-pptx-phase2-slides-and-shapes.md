@@ -90,6 +90,14 @@
     places the copy right after the original.
   - Shape-id allocation is exposed as `Presentation::next_shape_id(slide)`
     for `add_text_box`/`add_picture`.
+  - #38's `copy_relationships` gained the type filter (`skip_types`)
+    requested in §2 (N1), so `duplicate_slide` no longer refuses slides
+    with comments: comment relationships (legacy and modern) are skipped,
+    and the copy's `p:sld/p:extLst/p:ext` holding `p188:commentRel` (the
+    modern-comment reference) is removed; any other reference to a
+    skipped `Id` in the copy is refused (`UnsupportedContent`). #38 also
+    copies fragment-only targets (`#_ftn1`) verbatim, so
+    `with_japanese.pptx` duplicates.
   - Cascade relationship types outside §6 found in the wider corpus
     (619 decks): `customXml` (45 slides), `control` (15),
     `legacyDrawing` (1), `chartEx` (4) — refused as §6 says.

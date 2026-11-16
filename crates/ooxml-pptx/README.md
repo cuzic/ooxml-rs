@@ -46,7 +46,7 @@ adds or removes and the registries change.
 | `add_slide(&layout, at)` | new `slide{N}.xml` (largest number + 1), placeholders cloned python-pptx's way (`type`/`orient`/`sz`/`idx`; no date, footer, slide number) |
 | `move_slide(from, to)` | only `p:sldIdLst` and sections change |
 | `delete_slide(i)` | removes the slide, its notes and every part only it uses (charts, media, …); refused when anything else references the slide |
-| `duplicate_slide(i, at)` | same relationship `Id`s; layout and media shared, notes and tags copied, new `p14:creationId`; slides with comments, charts, diagrams or OLE refused |
+| `duplicate_slide(i, at)` | same relationship `Id`s; layout and media shared, notes and tags copied, new `p14:creationId`; comments not copied; slides with charts, diagrams or OLE refused |
 | `next_shape_id(i)` | one more than every id, `spid` and comment moniker of the slide |
 
 Ids are never reused: `p:sldId` stays above every id seen in the session,

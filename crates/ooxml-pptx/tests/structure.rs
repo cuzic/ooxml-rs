@@ -830,24 +830,23 @@ fn duplicate_renews_creation_id() {
 #[test]
 fn duplicate_refusals() {
     for (f, want) in [
-        ("libreoffice/modern-comments.pptx", "=comments"),
         ("poi/bar-chart.pptx", "relationships/chart"),
         ("poi/SmartArt.pptx", "relationships/diagram"),
     ] {
         let src = fixture(f);
         let mut p = Presentation::from_bytes(src.clone()).unwrap();
-let r = p.duplicate_slide(0, None).map(|_| ());
-        match want.strip_prefix('=') {
-            Some(exact) => assert_matches!(r, Err(Error::UnsupportedSlidePart(ref t)) if t == exact, "{f}"),
-            None => assert_matches!(r, Err(Error::UnsupportedSlidePart(ref t)) if t.contains(want), "{f}"),
-        }
+        let r = p.duplicate_slide(0, None).map(|_| ());
+        assert_matches!(r, Err(Error::UnsupportedSlidePart(ref t)) if t.contains(want), "{f}");
         assert_eq!(p.to_bytes().unwrap(), unchanged(&src), "{f}");
     }
-    // a core refusal after the pptx edits are planned: `#_ftn1` targets
-    // resolve to no part (copy_relationships refuses until #38 copies them)
-    let src = fixture("poi/with_japanese.pptx");
+    // a core refusal after the pptx edits are staged: another slide's
+    // relationship spells the deleted slide's file name but resolves to no
+    // part (core `UnresolvedMention`, inside remove_parts)
+    let src = patch(&fixture("poi/sample.pptx"), "ppt/slides/_rels/slide2.xml.rels", |s| {
+        s.replace("</Relationships>", "<Relationship Id=\"rId97\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"../slide1.xml\"/></Relationships>")
+    });
     let mut p = Presentation::from_bytes(src.clone()).unwrap();
-    assert_matches!(p.duplicate_slide(0, None), Err(Error::Core(_)));
+    assert_matches!(p.delete_slide(0), Err(Error::Core(_)));
     assert_eq!(p.to_bytes().unwrap(), unchanged(&src));
     // a tags part with its own relationships
     let src = patch(
@@ -1003,4 +1002,32 @@ fn hidden_slides_are_counted() {
     let mut p = Presentation::from_bytes(src).unwrap();
     p.duplicate_slide(0, None).unwrap();
     assert_eq!(count(&p.to_bytes().unwrap()), before + 1);
+}
+
+#[test]
+fn duplicate_skips_comments() {
+    let src = fixture("libreoffice/modern-comments.pptx");
+    let mut p = Presentation::from_bytes(src.clone()).unwrap();
+    let new_part = p.duplicate_slide(0, None).unwrap().as_slide().info().part_name.clone();
+    let out = p.to_bytes().unwrap();
+    let (d, f) = new_part.rsplit_once('/').unwrap();
+    let rels = part(&out, &format!("{d}/_rels/{f}.rels"));
+    assert!(!rels.contains("relationships/comments"), "comments relationship copied: {rels}");
+    let xml = part(&out, &new_part);
+    assert!(!xml.contains("commentRel"), "commentRel kept in the copy");
+    assert!(part(&out, "ppt/slides/slide1.xml").contains("commentRel"), "the original keeps its comments");
+    check_structure(&out);
+}
+
+#[test]
+fn duplicate_keeps_fragment_links() {
+    // `#_ftn1` hyperlinks name no part: copied verbatim (same folder)
+    let src = fixture("poi/with_japanese.pptx");
+    let mut p = Presentation::from_bytes(src).unwrap();
+    let new_part = p.duplicate_slide(0, None).unwrap().as_slide().info().part_name.clone();
+    let out = p.to_bytes().unwrap();
+    let (d, f) = new_part.rsplit_once('/').unwrap();
+    let rels = part(&out, &format!("{d}/_rels/{f}.rels"));
+    assert_eq!(rels.matches("Target=\"#_ftn1\"").count(), 2, "{rels}");
+    check_structure(&out);
 }

@@ -63,6 +63,8 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [pml] Read p:CT_Shape/p:sp -> Shape (5 slots, 1 attrs)
   [pml] Read p:CT_ShapeNonVisual/p:nvSpPr -> NonVisualShapeProperties (3 slots, 0 attrs)
   [pml] Write p:CT_Slide/p:sld -> Slide (5 slots, 3 attrs)
+  [pml] Write p:CT_SlideExtension/p:ext -> SlideExtension (1 slots, 1 attrs)
+  [pml] Write p:CT_SlideExtensionList/p:extLst -> SlideExtensionList (1 slots, 0 attrs)
   [pml] Write p:CT_SlideIdList/p:sldIdLst -> SlideIdList (1 slots, 0 attrs)
   [pml] Write p:CT_SlideIdListEntry/p:sldId -> SlideId (1 slots, 2 attrs)
   [pml] Write p:CT_ViewProperties/p:viewPr -> ViewProperties (8 slots, 2 attrs)

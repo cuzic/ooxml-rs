@@ -67,6 +67,9 @@ const DUPLICATE_TYPES: &[&str] = &[
     REL_TAGS,
 ];
 
+/// Comment relationship types: not copied by `duplicate_slide`.
+const COMMENT_TYPES: &[&str] = &[REL_COMMENTS, MODERN_COMMENTS_REL];
+
 /// A slide layout reachable from a master in `p:sldMasterIdLst`
 /// (ADR-0012 §4.1; the subset of ADR-0008's `LayoutRef` Phase 2 needs).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -578,7 +581,7 @@ impl crate::Presentation {
             .filter_map(|r| main_rels.resolve(r))
             .find(|p| self.pkg.contains(p));
         // references by relationship
-        for inc in self.pkg.incoming_relationships(&part) {
+        for inc in self.pkg.incoming_relationships(&part)? {
             let src = inc.source.clone().unwrap_or_default();
             let ok = set.iter().any(|s| s == &src)
                 || (src == main && inc.rel_type == REL_SLIDE)
@@ -694,12 +697,13 @@ impl crate::Presentation {
             let inside = |n: &str, reach: &[String]| n == slide || reach.iter().any(|r| r == n);
             let before = reach.len();
             let snapshot = reach.clone();
-            reach.retain(|c| {
-                self.pkg
-                    .incoming_relationships(c)
-                    .iter()
-                    .all(|inc| inc.source.as_deref().is_some_and(|s| inside(s, &snapshot)))
-            });
+            let mut keep = Vec::with_capacity(reach.len());
+            for c in &snapshot {
+                let incoming = self.pkg.incoming_relationships(c)?;
+                keep.push(incoming.iter().all(|inc| inc.source.as_deref().is_some_and(|s| inside(s, &snapshot))));
+            }
+            let mut k = keep.into_iter();
+            reach.retain(|_| k.next().unwrap_or(false));
             if reach.len() == before {
                 break;
             }
@@ -712,8 +716,9 @@ impl crate::Presentation {
     /// Duplicates the slide at `index` to position `at` (default: right
     /// after it) and returns the copy (ADR-0012 §4.4). The copy keeps every
     /// relationship `Id`; layout and media are shared, notes and tags are
-    /// copied. Slides with comments are refused until the core's
-    /// `copy_relationships` can skip a type.
+    /// copied. Comments are not copied (they are about the original): their
+    /// relationships are skipped and the modern-comment reference
+    /// (`p188:commentRel`) is dropped from the copy's `p:extLst`.
     pub fn duplicate_slide(&mut self, index: usize, at: Option<usize>) -> Result<SlideMut<'_>> {
         let part = self.slide_part(index)?;
         let count = self.slides.len();
@@ -735,10 +740,7 @@ impl crate::Presentation {
         for rs in std::iter::once(&rels).chain(notes_rels.as_ref()) {
             for r in rs.iter() {
                 let t = r.rel_type.as_str();
-                if t == REL_COMMENTS || t == MODERN_COMMENTS_REL {
-                    return Err(Error::UnsupportedSlidePart("comments".into()));
-                }
-                if !DUPLICATE_TYPES.contains(&t) {
+                if !DUPLICATE_TYPES.contains(&t) && !COMMENT_TYPES.contains(&t) {
                     return Err(Error::UnsupportedSlidePart(r.rel_type.clone()));
                 }
             }
@@ -762,6 +764,15 @@ impl crate::Presentation {
         let id = self.next_slide_id()?;
         let mut slide_doc = self.tree(&part)?.clone();
         let hidden = is_hidden(slide_doc.root());
+        // the copy refers to none of the skipped comment relationships
+        let comment_ids: Vec<String> =
+            rels.iter().filter(|r| COMMENT_TYPES.contains(&r.rel_type.as_str())).map(|r| r.id.clone()).collect();
+        if !comment_ids.is_empty() {
+            drop_comment_rel(&mut slide_doc)?;
+            if refers_to_any(slide_doc.root(), &comment_ids) {
+                return Err(Error::UnsupportedContent("a reference to the slide's comments outside p:extLst/p:ext/p188:commentRel".into()));
+            }
+        }
         let mut next_cid = None;
         if has_creation_id(slide_doc.root()) {
             let c = self
@@ -819,12 +830,12 @@ impl crate::Presentation {
             map.push((n.clone(), nn.clone()));
         }
         let pairs: Vec<(&str, &str)> = map.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
-        plan.copy_relationships(&self.pkg, &part, &new_slide, &pairs)?;
+        plan.copy_relationships(&self.pkg, &part, &new_slide, &pairs, COMMENT_TYPES)?;
         if let (Some(n), Some(nn)) = (&notes, &new_notes) {
             let mut nmap = pairs.clone();
             nmap.retain(|(from, _)| from != n);
             nmap.push((part.as_str(), new_slide.as_str()));
-            plan.copy_relationships(&self.pkg, n, nn, &nmap)?;
+            plan.copy_relationships(&self.pkg, n, nn, &nmap, COMMENT_TYPES)?;
         }
         let rid = plan.add_relationship(
             &self.pkg,
@@ -1019,6 +1030,40 @@ fn remove_outline_entries(doc: &mut XmlDocument, rids: &[String]) -> Result<bool
         list.remove_at(i);
     }
     Ok(!items.is_empty())
+}
+
+/// Removes `p:sld/p:extLst/p:ext` holding `p188:commentRel` (and the
+/// `p:extLst` when it becomes empty).
+fn drop_comment_rel(doc: &mut XmlDocument) -> Result<()> {
+    let comment_rel = QName::new(P188_NS, "commentRel");
+    let mut root = doc.lens_mut::<pml::Slide>()?;
+    let empty = {
+        let Some(mut lst) = root.child_mut::<pml::SlideExtensionList>() else { return Ok(()) };
+        let items: Vec<usize> = lst
+            .node()
+            .indexed_elements()
+            .filter(|(_, e)| e.is(pml::SlideExtension::QNAME) && e.elements().any(|c| c.is(comment_rel)))
+            .map(|(i, _)| i)
+            .collect();
+        for &i in items.iter().rev() {
+            lst.remove_at(i);
+        }
+        lst.node().elements().next().is_none()
+    };
+    let at = root.node().indexed_elements().find(|(_, e)| e.is(pml::SlideExtensionList::QNAME)).map(|(i, _)| i);
+    if empty && let Some(i) = at {
+        root.remove_at(i);
+    }
+    Ok(())
+}
+
+/// Does any `r:` attribute in the tree carry one of `ids`?
+fn refers_to_any(root: &RawNode, ids: &[String]) -> bool {
+    let mut found = false;
+    walk(root, &mut |n| {
+        found |= n.attrs().iter().any(|a| a.name().ns() == R_NS && ids.iter().any(|i| i == a.value().trim()));
+    });
+    found
 }
 
 fn has_creation_id(root: &RawNode) -> bool {

@@ -10,6 +10,8 @@ pub const NS_P: &str = "http://schemas.openxmlformats.org/presentationml/2006/ma
 pub const NS_P14: &str = "http://schemas.microsoft.com/office/powerpoint/2010/main";
 /// `p15`: `http://schemas.microsoft.com/office/powerpoint/2012/main`
 pub const NS_P15: &str = "http://schemas.microsoft.com/office/powerpoint/2012/main";
+/// `p188`: `http://schemas.microsoft.com/office/powerpoint/2018/8/main`
+pub const NS_P188: &str = "http://schemas.microsoft.com/office/powerpoint/2018/8/main";
 /// `r`: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 /// `a:ST_BlackWhiteMode` — Black and White Mode.
@@ -3342,6 +3344,7 @@ impl ooxml_core::ElementSpec for Slide {
     );
 }
 impl ooxml_core::ChildOf<Slide> for CommonSlideData {}
+impl ooxml_core::ChildOf<Slide> for SlideExtensionList {}
 /// Read-only view of [`Slide`].
 #[derive(Clone, Debug)]
 pub struct SlideView<'a>(pub ooxml_core::Lens<'a, Slide>);
@@ -3373,6 +3376,10 @@ impl<'a> SlideView<'a> {
     /// First `p:cSld` child.
     pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
         self.0.child::<CommonSlideData>().map(CommonSlideDataView)
+    }
+    /// First `p:extLst` child.
+    pub fn slide_extension_list(&self) -> Option<SlideExtensionListView<'a>> {
+        self.0.child::<SlideExtensionList>().map(SlideExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -3430,6 +3437,149 @@ impl<'a> SlideViewMut<'a> {
     /// Removes the first `p:cSld` child.
     pub fn remove_common_slide_data(&mut self) -> bool {
         self.0.remove::<CommonSlideData>()
+    }
+    /// First `p:extLst` child, mutably.
+    pub fn slide_extension_list_mut(&mut self) -> Option<SlideExtensionListViewMut<'_>> {
+        self.0.child_mut::<SlideExtensionList>().map(SlideExtensionListViewMut)
+    }
+    /// Existing `p:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_slide_extension_list(
+        &mut self,
+    ) -> Result<SlideExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SlideExtensionList>().map(SlideExtensionListViewMut)
+    }
+    /// Removes the first `p:extLst` child.
+    pub fn remove_slide_extension_list(&mut self) -> bool {
+        self.0.remove::<SlideExtensionList>()
+    }
+}
+/// `p:CT_SlideExtension/p:ext` — Defines the SlideExtension Class.
+#[derive(Debug)]
+pub enum SlideExtension {}
+impl SlideExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for SlideExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "ext");
+    const SDK_NAME: &'static str = "p:CT_SlideExtension/p:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SlideExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P14, "laserTraceLst"),
+                    ooxml_core::QName::new(NS_P14, "showEvtLst"),
+                    ooxml_core::QName::new(NS_P188, "commentRel"),
+                ],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`SlideExtension`].
+#[derive(Clone, Debug)]
+pub struct SlideExtensionView<'a>(pub ooxml_core::Lens<'a, SlideExtension>);
+impl<'a> SlideExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(SlideExtension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SlideExtension`]. Reads go through [`SlideExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideExtensionViewMut<'a>(pub ooxml_core::LensMut<'a, SlideExtension>);
+impl<'a> SlideExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideExtensionView<'_> {
+        SlideExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SlideExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SlideExtension::ATTR_URI)
+    }
+}
+/// `p:CT_SlideExtensionList/p:extLst` — Defines the SlideExtensionList Class.
+#[derive(Debug)]
+pub enum SlideExtensionList {}
+impl ooxml_core::ElementSpec for SlideExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "extLst");
+    const SDK_NAME: &'static str = "p:CT_SlideExtensionList/p:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SlideExtensionList> for SlideExtension {}
+/// Read-only view of [`SlideExtensionList`].
+#[derive(Clone, Debug)]
+pub struct SlideExtensionListView<'a>(pub ooxml_core::Lens<'a, SlideExtensionList>);
+impl<'a> SlideExtensionListView<'a> {
+    /// `p:ext` children in document order.
+    pub fn slide_extension_iter(&self) -> impl Iterator<Item = SlideExtensionView<'a>> {
+        self.0.children::<SlideExtension>().map(SlideExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SlideExtensionList`]. Reads go through [`SlideExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SlideExtensionList>,
+);
+impl<'a> SlideExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideExtensionListView<'_> {
+        SlideExtensionListView(self.0.as_lens())
+    }
+    /// First `p:ext` child matching `pred`, mutably.
+    pub fn slide_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SlideExtensionViewMut<'_>> {
+        self.0.child_mut_by::<SlideExtension>(pred).map(SlideExtensionViewMut)
+    }
+    /// Inserts a `p:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_slide_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SlideExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SlideExtension>(before).map(SlideExtensionViewMut)
+    }
+    /// Appends a `p:ext` at the end of its slot.
+    pub fn insert_slide_extension(
+        &mut self,
+    ) -> Result<SlideExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SlideExtension>().map(SlideExtensionViewMut)
+    }
+    /// Removes the first `p:ext` child.
+    pub fn remove_slide_extension(&mut self) -> bool {
+        self.0.remove::<SlideExtension>()
     }
 }
 /// `p:CT_SlideIdList/p:sldIdLst` — Defines the SlideIdList Class.
@@ -3988,6 +4138,10 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 const _: () = ooxml_core::schema::assert_spec::<Slide>();
 const _: () = ooxml_core::schema::assert_child::<Slide, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_child::<Slide, SlideExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<SlideExtension>();
+const _: () = ooxml_core::schema::assert_spec::<SlideExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<SlideExtensionList, SlideExtension>();
 const _: () = ooxml_core::schema::assert_spec::<SlideIdList>();
 const _: () = ooxml_core::schema::assert_child::<SlideIdList, SlideId>();
 const _: () = ooxml_core::schema::assert_spec::<SlideId>();

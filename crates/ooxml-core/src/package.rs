@@ -26,7 +26,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::error::{Error, Result};
-use crate::name::{CONTENT_TYPES_NS, PACKAGE_RELATIONSHIPS_NS, QName, STRICT_NS_PREFIX};
+use crate::name::STRICT_NS_PREFIX;
 use crate::opc::{CONTENT_TYPES_PART, ContentTypes, REL_OFFICE_DOCUMENT, Relationships, normalize_part_name, rels_part_name, same_part_name, xml_trim};
 use crate::xml::{ParseOptions, XmlDocument};
 
@@ -139,27 +139,6 @@ impl std::fmt::Display for RemoveRefusal {
     }
 }
 
-/// One registry part to edit.
-struct RegistryEdit {
-    /// Index into `parts`.
-    part: usize,
-    /// The tree parsed during planning, installed on apply (the part was Raw).
-    install: Option<XmlDocument>,
-    /// Indices of the root's child items to remove (with leading whitespace).
-    indices: Vec<usize>,
-}
-
-/// What `remove_part` will change, computed without mutating.
-struct RemovalPlan {
-    part: usize,
-    name: String,
-    edits: Vec<RegistryEdit>,
-    /// The package relationships after the removal, if they change.
-    package_rels: Option<Relationships>,
-    removed: RemovedPart,
-}
-
-
 /// [`PartState`] without the payload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartStateKind {
@@ -177,11 +156,13 @@ pub enum PartStateKind {
 #[derive(Debug)]
 struct Part {
     name: String,
-    /// Index of the original zip entry (meaningless when `added`).
+    /// Index of the original zip entry (meaningless for an added part).
     index: usize,
-    /// Added by [`Package::add_part`]: there is no original entry, so the
-    /// part is always written fresh, whatever its state.
-    added: bool,
+    /// The content is not the original entry's: an added part, or an
+    /// existing part given a new tree by a registry plan (`stage_part`,
+    /// review of PR #38 M2). It is always written fresh, whatever its state,
+    /// and `read_part` serializes it.
+    detached: bool,
     compression: CompressionMethod,
     state: PartState,
 }
@@ -264,7 +245,7 @@ impl Package {
             if !seen.insert(normalize_part_name(&name)) {
                 return Err(Error::Package(format!("duplicate part name {name:?}")));
             }
-            parts.push(Part { name, index, added: false, compression: file.compression(), state: PartState::Raw });
+            parts.push(Part { name, index, detached: false, compression: file.compression(), state: PartState::Raw });
         }
         if declared > options.max_package_bytes {
             return Err(Error::PackageTooLarge { size: declared, limit: options.max_package_bytes });
@@ -352,7 +333,7 @@ impl Package {
         let part = self.get(name)?;
         match &part.state {
             PartState::Raw => self.read_original(part),
-            PartState::Parsed(d) if !d.is_dirty() && !part.added => self.read_original(part),
+            PartState::Parsed(d) if !d.is_dirty() && !part.detached => self.read_original(part),
             PartState::Parsed(d) => Ok(d.serialize().into_bytes()),
             PartState::Replaced(b) => Ok(b.clone()),
         }
@@ -403,7 +384,7 @@ impl Package {
     pub fn xml_part_mut(&mut self, name: &str) -> Result<&mut XmlDocument> {
         let i = self.ensure_parsed(name)?;
         // The caller may edit the tree: a registry plan made before is stale.
-        self.generation += 1;
+        self.touch();
         match &mut self.parts[i].state {
             PartState::Parsed(d) => Ok(d),
             _ => unreachable!(),
@@ -416,7 +397,7 @@ impl Package {
     pub fn set_part(&mut self, name: &str, bytes: impl Into<Vec<u8>>) -> Result<()> {
         let i = self.find(name).ok_or_else(|| Error::NewPartUnsupported(name.into()))?;
         self.parts[i].state = PartState::Replaced(bytes.into());
-        self.generation += 1;
+        self.touch();
         Ok(())
     }
 
@@ -470,8 +451,9 @@ impl Package {
     /// `_rels/.rels` holds package relationships. After a successful
     /// validation the removal itself cannot fail.
     pub fn remove_part(&mut self, name: &str, allowed_rel_types: &[&str]) -> Result<RemovedPart> {
-        let plan = self.plan_removal(name, allowed_rel_types)?;
-        Ok(self.apply_removal(plan))
+        let (plan, removed) = self.plan_removal(name, allowed_rel_types)?;
+        self.apply(plan)?;
+        Ok(removed)
     }
 
     /// The validation of [`Self::remove_part`], without changing anything
@@ -483,20 +465,10 @@ impl Package {
         self.plan_removal(name, allowed_rel_types).map(drop)
     }
 
-    /// The part equivalent to `name` under OPC part-name equivalence
-    /// (ASCII case-insensitive, percent-decoded).
-    fn find_ci(&self, name: &str) -> Option<usize> {
-        self.parts.iter().position(|p| same_part_name(&p.name, name))
-    }
-
-    /// Parses a `Raw` registry part for planning (the tree is installed by
-    /// apply, so parsing never changes a part's state on refusal).
-    fn parse_raw(&self, i: usize) -> std::result::Result<XmlDocument, String> {
-        let bytes = self.read_original(&self.parts[i]).map_err(|e| e.to_string())?;
-        XmlDocument::parse(&bytes).map_err(|e| e.to_string())
-    }
-
-    fn plan_removal(&self, name: &str, allowed_rel_types: &[&str]) -> Result<RemovalPlan> {
+    /// `remove_part` is the one-part case of [`RegistryPlan::remove_parts`]
+    /// (one implementation of the removal rules; review of PR #38 m7), plus
+    /// the `HasOwnRelationships` refusal and its own error type.
+    fn plan_removal(&self, name: &str, allowed_rel_types: &[&str]) -> Result<(RegistryPlan, RemovedPart)> {
         let idx = self.find_ci(name).ok_or_else(|| Error::PartNotFound(name.into()))?;
         let name = self.parts[idx].name.clone();
         let refuse = |reason: RemoveRefusal| Error::RemovePartRefused { part: name.clone(), reason };
@@ -506,196 +478,49 @@ impl Package {
         if let Some(i) = self.find_ci(&rels_part_name(Some(&name))) {
             return Err(refuse(RemoveRefusal::HasOwnRelationships { rels: self.parts[i].name.clone() }));
         }
-        let norm = normalize_part_name(&name);
-        let file_name = norm.rsplit('/').next().unwrap_or(&norm).to_owned();
-        let rel_q = QName::new(PACKAGE_RELATIONSHIPS_NS, "Relationship");
-        let mut edits = Vec::new();
-        let mut relationships = Vec::new();
-        let mut package_ids = Vec::new();
-        for (pi, p) in self.parts.iter().enumerate() {
-            let rels_name = p.name.clone();
-            let raw_rels = is_rels_part(&rels_name);
-            // `%5Frels`/`.rel%73` spellings (invalid OPC names: percent-encoded
-            // unreserved characters) are relationships parts only after
-            // decoding (review N14).
-            let decoded_rels = is_rels_part(&normalize_part_name(&rels_name));
-            if !raw_rels && !decoded_rels {
-                continue;
-            }
-            let not_editable = |reason: String| refuse(RemoveRefusal::RegistryNotEditable { part: rels_name.clone(), reason });
-            // Whether an *unreadable* relationships part mentions the part's
-            // file name in its raw text (percent-decoded, case-folded): it
-            // might refer to the part. Readable ones are checked per
-            // relationship below.
-            let mentions = || {
-                !file_name.is_empty()
-                    && self
-                        .read_part(&rels_name)
-                        .map(|b| normalize_part_name(&String::from_utf8_lossy(&b)).contains(&file_name))
-                        .unwrap_or(true)
-            };
-            // The source part and the base for relative targets come from the
-            // **raw** name: deriving them from the decoded name and then
-            // looking the source up (which decodes again) would decode twice
-            // and miss `xl/a%2541.xml` (review N17). A relationships part
-            // recognised only after decoding cannot be attributed reliably,
-            // so it refuses the removal if it mentions the part at all.
-            let source = match raw_rels.then(|| source_of_rels_part(&rels_name)).flatten() {
-                Some(s) => s,
-                None if mentions() => return Err(not_editable("an invalid relationships part name (percent-encoded `_rels`/`.rels`) that mentions the part".into())),
-                None => continue,
-            };
-            let mut fresh: Option<XmlDocument> = None;
-            let replaced_doc;
-            let tree: &XmlDocument = match &p.state {
-                PartState::Parsed(d) => d,
-                PartState::Raw => match self.parse_raw(pi) {
-                    Ok(d) => &*fresh.insert(d),
-                    Err(reason) if mentions() => return Err(not_editable(reason)),
-                    Err(_) => continue,
-                },
-                PartState::Replaced(b) => match XmlDocument::parse(b) {
-                    Ok(d) => {
-                        replaced_doc = d;
-                        &replaced_doc
-                    }
-                    Err(e) if mentions() => return Err(not_editable(e.to_string())),
-                    Err(_) => continue,
-                },
-            };
-            let root = tree.root();
-            if !root.is(QName::new(PACKAGE_RELATIONSHIPS_NS, "Relationships")) {
-                if mentions() {
-                    return Err(not_editable("root is not <Relationships>".into()));
-                }
-                continue;
-            }
-            let mut indices = Vec::new();
-            let mut ids = Vec::new();
-            for (i, e) in root.indexed_elements().filter(|(_, e)| e.is(rel_q)) {
-                // anyURI / ID / token values: XML whitespace collapses (N7 b, c).
-                let get = |a: &'static str| e.attr(QName::new("", a)).map(xml_trim);
-                if get("TargetMode") == Some("External") {
-                    continue;
-                }
-                let Some(target) = get("Target") else { continue };
-                let resolved = crate::opc::resolve_target(source.base().as_deref(), target);
-                if !same_part_name(&resolved, &name) {
-                    // Safety net (reviews N7, N12, N13): a target whose last
-                    // segment (unescaped, trimmed, percent-decoded, case-
-                    // folded, `\` counted as a separator) is the part's file
-                    // name but that resolves to no existing part is a
-                    // spelling this code does not resolve; it might mean the
-                    // part. A target resolving to another existing part with
-                    // the same file name is a real, different reference.
-                    let seg = normalize_part_name(target);
-                    let seg = seg.rsplit(['/', '\\']).next().unwrap_or_default();
-                    if !file_name.is_empty() && seg == file_name && self.find_ci(&resolved).is_none() {
-                        return Err(refuse(RemoveRefusal::UnresolvedMention { rels: rels_name.clone() }));
-                    }
-                    continue;
-                }
-                let id = get("Id").unwrap_or_default().to_owned();
-                let rel_type = get("Type").unwrap_or_default();
-                if !allowed_rel_types.contains(&rel_type) {
-                    return Err(refuse(RemoveRefusal::RelationshipTypeNotAllowed {
-                        rels: rels_name.clone(),
-                        id,
-                        rel_type: rel_type.to_owned(),
-                    }));
-                }
-                indices.push(i);
-                ids.push(id);
-            }
-            if indices.is_empty() {
-                continue;
-            }
-            if matches!(p.state, PartState::Replaced(_)) {
-                return Err(not_editable("replaced wholesale; cannot be edited in place".into()));
-            }
-            if let Some(src) = source.part()
-                && let Some(si) = self.find_ci(src)
-            {
-                let src_name = self.parts[si].name.clone();
-                let bytes = self.read_part(&src_name)?;
-                for id in &ids {
-                    match refers_to_rel_id(&bytes, id) {
-                        Ok(false) => {}
-                        Ok(true) => {
-                            return Err(refuse(RemoveRefusal::StillReferenced { source: src_name, id: id.clone() }));
-                        }
-                        Err(reason) => return Err(refuse(RemoveRefusal::SourceNotScannable { source: src_name, reason })),
-                    }
-                }
-            }
-            if source == RelsSource::Package {
-                package_ids.extend(ids.iter().cloned());
-            }
-            relationships.extend(ids.into_iter().map(|id| (rels_name.clone(), id)));
-            edits.push(RegistryEdit { part: pi, install: fresh, indices });
-        }
-        // [Content_Types].xml: every Override for the part (duplicates too).
-        let ct = self.find(CONTENT_TYPES_PART).ok_or_else(|| Error::PartNotFound(CONTENT_TYPES_PART.into()))?;
-        let not_editable = |reason: String| refuse(RemoveRefusal::RegistryNotEditable { part: CONTENT_TYPES_PART.into(), reason });
-        let mut fresh_ct: Option<XmlDocument> = None;
-        let replaced_ct;
-        let ct_tree: &XmlDocument = match &self.parts[ct].state {
-            PartState::Parsed(d) => d,
-            PartState::Raw => &*fresh_ct.insert(self.parse_raw(ct).map_err(not_editable)?),
-            PartState::Replaced(b) => {
-                replaced_ct = XmlDocument::parse(b).map_err(|e| not_editable(e.to_string()))?;
-                &replaced_ct
-            }
-        };
-        let ct_indices: Vec<usize> = ct_tree
-            .root()
-            .indexed_elements()
-            .filter(|(_, e)| {
-                e.is(QName::new(CONTENT_TYPES_NS, "Override"))
-                    && e.attr(QName::new("", "PartName")).is_some_and(|p| same_part_name(p, &name))
-            })
-            .map(|(i, _)| i)
-            .collect();
-        let content_type_override = !ct_indices.is_empty();
-        if content_type_override {
-            if matches!(self.parts[ct].state, PartState::Replaced(_)) {
-                return Err(not_editable("replaced wholesale; cannot be edited in place".into()));
-            }
-            edits.push(RegistryEdit { part: ct, install: fresh_ct, indices: ct_indices });
-        }
-        Ok(RemovalPlan {
-            part: idx,
-            edits,
-            package_rels: (!package_ids.is_empty()).then(|| self.package_rels.without_ids(&package_ids)),
-            removed: RemovedPart { relationships, content_type_override },
-            name,
-        })
+        let mut plan = RegistryPlan::new(self);
+        let removed = plan.remove_parts(self, &[name.as_str()], allowed_rel_types).map_err(|e| match e {
+            Error::RegistryRefused { reason: RegistryRefusal::Remove(r), .. } => refuse(r),
+            Error::RegistryRefused { reason: RegistryRefusal::RegistryPart, .. } => refuse(RemoveRefusal::RegistryPart),
+            Error::RegistryRefused { reason: RegistryRefusal::PartNotFound, .. } => Error::PartNotFound(name.clone()),
+            e => e,
+        })?;
+        Ok((plan, RemovedPart { relationships: removed.relationships, content_type_override: removed.overrides > 0 }))
     }
 
-    /// Applies a validated plan. Nothing here can fail.
-    fn apply_removal(&mut self, plan: RemovalPlan) -> RemovedPart {
-        for edit in plan.edits {
-            let part = &mut self.parts[edit.part];
-            if let Some(doc) = edit.install {
-                part.state = PartState::Parsed(doc);
-            }
-            let PartState::Parsed(doc) = &mut part.state else {
-                debug_assert!(false, "planned as parsed");
-                continue;
-            };
-            for &at in edit.indices.iter().rev() {
-                doc.remove_root_child_with_leading_ws(at);
-            }
-        }
-        self.content_types.remove_override(&plan.name);
-        if let Some(r) = plan.package_rels {
-            self.package_rels = r;
-        }
-        self.removed_names.push(self.parts[plan.part].name.clone());
-        self.removed_rel_ids.extend(plan.removed.relationships.iter().cloned());
-        self.parts.remove(plan.part);
+    /// Every change to the package goes through here: a registry plan made
+    /// before it is stale (review of PR #38 m2).
+    fn touch(&mut self) {
         self.generation += 1;
-        plan.removed
+    }
+
+    /// The part equivalent to `name` under OPC part-name equivalence
+    /// (ASCII case-insensitive, percent-decoded).
+    fn find_ci(&self, name: &str) -> Option<usize> {
+        self.parts.iter().position(|p| same_part_name(&p.name, name))
+    }
+
+    /// Parses a `Raw` part for planning with the package's parse options
+    /// (the tree is installed by apply, so parsing never changes a part's
+    /// state on refusal).
+    fn parse_raw(&self, i: usize) -> std::result::Result<XmlDocument, String> {
+        let bytes = self.read_original(&self.parts[i]).map_err(|e| e.to_string())?;
+        let mut options = self.parse_options;
+        if is_opc_metadata(&self.parts[i].name) {
+            options.max_depth = options.max_depth.max(crate::xml::DEFAULT_MAX_DEPTH);
+        }
+        XmlDocument::parse_with(&bytes, &options).map_err(|e| e.to_string())
+    }
+
+    /// The relationships parts of the package, each with whom it belongs to
+    /// (review of PR #14 N17, PR #38 M1: the **one** place that derives a
+    /// relationships part's source and base). Source and base come from the
+    /// part's **raw** name; looking the source up (`find_ci`) decodes once.
+    /// A part that is a relationships part only after percent-decoding
+    /// (`%5Frels`, `.rel%73`: invalid OPC names) cannot be attributed and is
+    /// reported as [`RelsKind::Unattributable`].
+    fn rels_parts(&self) -> impl Iterator<Item = (usize, RelsKind)> + '_ {
+        self.parts.iter().enumerate().filter_map(|(i, p)| rels_kind(&p.name).map(|k| (i, k)))
     }
 
     /// `[Content_Types].xml`, as opened.
@@ -737,7 +562,7 @@ impl Package {
         for part in &self.parts {
             let fresh: Option<Vec<u8>> = match &part.state {
                 PartState::Raw => None,
-                PartState::Parsed(d) if !d.is_dirty() && !part.added => None,
+                PartState::Parsed(d) if !d.is_dirty() && !part.detached => None,
                 PartState::Parsed(d) => Some(d.serialize().into_bytes()),
                 PartState::Replaced(b) => Some(b.clone()),
             };
@@ -789,6 +614,27 @@ impl Package {
     }
 }
 
+/// Whom a relationships part belongs to ([`Package::rels_parts`]).
+#[derive(Debug, PartialEq, Eq)]
+enum RelsKind {
+    /// Its source and base, from the raw name.
+    Of(RelsSource),
+    /// A relationships part only after decoding, or one without a source:
+    /// it may refer to anything, so an operation it might affect refuses if
+    /// it mentions the name concerned.
+    Unattributable,
+}
+
+fn rels_kind(raw_name: &str) -> Option<RelsKind> {
+    if is_rels_part(raw_name) {
+        Some(source_of_rels_part(raw_name).map_or(RelsKind::Unattributable, RelsKind::Of))
+    } else if is_rels_part(&normalize_part_name(raw_name)) {
+        Some(RelsKind::Unattributable)
+    } else {
+        None
+    }
+}
+
 /// `…/_rels/….rels` (or the package's `_rels/.rels`).
 fn is_rels_part(name: &str) -> bool {
     let (dir, file) = name.rsplit_once('/').unwrap_or(("", name));
@@ -798,7 +644,7 @@ fn is_rels_part(name: &str) -> bool {
 
 /// Who a relationships part belongs to (`_rels` matched ASCII
 /// case-insensitively, as OPC part names are).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum RelsSource {
     /// The root `_rels/.rels` (and only it).
     Package,
