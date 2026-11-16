@@ -543,8 +543,7 @@ declines it; the edit-both rule needs no layout knowledge.
 Each has a **proposed default** (the round-1 review's recommendation).
 
 **Owner decision 2026-11-16:** the proposed defaults of Q1–Q4 below are
-accepted as stated (Q1's and Q2's manual checks still run, as
-confirmation, not as gates).
+accepted as stated.
 
 - **Q1** Does PowerPoint re-lay out SmartArt from the data model?
   *Default:* very likely yes (Microsoft Q&A 912190); confirm with the
