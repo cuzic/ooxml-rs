@@ -335,6 +335,24 @@ pub(crate) fn plan_target(doc: &XmlDocument, part: &str, at: CellIndex, op: &Cel
     Ok(TargetPlan { loc, dimension })
 }
 
+/// The item index of the existing child that the new content can reuse in
+/// place (R3-3): the first `v` for a number, the first `f` for a formula,
+/// and the first `is` for a string when it holds exactly one `t` and no other
+/// element (rich runs and phonetic data are replaced, not merged).
+fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
+    let first = |q: QName| c.indexed_elements().find(|(_, n)| n.is(q)).map(|(i, _)| i);
+    match op {
+        CellOp::Number(_) => first(sml::CellValue::QNAME),
+        CellOp::Formula(_) => first(sml::CellFormula::QNAME),
+        CellOp::Text(_) => first(sml::InlineString::QNAME).filter(|&i| {
+            let is = c.children()[i].as_element().expect("element");
+            let mut kids = is.elements();
+            matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
+        }),
+        CellOp::RemoveFormula => None,
+    }
+}
+
 /// Writes the target cell (after the plan validated everything): creates the
 /// row and cell if needed, applies `op`, then grows `dimension` if it exists
 /// (never inserts one).
@@ -370,15 +388,33 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                 c
             }
         };
-        // every `f`, `v` and `is`, not just the first: a schema-invalid
-        // duplicate would otherwise survive and be read by others
-        while c.remove_cell_formula() {}
-        while c.remove_cell_value() {}
-        while c.remove_inline_string() {}
+        // Every `f`, `v` and `is`, not just the first (a schema-invalid
+        // duplicate would otherwise survive and be read by others), except
+        // one element of the kind the new content needs: that one is reused
+        // in place, so comments, PIs and unknown children keep their
+        // position relative to the value (Phase0 review round 3, R3-3).
+        let reuse = reusable(c.0.node(), op);
+        let doomed: Vec<usize> = c
+            .0
+            .node()
+            .indexed_elements()
+            .filter(|(i, n)| {
+                Some(*i) != reuse
+                    && (n.is(sml::CellFormula::QNAME) || n.is(sml::CellValue::QNAME) || n.is(sml::InlineString::QNAME))
+            })
+            .map(|(i, _)| i)
+            .collect();
+        for i in doomed.into_iter().rev() {
+            c.0.remove_at(i);
+        }
+        let reused = reuse.is_some();
         match op {
             CellOp::Number(text) => {
                 c.remove_data_type()?;
-                c.get_or_insert_cell_value()?.set_text(text)?;
+                match c.cell_value_mut() {
+                    Some(mut v) if reused => v.set_text(text)?,
+                    _ => c.get_or_insert_cell_value()?.set_text(text)?,
+                }
             }
             CellOp::Text(text) => {
                 c.set_data_type(CellValues::InlineString)?;
@@ -386,7 +422,23 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
             }
             CellOp::Formula(text) => {
                 c.remove_data_type()?;
-                c.get_or_insert_cell_formula()?.set_text(text)?;
+                let mut f = c.get_or_insert_cell_formula()?;
+                if reused {
+                    // a plain formula: drop shared/array/data-table attributes
+                    f.remove_formula_type()?;
+                    f.remove_reference()?;
+                    f.remove_shared_index()?;
+                    f.remove_always_calculate_array()?;
+                    f.remove_data_table2_d()?;
+                    f.remove_data_table_row()?;
+                    f.remove_input1_deleted()?;
+                    f.remove_input2_deleted()?;
+                    f.remove_r1()?;
+                    f.remove_r2()?;
+                    f.remove_calculate_cell()?;
+                    f.remove_bx()?;
+                }
+                f.set_text(text)?;
             }
             CellOp::RemoveFormula => {
                 c.remove_data_type()?;

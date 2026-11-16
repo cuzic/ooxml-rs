@@ -246,3 +246,31 @@ fn dimension_grows_when_the_existing_cell_is_outside_it() {
         assert!(x.contains(r#"<dimension ref="A1:D5"/>"#), "{x}");
     }
 }
+
+/// Phase0 review round 3, R3-3: comments, PIs and unknown children of a
+/// cell keep their position relative to the value: an existing `v`, a
+/// simple `is` or an `f` of the needed kind is reused in place; duplicates
+/// are removed; a new kind goes to its schema slot (after unknown children
+/// that precede it, never reordering them among themselves).
+#[test]
+fn cell_children_keep_their_relative_order() {
+    let input = synthetic("o1_no_calcpr.xlsx");
+    let ns = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:u="urn:unknown""#;
+    type Write = fn(ooxml_xlsx::CellMut<'_, '_>) -> ooxml_xlsx::Result<()>;
+    let cases: [(&str, Write, &str); 6] = [
+        (r#"<c r="C1"><!--a--><v>1</v><?pi x?><u:x/><!--b--></c>"#, |c| c.set_number(5.0), r#"<c r="C1"><!--a--><v>5</v><?pi x?><u:x/><!--b--></c>"#),
+        (r#"<c r="C1"><!--a--><v>1</v><!--m--><v>2</v><!--b--></c>"#, |c| c.set_number(5.0), r#"<c r="C1"><!--a--><v>5</v><!--m--><!--b--></c>"#),
+        (r#"<c r="C1" t="inlineStr"><!--a--><is><t>x</t></is><!--b--></c>"#, |c| c.set_string("y"), r#"<c r="C1" t="inlineStr"><!--a--><is><t>y</t></is><!--b--></c>"#),
+        (r#"<c r="C1"><!--a--><f t="shared" si="3" ref="C1:C2">A1</f><v>1</v><!--b--></c>"#, |c| c.set_formula("A1*2"), r#"<c r="C1"><!--a--><f>A1*2</f><!--b--></c>"#),
+        (r#"<c r="C1"><!--a--><f>A1</f><!--m--><v>1</v><!--b--></c>"#, |c| c.set_number(5.0), r#"<c r="C1"><!--a--><!--m--><v>5</v><!--b--></c>"#),
+        (r#"<c r="C1"><!--a--><v>1</v><!--b--><u:x/></c>"#, |c| c.set_string("s"), r#"<c r="C1" t="inlineStr"><!--a--><!--b--><u:x/><is><t>s</t></is></c>"#),
+    ];
+    for (cell, f, want) in cases {
+        let sheet = format!(r#"<worksheet {ns}><sheetData><row r="1"><c r="A1"><v>1</v></c>{cell}</row></sheetData></worksheet>"#);
+        let wb_in = with_part(&input, "xl/worksheets/sheet1.xml", &sheet);
+        let (wb, r) = edit(&wb_in, "Sheet1", "C1", f);
+        r.unwrap_or_else(|e| panic!("{cell}: {e}"));
+        let x = xml_of(&wb.to_bytes().unwrap(), "Sheet1");
+        assert!(x.contains(want), "{cell}\n=> {x}");
+    }
+}

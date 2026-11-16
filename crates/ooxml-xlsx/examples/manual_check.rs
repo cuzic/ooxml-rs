@@ -266,7 +266,24 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
-    println!("wrote {} files and CHECKLIST.md to {}", CASES.len() + P1_CASES.len(), out_dir.display());
+    // Self-check before handing the bundle over: every output re-opens with
+    // ooxml-xlsx and every worksheet reads with calamine (an independent
+    // reader), so the owner's Excel check starts from files known to parse.
+    let outs: Vec<&str> = CASES.iter().map(|c| c.out).chain(P1_CASES.iter().map(|c| c.out)).collect();
+    for out in &outs {
+        let path = out_dir.join(out);
+        Workbook::open(&path).map_err(|e| format!("{out}: ooxml-xlsx cannot re-open it: {e}"))?;
+        let mut cal: calamine::Sheets<_> = calamine::open_workbook_auto(&path).map_err(|e| format!("{out}: calamine: {e}"))?;
+        let mut cells = 0usize;
+        let names: Vec<String> = calamine::Reader::sheet_names(&cal);
+        for name in names {
+            if let Ok(range) = calamine::Reader::worksheet_range(&mut cal, &name) {
+                cells += range.used_cells().count();
+            }
+        }
+        println!("ok  {out}  (calamine reads {cells} non-empty cells)");
+    }
+    println!("wrote {} files and CHECKLIST.md to {}", outs.len(), out_dir.display());
     Ok(())
 }
 
