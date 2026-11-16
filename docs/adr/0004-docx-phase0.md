@@ -1,6 +1,6 @@
 # ADR-0004: Word Phase0: text edits and paragraph append in `document.xml`
 
-- Status: **Proposed** (revision 4)
+- Status: **Accepted** (revision 4; Opus round-4 review `0004-opus-review-round4.md` converged with Minor findings m12–m14 only, tracked as a follow-up)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, oracles, fail-honestly
   stance), [ADR-0002](0002-schema-driven-code-generation.md) (generated views, slots, primitives,
