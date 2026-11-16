@@ -292,7 +292,7 @@ Implemented in `crates/ooxml-docx` (ADR-0004 revision 4, still Proposed).
   pieces, and every other text unchanged.
 - **T6:** child order of every edited parent satisfies the generated slots.
 - **Manual:** the owner opens the outputs of
-  `cargo run -p ooxml-docx --example manual_check -- <outdir>` in Word and gets no repair dialog.
+  `cargo run -p ooxml-docx --example docx_manual_check -- <outdir>` in Word and gets no repair dialog.
   This is an explicit gap, as in ADR-0001.
 
 **Oracle independence:** T5 uses docx-rs (justification in ADR-0004 §7).
