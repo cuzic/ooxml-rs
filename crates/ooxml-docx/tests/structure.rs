@@ -59,6 +59,12 @@ fn insert_paragraphs() {
     );
     // a match found before the inserts is stale: its paragraph moved
     assert_matches!(doc.replace_at(&m, "2", &ReplaceOptions::default()), Err(Error::StaleMatch));
+    // the same text moving into a match's index is still stale (generations shift)
+    let mut doc = open(r#"<w:p><w:r><w:t>x</w:t></w:r></w:p><w:p><w:r><w:t>x</w:t></w:r></w:p>"#);
+    let second = doc.find("x", &ReplaceOptions::default()).unwrap().remove(1);
+    doc.insert_paragraph(Place::Before(p(0)), "y", &ParagraphSpec::Plain).unwrap();
+    assert_eq!(doc.paragraph(1).unwrap().text(), "x", "the old first paragraph is now at the match's index");
+    assert_matches!(doc.replace_at(&second, "z", &ReplaceOptions::default()), Err(Error::StaleMatch));
     // in a header
     let hdr = story_xml("hdr", r#"<w:p><w:r><w:t>h</w:t></w:r></w:p>"#);
     let mut doc = Document::from_bytes(package(&document_xml("<w:p/>"), &[("header", "header1.xml", &hdr)])).unwrap();

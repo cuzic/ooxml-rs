@@ -45,6 +45,11 @@
 //! ([`Document::set_paragraph_style`], [`Document::style_ids_by_name`]) and
 //! the `updateFields` opt-in ([`Document::enable_update_fields_on_open`]).
 //!
+//! Word Phase2 ([ADR-0011](https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0011-docx-phase2-structure.md)),
+//! part 1: new paragraphs ([`Document::insert_paragraph`]), section breaks
+//! ([`Document::insert_section_break`], and `append_paragraph` moving the
+//! last section's `w:sectPr`), hyperlinks ([`Document::insert_hyperlink`]).
+//!
 //! ```no_run
 //! use ooxml_docx::{Document, ReplaceOptions};
 //!

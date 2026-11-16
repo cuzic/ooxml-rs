@@ -95,6 +95,31 @@ doc.save("report-formatted.docx")?;
 # Ok::<(), ooxml_docx::Error>(())
 ```
 
+## Word Phase2, part 1 (ADR-0011 §4, §6, §9.1, §10)
+
+- **`insert_paragraph(Place::Before | After, text, ParagraphSpec)`**: a new paragraph in the
+  same container as an existing one: body, table cell, header, footer, note or comment.
+  - `ParagraphSpec::LikeNeighbour` copies the neighbour's `w:pPr` without `w:sectPr` and
+    `w:pPrChange`, so a list continues.
+  - `Style(id)` writes an existing paragraph style.
+  - Later paragraphs move up by one and get new generations, so earlier `Match`es on them
+    are stale.
+- **`insert_section_break(after, kind)`** splits the section that holds a body paragraph.
+  - The earlier half gets a copy of the section's `w:sectPr`. The header and footer
+    references are written again after their `r:id`s are checked.
+  - The later half gets `w:type` and keeps numbering continuous: `pgNumType/@start` is
+    removed and `lnNumType` `newSection` becomes `continuous`.
+- **`append_paragraph`** no longer refuses a body that ends with the last section's
+  `w:sectPr` in its last paragraph (ADR-0004 A2): the `w:sectPr` moves to the new paragraph.
+- **`insert_hyperlink(position, text, target)`**, where the target is external
+  (`HyperlinkTarget::External`) or a bookmark (`Bookmark`).
+  - An external target gets a new external relationship of its own, through core's
+    `RegistryPlan`.
+  - `xmlns:r` is declared on the hyperlink only when no prefixed binding is in scope.
+  - The run gets the "Hyperlink" character style when the document has one.
+- **Structure column of W2:** structural edits accept only `TC` and `XE` beyond the safe
+  fields; anything else needs the `updateFields` opt-in.
+
 ## Usage example
 
 `examples/fill_runs.rs` is a runnable walk-through on committed fixtures. It:
@@ -142,7 +167,8 @@ recommended") and `is_marked_final()` are reported, not enforced.
 
 ## Not yet
 
-Paragraph and cell text (ADR-0007 §3, part 3), new structure, and `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
+Paragraph and cell text (ADR-0007 §3, part 3), tables, images, bookmarks, lists and styles
+(ADR-0011, later parts), and `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
 
 Nesting depth is bounded by `ooxml-core`'s parser limit (256 levels by default; real documents reach about
 30), so a hostile file of nested tables is refused at open with `Core(TooDeep)` instead of costing
