@@ -1,6 +1,6 @@
 # ADR-0007: Word Phase1: template filling
 
-- Status: **Proposed** (revision 2)
+- Status: **Accepted** (revision 3; `0007-opus-review-round2.md` approved acceptance after Minor only)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md) (layers, oracles, fail
   honestly), [ADR-0002](0002-schema-driven-code-generation.md) (generated views, slots,
@@ -13,7 +13,9 @@
   and, new, the Word-authored test templates of two template engines (212). Library behaviour
   is from source at pinned revisions (§Sources).
 - Core dependencies:
-  - PR #26 (`LensMut::insert_at` / `check_insert_at`), for the child-local edits of §1.2;
+  - PR #26 (`LensMut::insert_at` / `check_insert_at`) **at `631fc90` or later**: the version
+    with round 1's F1–F3 fixes, where bounded slots are placed against the whole parent. It is
+    needed for the child-local edits of §1.2 and the dry run of §7;
   - PR #18 (`detach_as` / `insert_detached`), for §3.2;
   - the additive core and generator changes of §7 and §8.2.
 
@@ -58,6 +60,22 @@
   - The reviewer's answers to Q1–Q10 are recorded as **proposed defaults**, pending the
     owner's confirmation (§Open questions). Two change the scope: the `IF` rule is deferred
     (Q4) and the style column is dropped (Q3).
+
+- **Revision 3** (after `0007-opus-review-round2.md`: converged, Minor only; Accepted):
+  - **n1:** in `r₀`, only the replacement goes through ADR-0004's text mapping. The kept text
+    before and after the match is written literally with `set_text`, so a raw tab or line
+    break inside a producer's `w:t` stays as it is (§1.2).
+  - **n2:** the edit counter is per paragraph, plus a document id. `replace_matches` replaces
+    several matches atomically. `replace_at` re-runs every check with its own options.
+    No-ops do not count as edits (§7).
+  - **n3:** oracle (iv) compares the child sequence with the affected children replaced by a
+    marker, so order and position are checked (§9).
+  - **n4:** the dry run also checks the prefixes of attributes it will write (§7).
+  - **n5:** the style setters moved out of §4's table.
+  - **n6:** PR #26 is pinned at `631fc90` or later.
+  - **n7:** the hint-neutral code points are listed; only the hint values `eastAsia` and
+    default are ignored (§1.3).
+  - **n8–n10:** wording.
 
 ## Context
 
@@ -172,14 +190,24 @@ holding `s`.
    (`w:lastRenderedPageBreak`) is affected only when it lies strictly inside the match: it
    marked a page break inside text that no longer exists. At the match's edges it is kept.
 2. **In `r₀`**, the affected children are replaced by a sequence:
-   - the part of the first affected child before `s` (only a `w:t` can have one);
+   - the **prefix**: the part of the first affected child before `s` (only a `w:t` can have
+     one);
    - the replacement;
-   - if `k = 0`, the part of the last affected child after `e`.
+   - if `k = 0`, the **suffix**: the part of the last affected child after `e`.
 
-   This sequence is mapped to pieces (`w:t`, `w:tab`, `w:br`) with ADR-0004 §3.2's table.
-   - If the first affected child is a `w:t` and the first piece is text, that `w:t` is kept:
-     `set_text`, start tag verbatim, `xml:space` as in ADR-0004 §3.2 step 6.
-   - The other pieces are created with `insert_at` (PR #26) directly after it.
+   **Only the replacement** is mapped to pieces (`w:t`, `w:tab`, `w:br`) with ADR-0004 §3.2's
+   table (revision 3, review n1).
+   - The prefix and the suffix are original `w:t` text. They are written **literally** with
+     `set_text`, so a raw U+0009, U+000A or U+000D in a producer's `w:t` (POI's `setText`
+     writes them; 0 in the corpora) is not turned into `w:tab`/`w:br`.
+   - Where the prefix (or suffix) and an adjacent text piece of the replacement meet, they
+     share one `w:t`.
+   - If the first affected child is a `w:t` that keeps text (a prefix, or the replacement's
+     first text piece), that `w:t` is kept: `set_text`, start tag verbatim, `xml:space` as in
+     ADR-0004 §3.2 step 6.
+   - The other pieces are created with `insert_at` (PR #26) **at the position the first
+     affected child had** (right after it when it is kept; in its place when it is removed;
+     review n8).
    - The remaining affected children are removed (`remove_at`).
 3. **In `rᵢ`, `0 < i ≤ k`**, the affected children are removed. The exception is `rₖ`'s last
    affected child: if it is a `w:t` that holds text after `e`, it is kept and `set_text` to
@@ -190,6 +218,11 @@ holding `s`.
    `Document`, as in Phase0.
 6. **Several matches in one paragraph** are planned together and applied from the last to the
    first, so earlier child indices stay valid. Each child is written at most once.
+   - When several matches fall in one child (`{{a}} {{b}}` in one `w:t`, the common case),
+     the plan composes them on that child (review n9). Its new content is the original text
+     with every match replaced, left to right.
+   - Prefix, suffix and the text between matches are taken from that combined plan and are
+     written literally (step 2); each replacement is mapped.
 7. **No-op:** a match whose replacement equals the matched text changes nothing.
 
 The replacement takes **`r₀`'s formatting**: the run that holds the first matched character.
@@ -222,7 +255,7 @@ prefixes, attribute order and whitespace-only text. A missing `w:rPr` equals an 
 | `RunFormatting` | Accepts | Refuses |
 |---|---|---|
 | `Identical` | all canonically equal | any difference → `MixedFormatting` |
-| **`IgnoreInvisible`** (default) | equal after dropping `w:noProof` and `w:lang/@w:val`; and `w:rFonts/@w:hint`, but **only** when every matched character of the run whose hint differs is ASCII or CJK (revision 2, review m1) | any other difference, including `w:lang/@w:eastAsia` and `@w:bidi`, which can change glyph selection *(u)* |
+| **`IgnoreInvisible`** (default) | equal after dropping `w:noProof` and `w:lang/@w:val`; and `w:rFonts/@w:hint`, but **only** when both hints are `eastAsia` or absent (default), and every matched character of the run whose hint differs is in the hint-neutral table below (revisions 2 and 3, reviews m1, n7) | any other difference, including `w:lang/@w:eastAsia` and `@w:bidi`, which can change glyph selection *(u)* |
 | `FirstRun` | everything | — |
 
 Why the default ignores exactly these:
@@ -234,6 +267,25 @@ Why the default ignores exactly these:
   ranges: quotes, ellipsis, dashes, U+00A0, some punctuation. For ASCII and for CJK
   ideographs, kana, hangul, CJK punctuation and fullwidth forms the slot is fixed whatever
   the hint, so for those characters the hint is invisible.
+  - **Hint-neutral code points** (revision 3, review n7; the spike's `hint_neutral`, fail
+    closed: anything not listed counts as visible):
+
+    | Range | Block |
+    |---|---|
+    | U+0000–U+007F | Basic Latin (ASCII) |
+    | U+3000–U+303F | CJK Symbols and Punctuation |
+    | U+3040–U+30FF | Hiragana, Katakana |
+    | U+3100–U+312F | Bopomofo |
+    | U+3400–U+4DBF | CJK Unified Ideographs Extension A |
+    | U+4E00–U+9FFF | CJK Unified Ideographs |
+    | U+AC00–U+D7AF | Hangul Syllables |
+    | U+F900–U+FAFF | CJK Compatibility Ideographs |
+    | U+FF01–U+FFEF | Halfwidth and Fullwidth Forms |
+
+    Not listed, so not neutral: CJK extensions outside the BMP, Hangul Jamo (U+1100–U+11FF),
+    Kana extensions (U+31F0–), CJK Compatibility Forms (U+FE30–U+FE4F). A hint value other
+    than `eastAsia` or absent (`cs`) is never ignored *(u: its effect on ASCII is
+    unverified)*.
   - The reviewer's probe found 95 SDK needles where it was not invisible: `can’t`, `IC – L`,
     and U+00A0 in 3 template needles. These are now `MixedFormatting`.
   - Word sets the hint per run in East Asian documents: 27.4% of SDK run pairs differ only
@@ -491,7 +543,10 @@ default), `Set(T)` or `Clear` (remove the element: the value is inherited again)
 | `highlight` | `w:CT_Highlight/w:highlight` | `ST_HighlightColor` (17 values) | — |
 | `vert_align` | `w:CT_VerticalAlignRun/w:vertAlign` | `baseline`, `superscript`, `subscript` | — |
 | `font(slot, name)` | `w:CT_Fonts/w:rFonts` | one of `w:ascii`, `w:hAnsi`, `w:eastAsia`, `w:cs` | the same slot's theme attribute on the same element: `w:asciiTheme`, `w:hAnsiTheme`, `w:eastAsiaTheme` or **`w:cstheme`** (lower-case `t`, as in the SDK's `CT_Fonts`). It supersedes the name *(ECMA §17.3.2.26, u)*; SDK 714 `asciiTheme`, 792 `eastAsiaTheme`. `w:hint` is kept |
-| `run_style` | `w:CT_String253/w:rStyle` | §5 | — |
+
+`w:rStyle` and `w:pStyle` are not §4 setters. They are §5's `set_run_style` /
+`set_paragraph_style`, gated by the document-wide W2 and not by §6.1's format column
+(revision 3, review n5).
 
 **Paragraph properties (`w:pPr`):**
 
@@ -503,7 +558,6 @@ default), `Set(T)` or `Clear` (remove the element: the value is inherited again)
 | `indent_left`, `indent_right` | `w:CT_Ind/w:ind` | `w:left`/`w:right` in twips | `w:start`/`w:end` and `w:leftChars`/`w:startChars` (resp. right), which supersede *(u)*: SDK 315 `leftChars`; inherited ones are cancelled (rule below) |
 | `first_line`, `hanging` | `w:CT_Ind/w:ind` | `w:firstLine` or `w:hanging` | the other one, and `w:firstLineChars`/`w:hangingChars`; inherited ones are cancelled (rule below) |
 | `keep_next`, `keep_lines` | `w:CT_OnOff/w:keepNext`, `…/w:keepLines` | as `b` | — |
-| `paragraph_style` | `w:CT_String/w:pStyle` | §5 | — |
 
 Rules:
 
@@ -747,7 +801,9 @@ impl Document {
     pub fn find(&self, needle: &str, opts: &ReplaceOptions) -> Result<Vec<Match>>;  // Err only for EmptyNeedle/InvalidXmlChar
     pub fn replace(&mut self, needle: &str, replacement: &str, opts: &ReplaceOptions) -> Result<ReplaceReport>;
     pub fn replace_at(&mut self, m: &Match, replacement: &str, opts: &ReplaceOptions) -> Result<()>;  // StaleMatch
-    pub fn generation(&self) -> u64;     // +1 after every successful write (revision 2, review M1)
+    // several matches at once, atomically, each with its own value (revision 3, review n2)
+    pub fn replace_matches(&mut self, edits: &[(&Match, &str)], opts: &ReplaceOptions) -> Result<()>;
+    pub fn generation(&self, p: ParaRef) -> u64;   // per paragraph: +1 when a write changes it
     // §0, §3
     pub fn set_run_text_at(&mut self, run: RunRef, text: &str) -> Result<()>;
     pub fn set_paragraph_text(&mut self, p: ParaRef, text: &str, opts: &TextOptions) -> Result<()>;
@@ -779,7 +835,8 @@ impl Paragraph<'_> {                     // additions to ADR-0004 §3
 
 pub struct Match { pub para: ParaRef, pub range: Range<usize>,      // byte range in Paragraph::text()
                    pub text: String,                                 // the matched text
-                   pub generation: u64,                              // Document::generation() at find time
+                   pub doc: DocumentId,                              // which Document (review n10)
+                   pub generation: u64,                              // generation(para) at find time
                    pub status: Result<(), Refusal> }
 pub struct TextOptions { pub formatting: RunFormatting }            // default IgnoreInvisible
 pub struct ReplaceOptions { pub scope: Scope,                       // All | Story(StoryId) | Paragraph(ParaRef)
@@ -813,21 +870,37 @@ pub struct ParagraphFormat { pub alignment: Prop<Alignment>, pub space_before: P
   `get_or_insert::<ParagraphProperties>()`, then the generated `*ViewMut` of the property.
 - **The mark copy (§3.2)** is `detach_as` + `insert_detached`.
 - **Settings** (§6.3) is `lens_mut::<Settings>()` then `get_or_insert::<UpdateFieldsOnOpen>()`.
-- **Stale matches (revision 2, review M1).** `replace_at(m)` refuses with
-  `Err(StaleMatch)` unless both of these hold:
-  - `m.generation == self.generation()`;
+- **Stale matches (revisions 2 and 3, reviews M1, n2, n10).** `replace_at(m)` and
+  `replace_matches` refuse with `Err(StaleMatch)` unless, for every match:
+  - `m.doc` is this `Document`'s id, a process-unique value given at open;
+  - `m.generation == self.generation(m.para)`;
   - `Paragraph::text()[m.range] == m.text`.
 
-  Every successful write, of any kind, increments the generation, and a refused call does
-  not. A caller that replaces several matches of one `find` therefore calls `replace` with
-  `Scope::Paragraph`, or calls `find` again after each `replace_at`.
+  **Generations are per paragraph.** `ParaRef`s are stable in Phase1: paragraphs are only
+  added by `append_paragraph`, at the end. A write that changes a paragraph increments that
+  paragraph's generation.
+  - Refused calls, no-op writes (output byte-identical) and a `replace` that replaced nothing
+    increment nothing.
+  - Matches in other paragraphs stay usable after an edit. Two matches in the **same**
+    paragraph are replaced together with `replace_matches`.
+  - Revision 2's suggested workaround (`replace` with `Scope::Paragraph`) did not work, because
+    `replace` gives every occurrence the same value. It is withdrawn.
+
+  `replace_at`/`replace_matches` **re-run every check** of §1.4, and the gates, with their own
+  `opts`. `m.status` is informational only: a `find` with `FirstRun` followed by a
+  `replace_at` with the default can refuse.
 - **Atomicity (revision 2, review M2).** Every call plans all its writes over the read model,
   then **dry-runs every insertion** against the unchanged tree, then writes. The writes that
   can fail in core, and how each is checked in advance:
   - **Positional inserts** (the content children of §1.2): `check_insert_at::<C>(index)`
-    (PR #26). It covers the index range, the depth limit, the local slot order against the
-    nearest listed neighbours, `mc:AlternateContent` neighbours, the slot limits and the
-    prefix.
+    (PR #26 at `631fc90` or later). It covers the index range, the depth limit, the slot order,
+    `mc:AlternateContent` siblings, the slot limits and the prefix.
+    - For an unbounded slot (run content), the order is checked against the nearest listed
+      neighbours.
+    - For a **bounded** slot (`max_each` 1: every `w:rPr`/`w:pPr`/`w:settings` property),
+      `check_insert_at` places against the **whole parent**. It therefore refuses a parent
+      whose children are out of order wherever they sit (review n6; versions before
+      `631fc90` did not).
   - **Slot-placed inserts** (`insert` and `get_or_insert` of `w:rPr`, `w:pPr`, properties,
     `w:updateFields`, the new run of §3.2): a new additive core method
     `LensMut::check_insert::<C>()`. It is a dry run of `insert_by`'s placement and returns
@@ -849,8 +922,18 @@ pub struct ParagraphFormat { pub alignment: Prop<Alignment>, pub space_before: P
     - inserts into a node created by the same call cannot fail except by `NotAllowed`, which
       the types rule out.
 
-  After a successful dry run the mutation itself cannot fail. The set-text, set-attribute and
-  remove primitives have no failure modes left once `InvalidXmlChar` and the depth are checked.
+  - **Attribute writes** (revision 3, review n4): core's `set_attr` needs a **non-empty**
+    prefix bound to a namespaced attribute's URI (`NamespaceNotInScope` otherwise). A part
+    that declares WML only as the default namespace (`xmlns="…/main"`) would let the element
+    insert pass and then fail on `w:val`. The dry run therefore checks, for every element that
+    will receive a `w:`-namespace attribute, that the WML URI is bound to a non-empty prefix
+    in scope there. Otherwise the call fails before its first write. Measured: 0 such parts
+    among 5,532 WML parts (reviewer's `nsprefix.py`), but valid XML. If core adds
+    `check_set_attr`, the domain uses it.
+
+  After a successful dry run the mutation itself cannot fail. Set-text, set-attribute (prefix
+  pre-checked) and remove have no failure modes left once `InvalidXmlChar` and the depth are
+  checked.
 
 ### 8. Allowlist and overrides
 
@@ -950,7 +1033,12 @@ green on the main story. Phase1 extends them:
   leaves `to_bytes()` identical to the input. That includes:
   - a `replace` with one refused match among many accepted ones (atomicity);
   - `find` → another write → `replace_at` (`StaleMatch`);
-  - two `replace_at` on one paragraph without a new `find` (`StaleMatch`);
+  - two `replace_at` on one paragraph without a new `find` (`StaleMatch`), while a match in
+    another paragraph stays usable, and the same two through `replace_matches` succeed;
+  - a match in a run whose `w:t` holds a raw tab and a raw line feed before the match. They
+    must stay literal characters in that `w:t` (n1);
+  - a WML part declared only as the default namespace: a formatting call fails before its
+    first write (n4);
   - `format_paragraph` setting two properties on a `w:pPr` whose existing children are out
     of order, built from the template corpus's `[sectPr, pStyle, bidi, jc, rPr]`. It must
     fail before the first property is written (revision 2, review M2);
@@ -997,10 +1085,16 @@ green on the main story. Phase1 extends them:
   - (ii) per character, the canonical `rPr` after = before outside the match, and `r₀`'s
     inside the replacement;
   - (iii) T2's locality;
-  - (iv) **byte identity outside the match** (revision 2, review M3). Every content child of
-    `r₀ … rₖ` that holds no matched character serializes to the same bytes as before.
-    This covers `w:noBreakHyphen`, `w:softHyphen`, `w:cr`, `w:lastRenderedPageBreak` at
-    the edges, and untouched `w:t`.
+  - (iv) **byte identity outside the match** (revisions 2 and 3, reviews M3, n3). In each of
+    `r₀ … rₖ`, replace the run of affected children by one marker, before and after the edit.
+    The two resulting child sequences must be equal, byte for byte, element by element and in
+    order.
+    - This checks that `w:noBreakHyphen`, `w:softHyphen`, `w:cr` and untouched `w:t` are
+      unchanged.
+    - It also checks that a `w:lastRenderedPageBreak` at an edge stays on the same side of the
+      replacement, which (i)–(iii) cannot see.
+    - The prefix and suffix text kept in an affected `w:t` is checked by (i) together with
+      a literal-text check: no new `w:tab`/`w:br` outside the replacement (n1).
 
     (i) and (ii) compare characters and cannot see a re-encoding such as `w:noBreakHyphen`
     → U+2011; (iv) can.
@@ -1205,7 +1299,9 @@ what this revision specifies, pending the owner's confirmation.
 - Review: `docs/adr/0007-opus-review-round1.md`.
 - Microsoft [MS-OI29500]: §17.16.5.56 `SEQ` (the `\s` switch); §17.15.1.90 `updateFields`
   (round trip). Links are in §6.1 and §6.3.
-- Core: PR #26 `core/insert-at` (`LensMut::insert_at`, `check_insert_at`).
+- Core: PR #26 `core/insert-at` at `631fc90` or later (`LensMut::insert_at`,
+  `check_insert_at`, with round 1's F1–F3 fixes).
+- Review: `docs/adr/0007-opus-review-round2.md` (converged).
 - Corpora:
   - Apache POI `47dcff769bb395034dddfd59c4609659b6dbc6a4` `test-data/document/`;
   - Open XML SDK `431ab05cf160248cc3885a4a766026d4f8243792` test assets;
