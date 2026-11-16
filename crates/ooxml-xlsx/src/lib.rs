@@ -70,7 +70,8 @@ pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;
 pub use workbook::{CalcPolicy, Workbook};
-pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
+pub use formula::future::add_future_prefixes;
+pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it
 /// by one row and column either succeed or fail cleanly? Never panics.

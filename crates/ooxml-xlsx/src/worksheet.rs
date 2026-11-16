@@ -566,6 +566,59 @@ fn format_number(v: f64) -> String {
     }
 }
 
+/// One cell of a [`Worksheet::write_cells`] batch.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CellWrite<'a> {
+    /// As [`CellMut::set_number`].
+    Number(f64),
+    /// As [`CellMut::set_string`].
+    String(&'a str),
+    /// As [`CellMut::set_formula`] (file form; one leading `=` is dropped).
+    Formula(&'a str),
+    /// As [`CellMut::remove_formula`].
+    RemoveFormula,
+}
+
+impl<'wb> Worksheet<'wb> {
+    /// Writes several cells as **one** edit (ADR-0003 addendum P5-pre): every
+    /// guard is checked for every cell before anything changes, so either
+    /// all cells are written or none (`Err`, nothing changed). Dependents of
+    /// all the cells lose their cached values once, `fullCalcOnLoad` is set
+    /// once, and `calcChain.xml` is removed when the set of formula cells
+    /// changes.
+    ///
+    /// Errors: those of the single-cell setters for any cell, plus
+    /// [`Error::DuplicateCellWrite`] for a cell named twice and
+    /// [`Error::SharedFormulaMaster`] when two cells of one shared-formula
+    /// group are written together (write them in separate calls).
+    pub fn write_cells(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()> {
+        let mut ops = Vec::with_capacity(writes.len());
+        for &(at, w) in writes {
+            CellIndex::new(at.row, at.col)?;
+            let op = match w {
+                CellWrite::Number(v) => {
+                    if !v.is_finite() {
+                        return Err(Error::InvalidNumber(v));
+                    }
+                    CellOp::Number(format_number(v))
+                }
+                CellWrite::String(s) => {
+                    let units = s.encode_utf16().count();
+                    if units > MAX_STRING_LEN {
+                        return Err(Error::StringTooLong(units));
+                    }
+                    CellOp::Text(escape::encode(s).into_owned())
+                }
+                CellWrite::Formula(t) => CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+                CellWrite::RemoveFormula => CellOp::RemoveFormula,
+            };
+            ops.push((self.sheet, at, op));
+        }
+        let plan = self.wb.plan_writes(ops)?;
+        self.wb.apply_writes(plan)
+    }
+}
+
 impl CellMut<'_, '_> {
     /// The cell's position.
     pub fn index(&self) -> CellIndex {
@@ -619,9 +672,17 @@ impl CellMut<'_, '_> {
     /// values, `fullCalcOnLoad` is set (except in manual calculation mode),
     /// and `calcChain.xml` is removed when the cell was not a formula cell.
     ///
+    /// The text is the **file form** (ADR-0003 addendum P5-pre): a known
+    /// future function needs its prefix (`_xlfn.XLOOKUP`,
+    /// `_xlfn._xlws.FILTER`), else Excel would show `#NAME?`;
+    /// [`crate::add_future_prefixes`] converts a formula as typed. The spill
+    /// (`A1#`) and implicit-intersection (`@`) operators are written as
+    /// `_xlfn.ANCHORARRAY(…)` and `_xlfn.SINGLE(…)`.
+    ///
     /// Errors (nothing is changed): [`Error::InvalidFormula`] if the text
-    /// does not lex or holds characters XML cannot carry; the refusals of
-    /// [`Self::set_number`].
+    /// does not lex or holds characters XML cannot carry;
+    /// [`Error::MissingFunctionPrefix`], [`Error::DynamicArrayOperator`];
+    /// the refusals of [`Self::set_number`].
     pub fn set_formula(self, text: &str) -> Result<()> {
         let text = text.strip_prefix('=').unwrap_or(text);
         let ws = &mut *self.ws;
