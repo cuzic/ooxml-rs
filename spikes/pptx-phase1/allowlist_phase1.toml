@@ -92,6 +92,12 @@ names = [
     "a:CT_TextBulletSizePercent/a:buSzPct",
     "a:CT_TextFont/a:buFont",
     "a:CT_Color/a:buClr",
+    # revision 2 (review m4): the rest of the bullet groups and the symbol font
+    "a:CT_TextBulletColorFollowText/a:buClrTx",
+    "a:CT_TextBulletSizeFollowText/a:buSzTx",
+    "a:CT_TextBulletSizePoint/a:buSzPts",
+    "a:CT_TextBulletTypefaceFollowText/a:buFontTx",
+    "a:CT_TextFont/a:sym",
     # body properties
     "a:CT_TextBodyProperties/a:bodyPr",
     "a:CT_TextNormalAutofit/a:normAutofit",
@@ -105,6 +111,7 @@ names = [
     "a:CT_Point2D/a:chOff",
     "a:CT_PositiveSize2D/a:chExt",
     "a:CT_PresetGeometry2D/a:prstGeom",
+    "a:CT_CustomGeometry2D/a:custGeom",   # revision 2 (review m5a): the geometry choice group
     # fonts and fills on run properties
     "a:CT_TextFont/a:latin",
     "a:CT_TextFont/a:ea",

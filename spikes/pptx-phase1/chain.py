@@ -342,8 +342,12 @@ def main(argv):
                     cat = 'titleStyle' if sp.type in TITLE else 'otherStyle' if sp.type in OTHER_POI else 'bodyStyle'
                     if sp.type in ('hdr', 'sldImg'):
                         cat = 'otherStyle'
-                    level_sources = lambda lvl: [
-                        ('shape.lstStyle', lst_lvl(lst_of(shape), lvl)),
+                    style = shape.find(q('p:style'))
+                    pfref = style.find(q('a:fontRef')) if style is not None else None
+                    if pfref is not None:
+                        C['ph.has_own_fontRef'] += 1
+                    level_sources = lambda lvl, pfref=pfref: [
+                        ('shape.lstStyle', lst_lvl(lst_of(shape), lvl))] + ([('shape.style.fontRef', pfref)] if pfref is not None else []) + [
                         ('layout.ph.lstStyle', lst_lvl(lst_of(lp.shape), lvl) if lp else None),
                         ('master.ph.lstStyle', lst_lvl(lst_of(mp.shape), lvl) if mp else None),
                         ('master.txStyles.' + cat, lst_lvl(txs.find(q('p:' + cat)), lvl) if txs is not None else None),
@@ -362,6 +366,9 @@ def main(argv):
                     C['nonph.text_shape'] += 1
                     if fref is not None:
                         C['nonph.has_fontRef'] += 1
+                    cnv = shape.find('.//' + q('p:cNvSpPr'))
+                    txbox = cnv is not None and cnv.get('txBox') in ('1', 'true')
+                    C['nonph.text_shape.%s' % ('txBox' if txbox else 'shape')] += 1
 
                     def level_sources(lvl, fref=fref, shape=shape):
                         out = [('shape.lstStyle', lst_lvl(lst_of(shape), lvl))]
@@ -427,16 +434,18 @@ def main(argv):
                                 v_lo, _ = first([x for x in ch2 if x[0] != 'master.txStyles.otherStyle'], getter, prop)
                                 v_other_first, _ = first([x for x in ch2 if x[0] != 'presentation.defaultTextStyle'] +
                                                          [x for x in ch2 if x[0] == 'presentation.defaultTextStyle'], getter, prop)
-                                body_st = txs.find(q('p:bodyStyle')) if txs is not None else None
+                                # ECMA §19.3.1.35 note (review m1): text boxes -> bodyStyle, other shapes -> otherStyle
+                                st = txs.find(q('p:bodyStyle' if txbox else 'p:otherStyle')) if txs is not None else None
                                 v_body, _ = first([x for x in ch2 if not x[0].startswith(('presentation', 'master'))] +
-                                                  [('bodyStyle', defrpr(lst_lvl(body_st, lvl)))], getter, prop)
+                                                  [('ecma', defrpr(lst_lvl(st, lvl)))], getter, prop)
                                 C['q6.%s.reached' % prop] += 1
+                                C['q6.%s.reached.%s' % (prop, 'txBox' if txbox else 'shape')] += 1
                                 if v_lo != v:
                                     ex('q6.%s.poi_vs_libreoffice_differ' % prop, (fname, v, v_lo))
                                 if v_other_first != v:
                                     ex('q6.%s.order_dts_vs_other_differ' % prop, (fname, v, v_other_first))
                                 if v_body != v:
-                                    ex('q6.%s.poi_vs_ecma_note_bodyStyle_differ' % prop, (fname, v, v_body))
+                                    ex('q6.%s.poi_vs_ecma_note_differ.%s' % (prop, 'txBox(bodyStyle)' if txbox else 'shape(otherStyle only)'), (fname, v, v_body))
                             if kind == 'ph' and alt is not None and w and w.startswith('master.txStyles'):
                                 v_lo, _ = first(mk(alt(lvl)), getter, prop)
                                 C['dtftrnum.%s.reached_txStyles' % prop] += 1

@@ -92,6 +92,12 @@ a:CT_TextParagraphProperties/a:pPr a:CT_TextSpacing/a:lnSpc
 a:CT_TextParagraphProperties/a:pPr a:CT_TextCharBullet/a:buChar
 a:CT_TextParagraphProperties/a:pPr a:CT_TextBulletSizePercent/a:buSzPct
 a:CT_TextSpacing/a:lnSpc a:CT_TextSpacingPercent/a:spcPct
+a:CT_TextParagraphProperties/a:pPr a:CT_TextBulletColorFollowText/a:buClrTx
+a:CT_TextParagraphProperties/a:pPr a:CT_TextBulletSizeFollowText/a:buSzTx
+a:CT_TextParagraphProperties/a:pPr a:CT_TextBulletSizePoint/a:buSzPts
+a:CT_TextParagraphProperties/a:lvl1pPr a:CT_TextBulletTypefaceFollowText/a:buFontTx
+a:CT_TextCharacterProperties/a:rPr a:CT_TextFont/a:sym
+a:CT_ShapeProperties/p:spPr a:CT_CustomGeometry2D/a:custGeom
 a:CT_TextSpacing/a:spcBef a:CT_TextSpacingPoint/a:spcPts
 a:CT_TextBody/p:txBody a:CT_TextBodyProperties/a:bodyPr
 a:CT_TextBody/p:txBody a:CT_TextListStyle/a:lstStyle

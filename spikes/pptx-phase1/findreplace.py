@@ -93,7 +93,7 @@ def covered(sp, s, e):
     return [i for a, b, i in sp if a < e and b > s or (a == b == s and False)]
 
 
-def classify(items, sp, s, e):
+def classify(items, sp, s, e, count=False):
     cov = covered(sp, s, e)
     kinds = {items[i]['k'] for i in cov}
     if 'fld' in kinds:
@@ -106,20 +106,42 @@ def classify(items, sp, s, e):
     fp = {canon(items[i]['rpr'], PROOF) for i in cov}
     lk = {link(items[i]['rpr']) for i in cov}
     tag = 'cross-run same format' if len(fm) == 1 else 'cross-run proofing-only difference' if len(fp) == 1 else 'cross-run visible difference'
-    if len(lk) > 1:
+    if len(lk) > 1 and count:
         C['match: cross-run, different hlinkClick (subset of the above)'] += 1
     return tag
 
 
+LINKS = (q('a:hlinkClick'), q('a:hlinkMouseOver'))
+
+
+def without_links(rpr):
+    """The Phase 0.1 copy of a format source: the subtree without links."""
+    if rpr is None:
+        return None
+    c = ET.Element(rpr.tag, dict(rpr.attrib))
+    c.extend(ch for ch in rpr if ch.tag not in LINKS)
+    return c
+
+
 def apply(items, pat, repl):
-    """Reference model of ADR-0008 §4. Returns (new items, per-char rPr map
-    expected) or None when any match is refused."""
+    """Reference model of ADR-0008 §4 (revision 2). Returns (new items,
+    expected text, expected per-char rPr) or None when any match is refused.
+    A `\v` in `repl` becomes a:br + a run whose a:rPr is the start run's
+    without links; a match that ends inside a linked start run with a `\v`
+    in the replacement is refused (LinkSplitByBreak, review M5), because the
+    kept suffix would otherwise move into that link-less run."""
     text = ''.join(it['t'] for it in items)
     ms = matches(text, pat)
     sp = spans(items)
     for s, e in ms:
         if classify(items, sp, s, e).startswith('refused'):
             return None
+        if '\v' in repl:
+            cov = covered(sp, s, e)
+            start = items[cov[0]]
+            if link(start['rpr']) is not None and e < sp[cov[0]][1]:
+                C['replace with \\v: refused LinkSplitByBreak (match ends inside a linked run)'] += 1
+                return None
     # expected per-character format, computed independently of the edit
     fmt = [None] * len(text)
     for a, b, i in sp:
@@ -129,7 +151,12 @@ def apply(items, pat, repl):
     for s, e in ms:
         start_item = [i for a, b, i in sp if a <= s < b][0]
         exp_text.append(text[pos:s]); exp_fmt += fmt[pos:s]
-        exp_text.append(repl); exp_fmt += [canon(items[start_item]['rpr'])] * len(repl)
+        exp_text.append(repl)
+        srpr = items[start_item]['rpr']
+        seg0 = repl.split('\v')[0]
+        exp_fmt += [canon(srpr)] * len(seg0)
+        for ch in repl[len(seg0):]:
+            exp_fmt.append(canon(None) if ch == '\v' else canon(without_links(srpr)))
         pos = e
     exp_text.append(text[pos:]); exp_fmt += fmt[pos:]
     # the edit itself, right to left
@@ -141,15 +168,26 @@ def apply(items, pat, repl):
         first, last = cov[0], cov[-1]
         a0, al = sp[first][0], sp[last][0]
         tail = new[last]['t'][e - al:]
-        new[first]['t'] = new[first]['t'][:s - a0] + repl + (tail if first == last else '')
+        segs = repl.split('\v')
+        suffix = tail if first == last else ''
+        new[first]['t'] = new[first]['t'][:s - a0] + segs[0] + (suffix if len(segs) == 1 else '')
         touched.add(id(new[first]))
+        if len(segs) > 1:
+            added = []
+            for k, seg in enumerate(segs[1:], 1):
+                t = seg + (suffix if k == len(segs) - 1 else '')
+                added.append({'k': 'br', 't': '\v', 'rpr': None})
+                if t:
+                    added.append({'k': 'r', 't': t, 'rpr': without_links(new[first]['rpr'])})
+            new[first + 1:first + 1] = added
         if first != last:
-            new[last]['t'] = tail
-            touched.add(id(new[last]))
+            shift = len(added) if len(segs) > 1 else 0
+            new[last + shift]['t'] = tail
+            touched.add(id(new[last + shift]))
             for i in cov[1:-1]:
-                new[i]['t'] = None          # fully covered: removed
+                new[i + shift]['t'] = None          # fully covered: removed
             if tail == '':
-                new[last]['t'] = None       # fully covered last run: removed
+                new[last + shift]['t'] = None       # fully covered last run: removed
         new = [it for it in new if it['t'] is not None]
     # a touched run left empty is removed, unless no run would remain
     keep = [it for it in new if not (it['k'] == 'r' and it['t'] == '' and id(it) in touched)]
@@ -200,7 +238,7 @@ def main(argv):
                     sp = spans(items)
                     for pat in pats:
                         for s, e in matches(text, pat):
-                            C['match: ' + classify(items, sp, s, e)] += 1
+                            C['match: ' + classify(items, sp, s, e, count=True)] += 1
                             C['matches'] += 1
                         r = apply(items, pat, 'X' + pat[::-1])
                         if r is None:
@@ -211,6 +249,16 @@ def main(argv):
                         C['replace_all: applied'] += 1
                         C['invariant T (text == str.replace) %s' % ('holds' if okt else 'FAILS')] += 1
                         C['invariant F (per-char format) %s' % ('holds' if okf else 'FAILS')] += 1
+                        # replacement with a line break (review M5)
+                        for repl in ('X\v' + pat[::-1], '\v'):
+                            r = apply(items, pat, repl)
+                            if r is None:
+                                continue
+                            new, et, ef = r
+                            okt, okf = check(new, et, ef)
+                            C['replace with \\v: applied, invariants %s' % ('hold' if okt and okf else 'FAIL')] += 1
+                            if any(link(it['rpr']) for it in items if it['k'] == 'r'):
+                                C['replace with \\v: applied in a paragraph with a linked run'] += 1
                         # deletion
                         r = apply(items, pat, '')
                         if r is not None:

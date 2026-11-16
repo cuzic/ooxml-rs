@@ -14,14 +14,14 @@ clrmap.layout_override                                         10
       e.g. ('ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx', 'ppt/slideLayouts/slideLayout4.xml')
 clrmap.slide_has_clrMapOvr                                     1171
 clrmap.slide_without_clrMapOvr                                 100
-color.resolved                                                 5567
-color.schemeClr.direct                                         697
-color.schemeClr.mapped(bg/tx)                                  4870
-decides.fontRef.fill                                           381
+color.resolved                                                 5616
+color.schemeClr.direct                                         768
+color.schemeClr.mapped(bg/tx)                                  4848
+decides.fontRef.fill                                           452
       e.g. 60810.pptx
       e.g. 60810.pptx
       e.g. 60810.pptx
-decides.fontRef.latin                                          51
+decides.fontRef.latin                                          91
       e.g. aascu.org_hbcu_leadershipsummit_cooper_.pptx
       e.g. aascu.org_hbcu_leadershipsummit_cooper_.pptx
       e.g. au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx
@@ -214,6 +214,8 @@ nonph.run.sz.from_run                                          7635
 nonph.run.sz.from_shape.lstStyle                               28
 nonph.runs                                                     8647
 nonph.text_shape                                               4001
+nonph.text_shape.shape                                         2862
+nonph.text_shape.txBox                                         1139
 notes.body_ph                                                  295
 notes.body_ph_without_master_body                              2
       e.g. connectors.pptx
@@ -231,6 +233,7 @@ para.pPr_defRPr_with_formatting                                11
       e.g. bug63290.pptx
       e.g. bug65228.pptx
       e.g. bug65228.pptx
+ph.has_own_fontRef                                             32
 ph.para.algn.from_None                                         64
 ph.para.algn.from_layout.ph.lstStyle                           251
 ph.para.algn.from_master.ph.lstStyle                           99
@@ -261,23 +264,25 @@ ph.run.b.from_master.txStyles.titleStyle                       112
 ph.run.b.from_presentation.defaultTextStyle                    5
 ph.run.b.from_run                                              800
 ph.run.fill.from_None                                          5
-ph.run.fill.from_layout.ph.lstStyle                            608
+ph.run.fill.from_layout.ph.lstStyle                            606
 ph.run.fill.from_master.ph.lstStyle                            78
-ph.run.fill.from_master.txStyles.bodyStyle                     1929
+ph.run.fill.from_master.txStyles.bodyStyle                     1877
 ph.run.fill.from_master.txStyles.otherStyle                    37
-ph.run.fill.from_master.txStyles.titleStyle                    538
+ph.run.fill.from_master.txStyles.titleStyle                    521
 ph.run.fill.from_presentation.defaultTextStyle                 4
 ph.run.fill.from_run                                           636
 ph.run.fill.from_shape.lstStyle                                1
+ph.run.fill.from_shape.style.fontRef                           71
 ph.run.latin.from_None                                         3
 ph.run.latin.from_layout.ph.lstStyle                           410
 ph.run.latin.from_master.ph.lstStyle                           51
-ph.run.latin.from_master.txStyles.bodyStyle                    1975
+ph.run.latin.from_master.txStyles.bodyStyle                    1910
 ph.run.latin.from_master.txStyles.otherStyle                   84
-ph.run.latin.from_master.txStyles.titleStyle                   577
+ph.run.latin.from_master.txStyles.titleStyle                   537
 ph.run.latin.from_presentation.defaultTextStyle                3
 ph.run.latin.from_run                                          732
 ph.run.latin.from_shape.lstStyle                               1
+ph.run.latin.from_shape.style.fontRef                          105
 ph.run.sz.from_None                                            9
 ph.run.sz.from_layout.ph.lstStyle                              1023
 ph.run.sz.from_master.ph.lstStyle                              111
@@ -291,34 +296,52 @@ ph.slide                                                       1272
 ph.slide.on_p:graphicFrame                                     29
 ph.slide.on_p:pic                                              21
 ph.slide.on_p:sp                                               1222
-q6.b.poi_vs_ecma_note_bodyStyle_differ                         40
+q6.b.poi_vs_ecma_note_differ.txBox(bodyStyle)                  22
       e.g. ('45541_Footer.pptx', None, '1')
       e.g. ('45541_Footer.pptx', None, '1')
       e.g. ('45541_Footer.pptx', None, '1')
 q6.b.reached                                                   7739
+q6.b.reached.shape                                             1044
+q6.b.reached.txBox                                             6695
 q6.fill.order_dts_vs_other_differ                              10
       e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
       e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
       e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
-q6.fill.poi_vs_ecma_note_bodyStyle_differ                      11
+q6.fill.poi_vs_ecma_note_differ.shape(otherStyle only)         10
+      e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
+      e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
+      e.g. ('sc024-026.pptx', 'solid:a:srgbClr:000000', 'solid:a:schemeClr:tx1')
+q6.fill.poi_vs_ecma_note_differ.txBox(bodyStyle)               11
       e.g. ('slide-sections.pptx', 'solid:a:schemeClr:tx1', 'solid:a:schemeClr:bg1')
       e.g. ('slide-sections.pptx', 'solid:a:schemeClr:tx1', 'solid:a:schemeClr:bg1')
       e.g. ('slide-sections.pptx', 'solid:a:schemeClr:tx1', 'solid:a:schemeClr:bg1')
 q6.fill.reached                                                6597
+q6.fill.reached.shape                                          181
+q6.fill.reached.txBox                                          6416
 q6.latin.order_dts_vs_other_differ                             564
       e.g. ('45541_Footer.pptx', 'Arial', '+mn-lt')
       e.g. ('45541_Header.pptx', 'Arial', '+mn-lt')
       e.g. ('45545_Comment.pptx', 'Arial', '+mn-lt')
-q6.latin.poi_vs_ecma_note_bodyStyle_differ                     613
+q6.latin.poi_vs_ecma_note_differ.shape(otherStyle only)        88
+      e.g. ('aascu.org_hbcu_leadershipsummit_cooper_.pptx', 'Arial', '+mn-lt')
+      e.g. ('aascu.org_hbcu_leadershipsummit_cooper_.pptx', 'Arial', '+mn-lt')
+      e.g. ('aascu.org_hbcu_leadershipsummit_cooper_.pptx', 'Arial', '+mn-lt')
+q6.latin.poi_vs_ecma_note_differ.txBox(bodyStyle)              526
       e.g. ('45541_Footer.pptx', 'Arial', '+mn-lt')
       e.g. ('45541_Header.pptx', 'Arial', '+mn-lt')
       e.g. ('45545_Comment.pptx', 'Arial', '+mn-lt')
 q6.latin.reached                                               1322
+q6.latin.reached.shape                                         276
+q6.latin.reached.txBox                                         1046
 q6.sz.order_dts_vs_other_differ                                91
       e.g. ('45541_Footer.pptx', '2400', '1800')
       e.g. ('45541_Footer.pptx', '2400', '1800')
       e.g. ('45541_Footer.pptx', '2400', '1800')
-q6.sz.poi_vs_ecma_note_bodyStyle_differ                        976
+q6.sz.poi_vs_ecma_note_differ.shape(otherStyle only)           305
+      e.g. ('45541_Footer.pptx', '2400', '1800')
+      e.g. ('45541_Footer.pptx', '2400', '1800')
+      e.g. ('45541_Header.pptx', '2400', '1800')
+q6.sz.poi_vs_ecma_note_differ.txBox(bodyStyle)                 415
       e.g. ('45541_Footer.pptx', '2400', '3200')
       e.g. ('45541_Footer.pptx', '2400', '3200')
       e.g. ('45541_Footer.pptx', '2400', '3200')
@@ -327,6 +350,8 @@ q6.sz.poi_vs_libreoffice_differ                                154
       e.g. ('alterman_security.pptx', '1800', None)
       e.g. ('alterman_security.pptx', '1800', None)
 q6.sz.reached                                                  981
+q6.sz.reached.shape                                            564
+q6.sz.reached.txBox                                            417
 slide                                                          1272
 theme.font_ref                                                 4025
 theme.font_ref_unresolved                                      4

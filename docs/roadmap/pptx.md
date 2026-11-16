@@ -167,15 +167,17 @@ are **not in the slide part at all**. Decision (ADR-0005 §4, Phase 1):
    Phase 1 oracle (open question Q6), not by assumption.
    *Phase 1 (ADR-0008 §1.2–1.3) refines this:* placeholder matching breaks
    idx ties (69 placeholders in layouts with several idx-0 placeholders, 633
-   files) by type and family; the chain adds `a:pPr/a:defRPr` and, for
-   non-placeholder shapes, `p:style/a:fontRef`; Q6 is proposed as
+   files) by type and family; the chain adds `a:pPr/a:defRPr` and the
+   shape's own `p:style/a:fontRef` (placeholders included, rev 2); Q6 is proposed as
    "`defaultTextStyle`, then `otherStyle`" (POI) pending a PowerPoint check,
    with LibreOffice (`defaultTextStyle` only) and the ECMA note (`bodyStyle`)
    measured as alternatives.
 4. Oracle for Phase 1: python-pptx's inherited `left/top/width/height` for
-   geometry; for text properties no reference library resolves the chain, so
-   the oracle is a hand-checked expected table for `ph-inherit-props.pptx`
-   and `placeholder-layout-color.pptx` plus a manual PowerPoint check.
+   geometry; for text properties a hand-checked expected table for
+   `ph-inherit-props.pptx` and `placeholder-layout-color.pptx` plus a manual
+   PowerPoint check. *Corrected in ADR-0008 rev 2 (review m10a):* POI does
+   resolve text properties (`CharacterPropertyFetcher`) and is an optional
+   differential oracle with a committed table of known differences.
 
 ### 3.2 `ST_Percentage` and DrawingML default mismatches (`set_type`)
 
@@ -216,9 +218,10 @@ Decision:
   `DmlPercent` and `set_type` for `a:CT_TextCharacterProperties@baseline`,
   `a:CT_TextSpacingPercent@val`, `a:CT_TextBulletSizePercent@val`,
   `a:CT_TextNormalAutofit@fontScale`/`@lnSpcReduction`, `a:hslClr`
-  `@sat`/`@lum`, `a:scrgbClr` `@r`/`@g`/`@b`, `p:cTn` `@spd`/`@accel`/`@decel`
-  and `p:presentation@serverZoom` (6 defaults adopted, `DefaultMismatch`
-  39 → 33). Still 0 `"NN%"` values in 633 files.
+  `@sat`/`@lum`, `a:scrgbClr` `@r`/`@g`/`@b`
+  and `p:presentation@serverZoom` (11 overrides, 3 defaults adopted,
+  `DefaultMismatch` 39 → 36; `p:cTn` percentages are not read and stay
+  dropped, ADR-0008 rev 2). Still 0 `"NN%"` values in 633 files.
 
 ### 3.3 Transitions wrapped in `mc:AlternateContent`
 
@@ -391,7 +394,9 @@ Scope:
   timing summary;
 - cross-run find/replace on slides (and optionally notes): start run keeps
   its format, fields/breaks inside a match refused, plan-then-apply;
-- 118 read allowlist entries; `DmlPercent` with 14 `set_type` overrides.
+- 124 read allowlist entries; `DmlPercent` with 11 `set_type` overrides;
+- values are *as specified* (autofit scale, hyperlink colour and East
+  Asian theme fonts are exposed as inputs or `Unresolved`, not applied).
 
 Moved out (follow-up "Phase 1b" ADR): SmartArt text read, table structure
 beyond Phase 0's cell reads.

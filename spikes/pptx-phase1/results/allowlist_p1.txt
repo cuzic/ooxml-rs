@@ -1,4 +1,4 @@
-## 1. names (118 proposed)
+## 1. names (124 proposed)
   p:CT_SlideLayout/p:sldLayout                     -> pml.toml   (SDK file openxmlformats_org_presentationml_2006_main)
   p:CT_SlideMaster/p:sldMaster                     -> pml.toml   (SDK file openxmlformats_org_presentationml_2006_main)
   p:CT_NotesSlide/p:notes                          -> pml.toml   (SDK file openxmlformats_org_presentationml_2006_main)
@@ -70,6 +70,11 @@
   a:CT_TextBulletSizePercent/a:buSzPct             -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextFont/a:buFont                           -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_Color/a:buClr                               -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
+  a:CT_TextBulletColorFollowText/a:buClrTx         -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
+  a:CT_TextBulletSizeFollowText/a:buSzTx           -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
+  a:CT_TextBulletSizePoint/a:buSzPts               -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
+  a:CT_TextBulletTypefaceFollowText/a:buFontTx     -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
+  a:CT_TextFont/a:sym                              -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextBodyProperties/a:bodyPr                 -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextNormalAutofit/a:normAutofit             -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextNoAutofit/a:noAutofit                   -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
@@ -81,6 +86,7 @@
   a:CT_Point2D/a:chOff                             -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_PositiveSize2D/a:chExt                      -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_PresetGeometry2D/a:prstGeom                 -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
+  a:CT_CustomGeometry2D/a:custGeom                 -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextFont/a:latin                            -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextFont/a:ea                               -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
   a:CT_TextFont/a:cs                               -> dml.toml   (SDK file openxmlformats_org_drawingml_2006_main)
@@ -120,7 +126,7 @@
 problems: 0
 
 ## 2. descent edges
-edges checked: 91, problems: 0
+edges checked: 97, problems: 0
 
 ## 3. percentage-union attributes / default mismatches on allowlisted entries (Phase 0 + proposed)
   [phase1] a:CT_HslColor@sat: xsd ST_Percentage default=None sdk Int32Value -> PERCENT-UNION   (e.g. a:CT_HslColor/a:hslClr)
