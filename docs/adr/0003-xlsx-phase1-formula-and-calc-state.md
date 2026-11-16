@@ -71,8 +71,9 @@
   - **R2-m7:** the claim is scoped to **cell-formula cached values**; chart, pivot and
     external-link caches are out of scope (Consequences).
   - The tokenizer differential against openpyxl is replaced, for this milestone, by committed
-    hand-written token expectations plus a no-panic sweep over the formula texts of the
-    committed fixtures; the POI-wide differential corpus is deferred (Deviations, below).
+    hand-written token expectations plus a parse check over the committed fixtures' formula
+    texts and an optional local corpus sweep; the POI-wide differential corpus is deferred
+    (Deviations, below).
 
 ## Context
 
@@ -684,7 +685,8 @@ allowed set, and nothing else:
 - **Mutation check.** The rules of §2.3/§2.4 and the special cases of §2.2 are written so that
   each one is a separate branch; disabling any one of them must fail at least one O1 or O2 test.
   This is checked by `cargo-mutants` on the precedent module (an owner/CI step, not part of
-  `cargo test`).
+  `cargo test`). During implementation, disabling the `sum_range` resize and reversing
+  local-over-global name shadowing were each checked by hand to fail O1 and O2.
 - Each O1/O3 edit writes values that differ in magnitude from the original (never the same value
   back). O2 evaluates several values per edit, so a dependent that ignores one change still
   shows up for another.
@@ -847,9 +849,11 @@ returns `Err(Poisoned)`, and every later edit, `save` and `to_bytes` return `Err
 
 - The tokenizer's differential test against openpyxl's `Tokenizer` over deduplicated POI
   formula texts (revision 2 §2.1) is replaced, for this milestone, by hand-written token
-  expectations for every shape of §2.1 and a no-panic sweep over the formula texts of the
-  committed fixtures. The POI-wide corpus would add ~1 MB of third-party text and an
-  openpyxl-generated expectation file; it remains a follow-up.
+  expectations for every shape of §2.1, a parse check over every formula text of the committed
+  fixtures, and an optional (ignored) sweep over a locally extracted corpus file. Run on the 2,157
+  distinct formula texts of the POI `test-data/spreadsheet` corpus, 2,154 parse; the other 3 are
+  `['file:///…']Sheet!A1` external references, refused and therefore `Everything`. Committing the
+  corpus and an openpyxl-generated expectation file remains a follow-up.
 - `cargo fuzz` is replaced by a seeded random-input property test (no nightly toolchain or
   extra dependency); a fuzz target can be added later.
 - §7.2 items 5 and 7 use synthetic workbooks instead of adding a POI `INDIRECT` file and

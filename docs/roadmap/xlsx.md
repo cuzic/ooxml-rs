@@ -316,39 +316,50 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 - **Acceptance:** §7 below, every row green; clippy clean; CK clean.
 - **Exit gate:** XL check by the owner on the outputs listed in §7.4.
 
-### Phase1 — formula-aware edits and calculation state (ADR-0003, Proposed)
+### Phase1 — formula-aware edits and calculation state (ADR-0003, Proposed, revision 3)
 
 - **Goal:** value edits are allowed in workbooks that contain formulas, without ever leaving a
-  cached value that may be wrong; formulas can be written and removed.
-- **Scope:**
-  1. Read and edit any worksheet by name or index (ADR-0002 §6 lookup generalised).
-  2. Formula census at open by QName (§5 finding 1), plus array/spill/data-table output ranges.
-  3. A reference-only formula tokenizer (A1 refs, ranges, whole rows/cols, sheet-qualified and
-     3-D refs, names, structured refs, external `[n]`, function names); unknown → conservative.
-  4. Dependency-based cache invalidation: remove `v` (and the result `t`) from every formula
-     cell and array output cell that may transitively depend on an edited cell; set
-     `calcPr/@fullCalcOnLoad="1"`.
-  5. `set_formula` (plain, no cached value), formula → value overwrite, shared-formula master
-     promotion (as POI), guards for partial array/spill/data-table writes.
+  cell-formula cached value that may be wrong; formulas can be written and removed.
+- **Scope** (ADR-0003 is the specification; this is a summary):
+  1. Read and edit any worksheet by name (case-insensitive) or index (`<sheets>` order).
+  2. Formula census at open by QName, plus array/spill/data-table result ranges and XLDAPR
+     dynamic arrays; an incomplete census refuses every edit.
+  3. A reference-aware tokenizer and parser (A1 refs, ranges, whole rows/cols, quoted and 3-D
+     sheet prefixes, names, structured and external refs, function names); precedents are
+     **sound by default**: only allowlisted constructs (with evidence per function) give precise
+     sets, anything else depends on everything (ADR-0003 §2).
+  4. Dependency-based cache invalidation: remove `v`/`t`/`is` from every formula cell and result
+     cell that may transitively depend on an edited cell (a dependent dynamic array seeds its
+     potential spill area); set `calcPr/@fullCalcOnLoad="1"` (not in manual mode).
+  5. `set_formula` (plain, no cached value), `remove_formula`, formula → value overwrite,
+     shared-formula master hand-off to the first remaining member (not POI's rule when the
+     remaining members are not a row-major fill), guards for array/spill/data-table writes,
+     macro-sheet dependents and iterative calculation.
   6. `calcChain.xml`: untouched when the set of formula cells is unchanged; removed (part,
-     workbook relationship, content-type override) when it changes.
+     workbook relationship, content-type override; `Package::remove_part` in core) when it
+     changes.
   7. Table header guard (writes into a table's header row → `Err` until P5 syncs names).
-- **Acceptance:**
-  - On every fixture with formulas (`shared_formulas`, `MatrixFormulaEvalTestData`, `xlookup`,
-    `70005-countifs`, `NewStyleConditionalFormattings`): a value edit to a non-formula cell
-    succeeds; T2 holds with the allowed diff extended to (a) the dependents' `v`/`t`, (b)
-    `calcPr`; every formula cell that is *not* a dependent keeps its span byte-identical.
+  8. Validate-then-apply in place; an apply failure poisons the workbook.
+- **Acceptance** (ADR-0003 §7):
+  - T1/T1b/T2 extended: exactly the edited cell, the dependents' `c` spans, a hand-off master's
+    `c`, `calcPr`, and for a calcChain removal one element (plus preceding whitespace) in each
+    registry; L1 for everything else.
   - CR: dependents read as empty (no stale value); non-dependents read their original cached
-    value; `worksheet_formula` text is unchanged for every formula cell, and calamine's shared
-    formula expansion agrees before/after.
-  - Tokenizer: on all 126 formula-bearing POI packages (fetched, not committed), every `f`
-    text is tokenized without panic; results are "refs" or "conservative"; a differential test
-    against openpyxl's `Tokenizer` (dev-only, offline-generated expected tokens) agrees on
-    reference tokens.
+    value; formula text is unchanged for every formula cell (calamine's view, where calamine
+    expands correctly; hand-written expectations where it does not).
+  - Tokenizer: hand-written token expectations; every formula text in the committed fixtures
+    parses; an optional local sweep over the POI corpus (2,157 distinct texts, 2,154 parse; the
+    3 others are `file:///` external references and are refused, i.e. depend on everything).
+    The openpyxl differential test of revision 2 is deferred (ADR-0003 "Deviations").
   - `calcChain` removal: L1 for all other parts; `[Content_Types].xml` and workbook rels lose
-    exactly one entry each (T2-style diff confined to those elements).
-  - XL on: edited `shared_formulas.xlsx`, `xlookup.xlsx`, a workbook after formula removal.
-- **Oracles:** L1, T1/T1b/T2 (extended allowed-diff set), CR, XL.
+    exactly one entry each.
+  - XL on the `manual_check` Phase1 outputs (12–21): recalculated values on open, no repair
+    dialog.
+- **Oracles:** L1, T1/T1b/T2 (extended allowed-diff set), CR, XL, and ADR-0003's three oracles
+  that do not consult the implementation: **O1** hand-written dependent sets on synthetic
+  workbooks (`reference/fixtures/xlsx/synthetic/`), **O2** a perturbation test with a test-only
+  evaluator, **O3** LibreOffice hard recalculation of synthetic, O2-sampled and fixture edits
+  (data generated by the owner or a manual CI job; the test is ignored until then).
 
 ### Phase2 — shared-string and style registries ("two seed modes")
 
