@@ -10,6 +10,10 @@ description = "Lossless Excel (.xlsx) editing on top of ooxml-core: Phase0 value
 readme = "README.md"
 include = ["src/**/*.rs", "template/blank.xlsx", "Cargo.toml", "README.md"]
 
+[features]
+# Test hook for ADR-0003 §7.3: make an edit fail inside its apply phase.
+fault-injection = []
+
 [dependencies]
 ooxml-core = { workspace = true }
 ooxml-schema = { workspace = true, features = ["sml"] }
@@ -19,3 +23,10 @@ thiserror = { workspace = true }
 [dev-dependencies]
 calamine = "0.38"
 zip = { workspace = true }
+
+[[example]]
+# Unique across the workspace: three crates have a manual check and cargo warns
+# about (and may later refuse) same-named example targets. The source file keeps
+# its name so open PRs that edit it do not conflict.
+name = "xlsx_manual_check"
+path = "examples/manual_check.rs"

@@ -46,8 +46,21 @@ fn runs(p: &Value) -> Vec<Value> {
 }
 
 /// Format source for new runs: the first run's rPr, else `endParaRPr`.
+/// Phase 0.1: the whole subtree is copied, except the link children
+/// (`a:hlinkClick`, `a:hlinkMouseOver`); nothing left → no element.
 fn run_fmt(p: &Value) -> Value {
-    runs(p).first().map_or_else(|| p["end"].clone(), |r| r[2].clone())
+    without_links(runs(p).first().map_or_else(|| p["end"].clone(), |r| r[2].clone()))
+}
+
+fn without_links(mut f: Value) -> Value {
+    if let Some(children) = f.get_mut("children").and_then(Value::as_array_mut) {
+        const A: &str = "{http://schemas.openxmlformats.org/drawingml/2006/main}";
+        children.retain(|c| c["name"] != format!("{A}hlinkClick") && c["name"] != format!("{A}hlinkMouseOver"));
+        if children.is_empty() && f["attrs"].as_object().is_some_and(serde_json::Map::is_empty) {
+            f = Value::Null;
+        }
+    }
+    f
 }
 
 fn para_set(p: &mut Value, text: &str) {
@@ -102,10 +115,15 @@ fn apply(model: &mut Value, e: &Value) {
                 if i < n {
                     para_set(&mut paras[i], line);
                 } else {
-                    // R2-5: the run format source also becomes `a:endParaRPr`
+                    // R2-5 / N3-1: `a:endParaRPr` from the last paragraph's
+                    // own one if it has any format, else its run format source
                     let fmt = run_fmt(&last);
+                    let end = match without_links(last["end"].clone()) {
+                        Value::Null => fmt.clone(),
+                        own => own,
+                    };
                     let items = build(&segs(line), None, &fmt);
-                    paras.push(json!({"ppr": last["ppr"], "end": fmt, "items": items}));
+                    paras.push(json!({"ppr": last["ppr"], "end": end, "items": items}));
                 }
             }
             paras.truncate(lines.len());
@@ -128,6 +146,11 @@ fn t3_expected_model_after_edits() {
         let actual = model::dump(&mut output);
         assert!(actual == expected, "{}: model mismatch\nactual:   {actual}\nexpected: {expected}", case.name);
         total += case.edits.len();
+        // Phase 0.1: the hyperlink case must be applied, not refused (a
+        // refusal would drop the edits and hide a broken link skip)
+        if case.name == "hyperlink-cells" {
+            assert!(case.refused.is_empty(), "hyperlink-cells refused: {:?}", case.refused);
+        }
         for (_, r) in &case.refused {
             let kind = r.split([' ', '(', '{']).next().unwrap().to_owned();
             *refused.entry(kind).or_default() += 1;

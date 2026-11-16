@@ -26,12 +26,12 @@ pub mod schema;
 pub mod value;
 pub mod xml;
 
-pub use error::{Error, Result};
-pub use lens::{Lens, LensMut};
+pub use error::{DetachRefusal, Error, Result, WellFormedness};
+pub use lens::{Detached, Lens, LensMut};
 pub use name::{QName, XName};
 pub use package::{
     IncomingRelationship, Package, PartContent, PartNameRequest, PartState, PartStateKind, RegistryPlan, RegistryRefusal, RemoveRefusal,
     RemovedPart, RemovedParts, Target,
 };
-pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};
-pub use xml::{DEFAULT_MAX_DEPTH, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
+pub use schema::{AttrError, AttrSpec, ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, SameType, SimpleType, Slot, UniqueAttr, Wildcard};
+pub use xml::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_PACKAGE_BYTES, DEFAULT_MAX_PART_BYTES, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};

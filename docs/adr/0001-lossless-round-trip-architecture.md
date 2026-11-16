@@ -184,6 +184,17 @@
   `remove_part` is already implemented as the one-part case of
   `remove_parts` (one implementation of the removal rules), refusing parts
   with their own relationships.
+- **Post-acceptance note (2026-11-16, merged-cell anchors; effective
+  when ADR-0014 is implemented):** Phase0's refusal of "writing into a
+  cell inside a merged range" (Scope boundary below) is relaxed for the
+  range's **anchor** (top-left cell). Writing to the anchor is what Excel
+  does and what ADR-0014's merge and hyperlink features need. A **value or
+  formula** write to a **non-anchor** cell of a merged range stays refused,
+  so ooxml-rs never creates a value that readers hide; style-only writes
+  (ADR-0006 §7.3) are allowed on every cell of the range, since they create
+  no value (ADR-0014 §3, revision 3). ADR-0003's guard row "Write into any
+  cell of a merged range (top-left included)" changes accordingly.
+  Existing hidden non-anchor values (one corpus file) are left untouched.
 
 ## Context
 
