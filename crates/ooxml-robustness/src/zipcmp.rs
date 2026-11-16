@@ -40,8 +40,17 @@ pub fn raw_entries(bytes: &[u8]) -> zip::result::ZipResult<Vec<RawEntry>> {
 /// must be readable as raw zip entries: an unreadable input is a failure
 /// too (the package accepted entries it cannot copy through unchanged).
 pub fn assert_l1_except(input: &[u8], output: &[u8], except: &[&str], what: &str) {
+    assert_l1_except_removing(input, output, except, &[], what);
+}
+
+/// [`assert_l1_except`], where the entries in `removable` may also be
+/// missing from the output (e.g. `calcChain.xml`, which an xlsx edit that
+/// changes the set of formula cells removes).
+pub fn assert_l1_except_removing(input: &[u8], output: &[u8], except: &[&str], removable: &[&str], what: &str) {
     let a = raw_entries(input).unwrap_or_else(|e| panic!("{what}: the package opened, but its entries are not readable raw: {e}"));
     let b = raw_entries(output).unwrap_or_else(|e| panic!("{what}: written package is not a readable zip: {e}"));
+    let out_names: Vec<&str> = b.iter().map(|e| e.name.as_str()).collect();
+    let a: Vec<RawEntry> = a.into_iter().filter(|e| !removable.contains(&e.name.as_str()) || out_names.contains(&e.name.as_str())).collect();
     let names_a: Vec<&str> = a.iter().map(|e| e.name.as_str()).collect();
     let names_b: Vec<&str> = b.iter().map(|e| e.name.as_str()).collect();
     assert_eq!(names_a, names_b, "{what}: entry names/order changed");

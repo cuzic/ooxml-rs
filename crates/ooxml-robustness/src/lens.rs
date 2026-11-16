@@ -16,7 +16,6 @@ use ooxml_core::{
 };
 
 use crate::input::Input;
-use crate::known;
 use crate::xml::canon_eq;
 
 /// Namespace of the test schema.
@@ -92,13 +91,12 @@ pub const BASE_DOCS: &[&str] = &[
 ];
 
 /// Attribute names the edits use. The last one, an `xmlns:o` declaration,
-/// is left out while the F-3 filter is on.
+/// must be refused by the lens (`NamespaceDeclaration`, fuzz finding F-3).
 const ATTR_NAMES: &[QName] =
     &[K, QName::new(XML_NS, "space"), QName::new("urn:o", "x"), QName::new("", "zz"), QName::new(XMLNS_NS, "o")];
 
 fn attr_name(inp: &mut Input<'_>) -> QName {
-    let n = if known::f3_skip_xmlns_attrs() { ATTR_NAMES.len() - 1 } else { ATTR_NAMES.len() };
-    ATTR_NAMES[usize::from(inp.u8()) % n]
+    ATTR_NAMES[usize::from(inp.u8()) % ATTR_NAMES.len()]
 }
 
 fn nth_k(inp: &mut Input<'_>) -> impl FnMut(usize, &RawNode) -> bool + use<> {
@@ -230,15 +228,12 @@ pub fn check_lens_ops(data: &[u8]) {
     } else {
         let len = usize::from(inp.u16() % 2048);
         let xml = inp.take(len);
-        if known::f1_double_bom(xml) || known::f4_inner_xml_decl(xml) {
-            return;
-        }
         match XmlDocument::parse_with(xml, &options) {
             Ok(d) => d,
             Err(_) => return,
         }
     };
-    if doc.lens_mut::<P>().is_err() || known::f5_empty_name(doc.root()) {
+    if doc.lens_mut::<P>().is_err() {
         return;
     }
     let mut steps = 0;

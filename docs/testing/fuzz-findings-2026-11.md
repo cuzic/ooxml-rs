@@ -30,13 +30,15 @@ F-6 の ZIP64 の形（459 バイトの zip）で `Package::from_bytes` がプ�
 | I-1 | Info | パーサーがほかにも XML 1.0 / Namespaces の非 well-formed 入力を受け付ける（下記） | — |
 | I-2 | Info | 展開後サイズや圧縮率の上限がない（zip bomb） | — |
 
-再現テストは `crates/ooxml-robustness/tests/fuzz_findings.rs` にあり、すべて
-`#[ignore = "fuzz finding F-n, see docs/testing/fuzz-findings-2026-11.md"]` 付き（CI は green のまま）。
+**状況（2026-11-16 時点）: F-1〜F-6 は PR #40、F-7 は PR #14 で修正され、どちらも main にマージ済み。**
+再現テストは `crates/ooxml-robustness/tests/fuzz_findings.rs` にあり、PR #36 round 2 で `#[ignore]` を外した。
+現在は 9 件すべてが通常の回帰テストとして CI で pass する。既知の所見を除外していた `known.rs` のフィルタも削除した。
+以下は修正前の記録である。修正前は、どの再現テストも `#[ignore]` 付きだった。
 `cargo test -p ooxml-robustness --test fuzz_findings -- --ignored` で 9 件すべてが失敗することを Rust 1.99.1 で確認した
 （ZIP64 のテストは子プロセスが SIGABRT で落ちたことを報告する）。どのテストも、パッチ前の入力で同じ操作が成功する対照を先に検査するので、
 無関係な理由の拒否で黙って pass することはない。PR #40（core の修正）の上では F-7 以外の 8 件が pass する。
-修正したら `#[ignore]` を外し、`crates/ooxml-robustness/src/known.rs` の対応するフィルタを消すこと。
-フィルタは既知の形の入力だけを飛ばし、ファザーが同じ所見を何度も報告しないようにするためのもの（`OOXML_FUZZ_ALL=1` で無効）。
+当時は、既知の形の入力だけを `crates/ooxml-robustness/src/known.rs` のフィルタで飛ばしていた。ファザーが同じ所見を何度も報告しないようにするためで、`OOXML_FUZZ_ALL=1` で無効にできた。
+修正後に、フィルタを無効にした状態（`OOXML_FUZZ_ALL=1`、`OOXML_SMOKE_ITERS=20`）でもスモークが通ることを確認してから削除した。
 
 xlsx・pptx の format crate 固有の不変条件（拒否なら無変更、成功なら読み戻し一致、他 part の L1、再オープン）の違反は見つからなかった。
 F-1 は xlsx 経由でも再現する（core の問題が format crate に波及する）。
@@ -79,6 +81,20 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
   `-max_total_time` は初期コーパスを一巡した後から数える点を README に書いた。
 - 変更後の確認: 6 ターゲットを各 5 分（4 並列、合成 seed を追加したコーパス）回して新しい失敗はなかった（xml_t1 92 万回、xml_t1b 41 万回、lens 67 万回、
   xlsx 4.4 万回、package 8 千回。pptx は初期コーパスの一巡で時間を使い切った）。stable スモークも通る。
+
+### Opus レビュー round 2 の後の変更
+
+- origin/main をマージした（#14・#19・#20・#40 などを含む）。
+  - `ShapePath` の API が変わったため、`pptx.rs` の比較を直した。
+  - xlsx Phase1（#20、ADR-0003）では、値を編集すると他のシートにある依存セルのキャッシュも消える。
+    - あわせて `workbook.xml` の `calcPr` が書き換わる。
+    - 数式セルの集合が変わると、`calcChain.xml` も削除される。
+    - そこで、編集後の L1 検査の除外対象を次のように広げた: 全シート（content type で判定）、workbook、`[Content_Types].xml`、`.rels`、それに消えてもよい `calcChain.xml`。
+- 9 件の `#[ignore]` を外し、`known.rs` を削除した。
+- ZIP64 の子プロセスには `--include-ignored` を渡す。親は子の出力に `1 passed` があることを検査する。これで、テストが 0 件しか実行されなかった場合に空振りで pass することがなくなる（M1'）。
+- ワークフロー:
+  - `cargo metadata --locked` で `fuzz/Cargo.lock` が最新であることを強制する。
+  - nightly を `nightly-2026-11-14` にした。所見の実行に使った `5f4effd57 2026-11-13` が入っているチャンネル。
 
 ## ooxml-docx（`docx_edit`、PR #36 に積む PR で追加）
 
@@ -221,8 +237,8 @@ deflate の圧縮率は最大で約 1:1000 なので、1 MB の part で約 1 GB
 
 ```sh
 # 再現テスト（stable 1.99）
-cargo test -p ooxml-robustness --test fuzz_findings -- --ignored
-# stable のスモーク（既知の所見は known.rs で除外、CI の cargo test にも含まれる）
+cargo test -p ooxml-robustness --test fuzz_findings
+# stable のスモーク（CI の cargo test にも含まれる）
 OOXML_SMOKE_ITERS=50 cargo test --release -p ooxml-robustness --test smoke
 # ファザー（nightly）
 cargo run -p ooxml-robustness --example seed_corpus -- fuzz/corpus

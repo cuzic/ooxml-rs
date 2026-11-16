@@ -8,9 +8,6 @@ use ooxml_core::{ParseOptions, RawItem, RawNode, XmlDocument};
 /// tree, and checks that a lower depth limit never accepts what the
 /// default refuses.
 pub fn check_t1(data: &[u8]) {
-    if crate::known::f1_double_bom(data) {
-        return;
-    }
     let Ok(doc) = XmlDocument::parse(data) else {
         // Lowering the limit can only refuse more.
         if let Ok(low) = XmlDocument::parse_with(data, &ParseOptions::default().with_max_depth(8)) {
@@ -45,13 +42,7 @@ fn walk(n: &RawNode) {
 /// options, into a structurally equal tree, and re-rendering that again is
 /// a fixed point.
 pub fn check_t1b(data: &[u8]) {
-    if crate::known::f1_double_bom(data) || crate::known::f4_inner_xml_decl(data) {
-        return;
-    }
     let Ok(doc) = XmlDocument::parse(data) else { return };
-    if crate::known::f5_empty_name(doc.root()) {
-        return;
-    }
     let mut r = doc.clone();
     r.force_rerender();
     let s = r.serialize();

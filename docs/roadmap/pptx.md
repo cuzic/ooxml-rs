@@ -18,7 +18,10 @@
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md),
   [research memo](../research/2026-11-16-word-powerpoint-applicability.md)
-- Phase 0 design: [ADR-0005](../adr/0005-pptx-phase0.md) (Proposed)
+- Phase 0 design: [ADR-0005](../adr/0005-pptx-phase0.md) (Accepted,
+  revision 3; revision 4 adds Phase 0.1, subtree copy of format sources)
+- Phase 1 design: [ADR-0008](../adr/0008-pptx-phase1-deck-reading.md)
+  (Accepted, revision 3; evidence `spikes/pptx-phase1/`, 633 files)
 
 ## 1. Evidence base
 
@@ -87,7 +90,7 @@ whether untouched content survives a save, was not read).
 | 13 | Tables | `p:graphicFrame/a:graphic/a:graphicData[@uri=…/table]/a:tbl` → `a:tblGrid/a:gridCol`, `a:tr/a:tc` (`gridSpan`, `rowSpan`, `hMerge`, `vMerge`) | `tableStyles.xml` style GUIDs | M text / H structure | yes | yes | **P0 cell text**, P3 structure |
 | 14 | Charts | `graphicData[@uri=…/chart]/c:chart@r:id` → `charts/chartN.xml` (+ `style`, `colors`) → `embeddings/*.xlsx` | chart rels, embedded workbook, cached values in `c:numCache`/`c:strCache` | VH | yes (writes xlsx via XlsxWriter) | yes | P4 (via `ooxml-xlsx`) |
 | 15 | Extended charts (Office 2016) | `cx:chart` inside `mc:AlternateContent` directly under `p:spTree`, picture fallback (`Of16-01.pptx`) | as charts + MCE | VH | no (shape invisible to it) | partial (unverified) | P4 |
-| 16 | SmartArt | `graphicData[@uri=…/diagram]` → `dgm` data/layout/style/colors + `drawingN.xml` cache | 4–5 parts per diagram; drawing is a render cache | VH | no | read (`XSLFDiagram`) | P1 read text, writes not planned |
+| 16 | SmartArt | `graphicData[@uri=…/diagram]` → `dgm` data/layout/style/colors + `drawingN.xml` cache | 4–5 parts per diagram; drawing is a render cache | VH | no | read (`XSLFDiagram`) | P1b read text (ADR-0008 scope note), writes not planned |
 | 17 | Notes / handouts | `notesSlides/notesSlideN.xml` (↔ slide, both directions), `notesMaster`, `handoutMaster` | notes ↔ slide rels, notes master | M | notes yes | notes yes | P1 edit existing, P3 create |
 | 18 | Comments (legacy) | `comments/commentN.xml` `p:cm@authorId,@idx`, `commentAuthors.xml` `p:cmAuthor@id,@lastIdx` | author id + per-author `lastIdx` counter | M | no | yes (`XSLFComments`, legacy `CTComment` only) | P1 read, P4 write |
 | 19 | Comments (modern, p188) | `comments/modernComment_*.xml` `p188:cm`, `authors.xml`; anchors `pc:sldMk@sldId,@cId`, `ac:spMk@id`, `ac:txMk@cp,@len` | **reference sldId, `p14:creationId`, shape id, character offsets** | H | no | no (legacy only) | P0 scan (Err), P1 read, P4 write |
@@ -163,10 +166,19 @@ are **not in the slide part at all**. Decision (ADR-0005 §4, Phase 1):
    shape's own `a:lstStyle` is `presentation.xml` `p:defaultTextStyle`; whether
    `otherStyle` also applies there is **not verified** and is settled by the
    Phase 1 oracle (open question Q6), not by assumption.
+   *Phase 1 (ADR-0008 §1.2–1.3) refines this:* placeholder matching breaks
+   idx ties (69 placeholders in layouts with several idx-0 placeholders, 633
+   files) by type and family; the chain adds `a:pPr/a:defRPr` and the
+   shape's own `p:style/a:fontRef` (placeholders included, rev 2); Q6 is proposed as
+   "`defaultTextStyle`, then `otherStyle`" (POI) pending a PowerPoint check,
+   with LibreOffice (`defaultTextStyle` only) and the ECMA note (`bodyStyle`)
+   measured as alternatives.
 4. Oracle for Phase 1: python-pptx's inherited `left/top/width/height` for
-   geometry; for text properties no reference library resolves the chain, so
-   the oracle is a hand-checked expected table for `ph-inherit-props.pptx`
-   and `placeholder-layout-color.pptx` plus a manual PowerPoint check.
+   geometry; for text properties a hand-checked expected table for
+   `ph-inherit-props.pptx` and `placeholder-layout-color.pptx` plus a manual
+   PowerPoint check. *Corrected in ADR-0008 rev 2 (review m10a):* POI does
+   resolve text properties (`CharacterPropertyFetcher`) and is an optional
+   differential oracle with a committed table of known differences.
 
 ### 3.2 `ST_Percentage` and DrawingML default mismatches (`set_type`)
 
@@ -202,10 +214,15 @@ Decision:
   its `serverZoom` default `"50%"` stays dropped with one `DefaultMismatch`
   line in `codegen/report.txt`; Phase 0 never reads `serverZoom`.
   `DmlPercent` and the `set_type` vocabulary are decided with Phase 3.
-- Phase 3 (formatting writes) brings in the rest that matter for text:
-  `a:CT_TextCharacterProperties@baseline`, `a:CT_TextSpacingPercent@val`,
-  `a:CT_TextBulletSizePercent@val`, `a:CT_TextNormalAutofit@fontScale`
-  and `@lnSpcReduction` (both with defaults `100%`/`0%`).
+- ~~Phase 3 (formatting writes) brings in the rest that matter for text~~
+  **Moved to Phase 1** (ADR-0008 §6), because Phase 1 reads these values:
+  `DmlPercent` and `set_type` for `a:CT_TextCharacterProperties@baseline`,
+  `a:CT_TextSpacingPercent@val`, `a:CT_TextBulletSizePercent@val`,
+  `a:CT_TextNormalAutofit@fontScale`/`@lnSpcReduction`, `a:hslClr`
+  `@sat`/`@lum`, `a:scrgbClr` `@r`/`@g`/`@b`
+  and `p:presentation@serverZoom` (11 overrides, 3 defaults adopted,
+  `DefaultMismatch` 39 → 36; `p:cTn` percentages are not read and stay
+  dropped, ADR-0008 rev 2). Still 0 `"NN%"` values in 633 files.
 
 ### 3.3 Transitions wrapped in `mc:AlternateContent`
 
@@ -261,9 +278,10 @@ the rest (Err if the paragraph contains an `a:fld`). Cross-run find/replace is
 Phase 1, defined on the concatenated paragraph text: the replacement goes
 into the run where the match starts, fully covered runs are removed, partly
 covered runs are trimmed, and a match that covers an `a:fld` or `a:br` is an
-`Err`. An optional "merge proofing-only splits first" step (drop runs whose
-`a:rPr` equals the previous one modulo proofing attributes) handles the 42 %
-case without losing formatting.
+`Err`. ~~An optional "merge proofing-only splits first" step~~ Dropped in
+ADR-0008 §4: the start-run rule already yields the visible format, and a
+merge would rewrite runs the match does not touch; a `MixedFormat::Refuse`
+option refuses matches across visibly different runs instead.
 
 ### 3.5 What "add slide" needs (Phase 2)
 
@@ -340,7 +358,9 @@ text; set paragraph text (first run keeps its format); set body text
 text body; remove runs/paragraphs (not the last) and fields (explicitly);
 `Err` for removing fields implicitly, AC-wrapped shapes, merged table cells,
 animated or comment-anchored text, unsupported paragraph content, format
-sources that need a subtree copy, and characters XML cannot hold.
+sources that cannot be copied (Phase 0: any with child elements; Phase 0.1,
+ADR-0005 §9: only those holding a relationship reference, markup
+compatibility or a namespace declaration), and characters XML cannot hold.
 
 Acceptance (ADR-0005 rev 2 §7): all 23 fixtures open and save with zero
 edits byte-identical per part (ADR-0001 Layer 1); T1/T1b on every slide
@@ -352,19 +372,47 @@ case has a real or documented synthetic input; manual check in PowerPoint
 
 Implemented in `crates/ooxml-pptx` (milestone `pptx-phase0`).
 
-### Phase 1 — read the whole deck
+### Phase 1 — read the whole deck (ADR-0008, Accepted)
 
 Value: inspection, extraction, search, QA tools. Risk: medium (inheritance
-semantics). Scope: layout/master/theme chain; placeholder resolution with
-`Resolved<T>`; notes text (read + edit existing notes slides); hyperlinks
-read; sections read; legacy + modern comments read; transitions read (MCE
-branch selection); table structure read; cross-run find/replace;
-SmartArt text read from `dgm` data (no writes).
+semantics). Design: [ADR-0008](../adr/0008-pptx-phase1-deck-reading.md);
+evidence `spikes/pptx-phase1/` (633 files: this roadmap's 105, 417 more
+LibreOffice test decks, 100 ShapeCrawler test decks; 619 readable).
 
-Acceptance: resolved geometry equals python-pptx's for every placeholder in
-the fixtures; resolved text properties match a hand-verified table for two
-fixtures; notes edits pass T1/T1b/T2 on notes parts; find/replace matches a
-reference implementation over the concatenated text.
+Scope:
+
+- slide → layout → master → theme chain (notes → notes master); every
+  resolved value is `Resolved { value, source }` naming the part and step
+  (run, paragraph default, shape list style, shape style `fontRef`,
+  layout/master placeholder with its match kind, master `txStyles`,
+  `defaultTextStyle`); text, paragraph, body properties and geometry;
+  theme fonts (`+mj`/`+mn`) and scheme colours through
+  `clrMap`/`clrMapOvr` (transforms listed, not applied);
+- placeholder matching: idx first, ties and implicit idx 0 decided by type
+  and family, then type, then orphan → master;
+- notes: read, and edit existing notes bodies with the Phase 0/0.1 text API
+  and rules (creating notes stays Phase 3);
+- read hyperlinks/actions, p14 sections, legacy and p188 comments,
+  transitions (MCE branch: first Choice in `p14`/`p15`, else Fallback),
+  timing summary;
+- cross-run find/replace on slides (and optionally notes): start run keeps
+  its format, fields/breaks inside a match refused, plan-then-apply;
+- 124 read allowlist entries; `DmlPercent` with 11 `set_type` overrides;
+- values are *as specified* (autofit scale, hyperlink colour and East
+  Asian theme fonts are exposed as inputs or `Unresolved`, not applied).
+
+Moved out (follow-up "Phase 1b" ADR): SmartArt text read, table structure
+beyond Phase 0's cell reads.
+
+Acceptance (ADR-0008 §7): geometry equals python-pptx's for every fixture
+placeholder except a committed, hand-checked table of deliberate
+differences (preview 1,266 / 1,272 equal); text properties equal committed
+expected tables for synthetic one-rule decks and two real fixtures; links
+equal python-pptx's `click_action`/`hyperlink`; notes edits pass
+L1/T1/T1b/T2/T3/T4; find/replace keeps invariants T (text = `str.replace`)
+and F (per-character format) on every fixture paragraph and agrees with an
+independent lxml implementation; reading everything leaves the package
+byte-identical; owner checks M1–M5 in PowerPoint.
 
 ### Phase 2 — slides and shapes as units
 

@@ -9,7 +9,7 @@ mod cases;
 
 use std::assert_matches;
 
-use ooxml_core::Package;
+use ooxml_core::{Package, RawNode};
 use ooxml_pptx::{Error, Presentation, ShapeKind, ShapePath};
 
 fn open(f: &str) -> Presentation {
@@ -231,11 +231,57 @@ fn paragraph_level() {
     assert_matches!(e, Error::UnsupportedContent(_));
 }
 
+/// A comparable form of an element subtree: local names and attributes
+/// (sorted), namespace declarations left out, children in order; the root's
+/// name is left out so `a:endParaRPr` and its copy as `a:rPr` compare equal.
+fn subtree(n: &RawNode, skip: &[&str]) -> String {
+    fn inner(n: &RawNode, out: &mut String) {
+        let mut attrs: Vec<String> = n
+            .attrs()
+            .iter()
+            .filter(|a| !a.name().is_namespace_declaration())
+            .map(|a| format!("{{{}}}{}={:?}", a.name().ns(), a.name().local(), a.value()))
+            .collect();
+        attrs.sort();
+        out.push_str(&format!("[{}]", attrs.join(",")));
+        for c in n.elements() {
+            out.push_str(&format!("<{{{}}}{}", c.name().ns(), c.name().local()));
+            inner(c, out);
+            out.push('>');
+        }
+    }
+    let mut out = String::new();
+    let mut attrs: Vec<String> = n
+        .attrs()
+        .iter()
+        .filter(|a| !a.name().is_namespace_declaration())
+        .map(|a| format!("{{{}}}{}={:?}", a.name().ns(), a.name().local(), a.value()))
+        .collect();
+    attrs.sort();
+    out.push_str(&format!("[{}]", attrs.join(",")));
+    for k in n.elements().filter(|k| !skip.contains(&k.name().local())) {
+        out.push_str(&format!("<{{{}}}{}", k.name().ns(), k.name().local()));
+        inner(k, &mut out);
+        out.push('>');
+    }
+    out
+}
+
+fn child<'a>(n: &'a RawNode, local: &str) -> Option<&'a RawNode> {
+    n.elements().find(|c| c.name().local() == local)
+}
+
+fn body_of<'a>(s: &ooxml_pptx::Slide<'a>, id: u32) -> Vec<ooxml_pptx::ParagraphRef<'a>> {
+    s.shape_by_id(id).unwrap().unwrap().text_body().unwrap().paragraphs()
+}
+
 #[test]
 fn format_sources() {
+    // Phase 0.1 (ADR-0005 §3 "Format sources"): sources with child elements
+    // are copied as subtrees.
+    //
     // Real: sample_pptx_grouping_issues.pptx has empty paragraphs whose
-    // a:endParaRPr has child elements: a new formatted run would need a
-    // subtree copy (Phase 2).
+    // a:endParaRPr has child elements: the new run's a:rPr is a copy of it.
     let mut p = open("poi/sample_pptx_grouping_issues.pptx");
     let target = {
         let s = p.slide(0).unwrap();
@@ -244,49 +290,168 @@ fn format_sources() {
             .find(|x| {
                 x.text_body().is_some_and(|b| {
                     let q = b.paragraphs()[0];
-                    q.runs().is_empty() && q.raw().elements().any(|c| c.name().local() == "endParaRPr" && c.elements().next().is_some())
+                    q.runs().is_empty() && child(q.raw(), "endParaRPr").is_some_and(|c| c.elements().next().is_some())
                 })
             })
             .map(|x| x.id().unwrap())
             .expect("an empty paragraph with a formatted endParaRPr")
     };
-    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(target)?.text_body_mut()?.paragraph_mut(0)?.set_text("x"));
-    assert_matches!(e, Error::FormatNotCopyable("a:endParaRPr"));
-    // the explicit unformatted path works
-    p.slide_mut(0).unwrap().shape_mut_by_id(target).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().add_run("x").unwrap();
-    // Real: sample.pptx's first run has <a:sym> in its a:rPr: one line is
-    // fine (the run is reused), "\v" needs a new formatted run.
-    let mut p = open("poi/sample.pptx");
-    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("ok").unwrap();
-    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("a\u{b}b"));
-    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
-    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("1\n2"));
-    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
-    // The subtitle's last paragraph has an attribute-only a:pPr and no run:
-    // a third paragraph copies both (no refusal) and, review R2-5, gets an
-    // a:endParaRPr copying the run format source (here a:endParaRPr) ...
-    p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("1\n2\n3\n").unwrap();
+    let want = subtree(child(body_of(&p.slide(0).unwrap(), target)[0].raw(), "endParaRPr").unwrap(), &[]);
+    p.slide_mut(0).unwrap().shape_mut_by_id(target).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().set_text("x").unwrap();
     {
         let s = p.slide(0).unwrap();
-        let sh = s.shape_by_id(2050).unwrap().unwrap();
-        let paras = sh.text_body().unwrap().paragraphs();
-        assert_eq!(paras.len(), 4);
-        for q in &paras[2..] {
-            let pre: Vec<String> = q.raw().elements().map(|c| c.name().local().to_owned()).collect();
-            let end = q.raw().elements().find(|c| c.name().local() == "endParaRPr").expect("endParaRPr on a new paragraph");
-            assert_eq!(end.attr(ooxml_core::QName::new("", "lang")), Some("en-US"), "{pre:?}");
-            assert_eq!(pre.last().map(String::as_str), Some("endParaRPr"));
+        let q = body_of(&s, target)[0];
+        let run = child(q.raw(), "r").unwrap();
+        assert_eq!(subtree(child(run, "rPr").unwrap(), &[]), want);
+        assert_eq!(subtree(child(q.raw(), "endParaRPr").unwrap(), &[]), want, "endParaRPr kept");
+    }
+    // Real: sample.pptx's title run has <a:sym> in its a:rPr and an
+    // attribute-only a:pPr; "\v" and new lines copy both.
+    let mut p = open("poi/sample.pptx");
+    let (rpr, ppr, end) = {
+        let s = p.slide(0).unwrap();
+        let q = body_of(&s, 2049)[0].raw();
+        (
+            subtree(child(child(q, "r").unwrap(), "rPr").unwrap(), &[]),
+            subtree(child(q, "pPr").unwrap(), &[]),
+            subtree(child(q, "endParaRPr").unwrap(), &[]),
+        )
+    };
+    assert_ne!(rpr, end);
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\u{b}b\nc\n").unwrap();
+    {
+        let s = p.slide(0).unwrap();
+        let paras = body_of(&s, 2049);
+        assert_eq!(paras.len(), 3);
+        let runs: Vec<&RawNode> = paras.iter().flat_map(|q| q.raw().elements().filter(|c| c.name().local() == "r")).collect();
+        assert_eq!(runs.len(), 3, "a, b, c");
+        for r in runs {
+            assert_eq!(subtree(child(r, "rPr").unwrap(), &[]), rpr);
+        }
+        for q in &paras[1..] {
+            assert_eq!(subtree(child(q.raw(), "pPr").unwrap(), &[]), ppr);
+            assert_eq!(subtree(child(q.raw(), "endParaRPr").unwrap(), &[]), end, "N3-1: the last paragraph's own a:endParaRPr");
         }
     }
-    // Since the source is needed for every new paragraph, an *empty* new
-    // line is refused too when it is not copyable (the title's run has a:sym).
-    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("t\n"));
-    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
-    // ... but once the last paragraph is the first one, whose a:pPr has an
-    // a:spcAft child, a new paragraph would need a subtree copy.
+    // SYNTHETIC: the same title with an empty a:endParaRPr (no format of its
+    // own): new paragraphs take the run format source instead (R2-5).
+    let bare = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        replace_once(&x, "</a:r><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp><p:sp>", "</a:r><a:endParaRPr/></a:p></p:txBody></p:sp><p:sp>")
+    });
+    let mut q = Presentation::from_bytes(bare).unwrap();
+    q.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\nb").unwrap();
+    assert_eq!(subtree(child(body_of(&q.slide(0).unwrap(), 2049)[1].raw(), "endParaRPr").unwrap(), &[]), rpr);
+    // The subtitle's first a:pPr has an a:spcAft child: new paragraphs copy it.
     p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("only").unwrap();
-    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2050)?.text_body_mut()?.set_text("1\n2"));
-    assert_matches!(e, Error::FormatNotCopyable("a:pPr"));
+    let ppr = subtree(child(body_of(&p.slide(0).unwrap(), 2050)[0].raw(), "pPr").unwrap(), &[]);
+    assert!(ppr.contains("spcAft"));
+    p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().set_text("1\n2").unwrap();
+    assert_eq!(subtree(child(body_of(&p.slide(0).unwrap(), 2050)[1].raw(), "pPr").unwrap(), &[]), ppr);
+}
+
+#[test]
+fn hyperlinks_stay_on_their_run() {
+    // Real: shapes.pptx slide 5 has a table whose cells' first runs carry
+    // a:hlinkClick (r:id). New runs and new paragraphs copy the format
+    // without the link (skip list), so the r:id is not duplicated.
+    let mut p = open("poi/shapes.pptx");
+    let (id, cells) = {
+        let s = p.slide(4).unwrap();
+        let t = s.shapes().into_iter().find(|x| *x.kind() == ShapeKind::Table).unwrap();
+        let mut cells = Vec::new();
+        for (r, row) in t.table().unwrap().rows().iter().enumerate() {
+            for (c, cell) in row.iter().enumerate() {
+                let linked = cell.text_body().is_some_and(|b| {
+                    b.paragraphs().first().and_then(|q| child(q.raw(), "r")).and_then(|r| child(r, "rPr")).is_some_and(|rp| child(rp, "hlinkClick").is_some())
+                });
+                if linked {
+                    cells.push((r, c));
+                }
+            }
+        }
+        (t.id().unwrap(), cells)
+    };
+    assert_eq!(cells.len(), 3);
+    let cell_body = |p: &mut Presentation, (r, c): (usize, usize)| {
+        let s = p.slide(4).unwrap();
+        let t = s.shape_by_id(id).unwrap().unwrap().table().unwrap();
+        let b = t.cell(r, c).unwrap().text_body().unwrap();
+        b.paragraphs().iter().map(|q| q.raw().clone()).collect::<Vec<RawNode>>()
+    };
+    let before = cell_body(&mut p, cells[0]);
+    let rpr = child(child(&before[0], "r").unwrap(), "rPr").unwrap().clone();
+    {
+        let mut s = p.slide_mut(4).unwrap();
+        let mut sh = s.shape_mut_by_id(id).unwrap();
+        sh.table_cell_mut(cells[0].0, cells[0].1).unwrap().paragraph_mut(0).unwrap().set_text("link\u{b}plain").unwrap();
+        sh.table_cell_mut(cells[1].0, cells[1].1).unwrap().set_text("link\nplain").unwrap();
+    }
+    let after = cell_body(&mut p, cells[0]);
+    let runs: Vec<&RawNode> = after[0].elements().filter(|c| c.name().local() == "r").collect();
+    assert_eq!(subtree(child(runs[0], "rPr").unwrap(), &[]), subtree(&rpr, &[]), "the first run keeps its link");
+    assert_eq!(subtree(child(runs[1], "rPr").unwrap(), &[]), subtree(&rpr, &["hlinkClick"]));
+    assert!(child(child(runs[1], "rPr").unwrap(), "hlinkClick").is_none());
+    let after = cell_body(&mut p, cells[1]);
+    assert!(child(child(child(&after[0], "r").unwrap(), "rPr").unwrap(), "hlinkClick").is_some());
+    let new_run_rpr = child(child(&after[1], "r").unwrap(), "rPr").unwrap();
+    assert!(child(new_run_rpr, "hlinkClick").is_none() && new_run_rpr.attr(ooxml_core::QName::new("", "lang")) == Some("en-US"));
+    assert!(child(child(&after[1], "endParaRPr").unwrap(), "hlinkClick").is_none());
+}
+
+#[test]
+fn format_not_copyable() {
+    // What detach_as refuses stays FormatNotCopyable; single-line edits that
+    // reuse the run are unaffected.
+    let title_rpr = "<a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr><a:t>Lorem";
+    let cases: [(&str, &str, &str); 4] = [
+        // SYNTHETIC: a picture fill (r:embed) in the title's a:rPr
+        ("blip fill with r:embed", title_rpr, "<a:rPr lang=\"en-US\"><a:blipFill><a:blip r:embed=\"rId1\"/></a:blipFill><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr><a:t>Lorem"),
+        // SYNTHETIC: mc:AlternateContent in the title's a:rPr
+        ("AlternateContent", title_rpr, "<a:rPr lang=\"en-US\"><mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Fallback/></mc:AlternateContent></a:rPr><a:t>Lorem"),
+        // SYNTHETIC: a namespace declared on an element inside the a:rPr
+        ("namespace declaration", title_rpr, "<a:rPr lang=\"en-US\"><a:sym xmlns:a14=\"http://schemas.microsoft.com/office/drawing/2010/main\" typeface=\"Wingdings\"/></a:rPr><a:t>Lorem"),
+        // SYNTHETIC: a picture bullet (r:embed) in the title's a:pPr
+        ("bullet picture", "<a:pPr hangingPunct=\"1\"/>", "<a:pPr hangingPunct=\"1\"><a:buBlip><a:blip r:embed=\"rId1\"/></a:buBlip></a:pPr>"),
+    ];
+    for (what, from, to) in cases {
+        let bytes = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| replace_once(&x, from, to));
+        let mut p = Presentation::from_bytes(bytes).unwrap();
+        let want = if what == "bullet picture" { "a:pPr" } else { "a:rPr" };
+        let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("1\n2"));
+        assert_matches!(e, Error::FormatNotCopyable(w) if w == want, "{what}");
+        if want == "a:rPr" {
+            let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+            assert_matches!(e, Error::FormatNotCopyable("a:rPr"), "{what}");
+        }
+        p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("one line").unwrap();
+    }
+}
+
+#[test]
+fn copied_namespaces_must_be_in_scope_before_any_change() {
+    // SYNTHETIC: an extension element in the title's a:rPr whose namespace
+    // is declared only on the a:r (below the paragraph): a new run beside it
+    // would have no prefix for it. Refused before any change.
+    // (a direct child: an a:extLst would be refused as open content first)
+    const EXT: &str = "<x14:k x14:v=\"1\"/>";
+    let on_run = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        replace_once(&x, "<a:r><a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr>", &format!("<a:r xmlns:x14=\"urn:ext\"><a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/>{EXT}</a:rPr>"))
+    });
+    let mut p = Presentation::from_bytes(on_run).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::NamespaceNotInScope(ref u)) if u == "urn:ext");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("a\nb"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::NamespaceNotInScope(_)));
+    // Control: the same extension with its namespace declared on p:sld is copied,
+    // with the prefix in scope at the destination.
+    let on_root = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        let x = replace_once(&x, "<p:sld ", "<p:sld xmlns:x14=\"urn:ext\" ");
+        replace_once(&x, "<a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr><a:t>Lorem", &format!("<a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/>{EXT}</a:rPr><a:t>Lorem"))
+    });
+    let mut p = Presentation::from_bytes(on_root).unwrap();
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().set_text("a\u{b}b").unwrap();
+    let out = String::from_utf8(Package::from_bytes(p.to_bytes().unwrap()).unwrap().read_part("ppt/slides/slide1.xml").unwrap()).unwrap();
+    assert_eq!(out.matches("<x14:k x14:v=\"1\"/>").count(), 2, "copied with the declared prefix");
 }
 
 #[test]
@@ -497,7 +662,7 @@ fn group_without_id() {
     });
     let mut p = Presentation::from_bytes(noid).unwrap();
     let member = path_of(&mut p, 2, |s| s.depth() > 0 && *s.kind() == ShapeKind::Shape);
-    assert!(p.slide(2).unwrap().shapes().iter().any(|s| s.path() == &member && s.id().is_ok()), "the member's own id is valid");
+    assert!(p.slide(2).unwrap().shapes().iter().any(|s| s.path() == member && s.id().is_ok()), "the member's own id is valid");
     let e = refused(&mut p, |p| p.slide_mut(2)?.shape_mut(&member).map(|_| ()));
     assert_matches!(e, Error::InvalidShapeId);
 }
@@ -549,4 +714,342 @@ fn comment_sub_conditions() {
     let mut p = Presentation::from_bytes(anchorless).unwrap();
     let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
     assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 });
+}
+
+#[test]
+fn comment_and_id_sub_conditions_round3() {
+    // Review N3-2: the remaining §6 sub-conditions, each on a synthetic input.
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    // SYNTHETIC: an unknown child of p188:cmLst: the whole slide is locked
+    let unknown_child = patch("libreoffice/modern-comments.pptx", PART, |x| replace_once(&x, "</p188:cmLst>", "<p188:futureThing/></p188:cmLst>"));
+    let mut p = Presentation::from_bytes(unknown_child).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 });
+    // SYNTHETIC: ac:deMkLst without a txMk element but with cp/len offsets
+    // on its shape moniker: not a whole-drawing anchor; shape 2 is locked,
+    // shape 3 is not
+    let offsets = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        let at = x.find("<ac:spMk ").unwrap();
+        format!("{}<ac:spMk cp=\"0\" len=\"3\" {}", &x[..at], &x[at + "<ac:spMk ".len()..])
+    });
+    let mut p = Presentation::from_bytes(offsets).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 2 });
+    p.slide_mut(0).unwrap().shape_mut_by_id(3).unwrap().text_body_mut().unwrap().set_text("other shape ok").unwrap();
+    // SYNTHETIC: sample.pptx's title with cNvPr@id not a number (present,
+    // unlike shape_addressing's missing id)
+    let nan = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| replace_once(&x, "id=\"2049\"", "id=\"title\""));
+    let mut p = Presentation::from_bytes(nan).unwrap();
+    let path = path_of(&mut p, 0, |s| s.placeholder().is_some());
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut(&path).map(|_| ()));
+    assert_matches!(e, Error::InvalidShapeId);
+}
+
+#[test]
+fn unreadable_comment_parts_fail_closed() {
+    // PR #16 review m4: any failure to read or parse a comment part locks
+    // the text of every shape (it never disables the guard). SYNTHETIC
+    // comment parts: not XML at all, empty, not UTF-8, and nested deeper
+    // than any real part (each element level an unknown anchor wrapper).
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    let deep = {
+        let mut s = String::from(r#"<p188:cmLst xmlns:p188="http://schemas.microsoft.com/office/powerpoint/2018/8/main"><p188:cm id="x">"#);
+        s.push_str(&"<p188:n>".repeat(1500));
+        s.push_str(&"</p188:n>".repeat(1500));
+        s.push_str("</p188:cm></p188:cmLst>");
+        s.into_bytes()
+    };
+    for (what, bytes) in [("binary", vec![0xFF, 0xFE, 0x00, 0x01]), ("empty", Vec::new()), ("latin-1", b"<p188:cmLst \xE9/>".to_vec()), ("deep", deep)] {
+        let mut pkg = Package::from_bytes(cases::read_fixture("libreoffice/modern-comments.pptx")).unwrap();
+        pkg.set_part(PART, bytes).unwrap();
+        let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(3)?.text_body_mut()?.set_text("x"));
+        assert_matches!(e, Error::CommentAnchoredText { shape_id: 3 }, "{what}");
+    }
+}
+
+#[test]
+fn too_deep_comment_part_fails_closed() {
+    // PR #16 (depth limit 256) + its review m4: a comment part nested
+    // deeper than the limit does not parse (`TooDeep`), and the slide's text
+    // is then locked. SYNTHETIC: the real anchor of modern-comments.pptx is
+    // a whole-shape `ac:deMkLst` (allowed); 300 extra levels inside it make
+    // the part unparsable, and only that turns the edit into a refusal.
+    const PART: &str = "ppt/comments/modernComment_100_68C49C6.xml";
+    let deep = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        replace_once(&x, "</ac:deMkLst>", &format!("{}{}</ac:deMkLst>", "<ac:x>".repeat(300), "</ac:x>".repeat(300)))
+    });
+    let part = Package::from_bytes(deep.clone()).unwrap().read_part(PART).unwrap();
+    assert_matches!(ooxml_core::XmlDocument::parse(&part), Err(ooxml_core::Error::TooDeep { limit: 256, .. }));
+    let mut p = Presentation::from_bytes(deep).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2)?.text_body_mut()?.set_text("x"));
+    assert_matches!(e, Error::CommentAnchoredText { shape_id: 2 });
+    // control: 200 extra levels parse, and the whole-shape anchor allows the edit
+    let ok = patch("libreoffice/modern-comments.pptx", PART, |x| {
+        replace_once(&x, "</ac:deMkLst>", &format!("{}{}</ac:deMkLst>", "<ac:x>".repeat(200), "</ac:x>".repeat(200)))
+    });
+    let mut p = Presentation::from_bytes(ok).unwrap();
+    p.slide_mut(0).unwrap().shape_mut_by_id(2).unwrap().text_body_mut().unwrap().set_text("x").unwrap();
+}
+
+#[test]
+fn edits_that_would_pass_the_depth_limit_are_refused_before_any_change() {
+    // PR #16: the lens refuses inserts beyond the depth limit (256) only at
+    // the insert that crosses it. A text edit makes several inserts, so the
+    // setter checks the deepest one first. SYNTHETIC: a slide whose text
+    // body sits 248 groups deep, with an empty paragraph whose a:endParaRPr
+    // has a child at depth 256 (the limit). Filling it creates a:r (255),
+    // a:rPr (256) and the copied a:latin (257): refused, nothing changed.
+    const N: usize = 248;
+    let mut x = String::from(concat!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+        r#"<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">"#,
+        r#"<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>"#
+    ));
+    for k in 0..N {
+        x.push_str(&format!(r#"<p:grpSp><p:nvGrpSpPr><p:cNvPr id="{}" name="g"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>"#, 10 + k));
+    }
+    x.push_str(r#"<p:sp><p:nvSpPr><p:cNvPr id="5" name="t"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:p><a:endParaRPr lang="en-US"><a:latin typeface="X"/></a:endParaRPr></a:p></p:txBody></p:sp>"#);
+    x.push_str(&"</p:grpSp>".repeat(N));
+    x.push_str("</p:spTree></p:cSld></p:sld>");
+    let deep = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |_| x.clone());
+    let mut p = Presentation::from_bytes(deep).unwrap();
+    type Op = fn(&mut ooxml_pptx::TextBodyMut<'_>) -> Result<(), Error>;
+    let ops: [Op; 3] = [|b| b.paragraph_mut(0)?.set_text("x"), |b| b.set_text("x"), |b| b.set_text("a\nb")];
+    for op in ops {
+        let e = refused(&mut p, |p| op(&mut p.slide_mut(0)?.shape_mut_by_id(5)?.text_body_mut()?));
+        assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { limit: 256, .. }));
+    }
+    // unformatted text fits: a:r 255, a:t 256
+    p.slide_mut(0).unwrap().shape_mut_by_id(5).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().add_run("fits").unwrap();
+    let out = p.to_bytes().unwrap();
+    let part = Package::from_bytes(out).unwrap().read_part("ppt/slides/slide1.xml").unwrap();
+    ooxml_core::XmlDocument::parse(&part).expect("the edited part parses again under the default limit");
+}
+
+// ---------------------------------------------------------------------------
+// Review #19 round 1 (N1, N2, N4) and #18 round 2: what Phase 0.1 copies.
+
+const TITLE_RPR: &str = "<a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr><a:t>Lorem";
+const TITLE_END: &str = "</a:r><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp><p:sp>";
+
+fn sample_with(from: &str, to: &str) -> Presentation {
+    Presentation::from_bytes(patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| replace_once(&x, from, to))).unwrap()
+}
+
+fn title(p: &mut Presentation) -> Vec<RawNode> {
+    body_of(&p.slide(0).unwrap(), 2049).iter().map(|q| q.raw().clone()).collect()
+}
+
+#[test]
+fn smart_tag_ids_and_extension_lists_are_not_copied() {
+    // review #19 round 2 R2-1 / #18 R3-1: a named effect container
+    // ("Shall be unique across all effect trees and effect containers",
+    // ECMA-376 Part 1 §20.1.8.25). SYNTHETIC: on the title's a:rPr
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\"><a:effectDag name=\"E\" type=\"sib\"/></a:rPr><a:t>Lorem");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
+    // N1 / #18 R2-1: smtId is "unique throughout the presentation"
+    // (ECMA-376 Part 1 §21.1.2.3.9); a copy would duplicate it.
+    // SYNTHETIC: the title's a:rPr with smtId="4242"
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\" smtId=\"4242\"/><a:t>Lorem");
+    type Op = fn(&mut ooxml_pptx::TextBodyMut<'_>) -> Result<(), Error>;
+    let ops: [Op; 3] = [|b| b.paragraph_mut(0)?.set_text("a\u{b}b"), |b| b.set_text("a\nb"), |b| b.set_text("a\nb\nc")];
+    for op in ops {
+        let e = refused(&mut p, |p| op(&mut p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?));
+        assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
+    }
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("one line keeps the run").unwrap();
+    // smtId="0" is the default, not an id: copied
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\" smtId=\"0\"/><a:t>Lorem");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().set_text("a\u{b}b").unwrap();
+    // SYNTHETIC: an a:defRPr with smtId inside the title's a:pPr
+    let mut p = sample_with("<a:pPr hangingPunct=\"1\"/><a:r>", "<a:pPr hangingPunct=\"1\"><a:defRPr smtId=\"3\"/></a:pPr><a:r>");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("1\n2"));
+    assert_matches!(e, Error::FormatNotCopyable("a:pPr"));
+    // SYNTHETIC: an extension list in the title's a:rPr (#18 R2-2)
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\"><a:extLst><a:ext uri=\"{X}\"/></a:extLst></a:rPr><a:t>Lorem");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
+}
+
+#[test]
+fn ancestor_ignorable_namespaces_are_seen_through_the_slide() {
+    // N4 (P10): the copy is detached with a lens that knows its ancestors
+    // (Lens::at), so mc:Ignorable on p:sld counts. SYNTHETIC: p:sld makes
+    // urn:ext ignorable and the title's a:rPr uses it.
+    let bytes = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        let x = replace_once(&x, "<p:sld ", "<p:sld xmlns:e=\"urn:ext\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"e\" ");
+        replace_once(&x, TITLE_RPR, "<a:rPr lang=\"en-US\" e:x=\"1\"/><a:t>Lorem")
+    });
+    let mut p = Presentation::from_bytes(bytes).unwrap();
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
+}
+
+#[test]
+fn end_paragraph_format_sources() {
+    // N4 (P4, P5, P8, P9, P11), each SYNTHETIC on the title (one paragraph,
+    // first run a:rPr with a:sym).
+    let rpr_of = |n: &RawNode| child(child(n, "r").unwrap(), "rPr").map(|r| subtree(r, &[]));
+    let end_of = |n: &RawNode| child(n, "endParaRPr").map(|r| subtree(r, &[]));
+    let sym = rpr_of(&title(&mut open("poi/sample.pptx"))[0]).unwrap();
+    // own a:endParaRPr with child elements only (no attributes): it is a format
+    let mut p = sample_with(TITLE_END, "</a:r><a:endParaRPr><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:endParaRPr></a:p></p:txBody></p:sp><p:sp>");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\nb").unwrap();
+    assert!(end_of(&title(&mut p)[1]).unwrap().contains("solidFill"), "own end format with children only");
+    // own a:endParaRPr with only a link: not a format, the run source is used
+    let mut p = sample_with(TITLE_END, "</a:r><a:endParaRPr><a:hlinkClick r:id=\"rId1\"/></a:endParaRPr></a:p></p:txBody></p:sp><p:sp>");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\nb").unwrap();
+    assert_eq!(end_of(&title(&mut p)[1]), Some(sym.clone()), "link-only end falls back to the run format");
+    // own a:endParaRPr with a format and a link: copied without the link
+    let mut p = sample_with(TITLE_END, "</a:r><a:endParaRPr lang=\"de-DE\"><a:hlinkClick r:id=\"rId1\"/></a:endParaRPr></a:p></p:txBody></p:sp><p:sp>");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("a\nb").unwrap();
+    let end = end_of(&title(&mut p)[1]).unwrap();
+    assert!(end.contains("de-DE") && !end.contains("hlinkClick"), "{end}");
+    // an empty first a:rPr: new runs get no a:rPr at all
+    let mut p = sample_with(TITLE_RPR, "<a:rPr/><a:t>Lorem");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().set_text("a\u{b}b").unwrap();
+    let t = title(&mut p);
+    let runs: Vec<&RawNode> = t[0].elements().filter(|c| c.name().local() == "r").collect();
+    assert_eq!(runs.len(), 2);
+    assert!(child(runs[1], "rPr").is_none(), "no empty a:rPr is created");
+    // an empty paragraph whose a:endParaRPr (the run source) has a link:
+    // the new run's a:rPr has its format but not the link. The subtitle's
+    // second paragraph is empty.
+    let bytes = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        replace_once(&x, "<a:p><a:pPr hangingPunct=\"1\"/><a:endParaRPr lang=\"en-US\"/></a:p>", "<a:p><a:pPr hangingPunct=\"1\"/><a:endParaRPr lang=\"en-US\" b=\"1\"><a:hlinkClick r:id=\"rId1\"/></a:endParaRPr></a:p>")
+    });
+    let mut p = Presentation::from_bytes(bytes).unwrap();
+    p.slide_mut(0).unwrap().shape_mut_by_id(2050).unwrap().text_body_mut().unwrap().paragraph_mut(1).unwrap().set_text("x").unwrap();
+    let q = body_of(&p.slide(0).unwrap(), 2050)[1].raw().clone();
+    let r = rpr_of(&q).unwrap();
+    assert!(r.contains("\"1\"") && !r.contains("hlinkClick"), "{r}");
+    assert!(end_of(&q).unwrap().contains("hlinkClick"), "the paragraph's own a:endParaRPr is untouched");
+}
+
+#[test]
+fn an_unused_run_source_is_not_consulted() {
+    // N3: a new *empty* paragraph needs only a:pPr and a:endParaRPr; with the
+    // last paragraph's own end format, the uncopyable run source (picture
+    // fill with r:embed) does not matter. SYNTHETIC on the title.
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\"><a:blipFill><a:blip r:embed=\"rId1\"/></a:blipFill></a:rPr><a:t>Lorem");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("x\n").unwrap();
+    // ... but a new line with text needs it
+    let mut p = sample_with(TITLE_RPR, "<a:rPr lang=\"en-US\"><a:blipFill><a:blip r:embed=\"rId1\"/></a:blipFill></a:rPr><a:t>Lorem");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("x\ny"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
+}
+
+/// sample.pptx slide 1 with the title shape nested `k` groups deep and its
+/// body replaced by `body`.
+fn nested_title(k: usize, body: &str) -> Presentation {
+    let bytes = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |x| {
+        let i = x.find("id=\"2049\"").unwrap();
+        let s = x[..i].rfind("<p:sp>").unwrap();
+        let e = x[i..].find("</p:sp>").unwrap() + i + "</p:sp>".len();
+        let sp = &x[s..e];
+        let (bs, be) = (sp.find("<p:txBody>").unwrap(), sp.find("</p:txBody>").unwrap() + "</p:txBody>".len());
+        let sp = format!("{}<p:txBody><a:bodyPr/>{body}</p:txBody>{}", &sp[..bs], &sp[be..]);
+        let (mut open, mut close) = (String::new(), String::new());
+        for g in 0..k {
+            open += &format!("<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"{}\" name=\"g\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>", 5000 + g);
+            close += "</p:grpSp>";
+        }
+        format!("{}{open}{sp}{close}{}", &x[..s], &x[e..])
+    });
+    Presentation::from_bytes(bytes).unwrap()
+}
+
+#[test]
+fn depth_pre_checks_decide_alone() {
+    // N2: inputs where each pre-check alone stands between the edit and a
+    // half-applied change (k groups: p:sp at depth 4+k, p:txBody 5+k, a:p 6+k).
+    let reparses = |p: &mut Presentation| {
+        let out = p.to_bytes().unwrap();
+        let part = Package::from_bytes(out).unwrap().read_part("ppt/slides/slide1.xml").unwrap();
+        ooxml_core::XmlDocument::parse(&part).is_ok()
+    };
+    // Paragraph::set_text into a bare <a:p/> (no format source): a:r 256,
+    // a:t 257 at k = 249: only the paragraph depth check refuses it
+    let mut p = nested_title(249, "<a:p/>");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("x"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { limit: 256, .. }));
+    let mut p = nested_title(248, "<a:p/>");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().paragraph_mut(0).unwrap().set_text("x").unwrap();
+    assert!(reparses(&mut p));
+    // TextBody::set_text("\nx") on a bare <a:p/> at k = 249: line 0 creates
+    // nothing in the existing paragraph; the new paragraph's a:t (257) is
+    // refused by the body's own depth check alone (no format to copy)
+    let mut p = nested_title(249, "<a:p/>");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("\nx"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { .. }));
+    let mut p = nested_title(249, "<a:p/>");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("").unwrap();
+    // add_paragraph at k = 249: a:p 255, a:r 256, a:t 257
+    let mut p = nested_title(249, "<a:p/>");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.add_paragraph("x").map(|_| ()));
+    assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { .. }));
+    let mut p = nested_title(248, "<a:p/>");
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().add_paragraph("x").unwrap();
+    assert!(reparses(&mut p));
+    // TextBody::set_text("\n\ny") on an empty paragraph whose a:endParaRPr
+    // (solidFill/srgbClr, 3 levels) becomes the new run's a:rPr two levels
+    // below the body: at k = 247 the copy reaches 257; the a:endParaRPr
+    // copies (one level below the body) still fit, so only the check with
+    // two created levels refuses it
+    let end = "<a:p><a:endParaRPr lang=\"en-US\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:endParaRPr></a:p>";
+    let mut p = nested_title(247, end);
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("\n\ny"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { .. }));
+    let mut p = nested_title(246, end);
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("\n\ny").unwrap();
+    assert!(reparses(&mut p));
+}
+
+// ---------------------------------------------------------------------------
+// Review #19 round 2 (R2-2, R2-3, R2-4).
+
+#[test]
+fn add_run_depth_and_body_copy_checks_decide_alone() {
+    // R2-2 (D6): add_run into a bare <a:p/> at depth 255 (k = 249): a:r 256,
+    // a:t 257; only add_run's own depth check prevents a half-applied edit
+    let mut p = nested_title(249, "<a:p/>");
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.add_run("x"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::TooDeep { .. }));
+    // R2-2 (P7b/c): the title's a:p declares urn:ext and its a:pPr uses it;
+    // a new paragraph goes under the body, where urn:ext is not bound: the
+    // body-level copy check refuses before the new a:p is inserted
+    let mut p = sample_with(
+        "<a:p><a:pPr hangingPunct=\"1\"/><a:r>",
+        "<a:p xmlns:x14=\"urn:ext\"><a:pPr hangingPunct=\"1\" x14:k=\"1\"/><a:r>",
+    );
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.set_text("a\nb"));
+    assert_matches!(e, Error::Core(ooxml_core::Error::NamespaceNotInScope(ref u)) if u == "urn:ext");
+}
+
+#[test]
+fn a_new_line_starting_with_a_break_still_gets_the_run_format() {
+    // R2-3 (N3d): in "x\n\u{b}b" the new paragraph's first segment is empty;
+    // its run "b" must still copy the format (the title's a:rPr with a:sym)
+    let mut p = open("poi/sample.pptx");
+    let rpr = subtree(child(child(&title(&mut p)[0], "r").unwrap(), "rPr").unwrap(), &[]);
+    p.slide_mut(0).unwrap().shape_mut_by_id(2049).unwrap().text_body_mut().unwrap().set_text("x\n\u{b}b").unwrap();
+    let t = title(&mut p);
+    let run = child(&t[1], "r").expect("the run of \"b\"");
+    assert_eq!(subtree(child(run, "rPr").expect("formatted"), &[]), rpr);
+}
+
+#[test]
+fn destination_refusals_of_a_copy_are_format_not_copyable() {
+    // R2-4: the title paragraph is xml:space="preserve", its first run resets
+    // it to "default", and the run's a:rPr has whitespace text: detaching is
+    // fine (the run's own default), inserting a new run under the preserve
+    // paragraph would change the whitespace's meaning
+    let mut p = sample_with(
+        "<a:p><a:pPr hangingPunct=\"1\"/><a:r><a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr>",
+        "<a:p xml:space=\"preserve\"><a:pPr hangingPunct=\"1\"/><a:r xml:space=\"default\"><a:rPr lang=\"en-US\">\n  <a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/>\n</a:rPr>",
+    );
+    let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
+    assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
 }

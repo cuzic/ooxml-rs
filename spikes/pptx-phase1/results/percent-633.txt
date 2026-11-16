@@ -1,0 +1,88 @@
+XSD percentage-union attributes (prefix, CT, attr, xsd type, default) -> SDK type
+  a:CT_Percentage/@val ST_Percentage default=None -> Int32Value
+  a:CT_PositivePercentage/@val ST_PositivePercentage default=None -> Int32Value
+  a:CT_FixedPercentage/@val ST_FixedPercentage default=None -> Int32Value
+  a:CT_PositiveFixedPercentage/@val ST_PositiveFixedPercentage default=None -> Int32Value
+  a:CT_ScRgbColor/@r ST_Percentage default=None -> Int32Value
+  a:CT_ScRgbColor/@g ST_Percentage default=None -> Int32Value
+  a:CT_ScRgbColor/@b ST_Percentage default=None -> Int32Value
+  a:CT_HslColor/@sat ST_Percentage default=None -> Int32Value
+  a:CT_HslColor/@lum ST_Percentage default=None -> Int32Value
+  a:CT_RelativeRect/@l ST_Percentage default=0% -> Int32Value
+  a:CT_RelativeRect/@t ST_Percentage default=0% -> Int32Value
+  a:CT_RelativeRect/@r ST_Percentage default=0% -> Int32Value
+  a:CT_RelativeRect/@b ST_Percentage default=0% -> Int32Value
+  a:CT_Camera/@zoom ST_PositivePercentage default=100% -> Int32Value
+  a:CT_AlphaBiLevelEffect/@thresh ST_PositiveFixedPercentage default=None -> Int32Value
+  a:CT_AlphaModulateFixedEffect/@amt ST_PositivePercentage default=100% -> Int32Value
+  a:CT_AlphaReplaceEffect/@a ST_PositiveFixedPercentage default=None -> Int32Value
+  a:CT_BiLevelEffect/@thresh ST_PositiveFixedPercentage default=None -> Int32Value
+  a:CT_HSLEffect/@sat ST_FixedPercentage default=0% -> Int32Value
+  a:CT_HSLEffect/@lum ST_FixedPercentage default=0% -> Int32Value
+  a:CT_LuminanceEffect/@bright ST_FixedPercentage default=0% -> Int32Value
+  a:CT_LuminanceEffect/@contrast ST_FixedPercentage default=0% -> Int32Value
+  a:CT_OuterShadowEffect/@sx ST_Percentage default=100% -> Int32Value
+  a:CT_OuterShadowEffect/@sy ST_Percentage default=100% -> Int32Value
+  a:CT_ReflectionEffect/@stA ST_PositiveFixedPercentage default=100% -> Int32Value
+  a:CT_ReflectionEffect/@stPos ST_PositiveFixedPercentage default=0% -> Int32Value
+  a:CT_ReflectionEffect/@endA ST_PositiveFixedPercentage default=0% -> Int32Value
+  a:CT_ReflectionEffect/@endPos ST_PositiveFixedPercentage default=100% -> Int32Value
+  a:CT_ReflectionEffect/@sx ST_Percentage default=100% -> Int32Value
+  a:CT_ReflectionEffect/@sy ST_Percentage default=100% -> Int32Value
+  a:CT_RelativeOffsetEffect/@tx ST_Percentage default=0% -> Int32Value
+  a:CT_RelativeOffsetEffect/@ty ST_Percentage default=0% -> Int32Value
+  a:CT_TintEffect/@amt ST_FixedPercentage default=0% -> Int32Value
+  a:CT_TransformEffect/@sx ST_Percentage default=100% -> Int32Value
+  a:CT_TransformEffect/@sy ST_Percentage default=100% -> Int32Value
+  a:CT_GradientStop/@pos ST_PositiveFixedPercentage default=None -> Int32Value
+  a:CT_TileInfoProperties/@sx ST_Percentage default=None -> Int32Value
+  a:CT_TileInfoProperties/@sy ST_Percentage default=None -> Int32Value
+  a:CT_LineJoinMiterProperties/@lim ST_PositivePercentage default=None -> Int32Value
+  a:CT_DashStop/@d ST_PositivePercentage default=None -> Int32Value
+  a:CT_DashStop/@sp ST_PositivePercentage default=None -> Int32Value
+  a:CT_TextNormalAutofit/@fontScale ST_TextFontScalePercentOrPercentString default=100% -> Int32Value
+  a:CT_TextNormalAutofit/@lnSpcReduction ST_TextSpacingPercentOrPercentString default=0% -> Int32Value
+  a:CT_TextBulletSizePercent/@val ST_TextBulletSizePercent default=None -> Int32Value
+  a:CT_TextCharacterProperties/@baseline ST_Percentage default=None -> Int32Value
+  a:CT_TextSpacingPercent/@val ST_TextSpacingPercentOrPercentString default=None -> Int32Value
+  p:CT_TLIterateIntervalPercentage/@val a:ST_PositivePercentage default=None -> Int32Value
+  p:CT_TLCommonTimeNodeData/@spd a:ST_Percentage default=100% -> Int32Value
+  p:CT_TLCommonTimeNodeData/@accel a:ST_PositiveFixedPercentage default=0% -> Int32Value
+  p:CT_TLCommonTimeNodeData/@decel a:ST_PositiveFixedPercentage default=0% -> Int32Value
+  p:CT_TLTimeAnimateValue/@tm ST_TLTimeAnimateValueTime default=indefinite -> StringValue
+  p:CT_TLByRgbColorTransform/@r a:ST_FixedPercentage default=None -> Int32Value
+  p:CT_TLByRgbColorTransform/@g a:ST_FixedPercentage default=None -> Int32Value
+  p:CT_TLByRgbColorTransform/@b a:ST_FixedPercentage default=None -> Int32Value
+  p:CT_TLByHslColorTransform/@s a:ST_FixedPercentage default=None -> Int32Value
+  p:CT_TLByHslColorTransform/@l a:ST_FixedPercentage default=None -> Int32Value
+  p:CT_TLPoint/@x a:ST_Percentage default=None -> Int32Value
+  p:CT_TLPoint/@y a:ST_Percentage default=None -> Int32Value
+  p:CT_TLCommonMediaNodeData/@vol a:ST_PositiveFixedPercentage default=50% -> Int32Value
+  p:CT_Presentation/@serverZoom a:ST_Percentage default=50% -> Int32Value
+  p:CT_NormalViewPortion/@sz a:ST_PositiveFixedPercentage default=None -> Int32Value
+  c:CT_GapAmount/@val ST_GapAmount default=150% -> UInt16Value
+  c:CT_Overlap/@val ST_Overlap default=0% -> SByteValue
+  c:CT_BubbleScale/@val ST_BubbleScale default=100% -> UInt32Value
+  c:CT_HoleSize/@val ST_HoleSize default=10% -> ByteValue
+  c:CT_SecondPieSize/@val ST_SecondPieSize default=75% -> UInt16Value
+total 66
+
+files scanned 633
+values in "NN%" form: 2 (files: ['sc028-032.pptx', 'sc029-033.pptx'])
+   tag/@val                     2
+values in integer form (top 15):
+   pt/@x                        92075
+   pt/@y                        92075
+   defRPr/@sz                   62653
+   pos/@x                       42468
+   pos/@y                       42468
+   off/@x                       33518
+   off/@y                       33518
+   scrgbClr/@r                  17029
+   scrgbClr/@g                  17029
+   scrgbClr/@b                  17029
+   spcPct/@val                  17028
+   tint/@val                    16546
+   srgbClr/@val                 12434
+   rPr/@sz                      12409
+   spcPts/@val                  11451
