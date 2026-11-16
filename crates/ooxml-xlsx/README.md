@@ -82,5 +82,6 @@ touched; only then is the plan applied, by steps that cannot fail. After an
 - `tests/oracle.rs` — the oracles fail when they should (stray byte, misplaced insertion, changed
   part, wrong value).
 
-Manual Excel check (no Excel in CI): `cargo run -p ooxml-xlsx --example manual_check -- <outdir>`
-writes 11 edited files, their originals and `CHECKLIST.md`.
+Manual Excel check (no Excel in CI): `cargo run -p ooxml-xlsx --example xlsx_manual_check -- <outdir>`
+writes 11 edited files, their originals and `CHECKLIST.md`. `cargo xtask manual-check <outdir>`
+runs the Excel, PowerPoint and Word checks together into one bundle with a zip.
