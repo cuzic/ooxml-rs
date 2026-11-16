@@ -64,6 +64,8 @@ pub(super) fn parse(bytes: &[u8]) -> Result<XmlDocument> {
 struct Parser<'s> {
     src: &'s str,
     reader: Reader<&'s [u8]>,
+    /// Length of a UTF-8 BOM the reader does not see (positions are offset by it).
+    base: usize,
     scope: Scope,
     /// Open elements with the scope length to restore on close.
     stack: Vec<(RawNode, usize)>,
@@ -72,22 +74,24 @@ struct Parser<'s> {
 
 impl<'s> Parser<'s> {
     fn new(src: &'s str) -> Self {
-        let mut reader = Reader::from_str(src);
+        // The BOM stays in the verbatim prolog; the reader starts after it.
+        let base = if src.starts_with('\u{feff}') { 3 } else { 0 };
+        let mut reader = Reader::from_str(&src[base..]);
         let cfg = reader.config_mut();
         cfg.trim_text(false);
         cfg.expand_empty_elements = false;
         cfg.check_end_names = true;
-        Parser { src, reader, scope: Scope::new(), stack: Vec::new(), root: None }
+        Parser { src, reader, base, scope: Scope::new(), stack: Vec::new(), root: None }
     }
 
     fn run(mut self) -> Result<RawNode> {
         loop {
-            let before = self.reader.buffer_position() as usize;
+            let before = self.base + self.reader.buffer_position() as usize;
             let event = self
                 .reader
                 .read_event()
-                .map_err(|e| xml_err(self.reader.error_position() as usize, e.to_string()))?;
-            let after = self.reader.buffer_position() as usize;
+                .map_err(|e| xml_err(self.base + self.reader.error_position() as usize, e.to_string()))?;
+            let after = self.base + self.reader.buffer_position() as usize;
             match event {
                 Event::Eof => break,
                 Event::Decl(d) => {
@@ -147,11 +151,9 @@ impl<'s> Parser<'s> {
                 }
                 Event::Comment(_) => self.push_markup(MarkupKind::Comment, before, after),
                 Event::PI(_) => self.push_markup(MarkupKind::ProcessingInstruction, before, after),
-                Event::DocType(_) => {
-                    if self.root.is_some() || !self.stack.is_empty() {
-                        return Err(xml_err(before, "DOCTYPE after the root element starts"));
-                    }
-                }
+                // OOXML never uses DTDs; refusing them outright rules out
+                // entity-expansion and external-entity (XXE) tricks.
+                Event::DocType(_) => return Err(Error::DtdNotAllowed { position: before }),
             }
         }
         if !self.stack.is_empty() {

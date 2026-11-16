@@ -190,7 +190,8 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         node_at(self.root, &self.path)
     }
 
-    /// Path of child indices from the part root.
+    /// Path of child indices from the part root. The last index is this
+    /// node's position in its parent's [`RawNode::children`].
     pub fn path(&self) -> &[usize] {
         &self.path
     }
@@ -235,6 +236,25 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     pub fn nth_child_mut<C: ChildOf<E>>(&mut self, n: usize) -> Option<LensMut<'_, C>> {
         let i = self.node().indexed_elements().filter(|(_, c)| c.is(C::QNAME)).nth(n).map(|(i, _)| i)?;
         Some(self.descend(i))
+    }
+
+    /// Consumes this lens and descends to the child item at `index` (an
+    /// index into [`RawNode::children`]), if it is a `C` element. Unlike the
+    /// `&mut self` accessors, the result keeps the full lifetime `'a`, so a
+    /// helper can return a grandchild lens.
+    pub fn into_child_at<C: ChildOf<E>>(mut self, index: usize) -> Option<LensMut<'a, C>> {
+        let is_c = self.node().children.get(index)?.as_element().is_some_and(|n| n.is(C::QNAME));
+        if !is_c {
+            return None;
+        }
+        self.path.push(index);
+        Some(LensMut { root: self.root, path: self.path, _e: PhantomData })
+    }
+
+    /// Consuming variant of [`Self::child_mut_by`].
+    pub fn into_child_by<C: ChildOf<E>>(self, mut pred: impl FnMut(&RawNode) -> bool) -> Option<LensMut<'a, C>> {
+        let i = self.node().indexed_elements().find(|(_, n)| n.is(C::QNAME) && pred(n)).map(|(i, _)| i)?;
+        self.into_child_at(i)
     }
 
     /// Reinterprets this lens as another spec with the same QName.

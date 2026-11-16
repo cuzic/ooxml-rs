@@ -675,7 +675,7 @@ impl ooxml_core::ChildOf<Run> for Text {}
 pub struct RunView<'a>(pub ooxml_core::Lens<'a, Run>);
 impl<'a> RunView<'a> {
     /// First `x:t` child.
-    pub fn text_child(&self) -> Option<TextView<'a>> {
+    pub fn text(&self) -> Option<TextView<'a>> {
         self.0.child::<Text>().map(TextView)
     }
     /// The underlying raw node.
@@ -1077,7 +1077,7 @@ impl<'a> InlineStringView<'a> {
         self.0.children::<Run>().map(RunView)
     }
     /// First `x:t` child.
-    pub fn text_child(&self) -> Option<TextView<'a>> {
+    pub fn text(&self) -> Option<TextView<'a>> {
         self.0.child::<Text>().map(TextView)
     }
     /// The underlying raw node.
@@ -1153,7 +1153,7 @@ impl<'a> SharedStringItemView<'a> {
         self.0.children::<Run>().map(RunView)
     }
     /// First `x:t` child.
-    pub fn text_child(&self) -> Option<TextView<'a>> {
+    pub fn text(&self) -> Option<TextView<'a>> {
         self.0.child::<Text>().map(TextView)
     }
     /// The underlying raw node.

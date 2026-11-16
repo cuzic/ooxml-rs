@@ -427,8 +427,9 @@ impl<'m, 'a> Ctx<'m, 'a> {
             let view_mut = format!("{ty}ViewMut");
             let mut r = String::new();
             let mut w = String::new();
-            let mut rn = Names::new(&["text", "raw"]);
-            let mut wn = Names::new(&["as_view", "set_text"]);
+            let is_text = matches!(e.content, ContentModel::Text(_));
+            let mut rn = Names::new(if is_text { &["text", "raw"] } else { &["raw"] });
+            let mut wn = Names::new(if is_text { &["as_view", "set_text"] } else { &["as_view"] });
             if !e.attrs_incomplete {
                 for a in &e.attrs {
                     let c = &const_names[&(a.ns.clone(), a.local.clone())];

@@ -41,6 +41,14 @@ pub enum Error {
         /// Description.
         message: String,
     },
+    /// The part contains a `<!DOCTYPE …>` declaration. OOXML parts never
+    /// use DTDs, so any part with one is refused (no entity expansion, no
+    /// external entities).
+    #[error("DTD (<!DOCTYPE>) at byte {position} is not allowed in an OOXML part")]
+    DtdNotAllowed {
+        /// Byte offset of the declaration.
+        position: usize,
+    },
     /// The part is not UTF-8 encoded.
     #[error("unsupported XML encoding: {0}")]
     UnsupportedEncoding(String),
