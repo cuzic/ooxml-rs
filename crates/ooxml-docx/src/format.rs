@@ -319,6 +319,22 @@ pub(crate) struct ContainerPlan {
     pub props: Vec<PropPlan>,
 }
 
+impl ContainerPlan {
+    /// Does the plan only remove (elements or attributes)? Only then can it
+    /// leave its container empty, and the empty container be removed.
+    pub(crate) fn removes_only(&self) -> bool {
+        self.props.iter().all(|p| p.remove_element || (p.set.is_empty() && !p.remove.is_empty()))
+    }
+}
+
+/// No element child, no attribute other than namespace declarations, no
+/// text other than whitespace.
+fn is_empty_container(n: &RawNode) -> bool {
+    n.elements().next().is_none()
+        && n.attrs().iter().all(|a| a.name().is_namespace_declaration())
+        && n.children().iter().all(|c| !matches!(c, ooxml_core::RawItem::Text(t) if !t.is_whitespace()))
+}
+
 /// Builds `PropPlan`s against an existing container (or none).
 pub(crate) struct Planner<'a> {
     container: Option<&'a RawNode>,
@@ -489,6 +505,10 @@ fn plan_run(rpr: Option<&RawNode>, f: &RunFormat) -> Result<ContainerPlan> {
                 if name.is_empty() {
                     return Err(Error::InvalidValue { what: "font name", value: String::new() });
                 }
+                // at plan time, so that nothing is written (review of PR #59, M2)
+                if let Some((_, ch)) = ooxml_core::value::first_invalid_xml_char(name) {
+                    return Err(Error::InvalidXmlChar { ch });
+                }
                 set.push((w(slot), name.clone()));
                 remove.push(w(theme));
             }
@@ -544,7 +564,12 @@ fn plan_paragraph(ppr: Option<&RawNode>, f: &ParagraphFormat, inherited: Inherit
                 set.push((w(attr), t.to_string()));
                 supersede(&mut set, &mut remove, "spacing", &sup)?;
             }
-            Prop::Clear => remove.push(w(attr)),
+            // Clear returns to the inherited value: the superseding attributes go too
+            // (review of PR #59, m2), as a font slot's Clear removes its theme attribute
+            Prop::Clear => {
+                remove.push(w(attr));
+                remove.extend(sup.iter().map(|(a, _)| w(a)));
+            }
         }
     }
     match f.line_spacing {
@@ -556,7 +581,14 @@ fn plan_paragraph(ppr: Option<&RawNode>, f: &ParagraphFormat, inherited: Inherit
                 LineSpacing::AtLeast(v) => (v, "atLeast"),
             };
             set.push((w("line"), v.to_string()));
-            set.push((w("lineRule"), rule.into()));
+            let rule_absent = ppr
+                .and_then(|p| p.elements().find(|e| e.is(SpacingBetweenLines::QNAME)))
+                .is_some_and(|sp| sp.attr(w("lineRule")).is_none());
+            // `auto` is lineRule's default: an element without it already reads as auto
+            // (review of PR #59, n2)
+            if !(rule == "auto" && rule_absent) {
+                set.push((w("lineRule"), rule.into()));
+            }
         }
         Prop::Clear => remove.extend([w("line"), w("lineRule")]),
     }
@@ -575,7 +607,10 @@ fn plan_paragraph(ppr: Option<&RawNode>, f: &ParagraphFormat, inherited: Inherit
                 remove.push(w(plain));
                 supersede(&mut set, &mut remove, "ind", &chars)?;
             }
-            Prop::Clear => remove.extend([w(attr), w(plain)]),
+            Prop::Clear => {
+                remove.extend([w(attr), w(plain)]);
+                remove.extend(chars.iter().map(|(a, _)| w(a)));
+            }
         }
     }
     match f.first_line {
@@ -589,7 +624,7 @@ fn plan_paragraph(ppr: Option<&RawNode>, f: &ParagraphFormat, inherited: Inherit
             remove.push(w(other));
             supersede(&mut set, &mut remove, "ind", &[("firstLineChars", false), ("hangingChars", false)])?;
         }
-        Prop::Clear => remove.extend([w("firstLine"), w("hanging")]),
+        Prop::Clear => remove.extend([w("firstLine"), w("hanging"), w("firstLineChars"), w("hangingChars")]),
     }
     pl.attrs(Kind::Ind, set, remove)?;
     match f.alignment {
@@ -698,7 +733,7 @@ fn adds_attribute(container: Option<&RawNode>, op: &PropPlan) -> bool {
 impl Document {
     /// R1, R2 (incl. a tracked formatting change on the run) and R3 for a
     /// run to format (ADR-0007 §4 "Targets"; R4 is not required).
-    fn check_formattable_run(&self, at: RunRef) -> Result<()> {
+    pub(crate) fn check_formattable_run(&self, at: RunRef) -> Result<()> {
         let r = self.run_at(at).ok_or(Error::NoSuchRun { paragraph: at.para.index, run: at.run })?;
         match r.check_settable() {
             Ok(()) | Err(Error::RunNotTextOnly { .. }) => {}
@@ -711,7 +746,7 @@ impl Document {
     }
 
     /// ADR-0007 §4 "Targets" for a paragraph.
-    fn check_formattable_paragraph(&self, at: ParaRef) -> Result<()> {
+    pub(crate) fn check_formattable_paragraph(&self, at: ParaRef) -> Result<()> {
         let p = self.paragraph_at(at).ok_or(Error::NoSuchParagraph(at.index))?;
         if let Some(w) = self.stories[at.story.0].index.wrappers(p.info.frame).into_iter().find(|w| *w != Wrapper::Hyperlink) {
             return Err(Error::UnsupportedContext { ancestor: w.qname() });
@@ -743,8 +778,9 @@ impl Document {
 
     /// The run's `w:rPr`, its path from the story root, and the run's path.
     fn run_container(&self, at: RunRef) -> Result<(Option<&RawNode>, Vec<usize>)> {
-        let data = &self.stories[at.para.story.0];
-        let info = &data.index.paragraphs[at.para.index].runs[at.run];
+        let missing = || Error::NoSuchRun { paragraph: at.para.index, run: at.run };
+        let data = self.stories.get(at.para.story.0).ok_or(Error::NoSuchStory)?;
+        let info = data.index.paragraphs.get(at.para.index).and_then(|p| p.runs.get(at.run)).ok_or_else(missing)?;
         let path = data.index.path(info.frame);
         let r = node_at(self.story_root_node(at.para.story), &path);
         if r.elements().any(|e| e.is(MC_ALTERNATE_CONTENT)) {
@@ -753,11 +789,12 @@ impl Document {
         Ok((r.elements().find(|e| is::<RunProperties>(e)), path))
     }
 
-    fn para_container(&self, at: ParaRef) -> (Option<&RawNode>, Vec<usize>) {
-        let data = &self.stories[at.story.0];
-        let path = data.index.path(data.index.paragraphs[at.index].frame);
+    fn para_container(&self, at: ParaRef) -> Result<(Option<&RawNode>, Vec<usize>)> {
+        let data = self.stories.get(at.story.0).ok_or(Error::NoSuchStory)?;
+        let info = data.index.paragraphs.get(at.index).ok_or(Error::NoSuchParagraph(at.index))?;
+        let path = data.index.path(info.frame);
         let p = node_at(self.story_root_node(at.story), &path);
-        (p.elements().find(|e| is::<ParagraphProperties>(e)), path)
+        Ok((p.elements().find(|e| is::<ParagraphProperties>(e)), path))
     }
 
     /// n4: every new `w:` attribute will find a prefixed WML binding.
@@ -822,9 +859,16 @@ impl Document {
         let mut touched = std::collections::BTreeSet::new();
         for (at, plan) in &plans {
             self.with_run(*at, |r| {
-                let mut rpr = r.get_or_insert::<RunProperties>()?;
-                for op in &plan.props {
-                    apply_rpr(&mut rpr, op)?;
+                let emptied = {
+                    let mut rpr = r.get_or_insert::<RunProperties>()?;
+                    for op in &plan.props {
+                        apply_rpr(&mut rpr, op)?;
+                    }
+                    plan.removes_only() && is_empty_container(rpr.node())
+                };
+                // a container a Clear left empty goes too (review of PR #59, n1)
+                if emptied {
+                    r.remove::<RunProperties>();
                 }
                 Ok(())
             })?;
@@ -875,7 +919,7 @@ impl Document {
     pub fn format_paragraph(&mut self, p: ParaRef, f: &ParagraphFormat) -> Result<()> {
         self.write_gate_for(Operation::Format)?;
         self.check_formattable_paragraph(p)?;
-        let (ppr, path) = self.para_container(p);
+        let (ppr, path) = self.para_container(p)?;
         let style = ppr
             .and_then(|e| e.elements().find(|c| c.is(ParagraphStyleId::QNAME)))
             .and_then(|s| s.attr(VAL))
@@ -904,9 +948,15 @@ impl Document {
             Ok(())
         })?;
         self.with_para(p, |para| {
-            let mut ppr = para.get_or_insert::<ParagraphProperties>()?;
-            for op in &plan.props {
-                apply_ppr(&mut ppr, op)?;
+            let emptied = {
+                let mut ppr = para.get_or_insert::<ParagraphProperties>()?;
+                for op in &plan.props {
+                    apply_ppr(&mut ppr, op)?;
+                }
+                plan.removes_only() && is_empty_container(ppr.node())
+            };
+            if emptied {
+                para.remove::<ParagraphProperties>();
             }
             Ok(())
         })?;
@@ -918,7 +968,7 @@ impl Document {
     /// Style setters (§5) reuse the planner for `w:pStyle` / `w:rStyle`.
     pub(crate) fn plan_style_ref(&self, target: StyleTarget, id: Option<&str>) -> Result<Option<ContainerPlan>> {
         let (container, kind) = match target {
-            StyleTarget::Para(p) => (self.para_container(p).0, Kind::PStyle),
+            StyleTarget::Para(p) => (self.para_container(p)?.0, Kind::PStyle),
             StyleTarget::Run(r) => (self.run_container(r)?.0, Kind::RStyle),
         };
         let mut pl = Planner::new(container);
@@ -933,7 +983,7 @@ impl Document {
         match target {
             StyleTarget::Para(p) => {
                 self.check_formattable_paragraph(p)?;
-                let (ppr, path) = self.para_container(p);
+                let (ppr, path) = self.para_container(p)?;
                 self.check_prefixes(p.story, &path, ppr, &plan)?;
                 self.write_para_plan(p, &plan)
             }

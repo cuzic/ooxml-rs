@@ -1333,7 +1333,23 @@ clarifying; the decisions above are unchanged.
   `InvalidValue`, `StyleChainTooDeep`, `UnknownStyle`, `StyleTypeMismatch`, `AmbiguousStyle`,
   `NoSettingsPart`, `AmbiguousSettings` and `DuplicateSetting`.
 - **Clear on attribute-level elements.** Clearing on `w:rFonts`, `w:spacing` or `w:ind` removes
-  the setter's attributes. An element left with no attribute and no child is removed.
+  the setter's attributes **and the attributes that supersede them**: theme fonts, `*Chars`,
+  `*Lines`, `*Autospacing`, `start`/`end`, and any earlier `0` cancellation (review of PR #59,
+  m2). Clear therefore really returns to the inherited value. An element left with no attribute
+  and no child is removed, and so is a `w:rPr` or `w:pPr` that a removal-only write leaves
+  empty (n1).
+- **Line spacing.** `Set(LineSpacing::Auto(n))` does not add `lineRule="auto"` to an element that
+  has no `lineRule`, because `auto` is the default (n2).
+- **Style chain.** A `pStyle` naming an undefined style falls back to the default paragraph
+  style, as Word applies it (m1). The walk does not consult numbering levels
+  (`lvl/pPr/w:ind`) or table styles' `pPr`. That is a known limit (m4); the corpora have 0
+  superseding attributes in either place.
+- **Two styles relationships** make the style setters refuse with `AmbiguousStylesPart`
+  (n3, fail closed, like `AmbiguousSettings`).
+- **Checks before planning (M1, M2).** Style setters validate the target first, even for a
+  no-op write. References out of range are `NoSuchParagraph`/`NoSuchRun`, never a panic. Font
+  names are checked for XML 1.0 characters at plan time, so a refused multi-run call writes
+  nothing.
 - **Inherited cancellation** uses the resolved value of the attribute: the most specific style
   level that sets it, then `docDefaults`. A non-zero `*Chars`/`*Lines`, or `*Autospacing` that
   is not off, is written as `0` on the direct element. Otherwise the direct attribute is
