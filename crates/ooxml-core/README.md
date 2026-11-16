@@ -85,7 +85,10 @@ Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
 out of schema order), `UnsupportedContentModel`, `NotAllowed`, `NotText`,
 `IncompleteSpec` (spec with an unresolved SDK base), `NamespaceNotInScope`
-(no usable prefix; Phase0 never declares namespaces).
+(no usable prefix; Phase0 never declares namespaces), `InvalidXmlChar`
+(`set_text`/`set_attr` value with a character outside XML 1.0 `Char`, e.g.
+U+000B; checked before anything changes, so no primitive can write a part
+that is not well-formed).
 
 Dirty duties: every write marks `subtree_dirty` up to the root; attribute
 writes and creation set `own_dirty`; a parent becomes `own_dirty` only if
@@ -98,7 +101,9 @@ element); attributes need a non-empty prefix; `xml:` always works.
 
 ## Schema description types
 
-`QName` (static), `ElementSpec { QNAME, SDK_NAME, ATTRS, CONTENT,
+`ChildOf` is generated between allowlisted entries, including the
+SDK-listed children of a wildcard parent such as `a:graphicData` (ADR-0002
+post-acceptance note). `QName` (static), `ElementSpec { QNAME, SDK_NAME, ATTRS, CONTENT,
 ATTRS_INCOMPLETE }`, `ChildOf<P>` (compile-time child check with a readable
 `on_unimplemented` message), `AttrSpec`, `SimpleType`, `Slot { names,
 wildcard, max_each, max_total }`, `Wildcard`, `Content::{Empty, Text, Slots,

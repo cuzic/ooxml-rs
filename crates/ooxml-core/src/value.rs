@@ -16,6 +16,19 @@ pub fn has_edge_ws(s: &str) -> bool {
     trim_xml_ws(s).len() != s.len()
 }
 
+/// Is `c` an XML 1.0 `Char` (`#x9 | #xA | #xD | [#x20-#xD7FF] |
+/// [#xE000-#xFFFD] | [#x10000-#x10FFFF]`)? Surrogates cannot occur in a
+/// Rust `char`.
+pub const fn is_xml_char(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\r' | '\u{20}'..='\u{FFFD}' | '\u{10000}'..)
+}
+
+/// The first character of `s` that is not an XML 1.0 `Char`, with its
+/// byte offset.
+pub fn first_invalid_xml_char(s: &str) -> Option<(usize, char)> {
+    s.char_indices().find(|&(_, c)| !is_xml_char(c))
+}
+
 /// Identity parser for string-valued attributes.
 pub fn parse_str(s: &str) -> Option<&str> {
     Some(s)
