@@ -705,9 +705,9 @@ fn missing_cell_style(doc: &XmlDocument, loc: &Located, at: CellIndex) -> u32 {
         && let Some(sd) = sheet_data(doc)
         && let Some(row) = sd.children().get(ri).and_then(|i| i.as_element())
         && on(row.attr(QName::new("", "customFormat")))
-        && let Some(s) = row.attr(QName::new("", "s")).and_then(parse)
     {
-        return s;
+        // `CT_Row/@s` defaults to 0 (PR #50 review round 2, m4)
+        return row.attr(QName::new("", "s")).and_then(parse).unwrap_or(0);
     }
     let col = at.col + 1;
     doc.root()

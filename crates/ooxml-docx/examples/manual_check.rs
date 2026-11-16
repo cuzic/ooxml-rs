@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_docx::{Document, Paragraph, Run, RunContext};
+use ooxml_docx::{Document, Paragraph, ReplaceOptions, Run, RunContext, StoryKind};
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/docx");
 
@@ -157,7 +157,116 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
                 lines with “Words” and “NumWords” show the word count, Word reads typographic quotes as quotes (ADR-0004 \
                 rev 4, m9; ooxml-docx already treats them so).",
     });
+    phase1(out, &mut cases)?;
     Ok(cases)
+}
+
+/// Word Phase1 items (ADR-0007 §9, "Manual").
+fn phase1(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut push = |file: &'static str, fixture: &'static str, done: String, check: &'static str| {
+        cases.push(Case { file, fixture, done, check });
+    };
+    // 12: cross-run placeholder with a collapsed _GoBack bookmark inside
+    let body = r#"<w:p><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr><w:t xml:space="preserve">Dear {{</w:t></w:r><w:proofErr w:type="spellStart"/><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr><w:t>cli</w:t></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr><w:t>ent}}</w:t></w:r><w:proofErr w:type="spellEnd"/><w:r><w:t>, thank you.</w:t></w:r></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.replace("{{client}}", "Ada Lovelace", &ReplaceOptions::default())?;
+    save(&doc, out, "12-cross-run-placeholder.docx")?;
+    push(
+        "12-cross-run-placeholder.docx",
+        "",
+        "Synthetic: `{{client}}` split over three runs with a `proofErr` and a collapsed `_GoBack` bookmark inside, replaced by \"Ada Lovelace\"".into(),
+        "The line reads \"Dear Ada Lovelace, thank you.\" with \"Dear Ada Lovelace\" bold dark red. Shift+F5 (go back) still works.",
+    );
+    // 13: a header and a footer edit
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join("poi-PageSpecificHeadFoot.docx"))?;
+    let mut done = Vec::new();
+    for kind in [StoryKind::Header, StoryKind::Footer] {
+        let target = doc.stories().filter(|s| s.id().kind() == kind).find_map(|s| {
+            s.paragraphs().find_map(|p| {
+                p.runs().find(|r| r.check_settable().is_ok() && !r.text().trim().is_empty()).map(|r| (r.run_ref(), r.text(), s.id().part().to_owned()))
+            })
+        });
+        if let Some((r, old, part)) = target {
+            doc.set_run_text_at(r, &format!("EDITED {kind:?}"))?;
+            done.push(format!("{part}: \"{}\" → \"EDITED {kind:?}\"", short(&old)));
+        }
+    }
+    save(&doc, out, "13-header-footer.docx")?;
+    push(
+        "13-header-footer.docx",
+        "poi-PageSpecificHeadFoot",
+        done.join("; "),
+        "The edited header and footer text shows on every page whose section uses that part; the other headers/footers and their PAGE fields are unchanged.",
+    );
+    // 14: a footnote and a comment edit
+    let mut done = Vec::new();
+    for (file, fixture, kind) in [("14a-footnote.docx", "sdk-ftEdNote", StoryKind::Footnotes), ("14b-comment.docx", "poi-testComment", StoryKind::Comments)] {
+        let mut doc = Document::open(PathBuf::from(FIXTURES).join(format!("{fixture}.docx")))?;
+        let target = doc.stories().filter(|s| s.id().kind() == kind).find_map(|s| {
+            s.paragraphs().find_map(|p| p.runs().find(|r| r.check_settable().is_ok() && !r.text().trim().is_empty()).map(|r| (r.run_ref(), r.text())))
+        });
+        let (r, old) = target.ok_or("a settable note/comment run")?;
+        doc.set_run_text_at(r, &format!(" EDITED {kind:?} text"))?;
+        save(&doc, out, file)?;
+        done.push((file, fixture, format!("{kind:?}: \"{}\" → \" EDITED {kind:?} text\"", short(&old))));
+    }
+    for (file, fixture, d) in done {
+        push(file, fixture, d, "The note (14a) or comment (14b) shows the new text after its mark; numbering, the reference mark in the body and the comment's anchor are unchanged.");
+    }
+    // 15: replace next to a non-breaking hyphen
+    let body = r#"<w:p><w:r><w:t>{{code}}</w:t><w:noBreakHyphen/><w:t>2026</w:t></w:r></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.replace("{{code}}", "ISO", &ReplaceOptions::default())?;
+    save(&doc, out, "15-no-break-hyphen.docx")?;
+    push(
+        "15-no-break-hyphen.docx",
+        "",
+        "Synthetic: `{{code}}<w:noBreakHyphen/>2026` with `{{code}}` replaced by \"ISO\"".into(),
+        "Shows \"ISO‑2026\" with a non-breaking hyphen: narrow the window or add text so that the line would wrap there; it must not break at the hyphen.",
+    );
+    // 16: unpreserved edge whitespace (open question 2)
+    let body = r#"<w:p><w:r><w:t>[</w:t></w:r><w:r><w:t> unpreserved edges </w:t></w:r><w:r><w:t>]</w:t></w:r></w:p><w:p><w:r><w:t>[</w:t></w:r><w:r><w:t xml:space="preserve"> preserved edges </w:t></w:r><w:r><w:t>]</w:t></w:r></w:p><w:p><w:r><w:t>[</w:t></w:r><w:r><w:t> set_run_text </w:t></w:r><w:r><w:t>]</w:t></w:r></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.set_run_text(2, 1, " set_run_text ")?;
+    save(&doc, out, "16-unpreserved-edge-whitespace.docx")?;
+    push(
+        "16-unpreserved-edge-whitespace.docx",
+        "",
+        "Synthetic: line 1 `<w:t> unpreserved edges </w:t>` (not edited), line 2 the same with xml:space=\"preserve\", line 3 edited by set_run_text (which adds preserve)".into(),
+        "Open question 2: does line 1 show spaces inside the brackets (\"[ unpreserved edges ]\") like line 2, or not (\"[unpreserved edges]\")? Line 3 must look like line 2.",
+    );
+    Ok(())
+}
+
+fn save(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    doc.save(out.join(file))?;
+    Document::open(out.join(file))?;
+    Ok(())
+}
+
+/// A minimal package with `body` as the body's inner XML.
+fn synthetic(body: &str) -> Result<Document, Box<dyn std::error::Error>> {
+    const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    let parts = [
+        (
+            "[Content_Types].xml",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#.to_owned(),
+        ),
+        (
+            "_rels/.rels",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#.to_owned(),
+        ),
+        (
+            "word/document.xml",
+            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}<w:sectPr/></w:body></w:document>"#),
+        ),
+    ];
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, content) in parts {
+        z.start_file(name, zip::write::SimpleFileOptions::default())?;
+        z.write_all(content.as_bytes())?;
+    }
+    Ok(Document::from_bytes(z.finish()?.into_inner())?)
 }
 
 const CURLY_FILE: &str = "11-curly-quoted-docproperty.docx";
@@ -208,7 +317,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = PathBuf::from(std::env::args().nth(1).ok_or("usage: manual_check <outdir>")?);
     let cases = run(&out)?;
     let mut md = String::new();
-    writeln!(md, "# ooxml-docx Phase0: manual check in Microsoft 365 Word\n")?;
+    writeln!(md, "# ooxml-docx Phase0/Phase1: manual check in Microsoft 365 Word\n")?;
     writeln!(md, "Generated by `cargo run -p ooxml-docx --example manual_check -- {}`.\n", out.display())?;
     writeln!(md, "For every file:\n")?;
     writeln!(md, "- [ ] Opens with **no repair dialog** (\"Word found unreadable content…\").")?;
@@ -230,6 +339,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(md, "1. **w14:textId** (`04`): is keeping the old textId on an edited paragraph harmless (no dialog, comment intact)? If Word rewrites it on save, note that.")?;
     writeln!(md, "2. **lastRenderedPageBreak** (`03`): any visible effect of dropping it from the edited run?")?;
     writeln!(md, "3. **Typographic quotes** (`11`): after F9, do the fields written with “…” show the word count (Word reads them as quotes) or an error?")?;
+    writeln!(md, "4. **Unpreserved edge whitespace** (`16`, ADR-0007 open question 2): does Word show the edge spaces of a `w:t` without `xml:space=\"preserve\"`? If yes, `UnpreservedWhitespace` can be lifted.")?;
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     for c in &cases {
         println!("{}  ({})", out.join(c.file).display(), if c.fixture.is_empty() { "synthetic" } else { c.fixture });

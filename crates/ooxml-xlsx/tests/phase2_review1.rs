@@ -299,3 +299,96 @@ fn r20_date1904_true_is_accepted() {
     let mut wb = Workbook::from_bytes(p1::with_part(&base(), "xl/workbook.xml", &wbx)).unwrap();
     assert!(wb.date1904().unwrap());
 }
+
+// ------------------------------------------------------------ review round 2
+
+/// m3 (X16–X18): the style-sensitivity cache is dropped when a formula is
+/// written (false → true) and when one is removed (true → false).
+#[test]
+fn round2_style_sensitivity_follows_formula_writes_and_removals() {
+    let b1 = r#"<c r="B1"><f>A1*3</f><v>3</v></c>"#;
+    let sheet = |extra: &str| with_sheet(&base(), &format!(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c>{b1}{extra}</row></sheetData>"#));
+    let bold = Format::new().set_bold();
+    // false → true: a CELL formula written in the session
+    let mut wb = Workbook::from_bytes(sheet("")).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        ws.cell_mut(0, 0).unwrap().set_format(&bold).unwrap();
+    }
+    assert!(sheet_xml(&wb.to_bytes().unwrap()).contains(b1), "not sensitive yet: B1 keeps its cache");
+    {
+        let mut ws = wb.worksheet().unwrap();
+        ws.cell_mut(0, 2).unwrap().set_formula(r#"CELL("format",A1)"#).unwrap();
+        ws.cell_mut(0, 0).unwrap().set_format(&Format::new().set_italic()).unwrap();
+    }
+    let xml = sheet_xml(&wb.to_bytes().unwrap());
+    assert!(xml.contains(r#"<c r="B1"><f>A1*3</f></c>"#), "now sensitive: B1 loses its cache: {xml}");
+    // true → false: the CELL formula removed in the session
+    let cell = r#"<c r="C1"><f>CELL("format",A1)</f><v>G</v></c>"#;
+    let mut wb = Workbook::from_bytes(sheet(cell)).unwrap();
+    {
+        let mut ws = wb.worksheet().unwrap();
+        // computes the cache (true) with a style-only write that has no dependents
+        ws.cell_mut(9, 9).unwrap().set_format(&bold).unwrap();
+        ws.cell_mut(0, 2).unwrap().remove_formula().unwrap();
+        ws.cell_mut(0, 0).unwrap().set_format(&bold).unwrap();
+    }
+    let xml = sheet_xml(&wb.to_bytes().unwrap());
+    assert!(xml.contains(b1), "no longer sensitive: B1 keeps its cache: {xml}");
+}
+
+/// m3 (X06, X07, X09, X10): condense, extend and vertAlign are read from
+/// the default font and written back in canonical form.
+#[test]
+fn round2_font_flags_round_trip() {
+    let f = r#"<font><condense/><extend/><vertAlign val="superscript"/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>"#;
+    let input = with_styles(&styles(&base()).replacen(FONT0, f, 1));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let font = wb.default_font().unwrap().expect("expressible");
+    assert!(font.condense && font.extend && font.vert_align == Some(ooxml_xlsx::VertAlign::Superscript), "{font:?}");
+    let same = Format::with_default_font_of(&mut wb).unwrap();
+    wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &same).unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(table(&styles(&out), "fonts").starts_with(r#"<fonts count="1">"#), "font 0 reused byte for byte: {}", styles(&out));
+    let out = write(&base(), (0, 0), &Format::new().set_font_script(ooxml_xlsx::VertAlign::Subscript)).unwrap();
+    assert!(table(&styles(&out), "fonts").contains(r#"<vertAlign val="subscript"/><sz val="11"/>"#), "{}", styles(&out));
+}
+
+/// m3 (X28): `is_date` reads a custom code without activating the registry.
+#[test]
+fn round2_is_date_reads_custom_codes() {
+    let s = styles(&base())
+        .replace("<fonts", r#"<numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy/m/d"/><numFmt numFmtId="165" formatCode="0.00"/></numFmts><fonts"#)
+        .replacen(&format!(r#"<cellXfs count="1">{XF0}</cellXfs>"#), &format!(r#"<cellXfs count="3">{XF0}<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>"#), 1);
+    let input = with_sheet(&with_styles(&s), r#"<sheetData><row r="1"><c r="A1" s="1"><v>46000</v></c><c r="B1" s="2"><v>46000</v></c></row></sheetData>"#);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert!(ws.is_date(0, 0).unwrap());
+    assert!(!ws.is_date(0, 1).unwrap());
+}
+
+/// m3 (X29): a `cellStyleXfs` that is not index-stable (an AC without a
+/// Fallback) makes the Normal style unreadable: no fallback to cellXfs[0].
+#[test]
+fn round2_unstable_cell_style_xfs_is_refused() {
+    let csx = r#"<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>"#;
+    let ac = r#"<cellStyleXfs count="1"><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x14"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></mc:Choice></mc:AlternateContent></cellStyleXfs>"#;
+    let input = with_styles(&styles(&base()).replacen(csx, ac, 1));
+    let e = write(&input, (0, 0), &Format::new().set_bold());
+    assert!(matches!(e, Err(Error::NotExpressible(_))), "{e:?}");
+}
+
+/// m4: a row with `customFormat="1"` and no `s` shows style 0, not the
+/// column's style.
+#[test]
+fn round2_custom_format_row_without_s_is_style_0() {
+    let s = styles(&base())
+        .replacen(r#"<fonts count="1">"#, r#"<fonts count="2">"#, 1)
+        .replacen("</fonts>", r#"<font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts>"#, 1)
+        .replacen(&format!(r#"<cellXfs count="1">{XF0}</cellXfs>"#), &format!(r#"<cellXfs count="2">{XF0}<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>"#), 1);
+    let input = with_sheet(&with_styles(&s), r#"<cols><col min="2" max="2" width="9" style="1" customWidth="1"/></cols><sheetData><row r="1" customFormat="1"><c r="A1"><v>1</v></c></row></sheetData>"#);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_num_format("0.0").unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(table(&styles(&out), "cellXfs").ends_with(r#"<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>"#), "{}", styles(&out));
+}
