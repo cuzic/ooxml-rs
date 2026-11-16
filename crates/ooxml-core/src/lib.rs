@@ -25,7 +25,7 @@ pub mod value;
 pub mod xml;
 
 pub use error::{Error, Result};
-pub use lens::{Lens, LensMut};
+pub use lens::{Lens, LensMut, NsDecl};
 pub use name::{QName, XName};
 pub use package::{Package, PartState, PartStateKind};
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, ElementSpec, EnumType, EnumValue, SimpleType, Slot, Wildcard};

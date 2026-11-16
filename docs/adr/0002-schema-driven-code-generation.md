@@ -107,6 +107,49 @@
   proportionally larger stack (documented on `max_depth`). Format crates
   map the error to their own open-time refusal (ooxml-docx: O5).
 
+- **Post-acceptance note (2026-11-16, namespace declarations on created
+  elements — additive, no change to the decisions; needed by ADR-0011 N1
+  and ADR-0013 M1):** §3's prefix rules can only use bindings already in
+  scope, so a primitive refused `NamespaceNotInScope` when a new element's
+  URI was not bound. Word cannot create `a:graphic`/`pic:pic` under
+  `wp:inline`, because the root lacks `a:` in about 99% of files, and
+  PowerPoint declares `a16` on each `a16:rowId`.
+  - **New API.** The insert primitives gain `*_with_ns` variants
+    (`insert_with_ns`, `insert_by_with_ns`, `insert_in_slot_with_ns`,
+    `get_or_insert_with_ns`). Each takes `NsDecl { prefix, uri }` requests to
+    be declared **on the new element**.
+  - **Choosing the prefix.**
+    - A URI that already has a prefixed binding in scope is not redeclared;
+      the existing binding is used.
+    - Otherwise the new element gets `xmlns:{p}`, where `p` is the requested
+      prefix if unbound in scope, else the first free `{prefix}N` (N = 1, 2,
+      …). Existing bindings are never shadowed.
+    - The new element's own prefix, and those of later descendants and
+      their attributes, then follow §3 with the new bindings in scope.
+  - **Refusals.** `InvalidNamespaceDeclaration` covers: an empty URI, the
+    `xml` or `xmlns` URI, a prefix that is not an NCName or starts with `xml`
+    (any case), and a prefix or URI requested twice. A URI with a character
+    XML cannot hold gives `InvalidXmlChar`. Every refusal comes before any
+    change.
+  - **Checks.** Every insert, plain and `_with_ns`, has a `check_*` twin
+    computed by the same planning function, so check and insert cannot
+    disagree (brute-force parity test).
+  - **T2.** The declarations are inside the created element's start tag, so
+    T2 holds as for any insertion.
+  - **Interaction with attribute writes.** `set_attr` never creates a namespace
+    declaration. PR #40 refuses `xmlns` attributes there explicitly, so this
+    API is the only way to declare a namespace, and only on created elements.
+    Declarations on an original element would make its start tag dirty and
+    stay refused, as ADR-0011 §1.3 requires.
+  - **Extension points.**
+    - PR #26's `insert_at` and `check_insert_at` add `_with_ns` twins through
+      the same plan (`plan_declarations` on the parent's scope).
+    - PR #18's `insert_detached` declares the requested namespaces on the
+      inserted subtree's root the same way. Its re-check of prefixes against
+      the destination scope then counts them, so a detached copy whose URIs
+      are unbound at the destination can be inserted with declarations instead
+      of being refused.
+
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
 

@@ -109,6 +109,19 @@ pub enum Error {
     /// No usable prefix is bound to the namespace at this point.
     #[error("namespace {0:?} is not in scope with a usable prefix")]
     NamespaceNotInScope(String),
+    /// A namespace declaration requested for a new element
+    /// ([`NsDecl`](crate::lens::NsDecl)) is not acceptable: an empty or
+    /// reserved URI, a prefix that is not an NCName or starts with `xml`, or
+    /// a prefix or URI given twice.
+    #[error("invalid namespace declaration xmlns:{prefix}={uri:?}: {reason}")]
+    InvalidNamespaceDeclaration {
+        /// The requested prefix.
+        prefix: String,
+        /// The requested URI.
+        uri: String,
+        /// Why it was refused.
+        reason: &'static str,
+    },
     /// A text or attribute value contains a character that XML 1.0 does not
     /// allow (`Char` production: C0 controls other than tab/LF/CR,
     /// U+FFFE, U+FFFF). Writing it would make the part not well-formed.

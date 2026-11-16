@@ -192,6 +192,45 @@ struct Placement {
     index: usize,
 }
 
+/// A namespace declaration requested for an element created by one of the
+/// `*_with_ns` inserts (ADR-0002 post-acceptance note, "namespace
+/// declarations on created elements").
+///
+/// `prefix` is the preferred prefix. If `uri` already has a prefixed binding
+/// in scope at the parent, nothing is declared and the existing binding is
+/// used (ADR-0002 §3). Otherwise the new element gets `xmlns:{p}="{uri}"`,
+/// where `p` is `prefix` if that prefix is unbound in scope, else the first
+/// of `prefix1`, `prefix2`, … that is. An in-scope binding is never
+/// shadowed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NsDecl<'a> {
+    /// Preferred prefix (an NCName not starting with `xml`).
+    pub prefix: &'a str,
+    /// Namespace URI (non-empty, not the `xml`/`xmlns` namespaces).
+    pub uri: &'a str,
+}
+
+impl<'a> NsDecl<'a> {
+    /// A declaration request.
+    pub const fn new(prefix: &'a str, uri: &'a str) -> Self {
+        NsDecl { prefix, uri }
+    }
+}
+
+/// Everything an insert will do, computed before mutating, so a check and
+/// the insert itself share one decision.
+struct InsertPlan {
+    index: usize,
+    name: XName,
+    declarations: Vec<RawAttr>,
+}
+
+fn is_ncname(s: &str) -> bool {
+    let mut chars = s.chars();
+    chars.next().is_some_and(|c| c == '_' || c.is_alphabetic())
+        && chars.all(|c| c == '_' || c == '-' || c == '.' || c.is_alphanumeric())
+}
+
 impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// A mutable lens on `root`, which must be the element `E::QNAME`.
     /// Inserts are limited to [`DEFAULT_MAX_DEPTH`](crate::xml::DEFAULT_MAX_DEPTH);
@@ -376,11 +415,53 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         Ok(Placement { index: at.unwrap_or(node.children.len()) })
     }
 
-    fn insert_at_slot<C: ElementSpec>(
-        &mut self,
+    /// The bindings `decls` add under this node: (prefix, uri) for every
+    /// URI that has no prefixed binding in scope yet. Validates `decls`.
+    fn plan_declarations(&self, decls: &[NsDecl<'_>]) -> Result<Vec<(String, String)>> {
+        let scope = declarations(self.root, &self.path);
+        let mut out: Vec<(String, String)> = Vec::new();
+        for (i, d) in decls.iter().enumerate() {
+            let bad = |reason| Error::InvalidNamespaceDeclaration { prefix: d.prefix.into(), uri: d.uri.into(), reason };
+            if d.uri.is_empty() {
+                return Err(bad("the URI is empty"));
+            }
+            if d.uri == XML_NS || d.uri == XMLNS_NS {
+                return Err(bad("the xml and xmlns namespaces cannot be declared"));
+            }
+            check_xml_chars(d.uri)?;
+            if !is_ncname(d.prefix) {
+                return Err(bad("the prefix is not an NCName"));
+            }
+            if d.prefix.get(..3).is_some_and(|p| p.eq_ignore_ascii_case("xml")) {
+                return Err(bad("prefixes starting with \"xml\" are reserved"));
+            }
+            if decls[..i].iter().any(|e| e.uri == d.uri) {
+                return Err(bad("the URI is requested twice"));
+            }
+            if decls[..i].iter().any(|e| e.prefix == d.prefix) {
+                return Err(bad("the prefix is requested twice"));
+            }
+            let bound = scope.iter().any(|(_, p, u)| *u == d.uri && p.is_some() && effective(&scope, *p) == Some(d.uri));
+            if bound {
+                continue;
+            }
+            let free = |c: &str| effective(&scope, Some(c)).is_none() && !out.iter().any(|(p, _)| p == c);
+            let chosen = if free(d.prefix) {
+                d.prefix.to_owned()
+            } else {
+                (1u32..).map(|n| format!("{}{n}", d.prefix)).find(|c| free(c)).expect("some suffix is free")
+            };
+            out.push((chosen, d.uri.to_owned()));
+        }
+        Ok(out)
+    }
+
+    fn plan_insert<C: ElementSpec>(
+        &self,
         slot: usize,
         before: impl FnMut(usize, &RawNode) -> bool,
-    ) -> Result<LensMut<'_, C>> {
+        decls: &[NsDecl<'_>],
+    ) -> Result<InsertPlan> {
         // The new element's depth is this node's (path length + 1) plus one.
         // Refused like the parser would refuse it, so an edited tree can
         // always be parsed again and recursive walks stay bounded.
@@ -389,15 +470,58 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         }
         let slots = self.slots()?;
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
-        let prefix = choose_element_prefix(self.root, &self.path, C::QNAME.ns)?;
-        let name = XName::new(C::QNAME.ns.into(), C::QNAME.local, prefix.as_deref());
+        let new = self.plan_declarations(decls)?;
+        let prefix = match choose_element_prefix(self.root, &self.path, C::QNAME.ns) {
+            Ok(p) => p,
+            Err(Error::NamespaceNotInScope(uri)) => match new.iter().find(|(_, u)| *u == uri) {
+                Some((p, _)) => Some(p.clone()),
+                None => return Err(Error::NamespaceNotInScope(uri)),
+            },
+            Err(e) => return Err(e),
+        };
+        let declarations = new
+            .into_iter()
+            .map(|(p, u)| RawAttr { name: XName::new(XMLNS_NS.into(), &p, Some("xmlns")), value: u })
+            .collect();
+        Ok(InsertPlan { index, name: XName::new(C::QNAME.ns.into(), C::QNAME.local, prefix.as_deref()), declarations })
+    }
+
+    fn insert_at_slot<C: ElementSpec>(
+        &mut self,
+        slot: usize,
+        before: impl FnMut(usize, &RawNode) -> bool,
+        decls: &[NsDecl<'_>],
+    ) -> Result<LensMut<'_, C>> {
+        let InsertPlan { index, name, declarations } = self.plan_insert::<C>(slot, before, decls)?;
         let parent = self.node_mut();
         if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
             parent.own_dirty = true; // self-closing parent gains its first child
         }
-        parent.children.insert(index, RawItem::Element(RawNode::new_created(name)));
+        let mut node = RawNode::new_created(name);
+        node.attrs = declarations;
+        parent.children.insert(index, RawItem::Element(node));
         self.mark_path();
         Ok(self.descend(index))
+    }
+
+    /// The slot of a new `C` (unique, else an error).
+    fn unique_slot<C: ElementSpec>(&self) -> Result<usize> {
+        let slots = self.slots()?;
+        match Self::slot_of(slots, C::QNAME)[..] {
+            [s] => Ok(s),
+            [] => Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
+            _ => Err(Error::AmbiguousSlot(C::QNAME)),
+        }
+    }
+
+    /// `slot`, if it is one of `C`'s slots.
+    fn given_slot<C: ElementSpec>(&self, slot: usize) -> Result<usize> {
+        let slots = self.slots()?;
+        if Self::slot_of(slots, C::QNAME).contains(&slot) {
+            Ok(slot)
+        } else {
+            Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME })
+        }
     }
 
     /// Inserts a new `C` into its slot. `before(index_in_slot, existing)` is
@@ -409,20 +533,34 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// [`Error::AmbiguousSlot`] (QName in two slots — use
     /// [`Self::insert_in_slot`]), [`Error::UnresolvedSibling`]
     /// (`mc:AlternateContent` sibling or out-of-order children),
-    /// [`Error::UnsupportedContentModel`], [`Error::NamespaceNotInScope`].
+    /// [`Error::UnsupportedContentModel`], [`Error::NamespaceNotInScope`]
+    /// (use [`Self::insert_by_with_ns`] to declare it), [`Error::TooDeep`].
     pub fn insert_by<C: ChildOf<E>>(&mut self, before: impl FnMut(usize, &RawNode) -> bool) -> Result<LensMut<'_, C>> {
-        let slots = self.slots()?;
-        let slot = match Self::slot_of(slots, C::QNAME)[..] {
-            [s] => s,
-            [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
-            _ => return Err(Error::AmbiguousSlot(C::QNAME)),
-        };
-        self.insert_at_slot::<C>(slot, before)
+        self.insert_by_with_ns::<C>(before, &[])
+    }
+
+    /// [`Self::insert_by`], declaring the namespaces `decls` on the new
+    /// element where they are not bound in scope yet (see [`NsDecl`]). The
+    /// new element and anything later inserted below it can then use them;
+    /// the declarations are part of the new element's start tag only.
+    /// Additional error: [`Error::InvalidNamespaceDeclaration`].
+    pub fn insert_by_with_ns<C: ChildOf<E>>(
+        &mut self,
+        before: impl FnMut(usize, &RawNode) -> bool,
+        decls: &[NsDecl<'_>],
+    ) -> Result<LensMut<'_, C>> {
+        let slot = self.unique_slot::<C>()?;
+        self.insert_at_slot::<C>(slot, before, decls)
     }
 
     /// `insert_by` that never returns `true`: append at the end of the slot.
     pub fn insert<C: ChildOf<E>>(&mut self) -> Result<LensMut<'_, C>> {
         self.insert_by::<C>(|_, _| false)
+    }
+
+    /// [`Self::insert`] with namespace declarations ([`Self::insert_by_with_ns`]).
+    pub fn insert_with_ns<C: ChildOf<E>>(&mut self, decls: &[NsDecl<'_>]) -> Result<LensMut<'_, C>> {
+        self.insert_by_with_ns::<C>(|_, _| false, decls)
     }
 
     /// As [`Self::insert_by`], with the slot index given explicitly (needed
@@ -432,21 +570,90 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         slot: usize,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<LensMut<'_, C>> {
-        let slots = self.slots()?;
-        if !Self::slot_of(slots, C::QNAME).contains(&slot) {
-            return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME });
-        }
-        self.insert_at_slot::<C>(slot, before)
+        self.insert_in_slot_with_ns::<C>(slot, before, &[])
+    }
+
+    /// [`Self::insert_in_slot`] with namespace declarations.
+    pub fn insert_in_slot_with_ns<C: ChildOf<E>>(
+        &mut self,
+        slot: usize,
+        before: impl FnMut(usize, &RawNode) -> bool,
+        decls: &[NsDecl<'_>],
+    ) -> Result<LensMut<'_, C>> {
+        let slot = self.given_slot::<C>(slot)?;
+        self.insert_at_slot::<C>(slot, before, decls)
     }
 
     /// The first existing `C` child, or a newly inserted one. The normal path
     /// for `maxOccurs = 1` children.
     pub fn get_or_insert<C: ChildOf<E>>(&mut self) -> Result<LensMut<'_, C>> {
+        self.get_or_insert_with_ns::<C>(&[])
+    }
+
+    /// [`Self::get_or_insert`]; `decls` apply only when a new `C` is
+    /// inserted (an existing child is returned unchanged).
+    pub fn get_or_insert_with_ns<C: ChildOf<E>>(&mut self, decls: &[NsDecl<'_>]) -> Result<LensMut<'_, C>> {
         let found = self.node().indexed_elements().find(|(_, n)| n.is(C::QNAME)).map(|(i, _)| i);
         match found {
             Some(i) => Ok(self.descend(i)),
-            None => self.insert::<C>(),
+            None => self.insert_with_ns::<C>(decls),
         }
+    }
+
+    // ---- checks: the same decision as the inserts, without changing anything ----
+
+    /// `Ok(())` exactly when [`Self::insert_by`] would succeed; changes nothing.
+    pub fn check_insert_by<C: ChildOf<E>>(&self, before: impl FnMut(usize, &RawNode) -> bool) -> Result<()> {
+        self.check_insert_by_with_ns::<C>(before, &[])
+    }
+
+    /// `Ok(())` exactly when [`Self::insert_by_with_ns`] would succeed.
+    pub fn check_insert_by_with_ns<C: ChildOf<E>>(
+        &self,
+        before: impl FnMut(usize, &RawNode) -> bool,
+        decls: &[NsDecl<'_>],
+    ) -> Result<()> {
+        let slot = self.unique_slot::<C>()?;
+        self.plan_insert::<C>(slot, before, decls).map(|_| ())
+    }
+
+    /// `Ok(())` exactly when [`Self::insert`] would succeed.
+    pub fn check_insert<C: ChildOf<E>>(&self) -> Result<()> {
+        self.check_insert_by::<C>(|_, _| false)
+    }
+
+    /// `Ok(())` exactly when [`Self::insert_with_ns`] would succeed.
+    pub fn check_insert_with_ns<C: ChildOf<E>>(&self, decls: &[NsDecl<'_>]) -> Result<()> {
+        self.check_insert_by_with_ns::<C>(|_, _| false, decls)
+    }
+
+    /// `Ok(())` exactly when [`Self::insert_in_slot`] would succeed.
+    pub fn check_insert_in_slot<C: ChildOf<E>>(&self, slot: usize, before: impl FnMut(usize, &RawNode) -> bool) -> Result<()> {
+        self.check_insert_in_slot_with_ns::<C>(slot, before, &[])
+    }
+
+    /// `Ok(())` exactly when [`Self::insert_in_slot_with_ns`] would succeed.
+    pub fn check_insert_in_slot_with_ns<C: ChildOf<E>>(
+        &self,
+        slot: usize,
+        before: impl FnMut(usize, &RawNode) -> bool,
+        decls: &[NsDecl<'_>],
+    ) -> Result<()> {
+        let slot = self.given_slot::<C>(slot)?;
+        self.plan_insert::<C>(slot, before, decls).map(|_| ())
+    }
+
+    /// `Ok(())` exactly when [`Self::get_or_insert`] would succeed.
+    pub fn check_get_or_insert<C: ChildOf<E>>(&self) -> Result<()> {
+        self.check_get_or_insert_with_ns::<C>(&[])
+    }
+
+    /// `Ok(())` exactly when [`Self::get_or_insert_with_ns`] would succeed.
+    pub fn check_get_or_insert_with_ns<C: ChildOf<E>>(&self, decls: &[NsDecl<'_>]) -> Result<()> {
+        if self.node().indexed_elements().any(|(_, n)| n.is(C::QNAME)) {
+            return Ok(());
+        }
+        self.check_insert_with_ns::<C>(decls)
     }
 
     // ---- removal ----

@@ -108,7 +108,7 @@ Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
 out of schema order), `UnsupportedContentModel`, `NotAllowed`, `NotText`,
 `IncompleteSpec` (spec with an unresolved SDK base), `NamespaceNotInScope`
-(no usable prefix; Phase0 never declares namespaces), `InvalidXmlChar`
+(no usable prefix; declare it with a `*_with_ns` insert, see below), `InvalidXmlChar`
 (`set_text`/`set_attr` value with a character outside XML 1.0 `Char`, e.g.
 U+000B; checked before anything changes, so no primitive can write a part
 that is not well-formed).
@@ -121,6 +121,24 @@ keeps its original tags even when emptied.
 Prefixes for new nodes: the parent's prefix if it binds the URI, else the
 innermost binding in effect (default namespace preferred on the same
 element); attributes need a non-empty prefix; `xml:` always works.
+
+Namespace declarations on new elements. `insert_with_ns`, `insert_by_with_ns`,
+`insert_in_slot_with_ns` and `get_or_insert_with_ns` take a list of `NsDecl { prefix, uri }`
+to declare on the **new** element. Word, for example, declares `a:` on `a:graphic` and `pic:`
+on `pic:pic`, and PowerPoint declares `a16:` on each `a16:rowId`.
+
+- If a URI already has a prefixed binding in scope, nothing is declared and that binding is
+  used.
+- Otherwise `xmlns:{p}` is added. `p` is the requested prefix if it is unbound in scope, else
+  the first free `{prefix}1`, `{prefix}2`, …. Existing bindings are never shadowed.
+- The new element, and anything later inserted below it, then use these bindings under the
+  rules above.
+- Bad requests are refused with `InvalidNamespaceDeclaration`: an empty or `xml`/`xmlns` URI,
+  a prefix that is not an NCName or starts with `xml`, or a prefix or URI given twice.
+- The declarations are part of the new element's start tag only, so T2 locality holds.
+- Every insert has a `check_*` twin (`check_insert`, `check_insert_by`, `check_insert_in_slot`,
+  `check_get_or_insert`, each also `_with_ns`). A twin returns exactly the insert's result and
+  changes nothing.
 
 ## Schema description types
 
