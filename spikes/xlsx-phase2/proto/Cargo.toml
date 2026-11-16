@@ -1,0 +1,14 @@
+# Throwaway prototype for ADR-0006 (not part of the workspace, not for merge as code).
+[package]
+name = "xlsx-phase2-proto"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace]
+
+[dependencies]
+ooxml-core = { path = "../../../crates/ooxml-core" }
+ooxml-schema = { path = "../../../crates/ooxml-schema", default-features = false, features = ["sml"] }
+calamine = "0.38"
