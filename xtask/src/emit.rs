@@ -121,10 +121,34 @@ pub struct Ctx<'m, 'a> {
     pub type_names: BTreeMap<String, String>,
     /// (group, enum at) → Rust enum name
     pub enum_names: BTreeMap<(&'static str, (usize, usize)), String>,
+    /// `[detach] unique_attrs`, resolved: (element `prefix:local`, attribute
+    /// `(ns, prefix, local)`, XSD default), for every SDK entry of the type.
+    pub unique_attrs: Vec<UniqueAttrSpec>,
 }
 
+/// A resolved `[detach] unique_attrs` entry: element `prefix:local`,
+/// attribute `(ns, prefix, local)`, XSD default.
+pub type UniqueAttrSpec = (String, (String, String, String), Option<String>);
+
 impl<'m, 'a> Ctx<'m, 'a> {
-    pub fn new(model: &'m Model<'a>, allow: &BTreeMap<String, Allowed>, diags: &mut Diagnostics) -> Res<Self> {
+    pub fn new(model: &'m Model<'a>, allow: &BTreeMap<String, Allowed>, unique: &[String], diags: &mut Diagnostics) -> Res<Self> {
+        let mut unique_attrs = Vec::new();
+        for u in unique {
+            let (ct, attr) = u.split_once('@').ok_or_else(|| format!("unique_attrs entry {u:?}: expected \"<complex type>@<attribute>\""))?;
+            let prefix = format!("{ct}/");
+            let mut n = 0;
+            // concrete entries only (`<type>/` is the abstract one)
+            for name in model.index.keys().filter(|k| k.starts_with(&prefix) && k.len() > prefix.len()) {
+                let e = model.resolve(name, diags).ok_or_else(|| format!("unique_attrs: {name} does not resolve"))?;
+                let a = e.attrs.iter().find(|a| a.local == attr && a.ns.is_empty() || format!("{}:{}", a.prefix, a.local) == attr)
+                    .ok_or_else(|| format!("unique_attrs entry {u:?}: {name} has no attribute {attr}"))?;
+                unique_attrs.push((format!("{}:{}", e.prefix, e.local), (a.ns.clone(), a.prefix.clone(), a.local.clone()), a.default.clone()));
+                n += 1;
+            }
+            if n == 0 {
+                return Err(format!("unique_attrs entry {u:?}: no SDK entry of type {ct}").into());
+            }
+        }
         let mut entries = BTreeMap::new();
         for (name, a) in allow {
             let e = model.resolve(name, diags).ok_or_else(|| format!("allowlisted {name:?} is not in the SDK data"))?;
@@ -177,7 +201,7 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 enum_names.insert((g, at), name);
             }
         }
-        Ok(Ctx { model, entries, type_names, enum_names })
+        Ok(Ctx { model, entries, type_names, enum_names, unique_attrs })
     }
 
     fn ns_const(prefix: &str) -> String {
@@ -429,7 +453,23 @@ impl<'m, 'a> Ctx<'m, 'a> {
             // Only entries opted in with `[detach]`; SameType only between
             // them (the reflexive case is a blanket impl in core).
             if allowed.detach {
-                let _ = writeln!(body, "impl ooxml_core::Detachable for {ty} {{}}");
+                let list: Vec<String> = self
+                    .unique_attrs
+                    .iter()
+                    .filter_map(|(el, (ans, ap, al), def)| {
+                        let eq = self.qname_expr(el, &mut used)?;
+                        let aq = self.attr_qname_expr(ans, ap, al, &mut used);
+                        Some(format!(
+                            "ooxml_core::UniqueAttr {{ element: {eq}, attr: {aq}, default: {} }}",
+                            def.as_ref().map_or("None".into(), |d| format!("Some({})", lit(d)))
+                        ))
+                    })
+                    .collect();
+                let _ = writeln!(
+                    body,
+                    "impl ooxml_core::schema::__private::Sealed for {ty} {{}}\nimpl ooxml_core::Detachable for {ty} {{ const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[{}]; }}",
+                    list.join(", ")
+                );
                 let others = self.entries.iter().filter(|(_, (a, _))| a.detach).map(|(n, (a, oe))| (n.as_str(), a.group, oe));
                 let (partners, mismatches) = same_type_partners(e, others);
                 diags.lines.extend(mismatches);

@@ -32,7 +32,15 @@ names = [
 # Lens::detach_as for new runs/paragraphs. Formatting only: these subtrees
 # hold no shape id, placeholder index or id reference. Never list shapes,
 # groups, text bodies or anything that can contain a cNvPr.
+# unique_attrs: values that must be unique in the document. ECMA-376 Part 1
+# §21.1.2.3.9 (rPr), §21.1.2.2.3 (endParaRPr), §21.1.2.3.2 (defRPr, also
+# below a:pPr): "smtId (SmartTag ID) ... This ID is unique throughout the
+# presentation". A copy with a non-default smtId is refused. Reviewed and
+# not unique: bmk (a bookmark *target name*, a reference that may repeat),
+# lang/altLang, kumimoji, the formatting attributes. a:extLst content is
+# open (not covered by this review): detach_as refuses it unless skipped.
 [detach]
+unique_attrs = ["a:CT_TextCharacterProperties@smtId"]
 names = [
     "a:CT_TextCharacterProperties/a:rPr",
     "a:CT_TextCharacterProperties/a:endParaRPr",
