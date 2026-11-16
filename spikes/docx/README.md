@@ -27,3 +27,21 @@ cd spikes/docx/readback && cargo build --release && \
 Results as of 2026-11-16 (rustc 1.99.1, Python 3.15) are quoted in the roadmap and ADR-0004.
 `readback/` is not a member of the root workspace (it declares its own `[workspace]`), so its
 dependencies do not enter ooxml-rs's lockfile.
+
+### Revision 2 (2026-11-16, ADR-0004 rev 2)
+
+`phase0_gate.py` now follows the round-1 review: fields are tracked with a stack and every nesting
+level is classified (M1), the field state runs over the whole body in document order (m2), every
+reachable run is counted, hyperlink runs included (m3), and the `DocumentProtected` gate is
+applied (M3). Results on the same corpora:
+
+| Corpus | Files writable | Refused (files) | Settable / text runs in writable files |
+|---|---|---|---|
+| fixtures (26) | 20 | 1 each: Encrypted, DTD, Strict, TrackRevisionsOn, DocumentProtected; 2 StaleFieldRisk | 3,418 / 3,455 (308 in `w:hyperlink`) |
+| POI (129) | 102 | 13 NotZip, 1 Corrupt, 2 Encrypted, 1 DTD, 5 TrackRevisionsOn, 4 DocumentProtected, 1 StaleFieldRisk | 27,763 / 28,067 (98.9%) |
+| SDK non-Strict (444) | 404 | 30 StaleFieldRisk, 6 TrackRevisionsOn, 2 Encrypted, 2 Strict | 23,448 / 25,556 (91.8%) |
+
+The file-level SDK numbers do not change. In `complex2010.docx` the stack now also reports the
+outer `TC` (its instruction holds a nested `SEQ`). Runs inside text boxes and `mc:AlternateContent`
+are no longer counted: they are not body flow. `crates/ooxml-docx/tests/fixtures.rs` asserts the
+same per-fixture counts from the Rust implementation.
