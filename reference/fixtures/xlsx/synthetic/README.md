@@ -109,6 +109,12 @@ guess: `C1` depends on everything. Edit `S1!Z9` → `S1!C1`; `D1` (`2*3`) is nev
 The other round-3 shapes (two masters sharing an `si`, sheet and defined names that fold alike,
 the Kelvin sign) are built in `tests/phase1_review_r3.rs`.
 
+## `o3_canary.xlsx` (O3 positive control, not an O1 case)
+
+`Sheet1!B1` = `A1+1` with a deliberately **wrong** cached value 3. The O3 data generator and the O3
+test both require LibreOffice's value for it to be 2, which proves the recalculation actually ran
+(review of PR #21, M2).
+
 ## Calculation modes and refusals
 
 | File | Shape | Expected |

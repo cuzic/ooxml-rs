@@ -95,10 +95,19 @@ def cell_values(path):
     return out
 
 
+# Positive control (PR #21 review M2): the canary input has a deliberately
+# wrong cached value; a real recalculation must produce this value.
+CANARY_PREFIX = "o3_canary-"
+CANARY_CELL, CANARY_VALUE = "Sheet1!B1", "2"
+
+
 def main():
     src, dest = sys.argv[1], sys.argv[2]
     exe = soffice()
     ver = version(exe)
+    want = os.environ.get("O3_LIBREOFFICE_VERSION")
+    if want and want not in ver:
+        sys.exit(f"soffice reports {ver!r}, expected version {want}")
     files = sorted(f for f in os.listdir(src) if f.endswith(".xlsx"))
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -123,11 +132,16 @@ def main():
                 done[h] = cell_values(os.path.join(outdir, f"{h:016x}.xlsx"))
             for cell, (t, val) in sorted(done[h].items()):
                 rows.append(f"{name}\t{h:016x}\t{cell}\t{t}\t{val}")
+    canaries = [r for r in rows if r.startswith(CANARY_PREFIX) and f"\t{CANARY_CELL}\t" in r]
+    if not canaries or any(not r.endswith(f"\t{CANARY_VALUE}") for r in canaries):
+        sys.exit(f"positive control failed: LibreOffice did not recalculate the canary ({canaries})")
     os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
     with open(dest, "w", encoding="utf-8") as f:
         f.write(f"# libreoffice\t{ver}\n")
         f.write(f"# generated\t{datetime.datetime.now(datetime.timezone.utc).isoformat()}\n")
-        f.write("# OOXMLRecalcMode\t0 (always)\n")
+        f.write("# OOXMLRecalcMode\t0 (always), canary recalculated\n")
+        for k in ("GITHUB_SHA", "LANG", "LC_ALL", "TZ", "O3_CARGO_LOCK_SHA256"):
+            f.write(f"# {k}\t{os.environ.get(k, '')}\n")
         for r in rows:
             f.write(r.replace("\n", "\\n") + "\n")
     print(f"{len(files)} files ({len(done)} distinct), {len(rows)} values -> {dest}")

@@ -37,6 +37,11 @@ fn edit(input: &[u8], sheet: &str, at: &str, v: f64) -> Option<Vec<u8>> {
     wb.to_bytes().ok()
 }
 
+/// The positive control (PR #21 review M2): `Sheet1!B1` = `A1+1` cached as 3.
+pub const CANARY_ID: &str = "o3_canary-Sheet1!Z9";
+/// The cell and the value a real recalculation must give.
+pub const CANARY_CELL: (&str, &str) = ("Sheet1!B1", "2");
+
 /// Values of different magnitude per edit (R2-m6).
 const VALUES: [f64; 3] = [1000.0, -0.5, 7.0];
 
@@ -55,6 +60,7 @@ pub fn cases() -> Vec<Case> {
         ("o1_shared", &[("Sheet2", "A3"), ("Sheet2", "D1")]),
         ("o1_manual", &[("Sheet1", "A1")]),
         ("o1_name_scope", &[("S1", "A1")]),
+        ("o3_canary", &[("Sheet1", "Z9")]),
         ("o1_no_calcpr", &[("Sheet1", "A1")]),
         ("o1_everything_indirect", &[("Sheet1", "A1")]),
         ("o1_everything_offset", &[("Sheet1", "A1")]),

@@ -580,3 +580,92 @@ fn calc_chain_relationship_types() {
     assert_matches!(pkg.check_remove_part("xl/calcChain.xml", &[REL_CALC_CHAIN]), Err(Error::RemovePartRefused { reason: RemoveRefusal::RelationshipTypeNotAllowed { .. }, .. }));
     pkg.check_remove_part("xl/calcChain.xml", &[REL_CALC_CHAIN, REL_CALC_CHAIN_STRICT]).unwrap();
 }
+
+const IMAGE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+
+fn sheet_with_image(sheet_entry: &str, sheet_rels: &str, target: &str, id: &str) -> Vec<u8> {
+    let rels = format!(r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="{id}" Type="{IMAGE}" Target="{target}"/></Relationships>"#);
+    zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        (sheet_entry, r#"<ws xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><pic r:embed="rId1"/></ws>"#),
+        (sheet_rels, &rels),
+        ("xl/media/i.png", "PNG"),
+    ])
+}
+
+/// Round 3 N7 (a): the source part of a `.rels` is found under OPC
+/// equivalence (percent-encoded entry vs IRI `.rels` name, both ways), so
+/// its `r:embed` is seen; likewise a part's own `.rels` (R1, R2).
+#[test]
+fn remove_part_finds_sources_under_part_name_equivalence() {
+    for (sheet, rels) in [("xl/sheet%E7%94%BB.xml", "xl/_rels/sheet画.xml.rels"), ("xl/sheet画.xml", "xl/_rels/sheet%E7%94%BB.xml.rels")] {
+        let b = sheet_with_image(sheet, rels, "media/i.png", "rId1");
+        let mut pkg = Package::from_bytes(b.clone()).unwrap();
+        assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| matches!(r, RemoveRefusal::StillReferenced { id, .. } if id == "rId1"));
+        assert_refused(&mut pkg, &b, sheet, &[], |r| matches!(r, RemoveRefusal::HasOwnRelationships { .. }));
+    }
+}
+
+/// Round 3 N7 (b), (c): XML whitespace around `Target` and `Id` collapses
+/// (xsd:anyURI, xsd:ID): such a relationship still points at the part, and
+/// its Id is still referenced (R5, R10).
+#[test]
+fn remove_part_trims_target_and_id() {
+    for (target, id) in [(" media/i.png", "rId1"), ("media/i.png&#10;", "rId1"), ("media/i.png", " rId1 ")] {
+        let b = sheet_with_image("xl/sheet.xml", "xl/_rels/sheet.xml.rels", target, id);
+        let mut pkg = Package::from_bytes(b.clone()).unwrap();
+        assert_refused(&mut pkg, &b, "xl/media/i.png", &[IMAGE], |r| matches!(r, RemoveRefusal::StillReferenced { .. }));
+    }
+    for target in [" calcChain.xml", "calcChain.xml "] {
+        let r = wb_rels_to(target, "");
+        let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/calcChain.xml", "<c/>")]);
+        let mut pkg = Package::from_bytes(b).unwrap();
+        assert_eq!(pkg.remove_part("xl/calcChain.xml", &[CALC_CHAIN]).unwrap().relationships.len(), 1, "{target:?}");
+    }
+}
+
+/// Round 3 N7 safety net: a `.rels` that mentions the part's file name in a
+/// spelling that does not resolve to it refuses the removal.
+#[test]
+fn remove_part_refuses_unresolved_mentions() {
+    for target in ["xl\\calcChain.xml", "%2E/calcChain.xml"] {
+        let r = wb_rels_to(target, "");
+        let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/_rels/workbook.xml.rels", &r), ("xl/calcChain.xml", "<c/>")]);
+        let mut pkg = Package::from_bytes(b.clone()).unwrap();
+        assert_refused(&mut pkg, &b, "xl/calcChain.xml", &[CALC_CHAIN], |x| matches!(x, RemoveRefusal::UnresolvedMention { .. }));
+    }
+}
+
+/// Round 3 N8: entries equal under percent-decoding are a duplicate part
+/// (refused at open); a percent-encoded Override is removed from the XML
+/// and from the cache (R3, R4, mutant Y).
+#[test]
+fn percent_equivalent_names() {
+    let b = zip_of(&[("[Content_Types].xml", CT_MIN), ("_rels/.rels", PKG_RELS), ("xl/a画.xml", "<a/>"), ("xl/a%E7%94%BB.xml", "<a/>")]);
+    assert_matches!(Package::from_bytes(b), Err(Error::Package(_)));
+    let ct = r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/c%E7%94%BB.xml" ContentType="urn:B"/></Types>"#;
+    let b = zip_of(&[("[Content_Types].xml", ct), ("_rels/.rels", PKG_RELS), ("xl/workbook.xml", "<w/>"), ("xl/c画.xml", "<c/>")]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    let removed = pkg.remove_part("xl/c画.xml", &[]).unwrap();
+    assert!(removed.content_type_override);
+    assert!(pkg.content_types().overrides().is_empty(), "cache: {:?}", pkg.content_types().overrides());
+    assert!(!String::from_utf8(decompressed(&pkg.to_bytes().unwrap(), "[Content_Types].xml")).unwrap().contains("Override"));
+}
+
+/// Round 3 N9 (mutant Z): a relative target in a nested `dir/_rels/.rels`
+/// resolves against `dir`.
+#[test]
+fn nested_dot_rels_relative_target() {
+    let b = zip_of(&[
+        ("[Content_Types].xml", CT_MIN),
+        ("_rels/.rels", PKG_RELS),
+        ("xl/workbook.xml", "<w/>"),
+        ("foo/_rels/.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="urn:x" Target="x.xml"/></Relationships>"#),
+        ("foo/x.xml", "<x/>"),
+    ]);
+    let mut pkg = Package::from_bytes(b).unwrap();
+    let removed = pkg.remove_part("foo/x.xml", &["urn:x"]).unwrap();
+    assert_eq!(removed.relationships, vec![("foo/_rels/.rels".to_owned(), "rId1".to_owned())]);
+}

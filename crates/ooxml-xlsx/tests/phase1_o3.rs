@@ -19,7 +19,7 @@ mod common;
 
 use std::collections::{BTreeMap, HashMap};
 
-use common::o3cases::{cases, file_stem, fnv1a};
+use common::o3cases::{CANARY_CELL, CANARY_ID, cases, file_stem, fnv1a};
 use common::p1::{cell_spans, facts, sheet_parts};
 use common::part;
 
@@ -88,6 +88,18 @@ fn o3_kept_values_match_libreoffice_recalculation() {
         "reference/fixtures/xlsx/o3/expected.tsv is missing: run `cargo run -p ooxml-xlsx --example o3_inputs -- DIR` \
          and `python3 -I spikes/xlsx/o3_recalc.py DIR reference/fixtures/xlsx/o3/expected.tsv` with LibreOffice",
     );
+    // Positive control: LibreOffice really recalculated (otherwise every
+    // kept value trivially "agrees" with an unrecalculated copy).
+    let mut canaries = 0;
+    for c in cases().iter().filter(|c| c.id.starts_with(CANARY_ID)) {
+        let stem = file_stem(&c.id);
+        for f in [format!("{stem}.input.xlsx"), format!("{stem}.output.xlsx")] {
+            let got = expected.get(&f).and_then(|(_, cells)| cells.get(CANARY_CELL.0));
+            assert_eq!(got.map(|v| v.1.as_str()), Some(CANARY_CELL.1), "{f}: the canary was not recalculated: {got:?}");
+            canaries += 1;
+        }
+    }
+    assert!(canaries >= 2, "no canary in the data");
     let (mut compared, mut skipped, mut failures) = (0, 0, Vec::new());
     for c in cases() {
         let stem = file_stem(&c.id);

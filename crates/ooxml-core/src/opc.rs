@@ -65,8 +65,7 @@ impl ContentTypes {
     /// Drops every override for `part` (after [`crate::Package::remove_part`]
     /// removed it from the XML).
     pub(crate) fn remove_override(&mut self, part: &str) {
-        let part = part.trim_start_matches('/');
-        self.overrides.retain(|(p, _)| !p.eq_ignore_ascii_case(part));
+        self.overrides.retain(|(p, _)| !same_part_name(p, part));
     }
 
     /// Content type of a part: an override, else the extension default.
@@ -88,6 +87,40 @@ pub const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocume
 /// The calcChain relationship type (Strict). `allowed_rel_types` is an exact
 /// string match, so a caller that accepts Strict packages passes both.
 pub const REL_CALC_CHAIN_STRICT: &str = "http://purl.oclc.org/ooxml/officeDocument/relationships/calcChain";
+
+/// Trims XML whitespace (`#x20 #x9 #xA #xD`), as the schema's whitespace
+/// collapse does for `xsd:anyURI`, `xsd:ID` and token attributes.
+pub(crate) fn xml_trim(s: &str) -> &str {
+    s.trim_matches([' ', '\t', '\n', '\r'])
+}
+
+/// A part name normalized for OPC part-name equivalence: no leading `/`,
+/// percent-decoded (an IRI and its `%`-encoded UTF-8 form are the same
+/// name), ASCII lower case.
+pub(crate) fn normalize_part_name(s: &str) -> String {
+    let s = s.trim_start_matches('/');
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%'
+            && let Some(h) = b.get(i + 1..i + 3)
+            && let Ok(v) = u8::from_str_radix(std::str::from_utf8(h).unwrap_or("zz"), 16)
+        {
+            out.push(v);
+            i += 3;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).to_ascii_lowercase()
+}
+
+/// OPC part-name equivalence (see [`normalize_part_name`]).
+pub(crate) fn same_part_name(a: &str, b: &str) -> bool {
+    normalize_part_name(a) == normalize_part_name(b)
+}
 
 /// Is a relationship's target inside or outside the package?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -154,7 +187,11 @@ impl Relationships {
     /// The same set without the relationships whose `Id` is in `ids`
     /// (after [`crate::Package::remove_part`]; no re-parse, so it cannot fail).
     pub(crate) fn without_ids(&self, ids: &[String]) -> Relationships {
-        Relationships { source: self.source.clone(), rels: self.rels.iter().filter(|r| !ids.contains(&r.id)).cloned().collect() }
+        let ids: Vec<&str> = ids.iter().map(|i| xml_trim(i)).collect();
+        Relationships {
+            source: self.source.clone(),
+            rels: self.rels.iter().filter(|r| !ids.contains(&xml_trim(&r.id))).cloned().collect(),
+        }
     }
 
     /// The source part (`None` = package).

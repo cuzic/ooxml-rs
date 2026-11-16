@@ -392,11 +392,12 @@ in a fixed order.** No part is cloned except `workbook.xml`.
      refusal there (`calcPr` would go next to an `mc:AlternateContent` child of `workbook`:
      `UnresolvedSibling`; 78/333 corpus `workbook.xml` have one, though none of the 2 formula
      workbooks lacking `calcPr` does) is an ordinary `Err` before anything changed;
-   - `calcChain.xml` removal (§4.3) is checked with `Package::check_remove_part`, which runs
-     `remove_part`'s own precondition checks without changing anything;
+   - `calcChain.xml` removal (§4.3) is checked with
+     `Package::check_remove_part(calc_chain, &[REL_CALC_CHAIN])`, which runs the same validation
+     as `remove_part` without changing anything;
    - the shared-formula hand-off texts (§4.2) are computed; a failed translation is
      `Err(SharedFormulaMaster)`.
-2. **Apply**, in this order: (i) `remove_part("calcChain.xml")`, which updates the in-memory
+2. **Apply**, in this order: (i) `remove_part(calc_chain, &[REL_CALC_CHAIN])`, which updates the in-memory
    content types and relationships together with the parts; (ii) the staged `workbook.xml` is
    moved into the package; (iii) `v`/`t` removal at the planned positions, sheet by sheet;
    (iv) the shared-formula hand-off; (v) the target cell write; (vi) the `FormulaIndex` and
@@ -582,7 +583,8 @@ workbook part's `.rels`, and its `Override` in `[Content_Types].xml`; entries ar
 - A partially maintained chain is the one state known to trigger a repair; an absent one is known
   not to.
 
-This needs `Package::remove_part(name)` and `Package::check_remove_part(name)` in `ooxml-core`
+This needs `Package::remove_part(name, allowed_rel_types)` and
+`Package::check_remove_part(name, allowed_rel_types)` in `ooxml-core`
 (separate additive core PR with its own tests). It is an **explicit, narrow exception** to
 ADR-0001 Layer 3's "registries are append-only" invariant. On acceptance of this ADR, ADR-0001
 gets a post-acceptance note with this text:
@@ -597,15 +599,22 @@ gets a post-acceptance note with this text:
 Until this ADR is accepted, ADR-0001 carries an interim note with these same conditions (PR #14);
 on acceptance this text replaces it.
 
-`remove_part(name, allowed_rel_types)` contract (as revised by the PR #14 round-1 review):
+`remove_part(name, allowed_rel_types)` contract (as revised by the PR #14 reviews, rounds 1–3):
 
+- **Part names** follow OPC equivalence everywhere (the part, source parts, `_rels` folders, its
+  own `.rels`, relationship targets, `Override` part names): ASCII case-insensitive and
+  percent-decoded; XML whitespace around `Target` and `Id` is collapsed. Entries that are
+  equivalent are a duplicate part name, refused at open. Only the root `_rels/.rels` holds
+  package relationships.
 - **Precondition**: the part exists and is not a registry part; it has **no relationships part
-  of its own** (case-insensitive), else `Err` (cascading deletion is out of scope); every
+  of its own**, else `Err` (cascading deletion is out of scope); every
   relationship to it has a type the caller allows (a part found by relationship type is
   referenced implicitly; ooxml-xlsx allows only the calcChain type); no attribute of a removed
   relationship's source part, in any namespace (`r:id`, VML `o:relid`, …), equals the removed
   `Id` after XML unescaping; every registry part to change is editable in place (a broken
-  `.rels` that does not mention the part is ignored). Refusals are a typed `RemoveRefusal`.
+  `.rels` that does not mention the part is ignored); and no `.rels` mentions the part's file
+  name without a relationship resolving to it (a safety net against spellings this code does
+  not resolve). Refusals are a typed `RemoveRefusal`.
 - **Scope**: every `.rels` part in the package is scanned. Every internal relationship that
   resolves to the part is removed. Every `Override` for the part is removed; a `Default` is
   never touched.

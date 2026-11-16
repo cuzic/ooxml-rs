@@ -321,6 +321,15 @@ build(
     names=[("Loc", "$A$1", 1)],
 )
 
+# --- o3_canary: a positive control for O3 (PR #21 review M2). B1's cached
+#     value is deliberately wrong (3; A1+1 is 2). If LibreOffice really
+#     recalculates, its output says 2; spikes/xlsx/o3_recalc.py and
+#     tests/phase1_o3.rs both fail otherwise. Not an O1 workbook.
+build(
+    "o3_canary.xlsx",
+    [("Sheet1", {"A1": 1, "B1": F("A1+1", 3), "C1": F("A1*10", 10)}, "ws")],
+)
+
 # --- calculation modes and workbook-wide refusals.
 build("o1_manual.xlsx", [("Sheet1", {"A1": 1, "B1": F("A1*2", 2), "C1": F("3", 3)}, "ws")], calc_pr='calcId="191029" calcMode="manual"')
 build("o1_iterate.xlsx", [("Sheet1", {"A1": F("A1+B1", 1), "B1": 1, "C1": 5}, "ws")], calc_pr='calcId="191029" iterate="1"')
