@@ -372,16 +372,18 @@ every later edit and every `save`/`to_bytes` returns `Err(Poisoned)`, so a parti
 never reach a file. Tests inject a failure before each apply step (cargo feature
 `fault-injection`) and check that behaviour (§7.3).
 
-**Cost (measured, `examples/phase1_bench.rs`, release build, this sandbox):** a single worksheet
-of 20,000 rows × 10 formula columns (`=A{r}+1`-style chains, 200,000 formulas, 9.4 MB).
+**Cost (measured, `examples/phase1_bench.rs`, release build, this sandbox):** one worksheet of
+20,000 rows; column A holds values and B–K hold the chains `B=A+1`, `C=B+1`, … (200,000
+formulas, 9.7 MB of XML).
 
 | Step | Time |
 |---|---|
-| Staged clone of the sheet (revision 2's design), per edit | ≈ 330 ms |
-| `open` (census) | BENCH_OPEN |
-| First edit (builds the dependency graph, strips all dependents) | BENCH_FIRST |
-| Each further edit whose dependents are already stripped | BENCH_NEXT |
-| 1,000 such edits | BENCH_THOUSAND |
+| Staged clone of the sheet tree (revision 2's design), per edit | 293 ms |
+| `open` (census of all sheets + Layer 2 parse of the first sheet) | 680 ms |
+| First edit (builds the dependency graph, strips 10 dependents) | 116 ms |
+| Each of 1,000 edits on new rows (10 dependents stripped each) | 2.2 ms |
+| An edit whose dependents are already stripped | 1.5 ms |
+| `save` | 176 ms |
 
 The graph is built once and cached; the census remembers which cells already lost their
 cached value, so a later edit only visits cells that still have one. A batch API is therefore
