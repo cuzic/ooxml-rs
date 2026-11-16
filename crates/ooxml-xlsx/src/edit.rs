@@ -634,3 +634,115 @@ fn strip_positions(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    //! The registry path of a [`CellWritePlan`] (ADR-0003 addendum P5-pre,
+    //! ADR-0017 §2.1). The public `write_cells` uses the in-place path; the
+    //! registry path is for Phase5's operations, so it is tested here.
+
+    use super::*;
+
+    fn synthetic(name: &str) -> Vec<u8> {
+        std::fs::read(format!("{}/../../reference/fixtures/xlsx/synthetic/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+    }
+
+    fn sheet(wb: &Workbook, name: &str) -> usize {
+        wb.sheets.iter().position(|s| s.name == name).unwrap()
+    }
+
+    fn writes(wb: &Workbook) -> Vec<(usize, CellIndex, CellOp)> {
+        let s1 = sheet(wb, "Sheet1");
+        vec![
+            (s1, CellIndex::parse("A1").unwrap(), CellOp::Number("5".into())),
+            (s1, CellIndex::parse("B12").unwrap(), CellOp::Formula("A1*7".into())),
+            (s1, CellIndex::parse("C12").unwrap(), CellOp::Text("t".into())),
+        ]
+    }
+
+    /// Folding `calcPr` and the calcChain removal into a registry
+    /// transaction gives the same package as the in-place path.
+    #[test]
+    fn the_registry_path_matches_the_in_place_path() {
+        for name in ["o1_precise.xlsx", "o1_no_calcpr.xlsx", "o1_manual.xlsx"] {
+            let input = synthetic(name);
+            let mut a = Workbook::from_bytes(input.clone()).unwrap();
+            let p = a.plan_writes(writes(&a)).unwrap();
+            a.apply_writes(p).unwrap();
+            let mut b = Workbook::from_bytes(input.clone()).unwrap();
+            let p = b.plan_writes(writes(&b)).unwrap();
+            let reg = ooxml_core::RegistryPlan::new(&b.pkg);
+            b.apply_writes_with(p, reg).unwrap();
+            assert_eq!(a.to_bytes().unwrap(), b.to_bytes().unwrap(), "{name}");
+            assert_eq!(b.calc_chain, None, "{name}");
+            // the workbook stays usable on both paths
+            b.edit_cell(sheet(&b, "Sheet1"), CellIndex::parse("A2").unwrap(), CellOp::Number("1".into())).unwrap();
+        }
+    }
+
+    /// A refusal while folding (here: the caller's transaction already
+    /// removes `calcChain.xml`, so the plan's removal conflicts) is an
+    /// ordinary `Err`: nothing changed, no poison.
+    #[test]
+    fn a_fold_refusal_changes_nothing() {
+        let input = synthetic("o1_precise.xlsx");
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        let p = wb.plan_writes(writes(&wb)).unwrap();
+        let chain = wb.calc_chain.clone().expect("o1_precise has a calcChain");
+        let mut reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+        reg.remove_parts(&wb.pkg, &[chain.as_str()], &[REL_CALC_CHAIN]).unwrap();
+        let e = wb.apply_writes_with(p, reg);
+        assert!(matches!(e, Err(Error::Core(_))), "{e:?}");
+        assert!(wb.poisoned.is_none());
+        assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+    }
+
+    /// `StalePlan` (an ordering bug in step 1, injected) is returned before
+    /// anything changes: an ordinary `Err`, no poison (ADR-0017 r2-m5).
+    #[cfg(feature = "fault-injection")]
+    #[test]
+    fn a_stale_registry_plan_is_an_ordinary_error() {
+        use crate::workbook::ApplyStep;
+        let input = synthetic("o1_precise.xlsx");
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        let p = wb.plan_writes(writes(&wb)).unwrap();
+        let reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+        wb.inject_apply_failure(ApplyStep::StaleRegistryPlan);
+        let e = wb.apply_writes_with(p, reg);
+        assert!(matches!(e, Err(Error::Core(ooxml_core::Error::RegistryRefused { reason: ooxml_core::RegistryRefusal::StalePlan, .. }))), "{e:?}");
+        assert!(wb.poisoned.is_none());
+        let out = wb.to_bytes().unwrap();
+        assert_eq!(out, Workbook::from_bytes(input).unwrap().to_bytes().unwrap(), "nothing changed");
+        // planning again works
+        let p = wb.plan_writes(writes(&wb)).unwrap();
+        let reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+        wb.apply_writes_with(p, reg).unwrap();
+    }
+
+    /// Fault injection (an `Err` and a panic) before `Package::apply` and
+    /// before each in-place step poisons the workbook (ADR-0017 §2.1).
+    #[cfg(feature = "fault-injection")]
+    #[test]
+    fn faults_on_the_registry_path_poison() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        use crate::workbook::ApplyStep;
+        let input = synthetic("o1_precise.xlsx");
+        for step in [ApplyStep::Registry, ApplyStep::Strip, ApplyStep::HandOff, ApplyStep::Target, ApplyStep::LaterTarget, ApplyStep::Index] {
+            for panic in [false, true] {
+                let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+                let p = wb.plan_writes(writes(&wb)).unwrap();
+                let reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+                if panic {
+                    wb.inject_apply_panic(step);
+                    let r = catch_unwind(AssertUnwindSafe(|| wb.apply_writes_with(p, reg)));
+                    assert!(r.is_err(), "{step:?}: the injected panic fired");
+                } else {
+                    wb.inject_apply_failure(step);
+                    assert!(matches!(wb.apply_writes_with(p, reg), Err(Error::Poisoned(_))), "{step:?}");
+                }
+                assert!(matches!(wb.to_bytes(), Err(Error::Poisoned(_))), "{step:?} panic={panic}");
+            }
+        }
+    }
+}

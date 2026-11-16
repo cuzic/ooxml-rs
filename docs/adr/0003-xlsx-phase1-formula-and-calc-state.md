@@ -6,6 +6,10 @@
   [ADR-0002](0002-schema-driven-code-generation.md)
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §4 (edit hazards), §6 (why this is
   Phase1; the owner accepted this ordering on 2026-11-16)
+- **Post-acceptance addendum (2026-11-16, P5-pre; requested by ADR-0017 §2.1 and Q7):** §3.1a
+  (multi-cell write plan, its registry-transaction form, `Worksheet::write_cells`) and §4.4
+  (future-function file form in `set_formula`). §3.1's single-cell edit is now the one-cell case
+  of §3.1a; its behaviour and output are unchanged.
 
 ## Revision history
 
@@ -450,7 +454,55 @@ that already lost their cached values** (they are visited, not rewritten), plus 
 rows of each sheet that still has a cached dependent. The closure of the `Everything` formulas
 is the same for every edit, so it is computed once per graph and reused (it is reset when a
 formula is added); without that cache the worst case cost about 90 ms per edit. A batch API is therefore
-not needed for Phase1; Phase6 (large sheets) may still add one.
+not needed for Phase1's performance; Phase6 (large sheets) may still add one. **Addendum
+(P5-pre):** Phase5's operations need one for **atomicity**: §3.1a.
+
+#### 3.1a Multi-cell write plan (post-acceptance addendum, P5-pre)
+
+ADR-0017 §2.1 needs the cell writes of one operation (a table's header, totals and column cells; a
+dynamic-array anchor) validated together, before anything changes, and its `calcPr` change and
+calcChain removal inside the operation's registry transaction (PR #38's `RegistryPlan`).
+
+1. **`CellWritePlan`** (crate-internal; `Workbook::plan_writes(&[(sheet, cell, op)])`) runs
+   §3.1's step 1 for **all** cells: every guard of §5 for each cell, the union of their
+   dependents (§3.2) and the guards on it, the strip positions, the shared-formula hand-offs,
+   the `calcPr` change on a clone of `workbook.xml` (cloned from the part's current state) and
+   the calcChain removal check. Any refusal is an ordinary `Err`; nothing changed.
+2. **Accumulated census.** Cell *k* is planned against the census as cells 1..*k*−1 leave it:
+   - a cell appears at most once (`Err(DuplicateCellWrite)`);
+   - at most one cell of each shared-formula group is written (`Err(SharedFormulaMaster)`;
+     write them in separate calls), so a hand-off never depends on another write of the plan;
+   - dependents come from the graph before any of the writes. That is a superset of what the
+     later writes need: a formula written earlier in the plan has no cached value, and its own
+     dependents are already in the union. Cells the plan writes are never stripped.
+3. **Apply, in place** (`apply_writes`): §3.1's order — calcChain, `workbook.xml`, strips,
+   hand-offs, then the cells in the given order, then the census and graph. Strips and hand-offs
+   use positions planned on the tree before any write. Each cell is **located again** on the
+   current tree (the row index is updated after every write), so two writes into the same new
+   row create one row. Locating again cannot fail: the plan checked every cell's insertion, and
+   rows and cells inserted by the plan are ordinary `row`/`c` elements in order.
+4. **Apply in a registry transaction** (`apply_writes_with(plan, registry)`, the form Phase5
+   uses): the staged `workbook.xml` (`stage_part`) and the calcChain removal (`remove_parts(&[calcChain],
+   &[REL_CALC_CHAIN])`) are folded into the caller's `RegistryPlan`, which the caller creates
+   **after** `plan_writes` (whose Layer 2 checks use `xml_part_mut`, which makes an earlier plan
+   stale). A refusal while folding is an ordinary `Err`. Then the workbook is poisoned and
+   `Package::apply` runs; its only error, `StalePlan`, is returned before anything changes, so the
+   poison is cleared and it is an ordinary `Err` (ADR-0017 r2-m5). Then steps (iii)–(vi) of item 3
+   run in place.
+5. **Fault injection** (feature `fault-injection`): before `Package::apply`, before each in-place
+   step, and before the **second** cell of a plan (`ApplyStep::LaterTarget`: a partly applied
+   plan), as an `Err` and as a panic; each poisons the workbook. A stale registry plan is injected
+   too and must not poison.
+6. **Public API:** one entry, `Worksheet::write_cells(&[(CellIndex, CellWrite)])`, all or
+   nothing. `CellWrite` is `Number`, `String` (inline, as `set_string`), `Formula` or
+   `RemoveFormula`. The single-cell setters are the one-cell case and their output is unchanged.
+   Phase2's shared strings join the plan when ADR-0006's implementation (#50) is merged: the
+   `sst` checks (slot, exact-form reuse, the same string appended twice in one plan) become part
+   of step 1.
+
+Oracles: a batch gives the same bytes as the same writes made one by one (the union of strips,
+one `fullCalcOnLoad`, one calcChain removal); the registry path gives the same bytes as the
+in-place path; every refusal leaves L1; O1, O2 and O3 are unchanged.
 
 #### 3.2 Dependents
 
@@ -642,6 +694,22 @@ on acceptance this text replaces it.
   nothing (not even part states); after it the removal cannot fail. The in-memory content-type
   and package-relationship caches are updated with the parts (R2-M3). Until this ADR is
   accepted, ADR-0001 carries an interim note recording this exception.
+
+#### 4.4 Future functions (post-acceptance addendum, P5-pre; ADR-0017 Q7)
+
+- `set_formula` (and `write_cells`) take the **file form**. A known future function written
+  without its prefix is refused with `Err(MissingFunctionPrefix { name, prefix })`, because
+  Excel would show `#NAME?` until the formula is re-entered. This changes Phase1's contract for
+  such texts, which were accepted before.
+- The table is a fixed copy of rust_xlsxwriter 0.102's `future_functions` (161 names):
+  `_xlfn.`, and `_xlfn._xlws.` for `FILTER`, `SORT` and `PY`. `_xlfn.FILTER` without `_xlws.` is
+  refused too.
+- The spill (`A1#`) and implicit-intersection (`@`) operators are refused
+  (`Err(DynamicArrayOperator)`); their file forms are `_xlfn.ANCHORARRAY(…)` and
+  `_xlfn.SINGLE(…)` (ADR-0017 review m7).
+- `ooxml_xlsx::add_future_prefixes(text)` converts a formula as typed (string literals left
+  alone). Parameters of `LAMBDA` (`_xlpm.`) are not checked or added: they are names, not
+  function calls.
 
 ### 5. Guards
 
