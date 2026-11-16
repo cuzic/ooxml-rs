@@ -1,16 +1,17 @@
 # ADR-0005: PowerPoint Phase 0 — text edits in existing shapes
 
-- Status: **Accepted** (revision 3)
+- Status: **Accepted** (revision 3); revision 4 (Phase 0.1, §9) **Proposed**
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md),
   [ADR-0002](0002-schema-driven-code-generation.md) (and its post-acceptance
-  note "wildcard parents / XML characters", core PR #10)
+  notes "wildcard parents / XML characters", core PR #10, and
+  "detach/insert", core PR #18, for Phase 0.1)
 - Background and evidence: [`docs/roadmap/pptx.md`](../roadmap/pptx.md),
   [`spikes/pptx/`](../../spikes/pptx/README.md),
   [`reference/fixtures/pptx/`](../../reference/fixtures/pptx/README.md)
 - Review: [round 1](0005-opus-review-round1.md),
   [round 2](0005-opus-review-round2.md) (converged: Minor findings only)
-- Implementation: `crates/ooxml-pptx` (milestone `pptx-phase0`)
+- Implementation: `crates/ooxml-pptx` (milestones `pptx-phase0`, `pptx-phase0.1`)
 
 ## Revision history
 
@@ -58,6 +59,16 @@
   Q2 (copy-subtree primitive) is answered by the review's recommendation and
   taken up as Phase 0.1 in a separate revision; Phase 0 as accepted here
   copies attribute-only formats.
+
+- **Revision 4 (2026-11-16): Phase 0.1 — subtree copy of format sources**
+  (§9; proposed for review). Format sources are copied as whole subtrees
+  through the new core primitive `Lens::detach_as` /
+  `LensMut::insert_detached` (ADR-0002 post-acceptance note
+  "detach/insert"), skipping `a:hlinkClick`/`a:hlinkMouseOver`, instead of
+  refusing every source with child elements. Rewritten: §3 "Format
+  sources", "Hyperlinks", the prefix rule; §6 rows `FormatNotCopyable`,
+  `Core(NamespaceNotInScope)`; §7 T2/T3/T4/Manual figures; §8; Alternative
+  4; coordinator default "copy-subtree in Phase 2" (overridden); Q2.
 
 ## Context
 
@@ -203,7 +214,12 @@ a:tc → a:txBody`, each step a generated `ChildOf` edge.
   corpus carries one, although 1,074 have edge whitespace (209 are
   whitespace only, `probe.py`): `set_text` adds none.
 - New elements take the in-scope DrawingML prefix (ADR-0002 §3); none in
-  scope: `Error::Core(NamespaceNotInScope)`.
+  scope: `Error::Core(NamespaceNotInScope)`. Copied formats (Phase 0.1)
+  get every prefix chosen at the destination by `insert_detached`; before
+  the first change the setter checks that each namespace the copies use
+  has a prefix bound at the paragraph (`Paragraph::set_text`) or body
+  (`TextBody::set_text`) and not re-bound below it, so this refusal still
+  happens before any change.
 
 **Text arguments (review B2, m3).** One table for every setter, checked
 first:
@@ -252,21 +268,25 @@ models, in schema order: `a:p` = `[a:pPr] (a:r | a:br | a:fld)* [a:endParaRPr]`,
   `a:r`; `remove_paragraph(i)` never the last; `remove_field(i)` removes the
   i-th `a:fld`.
 
-**Format sources (review M1; coordinator default: no subtree copy in
-Phase 0).** A run created by a format-preserving edit copies the attributes
-of the paragraph's first `a:rPr`, or of `a:endParaRPr` when the paragraph
-has no run (what PowerPoint does when one types into an empty paragraph);
-a paragraph created by `TextBody::set_text` copies the last paragraph's
-`a:pPr` attributes, and its `a:endParaRPr` copies the run format source.
-Copies are **attribute-only**: if the source has child
-elements (fill, fonts, `a:sym`, `a:hlinkClick`, bullets, spacing…) or an
-attribute outside the generated `ATTRS`, the edit is refused with
-`FormatNotCopyable(element)` — a copy needs the subtree-copy primitive that
-the coordinator deferred to Phase 2. A source without attributes produces
-no `a:rPr`/`a:pPr`/`a:endParaRPr`. The source is consulted only when a new
-run or paragraph is needed — for every new paragraph, even an empty one,
-since it carries `a:endParaRPr`: single-line `set_text` on a paragraph that
-has a run never is refused for format reasons.
+**Format sources (review M1; Phase 0.1, §9).** A run created by a
+format-preserving edit gets an `a:rPr` that is a **subtree copy** of the
+paragraph's first `a:rPr`, or of `a:endParaRPr` when the paragraph has no
+run (what PowerPoint does when one types into an empty paragraph), without
+its `a:hlinkClick`/`a:hlinkMouseOver` children; a paragraph created by
+`TextBody::set_text` gets a copy of the last paragraph's `a:pPr` and an
+`a:endParaRPr` copied (the same way) from the last paragraph's run format
+source. Copies are made with `Lens::detach_as::<C>(skip)` and inserted
+with `LensMut::insert_detached` (ADR-0002 note "detach/insert";
+`a:endParaRPr` ↔ `a:rPr` are generated `SameType`). The edit is refused
+with `FormatNotCopyable(element)` only where `detach_as` refuses: a
+relationship (`r:`) attribute in the kept subtree (e.g. `a:blipFill` or
+`a:buBlip` with `r:embed`), Markup Compatibility content, or a namespace
+declaration inside the source. A source with neither attributes nor
+child elements (after the skip) produces no element. The source is
+consulted only when a new run or paragraph is needed — for every new
+paragraph, even an empty one, since it carries `a:endParaRPr`.
+(Phase 0, revision 3, copied attributes only and refused every source
+with child elements; §9 has the before/after figures.)
 
 **Fields (review M2).** No edit removes an `a:fld` implicitly:
 `ParagraphMut::set_text` on a paragraph with a field, `TextBodyMut::set_text`
@@ -282,11 +302,13 @@ top-level shapes of all branches, once (`Of16-01.pptx`: id 7 in both
 branches is one entry). Any path through an AC, and `shape_mut_by_id` of
 such an id, is `InsideAlternateContent`.
 
-**Hyperlinks (review m10).** A first run with `a:hlinkClick` keeps it under
-`Paragraph::set_text`, so the whole new text is the link; links on removed
-runs disappear (their relationships stay, unreferenced, which is harmless).
-A link in a format source is a child element, so new runs are refused
-rather than silently linked.
+**Hyperlinks (review m10; Phase 0.1).** A first run with `a:hlinkClick`
+keeps it under `Paragraph::set_text`, so its segment (the text before the
+first `\v`) is the link; links on removed runs disappear (their
+relationships stay, unreferenced, which is harmless). New runs and new
+paragraphs' `a:endParaRPr` copy the format **without** `a:hlinkClick` /
+`a:hlinkMouseOver`: a link is not spread to new text, and no `r:id` is
+duplicated (`shapes.pptx` slide 5, T4 `hyperlinks_stay_on_their_run`).
 
 ### 4. Inheritance in Phase 0
 
@@ -308,8 +330,9 @@ schema file go in `pml.toml` even when their complex type is DrawingML
 | `pml.toml` | `a:CT_TextBody/p:txBody` | `p:presentation`, `p:sldIdLst`, `p:sldId`, `p:sld`, `p:cSld`, `p:spTree`, `p:grpSp`, `p:nvGrpSpPr`, `p:sp`, `p:nvSpPr`, `p:cNvPr`, `p:nvPr`, `p:ph`, `p:graphicFrame`, `p:nvGraphicFramePr`, **`p:pic`, `p:nvPicPr`, `p:cxnSp`, `p:nvCxnSpPr`, `p:contentPart`** (review M5) |
 | `dml.toml` | `a:txBody`, `a:p`, `a:r`, `a:t`, `a:br` | `a:graphic`, `a:graphicData`, `a:tbl`, `a:tr`, `a:tc`, `a:fld`, **`a:rPr`, `a:endParaRPr`, `a:pPr`** |
 
-- `a:rPr`/`a:pPr`/`a:endParaRPr` are **read** entries: Phase 0 only inserts
-  an empty `a:rPr`/`a:pPr` and copies attributes with the generic
+- `a:rPr`/`a:pPr`/`a:endParaRPr` are **read** entries: Phase 0.1 inserts
+  them only as detached copies (`insert_detached`, a generic primitive);
+  Phase 0 inserted an empty `a:rPr`/`a:pPr` and copied attributes with the generic
   `LensMut` primitives (allowed for read entries); typed formatting setters
   are Phase 3.
 - `p:cNvPr` ids of every shape kind are read structurally (first `nv*`
@@ -380,12 +403,12 @@ elements in the SDK data). Classification:
 | `FieldInParagraph { paragraph }` | the edit would remove an `a:fld` implicitly (§3 Fields) |
 | `UnsupportedContent` | §3 Paragraph content (incl. a body without `a:p`) |
 | `LastParagraph` | removing the only `a:p` |
-| `FormatNotCopyable(element)` | §3 Format sources |
+| `FormatNotCopyable(element)` | §3 Format sources: the source holds an `r:` attribute outside the skipped links, Markup Compatibility content, or a namespace declaration |
 | `AnimatedParagraphs { shape_id }` | `add_paragraph`, `remove_paragraph`, or `TextBody::set_text` that changes the paragraph count, on a paragraph-locked shape |
 | `AnimatedCharacters { shape_id }` | any text edit on a character-locked shape |
 | `CommentAnchoredText { shape_id }` | any text edit on a comment-locked shape |
 | `InvalidXmlChar`, `LineBreakInRun`, `LineBreakInParagraph` | §3 Text arguments |
-| `Core(NamespaceNotInScope)` | no DrawingML prefix in scope for a new element |
+| `Core(NamespaceNotInScope)` | no DrawingML prefix in scope for a new element; a copied format uses a namespace with no stable prefix at the paragraph/body (§3) |
 
 Not refused, documented (cosmetic, not data loss):
 
@@ -419,7 +442,8 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   `remove_paragraph` (output = source minus exactly that span); body
   `set_text` (diff inside the body); `add_paragraph` (pure insertion
   between the last `a:p` and the close tag). Refused edits must leave the
-  part unchanged. 2026-11-16: 3,303 checked edits, 515 runs.
+  part unchanged. 2026-11-16: 3,303 checked edits, 515 runs (Phase 0); with
+  Phase 0.1, 3,676 checked edits and no `FormatNotCopyable` (§9).
 - **T3 (expected model; review M4).** The model is the whole deck: every
   slide in order, every `p:sp` text body and table cell outside AC, per
   paragraph the `a:pPr`/`a:endParaRPr` attributes and items
@@ -432,6 +456,7 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   three successive edits to every body, each chosen from the body's state
   after the previous one and addressing the last paragraph/run (stale
   indices, review R2-3), plus named cases (2026-11-16: 48 cases, 1,393
+  applied edits; Phase 0.1: 49 cases incl. `hyperlink-cells`, 1,580
   applied edits; refused ones are dropped and covered by T4). Tests prove
   the check notices an edit retargeted to another shape, paragraph or run,
   and an output whose kept `a:rPr` lost its `a:sym` (which an
@@ -488,10 +513,11 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   missing part, and a `p188:cm` without anchor. Character rules are tested
   per setter × (`\v`, `\n`, `\r`, U+0000, U+0001, U+001F, U+FFFE).
 - **Manual (owner decision):** `cargo run -p ooxml-pptx --example
-  manual_check -- <outdir>` writes ten named outputs (title/body, autofit,
+  manual_check -- <outdir>` writes thirteen named outputs (title/body, autofit,
   empty placeholder fill, table cells, group member, slide outside every
   section, stale `app.xml`, comment-anchored shape, animated paragraph run
-  edit, removed field) and `CHECKLIST.md` with "opens without repair" and
+  edit, removed field; Phase 0.1: formatted new lines, formatted empty
+  paragraph fill, hyperlink run) and `CHECKLIST.md` with "opens without repair" and
   the owner questions Q4a–c as observation items. The owner opens them in
   current Microsoft 365 PowerPoint.
 
@@ -503,8 +529,8 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   (animations, modern comments, fields, AC branches) is preserved
   byte-for-byte or refused with a named error, and unknown comment anchors
   are refused rather than guessed.
-- Negative — **format copies are attribute-only** (coordinator default:
-  subtree copy deferred to Phase 2). Corpus frequency of sources with child
+- (Phase 0.1 removes this; kept for the record, §9.) Negative in Phase 0 —
+  **format copies are attribute-only**. Corpus frequency of sources with child
   elements (`probe.py`): first `a:rPr` of 1,665 of 3,512 paragraphs with
   runs (47 %), `a:pPr` of 2,333 of 6,121 paragraphs (38 %), `a:endParaRPr`
   of 469 of 2,510 run-less paragraphs (19 %). So `\v` in `Paragraph::set_text`,
@@ -523,6 +549,65 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
   edit; `app.xml` statistics can be stale (cosmetic; manual check).
 - Negative: python-pptx brings Python into CI (separate job, pinned).
 
+### 9. Phase 0.1 — subtree copy of format sources (revision 4)
+
+**Why now.** In the Phase 0 T2 sweep, 217 of 599 two-segment
+`Paragraph::set_text` calls (36 %) and 156 of 394 two-line
+`TextBody::set_text` calls (40 %, the template-filling case) were refused
+with `FormatNotCopyable`; in the corpus 47 % of first `a:rPr`, 38 % of
+`a:pPr` and 19 % of `a:endParaRPr` have child elements (§8). A copy inside
+one part needs no new part, relationship, content type or id, so it stays
+inside the Phase 0 boundary (no Layer 3 writes). The round-2 review
+recommended it (Q2) and sketched the API; the coordinator default "Phase 2"
+is overridden on that evidence.
+
+**Core primitive** (ADR-0002 post-acceptance note "detach/insert", core PR
+#18): `Lens::detach_as::<C: SameType<S>>(skip) -> Detached<C>` (owned,
+span-less copy carrying namespace URIs, renamed to `C`'s QName; refuses MC
+content, `r:` attributes and namespace declarations) and
+`LensMut::insert_detached[_by]` (placed like `insert_by`, every prefix
+re-chosen at the destination before any change). `SameType` is generated
+for allowlisted pairs sharing an SDK complex type (`a:endParaRPr` ↔
+`a:rPr`).
+
+**Rules in `ooxml-pptx`** (§3 "Format sources", "Hyperlinks"):
+
+| Copy | Source | Skip | Refused with |
+|---|---|---|---|
+| new run's `a:rPr` | first `a:rPr`, else `a:endParaRPr` | `a:hlinkClick`, `a:hlinkMouseOver` | `FormatNotCopyable("a:rPr" / "a:endParaRPr")` |
+| new paragraph's `a:pPr` | last paragraph's `a:pPr` | — | `FormatNotCopyable("a:pPr")` |
+| new paragraph's `a:endParaRPr` | last paragraph's run format source | links | as for `a:rPr` |
+
+All copies of one edit are made during planning (before any change), and
+their namespaces are checked against the paragraph/body scope (§3), so a
+refused edit still leaves the package byte-identical.
+
+**Effect** (same fixtures and sweeps as §7):
+
+| Measure | Phase 0 (rev 3) | Phase 0.1 |
+|---|---|---|
+| T2: two-segment `Paragraph::set_text` refused `FormatNotCopyable` | 217 / 599 | 0 / 599 |
+| T2: two-line `TextBody::set_text` refused `FormatNotCopyable` | 156 / 394 | 0 / 394 |
+| T2: checked edits | 3,303 | 3,676 |
+| T3: applied edits (cases) | 1,393 (48) | 1,580 (49) |
+| T3: `FormatNotCopyable` among attempted edits | 184 | 0 |
+
+**Oracles.** T3's model already compares the whole format subtree (review
+R2-2), so the copies are checked in Rust and, independently, by
+`check.py`, which deep-copies the source element in python-pptx's lxml
+tree and removes the link children. A named case `hyperlink-cells`
+covers the link skip; disabling the skip in `check.py` makes it fail.
+T4 (`tests/refusals.rs`): `format_sources` (real sources with child
+elements are copied: `a:endParaRPr` with fill, `a:rPr` with `a:sym`, `a:pPr`
+with `a:spcAft`), `hyperlinks_stay_on_their_run` (real), `format_not_copyable`
+(synthetic `a:blipFill`/`a:buBlip` with `r:embed`, `mc:AlternateContent`,
+namespace declaration), `copied_namespaces_must_be_in_scope_before_any_change`
+(synthetic; plus a positive control). Manual check: items 11–13.
+
+**Still not copied.** A format source that references a relationship
+(picture fill, picture bullet; 0 in the T2/T3 sweeps of the 23 fixtures)
+would need a new relationship or a shared one (Layer 3) — later phase.
+
 ## Alternatives considered
 
 1. **Start with "add slide".** Needs five registries at once (roadmap §3.5).
@@ -536,7 +621,8 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
    ~19–47 % of the cases above; an error plus the explicit unformatted path
    is honest (ADR-0001 "fail rather than guess").
 4. **A subtree-copy primitive now** (review M1 option c). Deferred by the
-   coordinator; the counts in §8 are the evidence for revisiting (Q2).
+   coordinator for Phase 0; taken up as Phase 0.1 (§9) on the counts in §8
+   and the round-2 review's recommendation.
 5. **Resolve inheritance in Phase 0.** Rejected: needs its own oracle.
 6. **Edit both AC branches.** Not in Phase 0: branches may hold different
    element types.
@@ -544,7 +630,9 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
 ## Coordinator defaults (2026-11-16, recorded as such)
 
 - No percentage override/type in Phase 0 (`serverZoom` `set_type` dropped).
-- Copy-subtree primitive deferred to Phase 2 (§3 Format sources).
+- Copy-subtree primitive deferred to Phase 2 (§3 Format sources) —
+  **overridden** on 2026-11-16 (round 3): Phase 0.1 (§9), on the round-2
+  review's recommendation and the T2 figures; to be confirmed by the owner.
 - Keep looking for a real text-anchored modern-comment fixture in
   third-party corpora; not blocking (synthetic input in T4).
 - Master `otherStyle` inheritance question deferred to Phase 1.
@@ -552,8 +640,8 @@ MPL/Apache files never enter the `MIT OR Apache-2.0` `.crate` (review m9).
 ## Open questions for the project owner
 
 - **Q1** (resolved: no `DmlPercent`/override in Phase 0.)
-- **Q2** (answered by the round-2 review: yes, as Phase 0.1 — a separate
-  revision with its own core PR.) Given §8's counts (47 % / 38 % / 19 % of format sources have child
+- **Q2** (answered by the round-2 review: yes, as Phase 0.1 — §9, with its
+  own core PR #18.) Given §8's counts (47 % / 38 % / 19 % of format sources have child
   elements), should the copy-subtree primitive (`LensMut::insert_copy`,
   sketched in the core README) move from Phase 2 into a Phase 0.1, so that
   `\v`, multi-line body text and empty-paragraph fill copy formatting the
