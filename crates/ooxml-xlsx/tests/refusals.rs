@@ -220,12 +220,11 @@ fn f1_err_inside_cell_changes_nothing() {
         ("D2", W::Num(1.0)),
         ("D2", W::Str("x".into())),
     ] {
-        let (mut wb, r) = apply(&bytes, a1(cell), &w);
+        let (wb, r) = apply(&bytes, a1(cell), &w);
         assert!(unresolved(&r), "{cell} {w:?}: {r:?}");
         assert_unchanged(&wb, &bytes);
         // the caller who skips the failed cell and saves keeps the old value
-        let v = wb.worksheet().unwrap().cell(1, 0).unwrap().unwrap().value().unwrap();
-        assert_eq!(v, CellValue::String("Alice".into()));
+        assert!(sheet_xml(&wb.to_bytes().unwrap()).contains(&format!(r#"<c r="A2" t="s" {MC}><v>1</v>"#)));
     }
     // a neighbour without AC is still writable
     let (_, r) = apply(&bytes, a1("B2"), &W::Num(2.0));
@@ -460,3 +459,111 @@ fn f5_cells_out_of_order() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Implementation review round 2 (docs/reviews/xlsx-phase0-impl-round2.md)
+// ---------------------------------------------------------------------------
+
+/// N1: schema-invalid duplicate `v`/`is` children (around `extLst`, or out
+/// of order) are cleaned up, not half-replaced: the write is `Ok`, the cell
+/// is left with exactly the new `v` or `is`, and calamine reads the new
+/// value with every other cell unchanged (CR; where calamine can read the
+/// sheet at all). Before the fix these were
+/// `Err` after a mutation (A2 lost) or `Ok` with a stale value calamine
+/// still read. `fixture_minimal` with A2 replaced (the reviewer's probe p1).
+#[test]
+fn n1_duplicate_values_cleaned_up() {
+    let input = read("minimal");
+    let a2 = r#"<c r="A2" t="s"><v>1</v></c>"#;
+    for (cell, writes) in [
+        (r#"<c r="A2" t="s"><v>1</v><extLst/><v>1</v></c>"#, [W::Str("new".into()), W::Num(5.0)]),
+        (r#"<c r="A2" t="inlineStr"><is><t>a</t></is><extLst/><is><t>b</t></is></c>"#, [W::Num(5.0), W::Str("new".into())]),
+        (r#"<c r="A2" t="inlineStr"><is><t>a</t></is><is><t>b</t></is></c>"#, [W::Num(5.0), W::Str(" new".into())]),
+        (r#"<c r="A2" t="s"><v>1</v><v>0</v></c>"#, [W::Str("new".into()), W::Num(5.0)]),
+        (r#"<c r="A2" t="s"><v>1</v><is><t>zzz</t></is></c>"#, [W::Num(5.0), W::Str("new".into())]),
+        (r#"<c r="A2" t="s"><extLst/><v>1</v></c>"#, [W::Str("new".into()), W::Num(5.0)]),
+    ] {
+        let bytes = rebuild(&input, &[(SHEET1, patched(&input, SHEET1, a2, cell))]);
+        for w in writes {
+            let (mut wb, r) = apply(&bytes, a1("A2"), &w);
+            r.unwrap_or_else(|e| panic!("{cell} {w:?}: {e}"));
+            assert_eq!(wb.worksheet().unwrap().cell(1, 0).unwrap().unwrap().value().unwrap(), w.expected());
+            let out = wb.to_bytes().unwrap();
+            let xml = sheet_xml(&out);
+            let c = &xml[xml.find(r#"<c r="A2""#).unwrap()..];
+            let c = &c[..c.find("</c>").unwrap()];
+            let (v, is) = (c.matches("<v>").count(), c.matches("<is>").count());
+            match w {
+                W::Num(_) => assert!(v == 1 && is == 0 && !c.contains(" t="), "{cell} {w:?}: {c}"),
+                W::Str(_) => assert!(v == 0 && is == 1, "{cell} {w:?}: {c}"),
+            }
+            if cell.contains("extLst") {
+                // calamine 0.38 cannot read a sheet with `extLst` inside `c`
+                // (in or out); our re-open must agree with the write
+                let mut again = Workbook::from_bytes(out).unwrap();
+                assert_eq!(again.worksheet().unwrap().cell(1, 0).unwrap().unwrap().value().unwrap(), w.expected());
+            } else {
+                assert_cr(&bytes, &out, "Sheet1", a1("A2"), &w.expected());
+            }
+        }
+    }
+}
+
+/// N1: refusals that come from the shape around the target (a row whose
+/// `extLst` precedes its cells, a worksheet without `sheetData` whose
+/// children are out of order, an AC inside the cell) are decided before
+/// anything changes; a same-path save after the `Err` keeps the file's
+/// entries identical, and after a further successful write keeps every
+/// other value.
+#[test]
+fn n1_refusals_change_nothing_same_path() {
+    let input = read("minimal");
+    let row1 = "<row r=\"1\">\n<c r=\"A1\"";
+    let ext_first = rebuild(&input, &[(SHEET1, patched(&input, SHEET1, row1, "<row r=\"1\"><extLst/>\n<c r=\"A1\""))]);
+    let (wb, r) = apply(&ext_first, a1("B1"), &W::Num(1.0));
+    assert!(unresolved(&r), "{r:?}");
+    assert_unchanged(&wb, &ext_first);
+    let ws_order = with_sheet(&format!(r#"{WS_OPEN}<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><dimension ref="A1"/></worksheet>"#));
+    let (wb, r) = apply(&ws_order, a1("B2"), &W::Num(1.0));
+    assert!(unresolved(&r), "{r:?}");
+    assert_unchanged(&wb, &ws_order);
+
+    let dir = temp_dir("n1-same-path");
+    let p = dir.join("x.xlsx");
+    std::fs::write(&p, &ext_first).unwrap();
+    let mut wb = Workbook::open(&p).unwrap();
+    assert!(unresolved(&wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string("new")));
+    wb.save(&p).unwrap();
+    assert_l1_except(&ext_first, &std::fs::read(&p).unwrap(), &[]);
+    let mut wb = Workbook::open(&p).unwrap();
+    assert!(unresolved(&wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_number(1.0)));
+    wb.worksheet().unwrap().cell_mut(1, 1).unwrap().set_number(91.0).unwrap();
+    wb.save(&p).unwrap();
+    let out = std::fs::read(&p).unwrap();
+    assert_cr(&ext_first, &out, "Sheet1", a1("B2"), &CellValue::Number(91.0));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// N3: an `mc:AlternateContent` inside the cell, or inside its `is`, may
+/// hold the value: reads are `Err(UnresolvedSibling)` instead of `Empty` /
+/// `""`, and writes are refused with nothing changed. `fixture_minimal`
+/// with A2 replaced (the reviewer's probe p7).
+#[test]
+fn n3_alternate_content_inside_cell_on_read() {
+    let input = read("minimal");
+    for cell in [
+        format!(r#"<c r="A2" t="s" {MC}><mc:AlternateContent><mc:Choice Requires="x"><v>0</v></mc:Choice><mc:Fallback/></mc:AlternateContent></c>"#),
+        format!(r#"<c r="A2" t="inlineStr" {MC}><is><mc:AlternateContent><mc:Fallback><t>hidden</t></mc:Fallback></mc:AlternateContent></is></c>"#),
+    ] {
+        let bytes = rebuild(&input, &[(SHEET1, patched(&input, SHEET1, r#"<c r="A2" t="s"><v>1</v></c>"#, &cell))]);
+        let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+        {
+            let ws = wb.worksheet().unwrap();
+            assert_matches!(ws.cell(1, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))), "{cell}");
+            assert!(ws.cell(1, 1).unwrap().is_some(), "neighbours still read");
+        }
+        assert_unchanged(&wb, &bytes);
+        let (wb, r) = apply(&bytes, a1("A2"), &W::Num(1.0));
+        assert!(unresolved(&r), "{cell}: {r:?}");
+        assert_unchanged(&wb, &bytes);
+    }
+}

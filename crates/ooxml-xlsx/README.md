@@ -36,8 +36,9 @@ wb.save("new.xlsx")?;
 | "sheet1" | The **first visible worksheet in workbook order**: hidden/very hidden sheets, chartsheets, macro sheets and dialog sheets are skipped (owner decision 2026-11-16). `Err(NoVisibleWorksheet)` if there is none. |
 | `Worksheet::cell(row, col)` | `Ok(None)` if absent. Shared strings resolved; inline strings with rich runs concatenated; phonetic runs ignored; a `t` that does not itself carry `xml:space="preserve"` has its outer ASCII whitespace (space, tab, CR, LF) trimmed, as calamine reads it: an `xml:space` inherited from `si`/`is`/`r` is ignored; `_xHHHH_` escapes decoded. A formula cell returns its cached value (`formula()` gives the text). |
 | `cell_mut(row, col)` | A handle; nothing is created or dirtied until a setter runs. |
-| `set_number(f64)` | `<v>` gets the number; a stale `t` and any `<is>` are removed; `s` kept. NaN/∞ refused. |
+| `set_number(f64)` | `<v>` gets the number; a stale `t` and every `<is>` are removed; `s` kept. NaN/∞ refused. |
 | `set_string(&str)` | `t="inlineStr"`, `<is><t>…</t></is>`; `xml:space="preserve"` iff outer whitespace; control characters as `_xHHHH_`, a literal `_xHHHH_` protected as `_x005F_xHHHH_`; at most 32,767 UTF-16 units. Never touches `sharedStrings.xml`. |
+| Malformed cells | Both setters remove **every** `<v>` and `<is>` of the cell before writing the new one, so a schema-invalid duplicate (two `v`, two `is`, `v` and `is` together, also around or after an `extLst`) is cleaned up rather than left for another reader to find; the write is `Ok`. |
 | New rows/cells | Inserted in row/column order with `r`; no whitespace added; existing `spans` left as is. |
 | `dimension` | Grown to include the written cell if present (a lower-case `ref` comes out upper-case); **never inserted** if absent. A `dimension` whose `ref` is missing or not a cell range refuses the write (`Malformed`). |
 | `Workbook::new` | Opens `template/blank.xlsx` (built by `template/build.py` from `template/blank/`) through the same code path; `docProps/core.xml` is regenerated (created/modified = now) with `Package::set_part`. |
@@ -45,8 +46,11 @@ wb.save("new.xlsx")?;
 
 ## Refusals (`Err`, nothing changed)
 
-Every refusal is decided before the sheet is touched: after an `Err` the part
-is not dirty and saves byte-identical to the input.
+Every write is planned first: all refusals, the row/cell insertion points,
+the new cell content and the new `dimension/@ref` are decided, and each
+insertion is dry-run against the siblings it will have, before the sheet is
+touched; only then is the plan applied, by steps that cannot fail. After an
+`Err` the part is not dirty and saves byte-identical to the input.
 
 | Error | When |
 | --- | --- |
@@ -59,7 +63,8 @@ is not dirty and saves byte-identical to the input.
 | `MissingReference` | Reads **and** writes, when any `row` in `sheetData`, or any `c` in the row concerned, lacks `r`. |
 | `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. |
 | `Core(EncryptedPackage)`, `Core(StrictNotSupported)`, `Core(DtdNotAllowed)` | From `ooxml-core` at open. |
-| `Core(UnresolvedSibling)` | An `mc:AlternateContent` child of `sheetData`, of the row concerned, or of the target cell (writes), or of a `worksheet` without `sheetData`: what it wraps may be the cell, so reads **and** writes are refused instead of answering "absent". Also when `sheetData` would have to be inserted into a `worksheet` that has an `mc:AlternateContent` child (ADR-0002 §4.3). |
+| `Core(UnresolvedSibling)` | An `mc:AlternateContent` child of `sheetData`, of the row concerned, of the target cell or its `is`, or of a `worksheet` without `sheetData`: what it wraps may be the cell or its value, so reads **and** writes are refused instead of answering "absent"/"empty". Also when a new `sheetData`, row, cell, `v` or `is` has no schema-order position among its siblings (an AC sibling, ADR-0002 §4.3, or e.g. a row's `extLst` before its cells). |
+| `Core(InvalidXmlChar)` | Text XML 1.0 cannot carry even after `_xHHHH_` escaping (checked up front; with the current escaping this does not occur). |
 
 ## Tests
 
