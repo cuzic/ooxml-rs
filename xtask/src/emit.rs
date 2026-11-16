@@ -453,18 +453,20 @@ impl<'m, 'a> Ctx<'m, 'a> {
             // Only entries opted in with `[detach]`; SameType only between
             // them (the reflexive case is a blanket impl in core).
             if allowed.detach {
+                // An element prefix that does not resolve is an error: a
+                // uniqueness declaration must never drop out silently.
                 let list: Vec<String> = self
                     .unique_attrs
                     .iter()
-                    .filter_map(|(el, (ans, ap, al), def)| {
-                        let eq = self.qname_expr(el, &mut used)?;
+                    .map(|(el, (ans, ap, al), def)| {
+                        let eq = self.qname_expr(el, &mut used).ok_or_else(|| format!("unique_attrs: element {el}: unknown prefix"))?;
                         let aq = self.attr_qname_expr(ans, ap, al, &mut used);
-                        Some(format!(
+                        Ok(format!(
                             "ooxml_core::UniqueAttr {{ element: {eq}, attr: {aq}, default: {} }}",
                             def.as_ref().map_or("None".into(), |d| format!("Some({})", lit(d)))
                         ))
                     })
-                    .collect();
+                    .collect::<Res<_>>()?;
                 let _ = writeln!(
                     body,
                     "impl ooxml_core::schema::__private::Sealed for {ty} {{}}\nimpl ooxml_core::Detachable for {ty} {{ const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[{}]; }}",

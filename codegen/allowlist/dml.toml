@@ -35,12 +35,18 @@ names = [
 # unique_attrs: values that must be unique in the document. ECMA-376 Part 1
 # §21.1.2.3.9 (rPr), §21.1.2.2.3 (endParaRPr), §21.1.2.3.2 (defRPr, also
 # below a:pPr): "smtId (SmartTag ID) ... This ID is unique throughout the
-# presentation". A copy with a non-default smtId is refused. Reviewed and
-# not unique: bmk (a bookmark *target name*, a reference that may repeat),
-# lang/altLang, kumimoji, the formatting attributes. a:extLst content is
+# presentation". §20.1.8.20 (cont) and §20.1.8.25 (effectDag), the
+# a:CT_EffectContainer reached through EG_EffectProperties of rPr/defRPr:
+# "name ... Shall be unique across all effect trees and effect containers"
+# (no default: any value is refused). A copy with a non-default value of
+# either is refused. Reviewed (all 90 complex types reachable from the three
+# types) and not unique: bmk (a bookmark *target name*, a reference that may
+# repeat), a:effect@ref (a reference to a name), a:snd@name (a sound's
+# original or short name), lang/altLang, kumimoji, the formatting
+# attributes. a:extLst content is
 # open (not covered by this review): detach_as refuses it unless skipped.
 [detach]
-unique_attrs = ["a:CT_TextCharacterProperties@smtId"]
+unique_attrs = ["a:CT_TextCharacterProperties@smtId", "a:CT_EffectContainer@name"]
 names = [
     "a:CT_TextCharacterProperties/a:rPr",
     "a:CT_TextCharacterProperties/a:endParaRPr",

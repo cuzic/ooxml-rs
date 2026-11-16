@@ -428,3 +428,39 @@ fn lens_at_checks_the_element_and_check_insert_under_never_panics() {
         assert_matches!(copy.check_insert_under(&d, bad, 0), Err(Error::WrongElement { .. }), "{bad:?}");
     }
 }
+
+// ---- review round 3 (R3-3, n2, n3) ----
+
+#[test]
+fn destination_checks_cover_the_parent_itself_and_descendants() {
+    // DS6: mc:Ignorable on the destination parent itself (the x:r)
+    let copy = first_rpr(&doc(r#"<x:p xmlns:x="urn:t" xmlns:e="urn:ext"><x:r><x:rPr e:new="1"/><x:t>a</x:t></x:r></x:p>"#)).detach_as::<RPr>(&[]).unwrap();
+    let dst = r#"<x:p xmlns:x="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><x:r xmlns:f="urn:ext" mc:Ignorable="f"><x:t>b</x:t></x:r></x:p>"#;
+    let mut d = doc(dst);
+    assert_matches!(copy.check_insert_under(&d, &[0], 0), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+    assert_matches!(d.lens_mut::<P>().unwrap().nth_child_mut::<R>(0).unwrap().insert_detached(&copy), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, .. }));
+    assert_eq!(d.serialize(), dst);
+    // DS5, DS8: an *element* deep in the copy, in a namespace ignorable at the destination
+    let copy = first_rpr(&doc(r#"<x:p xmlns:x="urn:t" xmlns:e="urn:ext"><x:r><x:rPr b="1"><x:fill><e:z/></x:fill></x:rPr><x:t>a</x:t></x:r></x:p>"#)).detach_as::<RPr>(&[]).unwrap();
+    let dst = r#"<x:p xmlns:x="urn:t" xmlns:f="urn:ext" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="f"><x:r><x:t>b</x:t></x:r></x:p>"#;
+    let d = doc(dst);
+    assert_matches!(copy.check_insert_under(&d, &[0], 0), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, ref name }) if name == "{urn:ext}z");
+}
+
+#[test]
+fn the_ancestor_walk_does_not_stop_at_an_ignorable() {
+    // N17: mc:Ignorable high up, xml:space="preserve" further down, text in the copy
+    let s = r#"<x:p xmlns:x="urn:t" xmlns:e="urn:ext" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="e"><x:r xml:space="preserve"><x:rPr><x:c>  </x:c></x:rPr><x:t>a</x:t></x:r></x:p>"#;
+    assert_matches!(first_rpr(&doc(s)).detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::InheritedXmlSpace, .. }));
+    // and an Ignorable below another Ignorable is still seen
+    let s = r#"<x:p xmlns:x="urn:t" xmlns:e="urn:ext" xmlns:g="urn:g" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="e"><x:r mc:Ignorable="g"><x:rPr g:k="1"/><x:t>a</x:t></x:r></x:p>"#;
+    assert_matches!(first_rpr(&doc(s)).detach_as::<RPr>(&[]), Err(Error::NotDetachable { reason: DetachRefusal::IgnorableNamespace, ref name }) if name == "{urn:g}k");
+}
+
+#[test]
+fn check_insert_under_saturates_and_names_the_parent() {
+    let d = doc(SRC);
+    let copy = first_rpr(&d).detach_as::<RPr>(&[q("link")]).unwrap();
+    assert_matches!(copy.check_insert_under(&d, &[0], usize::MAX), Err(Error::TooDeep { .. }), "no overflow");
+    assert_matches!(copy.check_insert_under(&d, &[9], 0), Err(Error::WrongElement { expected, .. }) if expected.local == "(parent element at parent_path)");
+}

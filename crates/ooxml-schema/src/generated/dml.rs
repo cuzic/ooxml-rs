@@ -944,6 +944,16 @@ impl ooxml_core::Detachable for EndParagraphRunProperties {
             attr: ooxml_core::QName::new("", "smtId"),
             default: Some("0"),
         },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
     ];
 }
 impl ooxml_core::SameType<RunProperties> for EndParagraphRunProperties {}
@@ -1369,6 +1379,16 @@ impl ooxml_core::Detachable for RunProperties {
             element: ooxml_core::QName::new(NS_CS, "defRPr"),
             attr: ooxml_core::QName::new("", "smtId"),
             default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
         },
     ];
 }
@@ -1925,6 +1945,16 @@ impl ooxml_core::Detachable for ParagraphProperties {
             element: ooxml_core::QName::new(NS_CS, "defRPr"),
             attr: ooxml_core::QName::new("", "smtId"),
             default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
         },
     ];
 }
