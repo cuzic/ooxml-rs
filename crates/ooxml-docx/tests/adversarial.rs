@@ -492,3 +492,142 @@ fn m11_every_settings_part_counts() {
     assert_eq!(gates, ["TrackRevisionsOn", r#"DocumentProtected { edit: "readOnly" }"#]);
     assert_eq!(doc.write_protection().map(|w| w.recommended), Some(true));
 }
+
+// ---- round 4 (ADR-0004 revision 5): m12, m13, m14 -------------------------
+
+/// A custom property, linked to the bookmark `bm` when `linked`.
+fn prop(pid: u32, name: &str, linked: bool) -> String {
+    let link = if linked { r#" linkTarget="bm""# } else { "" };
+    format!(r#"<property fmtid="{{D5CDD505-2E9C-101B-9397-08002B2CF9AE}}" pid="{pid}" name="{name}"{link}><vt:lpwstr>v</vt:lpwstr></property>"#)
+}
+
+fn docproperty_codes(field: &str, props: &str) -> Vec<String> {
+    let body = format!("<w:p>{}</w:p>", fld(field));
+    refused_codes(with_parts(&docx(&body, None, None), &[("docProps/custom.xml", &custom_xml(props))], CUSTOM_REL))
+}
+
+/// m12a (probe S01): a linked custom property with a built-in name shadows
+/// the built-in allow-list.
+#[test]
+fn m12_linked_custom_property_shadows_a_built_in_name() {
+    for name in ["Title", "Company", "Manager", "Category", "HyperlinkBase", "Pages", "Template"] {
+        let key = format!("DOCPROPERTY {}", name.to_uppercase());
+        assert_eq!(docproperty_codes(&format!("DOCPROPERTY {name}"), &prop(2, name, true)), [key], "{name}");
+        // Unlinked, the built-in stays safe.
+        assert_eq!(docproperty_codes(&format!("DOCPROPERTY {name}"), &prop(2, name, false)), Vec::<String>::new(), "{name}");
+    }
+}
+
+/// m12b (probes S02/S03): names are compared after the same whitespace
+/// normalisation on both sides.
+#[test]
+fn m12_names_are_normalised_alike() {
+    for linked in ["Client ", " Client", "Client\u{A0}", "Client\u{3000}"] {
+        let props = format!("{}{}", prop(2, linked, true), prop(3, "Client", false));
+        for field in ["DOCPROPERTY \"Client \"", "DOCPROPERTY Client", "DOCPROPERTY \" Client\""] {
+            assert_eq!(docproperty_codes(field, &props), ["DOCPROPERTY CLIENT"], "{linked:?} {field}");
+        }
+    }
+    // Inner whitespace runs collapse, so a linked "Client  Name" is found.
+    let props = format!("{}{}", prop(2, "Client  Name", true), prop(3, "Client Name", false));
+    assert_eq!(docproperty_codes("DOCPROPERTY \"Client Name\"", &props), ["DOCPROPERTY CLIENT NAME"]);
+    // An unlinked property alone stays safe.
+    assert_eq!(docproperty_codes("DOCPROPERTY \"Client \"", &prop(3, "Client", false)), Vec::<String>::new());
+}
+
+/// m12c (probe S04): a quote character inside a quoted argument does not
+/// end it; such quoting is ambiguous and refused. An argument that is a
+/// prefix of a linked name is refused too.
+#[test]
+fn m12_ambiguous_quoting_and_prefixes_are_refused() {
+    let props = format!("{}{}", prop(2, "A\u{201D}B", true), prop(3, "A", false));
+    for field in ["DOCPROPERTY \"A\u{201D}B\"", "DOCPROPERTY A\u{201D}B", "DOCPROPERTY \"A\"B", "DOCPROPERTY \u{FF02}A\"B\u{FF02}"] {
+        assert_eq!(docproperty_codes(field, &props), ["DOCPROPERTY"], "{field}");
+    }
+    let props = format!("{}{}", prop(2, "AB", true), prop(3, "A", false));
+    assert_eq!(docproperty_codes("DOCPROPERTY A", &props), ["DOCPROPERTY A"]);
+    // A straight quote is not closed by a typographic one, even when the
+    // rest would parse (Word would look for the name `A” \* MERGEFORMAT`).
+    assert_eq!(docproperty_codes("DOCPROPERTY \"A\u{201D} \\* MERGEFORMAT\"", &prop(3, "A", false)), ["DOCPROPERTY"]);
+    // Well-formed typographic quoting still works.
+    assert_eq!(docproperty_codes("DOCPROPERTY \u{201E}A\u{201C}", &prop(3, "A", false)), Vec::<String>::new());
+}
+
+/// m13 (probes S15/S16): Word's "paste link" inside one document writes a
+/// LINK whose item is a bookmark of the document; refused, and the run in
+/// the bookmark cannot be edited. The same for INCLUDETEXT's bookmark.
+#[test]
+fn m13_self_referencing_link_is_refused() {
+    let marked = r#"<w:p><w:bookmarkStart w:id="0" w:name="OLE_LINK1"/><w:r><w:t>ACME</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p>"#;
+    for (code, key) in [
+        (r#"LINK Word.Document.12 "C:\\x\\self.docx" "OLE_LINK1" \a \r"#, "LINK (self reference)"),
+        (r#"LINK Word.Document.12 "C:\\x\\self.docx" "ole_link1" \r"#, "LINK (self reference)"),
+        (r#"LINK Word.Document.12 "C:\\x\\self.docx" OLE_LINK1"#, "LINK (self reference)"),
+        (r#"INCLUDETEXT "C:\\x\\self.docx" OLE_LINK1"#, "INCLUDETEXT (self reference)"),
+        (r#"LINK Word.Document.12 "" "OLE_LINK1""#, "LINK (non-literal source)"),
+        ("LINK Word.Document.12", "LINK (non-literal source)"),
+    ] {
+        let input = docx(&format!("{marked}<w:p>{}</w:p>", fld(code)), None, None);
+        assert_eq!(refused_codes(input.clone()), [key], "{code}");
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(doc.set_run_text(0, 0, "Globex"), Err(Error::StaleFieldRisk { .. }), "{code}");
+        assert_eq!(entries(&doc.to_bytes().unwrap()), entries(&input), "{code}");
+    }
+    // A bookmark in a header counts too.
+    let header = r#"<w:p><w:bookmarkStart w:id="5" w:name="OLE_LINK2"/><w:r><w:t>h</w:t></w:r><w:bookmarkEnd w:id="5"/></w:p>"#;
+    let body = format!("<w:p>{}</w:p>", fld(r#"LINK Word.Document.12 "C:\\x\\self.docx" "OLE_LINK2""#));
+    assert_eq!(refused_codes(docx(&body, None, Some(header))), ["LINK (self reference)"]);
+    // Items that are not bookmarks of the document stay safe.
+    for code in [r#"LINK Excel.Sheet.12 "a.xlsx" "Sheet1!R1C1""#, r#"LINK Word.Document.12 "other.docx" "OLE_LINK9""#, r#"INCLUDETEXT "other.docx" Intro"#] {
+        assert_eq!(refused_codes(docx(&format!("{marked}<w:p>{}</w:p>", fld(code)), None, None)), Vec::<String>::new(), "{code}");
+    }
+}
+
+/// m14 (mutant M22): an instruction that sits in another container than its
+/// field's begin/separate/end (here a text box) is malformed rather than
+/// joined to the field's code.
+#[test]
+fn m14_instr_text_in_another_container_is_malformed() {
+    let body = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:pict><w:txbxContent><w:p><w:r><w:instrText>PAGE</w:instrText></w:r></w:p></w:txbxContent></w:pict></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>RESULT</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#;
+    assert!(body_codes(body).contains(&MALFORMED.to_owned()));
+}
+
+/// m14 (mutants M32/M33): with two settings parts, an "on" in the first is
+/// not undone by an explicit "off" in the second (any part turns a gate on).
+#[test]
+fn m14_first_settings_part_on_second_off() {
+    let first = r#"<w:trackRevisions/><w:documentProtection w:edit="readOnly" w:enforcement="1"/>"#;
+    let base = docx("<w:p><w:r><w:t>x</w:t></w:r></w:p>", Some(first), None);
+    let rels = String::from_utf8(part(&base, "word/_rels/document.xml.rels")).unwrap().replace(
+        "</Relationships>",
+        r#"<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings2.xml"/></Relationships>"#,
+    );
+    let base = with_part(&base, "word/_rels/document.xml.rels", rels.as_bytes());
+    let second = format!(r#"<w:settings xmlns:w="{W_NS}"><w:trackRevisions w:val="0"/><w:documentProtection w:edit="none" w:enforcement="0"/></w:settings>"#);
+    let doc = Document::from_bytes(with_parts(&base, &[("word/settings2.xml", &second)], "")).unwrap();
+    let gates: Vec<String> = doc.write_gates().iter().map(|e| format!("{e:?}")).collect();
+    assert_eq!(gates, ["TrackRevisionsOn", r#"DocumentProtected { edit: "readOnly" }"#]);
+}
+
+/// m14 (mutant M34): every custom-properties part is read; a linked
+/// property in the second one is found.
+#[test]
+fn m14_second_custom_properties_part_counts() {
+    let rel2 = r#"<Relationship Id="rId10" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom2.xml"/>"#;
+    let body = format!("<w:p>{}</w:p>", fld("DOCPROPERTY Client"));
+    let parts = [("docProps/custom.xml", custom_xml(&prop(2, "Client", false))), ("docProps/custom2.xml", custom_xml(&prop(2, "Client", true)))];
+    let parts: Vec<(&str, &str)> = parts.iter().map(|(n, c)| (*n, c.as_str())).collect();
+    let bytes = with_parts(&docx(&body, None, None), &parts, &format!("{CUSTOM_REL}{rel2}"));
+    assert_eq!(refused_codes(bytes), ["DOCPROPERTY CLIENT"]);
+}
+
+/// m14 (mutant M37): `DOCPROPERTY` whose argument contains a nested field
+/// is refused even when the literal part names a safe, unlinked property:
+/// Word may read the argument with the nested result (`AB`).
+#[test]
+fn m14_docproperty_with_a_nested_field_in_its_argument() {
+    let body = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> DOCPROPERTY "A</w:instrText></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> QUOTE B </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:instrText>B</w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:instrText xml:space="preserve">" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>v</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#;
+    let bytes = with_parts(&docx(body, None, None), &[("docProps/custom.xml", &custom_xml(&prop(2, "A", false)))], CUSTOM_REL);
+    let codes = refused_codes(bytes);
+    assert!(codes.contains(&"DOCPROPERTY".to_owned()), "{codes:?}");
+}
