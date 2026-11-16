@@ -1289,6 +1289,71 @@ what this revision specifies, pending the owner's confirmation.
     - the enforced-protection opt-in and lifting A2 go to the Phase2 structure ADR
       (ADR-0011, PR #31, which already lifts A2).
 
+## Implementation notes (post-acceptance)
+
+Recorded with the implementation (`impl/docx-phase1`, part 1: §1, §2, §6.1, §7). Additive or
+clarifying; the decisions above are unchanged.
+
+- **Return types.** `replace_at` and `replace_matches` return `Result<ReplaceReport>` (not
+  `Result<()>`), so that skipped matches under `OnRefused::Skip` are reported (§1.4: "skipping is
+  never silent"). `Match::status` is `Result<(), Refusal>`.
+- **`find` and the dry run.** Which insertions a match needs depends on the replacement (one
+  text piece needs none; `"a\tb"` needs two). `Match::status` therefore covers every check of
+  §1.4 except the dry run; `replace*` run the dry run and report a failure as
+  `RefusalReason::Core(…)` for the matches of that run.
+- **Refusal precedence**, when several apply: a matched character's run (R1, R2, R3, R4 in
+  ADR-0004's order; then a tracked formatting change, reported as `InsideRevision { context: None }`),
+  then a boundary, then an anchor, then the formatting rule, then unpreserved whitespace, then
+  the dry run. T7's reference classifier uses the same order.
+- **Runs of separator notes** fail R3 as `UnsupportedContext { ancestor: "w:footnote
+  (separator)" }` (or `w:endnote`), for `set_run_text_at` as well as for matches.
+- **`IgnoreInvisible` and emptied elements.** After dropping `w:lang/@w:val` (or
+  `w:rFonts/@w:hint`), a `w:lang` (or `w:rFonts`) element left with no attribute and no child
+  is dropped too, so `<w:lang w:val="en-US"/>` against no `w:lang` is an invisible difference.
+  An explicit `w:hint="default"` is not treated as absent (fail closed).
+- **Zero-width runs.** A run that is not a text run and holds no text (a footnote reference, a
+  deleted run) is a boundary at its position; it refuses a match only when strictly inside.
+- **Edge `w:lastRenderedPageBreak`.** "Strictly inside" is by text position: a page-break
+  marker after the `{{` of `{{x}}`, at the end of `r₀`, lies inside the match and is removed.
+- **UnpreservedWhitespace** is checked for every affected `w:t` whose kept text reaches its
+  original edge (kept or recreated), per match.
+- **Corpus cross-check** (throwaway, as ADR-0004 §7): gate and per-run settability outputs are
+  byte-identical to `main` for all 821 files (fixtures, POI, SDK, docx4j, templates); `replace`
+  on every boundary needle and placeholder of every story, save and reopen: no panic, no
+  reopen failure, no text mismatch.
+
+### Part 2 (§4, §5, §6.3)
+
+- **Types.** `RunFormat` and `ParagraphFormat` are plain structs, built with struct update
+  syntax. `HalfPoints::new` refuses values outside 1..=3276. Indents are signed twips. An empty
+  font name is `InvalidValue`.
+- **New errors.** `TrackedPropertyChange { element }` is used for a target whose `w:rPr`,
+  `w:pPr` or mark `w:rPr` holds `w:rPrChange`/`w:pPrChange`. A tracked paragraph mark
+  (`ins`/`del`/`move*` in the mark `w:rPr`) is `InsideRevision`. Also new: `DuplicateProperty`,
+  `InvalidValue`, `StyleChainTooDeep`, `UnknownStyle`, `StyleTypeMismatch`, `AmbiguousStyle`,
+  `NoSettingsPart`, `AmbiguousSettings` and `DuplicateSetting`.
+- **Clear on attribute-level elements.** Clearing on `w:rFonts`, `w:spacing` or `w:ind` removes
+  the setter's attributes. An element left with no attribute and no child is removed.
+- **Inherited cancellation** uses the resolved value of the attribute: the most specific style
+  level that sets it, then `docDefaults`. A non-zero `*Chars`/`*Lines`, or `*Autospacing` that
+  is not off, is written as `0` on the direct element. Otherwise the direct attribute is
+  removed.
+- **The n4 check** applies only to attributes that are new on their element; `set_attr` reuses
+  an existing attribute's prefix. A new on/off element for `true` writes no attribute, so it
+  works in a part that binds WML only as the default namespace.
+- **Re-indexing.** Inserting a `w:pPr` or `w:rPr` shifts the child indices on the paths of later
+  runs, so the story is re-walked after such writes. `ParaRef` and `RunRef` are unchanged.
+- **The styles part** is parsed at open and kept clean. A styles part that does not parse does
+  not fail the open; the style operations report the error.
+- **The `updateFields` opt-in** is per `Document` (`update_fields_opted_in()`). A reopened
+  document is gated again even though `w:updateFields` is on (§6.3, "explicit even when
+  already on").
+- **Corpus cross-check (throwaway).**
+  - Gate and per-run outputs are byte-identical to `main` for all 821 files.
+  - Every file then went through the opt-in, one `RunFormat` on every run, one
+    `ParagraphFormat` on every paragraph and a style on the first five paragraphs. Saving and
+    reopening found no panic, no reopen failure and no text change (counts in the PR).
+
 ## Sources
 
 - Spike and every number: `spikes/docx-phase1/README.md` (scripts `replace_sim.py`,

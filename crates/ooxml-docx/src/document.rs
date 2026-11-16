@@ -1,4 +1,4 @@
-//! [`Document`], [`Paragraph`], [`Run`] (ADR-0004 §3).
+//! [`Document`], [`Paragraph`], [`Run`] (ADR-0004 §3, ADR-0007 §2).
 
 use std::path::Path;
 use std::sync::Arc;
@@ -7,17 +7,23 @@ use ooxml_core::name::{STRICT_NS_PREFIX, XML_SPACE};
 use ooxml_core::opc::TargetMode;
 use ooxml_core::{ChildOf, ElementSpec, LensMut, Package, QName, RawNode, XmlDocument};
 use ooxml_schema::wml::{
-    self, Body, Break, DocumentProtection, DocumentProtectionValues, DocumentProtectionView, Hyperlink,
-    Paragraph as P, ParagraphProperties, Run as R, SectionProperties, Settings, SettingsView, TabChar, Table,
-    TableCell, TableRow, Text, TrackRevisions, TrackRevisionsView,
+    self, Body, Break, Comment, Comments, DocumentProtection, DocumentProtectionValues, DocumentProtectionView,
+    Endnote, Endnotes, Footer, Footnote, Footnotes, Header, Hyperlink, Paragraph as P, ParagraphProperties, Run as R,
+    SectionProperties, Settings, SettingsView, TabChar, Table, TableCell, TableRow, Text, TrackRevisions,
+    TrackRevisionsView,
 };
 
-use crate::body::{self, BodyIndex, ParaInfo, RunInfo, Wrapper};
+use crate::body::{self, BodyIndex, Mode, ParaInfo, RunInfo, Wrapper};
 use crate::error::{Error, Result};
-use crate::fields::{self, FieldScan};
+use crate::fields::{self, FieldScan, Operation};
 use crate::names::{
-    CUSTOM_PROPERTIES_NS, CUSTOM_PROPERTIES_RELATIONSHIP, RECOMMENDED, SETTINGS_RELATIONSHIP,
-    STORY_RELATIONSHIPS, WRITE_PROTECTION, is,
+    CUSTOM_PROPERTIES_NS, CUSTOM_PROPERTIES_RELATIONSHIP, EVEN_AND_ODD_HEADERS, FOOTER_REFERENCE, HEADER_REFERENCE,
+    R_ID, RECOMMENDED, RPR_CHANGE, SETTINGS_RELATIONSHIP, STYLES_RELATIONSHIP, STORY_RELATIONSHIPS, TITLE_PG, VAL, W_TYPE,
+    WRITE_PROTECTION, is,
+};
+use crate::story::{
+    Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryData, StoryId, StoryIndex,
+    StoryKind,
 };
 use crate::text::{Piece, check_text_only, current_pieces, lacks_needed_preserve, map_text, needs_preserve, run_text};
 use crate::{RunContext, WriteProtection};
@@ -27,25 +33,32 @@ use crate::{RunContext, WriteProtection};
 enum Gate {
     TrackRevisionsOn,
     DocumentProtected(String),
+    /// The refused field keys, for every operation.
     StaleFieldRisk(Vec<String>),
 }
 
 impl Gate {
-    fn to_error(&self) -> Error {
+    /// The error for `op`, or `None` when the gate does not apply to it
+    /// (ADR-0007 §6.1: per-operation W2).
+    fn error_for(&self, op: Operation) -> Option<Error> {
         match self {
-            Gate::TrackRevisionsOn => Error::TrackRevisionsOn,
-            Gate::DocumentProtected(edit) => Error::DocumentProtected { edit: edit.clone() },
-            Gate::StaleFieldRisk(codes) => Error::StaleFieldRisk { codes: codes.clone() },
+            Gate::TrackRevisionsOn => Some(Error::TrackRevisionsOn),
+            Gate::DocumentProtected(edit) => Some(Error::DocumentProtected { edit: edit.clone() }),
+            Gate::StaleFieldRisk(codes) => {
+                let codes: Vec<String> = codes.iter().filter(|c| !fields::allowed_for(op, c)).cloned().collect();
+                (!codes.is_empty()).then_some(Error::StaleFieldRisk { codes })
+            }
         }
     }
 }
 
 /// An existing Word document opened for lossless editing.
 ///
-/// The main document part is parsed once at open (Layer 2); `settings.xml`
-/// is parsed read-only and stays a raw copy on save; headers, footers,
-/// notes and comments are parsed transiently to scan their fields; every
-/// other part is passed through untouched (Layer 1).
+/// The main document part and every story part (headers, footers,
+/// footnotes, endnotes, comments; ADR-0007 §2.1) are parsed once at open
+/// (Layer 2) and kept; an unedited one is still written as a raw copy.
+/// `settings.xml` is parsed read-only; every other part is passed through
+/// untouched (Layer 1).
 ///
 /// # Examples
 ///
@@ -68,14 +81,39 @@ impl Gate {
 /// A complete, runnable version is `examples/fill_runs.rs`.
 #[derive(Debug)]
 pub struct Document {
-    pkg: Package,
+    pub(crate) pkg: Package,
     main: String,
+    pub(crate) stories: Vec<StoryData>,
+    /// Per story, per paragraph: the edit generation (ADR-0007 §7).
+    pub(crate) generations: Vec<Vec<u64>>,
+    pub(crate) id: DocumentId,
     gates: Vec<Gate>,
-    update_fields: Option<bool>,
+    /// Parts named by the main part's settings relationships (ADR-0007 §6.3).
+    pub(crate) settings_parts: Vec<String>,
+    /// The part named by the main part's styles relationship (ADR-0007 §5).
+    pub(crate) styles_part: Option<String>,
+    /// [`Document::enable_update_fields_on_open`] was called: W2 is lifted
+    /// for every operation (ADR-0007 §6.3).
+    pub(crate) fields_opt_in: bool,
+    pub(crate) update_fields: Option<bool>,
     write_protection: Option<WriteProtection>,
     marked_final: bool,
-    index: BodyIndex,
 }
+
+/// Expected root of a story part.
+fn story_root(kind: StoryKind) -> (QName, Mode) {
+    match kind {
+        StoryKind::Main => (wml::Document::QNAME, Mode::Document),
+        StoryKind::Header => (Header::QNAME, Mode::Block),
+        StoryKind::Footer => (Footer::QNAME, Mode::Block),
+        StoryKind::Footnotes => (Footnotes::QNAME, Mode::Notes),
+        StoryKind::Endnotes => (Endnotes::QNAME, Mode::Notes),
+        StoryKind::Comments => (Comments::QNAME, Mode::Notes),
+    }
+}
+
+const STORY_KINDS: [StoryKind; 5] =
+    [StoryKind::Header, StoryKind::Footer, StoryKind::Footnotes, StoryKind::Endnotes, StoryKind::Comments];
 
 impl Document {
     /// Opens a `.docx`, `.docm`, `.dotx` or `.dotm` file.
@@ -101,8 +139,9 @@ impl Document {
             return Err(ooxml_core::Error::StrictNotSupported(ns.into()).into());
         }
         xml.lens::<wml::Document>()?;
-        let index = body::index(xml.root());
         let mut codes = FieldScan::scan(xml.root());
+        let mut stories =
+            vec![StoryData { id: StoryId { kind: StoryKind::Main, part: main.clone() }, index: body::index(xml.root()), sections: Vec::new() }];
         let mut bookmarks = std::collections::BTreeSet::new();
         fields::bookmark_names(xml.root(), &mut bookmarks);
 
@@ -117,13 +156,36 @@ impl Document {
         // Every settings relationship (ECMA-376 allows one; with more, any
         // part that turns a gate on turns it on, review round 3, m11).
         let settings = target(SETTINGS_RELATIONSHIP);
-        let stories: Vec<String> = STORY_RELATIONSHIPS.iter().flat_map(|t| target(t)).collect();
-        for story in stories {
-            let doc = XmlDocument::parse(&pkg.read_part(&story)?)?;
+        let settings_parts = settings.clone();
+        let styles_part = target(STYLES_RELATIONSHIP).into_iter().next();
+        let story_parts: Vec<(StoryKind, String)> = STORY_KINDS
+            .iter()
+            .zip(STORY_RELATIONSHIPS)
+            .flat_map(|(&k, t)| target(t).into_iter().map(move |n| (k, n)))
+            .collect();
+        let mut seen = std::collections::BTreeSet::new();
+        for (kind, part) in story_parts {
+            if !seen.insert(part.clone()) || part == main {
+                continue;
+            }
+            let doc = pkg.xml_part(&part)?;
             codes.extend(FieldScan::scan(doc.root()));
             fields::bookmark_names(doc.root(), &mut bookmarks);
+            // A part whose root is not the story's root element is scanned
+            // (W2) but is not a story.
+            let (root, mode) = story_root(kind);
+            if doc.root().is(root) {
+                let index = body::index_root(doc.root(), mode);
+                stories.push(StoryData { id: StoryId { kind, part }, index, sections: Vec::new() });
+            }
         }
 
+        // Parsed once and kept (read-only, written raw). A styles part that
+        // does not parse does not fail the open: the style operations report
+        // the error (ADR-0007 §5; Phase0 never read it).
+        if let Some(name) = &styles_part {
+            let _ = pkg.xml_part(name);
+        }
         let custom = CustomProperties::read(&pkg)?;
 
         let mut gates = Vec::new();
@@ -131,6 +193,7 @@ impl Document {
         let mut write_protection = None;
         let mut track_revisions = false;
         let mut protected_edit = None;
+        let mut even_and_odd = false;
         for name in settings {
             let view = SettingsView(pkg.xml_part(&name)?.lens::<Settings>()?);
             // Every occurrence counts (a duplicate is a schema violation, but
@@ -147,6 +210,7 @@ impl Document {
             if let Some(u) = view.update_fields_on_open().map(|u| u.val().unwrap_or(true)) {
                 update_fields = Some(update_fields.unwrap_or(false) || u);
             }
+            even_and_odd |= view.raw().elements().filter(|e| e.is(EVEN_AND_ODD_HEADERS)).any(on_off);
             write_protection = view.raw().elements().filter(|e| e.is(WRITE_PROTECTION)).fold(write_protection, |acc: Option<WriteProtection>, e| {
                 let this = WriteProtection {
                     // Advisory: anything but an explicit "off" counts.
@@ -169,11 +233,32 @@ impl Document {
         if !refused.is_empty() {
             gates.push(Gate::StaleFieldRisk(refused));
         }
-        Ok(Document { pkg, main, gates, update_fields, write_protection, marked_final: custom.marked_final, index })
+        let main_root = pkg.parsed_part(&main).expect("parsed above").root();
+        let uses = section_uses(main_root, &stories[0].index, &rels, even_and_odd);
+        for story in &mut stories {
+            if let Some(u) = uses.get(&story.id.part) {
+                story.sections.clone_from(u);
+            }
+        }
+        let generations = stories.iter().map(|s| vec![0; s.index.paragraphs.len()]).collect();
+        Ok(Document {
+            pkg,
+            main,
+            stories,
+            generations,
+            id: DocumentId::fresh(),
+            gates,
+            update_fields,
+            write_protection,
+            marked_final: custom.marked_final,
+            settings_parts,
+            styles_part,
+            fields_opt_in: false,
+        })
     }
 
-    /// Serializes the package: every part except an edited main part is
-    /// copied with its original compressed bytes.
+    /// Serializes the package: every part except an edited one is copied
+    /// with its original compressed bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         Ok(self.pkg.to_bytes()?)
     }
@@ -196,21 +281,56 @@ impl Document {
         &self.main
     }
 
-    /// `Ok(())` if writes are allowed; otherwise the first document-level
-    /// gate, in the order W1 [`Error::TrackRevisionsOn`], W3
-    /// [`Error::DocumentProtected`], W2 [`Error::StaleFieldRisk`]. Reads
-    /// work either way.
+    /// This document's identifier, carried by every [`crate::Match`].
+    pub fn id(&self) -> DocumentId {
+        self.id
+    }
+
+    /// `Ok(())` if every write is allowed; otherwise the first
+    /// document-level gate, in the order W1 [`Error::TrackRevisionsOn`], W3
+    /// [`Error::DocumentProtected`], W2 [`Error::StaleFieldRisk`] (with
+    /// every refused field). This is the gate of
+    /// [`Operation::Style`], the strictest; [`Self::write_gate_for`] gives
+    /// the gate of one operation class. Reads work either way.
     pub fn write_gate(&self) -> Result<()> {
-        self.gates.first().map_or(Ok(()), |g| Err(g.to_error()))
+        self.write_gate_for(Operation::Style)
     }
 
-    /// Every document-level gate that applies (empty if writes are allowed).
+    /// The document-level gates for one operation class (ADR-0007 §6.1):
+    /// W1 and W3 as in [`Self::write_gate`], and W2 with only the fields
+    /// that operation could make stale.
+    ///
+    /// After [`Self::enable_update_fields_on_open`], W2 no longer applies to
+    /// any operation of this `Document` (ADR-0007 §6.3).
+    pub fn write_gate_for(&self, op: Operation) -> Result<()> {
+        self.gates
+            .iter()
+            .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
+            .find_map(|g| g.error_for(op))
+            .map_or(Ok(()), Err)
+    }
+
+    /// W1 and W3 only (the `updateFields` opt-in is a write, not gated by
+    /// W2; ADR-0007 §6.3).
+    pub(crate) fn write_gate_w1_w3(&self) -> Result<()> {
+        self.gates
+            .iter()
+            .filter(|g| !matches!(g, Gate::StaleFieldRisk(_)))
+            .find_map(|g| g.error_for(Operation::Style))
+            .map_or(Ok(()), Err)
+    }
+
+    /// Every document-level gate that applies to [`Operation::Style`]
+    /// (empty if every write is allowed).
     pub fn write_gates(&self) -> Vec<Error> {
-        self.gates.iter().map(Gate::to_error).collect()
+        self.gates
+            .iter()
+            .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
+            .filter_map(|g| g.error_for(Operation::Style))
+            .collect()
     }
 
-    /// `settings/w:updateFields` as read (`None` if absent). Phase0 reports
-    /// it and never writes it.
+    /// `settings/w:updateFields` as read (`None` if absent).
     pub fn update_fields_on_open(&self) -> Option<bool> {
         self.update_fields
     }
@@ -230,77 +350,174 @@ impl Document {
         self.marked_final
     }
 
-    fn root(&self) -> &RawNode {
-        self.pkg.parsed_part(&self.main).expect("the main part is parsed at open and never replaced").root()
+    pub(crate) fn story_root_node(&self, story: StoryIndex) -> &RawNode {
+        self.pkg
+            .parsed_part(&self.stories[story.0].id.part)
+            .expect("story parts are parsed at open and never replaced")
+            .root()
     }
 
-    /// Number of paragraphs in body flow.
+    /// Every story: the main one first, then headers, footers, footnotes,
+    /// endnotes and comments, each in relationship order (ADR-0007 §2.1).
+    pub fn stories(&self) -> impl Iterator<Item = Story<'_>> {
+        (0..self.stories.len()).map(|i| self.story_at(StoryIndex(i)).expect("in range"))
+    }
+
+    /// The story with that identity.
+    pub fn story(&self, id: &StoryId) -> Option<Story<'_>> {
+        self.stories.iter().position(|s| &s.id == id).and_then(|i| self.story_at(StoryIndex(i)))
+    }
+
+    /// The story at that index.
+    pub fn story_at(&self, index: StoryIndex) -> Option<Story<'_>> {
+        let data = self.stories.get(index.0)?;
+        Some(Story { doc: self, index, data, root: self.story_root_node(index) })
+    }
+
+    /// The paragraph a [`ParaRef`] names.
+    pub fn paragraph_at(&self, p: ParaRef) -> Option<Paragraph<'_>> {
+        self.story_at(p.story)?.paragraph(p.index)
+    }
+
+    /// The run a [`RunRef`] names.
+    pub fn run_at(&self, r: RunRef) -> Option<Run<'_>> {
+        self.paragraph_at(r.para)?.run(r.run)
+    }
+
+    /// Number of paragraphs in the main story's body flow.
     pub fn paragraph_count(&self) -> usize {
-        self.index.paragraphs.len()
+        self.stories[0].index.paragraphs.len()
     }
 
-    /// Paragraphs of the body flow in document order: `w:body`, descending
-    /// into tables, content controls and custom XML, but not into text
-    /// boxes, drawings or `mc:AlternateContent`.
+    /// Paragraphs of the main story's body flow in document order:
+    /// `w:body`, descending into tables, content controls and custom XML,
+    /// but not into text boxes, drawings or `mc:AlternateContent`.
     pub fn paragraphs(&self) -> impl Iterator<Item = Paragraph<'_>> {
-        let (root, body) = (self.root(), &self.index);
-        self.index.paragraphs.iter().enumerate().map(move |(index, info)| Paragraph { root, body, info, index })
+        self.story_at(StoryIndex::MAIN).expect("the main story exists").paragraphs()
     }
 
-    /// Paragraph `index` (as in [`Self::paragraphs`]).
+    /// Paragraph `index` of the main story (as in [`Self::paragraphs`]).
     pub fn paragraph(&self, index: usize) -> Option<Paragraph<'_>> {
-        self.index.paragraphs.get(index).map(|info| Paragraph { root: self.root(), body: &self.index, info, index })
+        self.paragraph_at(ParaRef::new(StoryIndex::MAIN, index))
     }
 
-    fn run(&self, paragraph: usize, run: usize) -> Result<Run<'_>> {
-        self.paragraph(paragraph).ok_or(Error::NoSuchParagraph(paragraph))?.run(run).ok_or(Error::NoSuchRun { paragraph, run })
+    /// The edit generation of a paragraph (ADR-0007 §7): incremented by
+    /// every write that changes it. Refused calls and writes that leave the
+    /// output byte-identical do not change it. 0 for an unknown paragraph.
+    pub fn generation(&self, p: ParaRef) -> u64 {
+        self.generations.get(p.story.0).and_then(|g| g.get(p.index)).copied().unwrap_or(0)
     }
 
-    /// Replaces the content of run `run` of paragraph `paragraph` with
-    /// `text` (ADR-0004 §3): `\t` → `w:tab`, `\n`/`\r\n`/`\r` → `w:br`, the
-    /// rest → `w:t` (with `xml:space="preserve"` where needed). `w:rPr` and
-    /// all attributes are kept; a `w:lastRenderedPageBreak` in the run is
+    /// Re-walks a story after a write that inserted elements on the paths
+    /// of its runs (a `w:pPr` before a paragraph's runs, a `w:rPr` before a
+    /// run's ruby). Paragraphs and runs keep their indices: nothing is
+    /// added to or removed from the flow.
+    pub(crate) fn reindex(&mut self, story: StoryIndex) {
+        let root = self.story_root_node(story);
+        let kind = self.stories[story.0].id.kind;
+        let index = match kind {
+            StoryKind::Main => body::index(root),
+            k => body::index_root(root, story_root(k).1),
+        };
+        debug_assert_eq!(index.paragraphs.len(), self.stories[story.0].index.paragraphs.len());
+        self.stories[story.0].index = index;
+    }
+
+    pub(crate) fn bump(&mut self, p: ParaRef) {
+        if let Some(g) = self.generations.get_mut(p.story.0).and_then(|g| g.get_mut(p.index)) {
+            *g += 1;
+        }
+    }
+
+    /// Replaces the content of run `run` of paragraph `paragraph` of the
+    /// main story with `text`. See [`Self::set_run_text_at`].
+    pub fn set_run_text(&mut self, paragraph: usize, run: usize, text: &str) -> Result<()> {
+        if self.paragraph(paragraph).is_none() {
+            return Err(Error::NoSuchParagraph(paragraph));
+        }
+        self.set_run_text_at(RunRef::new(ParaRef::new(StoryIndex::MAIN, paragraph), run), text)
+    }
+
+    /// Replaces the content of a run of any story with `text` (ADR-0004
+    /// §3): `\t` → `w:tab`, `\n`/`\r\n`/`\r` → `w:br`, the rest → `w:t`
+    /// (with `xml:space="preserve"` where needed). `w:rPr` and all
+    /// attributes are kept; a `w:lastRenderedPageBreak` in the run is
     /// dropped. Writing content the run already has is a no-op, unless a
     /// `w:t` of the run needs `xml:space="preserve"` (edge or double spaces)
     /// and does not carry it: Word would not display the requested text, so
     /// the run is rewritten (ADR-0004 §3.2 step 6).
     ///
-    /// Errors, before any change: [`Self::write_gate`],
-    /// [`Run::check_settable`], [`Error::InvalidXmlChar`],
-    /// [`Error::NoSuchParagraph`], [`Error::NoSuchRun`].
-    pub fn set_run_text(&mut self, paragraph: usize, run: usize, text: &str) -> Result<()> {
-        self.write_gate()?;
-        let r = self.run(paragraph, run)?;
+    /// Errors, before any change: [`Self::write_gate_for`]
+    /// ([`Operation::Text`]), [`Run::check_settable`],
+    /// [`Error::InvalidXmlChar`], [`Error::NoSuchParagraph`],
+    /// [`Error::NoSuchRun`].
+    pub fn set_run_text_at(&mut self, run: RunRef, text: &str) -> Result<()> {
+        self.write_gate_for(Operation::Text)?;
+        let (paragraph, index) = (run.para.index, run.run);
+        let r = self.paragraph_at(run.para).ok_or(Error::NoSuchParagraph(paragraph))?;
+        let r = r.run(index).ok_or(Error::NoSuchRun { paragraph, run: index })?;
         r.check_settable()?;
         let pieces = map_text(text)?;
         if current_pieces(r.node).as_ref() == Some(&pieces) && !lacks_needed_preserve(r.node) {
             return Ok(());
         }
-        let path = self.index.path(r.info.frame);
-        let xml = self.pkg.xml_part_mut(&self.main)?;
-        let mut lens = run_lens(xml.lens_mut::<wml::Document>()?, &path).ok_or(Error::NoSuchRun { paragraph, run })?;
-        write_pieces(&mut lens, &pieces)
+        self.with_run(run, |lens| write_pieces(lens, &pieces))?;
+        self.bump(run.para);
+        Ok(())
     }
 
-    /// Appends a paragraph with `text` as the last block of the body,
-    /// before the body-level `w:sectPr` (or at the end of the body if there
-    /// is none). It has no `w:pPr`, `w:rPr` or IDs; empty `text` gives an
-    /// empty paragraph. Returns the new paragraph's index.
+    /// Runs `f` on a mutable lens on the run `at`. Only paths through the
+    /// story root, a note or comment, `w:body`, `w:tbl`/`w:tr`/`w:tc`, `w:p`
+    /// and `w:hyperlink` are followed; those are the only ones a settable
+    /// run has ([`Error::NoSuchRun`] otherwise).
+    pub(crate) fn with_run<T>(&mut self, at: RunRef, f: impl FnOnce(&mut LensMut<'_, R>) -> Result<T>) -> Result<T> {
+        let missing = || Error::NoSuchRun { paragraph: at.para.index, run: at.run };
+        let data = self.stories.get(at.para.story.0).ok_or_else(missing)?;
+        let info = data.index.paragraphs.get(at.para.index).and_then(|p| p.runs.get(at.run)).ok_or_else(missing)?;
+        let path = data.index.path(info.frame);
+        let kind = data.id.kind;
+        let xml = self.pkg.xml_part_mut(&data.id.part)?;
+        let (p, rest) = story_para(xml, kind, &path)?.ok_or_else(missing)?;
+        f(&mut run_below(p, rest).ok_or_else(missing)?)
+    }
+
+    /// Runs `f` on a mutable lens on paragraph `at`, reached as
+    /// [`Self::with_run`] reaches runs ([`Error::NoSuchParagraph`] for a
+    /// paragraph inside anything else, e.g. a block-level content control).
+    pub(crate) fn with_para<T>(&mut self, at: ParaRef, f: impl FnOnce(&mut LensMut<'_, P>) -> Result<T>) -> Result<T> {
+        let missing = || Error::NoSuchParagraph(at.index);
+        let data = self.stories.get(at.story.0).ok_or_else(missing)?;
+        let info = data.index.paragraphs.get(at.index).ok_or_else(missing)?;
+        let path = data.index.path(info.frame);
+        let kind = data.id.kind;
+        let xml = self.pkg.xml_part_mut(&data.id.part)?;
+        match story_para(xml, kind, &path)? {
+            Some((mut p, [])) => f(&mut p),
+            _ => Err(missing()),
+        }
+    }
+
+    /// Appends a paragraph with `text` as the last block of the main
+    /// story's body, before the body-level `w:sectPr` (or at the end of the
+    /// body if there is none). It has no `w:pPr`, `w:rPr` or IDs; empty
+    /// `text` gives an empty paragraph. Returns the new paragraph's index.
     ///
-    /// Errors, before any change: [`Self::write_gate`],
-    /// [`Error::InvalidXmlChar`], [`Error::NoBody`], [`Error::InsideField`]
-    /// (the body ends inside an unterminated field), A1
-    /// `Core(UnresolvedSibling)` (the body has an `mc:AlternateContent`
-    /// child), A2 [`Error::SectionBreakAtEnd`] (no body-level `w:sectPr`,
-    /// and the body ends with a paragraph carrying `w:pPr/w:sectPr`).
+    /// Errors, before any change: [`Self::write_gate_for`]
+    /// ([`Operation::Append`]), [`Error::InvalidXmlChar`],
+    /// [`Error::NoBody`], [`Error::InsideField`] (the body ends inside an
+    /// unterminated field), A1 `Core(UnresolvedSibling)` (the body has an
+    /// `mc:AlternateContent` child), A2 [`Error::SectionBreakAtEnd`] (no
+    /// body-level `w:sectPr`, and the body ends with a paragraph carrying
+    /// `w:pPr/w:sectPr`).
     pub fn append_paragraph(&mut self, text: &str) -> Result<usize> {
-        self.write_gate()?;
+        self.write_gate_for(Operation::Append)?;
         let pieces = map_text(text)?;
-        let b = self.index.body.ok_or(Error::NoBody)?;
-        if self.index.open_fields_at_end > 0 {
+        let index = &self.stories[0].index;
+        let b = index.body.ok_or(Error::NoBody)?;
+        if index.open_fields_at_end > 0 {
             return Err(Error::InsideField);
         }
-        if ends_with_section_break(self.root(), &self.index) {
+        if ends_with_section_break(self.story_root_node(StoryIndex::MAIN), index) {
             return Err(Error::SectionBreakAtEnd);
         }
         let xml = self.pkg.xml_part_mut(&self.main)?;
@@ -309,9 +526,71 @@ impl Document {
         if !pieces.is_empty() {
             write_pieces(&mut p.insert::<R>()?, &pieces)?;
         }
-        self.index = body::index(self.root());
-        Ok(self.index.paragraphs.len() - 1)
+        let root = self.story_root_node(StoryIndex::MAIN);
+        self.stories[0].index = body::index(root);
+        let n = self.stories[0].index.paragraphs.len();
+        self.generations[0].resize(n, 0);
+        Ok(n - 1)
     }
+}
+
+fn on_off(e: &RawNode) -> bool {
+    e.attr(VAL).is_none_or(|v| ooxml_core::value::parse_on_off(v) != Some(false))
+}
+
+/// ADR-0007 §2.3: for each header or footer part, the sections that use it.
+fn section_uses(
+    root: &RawNode,
+    index: &BodyIndex,
+    rels: &ooxml_core::opc::Relationships,
+    even_and_odd: bool,
+) -> std::collections::HashMap<String, Vec<SectionUse>> {
+    let mut sect_prs: Vec<&RawNode> = index
+        .paragraphs
+        .iter()
+        .flat_map(|p| node_at(root, &index.path(p.frame)).elements().filter(|e| is::<ParagraphProperties>(e)))
+        .flat_map(|ppr| ppr.elements().filter(|e| is::<SectionProperties>(e)))
+        .collect();
+    if let Some(body) = index.body.and_then(|b| root.children()[b].as_element()) {
+        sect_prs.extend(body.elements().filter(|e| is::<SectionProperties>(e)));
+    }
+    const TYPES: [HeaderFooterType; 3] = [HeaderFooterType::Default, HeaderFooterType::First, HeaderFooterType::Even];
+    // [header, footer] × [default, first, even]
+    let mut current: [[Option<String>; 3]; 2] = Default::default();
+    let mut out: std::collections::HashMap<String, Vec<SectionUse>> = std::collections::HashMap::new();
+    for (section, sp) in sect_prs.iter().enumerate() {
+        for (hf, q) in [HEADER_REFERENCE, FOOTER_REFERENCE].into_iter().enumerate() {
+            for r in sp.elements().filter(|e| e.is(q)) {
+                let t = match r.attr(W_TYPE) {
+                    None | Some("default") => 0,
+                    Some("first") => 1,
+                    Some("even") => 2,
+                    Some(_) => continue,
+                };
+                let part = r
+                    .attr(R_ID)
+                    .and_then(|id| rels.by_id(id))
+                    .filter(|rel| rel.target_mode == TargetMode::Internal)
+                    .and_then(|rel| rels.resolve(rel));
+                current[hf][t] = part;
+            }
+        }
+        let title_pg = sp.elements().filter(|e| e.is(TITLE_PG)).any(on_off);
+        for hf in &current {
+            for (t, part) in hf.iter().enumerate() {
+                if let Some(part) = part {
+                    let kind = TYPES[t];
+                    let displayed = match kind {
+                        HeaderFooterType::First => title_pg,
+                        HeaderFooterType::Even => even_and_odd,
+                        HeaderFooterType::Default => true,
+                    };
+                    out.entry(part.clone()).or_default().push(SectionUse { section, kind, displayed });
+                }
+            }
+        }
+    }
+    out
 }
 
 /// A2: the body has no `w:sectPr` of its own and the last paragraph of the
@@ -355,19 +634,41 @@ where
     Some(Step::Cell(tc, rest))
 }
 
-/// Mutable lens on the run at `path` (from the part root). Only paths
-/// through `w:body`, `w:tbl`/`w:tr`/`w:tc`, `w:p` and `w:hyperlink` are
-/// followed; those are the only ones a settable run has. Iterative, like
-/// the walks.
-fn run_lens<'a>(doc: LensMut<'a, wml::Document>, path: &[usize]) -> Option<LensMut<'a, R>> {
-    let (&b, rest) = path.split_first()?;
-    let mut at = step(doc.into_child_at::<Body>(b)?, rest)?;
-    let (p, rest) = loop {
+/// The paragraph on `path` (from the story part's root) and the rest of
+/// the path below it. `Ok(None)` when the path does not lead to a paragraph
+/// through the story root, a note or comment, `w:body` and tables.
+fn story_para<'a, 'p>(xml: &'a mut XmlDocument, kind: StoryKind, path: &'p [usize]) -> Result<Option<(LensMut<'a, P>, &'p [usize])>> {
+    let Some((&first, rest)) = path.split_first() else { return Ok(None) };
+    Ok(match kind {
+        StoryKind::Main => xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(first).and_then(|b| para_in(b, rest)),
+        StoryKind::Header => para_in(xml.lens_mut::<Header>()?, path),
+        StoryKind::Footer => para_in(xml.lens_mut::<Footer>()?, path),
+        StoryKind::Footnotes => xml.lens_mut::<Footnotes>()?.into_child_at::<Footnote>(first).and_then(|n| para_in(n, rest)),
+        StoryKind::Endnotes => xml.lens_mut::<Endnotes>()?.into_child_at::<Endnote>(first).and_then(|n| para_in(n, rest)),
+        StoryKind::Comments => xml.lens_mut::<Comments>()?.into_child_at::<Comment>(first).and_then(|n| para_in(n, rest)),
+    })
+}
+
+/// The paragraph at the head of `path` below `container` (a body, header,
+/// footer, note or comment, through tables), and the rest of the path.
+/// Iterative, like the walks.
+fn para_in<'a, 'p, E>(container: LensMut<'a, E>, path: &'p [usize]) -> Option<(LensMut<'a, P>, &'p [usize])>
+where
+    E: ElementSpec,
+    P: ChildOf<E>,
+    Table: ChildOf<E>,
+{
+    let mut at = step(container, path)?;
+    loop {
         match at {
-            Step::Para(p, rest) => break (p, rest),
-            Step::Cell(tc, rest) => at = step(tc, rest)?,
+            Step::Para(p, rest) => return Some((p, rest)),
+            Step::Cell(tc, rest) => at = step::<TableCell>(tc, rest)?,
         }
-    };
+    }
+}
+
+/// The run at `rest` below paragraph `p`, through `w:hyperlink`s only.
+fn run_below<'a>(p: LensMut<'a, P>, rest: &[usize]) -> Option<LensMut<'a, R>> {
     let (&i, mut rest) = rest.split_first()?;
     if rest.is_empty() {
         return p.into_child_at::<R>(i);
@@ -407,7 +708,7 @@ fn write_pieces(run: &mut LensMut<'_, R>, pieces: &[Piece]) -> Result<()> {
     Ok(())
 }
 
-fn set_t(t: &mut LensMut<'_, Text>, s: &str) -> Result<()> {
+pub(crate) fn set_t(t: &mut LensMut<'_, Text>, s: &str) -> Result<()> {
     if needs_preserve(s) {
         t.set_attr(XML_SPACE, "preserve")?;
     }
@@ -415,35 +716,68 @@ fn set_t(t: &mut LensMut<'_, Text>, s: &str) -> Result<()> {
     Ok(())
 }
 
-fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> &'a RawNode {
+pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> &'a RawNode {
     path.iter().fold(root, |n, &i| n.children()[i].as_element().expect("indexed paths point at elements"))
 }
 
-/// A paragraph of the body flow.
+/// A paragraph of a story's flow.
 #[derive(Clone, Copy, Debug)]
 pub struct Paragraph<'d> {
+    doc: &'d Document,
+    story: StoryIndex,
+    data: &'d StoryData,
     root: &'d RawNode,
-    body: &'d BodyIndex,
-    info: &'d ParaInfo,
+    pub(crate) info: &'d ParaInfo,
     index: usize,
 }
 
 impl<'d> Paragraph<'d> {
-    /// Index in [`Document::paragraphs`].
+    pub(crate) fn new(doc: &'d Document, story: StoryIndex, data: &'d StoryData, root: &'d RawNode, index: usize) -> Self {
+        Paragraph { doc, story, data, root, info: &data.index.paragraphs[index], index }
+    }
+
+    /// Index in its story's paragraphs ([`Document::paragraphs`] for the
+    /// main story).
     pub fn index(&self) -> usize {
         self.index
     }
 
+    /// This paragraph as a [`ParaRef`].
+    pub fn para_ref(&self) -> ParaRef {
+        ParaRef::new(self.story, self.index)
+    }
+
+    /// The paragraph's edit generation ([`Document::generation`]).
+    pub fn generation(&self) -> u64 {
+        self.doc.generation(self.para_ref())
+    }
+
+    /// What holds the paragraph.
+    pub fn container(&self) -> Container {
+        let note = self.info.note.map(|n| &self.data.index.notes[n as usize]);
+        match (self.data.id.kind, note) {
+            (k @ (StoryKind::Footnotes | StoryKind::Endnotes), Some(n)) => {
+                Container::Note { kind: k, id: n.id.clone(), separator: n.separator }
+            }
+            (StoryKind::Comments, Some(n)) => Container::Comment { id: n.id.clone() },
+            _ => Container::Body,
+        }
+    }
+
+    pub(crate) fn in_separator_note(&self) -> bool {
+        self.info.note.is_some_and(|n| self.data.index.notes[n as usize].separator)
+    }
+
     /// The `w:p` element.
     pub fn raw(&self) -> &'d RawNode {
-        node_at(self.root, &self.body.path(self.info.frame))
+        node_at(self.root, &self.data.index.path(self.info.frame))
     }
 
     /// The "all revisions accepted" text: the text of [`Self::runs`] except
     /// runs inside `w:del` or `w:moveFrom`. Field results are included,
     /// field instructions are not (they are `w:instrText`).
     pub fn text(&self) -> String {
-        self.runs().filter(|r| !r.wrappers().iter().any(|w| w.is_removed_text())).map(|r| r.text()).collect()
+        self.runs().filter(|r| !r.is_removed()).map(|r| r.text()).collect()
     }
 
     /// Number of runs.
@@ -456,37 +790,56 @@ impl<'d> Paragraph<'d> {
     /// smart tags, content controls, custom XML, simple fields, `w:dir`,
     /// `w:bdo` and ruby base text.
     pub fn runs(&self) -> impl Iterator<Item = Run<'d>> + use<'d> {
-        let (root, body) = (self.root, self.body);
-        self.info.runs.iter().enumerate().map(move |(index, info)| Run::new(root, body, info, index))
+        let this = *self;
+        (0..self.info.runs.len()).map(move |i| this.run(i).expect("in range"))
     }
 
     /// Run `index` (as in [`Self::runs`]).
     pub fn run(&self, index: usize) -> Option<Run<'d>> {
-        self.info.runs.get(index).map(|info| Run::new(self.root, self.body, info, index))
+        let info = self.info.runs.get(index)?;
+        Some(Run {
+            node: node_at(self.root, &self.data.index.path(info.frame)),
+            body: &self.data.index,
+            info,
+            index,
+            para: self.para_ref(),
+            separator: self.in_separator_note(),
+            kind: self.data.id.kind,
+        })
     }
 }
 
 /// A run (`w:r`) in a paragraph's flow.
 #[derive(Clone, Copy, Debug)]
 pub struct Run<'d> {
-    node: &'d RawNode,
+    pub(crate) node: &'d RawNode,
     body: &'d BodyIndex,
-    info: &'d RunInfo,
+    pub(crate) info: &'d RunInfo,
     index: usize,
+    para: ParaRef,
+    separator: bool,
+    kind: StoryKind,
 }
 
 impl<'d> Run<'d> {
-    fn new(root: &'d RawNode, body: &'d BodyIndex, info: &'d RunInfo, index: usize) -> Self {
-        Run { node: node_at(root, &body.path(info.frame)), body, info, index }
+    pub(crate) fn wrappers(&self) -> Vec<Wrapper> {
+        self.body.wrappers(self.info.frame)
     }
 
-    fn wrappers(&self) -> Vec<Wrapper> {
-        self.body.wrappers(self.info.frame)
+    /// Inside `w:del` or `w:moveFrom` (at any depth): the run's text is not
+    /// part of [`Paragraph::text`].
+    pub fn is_removed(&self) -> bool {
+        self.wrappers().iter().any(|w| w.is_removed_text())
     }
 
     /// Index in [`Paragraph::runs`].
     pub fn index(&self) -> usize {
         self.index
+    }
+
+    /// This run as a [`RunRef`].
+    pub fn run_ref(&self) -> RunRef {
+        RunRef::new(self.para, self.index)
     }
 
     /// The `w:r` element.
@@ -502,8 +855,9 @@ impl<'d> Run<'d> {
     }
 
     /// Where the run sits: the outermost wrapper other than `w:hyperlink`
-    /// between `w:body` and the run, else [`RunContext::Hyperlink`] if it is
-    /// in a hyperlink, else [`RunContext::Direct`].
+    /// between the story's container and the run, else
+    /// [`RunContext::Hyperlink`] if it is in a hyperlink, else
+    /// [`RunContext::Direct`].
     pub fn context(&self) -> RunContext {
         let ws = &self.wrappers();
         ws.iter().find(|w| **w != Wrapper::Hyperlink).map_or_else(
@@ -518,10 +872,18 @@ impl<'d> Run<'d> {
         self.info.in_field
     }
 
-    /// Why [`Document::set_run_text`] would refuse this run, without trying
-    /// (the document-level gates are not included). Checked in order:
-    /// R1 [`Error::InsideField`], R2 [`Error::InsideRevision`], R3
-    /// [`Error::UnsupportedContext`], R4 [`Error::RunNotTextOnly`].
+    /// Does the run's `w:rPr` record a tracked formatting change
+    /// (`w:rPrChange`)? Such a run is not a text run for
+    /// [`Document::replace`] (ADR-0007 §1.1).
+    pub fn has_formatting_change(&self) -> bool {
+        self.node.elements().filter(|e| is::<wml::RunProperties>(e)).any(|rpr| rpr.elements().any(|e| e.is(RPR_CHANGE)))
+    }
+
+    /// Why [`Document::set_run_text_at`] would refuse this run, without
+    /// trying (the document-level gates are not included). Checked in
+    /// order: R1 [`Error::InsideField`], R2 [`Error::InsideRevision`], R3
+    /// [`Error::UnsupportedContext`] (including the runs of separator notes,
+    /// ADR-0007 §2.2), R4 [`Error::RunNotTextOnly`].
     pub fn check_settable(&self) -> Result<()> {
         let ws = &self.wrappers();
         if self.info.in_field || ws.contains(&Wrapper::SimpleField) {
@@ -529,6 +891,10 @@ impl<'d> Run<'d> {
         }
         if let Some(w) = ws.iter().find(|w| w.is_revision()) {
             return Err(Error::InsideRevision { context: w.context() });
+        }
+        if self.separator {
+            let ancestor = if self.kind == StoryKind::Endnotes { "w:endnote (separator)" } else { "w:footnote (separator)" };
+            return Err(Error::UnsupportedContext { ancestor });
         }
         if let Some(w) = ws.iter().find(|w| **w != Wrapper::Hyperlink) {
             return Err(Error::UnsupportedContext { ancestor: w.qname() });

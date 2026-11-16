@@ -16,6 +16,226 @@ pub const NS_W15: &str = "http://schemas.microsoft.com/office/word/2012/wordml";
 pub const NS_W16DU: &str = "http://schemas.microsoft.com/office/word/2023/wordml/word16du";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+/// `w:ST_HighlightColor` — HighlightColorValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum HighlightColorValues {
+    /// `black`
+    Black,
+    /// `blue`
+    Blue,
+    /// `cyan`
+    Cyan,
+    /// `green`
+    Green,
+    /// `magenta`
+    Magenta,
+    /// `red`
+    Red,
+    /// `yellow`
+    Yellow,
+    /// `white`
+    White,
+    /// `darkBlue`
+    DarkBlue,
+    /// `darkCyan`
+    DarkCyan,
+    /// `darkGreen`
+    DarkGreen,
+    /// `darkMagenta`
+    DarkMagenta,
+    /// `darkRed`
+    DarkRed,
+    /// `darkYellow`
+    DarkYellow,
+    /// `darkGray`
+    DarkGray,
+    /// `lightGray`
+    LightGray,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for HighlightColorValues {
+    const VALUES: &'static [&'static str] = &[
+        "black",
+        "blue",
+        "cyan",
+        "green",
+        "magenta",
+        "red",
+        "yellow",
+        "white",
+        "darkBlue",
+        "darkCyan",
+        "darkGreen",
+        "darkMagenta",
+        "darkRed",
+        "darkYellow",
+        "darkGray",
+        "lightGray",
+        "none",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Black),
+            1 => Some(Self::Blue),
+            2 => Some(Self::Cyan),
+            3 => Some(Self::Green),
+            4 => Some(Self::Magenta),
+            5 => Some(Self::Red),
+            6 => Some(Self::Yellow),
+            7 => Some(Self::White),
+            8 => Some(Self::DarkBlue),
+            9 => Some(Self::DarkCyan),
+            10 => Some(Self::DarkGreen),
+            11 => Some(Self::DarkMagenta),
+            12 => Some(Self::DarkRed),
+            13 => Some(Self::DarkYellow),
+            14 => Some(Self::DarkGray),
+            15 => Some(Self::LightGray),
+            16 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_Underline` — UnderlineValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UnderlineValues {
+    /// `single`
+    Single,
+    /// `words`
+    Words,
+    /// `double`
+    Double,
+    /// `thick`
+    Thick,
+    /// `dotted`
+    Dotted,
+    /// `dottedHeavy`
+    DottedHeavy,
+    /// `dash`
+    Dash,
+    /// `dashedHeavy`
+    DashedHeavy,
+    /// `dashLong`
+    DashLong,
+    /// `dashLongHeavy`
+    DashLongHeavy,
+    /// `dotDash`
+    DotDash,
+    /// `dashDotHeavy`
+    DashDotHeavy,
+    /// `dotDotDash`
+    DotDotDash,
+    /// `dashDotDotHeavy`
+    DashDotDotHeavy,
+    /// `wave`
+    Wave,
+    /// `wavyHeavy`
+    WavyHeavy,
+    /// `wavyDouble`
+    WavyDouble,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for UnderlineValues {
+    const VALUES: &'static [&'static str] = &[
+        "single",
+        "words",
+        "double",
+        "thick",
+        "dotted",
+        "dottedHeavy",
+        "dash",
+        "dashedHeavy",
+        "dashLong",
+        "dashLongHeavy",
+        "dotDash",
+        "dashDotHeavy",
+        "dotDotDash",
+        "dashDotDotHeavy",
+        "wave",
+        "wavyHeavy",
+        "wavyDouble",
+        "none",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Single),
+            1 => Some(Self::Words),
+            2 => Some(Self::Double),
+            3 => Some(Self::Thick),
+            4 => Some(Self::Dotted),
+            5 => Some(Self::DottedHeavy),
+            6 => Some(Self::Dash),
+            7 => Some(Self::DashedHeavy),
+            8 => Some(Self::DashLong),
+            9 => Some(Self::DashLongHeavy),
+            10 => Some(Self::DotDash),
+            11 => Some(Self::DashDotHeavy),
+            12 => Some(Self::DotDotDash),
+            13 => Some(Self::DashDotDotHeavy),
+            14 => Some(Self::Wave),
+            15 => Some(Self::WavyHeavy),
+            16 => Some(Self::WavyDouble),
+            17 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_VerticalAlignRun` — VerticalPositionValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VerticalPositionValues {
+    /// `baseline`
+    Baseline,
+    /// `superscript`
+    Superscript,
+    /// `subscript`
+    Subscript,
+}
+impl ooxml_core::EnumType for VerticalPositionValues {
+    const VALUES: &'static [&'static str] = &["baseline", "superscript", "subscript"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Baseline),
+            1 => Some(Self::Superscript),
+            2 => Some(Self::Subscript),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_LineSpacingRule` — LineSpacingRuleValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LineSpacingRuleValues {
+    /// `auto`
+    Auto,
+    /// `exact`
+    Exact,
+    /// `atLeast`
+    AtLeast,
+}
+impl ooxml_core::EnumType for LineSpacingRuleValues {
+    const VALUES: &'static [&'static str] = &["auto", "exact", "atLeast"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Auto),
+            1 => Some(Self::Exact),
+            2 => Some(Self::AtLeast),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_DocProtect` — DocumentProtectionValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DocumentProtectionValues {
@@ -76,6 +296,38 @@ impl ooxml_core::EnumType for FieldCharValues {
         self as usize
     }
 }
+/// `w:ST_FtnEdn` — FootnoteEndnoteValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FootnoteEndnoteValues {
+    /// `normal`
+    Normal,
+    /// `separator`
+    Separator,
+    /// `continuationSeparator`
+    ContinuationSeparator,
+    /// `continuationNotice`
+    ContinuationNotice,
+}
+impl ooxml_core::EnumType for FootnoteEndnoteValues {
+    const VALUES: &'static [&'static str] = &[
+        "normal",
+        "separator",
+        "continuationSeparator",
+        "continuationNotice",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Normal),
+            1 => Some(Self::Separator),
+            2 => Some(Self::ContinuationSeparator),
+            3 => Some(Self::ContinuationNotice),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_BrType` — BreakValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BreakValues {
@@ -120,6 +372,194 @@ impl ooxml_core::EnumType for BreakTextRestartLocationValues {
             1 => Some(Self::Left),
             2 => Some(Self::Right),
             3 => Some(Self::All),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_Hint` — FontTypeHintValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FontTypeHintValues {
+    /// `default`
+    Default,
+    /// `eastAsia`
+    EastAsia,
+    /// `cs`
+    ComplexScript,
+}
+impl ooxml_core::EnumType for FontTypeHintValues {
+    const VALUES: &'static [&'static str] = &["default", "eastAsia", "cs"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Default),
+            1 => Some(Self::EastAsia),
+            2 => Some(Self::ComplexScript),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_Theme` — ThemeFontValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ThemeFontValues {
+    /// `majorEastAsia`
+    MajorEastAsia,
+    /// `majorBidi`
+    MajorBidi,
+    /// `majorAscii`
+    MajorAscii,
+    /// `majorHAnsi`
+    MajorHighAnsi,
+    /// `minorEastAsia`
+    MinorEastAsia,
+    /// `minorBidi`
+    MinorBidi,
+    /// `minorAscii`
+    MinorAscii,
+    /// `minorHAnsi`
+    MinorHighAnsi,
+}
+impl ooxml_core::EnumType for ThemeFontValues {
+    const VALUES: &'static [&'static str] = &[
+        "majorEastAsia",
+        "majorBidi",
+        "majorAscii",
+        "majorHAnsi",
+        "minorEastAsia",
+        "minorBidi",
+        "minorAscii",
+        "minorHAnsi",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::MajorEastAsia),
+            1 => Some(Self::MajorBidi),
+            2 => Some(Self::MajorAscii),
+            3 => Some(Self::MajorHighAnsi),
+            4 => Some(Self::MinorEastAsia),
+            5 => Some(Self::MinorBidi),
+            6 => Some(Self::MinorAscii),
+            7 => Some(Self::MinorHighAnsi),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_StyleType` — StyleValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StyleValues {
+    /// `paragraph`
+    Paragraph,
+    /// `character`
+    Character,
+    /// `table`
+    Table,
+    /// `numbering`
+    Numbering,
+}
+impl ooxml_core::EnumType for StyleValues {
+    const VALUES: &'static [&'static str] = &[
+        "paragraph",
+        "character",
+        "table",
+        "numbering",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Paragraph),
+            1 => Some(Self::Character),
+            2 => Some(Self::Table),
+            3 => Some(Self::Numbering),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_ThemeColor` — ThemeColorValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ThemeColorValues {
+    /// `dark1`
+    Dark1,
+    /// `light1`
+    Light1,
+    /// `dark2`
+    Dark2,
+    /// `light2`
+    Light2,
+    /// `accent1`
+    Accent1,
+    /// `accent2`
+    Accent2,
+    /// `accent3`
+    Accent3,
+    /// `accent4`
+    Accent4,
+    /// `accent5`
+    Accent5,
+    /// `accent6`
+    Accent6,
+    /// `hyperlink`
+    Hyperlink,
+    /// `followedHyperlink`
+    FollowedHyperlink,
+    /// `none`
+    None,
+    /// `background1`
+    Background1,
+    /// `text1`
+    Text1,
+    /// `background2`
+    Background2,
+    /// `text2`
+    Text2,
+}
+impl ooxml_core::EnumType for ThemeColorValues {
+    const VALUES: &'static [&'static str] = &[
+        "dark1",
+        "light1",
+        "dark2",
+        "light2",
+        "accent1",
+        "accent2",
+        "accent3",
+        "accent4",
+        "accent5",
+        "accent6",
+        "hyperlink",
+        "followedHyperlink",
+        "none",
+        "background1",
+        "text1",
+        "background2",
+        "text2",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Dark1),
+            1 => Some(Self::Light1),
+            2 => Some(Self::Dark2),
+            3 => Some(Self::Light2),
+            4 => Some(Self::Accent1),
+            5 => Some(Self::Accent2),
+            6 => Some(Self::Accent3),
+            7 => Some(Self::Accent4),
+            8 => Some(Self::Accent5),
+            9 => Some(Self::Accent6),
+            10 => Some(Self::Hyperlink),
+            11 => Some(Self::FollowedHyperlink),
+            12 => Some(Self::None),
+            13 => Some(Self::Background1),
+            14 => Some(Self::Text1),
+            15 => Some(Self::Background2),
+            16 => Some(Self::Text2),
             _ => None,
         }
     }
@@ -186,6 +626,70 @@ impl ooxml_core::EnumType for CryptProviderValues {
             0 => Some(Self::RsaAdvancedEncryptionStandard),
             1 => Some(Self::RsaFull),
             2 => Some(Self::Custom),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_Jc` — JustificationValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum JustificationValues {
+    /// `left`
+    Left,
+    /// `start`
+    Start,
+    /// `center`
+    Center,
+    /// `right`
+    Right,
+    /// `end`
+    End,
+    /// `both`
+    Both,
+    /// `mediumKashida`
+    MediumKashida,
+    /// `distribute`
+    Distribute,
+    /// `numTab`
+    NumTab,
+    /// `highKashida`
+    HighKashida,
+    /// `lowKashida`
+    LowKashida,
+    /// `thaiDistribute`
+    ThaiDistribute,
+}
+impl ooxml_core::EnumType for JustificationValues {
+    const VALUES: &'static [&'static str] = &[
+        "left",
+        "start",
+        "center",
+        "right",
+        "end",
+        "both",
+        "mediumKashida",
+        "distribute",
+        "numTab",
+        "highKashida",
+        "lowKashida",
+        "thaiDistribute",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Left),
+            1 => Some(Self::Start),
+            2 => Some(Self::Center),
+            3 => Some(Self::Right),
+            4 => Some(Self::End),
+            5 => Some(Self::Both),
+            6 => Some(Self::MediumKashida),
+            7 => Some(Self::Distribute),
+            8 => Some(Self::NumTab),
+            9 => Some(Self::HighKashida),
+            10 => Some(Self::LowKashida),
+            11 => Some(Self::ThaiDistribute),
             _ => None,
         }
     }
@@ -447,6 +951,272 @@ impl<'a> BreakViewMut<'a> {
     /// Removes `w:clear`.
     pub fn remove_clear(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Break::ATTR_W_CLEAR)
+    }
+}
+/// `w:CT_Color/w:color` — Defines the Color Class.
+#[derive(Debug)]
+pub enum Color {}
+impl Color {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+    /// `w:themeColor`
+    pub const ATTR_W_THEME_COLOR: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "themeColor",
+    );
+    /// `w:themeTint`
+    pub const ATTR_W_THEME_TINT: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "themeTint",
+    );
+    /// `w:themeShade`
+    pub const ATTR_W_THEME_SHADE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "themeShade",
+    );
+}
+impl ooxml_core::ElementSpec for Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "color");
+    const SDK_NAME: &'static str = "w:CT_Color/w:color";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Color::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Color::ATTR_W_THEME_COLOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <ThemeColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Color::ATTR_W_THEME_TINT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Color::ATTR_W_THEME_SHADE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Color`].
+#[derive(Clone, Debug)]
+pub struct ColorView<'a>(pub ooxml_core::Lens<'a, Color>);
+impl<'a> ColorView<'a> {
+    /// `w:val` — Run Content Color
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(Color::ATTR_W_VAL)
+    }
+    /// `w:themeColor` — Run Content Theme Color
+    pub fn theme_color(&self) -> Option<ooxml_core::EnumValue<'a, ThemeColorValues>> {
+        self.0.attr_enum(Color::ATTR_W_THEME_COLOR)
+    }
+    /// `w:themeTint` — Run Content Theme Color Tint
+    pub fn theme_tint(&self) -> Option<&'a str> {
+        self.0.attr(Color::ATTR_W_THEME_TINT)
+    }
+    /// `w:themeShade` — Run Content Theme Color Shade
+    pub fn theme_shade(&self) -> Option<&'a str> {
+        self.0.attr(Color::ATTR_W_THEME_SHADE)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Color`]. Reads go through [`ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Color>);
+impl<'a> ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColorView<'_> {
+        ColorView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Run Content Color
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Color::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Color::ATTR_W_VAL)
+    }
+    /// Sets `w:themeColor` — Run Content Theme Color
+    pub fn set_theme_color(
+        &mut self,
+        v: ThemeColorValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Color::ATTR_W_THEME_COLOR, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:themeColor`.
+    pub fn remove_theme_color(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Color::ATTR_W_THEME_COLOR)
+    }
+    /// Sets `w:themeTint` — Run Content Theme Color Tint
+    pub fn set_theme_tint(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Color::ATTR_W_THEME_TINT, v)
+    }
+    /// Removes `w:themeTint`.
+    pub fn remove_theme_tint(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Color::ATTR_W_THEME_TINT)
+    }
+    /// Sets `w:themeShade` — Run Content Theme Color Shade
+    pub fn set_theme_shade(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Color::ATTR_W_THEME_SHADE, v)
+    }
+    /// Removes `w:themeShade`.
+    pub fn remove_theme_shade(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Color::ATTR_W_THEME_SHADE)
+    }
+}
+/// `w:CT_Comment/w:comment` — Comment Content.
+#[derive(Debug)]
+pub enum Comment {}
+impl Comment {
+    /// `w:initials`
+    pub const ATTR_W_INITIALS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "initials",
+    );
+    /// `w:author`
+    pub const ATTR_W_AUTHOR: ooxml_core::QName = ooxml_core::QName::new(NS_W, "author");
+    /// `w:date`
+    pub const ATTR_W_DATE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "date");
+    /// `w16du:dateUtc`
+    pub const ATTR_W16DU_DATE_UTC: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16DU,
+        "dateUtc",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for Comment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "comment");
+    const SDK_NAME: &'static str = "w:CT_Comment/w:comment";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_INITIALS,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_AUTHOR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_DATE,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W16DU_DATE_UTC,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Comment> for Paragraph {}
+impl ooxml_core::ChildOf<Comment> for Table {}
+/// Read-only view of [`Comment`].
+#[derive(Clone, Debug)]
+pub struct CommentView<'a>(pub ooxml_core::Lens<'a, Comment>);
+impl<'a> CommentView<'a> {
+    /// `w:initials` — initials
+    pub fn initials(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_INITIALS)
+    }
+    /// `w:author` — author
+    pub fn author(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_AUTHOR)
+    }
+    /// `w:date` — date
+    pub fn date(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_DATE)
+    }
+    /// `w16du:dateUtc` — dateUtc
+    pub fn date_utc(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W16DU_DATE_UTC)
+    }
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_W_ID)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Comments/w:comments` — Comments Collection.
+#[derive(Debug)]
+pub enum Comments {}
+impl ooxml_core::ElementSpec for Comments {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "comments");
+    const SDK_NAME: &'static str = "w:CT_Comments/w:comments";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "comment")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Comments> for Comment {}
+/// Read-only view of [`Comments`].
+#[derive(Clone, Debug)]
+pub struct CommentsView<'a>(pub ooxml_core::Lens<'a, Comments>);
+impl<'a> CommentsView<'a> {
+    /// `w:comment` children in document order.
+    pub fn comment_iter(&self) -> impl Iterator<Item = CommentView<'a>> {
+        self.0.children::<Comment>().map(CommentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `w:CT_DocProtect/w:documentProtection` — Document Editing Restrictions.
@@ -926,6 +1696,38 @@ impl<'a> TabCharViewMut<'a> {
         TabCharView(self.0.as_lens())
     }
 }
+/// `w:CT_Endnotes/w:endnotes` — Document Endnotes.
+#[derive(Debug)]
+pub enum Endnotes {}
+impl ooxml_core::ElementSpec for Endnotes {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnotes");
+    const SDK_NAME: &'static str = "w:CT_Endnotes/w:endnotes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "endnote")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Endnotes> for Endnote {}
+/// Read-only view of [`Endnotes`].
+#[derive(Clone, Debug)]
+pub struct EndnotesView<'a>(pub ooxml_core::Lens<'a, Endnotes>);
+impl<'a> EndnotesView<'a> {
+    /// `w:endnote` children in document order.
+    pub fn endnote_iter(&self) -> impl Iterator<Item = EndnoteView<'a>> {
+        self.0.children::<Endnote>().map(EndnoteView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `w:CT_FldChar/w:fldChar` — Complex Field Character.
 #[derive(Debug)]
 pub enum FieldChar {}
@@ -999,6 +1801,858 @@ impl<'a> FieldCharView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_Fonts/w:rFonts` — Defines the RunFonts Class.
+#[derive(Debug)]
+pub enum RunFonts {}
+impl RunFonts {
+    /// `w:hint`
+    pub const ATTR_W_HINT: ooxml_core::QName = ooxml_core::QName::new(NS_W, "hint");
+    /// `w:ascii`
+    pub const ATTR_W_ASCII: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ascii");
+    /// `w:hAnsi`
+    pub const ATTR_W_H_ANSI: ooxml_core::QName = ooxml_core::QName::new(NS_W, "hAnsi");
+    /// `w:eastAsia`
+    pub const ATTR_W_EAST_ASIA: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "eastAsia",
+    );
+    /// `w:cs`
+    pub const ATTR_W_CS: ooxml_core::QName = ooxml_core::QName::new(NS_W, "cs");
+    /// `w:asciiTheme`
+    pub const ATTR_W_ASCII_THEME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "asciiTheme",
+    );
+    /// `w:hAnsiTheme`
+    pub const ATTR_W_H_ANSI_THEME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "hAnsiTheme",
+    );
+    /// `w:eastAsiaTheme`
+    pub const ATTR_W_EAST_ASIA_THEME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "eastAsiaTheme",
+    );
+    /// `w:cstheme`
+    pub const ATTR_W_CSTHEME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "cstheme",
+    );
+}
+impl ooxml_core::ElementSpec for RunFonts {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "rFonts");
+    const SDK_NAME: &'static str = "w:CT_Fonts/w:rFonts";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_HINT,
+            ty: ooxml_core::SimpleType::Enum(
+                <FontTypeHintValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_ASCII,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_H_ANSI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_EAST_ASIA,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_CS,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_ASCII_THEME,
+            ty: ooxml_core::SimpleType::Enum(
+                <ThemeFontValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_H_ANSI_THEME,
+            ty: ooxml_core::SimpleType::Enum(
+                <ThemeFontValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_EAST_ASIA_THEME,
+            ty: ooxml_core::SimpleType::Enum(
+                <ThemeFontValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RunFonts::ATTR_W_CSTHEME,
+            ty: ooxml_core::SimpleType::Enum(
+                <ThemeFontValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RunFonts`].
+#[derive(Clone, Debug)]
+pub struct RunFontsView<'a>(pub ooxml_core::Lens<'a, RunFonts>);
+impl<'a> RunFontsView<'a> {
+    /// `w:hint` — Font Content Type
+    pub fn hint(&self) -> Option<ooxml_core::EnumValue<'a, FontTypeHintValues>> {
+        self.0.attr_enum(RunFonts::ATTR_W_HINT)
+    }
+    /// `w:ascii` — ASCII Font
+    pub fn ascii(&self) -> Option<&'a str> {
+        self.0.attr(RunFonts::ATTR_W_ASCII)
+    }
+    /// `w:hAnsi` — High ANSI Font
+    pub fn high_ansi(&self) -> Option<&'a str> {
+        self.0.attr(RunFonts::ATTR_W_H_ANSI)
+    }
+    /// `w:eastAsia` — East Asian Font
+    pub fn east_asia(&self) -> Option<&'a str> {
+        self.0.attr(RunFonts::ATTR_W_EAST_ASIA)
+    }
+    /// `w:cs` — Complex Script Font
+    pub fn complex_script(&self) -> Option<&'a str> {
+        self.0.attr(RunFonts::ATTR_W_CS)
+    }
+    /// `w:asciiTheme` — ASCII Theme Font
+    pub fn ascii_theme(&self) -> Option<ooxml_core::EnumValue<'a, ThemeFontValues>> {
+        self.0.attr_enum(RunFonts::ATTR_W_ASCII_THEME)
+    }
+    /// `w:hAnsiTheme` — High ANSI Theme Font
+    pub fn high_ansi_theme(&self) -> Option<ooxml_core::EnumValue<'a, ThemeFontValues>> {
+        self.0.attr_enum(RunFonts::ATTR_W_H_ANSI_THEME)
+    }
+    /// `w:eastAsiaTheme` — East Asian Theme Font
+    pub fn east_asia_theme(&self) -> Option<ooxml_core::EnumValue<'a, ThemeFontValues>> {
+        self.0.attr_enum(RunFonts::ATTR_W_EAST_ASIA_THEME)
+    }
+    /// `w:cstheme` — Complex Script Theme Font
+    pub fn complex_script_theme(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ThemeFontValues>> {
+        self.0.attr_enum(RunFonts::ATTR_W_CSTHEME)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunFonts`]. Reads go through [`RunFontsViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunFontsViewMut<'a>(pub ooxml_core::LensMut<'a, RunFonts>);
+impl<'a> RunFontsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunFontsView<'_> {
+        RunFontsView(self.0.as_lens())
+    }
+    /// Sets `w:hint` — Font Content Type
+    pub fn set_hint(&mut self, v: FontTypeHintValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_HINT, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:hint`.
+    pub fn remove_hint(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_HINT)
+    }
+    /// Sets `w:ascii` — ASCII Font
+    pub fn set_ascii(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_ASCII, v)
+    }
+    /// Removes `w:ascii`.
+    pub fn remove_ascii(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_ASCII)
+    }
+    /// Sets `w:hAnsi` — High ANSI Font
+    pub fn set_high_ansi(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_H_ANSI, v)
+    }
+    /// Removes `w:hAnsi`.
+    pub fn remove_high_ansi(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_H_ANSI)
+    }
+    /// Sets `w:eastAsia` — East Asian Font
+    pub fn set_east_asia(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_EAST_ASIA, v)
+    }
+    /// Removes `w:eastAsia`.
+    pub fn remove_east_asia(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_EAST_ASIA)
+    }
+    /// Sets `w:cs` — Complex Script Font
+    pub fn set_complex_script(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_CS, v)
+    }
+    /// Removes `w:cs`.
+    pub fn remove_complex_script(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_CS)
+    }
+    /// Sets `w:asciiTheme` — ASCII Theme Font
+    pub fn set_ascii_theme(
+        &mut self,
+        v: ThemeFontValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_ASCII_THEME, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:asciiTheme`.
+    pub fn remove_ascii_theme(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_ASCII_THEME)
+    }
+    /// Sets `w:hAnsiTheme` — High ANSI Theme Font
+    pub fn set_high_ansi_theme(
+        &mut self,
+        v: ThemeFontValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_H_ANSI_THEME, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:hAnsiTheme`.
+    pub fn remove_high_ansi_theme(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_H_ANSI_THEME)
+    }
+    /// Sets `w:eastAsiaTheme` — East Asian Theme Font
+    pub fn set_east_asia_theme(
+        &mut self,
+        v: ThemeFontValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(RunFonts::ATTR_W_EAST_ASIA_THEME, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:eastAsiaTheme`.
+    pub fn remove_east_asia_theme(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_EAST_ASIA_THEME)
+    }
+    /// Sets `w:cstheme` — Complex Script Theme Font
+    pub fn set_complex_script_theme(
+        &mut self,
+        v: ThemeFontValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFonts::ATTR_W_CSTHEME, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:cstheme`.
+    pub fn remove_complex_script_theme(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFonts::ATTR_W_CSTHEME)
+    }
+}
+/// `w:CT_Footnotes/w:footnotes` — Document Footnotes.
+#[derive(Debug)]
+pub enum Footnotes {}
+impl ooxml_core::ElementSpec for Footnotes {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnotes");
+    const SDK_NAME: &'static str = "w:CT_Footnotes/w:footnotes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "footnote")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Footnotes> for Footnote {}
+/// Read-only view of [`Footnotes`].
+#[derive(Clone, Debug)]
+pub struct FootnotesView<'a>(pub ooxml_core::Lens<'a, Footnotes>);
+impl<'a> FootnotesView<'a> {
+    /// `w:footnote` children in document order.
+    pub fn footnote_iter(&self) -> impl Iterator<Item = FootnoteView<'a>> {
+        self.0.children::<Footnote>().map(FootnoteView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdn/w:endnote` — Endnote Content.
+#[derive(Debug)]
+pub enum Endnote {}
+impl Endnote {
+    /// `w:type`
+    pub const ATTR_W_TYPE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "type");
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for Endnote {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnote");
+    const SDK_NAME: &'static str = "w:CT_FtnEdn/w:endnote";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Endnote::ATTR_W_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <FootnoteEndnoteValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Endnote::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Endnote> for Paragraph {}
+impl ooxml_core::ChildOf<Endnote> for DeletedRun {}
+impl ooxml_core::ChildOf<Endnote> for InsertedRun {}
+impl ooxml_core::ChildOf<Endnote> for MoveFromRun {}
+impl ooxml_core::ChildOf<Endnote> for MoveToRun {}
+impl ooxml_core::ChildOf<Endnote> for Table {}
+/// Read-only view of [`Endnote`].
+#[derive(Clone, Debug)]
+pub struct EndnoteView<'a>(pub ooxml_core::Lens<'a, Endnote>);
+impl<'a> EndnoteView<'a> {
+    /// `w:type` — Footnote/Endnote Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, FootnoteEndnoteValues>> {
+        self.0.attr_enum(Endnote::ATTR_W_TYPE)
+    }
+    /// `w:id` — Footnote/Endnote ID
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Endnote::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdn/w:footnote` — Footnote Content.
+#[derive(Debug)]
+pub enum Footnote {}
+impl Footnote {
+    /// `w:type`
+    pub const ATTR_W_TYPE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "type");
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for Footnote {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnote");
+    const SDK_NAME: &'static str = "w:CT_FtnEdn/w:footnote";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Footnote::ATTR_W_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <FootnoteEndnoteValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Footnote::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Footnote> for Paragraph {}
+impl ooxml_core::ChildOf<Footnote> for DeletedRun {}
+impl ooxml_core::ChildOf<Footnote> for InsertedRun {}
+impl ooxml_core::ChildOf<Footnote> for MoveFromRun {}
+impl ooxml_core::ChildOf<Footnote> for MoveToRun {}
+impl ooxml_core::ChildOf<Footnote> for Table {}
+/// Read-only view of [`Footnote`].
+#[derive(Clone, Debug)]
+pub struct FootnoteView<'a>(pub ooxml_core::Lens<'a, Footnote>);
+impl<'a> FootnoteView<'a> {
+    /// `w:type` — Footnote/Endnote Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, FootnoteEndnoteValues>> {
+        self.0.attr_enum(Footnote::ATTR_W_TYPE)
+    }
+    /// `w:id` — Footnote/Endnote ID
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Footnote::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_HdrFtr/w:ftr` — Footer.
+#[derive(Debug)]
+pub enum Footer {}
+impl ooxml_core::ElementSpec for Footer {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ftr");
+    const SDK_NAME: &'static str = "w:CT_HdrFtr/w:ftr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Footer> for Paragraph {}
+impl ooxml_core::ChildOf<Footer> for DeletedRun {}
+impl ooxml_core::ChildOf<Footer> for InsertedRun {}
+impl ooxml_core::ChildOf<Footer> for MoveFromRun {}
+impl ooxml_core::ChildOf<Footer> for MoveToRun {}
+impl ooxml_core::ChildOf<Footer> for Table {}
+/// Read-only view of [`Footer`].
+#[derive(Clone, Debug)]
+pub struct FooterView<'a>(pub ooxml_core::Lens<'a, Footer>);
+impl<'a> FooterView<'a> {
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_HdrFtr/w:hdr` — Header.
+#[derive(Debug)]
+pub enum Header {}
+impl ooxml_core::ElementSpec for Header {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "hdr");
+    const SDK_NAME: &'static str = "w:CT_HdrFtr/w:hdr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "altChunk"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Header> for Paragraph {}
+impl ooxml_core::ChildOf<Header> for DeletedRun {}
+impl ooxml_core::ChildOf<Header> for InsertedRun {}
+impl ooxml_core::ChildOf<Header> for MoveFromRun {}
+impl ooxml_core::ChildOf<Header> for MoveToRun {}
+impl ooxml_core::ChildOf<Header> for Table {}
+/// Read-only view of [`Header`].
+#[derive(Clone, Debug)]
+pub struct HeaderView<'a>(pub ooxml_core::Lens<'a, Header>);
+impl<'a> HeaderView<'a> {
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Highlight/w:highlight` — Defines the Highlight Class.
+#[derive(Debug)]
+pub enum Highlight {}
+impl Highlight {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Highlight {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "highlight");
+    const SDK_NAME: &'static str = "w:CT_Highlight/w:highlight";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Highlight::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <HighlightColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Highlight`].
+#[derive(Clone, Debug)]
+pub struct HighlightView<'a>(pub ooxml_core::Lens<'a, Highlight>);
+impl<'a> HighlightView<'a> {
+    /// `w:val` — Highlighting Color
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, HighlightColorValues>> {
+        self.0.attr_enum(Highlight::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Highlight`]. Reads go through [`HighlightViewMut::as_view`].
+#[derive(Debug)]
+pub struct HighlightViewMut<'a>(pub ooxml_core::LensMut<'a, Highlight>);
+impl<'a> HighlightViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HighlightView<'_> {
+        HighlightView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Highlighting Color
+    pub fn set_val(&mut self, v: HighlightColorValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Highlight::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Highlight::ATTR_W_VAL)
+    }
+}
+/// `w:CT_HpsMeasure/w:sz` — Defines the FontSize Class.
+#[derive(Debug)]
+pub enum FontSize {}
+impl FontSize {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for FontSize {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "sz");
+    const SDK_NAME: &'static str = "w:CT_HpsMeasure/w:sz";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontSize::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FontSize`].
+#[derive(Clone, Debug)]
+pub struct FontSizeView<'a>(pub ooxml_core::Lens<'a, FontSize>);
+impl<'a> FontSizeView<'a> {
+    /// `w:val` — Half Point Measurement
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(FontSize::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FontSize`]. Reads go through [`FontSizeViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontSizeViewMut<'a>(pub ooxml_core::LensMut<'a, FontSize>);
+impl<'a> FontSizeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontSizeView<'_> {
+        FontSizeView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Half Point Measurement
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FontSize::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontSize::ATTR_W_VAL)
+    }
+}
+/// `w:CT_HpsMeasure/w:szCs` — Defines the FontSizeComplexScript Class.
+#[derive(Debug)]
+pub enum FontSizeComplexScript {}
+impl FontSizeComplexScript {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for FontSizeComplexScript {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "szCs");
+    const SDK_NAME: &'static str = "w:CT_HpsMeasure/w:szCs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontSizeComplexScript::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FontSizeComplexScript`].
+#[derive(Clone, Debug)]
+pub struct FontSizeComplexScriptView<'a>(
+    pub ooxml_core::Lens<'a, FontSizeComplexScript>,
+);
+impl<'a> FontSizeComplexScriptView<'a> {
+    /// `w:val` — Half Point Measurement
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(FontSizeComplexScript::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FontSizeComplexScript`]. Reads go through [`FontSizeComplexScriptViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontSizeComplexScriptViewMut<'a>(
+    pub ooxml_core::LensMut<'a, FontSizeComplexScript>,
+);
+impl<'a> FontSizeComplexScriptViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontSizeComplexScriptView<'_> {
+        FontSizeComplexScriptView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Half Point Measurement
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FontSizeComplexScript::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontSizeComplexScript::ATTR_W_VAL)
     }
 }
 /// `w:CT_Hyperlink/w:hyperlink` — Defines the Hyperlink Class.
@@ -1203,6 +2857,730 @@ impl<'a> HyperlinkView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_Ind/w:ind` — Defines the Indentation Class.
+#[derive(Debug)]
+pub enum Indentation {}
+impl Indentation {
+    /// `w:left`
+    pub const ATTR_W_LEFT: ooxml_core::QName = ooxml_core::QName::new(NS_W, "left");
+    /// `w:start`
+    pub const ATTR_W_START: ooxml_core::QName = ooxml_core::QName::new(NS_W, "start");
+    /// `w:leftChars`
+    pub const ATTR_W_LEFT_CHARS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "leftChars",
+    );
+    /// `w:startChars`
+    pub const ATTR_W_START_CHARS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "startChars",
+    );
+    /// `w:right`
+    pub const ATTR_W_RIGHT: ooxml_core::QName = ooxml_core::QName::new(NS_W, "right");
+    /// `w:end`
+    pub const ATTR_W_END: ooxml_core::QName = ooxml_core::QName::new(NS_W, "end");
+    /// `w:rightChars`
+    pub const ATTR_W_RIGHT_CHARS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "rightChars",
+    );
+    /// `w:endChars`
+    pub const ATTR_W_END_CHARS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "endChars",
+    );
+    /// `w:hanging`
+    pub const ATTR_W_HANGING: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "hanging",
+    );
+    /// `w:hangingChars`
+    pub const ATTR_W_HANGING_CHARS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "hangingChars",
+    );
+    /// `w:firstLine`
+    pub const ATTR_W_FIRST_LINE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "firstLine",
+    );
+    /// `w:firstLineChars`
+    pub const ATTR_W_FIRST_LINE_CHARS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "firstLineChars",
+    );
+}
+impl ooxml_core::ElementSpec for Indentation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ind");
+    const SDK_NAME: &'static str = "w:CT_Ind/w:ind";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_LEFT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_START,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_LEFT_CHARS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_START_CHARS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_RIGHT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_END,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_RIGHT_CHARS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_END_CHARS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_HANGING,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_HANGING_CHARS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_FIRST_LINE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Indentation::ATTR_W_FIRST_LINE_CHARS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Indentation`].
+#[derive(Clone, Debug)]
+pub struct IndentationView<'a>(pub ooxml_core::Lens<'a, Indentation>);
+impl<'a> IndentationView<'a> {
+    /// `w:left` — Left Indentation
+    pub fn left(&self) -> Option<&'a str> {
+        self.0.attr(Indentation::ATTR_W_LEFT)
+    }
+    /// `w:start` — start
+    pub fn start(&self) -> Option<&'a str> {
+        self.0.attr(Indentation::ATTR_W_START)
+    }
+    /// `w:leftChars` — Left Indentation in Character Units
+    pub fn left_chars(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Indentation::ATTR_W_LEFT_CHARS, ooxml_core::value::parse_i32)
+    }
+    /// `w:startChars` — startChars
+    pub fn start_characters(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Indentation::ATTR_W_START_CHARS, ooxml_core::value::parse_i32)
+    }
+    /// `w:right` — Right Indentation
+    pub fn right(&self) -> Option<&'a str> {
+        self.0.attr(Indentation::ATTR_W_RIGHT)
+    }
+    /// `w:end` — end
+    pub fn end(&self) -> Option<&'a str> {
+        self.0.attr(Indentation::ATTR_W_END)
+    }
+    /// `w:rightChars` — Right Indentation in Character Units
+    pub fn right_chars(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Indentation::ATTR_W_RIGHT_CHARS, ooxml_core::value::parse_i32)
+    }
+    /// `w:endChars` — endChars
+    pub fn end_characters(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Indentation::ATTR_W_END_CHARS, ooxml_core::value::parse_i32)
+    }
+    /// `w:hanging` — Indentation Removed from First Line
+    pub fn hanging(&self) -> Option<&'a str> {
+        self.0.attr(Indentation::ATTR_W_HANGING)
+    }
+    /// `w:hangingChars` — Indentation Removed From First Line in Character Units
+    pub fn hanging_chars(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(Indentation::ATTR_W_HANGING_CHARS, ooxml_core::value::parse_i32)
+    }
+    /// `w:firstLine` — Additional First Line Indentation
+    pub fn first_line(&self) -> Option<&'a str> {
+        self.0.attr(Indentation::ATTR_W_FIRST_LINE)
+    }
+    /// `w:firstLineChars` — Additional First Line Indentation in Character Units
+    pub fn first_line_chars(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Indentation::ATTR_W_FIRST_LINE_CHARS,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Indentation`]. Reads go through [`IndentationViewMut::as_view`].
+#[derive(Debug)]
+pub struct IndentationViewMut<'a>(pub ooxml_core::LensMut<'a, Indentation>);
+impl<'a> IndentationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> IndentationView<'_> {
+        IndentationView(self.0.as_lens())
+    }
+    /// Sets `w:left` — Left Indentation
+    pub fn set_left(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Indentation::ATTR_W_LEFT, v)
+    }
+    /// Removes `w:left`.
+    pub fn remove_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_LEFT)
+    }
+    /// Sets `w:start` — start
+    pub fn set_start(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Indentation::ATTR_W_START, v)
+    }
+    /// Removes `w:start`.
+    pub fn remove_start(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_START)
+    }
+    /// Sets `w:leftChars` — Left Indentation in Character Units
+    pub fn set_left_chars(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Indentation::ATTR_W_LEFT_CHARS, s),
+        )
+    }
+    /// Removes `w:leftChars`.
+    pub fn remove_left_chars(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_LEFT_CHARS)
+    }
+    /// Sets `w:startChars` — startChars
+    pub fn set_start_characters(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Indentation::ATTR_W_START_CHARS, s),
+        )
+    }
+    /// Removes `w:startChars`.
+    pub fn remove_start_characters(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_START_CHARS)
+    }
+    /// Sets `w:right` — Right Indentation
+    pub fn set_right(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Indentation::ATTR_W_RIGHT, v)
+    }
+    /// Removes `w:right`.
+    pub fn remove_right(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_RIGHT)
+    }
+    /// Sets `w:end` — end
+    pub fn set_end(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Indentation::ATTR_W_END, v)
+    }
+    /// Removes `w:end`.
+    pub fn remove_end(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_END)
+    }
+    /// Sets `w:rightChars` — Right Indentation in Character Units
+    pub fn set_right_chars(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Indentation::ATTR_W_RIGHT_CHARS, s),
+        )
+    }
+    /// Removes `w:rightChars`.
+    pub fn remove_right_chars(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_RIGHT_CHARS)
+    }
+    /// Sets `w:endChars` — endChars
+    pub fn set_end_characters(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Indentation::ATTR_W_END_CHARS, s),
+        )
+    }
+    /// Removes `w:endChars`.
+    pub fn remove_end_characters(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_END_CHARS)
+    }
+    /// Sets `w:hanging` — Indentation Removed from First Line
+    pub fn set_hanging(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Indentation::ATTR_W_HANGING, v)
+    }
+    /// Removes `w:hanging`.
+    pub fn remove_hanging(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_HANGING)
+    }
+    /// Sets `w:hangingChars` — Indentation Removed From First Line in Character Units
+    pub fn set_hanging_chars(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Indentation::ATTR_W_HANGING_CHARS, s),
+        )
+    }
+    /// Removes `w:hangingChars`.
+    pub fn remove_hanging_chars(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_HANGING_CHARS)
+    }
+    /// Sets `w:firstLine` — Additional First Line Indentation
+    pub fn set_first_line(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Indentation::ATTR_W_FIRST_LINE, v)
+    }
+    /// Removes `w:firstLine`.
+    pub fn remove_first_line(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_FIRST_LINE)
+    }
+    /// Sets `w:firstLineChars` — Additional First Line Indentation in Character Units
+    pub fn set_first_line_chars(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Indentation::ATTR_W_FIRST_LINE_CHARS, s),
+        )
+    }
+    /// Removes `w:firstLineChars`.
+    pub fn remove_first_line_chars(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Indentation::ATTR_W_FIRST_LINE_CHARS)
+    }
+}
+/// `w:CT_Jc/w:jc` — Defines the Justification Class.
+#[derive(Debug)]
+pub enum Justification {}
+impl Justification {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Justification {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "jc");
+    const SDK_NAME: &'static str = "w:CT_Jc/w:jc";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Justification::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <JustificationValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Justification`].
+#[derive(Clone, Debug)]
+pub struct JustificationView<'a>(pub ooxml_core::Lens<'a, Justification>);
+impl<'a> JustificationView<'a> {
+    /// `w:val` — Alignment Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, JustificationValues>> {
+        self.0.attr_enum(Justification::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Justification`]. Reads go through [`JustificationViewMut::as_view`].
+#[derive(Debug)]
+pub struct JustificationViewMut<'a>(pub ooxml_core::LensMut<'a, Justification>);
+impl<'a> JustificationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> JustificationView<'_> {
+        JustificationView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Alignment Type
+    pub fn set_val(&mut self, v: JustificationValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Justification::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Justification::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:b` — Defines the Bold Class.
+#[derive(Debug)]
+pub enum Bold {}
+impl Bold {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Bold {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "b");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:b";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Bold::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Bold`].
+#[derive(Clone, Debug)]
+pub struct BoldView<'a>(pub ooxml_core::Lens<'a, Bold>);
+impl<'a> BoldView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Bold::ATTR_W_VAL, "true", ooxml_core::value::parse_on_off)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Bold`]. Reads go through [`BoldViewMut::as_view`].
+#[derive(Debug)]
+pub struct BoldViewMut<'a>(pub ooxml_core::LensMut<'a, Bold>);
+impl<'a> BoldViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BoldView<'_> {
+        BoldView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Bold::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Bold::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:bCs` — Defines the BoldComplexScript Class.
+#[derive(Debug)]
+pub enum BoldComplexScript {}
+impl BoldComplexScript {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for BoldComplexScript {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "bCs");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:bCs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BoldComplexScript::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BoldComplexScript`].
+#[derive(Clone, Debug)]
+pub struct BoldComplexScriptView<'a>(pub ooxml_core::Lens<'a, BoldComplexScript>);
+impl<'a> BoldComplexScriptView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BoldComplexScript::ATTR_W_VAL,
+                "true",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BoldComplexScript`]. Reads go through [`BoldComplexScriptViewMut::as_view`].
+#[derive(Debug)]
+pub struct BoldComplexScriptViewMut<'a>(pub ooxml_core::LensMut<'a, BoldComplexScript>);
+impl<'a> BoldComplexScriptViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BoldComplexScriptView<'_> {
+        BoldComplexScriptView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BoldComplexScript::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BoldComplexScript::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:i` — Defines the Italic Class.
+#[derive(Debug)]
+pub enum Italic {}
+impl Italic {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Italic {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "i");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:i";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Italic::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Italic`].
+#[derive(Clone, Debug)]
+pub struct ItalicView<'a>(pub ooxml_core::Lens<'a, Italic>);
+impl<'a> ItalicView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(Italic::ATTR_W_VAL, "true", ooxml_core::value::parse_on_off)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Italic`]. Reads go through [`ItalicViewMut::as_view`].
+#[derive(Debug)]
+pub struct ItalicViewMut<'a>(pub ooxml_core::LensMut<'a, Italic>);
+impl<'a> ItalicViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ItalicView<'_> {
+        ItalicView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Italic::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Italic::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:iCs` — Defines the ItalicComplexScript Class.
+#[derive(Debug)]
+pub enum ItalicComplexScript {}
+impl ItalicComplexScript {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for ItalicComplexScript {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "iCs");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:iCs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ItalicComplexScript::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ItalicComplexScript`].
+#[derive(Clone, Debug)]
+pub struct ItalicComplexScriptView<'a>(pub ooxml_core::Lens<'a, ItalicComplexScript>);
+impl<'a> ItalicComplexScriptView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ItalicComplexScript::ATTR_W_VAL,
+                "true",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ItalicComplexScript`]. Reads go through [`ItalicComplexScriptViewMut::as_view`].
+#[derive(Debug)]
+pub struct ItalicComplexScriptViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ItalicComplexScript>,
+);
+impl<'a> ItalicComplexScriptViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ItalicComplexScriptView<'_> {
+        ItalicComplexScriptView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(ItalicComplexScript::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ItalicComplexScript::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:keepLines` — Defines the KeepLines Class.
+#[derive(Debug)]
+pub enum KeepLines {}
+impl KeepLines {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for KeepLines {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "keepLines");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:keepLines";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: KeepLines::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`KeepLines`].
+#[derive(Clone, Debug)]
+pub struct KeepLinesView<'a>(pub ooxml_core::Lens<'a, KeepLines>);
+impl<'a> KeepLinesView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                KeepLines::ATTR_W_VAL,
+                "true",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`KeepLines`]. Reads go through [`KeepLinesViewMut::as_view`].
+#[derive(Debug)]
+pub struct KeepLinesViewMut<'a>(pub ooxml_core::LensMut<'a, KeepLines>);
+impl<'a> KeepLinesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> KeepLinesView<'_> {
+        KeepLinesView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(KeepLines::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(KeepLines::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:keepNext` — Defines the KeepNext Class.
+#[derive(Debug)]
+pub enum KeepNext {}
+impl KeepNext {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for KeepNext {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "keepNext");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:keepNext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: KeepNext::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`KeepNext`].
+#[derive(Clone, Debug)]
+pub struct KeepNextView<'a>(pub ooxml_core::Lens<'a, KeepNext>);
+impl<'a> KeepNextView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                KeepNext::ATTR_W_VAL,
+                "true",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`KeepNext`]. Reads go through [`KeepNextViewMut::as_view`].
+#[derive(Debug)]
+pub struct KeepNextViewMut<'a>(pub ooxml_core::LensMut<'a, KeepNext>);
+impl<'a> KeepNextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> KeepNextView<'_> {
+        KeepNextView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(KeepNext::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(KeepNext::ATTR_W_VAL)
+    }
+}
+/// `w:CT_OnOff/w:strike` — Defines the Strike Class.
+#[derive(Debug)]
+pub enum Strike {}
+impl Strike {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Strike {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "strike");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:strike";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Strike::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Strike`].
+#[derive(Clone, Debug)]
+pub struct StrikeView<'a>(pub ooxml_core::Lens<'a, Strike>);
+impl<'a> StrikeView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(Strike::ATTR_W_VAL, "true", ooxml_core::value::parse_on_off)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Strike`]. Reads go through [`StrikeViewMut::as_view`].
+#[derive(Debug)]
+pub struct StrikeViewMut<'a>(pub ooxml_core::LensMut<'a, Strike>);
+impl<'a> StrikeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StrikeView<'_> {
+        StrikeView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Strike::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Strike::ATTR_W_VAL)
     }
 }
 /// `w:CT_OnOff/w:trackRevisions` — Track Revisions to Document.
@@ -1874,14 +4252,44 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<ParagraphProperties> for Indentation {}
+impl ooxml_core::ChildOf<ParagraphProperties> for Justification {}
+impl ooxml_core::ChildOf<ParagraphProperties> for KeepLines {}
+impl ooxml_core::ChildOf<ParagraphProperties> for KeepNext {}
 impl ooxml_core::ChildOf<ParagraphProperties> for SectionProperties {}
+impl ooxml_core::ChildOf<ParagraphProperties> for SpacingBetweenLines {}
+impl ooxml_core::ChildOf<ParagraphProperties> for ParagraphStyleId {}
 /// Read-only view of [`ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct ParagraphPropertiesView<'a>(pub ooxml_core::Lens<'a, ParagraphProperties>);
 impl<'a> ParagraphPropertiesView<'a> {
+    /// First `w:ind` child.
+    pub fn indentation(&self) -> Option<IndentationView<'a>> {
+        self.0.child::<Indentation>().map(IndentationView)
+    }
+    /// First `w:jc` child.
+    pub fn justification(&self) -> Option<JustificationView<'a>> {
+        self.0.child::<Justification>().map(JustificationView)
+    }
+    /// First `w:keepLines` child.
+    pub fn keep_lines(&self) -> Option<KeepLinesView<'a>> {
+        self.0.child::<KeepLines>().map(KeepLinesView)
+    }
+    /// First `w:keepNext` child.
+    pub fn keep_next(&self) -> Option<KeepNextView<'a>> {
+        self.0.child::<KeepNext>().map(KeepNextView)
+    }
     /// First `w:sectPr` child.
     pub fn section_properties(&self) -> Option<SectionPropertiesView<'a>> {
         self.0.child::<SectionProperties>().map(SectionPropertiesView)
+    }
+    /// First `w:spacing` child.
+    pub fn spacing_between_lines(&self) -> Option<SpacingBetweenLinesView<'a>> {
+        self.0.child::<SpacingBetweenLines>().map(SpacingBetweenLinesView)
+    }
+    /// First `w:pStyle` child.
+    pub fn paragraph_style_id(&self) -> Option<ParagraphStyleIdView<'a>> {
+        self.0.child::<ParagraphStyleId>().map(ParagraphStyleIdView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2477,10 +4885,75 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<RunProperties> for Color {}
+impl ooxml_core::ChildOf<RunProperties> for RunFonts {}
+impl ooxml_core::ChildOf<RunProperties> for Highlight {}
+impl ooxml_core::ChildOf<RunProperties> for FontSize {}
+impl ooxml_core::ChildOf<RunProperties> for FontSizeComplexScript {}
+impl ooxml_core::ChildOf<RunProperties> for Bold {}
+impl ooxml_core::ChildOf<RunProperties> for BoldComplexScript {}
+impl ooxml_core::ChildOf<RunProperties> for Italic {}
+impl ooxml_core::ChildOf<RunProperties> for ItalicComplexScript {}
+impl ooxml_core::ChildOf<RunProperties> for Strike {}
+impl ooxml_core::ChildOf<RunProperties> for RunStyle {}
+impl ooxml_core::ChildOf<RunProperties> for Underline {}
+impl ooxml_core::ChildOf<RunProperties> for VerticalTextAlignment {}
 /// Read-only view of [`RunProperties`].
 #[derive(Clone, Debug)]
 pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
 impl<'a> RunPropertiesView<'a> {
+    /// First `w:color` child.
+    pub fn color(&self) -> Option<ColorView<'a>> {
+        self.0.child::<Color>().map(ColorView)
+    }
+    /// First `w:rFonts` child.
+    pub fn run_fonts(&self) -> Option<RunFontsView<'a>> {
+        self.0.child::<RunFonts>().map(RunFontsView)
+    }
+    /// First `w:highlight` child.
+    pub fn highlight(&self) -> Option<HighlightView<'a>> {
+        self.0.child::<Highlight>().map(HighlightView)
+    }
+    /// First `w:sz` child.
+    pub fn font_size(&self) -> Option<FontSizeView<'a>> {
+        self.0.child::<FontSize>().map(FontSizeView)
+    }
+    /// First `w:szCs` child.
+    pub fn font_size_complex_script(&self) -> Option<FontSizeComplexScriptView<'a>> {
+        self.0.child::<FontSizeComplexScript>().map(FontSizeComplexScriptView)
+    }
+    /// First `w:b` child.
+    pub fn bold(&self) -> Option<BoldView<'a>> {
+        self.0.child::<Bold>().map(BoldView)
+    }
+    /// First `w:bCs` child.
+    pub fn bold_complex_script(&self) -> Option<BoldComplexScriptView<'a>> {
+        self.0.child::<BoldComplexScript>().map(BoldComplexScriptView)
+    }
+    /// First `w:i` child.
+    pub fn italic(&self) -> Option<ItalicView<'a>> {
+        self.0.child::<Italic>().map(ItalicView)
+    }
+    /// First `w:iCs` child.
+    pub fn italic_complex_script(&self) -> Option<ItalicComplexScriptView<'a>> {
+        self.0.child::<ItalicComplexScript>().map(ItalicComplexScriptView)
+    }
+    /// First `w:strike` child.
+    pub fn strike(&self) -> Option<StrikeView<'a>> {
+        self.0.child::<Strike>().map(StrikeView)
+    }
+    /// First `w:rStyle` child.
+    pub fn run_style(&self) -> Option<RunStyleView<'a>> {
+        self.0.child::<RunStyle>().map(RunStyleView)
+    }
+    /// First `w:u` child.
+    pub fn underline(&self) -> Option<UnderlineView<'a>> {
+        self.0.child::<Underline>().map(UnderlineView)
+    }
+    /// First `w:vertAlign` child.
+    pub fn vertical_text_alignment(&self) -> Option<VerticalTextAlignmentView<'a>> {
+        self.0.child::<VerticalTextAlignment>().map(VerticalTextAlignmentView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -4341,6 +6814,638 @@ impl<'a> SimpleFieldView<'a> {
         self.0.raw()
     }
 }
+/// `w:CT_Spacing/w:spacing` — Defines the SpacingBetweenLines Class.
+#[derive(Debug)]
+pub enum SpacingBetweenLines {}
+impl SpacingBetweenLines {
+    /// `w:before`
+    pub const ATTR_W_BEFORE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "before");
+    /// `w:beforeLines`
+    pub const ATTR_W_BEFORE_LINES: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "beforeLines",
+    );
+    /// `w:beforeAutospacing`
+    pub const ATTR_W_BEFORE_AUTOSPACING: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "beforeAutospacing",
+    );
+    /// `w:after`
+    pub const ATTR_W_AFTER: ooxml_core::QName = ooxml_core::QName::new(NS_W, "after");
+    /// `w:afterLines`
+    pub const ATTR_W_AFTER_LINES: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "afterLines",
+    );
+    /// `w:afterAutospacing`
+    pub const ATTR_W_AFTER_AUTOSPACING: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "afterAutospacing",
+    );
+    /// `w:line`
+    pub const ATTR_W_LINE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "line");
+    /// `w:lineRule`
+    pub const ATTR_W_LINE_RULE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "lineRule",
+    );
+}
+impl ooxml_core::ElementSpec for SpacingBetweenLines {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "spacing");
+    const SDK_NAME: &'static str = "w:CT_Spacing/w:spacing";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_BEFORE,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_BEFORE_LINES,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_BEFORE_AUTOSPACING,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("off"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_AFTER,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_AFTER_LINES,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_AFTER_AUTOSPACING,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("off"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_LINE,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SpacingBetweenLines::ATTR_W_LINE_RULE,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineSpacingRuleValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("auto"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SpacingBetweenLines`].
+#[derive(Clone, Debug)]
+pub struct SpacingBetweenLinesView<'a>(pub ooxml_core::Lens<'a, SpacingBetweenLines>);
+impl<'a> SpacingBetweenLinesView<'a> {
+    /// `w:before` — Spacing Above Paragraph (default `0`)
+    pub fn before(&self) -> &'a str {
+        self.0.attr(SpacingBetweenLines::ATTR_W_BEFORE).unwrap_or("0")
+    }
+    /// `w:beforeLines` — Spacing Above Paragraph IN Line Units (default `0`)
+    pub fn before_lines(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SpacingBetweenLines::ATTR_W_BEFORE_LINES,
+                "0",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `w:beforeAutospacing` — Automatically Determine Spacing Above Paragraph (default `off`)
+    pub fn before_auto_spacing(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SpacingBetweenLines::ATTR_W_BEFORE_AUTOSPACING,
+                "off",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// `w:after` — Spacing Below Paragraph (default `0`)
+    pub fn after(&self) -> &'a str {
+        self.0.attr(SpacingBetweenLines::ATTR_W_AFTER).unwrap_or("0")
+    }
+    /// `w:afterLines` — Spacing Below Paragraph in Line Units (default `0`)
+    pub fn after_lines(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SpacingBetweenLines::ATTR_W_AFTER_LINES,
+                "0",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `w:afterAutospacing` — Automatically Determine Spacing Below Paragraph (default `off`)
+    pub fn after_auto_spacing(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SpacingBetweenLines::ATTR_W_AFTER_AUTOSPACING,
+                "off",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// `w:line` — Spacing Between Lines in Paragraph (default `0`)
+    pub fn line(&self) -> &'a str {
+        self.0.attr(SpacingBetweenLines::ATTR_W_LINE).unwrap_or("0")
+    }
+    /// `w:lineRule` — Type of Spacing Between Lines (default `auto`)
+    pub fn line_rule(&self) -> ooxml_core::EnumValue<'a, LineSpacingRuleValues> {
+        self.0.attr_enum_or(SpacingBetweenLines::ATTR_W_LINE_RULE, "auto")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SpacingBetweenLines`]. Reads go through [`SpacingBetweenLinesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SpacingBetweenLinesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SpacingBetweenLines>,
+);
+impl<'a> SpacingBetweenLinesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SpacingBetweenLinesView<'_> {
+        SpacingBetweenLinesView(self.0.as_lens())
+    }
+    /// Sets `w:before` — Spacing Above Paragraph (default `0`)
+    pub fn set_before(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SpacingBetweenLines::ATTR_W_BEFORE, v)
+    }
+    /// Removes `w:before`.
+    pub fn remove_before(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_BEFORE)
+    }
+    /// Sets `w:beforeLines` — Spacing Above Paragraph IN Line Units (default `0`)
+    pub fn set_before_lines(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(SpacingBetweenLines::ATTR_W_BEFORE_LINES, s),
+        )
+    }
+    /// Removes `w:beforeLines`.
+    pub fn remove_before_lines(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_BEFORE_LINES)
+    }
+    /// Sets `w:beforeAutospacing` — Automatically Determine Spacing Above Paragraph (default `off`)
+    pub fn set_before_auto_spacing(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SpacingBetweenLines::ATTR_W_BEFORE_AUTOSPACING,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `w:beforeAutospacing`.
+    pub fn remove_before_auto_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_BEFORE_AUTOSPACING)
+    }
+    /// Sets `w:after` — Spacing Below Paragraph (default `0`)
+    pub fn set_after(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SpacingBetweenLines::ATTR_W_AFTER, v)
+    }
+    /// Removes `w:after`.
+    pub fn remove_after(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_AFTER)
+    }
+    /// Sets `w:afterLines` — Spacing Below Paragraph in Line Units (default `0`)
+    pub fn set_after_lines(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(SpacingBetweenLines::ATTR_W_AFTER_LINES, s),
+        )
+    }
+    /// Removes `w:afterLines`.
+    pub fn remove_after_lines(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_AFTER_LINES)
+    }
+    /// Sets `w:afterAutospacing` — Automatically Determine Spacing Below Paragraph (default `off`)
+    pub fn set_after_auto_spacing(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SpacingBetweenLines::ATTR_W_AFTER_AUTOSPACING,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `w:afterAutospacing`.
+    pub fn remove_after_auto_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_AFTER_AUTOSPACING)
+    }
+    /// Sets `w:line` — Spacing Between Lines in Paragraph (default `0`)
+    pub fn set_line(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SpacingBetweenLines::ATTR_W_LINE, v)
+    }
+    /// Removes `w:line`.
+    pub fn remove_line(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_LINE)
+    }
+    /// Sets `w:lineRule` — Type of Spacing Between Lines (default `auto`)
+    pub fn set_line_rule(
+        &mut self,
+        v: LineSpacingRuleValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SpacingBetweenLines::ATTR_W_LINE_RULE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `w:lineRule`.
+    pub fn remove_line_rule(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingBetweenLines::ATTR_W_LINE_RULE)
+    }
+}
+/// `w:CT_String/w:pStyle` — Defines the ParagraphStyleId Class.
+#[derive(Debug)]
+pub enum ParagraphStyleId {}
+impl ParagraphStyleId {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for ParagraphStyleId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "pStyle");
+    const SDK_NAME: &'static str = "w:CT_String/w:pStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ParagraphStyleId::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ParagraphStyleId`].
+#[derive(Clone, Debug)]
+pub struct ParagraphStyleIdView<'a>(pub ooxml_core::Lens<'a, ParagraphStyleId>);
+impl<'a> ParagraphStyleIdView<'a> {
+    /// `w:val` — String Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(ParagraphStyleId::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ParagraphStyleId`]. Reads go through [`ParagraphStyleIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct ParagraphStyleIdViewMut<'a>(pub ooxml_core::LensMut<'a, ParagraphStyleId>);
+impl<'a> ParagraphStyleIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ParagraphStyleIdView<'_> {
+        ParagraphStyleIdView(self.0.as_lens())
+    }
+    /// Sets `w:val` — String Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ParagraphStyleId::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphStyleId::ATTR_W_VAL)
+    }
+}
+/// `w:CT_String253/w:rStyle` — Defines the RunStyle Class.
+#[derive(Debug)]
+pub enum RunStyle {}
+impl RunStyle {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for RunStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "rStyle");
+    const SDK_NAME: &'static str = "w:CT_String253/w:rStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RunStyle::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RunStyle`].
+#[derive(Clone, Debug)]
+pub struct RunStyleView<'a>(pub ooxml_core::Lens<'a, RunStyle>);
+impl<'a> RunStyleView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(RunStyle::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunStyle`]. Reads go through [`RunStyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunStyleViewMut<'a>(pub ooxml_core::LensMut<'a, RunStyle>);
+impl<'a> RunStyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunStyleView<'_> {
+        RunStyleView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunStyle::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunStyle::ATTR_W_VAL)
+    }
+}
+/// `w:CT_Style/w:style` — Style Definition.
+#[derive(Debug)]
+pub enum Style {}
+impl Style {
+    /// `w:type`
+    pub const ATTR_W_TYPE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "type");
+    /// `w:styleId`
+    pub const ATTR_W_STYLE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "styleId",
+    );
+    /// `w:default`
+    pub const ATTR_W_DEFAULT: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "default",
+    );
+    /// `w:customStyle`
+    pub const ATTR_W_CUSTOM_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "customStyle",
+    );
+}
+impl ooxml_core::ElementSpec for Style {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "style");
+    const SDK_NAME: &'static str = "w:CT_Style/w:style";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Style::ATTR_W_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <StyleValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Style::ATTR_W_STYLE_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Style::ATTR_W_DEFAULT,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Style::ATTR_W_CUSTOM_STYLE,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "name")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "aliases")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "basedOn")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "next")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "link")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "autoRedefine")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "hidden")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "uiPriority")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "semiHidden")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "unhideWhenUsed")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "qFormat")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "locked")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "personal")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "personalCompose")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "personalReply")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "rsid")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "rPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "trPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tcPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tblStylePr")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Style> for StyleName {}
+/// Read-only view of [`Style`].
+#[derive(Clone, Debug)]
+pub struct StyleView<'a>(pub ooxml_core::Lens<'a, Style>);
+impl<'a> StyleView<'a> {
+    /// `w:type` — Style Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, StyleValues>> {
+        self.0.attr_enum(Style::ATTR_W_TYPE)
+    }
+    /// `w:styleId` — Style ID
+    pub fn style_id(&self) -> Option<&'a str> {
+        self.0.attr(Style::ATTR_W_STYLE_ID)
+    }
+    /// `w:default` — Default Style
+    pub fn default(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Style::ATTR_W_DEFAULT, ooxml_core::value::parse_on_off)
+    }
+    /// `w:customStyle` — User-Defined Style
+    pub fn custom_style(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Style::ATTR_W_CUSTOM_STYLE, ooxml_core::value::parse_on_off)
+    }
+    /// First `w:name` child.
+    pub fn style_name(&self) -> Option<StyleNameView<'a>> {
+        self.0.child::<StyleName>().map(StyleNameView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_StyleName/w:name` — Primary Style Name.
+#[derive(Debug)]
+pub enum StyleName {}
+impl StyleName {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for StyleName {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "name");
+    const SDK_NAME: &'static str = "w:CT_StyleName/w:name";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: StyleName::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`StyleName`].
+#[derive(Clone, Debug)]
+pub struct StyleNameView<'a>(pub ooxml_core::Lens<'a, StyleName>);
+impl<'a> StyleNameView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(StyleName::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Styles/w:styles` — Style Definitions.
+#[derive(Debug)]
+pub enum Styles {}
+impl ooxml_core::ElementSpec for Styles {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "styles");
+    const SDK_NAME: &'static str = "w:CT_Styles/w:styles";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "docDefaults")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "latentStyles")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "style")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Styles> for Style {}
+/// Read-only view of [`Styles`].
+#[derive(Clone, Debug)]
+pub struct StylesView<'a>(pub ooxml_core::Lens<'a, Styles>);
+impl<'a> StylesView<'a> {
+    /// `w:style` children in document order.
+    pub fn style_iter(&self) -> impl Iterator<Item = StyleView<'a>> {
+        self.0.children::<Style>().map(StyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `w:CT_Tbl/w:tbl` — Defines the Table Class.
 ///
 /// Some child names appear in two slots; insert those with `insert_in_slot`.
@@ -4763,6 +7868,206 @@ impl<'a> TextViewMut<'a> {
         self.0.set_text(v)
     }
 }
+/// `w:CT_Underline/w:u` — Defines the Underline Class.
+#[derive(Debug)]
+pub enum Underline {}
+impl Underline {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+    /// `w:color`
+    pub const ATTR_W_COLOR: ooxml_core::QName = ooxml_core::QName::new(NS_W, "color");
+    /// `w:themeColor`
+    pub const ATTR_W_THEME_COLOR: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "themeColor",
+    );
+    /// `w:themeTint`
+    pub const ATTR_W_THEME_TINT: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "themeTint",
+    );
+    /// `w:themeShade`
+    pub const ATTR_W_THEME_SHADE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "themeShade",
+    );
+}
+impl ooxml_core::ElementSpec for Underline {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "u");
+    const SDK_NAME: &'static str = "w:CT_Underline/w:u";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <UnderlineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_W_COLOR,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("auto"),
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_W_THEME_COLOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <ThemeColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_W_THEME_TINT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_W_THEME_SHADE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Underline`].
+#[derive(Clone, Debug)]
+pub struct UnderlineView<'a>(pub ooxml_core::Lens<'a, Underline>);
+impl<'a> UnderlineView<'a> {
+    /// `w:val` — Underline Style
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, UnderlineValues>> {
+        self.0.attr_enum(Underline::ATTR_W_VAL)
+    }
+    /// `w:color` — Underline Color (default `auto`)
+    pub fn color(&self) -> &'a str {
+        self.0.attr(Underline::ATTR_W_COLOR).unwrap_or("auto")
+    }
+    /// `w:themeColor` — Underline Theme Color
+    pub fn theme_color(&self) -> Option<ooxml_core::EnumValue<'a, ThemeColorValues>> {
+        self.0.attr_enum(Underline::ATTR_W_THEME_COLOR)
+    }
+    /// `w:themeTint` — Underline Theme Color Tint
+    pub fn theme_tint(&self) -> Option<&'a str> {
+        self.0.attr(Underline::ATTR_W_THEME_TINT)
+    }
+    /// `w:themeShade` — Underline Theme Color Shade
+    pub fn theme_shade(&self) -> Option<&'a str> {
+        self.0.attr(Underline::ATTR_W_THEME_SHADE)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Underline`]. Reads go through [`UnderlineViewMut::as_view`].
+#[derive(Debug)]
+pub struct UnderlineViewMut<'a>(pub ooxml_core::LensMut<'a, Underline>);
+impl<'a> UnderlineViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> UnderlineView<'_> {
+        UnderlineView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Underline Style
+    pub fn set_val(&mut self, v: UnderlineValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_W_VAL)
+    }
+    /// Sets `w:color` — Underline Color (default `auto`)
+    pub fn set_color(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_W_COLOR, v)
+    }
+    /// Removes `w:color`.
+    pub fn remove_color(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_W_COLOR)
+    }
+    /// Sets `w:themeColor` — Underline Theme Color
+    pub fn set_theme_color(
+        &mut self,
+        v: ThemeColorValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_W_THEME_COLOR, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:themeColor`.
+    pub fn remove_theme_color(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_W_THEME_COLOR)
+    }
+    /// Sets `w:themeTint` — Underline Theme Color Tint
+    pub fn set_theme_tint(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_W_THEME_TINT, v)
+    }
+    /// Removes `w:themeTint`.
+    pub fn remove_theme_tint(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_W_THEME_TINT)
+    }
+    /// Sets `w:themeShade` — Underline Theme Color Shade
+    pub fn set_theme_shade(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_W_THEME_SHADE, v)
+    }
+    /// Removes `w:themeShade`.
+    pub fn remove_theme_shade(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_W_THEME_SHADE)
+    }
+}
+/// `w:CT_VerticalAlignRun/w:vertAlign` — Defines the VerticalTextAlignment Class.
+#[derive(Debug)]
+pub enum VerticalTextAlignment {}
+impl VerticalTextAlignment {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for VerticalTextAlignment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "vertAlign");
+    const SDK_NAME: &'static str = "w:CT_VerticalAlignRun/w:vertAlign";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: VerticalTextAlignment::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <VerticalPositionValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`VerticalTextAlignment`].
+#[derive(Clone, Debug)]
+pub struct VerticalTextAlignmentView<'a>(
+    pub ooxml_core::Lens<'a, VerticalTextAlignment>,
+);
+impl<'a> VerticalTextAlignmentView<'a> {
+    /// `w:val` — Subscript/Superscript Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, VerticalPositionValues>> {
+        self.0.attr_enum(VerticalTextAlignment::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`VerticalTextAlignment`]. Reads go through [`VerticalTextAlignmentViewMut::as_view`].
+#[derive(Debug)]
+pub struct VerticalTextAlignmentViewMut<'a>(
+    pub ooxml_core::LensMut<'a, VerticalTextAlignment>,
+);
+impl<'a> VerticalTextAlignmentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> VerticalTextAlignmentView<'_> {
+        VerticalTextAlignmentView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Subscript/Superscript Value
+    pub fn set_val(
+        &mut self,
+        v: VerticalPositionValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(VerticalTextAlignment::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(VerticalTextAlignment::ATTR_W_VAL)
+    }
+}
 const _: () = ooxml_core::schema::assert_spec::<Body>();
 const _: () = ooxml_core::schema::assert_child::<Body, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Body, DeletedRun>();
@@ -4772,6 +8077,12 @@ const _: () = ooxml_core::schema::assert_child::<Body, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, SectionProperties>();
 const _: () = ooxml_core::schema::assert_child::<Body, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Break>();
+const _: () = ooxml_core::schema::assert_spec::<Color>();
+const _: () = ooxml_core::schema::assert_spec::<Comment>();
+const _: () = ooxml_core::schema::assert_child::<Comment, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Comment, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Comments>();
+const _: () = ooxml_core::schema::assert_child::<Comments, Comment>();
 const _: () = ooxml_core::schema::assert_spec::<DocumentProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Document>();
 const _: () = ooxml_core::schema::assert_child::<Document, Body>();
@@ -4780,7 +8091,43 @@ const _: () = ooxml_core::schema::assert_spec::<LastRenderedPageBreak>();
 const _: () = ooxml_core::schema::assert_spec::<NoBreakHyphen>();
 const _: () = ooxml_core::schema::assert_spec::<SoftHyphen>();
 const _: () = ooxml_core::schema::assert_spec::<TabChar>();
+const _: () = ooxml_core::schema::assert_spec::<Endnotes>();
+const _: () = ooxml_core::schema::assert_child::<Endnotes, Endnote>();
 const _: () = ooxml_core::schema::assert_spec::<FieldChar>();
+const _: () = ooxml_core::schema::assert_spec::<RunFonts>();
+const _: () = ooxml_core::schema::assert_spec::<Footnotes>();
+const _: () = ooxml_core::schema::assert_child::<Footnotes, Footnote>();
+const _: () = ooxml_core::schema::assert_spec::<Endnote>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Footnote>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Footer>();
+const _: () = ooxml_core::schema::assert_child::<Footer, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Footer, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Header>();
+const _: () = ooxml_core::schema::assert_child::<Header, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Header, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, Table>();
+const _: () = ooxml_core::schema::assert_spec::<Highlight>();
+const _: () = ooxml_core::schema::assert_spec::<FontSize>();
+const _: () = ooxml_core::schema::assert_spec::<FontSizeComplexScript>();
 const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Run>();
@@ -4789,6 +8136,15 @@ const _: () = ooxml_core::schema::assert_child::<Hyperlink, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, SimpleField>();
+const _: () = ooxml_core::schema::assert_spec::<Indentation>();
+const _: () = ooxml_core::schema::assert_spec::<Justification>();
+const _: () = ooxml_core::schema::assert_spec::<Bold>();
+const _: () = ooxml_core::schema::assert_spec::<BoldComplexScript>();
+const _: () = ooxml_core::schema::assert_spec::<Italic>();
+const _: () = ooxml_core::schema::assert_spec::<ItalicComplexScript>();
+const _: () = ooxml_core::schema::assert_spec::<KeepLines>();
+const _: () = ooxml_core::schema::assert_spec::<KeepNext>();
+const _: () = ooxml_core::schema::assert_spec::<Strike>();
 const _: () = ooxml_core::schema::assert_spec::<TrackRevisions>();
 const _: () = ooxml_core::schema::assert_spec::<UpdateFieldsOnOpen>();
 const _: () = ooxml_core::schema::assert_spec::<Paragraph>();
@@ -4801,9 +8157,21 @@ const _: () = ooxml_core::schema::assert_child::<Paragraph, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, Indentation>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, Justification>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, KeepLines>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, KeepNext>();
 const _: () = ooxml_core::schema::assert_child::<
     ParagraphProperties,
     SectionProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    SpacingBetweenLines,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    ParagraphStyleId,
 >();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, Break>();
@@ -4819,6 +8187,19 @@ const _: () = ooxml_core::schema::assert_child::<Run, DeletedText>();
 const _: () = ooxml_core::schema::assert_child::<Run, FieldCode>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
 const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Color>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, RunFonts>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Highlight>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontSize>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontSizeComplexScript>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Bold>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, BoldComplexScript>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Italic>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, ItalicComplexScript>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Strike>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, RunStyle>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<TableRow>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, InsertedRun>();
@@ -4862,6 +8243,14 @@ const _: () = ooxml_core::schema::assert_child::<SimpleField, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, SimpleField>();
+const _: () = ooxml_core::schema::assert_spec::<SpacingBetweenLines>();
+const _: () = ooxml_core::schema::assert_spec::<ParagraphStyleId>();
+const _: () = ooxml_core::schema::assert_spec::<RunStyle>();
+const _: () = ooxml_core::schema::assert_spec::<Style>();
+const _: () = ooxml_core::schema::assert_child::<Style, StyleName>();
+const _: () = ooxml_core::schema::assert_spec::<StyleName>();
+const _: () = ooxml_core::schema::assert_spec::<Styles>();
+const _: () = ooxml_core::schema::assert_child::<Styles, Style>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableRow>();
 const _: () = ooxml_core::schema::assert_child::<Table, DeletedRun>();
@@ -4879,3 +8268,5 @@ const _: () = ooxml_core::schema::assert_spec::<DeletedFieldCode>();
 const _: () = ooxml_core::schema::assert_spec::<DeletedText>();
 const _: () = ooxml_core::schema::assert_spec::<FieldCode>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
+const _: () = ooxml_core::schema::assert_spec::<Underline>();
+const _: () = ooxml_core::schema::assert_spec::<VerticalTextAlignment>();

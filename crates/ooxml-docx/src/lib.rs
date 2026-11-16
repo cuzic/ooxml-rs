@@ -34,17 +34,52 @@
 //! # Ok::<(), ooxml_docx::Error>(())
 //! ```
 //!
-//! `Document::new()` (a document from scratch) is not part of Phase0.
+//! Word Phase1 ([ADR-0007](https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0007-docx-phase1-template-filling.md)),
+//! so far: every story ([`Document::stories`]: headers, footers, footnotes,
+//! endnotes, comments), cross-run [`Document::find`] / [`Document::replace`]
+//! / [`Document::replace_at`] / [`Document::replace_matches`] with
+//! child-local edits and typed refusals ([`RefusalReason`]), and the
+//! per-operation `StaleFieldRisk` gate ([`Document::write_gate_for`]).
+//! Part 2: direct formatting ([`Document::format_run`],
+//! [`Document::format_paragraph`]), existing styles by id
+//! ([`Document::set_paragraph_style`], [`Document::style_ids_by_name`]) and
+//! the `updateFields` opt-in ([`Document::enable_update_fields_on_open`]).
+//!
+//! ```no_run
+//! use ooxml_docx::{Document, ReplaceOptions};
+//!
+//! let mut doc = Document::open("template.docx")?;
+//! doc.replace("{{client}}", "ACME Corp.", &ReplaceOptions::default())?; // atomic, every story
+//! doc.save("filled.docx")?;
+//! # Ok::<(), ooxml_docx::Error>(())
+//! ```
+//!
+//! `Document::new()` (a document from scratch) is not part of Phase0 or
+//! Phase1.
 
 mod body;
 mod document;
 mod error;
 pub mod fields;
+mod format;
 mod names;
+mod replace;
+mod story;
+mod styles;
 mod text;
 
 pub use document::{Document, Paragraph, Run};
 pub use error::{Error, Result};
+pub use fields::Operation;
+pub use format::{
+    Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,
+    Underline, VertAlign,
+};
+pub use styles::{StyleInfo, StyleKind};
+pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
+pub use story::{
+    Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,
+};
 
 /// `settings/w:writeProtection`, as reported by
 /// [`Document::write_protection`]. It does not gate writes.

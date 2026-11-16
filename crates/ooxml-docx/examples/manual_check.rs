@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_docx::{Document, Paragraph, Run, RunContext};
+use ooxml_docx::{Document, Paragraph, ReplaceOptions, Run, RunContext, StoryKind};
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/docx");
 
@@ -157,7 +157,222 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
                 lines with “Words” and “NumWords” show the word count, Word reads typographic quotes as quotes (ADR-0004 \
                 rev 4, m9; ooxml-docx already treats them so).",
     });
+    phase1(out, &mut cases)?;
     Ok(cases)
+}
+
+/// Word Phase1 items (ADR-0007 §9, "Manual").
+fn phase1(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut push = |file: &'static str, fixture: &'static str, done: String, check: &'static str| {
+        cases.push(Case { file, fixture, done, check });
+    };
+    // 12: cross-run placeholder with a collapsed _GoBack bookmark inside
+    let body = r#"<w:p><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr><w:t xml:space="preserve">Dear {{</w:t></w:r><w:proofErr w:type="spellStart"/><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr><w:t>cli</w:t></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr><w:t>ent}}</w:t></w:r><w:proofErr w:type="spellEnd"/><w:r><w:t>, thank you.</w:t></w:r></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.replace("{{client}}", "Ada Lovelace", &ReplaceOptions::default())?;
+    save(&doc, out, "12-cross-run-placeholder.docx")?;
+    push(
+        "12-cross-run-placeholder.docx",
+        "",
+        "Synthetic: `{{client}}` split over three runs with a `proofErr` and a collapsed `_GoBack` bookmark inside, replaced by \"Ada Lovelace\"".into(),
+        "The line reads \"Dear Ada Lovelace, thank you.\" with \"Dear Ada Lovelace\" bold dark red. Shift+F5 (go back) still works.",
+    );
+    // 13: a header and a footer edit
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join("poi-PageSpecificHeadFoot.docx"))?;
+    let mut done = Vec::new();
+    for kind in [StoryKind::Header, StoryKind::Footer] {
+        let target = doc.stories().filter(|s| s.id().kind() == kind).find_map(|s| {
+            s.paragraphs().find_map(|p| {
+                p.runs().find(|r| r.check_settable().is_ok() && !r.text().trim().is_empty()).map(|r| (r.run_ref(), r.text(), s.id().part().to_owned()))
+            })
+        });
+        if let Some((r, old, part)) = target {
+            doc.set_run_text_at(r, &format!("EDITED {kind:?}"))?;
+            done.push(format!("{part}: \"{}\" → \"EDITED {kind:?}\"", short(&old)));
+        }
+    }
+    save(&doc, out, "13-header-footer.docx")?;
+    push(
+        "13-header-footer.docx",
+        "poi-PageSpecificHeadFoot",
+        done.join("; "),
+        "The edited header and footer text shows on every page whose section uses that part; the other headers/footers and their PAGE fields are unchanged.",
+    );
+    // 14: a footnote and a comment edit
+    let mut done = Vec::new();
+    for (file, fixture, kind) in [("14a-footnote.docx", "sdk-ftEdNote", StoryKind::Footnotes), ("14b-comment.docx", "poi-testComment", StoryKind::Comments)] {
+        let mut doc = Document::open(PathBuf::from(FIXTURES).join(format!("{fixture}.docx")))?;
+        let target = doc.stories().filter(|s| s.id().kind() == kind).find_map(|s| {
+            s.paragraphs().find_map(|p| p.runs().find(|r| r.check_settable().is_ok() && !r.text().trim().is_empty()).map(|r| (r.run_ref(), r.text())))
+        });
+        let (r, old) = target.ok_or("a settable note/comment run")?;
+        doc.set_run_text_at(r, &format!(" EDITED {kind:?} text"))?;
+        save(&doc, out, file)?;
+        done.push((file, fixture, format!("{kind:?}: \"{}\" → \" EDITED {kind:?} text\"", short(&old))));
+    }
+    for (file, fixture, d) in done {
+        push(file, fixture, d, "The note (14a) or comment (14b) shows the new text after its mark; numbering, the reference mark in the body and the comment's anchor are unchanged.");
+    }
+    // 15: replace next to a non-breaking hyphen
+    let body = r#"<w:p><w:r><w:t>{{code}}</w:t><w:noBreakHyphen/><w:t>2026</w:t></w:r></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.replace("{{code}}", "ISO", &ReplaceOptions::default())?;
+    save(&doc, out, "15-no-break-hyphen.docx")?;
+    push(
+        "15-no-break-hyphen.docx",
+        "",
+        "Synthetic: `{{code}}<w:noBreakHyphen/>2026` with `{{code}}` replaced by \"ISO\"".into(),
+        "Shows \"ISO‑2026\" with a non-breaking hyphen: narrow the window or add text so that the line would wrap there; it must not break at the hyphen.",
+    );
+    // 16: unpreserved edge whitespace (open question 2)
+    let body = r#"<w:p><w:r><w:t>[</w:t></w:r><w:r><w:t> unpreserved edges </w:t></w:r><w:r><w:t>]</w:t></w:r></w:p><w:p><w:r><w:t>[</w:t></w:r><w:r><w:t xml:space="preserve"> preserved edges </w:t></w:r><w:r><w:t>]</w:t></w:r></w:p><w:p><w:r><w:t>[</w:t></w:r><w:r><w:t> set_run_text </w:t></w:r><w:r><w:t>]</w:t></w:r></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.set_run_text(2, 1, " set_run_text ")?;
+    save(&doc, out, "16-unpreserved-edge-whitespace.docx")?;
+    push(
+        "16-unpreserved-edge-whitespace.docx",
+        "",
+        "Synthetic: line 1 `<w:t> unpreserved edges </w:t>` (not edited), line 2 the same with xml:space=\"preserve\", line 3 edited by set_run_text (which adds preserve)".into(),
+        "Open question 2: does line 1 show spaces inside the brackets (\"[ unpreserved edges ]\") like line 2, or not (\"[unpreserved edges]\")? Line 3 must look like line 2.",
+    );
+    phase1_part2(out, &mut push)?;
+    Ok(())
+}
+
+/// Word Phase1 part 2 items (ADR-0007 §4, §5, §6.3).
+fn phase1_part2(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, String, &'static str)) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{Alignment, Color, FirstLine, HalfPoints, Highlight, LineSpacing, ParaRef, ParagraphFormat, Prop, RunFormat, RunRef, StoryIndex, Underline, VertAlign};
+    let p = |i| ParaRef::new(StoryIndex::MAIN, i);
+    // 17: every run setter, one per line
+    let lines = ["bold", "bold_cs", "italic", "italic_cs", "strike", "underline double", "color C00000", "size 32", "size_cs 32", "highlight yellow", "superscript", "font Courier New (all slots)"];
+    let body: String = lines.iter().map(|l| format!("<w:p><w:r><w:t xml:space=\"preserve\">{l}: Sample עברית 日本語</w:t></w:r></w:p>")).collect();
+    let mut doc = synthetic(&body)?;
+    let fonts = |v: &str| ooxml_docx::FontSlots { ascii: Prop::Set(v.into()), h_ansi: Prop::Set(v.into()), east_asia: Prop::Set(v.into()), cs: Prop::Set(v.into()) };
+    let formats = [
+        RunFormat { bold: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { bold_cs: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { italic: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { italic_cs: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { strike: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { underline: Prop::Set(Underline::Double), ..RunFormat::default() },
+        RunFormat { color: Prop::Set(Color::Rgb(0xC0, 0, 0)), ..RunFormat::default() },
+        RunFormat { size: Prop::Set(HalfPoints::new(32).ok_or("size")?), ..RunFormat::default() },
+        RunFormat { size_cs: Prop::Set(HalfPoints::new(32).ok_or("size")?), ..RunFormat::default() },
+        RunFormat { highlight: Prop::Set(Highlight::Yellow), ..RunFormat::default() },
+        RunFormat { vert_align: Prop::Set(VertAlign::Superscript), ..RunFormat::default() },
+        RunFormat { fonts: fonts("Courier New"), ..RunFormat::default() },
+    ];
+    for (i, f) in formats.iter().enumerate() {
+        doc.format_run(RunRef::new(p(i), 0), f)?;
+    }
+    let base = lines.len();
+    let paras = ["alignment center", "space before 480 / after 480", "line spacing exact 480", "indent left 1440 / right 1440", "hanging 720", "keep with next", "keep lines together"];
+    for (k, l) in paras.iter().enumerate() {
+        doc.append_paragraph(&format!("{l}: The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."))?;
+        let pf = match k {
+            0 => ParagraphFormat { alignment: Prop::Set(Alignment::Center), ..ParagraphFormat::default() },
+            1 => ParagraphFormat { space_before: Prop::Set(480), space_after: Prop::Set(480), ..ParagraphFormat::default() },
+            2 => ParagraphFormat { line_spacing: Prop::Set(LineSpacing::Exact(480)), ..ParagraphFormat::default() },
+            3 => ParagraphFormat { indent_left: Prop::Set(1440), indent_right: Prop::Set(1440), ..ParagraphFormat::default() },
+            4 => ParagraphFormat { first_line: Prop::Set(FirstLine::Hanging(720)), indent_left: Prop::Set(720), ..ParagraphFormat::default() },
+            5 => ParagraphFormat { keep_next: Prop::Set(true), ..ParagraphFormat::default() },
+            _ => ParagraphFormat { keep_lines: Prop::Set(true), ..ParagraphFormat::default() },
+        };
+        doc.format_paragraph(p(base + k), &pf)?;
+    }
+    save(&doc, out, "17-formatting-setters.docx")?;
+    push(
+        "17-formatting-setters.docx",
+        "",
+        "Synthetic: one line per run setter (Latin, Hebrew and Japanese text), then one paragraph per paragraph setter".into(),
+        "Each line shows exactly what its label says (the _cs setters affect only the Hebrew text); the other lines are plain. Paragraph lines: centred, spacing, exact line height, indents, hanging indent, keep with next / keep lines (Paragraph dialog shows the boxes ticked).",
+    );
+    // 18: a style by id in a localized document (Swedish ids, English names)
+    let styles = r#"<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Rubrik1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>"#;
+    let mut doc = synthetic_with_styles("<w:p><w:r><w:t>Heading set by style id Rubrik1</w:t></w:r></w:p><w:p><w:r><w:t>Body text</w:t></w:r></w:p>", Some(styles))?;
+    let id = doc.style_ids_by_name("Heading 1").first().map(|s| (*s).to_owned()).ok_or("no heading 1")?;
+    doc.set_paragraph_style(p(0), Some(&id))?;
+    save(&doc, out, "18-localized-style-by-id.docx")?;
+    push(
+        "18-localized-style-by-id.docx",
+        "",
+        format!("Synthetic: style id {id:?} found by the built-in name \"heading 1\" and applied to the first paragraph"),
+        "The first paragraph is shown as Heading 1 (bold, larger; the Styles pane highlights the heading style, named \"Rubrik 1\" in a Swedish UI); it appears in the Navigation pane.",
+    );
+    // 19: style-level firstLineChars plus a direct first_line (review m3)
+    let styles = r#"<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:ind w:firstLineChars="200"/></w:pPr></w:style>"#;
+    let text = "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.";
+    let mut doc = synthetic_with_styles(&format!("<w:p><w:r><w:t>Style indent (2 characters): {text}</w:t></w:r></w:p><w:p><w:r><w:t>Direct first line 1 inch: {text}</w:t></w:r></w:p>"), Some(styles))?;
+    doc.format_paragraph(p(1), &ParagraphFormat { first_line: Prop::Set(FirstLine::Indent(1440)), ..ParagraphFormat::default() })?;
+    save(&doc, out, "19-style-firstLineChars-and-first-line.docx")?;
+    push(
+        "19-style-firstLineChars-and-first-line.docx",
+        "",
+        "Synthetic: the default style indents the first line by 2 characters (firstLineChars); paragraph 2 gets first_line 1440 twips, written with firstLineChars=\"0\"".into(),
+        "Paragraph 1's first line is indented by about two characters; paragraph 2's by one inch (not two characters).",
+    );
+    // 20: the updateFields opt-in on sdk-TOC2
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join("sdk-TOC2.docx"))?;
+    doc.enable_update_fields_on_open()?;
+    doc.append_paragraph("APPENDED after the opt-in")?;
+    save_ungated(&doc, out, "20-update-fields-toc.docx")?;
+    push(
+        "20-update-fields-toc.docx",
+        "sdk-TOC2",
+        "enable_update_fields_on_open (settings w:updateFields=true), then a paragraph appended".into(),
+        "Open question 5: note the prompt Word shows on open (text), whether the TOC page numbers and fields in headers/footers are updated, and after saving in Word whether settings.xml still has w:updateFields. Repeat in Word for Mac and Word Online if available.",
+    );
+    Ok(())
+}
+
+/// [`save`] without the reopen-through-the-gates check (the opt-in is per
+/// `Document`, so a reopened copy is gated again).
+fn save_ungated(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    doc.save(out.join(file))?;
+    Ok(())
+}
+
+fn save(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    doc.save(out.join(file))?;
+    Document::open(out.join(file))?;
+    Ok(())
+}
+
+/// A minimal package with `body` as the body's inner XML.
+fn synthetic(body: &str) -> Result<Document, Box<dyn std::error::Error>> {
+    synthetic_with_styles(body, None)
+}
+
+/// [`synthetic`] with `word/styles.xml` holding `styles` (inner XML of `w:styles`).
+fn synthetic_with_styles(body: &str, styles: Option<&str>) -> Result<Document, Box<dyn std::error::Error>> {
+    const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    let mut parts = vec![
+        (
+            "[Content_Types].xml",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#.to_owned(),
+        ),
+        (
+            "_rels/.rels",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#.to_owned(),
+        ),
+        (
+            "word/document.xml",
+            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}<w:sectPr/></w:body></w:document>"#),
+        ),
+    ];
+    if let Some(st) = styles {
+        parts.push((
+            "word/_rels/document.xml.rels",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#.to_owned(),
+        ));
+        parts.push(("word/styles.xml", format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="{W}">{st}</w:styles>"#)));
+    }
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, content) in parts {
+        z.start_file(name, zip::write::SimpleFileOptions::default())?;
+        z.write_all(content.as_bytes())?;
+    }
+    Ok(Document::from_bytes(z.finish()?.into_inner())?)
 }
 
 const CURLY_FILE: &str = "11-curly-quoted-docproperty.docx";
@@ -208,7 +423,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = PathBuf::from(std::env::args().nth(1).ok_or("usage: manual_check <outdir>")?);
     let cases = run(&out)?;
     let mut md = String::new();
-    writeln!(md, "# ooxml-docx Phase0: manual check in Microsoft 365 Word\n")?;
+    writeln!(md, "# ooxml-docx Phase0/Phase1: manual check in Microsoft 365 Word\n")?;
     writeln!(md, "Generated by `cargo run -p ooxml-docx --example manual_check -- {}`.\n", out.display())?;
     writeln!(md, "For every file:\n")?;
     writeln!(md, "- [ ] Opens with **no repair dialog** (\"Word found unreadable content…\").")?;
@@ -230,6 +445,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(md, "1. **w14:textId** (`04`): is keeping the old textId on an edited paragraph harmless (no dialog, comment intact)? If Word rewrites it on save, note that.")?;
     writeln!(md, "2. **lastRenderedPageBreak** (`03`): any visible effect of dropping it from the edited run?")?;
     writeln!(md, "3. **Typographic quotes** (`11`): after F9, do the fields written with “…” show the word count (Word reads them as quotes) or an error?")?;
+    writeln!(md, "4. **Unpreserved edge whitespace** (`16`, ADR-0007 open question 2): does Word show the edge spaces of a `w:t` without `xml:space=\"preserve\"`? If yes, `UnpreservedWhitespace` can be lifted.")?;
+    writeln!(md, "5. **updateFields** (`20`, ADR-0007 open question 5): the prompt text; are TOC page numbers and header/footer fields updated; does `w:updateFields` survive Word's save; Word for Mac / Word Online.")?;
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     for c in &cases {
         println!("{}  ({})", out.join(c.file).display(), if c.fixture.is_empty() { "synthetic" } else { c.fixture });
