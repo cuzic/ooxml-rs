@@ -132,3 +132,17 @@ fn docx_edit() {
         guarded("docx_edit", &input, ooxml_robustness::check_docx_input);
     }
 }
+
+#[test]
+fn docx_replace() {
+    let mut rng = Rng::new(0x5e1a);
+    let fx = ooxml_robustness::docx_replace::replace_fixtures();
+    assert!(fx.len() > 25, "fixtures not found");
+    for input in format_inputs(fx, &mut rng, iters() * 2) {
+        guarded("docx_replace", &input, ooxml_robustness::check_docx_replace_input);
+    }
+    let [calls, applied, skipped, refused, stale, changed] =
+        ooxml_robustness::docx_replace::STATS.each_ref().map(|a| a.load(std::sync::atomic::Ordering::Relaxed));
+    eprintln!("docx_replace: {calls} calls with applied matches ({applied} matches, {changed} paragraphs changed), {skipped} skipped, {refused} refused calls, {stale} stale matches refused");
+    assert!(applied > 0 && changed > 0, "the oracles never fired");
+}

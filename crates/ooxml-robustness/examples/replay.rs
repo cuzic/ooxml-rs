@@ -7,7 +7,7 @@
 //! cargo run -p ooxml-robustness --example replay -- <target> <file>…
 //! ```
 //!
-//! Targets: package_roundtrip, xml_t1, xml_t1b, lens_ops, xlsx_edit, pptx_edit, docx_edit.
+//! Targets: package_roundtrip, xml_t1, xml_t1b, lens_ops, xlsx_edit, pptx_edit, docx_edit, docx_replace.
 
 use std::panic;
 use std::sync::{Arc, Mutex};
@@ -21,6 +21,7 @@ fn run(target: &str, data: &[u8]) {
         "xlsx_edit" => ooxml_robustness::check_xlsx_input(data),
         "pptx_edit" => ooxml_robustness::check_pptx_input(data),
         "docx_edit" => ooxml_robustness::check_docx_input(data),
+        "docx_replace" => ooxml_robustness::check_docx_replace_input(data),
         other => panic!("unknown target {other}"),
     }
 }

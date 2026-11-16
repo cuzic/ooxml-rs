@@ -143,11 +143,15 @@ fn main() -> std::io::Result<()> {
     println!("xlsx_edit: {} inputs", write_seeds(&XLSX, &dir("xlsx_edit")?)?);
     println!("pptx_edit: {} inputs", write_seeds(&PPTX, &dir("pptx_edit")?)?);
     println!("docx_edit: {} inputs", write_seeds(&DOCX, &dir("docx_edit")?)?);
+    println!(
+        "docx_replace: {} inputs",
+        write_seeds(ooxml_robustness::docx_replace::replace_fixtures(), &dir("docx_replace")?)?
+    );
     for (i, input) in ooxml_robustness::docx::targeted_inputs().into_iter().enumerate() {
         std::fs::write(dir("docx_edit")?.join(format!("targeted-{i}")), input)?;
     }
     if let Some(max) = max {
-        for t in ["package_roundtrip", "xml_t1", "xml_t1b", "lens_ops", "xlsx_edit", "pptx_edit", "docx_edit"] {
+        for t in ["package_roundtrip", "xml_t1", "xml_t1b", "lens_ops", "xlsx_edit", "pptx_edit", "docx_edit", "docx_replace"] {
             println!("{t}: thinned to {}", thin(&out.join(t), max)?);
         }
     }
