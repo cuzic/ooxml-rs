@@ -82,7 +82,6 @@ fn o3_case_list_is_deterministic() {
 }
 
 #[test]
-#[ignore = "needs reference/fixtures/xlsx/o3/expected.tsv: run the o3_inputs example, then spikes/xlsx/o3_recalc.py with LibreOffice (owner/CI job; LibreOffice is not in the dev sandbox)"]
 fn o3_kept_values_match_libreoffice_recalculation() {
     let expected = load().expect(
         "reference/fixtures/xlsx/o3/expected.tsv is missing: run `cargo run -p ooxml-xlsx --example o3_inputs -- DIR` \

@@ -76,7 +76,7 @@ jobs:
         run: |
           mkdir -p reference/fixtures/xlsx/o3
           cp o3/expected.tsv reference/fixtures/xlsx/o3/expected.tsv
-          cargo test -p ooxml-xlsx --test phase1_o3 -- --ignored --exact o3_kept_values_match_libreoffice_recalculation 2>&1 | tee o3/check.log
+          cargo test -p ooxml-xlsx --test phase1_o3 -- --include-ignored --exact o3_kept_values_match_libreoffice_recalculation 2>&1 | tee o3/check.log
           grep -q "test result: ok. 1 passed" o3/check.log
       - name: Upload the data (success only)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
