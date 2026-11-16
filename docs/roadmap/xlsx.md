@@ -547,7 +547,7 @@ P0-R1–R3 are superseded by Phase1 (ADR-0003): these workbooks are now editable
 ### 7.6 What Phase0 does not claim even when all of this passes
 
 - That Excel opens the outputs without a repair dialog: owner's XL check. `cargo run -p
-  ooxml-xlsx --example manual_check -- <outdir>` writes the outputs of P0-E1, E2, E3, E4, E11,
+  ooxml-xlsx --example xlsx_manual_check -- <outdir>` writes the outputs of P0-E1, E2, E3, E4, E11,
   E12, E13, E14, E15 plus the `x:`-prefixed (Hancom) and hidden-first-sheet cases, the unedited
   originals, and `CHECKLIST.md` (what to look for, how to report).
 - Correct `spans` hints after edits outside a span (left as is; XL check covers it).
