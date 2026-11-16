@@ -119,7 +119,8 @@ pub struct Workbook {
     from_template: bool,
     template_sheet_taken: bool,
     #[cfg(feature = "fault-injection")]
-    pub(crate) fault: Option<ApplyStep>,
+    /// The step to fail at, and whether to panic instead of returning `Err`.
+    pub(crate) fault: Option<(ApplyStep, bool)>,
 }
 
 impl Workbook {
@@ -392,7 +393,16 @@ impl Workbook {
     #[cfg(feature = "fault-injection")]
     #[doc(hidden)]
     pub fn inject_apply_failure(&mut self, step: ApplyStep) {
-        self.fault = Some(step);
+        self.fault = Some((step, false));
+    }
+
+    /// Test hook: make the next edit **panic** just before `step` of its
+    /// apply phase (ADR-0003 §7.3, review R4-m6: a panic must leave the
+    /// workbook poisoned). Only with the `fault-injection` feature.
+    #[cfg(feature = "fault-injection")]
+    #[doc(hidden)]
+    pub fn inject_apply_panic(&mut self, step: ApplyStep) {
+        self.fault = Some((step, true));
     }
 }
 
