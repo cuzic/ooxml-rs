@@ -1,6 +1,8 @@
 //! Layer 3 OPC registries: `[Content_Types].xml` and relationship parts
 //! (ADR-0001). Read-only for now; the append-only invariant governs any
-//! future write API (existing entries are never renumbered or removed).
+//! future write API (existing entries are never renumbered or removed). The
+//! one exception is [`crate::Package::remove_part`], which removes entries
+//! only together with the part they register (ADR-0003 §4.3).
 //!
 //! Part names in this crate are zip entry names: no leading `/`
 //! (`xl/workbook.xml`). OPC's `/`-prefixed names are converted on input.
@@ -57,6 +59,15 @@ impl ContentTypes {
     /// `(part name, content type)` overrides in document order.
     pub fn overrides(&self) -> &[(String, String)] {
         &self.overrides
+    }
+
+    /// Drops the override for `part` (after [`crate::Package::remove_part`]
+    /// removed it from the XML).
+    pub(crate) fn remove_override(&mut self, part: &str) {
+        let part = part.trim_start_matches('/');
+        if let Some(i) = self.overrides.iter().position(|(p, _)| p.eq_ignore_ascii_case(part)) {
+            self.overrides.remove(i);
+        }
     }
 
     /// Content type of a part: an override, else the extension default.

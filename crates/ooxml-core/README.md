@@ -30,6 +30,7 @@ pkg.save("book.xlsx")?;                              // temp file + rename; same
 | `xml_part(name)` / `xml_part_mut(name)` | Parse once into an `XmlDocument`. A part parsed but not edited is still raw-copied on save. |
 | `parsed_part(name)` | `&self` access to a tree already parsed (`None` while `Raw` or `Replaced`); never parses. |
 | `set_part(name, bytes)` | Replace an existing part wholesale (`Replaced`). New parts: `Error::NewPartUnsupported` (Phase0). |
+| `remove_part(name) -> RemovedPart` | Removes a part, every internal relationship resolving to it and its `Override` (never a `Default`); each removed registry element goes with the whitespace-only text right before it, nothing else in those parts changes. Refused (`RemovePartRefused`, nothing changed) for registry parts, parts with their own `.rels`, and when the source part still has an `r:`-namespace attribute equal to a removed `Id`. The narrow exception to Layer 3's append-only rule (ADR-0003 §4.3). |
 | `content_types()`, `content_type(name)` | `[Content_Types].xml` (overrides, then extension defaults; ASCII case-insensitive). |
 | `package_relationships()`, `relationships(part)`, `main_document_part()` | `opc::Relationships` with `by_id`, `by_type`, `resolve` (relative targets, `..`, absolute `/`). |
 | `write_to(w)`, `to_bytes()`, `save(path)` | `Raw` and dirty-free `Parsed` parts go through `ZipWriter::raw_copy_file`: (name, method, CRC-32, compressed bytes) unchanged. |
@@ -115,8 +116,9 @@ Namespace constants the core acts on: `name::{MC_NS, R_NS, XML_NS, XMLNS_NS}`.
 
 ## Not yet (by design or later)
 
-- Adding parts / writing `[Content_Types].xml` or relationships (Layer 3 is
-  read-only; the append-only rule applies when writes arrive).
+- Adding parts / adding `[Content_Types].xml` entries or relationships
+  (the append-only rule applies when writes arrive). The only registry write
+  so far is the removal done by `remove_part`.
 - The `mc:AlternateContent` rank rule (ADR-0002 §4.3 "later rule").
 - A copy-subtree primitive (requested by the pptx plan). `RawNode` is
   `Clone`; a future `LensMut::insert_copy::<C>(&RawNode)` would insert a
