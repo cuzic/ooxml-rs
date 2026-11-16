@@ -370,12 +370,35 @@ impl ParseOptions {
 }
 
 /// A parsed XML part: the original source plus the raw tree.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct XmlDocument {
     source: Box<str>,
     root: RawNode,
     /// The depth limit the document was parsed with.
     max_depth: usize,
+    /// Identity of this tree for same-part copies
+    /// ([`crate::lens::SamePartDetached`]); a clone gets a new one.
+    token: DocToken,
+}
+
+impl Clone for XmlDocument {
+    /// A copy with a **new** identity: a same-part copy taken from the
+    /// original cannot be inserted into the clone (the clone may become
+    /// another part, whose relationships differ).
+    fn clone(&self) -> Self {
+        XmlDocument { source: self.source.clone(), root: self.root.clone(), max_depth: self.max_depth, token: DocToken::new() }
+    }
+}
+
+/// Identity of one [`XmlDocument`] (process-unique, never reused).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DocToken(u64);
+
+impl DocToken {
+    pub(crate) fn new() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        DocToken(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
 }
 
 impl XmlDocument {
@@ -416,7 +439,7 @@ impl XmlDocument {
 
     /// A read-only typed lens on the root element.
     pub fn lens<E: ElementSpec>(&self) -> Result<Lens<'_, E>> {
-        Lens::root(&self.root)
+        Lens::root(&self.root).map(|l| l.with_doc(self.token))
     }
 
     /// A mutable typed lens on the root element. Inserts that would nest
@@ -424,7 +447,24 @@ impl XmlDocument {
     /// [`Error::TooDeep`](crate::Error::TooDeep), so an edited tree always
     /// parses again with the same options.
     pub fn lens_mut<E: ElementSpec>(&mut self) -> Result<LensMut<'_, E>> {
-        LensMut::root_with_limit(&mut self.root, self.max_depth)
+        LensMut::root_with_limit(&mut self.root, self.max_depth).map(|l| l.with_doc(self.token))
+    }
+
+    /// A typed lens on the element at `path` (child indices into
+    /// [`RawNode::children`]), which must be `E::QNAME`: [`Lens::at`] that
+    /// also knows this document (for [`Lens::detach_same_part_as`]).
+    pub fn lens_at<E: ElementSpec>(&self, path: &[usize]) -> Result<Lens<'_, E>> {
+        Lens::at(&self.root, path).map(|l| l.with_doc(self.token))
+    }
+
+    /// A mutable typed lens on the element at `path`, which must be
+    /// `E::QNAME`, with this document's depth limit and identity.
+    pub fn lens_mut_at<E: ElementSpec>(&mut self, path: &[usize]) -> Result<LensMut<'_, E>> {
+        LensMut::at_with_limit(&mut self.root, path, self.max_depth).map(|l| l.with_doc(self.token))
+    }
+
+    pub(crate) fn token(&self) -> DocToken {
+        self.token
     }
 
     /// The element depth limit this document was parsed with (root =
