@@ -43,7 +43,7 @@ fn set_formula_on_an_empty_cell_removes_calc_chain() {
         also_changed: &[],
     };
     assert_allowed_diff(&input, &out, &e);
-    assert!(xml_of(&out, "Sheet1").contains(r#"<row r="5"><c r="F5"><f>A1+1</f></c></row>"#));
+    assert!(xml_of(&out, "Sheet1").contains(r#"<row r="5"><c r="F5"><f>A1+1</f></c></row>"#), "{}", xml_of(&out, "Sheet1"));
     assert_no_stale(&input, &out, &e, None);
     // Re-open: the census sees the new formula.
     let mut again = Workbook::from_bytes(out).unwrap();
@@ -67,7 +67,7 @@ fn rewriting_a_formula_keeps_calc_chain() {
         also_changed: &[],
     };
     assert_allowed_diff(&input, &out, &e);
-    assert!(xml_of(&out, "Sheet1").contains(r#"<c r="C1"><f>A2*5</f></c>"#));
+    assert!(xml_of(&out, "Sheet1").contains(r#"<c r="C1" s="0"><f>A2*5</f></c>"#));
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn value_over_formula_and_formula_removal() {
     };
     assert_allowed_diff(&input, &out, &e);
     assert_no_stale(&input, &out, &e, Some(&Data::Float(99.0)));
-    assert!(xml_of(&out, "Sheet1").contains(r#"<c r="B1"><v>99</v></c>"#));
+    assert!(xml_of(&out, "Sheet1").contains(r#"<c r="B1" s="0"><v>99</v></c>"#));
     // remove_formula: Sheet2!B1 = Sheet1!A1*2, read by Sheet2!C1 -> Sheet3!A1.
     let (wb, r) = edit(&input, "Sheet2", "B1", |c| c.remove_formula());
     r.unwrap();
@@ -101,7 +101,7 @@ fn value_over_formula_and_formula_removal() {
         also_changed: &[],
     };
     assert_allowed_diff(&input, &out, &e);
-    assert!(xml_of(&out, "Sheet2").contains(r#"<c r="B1"></c>"#), "{}", xml_of(&out, "Sheet2"));
+    assert!(xml_of(&out, "Sheet2").contains(r#"<c r="B1" s="0"></c>"#), "{}", xml_of(&out, "Sheet2"));
     // remove_formula on a value cell: nothing at all.
     let (wb, r) = edit(&input, "Sheet1", "A1", |c| c.remove_formula());
     r.unwrap();
@@ -137,8 +137,8 @@ fn shared_master_hand_off_1d_and_not_top_left() {
     assert_allowed_diff(&input, &out, &e);
     assert_no_stale(&input, &out, &e, Some(&Data::Float(100.0)));
     let x = xml_of(&out, "Sheet2");
-    assert!(x.contains(r#"<c r="B3"><f t="shared" si="0" ref="B3:B5">A3*2</f><v>4</v></c>"#), "{x}");
-    assert!(x.contains(r#"<c r="B4"><f t="shared" si="0"/><v>6</v></c>"#));
+    assert!(x.contains(r#"<c r="B3" s="0"><f t="shared" si="0" ref="B3:B5">A3*2</f><v>4</v></c>"#), "{x}");
+    assert!(x.contains(r#"<c r="B4" s="0"><f t="shared" si="0"/><v>6</v></c>"#));
     let after = calamine_formulas(&out);
     for c in ["B3", "B4", "B5", "C2", "D2", "E2", "C3", "D3", "E3"] {
         let k = { let i = CellIndex::parse(c).unwrap(); (i.row, i.col) };
@@ -149,7 +149,7 @@ fn shared_master_hand_off_1d_and_not_top_left() {
     r.unwrap();
     let out = wb.to_bytes().unwrap();
     let x = xml_of(&out, "Sheet2");
-    assert!(x.contains(r#"<c r="C2"><f t="shared" si="1" ref="C2:E3">$A2+C$1</f><v>11</v></c>"#), "{x}");
+    assert!(x.contains(r#"<c r="C2" s="0"><f t="shared" si="1" ref="C2:E3">$A2+C$1</f><v>11</v></c>"#), "{x}");
     let after = calamine_formulas(&out);
     // calamine expands members relative to the top-left of `ref`, not to
     // the master, so it misreads the input here (E2 as `$A2+F$1`); after the
@@ -207,7 +207,7 @@ fn keep_stale_caches_policy() {
     // Only Sheet1 (target) and workbook.xml (fullCalcOnLoad) change.
     let parts = sheet_parts(&input);
     assert_l1_except(&input, &out, &[&parts["Sheet1"], "xl/workbook.xml"]);
-    assert!(xml_of(&out, "Sheet1").contains(r#"<c r="B1"><f>A1*3</f><v>15</v></c>"#));
+    assert!(xml_of(&out, "Sheet1").contains(r#"<c r="B1" s="0"><f>A1*3</f><v>15</v></c>"#));
 }
 
 #[cfg(feature = "fault-injection")]

@@ -117,80 +117,184 @@ pub struct Expected<'a> {
     pub also_changed: &'a [&'a str],
 }
 
-/// ADR-0003 §7: the allowed diff and nothing else.
+/// The span of a dependent `c` after Phase1 stripped its cached value: the
+/// start tag without its `t` attribute, the content without `v` and `is`
+/// (ADR-0003 §3.3). Byte-level, from the input text.
+pub fn stripped(span: &str) -> String {
+    let end = start_tag_end(span);
+    let (open, rest) = span.split_at(end);
+    let mut open = open.to_owned();
+    let had_t = attr_pos(&open, "t").is_some();
+    if let Some(i) = attr_pos(&open, "t") {
+        let q = open[i..].find('"').unwrap() + i;
+        let close = open[q + 1..].find('"').unwrap() + q + 1;
+        open.replace_range(i - 1..=close, "");
+    }
+    let mut rest = rest.to_owned();
+    for tag in ["v", "is"] {
+        loop {
+            let Some(i) = find_elem(&rest, tag) else { break };
+            let j = elem_end(&rest[i..], tag) + i;
+            rest.replace_range(i..j, "");
+        }
+    }
+    // ADR-0002 §4.2: a re-rendered (own-dirty) element that lost all its
+    // children becomes self-closing; otherwise the close tag stays.
+    if had_t && rest.starts_with("</") && !open.ends_with("/>") {
+        open.truncate(open.len() - 1);
+        return open + "/>";
+    }
+    open + &rest
+}
+
+fn start_tag_end(s: &str) -> usize {
+    let mut q = false;
+    for (i, c) in s.char_indices() {
+        match c {
+            '"' => q = !q,
+            '>' if !q => return i + 1,
+            _ => {}
+        }
+    }
+    s.len()
+}
+
+/// Byte position of ` name="` in a start tag (after the space).
+fn attr_pos(tag: &str, name: &str) -> Option<usize> {
+    tag.find(&format!(" {name}=\"")).map(|i| i + 1)
+}
+
+fn find_elem(s: &str, tag: &str) -> Option<usize> {
+    [format!("<{tag}>"), format!("<{tag} "), format!("<{tag}/>")].iter().filter_map(|p| s.find(p.as_str())).min()
+}
+
+fn elem_end(s: &str, tag: &str) -> usize {
+    let open = start_tag_end(s);
+    if s[..open].ends_with("/>") {
+        return open;
+    }
+    let close = format!("</{tag}>");
+    s.find(&close).unwrap() + close.len()
+}
+
+/// Input text with every `(cell, replacement)` span replaced.
+fn replace_cells(xml: &str, spans: &BTreeMap<CellIndex, (std::ops::Range<usize>, String)>, with: &BTreeMap<CellIndex, String>) -> String {
+    let mut out = xml.to_owned();
+    let mut edits: Vec<(std::ops::Range<usize>, String)> =
+        with.iter().filter_map(|(at, new)| spans.get(at).map(|(r, _)| (r.clone(), new.clone()))).collect();
+    edits.sort_by_key(|e| std::cmp::Reverse(e.0.start));
+    for (r, new) in edits {
+        out.replace_range(r, &new);
+    }
+    out
+}
+
+/// Every `c` of a sheet part: cell → (byte range, source text).
+fn cell_ranges(xml: &str) -> BTreeMap<CellIndex, (std::ops::Range<usize>, String)> {
+    let doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+    let src = doc.source();
+    let mut out = BTreeMap::new();
+    if let Some(sd) = sheet_data(&doc) {
+        for row in sd.elements() {
+            for c in row.elements().filter(|c| c.is(sml::Cell::QNAME)) {
+                let s = c.span().unwrap();
+                out.insert(CellIndex::parse(c.attr(sml::Cell::ATTR_R).unwrap()).unwrap(), (s.start..s.end(), src[s.start..s.end()].to_owned()));
+            }
+        }
+    }
+    out
+}
+
+/// Removes the first element matching `pat` (a start of `<Tag` and a
+/// predicate on the element text) with the whitespace right before it.
+fn cut_registry_element(xml: &str, tag: &str, pred: impl Fn(&str) -> bool) -> String {
+    let mut from = 0;
+    while let Some(i) = xml[from..].find(&format!("<{tag} ")).map(|i| i + from) {
+        let j = xml[i..].find("/>").unwrap() + i + 2;
+        if pred(&xml[i..j]) {
+            let ws = xml[..i].len() - xml[..i].trim_end_matches([' ', '\t', '\r', '\n']).len();
+            return format!("{}{}", &xml[..i - ws], &xml[j..]);
+        }
+        from = j;
+    }
+    panic!("no <{tag}> to cut");
+}
+
+/// ADR-0003 §7: the output is **exactly** the input with the allowed edits
+/// applied (review R3-M2), byte for byte:
 ///
-/// - every part not named below is L1;
-/// - in each sheet, every `c` other than the target, the dependents and
-///   `also_changed` keeps its bytes; the frame outside `sheetData` is
-///   unchanged (but `dimension`);
-/// - every dependent keeps its `f` element verbatim and has no `v`, `t`, `is`;
-/// - `workbook.xml` changes only in `calcPr/@fullCalcOnLoad`;
-/// - `calcChain.xml` is L1, or gone with one registry element each.
+/// - every sheet part equals the input in which each dependent's `c` span is
+///   replaced by [`stripped`] (and each `also_changed` cell by its output
+///   span); on the target sheet the remaining difference must be the
+///   Phase0 T2 region of the target cell plus `dimension` ([`assert_t2`]);
+/// - `workbook.xml` equals the input with `fullCalcOnLoad="1"` added to
+///   `calcPr` (or `<calcPr fullCalcOnLoad="1"/>` inserted);
+/// - on a calcChain removal the part is gone and each registry equals the
+///   input minus exactly that element and the whitespace before it;
+/// - every other part is L1.
 pub fn assert_allowed_diff(input: &[u8], output: &[u8], e: &Expected<'_>) {
     let parts = sheet_parts(input);
     let wb_part = Workbook::from_bytes(input.to_vec()).unwrap().workbook_part().to_owned();
     let mut changed: Vec<String> = Vec::new();
     for (sheet, p) in &parts {
-        let (a, b) = (part(input, p), part(output, p));
-        if a == b {
-            continue;
-        }
-        changed.push(p.clone());
-        assert_eq!(frame(&a), frame(&b), "{sheet}: bytes outside sheetData changed");
-        let (ia, ib) = (cell_spans(&a), cell_spans(&b));
-        for (at, span) in &ia {
+        let (a, b) = (String::from_utf8(part(input, p)).unwrap(), String::from_utf8(part(output, p)).unwrap());
+        let ia = cell_ranges(&a);
+        let ib = cell_spans(b.as_bytes());
+        let mut with = BTreeMap::new();
+        for (at, (_, span)) in &ia {
             let key = (sheet.clone(), *at);
-            let is_target = sheet.eq_ignore_ascii_case(e.sheet) && *at == e.at;
-            let also = e.also_changed.iter().any(|s| cells(&[s]).contains(&key));
-            if is_target || also {
-                continue;
-            }
-            let out = ib.get(at).unwrap_or_else(|| panic!("{sheet}!{at} disappeared"));
-            if e.dependents.contains(&key) {
-                let f = facts(out);
-                assert!(!f.has_v && f.t.is_none() && !f.has_is, "{sheet}!{at}: dependent keeps a cached value: {out}");
-                assert_eq!(f_text(out), f_text(span), "{sheet}!{at}: f must be untouched");
-            } else {
-                assert_eq!(out, span, "{sheet}!{at}: a non-dependent changed");
+            if e.also_changed.iter().any(|s| cells(&[s]).contains(&key)) {
+                with.insert(*at, ib.get(at).cloned().unwrap_or_else(|| panic!("{sheet}!{at} disappeared")));
+            } else if e.dependents.contains(&key) && !(sheet.eq_ignore_ascii_case(e.sheet) && *at == e.at) {
+                with.insert(*at, stripped(span));
             }
         }
-        for at in ib.keys() {
-            let new = !ia.contains_key(at);
-            if new {
-                assert!(sheet.eq_ignore_ascii_case(e.sheet) && *at == e.at, "{sheet}!{at}: unexpected new cell");
+        let expected = replace_cells(&a, &ia, &with);
+        if sheet.eq_ignore_ascii_case(e.sheet) {
+            changed.push(p.clone());
+            super::assert_t2(expected.as_bytes(), b.as_bytes(), e.at);
+        } else {
+            assert_eq!(b, expected, "{sheet}: output must be the input with dependents stripped, nothing else");
+            if a != b {
+                changed.push(p.clone());
             }
         }
     }
     // workbook.xml
     let (wa, wbx) = (String::from_utf8(part(input, &wb_part)).unwrap(), String::from_utf8(part(output, &wb_part)).unwrap());
-    if e.full_calc {
-        if wa.contains("fullCalcOnLoad=\"1\"") {
-            assert_eq!(wa, wbx);
-        } else {
-            changed.push(wb_part.clone());
-            assert!(wbx.contains("fullCalcOnLoad=\"1\""), "fullCalcOnLoad set");
-            let strip = |s: &str| s.replace(" fullCalcOnLoad=\"1\"", "").replace("<calcPr/>", "");
-            assert_eq!(strip(&wa), strip(&wbx), "workbook.xml: only calcPr changes");
-        }
+    let has = |s: &str| s.contains(r#"fullCalcOnLoad="1""#) || s.contains(r#"fullCalcOnLoad="true""#);
+    if e.full_calc && !has(&wa) {
+        changed.push(wb_part.clone());
+        let expected = match wa.find("<calcPr") {
+            Some(i) => {
+                let end = start_tag_end(&wa[i..]) + i;
+                let cut = if wa[..end].ends_with("/>") { end - 2 } else { end - 1 };
+                format!("{} fullCalcOnLoad=\"1\"{}", &wa[..cut], &wa[cut..])
+            }
+            None => {
+                let i = wbx.find(r#"<calcPr fullCalcOnLoad="1"/>"#).expect("calcPr inserted");
+                format!("{}{}", &wbx[..i], &wbx[i + r#"<calcPr fullCalcOnLoad="1"/>"#.len()..]).pipe_check(&wa);
+                wbx.clone()
+            }
+        };
+        assert_eq!(wbx, expected, "workbook.xml: only calcPr/@fullCalcOnLoad");
     } else {
         assert_eq!(wa, wbx, "workbook.xml unchanged");
     }
-    // calcChain
+    // calcChain and the other parts
     let names_in = entries(input).into_iter().map(|e| e.0).collect::<Vec<_>>();
-    let chain = names_in.iter().find(|n| n.ends_with("calcChain.xml")).cloned();
+    let chain = names_in.iter().find(|n| n.to_ascii_lowercase().ends_with("calcchain.xml")).cloned();
     if e.chain_removed && let Some(c) = &chain {
         let names_out = entries(output).into_iter().map(|e| e.0).collect::<Vec<_>>();
         assert!(!names_out.contains(c), "calcChain removed");
-        let rels = format!("{}/_rels/{}.rels", wb_part.rsplit_once('/').unwrap().0, wb_part.rsplit_once('/').unwrap().1);
-        for reg in ["[Content_Types].xml", rels.as_str()] {
-            let (a, b) = (String::from_utf8(part(input, reg)).unwrap(), String::from_utf8(part(output, reg)).unwrap());
-            let removed = a.len() - b.len();
-            assert!(removed > 0 && b.len() < a.len(), "{reg} lost one element");
-            assert!(a.contains("calcChain") && !b.contains("calcChain"), "{reg}: only the calcChain entry goes");
-            assert_eq!(a.matches("<Relationship ").count() + a.matches("<Override ").count(),
-                b.matches("<Relationship ").count() + b.matches("<Override ").count() + 1, "{reg}: exactly one element");
-        }
-        // every other part L1 (compare on the remaining entries)
+        let (dir, file) = wb_part.rsplit_once('/').unwrap();
+        let rels = format!("{dir}/_rels/{file}.rels");
+        let ct_in = String::from_utf8(part(input, "[Content_Types].xml")).unwrap();
+        let ct_out = String::from_utf8(part(output, "[Content_Types].xml")).unwrap();
+        assert_eq!(ct_out, cut_registry_element(&ct_in, "Override", |el| el.to_ascii_lowercase().contains("calcchain.xml")), "[Content_Types].xml: exactly one Override cut");
+        let r_in = String::from_utf8(part(input, &rels)).unwrap();
+        let r_out = String::from_utf8(part(output, &rels)).unwrap();
+        assert_eq!(r_out, cut_registry_element(&r_in, "Relationship", |el| el.contains("/calcChain\"")), "{rels}: exactly one Relationship cut");
         let a: Vec<_> = entries(input).into_iter().filter(|x| &x.0 != c).collect();
         let b = entries(output);
         assert_eq!(a.len(), b.len());
@@ -203,6 +307,16 @@ pub fn assert_allowed_diff(input: &[u8], output: &[u8], e: &Expected<'_>) {
     } else {
         let refs: Vec<&str> = changed.iter().map(String::as_str).collect();
         assert_l1_except(input, output, &refs);
+    }
+}
+
+trait PipeCheck {
+    fn pipe_check(self, want: &str);
+}
+impl PipeCheck for String {
+    /// Removing the inserted `calcPr` gives the input back.
+    fn pipe_check(self, want: &str) {
+        assert_eq!(self, want, "workbook.xml: only the inserted calcPr differs");
     }
 }
 

@@ -49,7 +49,10 @@ def attrs(d):
 
 def cell_xml(ref, spec):
     if isinstance(spec, F):
-        c_attrs = {"r": ref}
+        # Every formula cell carries a style and every row height/spans, so
+        # that an oracle that ignored them would miss a corrupting edit
+        # (review R3-M2).
+        c_attrs = {"r": ref, "s": "0"}
         v = ""
         if isinstance(spec.cached, E):
             c_attrs["t"] = "e"
@@ -77,7 +80,7 @@ def sheet_xml(cells, root="worksheet", root_ns=SML, prefix=""):
     out = []
     for r in sorted(rows):
         cs = "".join(cell_xml(ref, spec) for _, ref, spec in sorted(rows[r]))
-        out.append(f'<row r="{r}">{cs}</row>')
+        out.append(f'<row r="{r}" spans="1:11" ht="15">{cs}</row>')
     if root == "worksheet":
         head = f'<worksheet xmlns="{SML}" xmlns:r="{R}">'
         tail = "</worksheet>"
