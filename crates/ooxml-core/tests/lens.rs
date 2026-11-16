@@ -294,3 +294,48 @@ fn wrong_root_is_reported() {
     let d = doc(r#"<p xmlns="urn:other"/>"#);
     assert_matches!(d.lens::<P>(), Err(Error::WrongElement { .. }));
 }
+
+/// `insert_at` / `check_insert_at`: positional insertion with local schema
+/// checks. Agrees with `insert_by` wherever the caller's position is the one
+/// `insert_by` would pick; refuses out-of-order neighbours, AC neighbours,
+/// full slots and bad indices without changing anything.
+#[test]
+fn insert_at_places_at_the_index_with_local_checks() {
+    let src = r#"<p xmlns="urn:t"><head/><!--c--><item k="1"/>  <item k="3"/><ext/></p>"#;
+    // same result as insert_by for the position insert_by would choose
+    for (k, at) in [("0", 2), ("2", 4), ("4", 5)] {
+        let mut by = doc(src);
+        let key = |n: &ooxml_core::RawNode| n.attr(QName::new("", "k")).unwrap().parse::<u32>().unwrap();
+        let want: u32 = k.parse().unwrap();
+        by.lens_mut::<P>().unwrap().insert_by::<Item>(|_, e| key(e) > want).unwrap().set_attr(QName::new("", "k"), k).unwrap();
+        let mut at_doc = doc(src);
+        {
+            let mut p = at_doc.lens_mut::<P>().unwrap();
+            p.check_insert_at::<Item>(at).unwrap();
+            p.insert_at::<Item>(at).unwrap().set_attr(QName::new("", "k"), k).unwrap();
+        }
+        assert_eq!(at_doc.serialize(), by.serialize(), "k={k} at {at}");
+    }
+    // refusals: before head (item must follow head), after ext, out of range,
+    // next to an mc:AlternateContent, a full slot
+    for at in [0, 6] {
+        let d = doc(src);
+        let mut d2 = doc(src);
+        let p = d2.lens_mut::<P>().unwrap();
+        assert_matches!(p.check_insert_at::<Item>(at), Err(Error::UnresolvedSibling(_)), "at {at}");
+        assert_eq!(d2.serialize(), d.serialize());
+    }
+    let mut d = doc(src);
+    assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Item>(99), Err(Error::InsertIndexOutOfRange { index: 99, len: 6 }));
+    assert!(!d.is_dirty());
+    let mut d = doc(r#"<p xmlns="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><item/><mc:AlternateContent/></p>"#);
+    assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Item>(1), Err(Error::UnresolvedSibling(_)));
+    assert!(d.lens_mut::<P>().unwrap().insert_at::<Item>(0).is_ok(), "the nearest listed neighbour of index 0 is the item, not the AC");
+    let mut d = doc(r#"<p xmlns="urn:t"><head/></p>"#);
+    assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Head>(1), Err(Error::AlreadyPresent(_)));
+    assert!(!d.is_dirty());
+    // a self-closing parent gains its first child
+    let mut d = doc(r#"<p xmlns="urn:t"/>"#);
+    d.lens_mut::<P>().unwrap().insert_at::<Item>(0).unwrap();
+    assert_eq!(d.serialize(), r#"<p xmlns="urn:t"><item/></p>"#);
+}
