@@ -47,7 +47,7 @@ wish-list.
   `cargo xtask codegen --check`, plus the PowerPoint reader oracle (python-pptx).
 - **Oracles** from ADR-0001 (T1/T1b/T2/T3 and per-format ones) run over the fixtures under
   `reference/fixtures/`.
-- **Manual Microsoft 365 checks** are done by the owner. Each format crate's `manual_check`
+- **Manual Microsoft 365 checks** are done by the owner. Each format crate's `<format>_manual_check`
   example writes named outputs and a checklist. There is no Office in CI, and this gap is stated
   in each ADR.
 - **Recalculation** for xlsx Phase1 is checked with a manually triggered, pinned LibreOffice
