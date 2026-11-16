@@ -55,6 +55,14 @@ pub struct RemovedPart {
     pub content_type_override: bool,
 }
 
+/// What `remove_part` will change, computed without mutating.
+struct RemovalPlan {
+    /// (relationships part, indices of `<Relationship>` items, their ids)
+    rel_edits: Vec<(String, Vec<usize>, Vec<String>)>,
+    /// Index of the `<Override>` item in `[Content_Types].xml`.
+    ct_index: Option<usize>,
+}
+
 /// [`PartState`] without the payload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartStateKind {
@@ -256,8 +264,22 @@ impl Package {
     ///
     /// Comparison of part names is ASCII case-insensitive, as in OPC.
     pub fn remove_part(&mut self, name: &str) -> Result<RemovedPart> {
+        let plan = self.plan_removal(name)?;
+        Ok(self.apply_removal(name, plan))
+    }
+
+    /// Runs every precondition check of [`Self::remove_part`] without
+    /// changing anything (parsing registry parts for inspection does not
+    /// change the saved output). If it returns `Ok`, `remove_part(name)`
+    /// succeeds as long as the package is not changed in between. Lets a
+    /// format crate validate a multi-part edit before applying any of it.
+    pub fn check_remove_part(&mut self, name: &str) -> Result<()> {
+        self.plan_removal(name).map(drop)
+    }
+
+    fn plan_removal(&mut self, name: &str) -> Result<RemovalPlan> {
         let refuse = |reason: String| Error::RemovePartRefused { part: name.to_owned(), reason };
-        let idx = self.find(name).ok_or_else(|| Error::PartNotFound(name.into()))?;
+        self.find(name).ok_or_else(|| Error::PartNotFound(name.into()))?;
         if name == CONTENT_TYPES_PART || is_rels_part(name) {
             return Err(refuse("registry parts cannot be removed".into()));
         }
@@ -265,8 +287,6 @@ impl Package {
             return Err(refuse("the part has relationships of its own (cascading removal is not supported)".into()));
         }
 
-        // ---- plan (no mutation) ----
-        // (relationships part, indices of the <Relationship> items to remove, ids)
         let mut rel_edits: Vec<(String, Vec<usize>, Vec<String>)> = Vec::new();
         let rels_names: Vec<String> = self.part_names().filter(|n| is_rels_part(n)).map(str::to_owned).collect();
         for rels_name in rels_names {
@@ -316,7 +336,12 @@ impl Package {
             })
         };
 
-        // ---- apply (infallible from here on) ----
+        Ok(RemovalPlan { rel_edits, ct_index })
+    }
+
+    fn apply_removal(&mut self, name: &str, plan: RemovalPlan) -> RemovedPart {
+        let RemovalPlan { rel_edits, ct_index } = plan;
+        let idx = self.find(name).expect("planned");
         let mut removed = RemovedPart::default();
         for (rels_name, indices, ids) in rel_edits {
             let i = self.find(&rels_name).expect("planned");
@@ -338,7 +363,7 @@ impl Package {
             removed.content_type_override = true;
         }
         self.parts.remove(idx);
-        Ok(removed)
+        removed
     }
 
     /// Parses a registry part for an in-place edit (refused if replaced).

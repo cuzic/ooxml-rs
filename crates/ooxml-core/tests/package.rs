@@ -243,6 +243,8 @@ fn indented_package() -> Vec<u8> {
 fn remove_part_drops_the_part_its_relationship_and_override_only() {
     let input = std::fs::read(SHARED_FORMULAS).unwrap();
     let mut pkg = Package::from_bytes(input.clone()).unwrap();
+    pkg.check_remove_part("xl/calcChain.xml").unwrap();
+    assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(&input), "a check changes nothing");
     let removed = pkg.remove_part("xl/calcChain.xml").unwrap();
     assert_eq!(removed.relationships, vec![("xl/_rels/workbook.xml.rels".to_owned(), "rId5".to_owned())]);
     assert!(removed.content_type_override);
@@ -300,6 +302,7 @@ fn remove_part_refusals_change_nothing() {
     let mut pkg = Package::from_bytes(input.clone()).unwrap();
     // Still referenced by r:id in the source part (a plain `id` attribute does not count).
     assert_matches!(pkg.remove_part("xl/linked.xml"), Err(Error::RemovePartRefused { .. }));
+    assert_matches!(pkg.check_remove_part("xl/linked.xml"), Err(Error::RemovePartRefused { .. }));
     assert_matches!(pkg.remove_part("xl/missing.xml"), Err(Error::PartNotFound(_)));
     assert_matches!(pkg.remove_part("[Content_Types].xml"), Err(Error::RemovePartRefused { .. }));
     assert_matches!(pkg.remove_part("xl/_rels/workbook.xml.rels"), Err(Error::RemovePartRefused { .. }));
