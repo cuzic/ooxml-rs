@@ -93,10 +93,15 @@ fn preserve_where_needed(run: &RawNode) -> bool {
 }
 
 /// Is the run already in the form Phase0 writes (so rewriting its own text
-/// must be byte-identical)?
+/// must be byte-identical)? A `w:t` whose text needs `xml:space="preserve"`
+/// but lacks it is rewritten (review round 2, m6).
 fn canonical(run: &RawNode) -> bool {
     run.children().iter().all(|c| match c {
-        RawItem::Element(e) => matches!(e.name().local(), "rPr" | "t" | "tab") || (e.name().local() == "br" && e.attrs().is_empty()),
+        RawItem::Element(e) if e.name().local() == "t" => {
+            let s = e.text();
+            !(s.starts_with(' ') || s.ends_with(' ') || s.contains("  ")) || e.attrs().iter().any(|a| a.name().local() == "space" && a.value() == "preserve")
+        }
+        RawItem::Element(e) => matches!(e.name().local(), "rPr" | "tab") || (e.name().local() == "br" && e.attrs().is_empty()),
         RawItem::Text(t) => t.is_whitespace(),
         RawItem::Markup(_) => false,
     })
@@ -111,10 +116,14 @@ fn assert_local(a: &[u8], b: &[u8], lo: usize, hi: usize, what: &str) {
 }
 
 /// T2 (locality) for every settable run of every writable fixture: write
-/// the run's own text, then a text with edge and double spaces and a tab.
-/// Runs are edited in document order in one document; each diff must lie
-/// inside that run's original span, shifted by the length change of the
-/// earlier edits.
+/// the run's own text, then a text with edge spaces, a tab and an inner
+/// double space in a piece without edge spaces (`a  b`: only the domain's
+/// own preserve rule covers it). Runs are edited in document order in one
+/// document; each diff must lie inside that run's original span, shifted by
+/// the length change of the earlier edits, and must not start before the
+/// end of the run's start tag and `w:rPr` (so dropping or rewriting `w:rPr`
+/// fails here, review round 2, m4). Finally the saved package is reopened
+/// and every edited run must read back the last text written.
 #[test]
 fn t2_every_settable_run() {
     let mut total = 0;
@@ -123,23 +132,28 @@ fn t2_every_settable_run() {
         let fresh = Document::from_bytes(input.clone()).unwrap();
         let main = fresh.main_part_name().to_owned();
         let original = fresh.package().read_part(&main).unwrap();
-        let targets: Vec<(usize, usize, usize, usize, String, bool)> = fresh
+        let targets: Vec<(usize, usize, usize, usize, usize, String, bool)> = fresh
             .paragraphs()
             .flat_map(|p| {
                 p.runs()
                     .filter(|r| r.check_settable().is_ok())
                     .map(|r| {
                         let s = r.raw().span().unwrap();
-                        (p.index(), r.index(), s.start, s.end(), r.text(), canonical(r.raw()))
+                        // Bytes that must survive every edit: the start tag
+                        // and, if any, everything up to the end of `w:rPr`.
+                        let keep = r.raw().elements().find(|e| e.name().local() == "rPr").map_or(s.open_end, |rpr| rpr.span().unwrap().end()) - s.start;
+                        (p.index(), r.index(), s.start, s.end(), keep, r.text(), canonical(r.raw()))
                     })
                     .collect::<Vec<_>>()
             })
             .collect();
         let mut doc = Document::from_bytes(input).unwrap();
         let mut prev = original.clone();
-        for (p, r, start, end, own, canon) in targets {
+        let mut written = Vec::new();
+        for (p, r, start, end, keep, own, canon) in targets {
             let what = format!("{stem} p{p} r{r}");
-            for text in [own.clone(), format!(" {own}\tx  y ")] {
+            let second = format!("a  b\t {own} ");
+            for text in [own.clone(), second.clone()] {
                 let delta = prev.len() as isize - original.len() as isize;
                 let (lo, hi) = ((start as isize + delta) as usize, (end as isize + delta) as usize);
                 doc.set_run_text(p, r, &text).unwrap_or_else(|e| panic!("{what}: {e}"));
@@ -148,6 +162,7 @@ fn t2_every_settable_run() {
                     assert!(next == prev, "{what}: own text must be a no-op");
                 }
                 assert_local(&prev, &next, lo, hi, &what);
+                assert!(next.len() >= lo + keep && prev[lo..lo + keep] == next[lo..lo + keep], "{what}: the start tag or w:rPr changed");
                 let run = doc.paragraph(p).unwrap().run(r).unwrap();
                 assert_eq!(run.text(), text, "{what}");
                 assert!(in_slot_order::<wml::Run>(run.raw()), "T6 {what}");
@@ -156,7 +171,13 @@ fn t2_every_settable_run() {
                 assert!(next == prev || preserve_where_needed(run.raw()), "{what}");
                 prev = next;
             }
+            written.push((p, r, second));
             total += 1;
+        }
+        // Read back through a fresh parse of the saved package.
+        let reread = Document::from_bytes(doc.to_bytes().unwrap()).unwrap_or_else(|e| panic!("{stem}: reopen: {e}"));
+        for (p, r, text) in written {
+            assert_eq!(reread.paragraph(p).unwrap().run(r).unwrap().text(), text, "{stem} p{p} r{r}: reread");
         }
     }
     // 3,418 settable runs with a `w:t` (as in `fixtures.rs`) plus 5 settable
