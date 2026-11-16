@@ -64,6 +64,14 @@ pres.save("deck-edited.pptx")?;
 # Ok::<(), Error>(())
 ```
 
+SmartArt text (Phase 1b, [ADR-0013](../../docs/adr/0013-pptx-phase1b-tables-and-smartart.md)
+§4) through `Presentation::smart_art_mut(slide, frame_id)`: `nodes()`,
+`set_text`, `set_paragraph_text`, `set_run_text` edit the data model's
+node and mirror the edit into its slice of every drawing-cache shape that
+shows it (refused when the cache does not pair with the data);
+`drop_drawing_cache()` removes the cache instead; `cache_report()` checks
+the pairing without changing anything.
+
 Development:
 
 - `cargo test -p ooxml-pptx` — L1/T1/T1b (`tests/roundtrip.rs`), T2

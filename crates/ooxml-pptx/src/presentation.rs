@@ -49,7 +49,7 @@ struct SlideEntry {
 /// A complete, runnable version is `examples/replace_text.rs`.
 #[derive(Debug)]
 pub struct Presentation {
-    pkg: Package,
+    pub(crate) pkg: Package,
     slides: Vec<SlideEntry>,
 }
 
@@ -116,7 +116,7 @@ impl Presentation {
         self.slides.len()
     }
 
-    fn entry(&self, index: usize) -> Result<(SlideInfo, String)> {
+    pub(crate) fn entry(&self, index: usize) -> Result<(SlideInfo, String)> {
         let e = self.slides.get(index).ok_or(Error::SlideIndexOutOfRange { index, count: self.slides.len() })?;
         let part = e.part.clone().ok_or(Error::DanglingSlide { slide_id: e.slide_id })?;
         Ok((SlideInfo { index, slide_id: e.slide_id, part_name: part.clone() }, part))
@@ -141,8 +141,20 @@ impl Presentation {
     /// of referenced text can be refused (ADR-0005 §6).
     pub fn slide_mut(&mut self, index: usize) -> Result<SlideMut<'_>> {
         let (info, part) = self.entry(index)?;
+        let mut refs = self.comment_refs(&part)?;
+        let doc = self.pkg.xml_part_mut(&part)?;
+        if !doc.root().is(pml::Slide::QNAME) {
+            return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
+        }
+        refs.scan_timing(doc.root());
+        Ok(SlideMut { doc, info, refs })
+    }
+
+    /// The modern comment anchors of a slide part (ADR-0005 §6), scanned
+    /// read-only; unreadable comment parts lock everything.
+    pub(crate) fn comment_refs(&self, part: &str) -> Result<SlideRefs> {
         let mut refs = SlideRefs::default();
-        let rels = self.pkg.relationships(&part)?;
+        let rels = self.pkg.relationships(part)?;
         for r in rels.by_type(MODERN_COMMENTS_REL) {
             // Fail closed: a comment part that cannot be located, read or
             // parsed — for whatever reason, including resource limits of the
@@ -160,12 +172,7 @@ impl Presentation {
             };
             refs.scan_comments(doc.as_ref());
         }
-        let doc = self.pkg.xml_part_mut(&part)?;
-        if !doc.root().is(pml::Slide::QNAME) {
-            return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
-        }
-        refs.scan_timing(doc.root());
-        Ok(SlideMut { doc, info, refs })
+        Ok(refs)
     }
 
     fn scope_indices(&self, scope: Scope) -> Result<Vec<usize>> {

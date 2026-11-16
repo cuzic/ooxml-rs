@@ -14,3 +14,5 @@ pub const AC_NS: &str = "http://schemas.microsoft.com/office/drawing/2013/main/c
 pub const PC_NS: &str = "http://schemas.microsoft.com/office/powerpoint/2013/main/command";
 /// Relationship from a slide to its modern comment part.
 pub const MODERN_COMMENTS_REL: &str = "http://schemas.microsoft.com/office/2018/10/relationships/comments";
+/// Relationships namespace (`r:`).
+pub const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";

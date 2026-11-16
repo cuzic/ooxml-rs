@@ -45,4 +45,4 @@ pub use read::{
 pub use replace::{
     FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
-pub use write::{ParagraphMut, RunMut, ShapeMut, SlideMut, TextBodyMut};
+pub use write::{CacheReport, ParagraphMut, RunMut, ShapeMut, SlideMut, SmartArtMut, SmartArtNode, TextBodyMut};

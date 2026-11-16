@@ -73,6 +73,30 @@
   | P3 empty runs ignored on the data side only | ignored on **both** sides (431/431 unchanged); indices count non-empty runs; text put into an empty run goes after the preceding non-empty cache run | §4 |
   | P4 nits | (a) a 1-D vertical merge copies `vMerge` only; (b) `r:id` sits on `a:hlinkClick`/`a:hlinkMouseOver` under `a:rPr`, refusal scope stated; (c) `InvalidNamespaceDeclaration` in §5 | §2, §4, §5 |
 
+- **Post-acceptance note (2026-11-16, implementation of §4 SmartArt text
+  on `impl/pptx-phase1b-smartart` — no change to the decisions):**
+  - API: `Presentation::smart_art_mut(slide, frame_id)` →
+    `SmartArtMut::{nodes, set_text, set_paragraph_text, set_run_text,
+    cache_report, drop_drawing_cache}`. Edits are the Phase 0/0.1 text
+    setters, applied to the data node's `dgm:t` and, through a
+    range-limited variant of `TextBodyMut::set_text`, to the node's slice
+    of each cache shape; the data and drawing parts are edited on clones
+    and installed with one `RegistryPlan` (`stage_part` + `apply`).
+  - Sources of a shape are ordered by `destOrd`, then `srcOrd`.
+  - The hyperlink refusal covers the run written and the run whose
+    format a new run would copy, in the data and in the cache.
+  - `drop_drawing_cache` refuses on any unreadable relationships part
+    (P2's safe rule) before `incoming_relationships`, and removes, with
+    the drawing, every part only the drawing references.
+  - Codegen: the `dgm:`/`dsp:` text elements join `dml.toml`; their SDK
+    class names collide with `a:txBody`'s `TextBody`, so the generator now
+    keeps the plain name for the group's own namespace (`a:` in `dml`)
+    and prefixes the others (`DgmTextBody`, `DspTextBody`).
+  - Corpus (633 decks): 103 SmartArts, 600 nodes, 408 shown in a cache,
+    396 consistent, **431 paired runs** — the review's 431/431 with
+    empty runs ignored on both sides; 587 node edits succeed and leave the
+    cache consistent, every refusal leaves the package unchanged.
+
 ## Context
 
 Phase 0 reads tables (`TableRef`/`CellRef`: grid, spans, merges) and edits
