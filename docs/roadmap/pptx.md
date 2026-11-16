@@ -18,7 +18,8 @@
 - Depends on: [ADR-0001](../adr/0001-lossless-round-trip-architecture.md),
   [ADR-0002](../adr/0002-schema-driven-code-generation.md),
   [research memo](../research/2026-11-16-word-powerpoint-applicability.md)
-- Phase 0 design: [ADR-0005](../adr/0005-pptx-phase0.md) (Proposed)
+- Phase 0 design: [ADR-0005](../adr/0005-pptx-phase0.md) (Accepted,
+  revision 3; revision 4 adds Phase 0.1, subtree copy of format sources)
 
 ## 1. Evidence base
 
@@ -340,7 +341,9 @@ text; set paragraph text (first run keeps its format); set body text
 text body; remove runs/paragraphs (not the last) and fields (explicitly);
 `Err` for removing fields implicitly, AC-wrapped shapes, merged table cells,
 animated or comment-anchored text, unsupported paragraph content, format
-sources that need a subtree copy, and characters XML cannot hold.
+sources that cannot be copied (Phase 0: any with child elements; Phase 0.1,
+ADR-0005 §9: only those holding a relationship reference, markup
+compatibility or a namespace declaration), and characters XML cannot hold.
 
 Acceptance (ADR-0005 rev 2 §7): all 23 fixtures open and save with zero
 edits byte-identical per part (ADR-0001 Layer 1); T1/T1b on every slide

@@ -4,6 +4,8 @@
 pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// `a14`: `http://schemas.microsoft.com/office/drawing/2010/main`
 pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
+/// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
+pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
 /// `a:ST_TextUnderlineType` — Text Underline Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextUnderlineValues {
@@ -971,6 +973,42 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         ],
     );
 }
+impl ooxml_core::schema::__private::Sealed for EndParagraphRunProperties {}
+impl ooxml_core::Detachable for EndParagraphRunProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+impl ooxml_core::SameType<RunProperties> for EndParagraphRunProperties {}
 /// Read-only view of [`EndParagraphRunProperties`].
 #[derive(Clone, Debug)]
 pub struct EndParagraphRunPropertiesView<'a>(
@@ -1371,6 +1409,42 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::schema::__private::Sealed for RunProperties {}
+impl ooxml_core::Detachable for RunProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+impl ooxml_core::SameType<EndParagraphRunProperties> for RunProperties {}
 /// Read-only view of [`RunProperties`].
 #[derive(Clone, Debug)]
 pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
@@ -1900,6 +1974,41 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
             },
         ],
     );
+}
+impl ooxml_core::schema::__private::Sealed for ParagraphProperties {}
+impl ooxml_core::Detachable for ParagraphProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
 }
 /// Read-only view of [`ParagraphProperties`].
 #[derive(Clone, Debug)]

@@ -432,6 +432,12 @@ impl XmlDocument {
         LensMut::root_with_limit(&mut self.root, self.max_depth)
     }
 
+    /// The element depth limit this document was parsed with (root =
+    /// depth 1); inserts beyond it are refused with `TooDeep`.
+    pub fn max_depth(&self) -> usize {
+        self.max_depth
+    }
+
     /// Removes the root's child item at `index` together with the
     /// whitespace-only text item immediately before it, if any (so an
     /// indented registry part stays tidy). Marks the root `subtree_dirty`;

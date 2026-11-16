@@ -128,11 +128,14 @@ Write primitives (ADR-0002 §4.2):
 | --- | --- |
 | `insert_by::<C>(before)` | Into `C`'s slot; `before(index_in_slot, existing)` picks the position inside the slot (callers own row/column order). Else before the first higher-ranked child, else immediately before the close tag. No whitespace is added. |
 | `insert::<C>()` | Append at the end of the slot. |
+| `insert_at::<C>(index)`, `check_insert_at::<C>(index)` | Insert at a child item index the caller computed (e.g. from its own row index): for a slot without limits, O(1) placement instead of `insert_by`'s scan of every child. Schema order is checked against the nearest listed neighbours only, every slot an ambiguous neighbour could take must be in order; slot limits are counted over all children exactly as `insert_by` does (and refuse next to any `mc:AlternateContent`); depth and prefix as `insert_by`; `check_insert_at` runs the same checks without changing anything, for validate-then-apply callers. `InsertIndexOutOfRange` for an index past the children. |
 | `insert_in_slot::<C>(slot, before)` | For a QName that is in two slots (otherwise `AmbiguousSlot`). |
 | `get_or_insert::<C>()` | First existing `C`, or insert. |
 | `remove::<C>()`, `remove_at(index)` | Remove a child (whole span). |
 | `set_attr(q, value)`, `remove_attr(q)` | Untyped; typed setters are generated. Setting the current value is not a change. |
 | `set_text(value)` | `Content::Text` elements only; sets `xml:space="preserve"` for edge whitespace when the spec declares `xml:space`; never removes it. |
+| `Lens::detach_as::<C>(skip)` → `Detached<C>` | Only for `Detachable` types (opted in by an allowlist `[detach]` section; never id-bearing subtrees). Owned, span-less, prefix-less copy, renamed to `C::QNAME`; `C: SameType<E> + Detachable`. Direct children named in `skip` are left out. Refuses (`NotDetachable { reason, name }`) MC content, relationship-id attributes (`name::RELATIONSHIP_ATTRIBUTES`), namespace declarations, namespaces an ancestor's `mc:Ignorable` lists, text under an inherited `xml:space="preserve"`, document-unique attributes with a non-default value (`Detachable::UNIQUE_ATTRS`, e.g. `smtId`), and extension lists (`extLst`) unless skipped. Use a lens that knows the ancestors (`XmlDocument::lens`, `Lens::at`). |
+| `insert_detached[_by]::<C>(&d[, before])` | Places the copy like `insert_by::<C>`; every element/attribute prefix is chosen at the destination **before** the tree changes; created nodes are re-rendered. Same refusals as `insert_by` (incl. `TooDeep`, counted at the copy's deepest element), plus `NamespaceNotInScope` and the destination's `mc:Ignorable` / `xml:space`. `Detached::check_insert_under(doc, path, created)` checks those without changing anything (`WrongElement` for a bad path). |
 
 Refusals: `AlreadyPresent` (slot `max_each`/`max_total`),
 `UnresolvedSibling` (an `mc:AlternateContent` child, or existing children
@@ -160,7 +163,8 @@ element); attributes need a non-empty prefix; `xml:` always works.
 SDK-listed children of a wildcard parent such as `a:graphicData` (ADR-0002
 post-acceptance note). `QName` (static), `ElementSpec { QNAME, SDK_NAME, ATTRS, CONTENT,
 ATTRS_INCOMPLETE }`, `ChildOf<P>` (compile-time child check with a readable
-`on_unimplemented` message), `AttrSpec`, `SimpleType`, `Slot { names,
+`on_unimplemented` message), `Detachable` (opted-in copy sources),
+`SameType<S>` (same schema type: a renamed copy is schema-valid), `AttrSpec`, `SimpleType`, `Slot { names,
 wildcard, max_each, max_total }`, `Wildcard`, `Content::{Empty, Text, Slots,
 Unsupported}`, `EnumType`, `EnumValue<'a, E>`, and the `const fn` checks
 (`assert_spec`, `assert_child`, …) used by generated `const _` items.
@@ -172,10 +176,8 @@ Namespace constants the core acts on: `name::{MC_NS, R_NS, XML_NS, XMLNS_NS}`.
 - Declaring a namespace on a created element (`LensMut::declare_namespace`,
   ADR-0011 §1.3) is a lens change, not a registry one; not in this crate yet.
 - The `mc:AlternateContent` rank rule (ADR-0002 §4.3 "later rule").
-- A copy-subtree primitive (requested by the pptx plan). `RawNode` is
-  `Clone`; a future `LensMut::insert_copy::<C>(&RawNode)` would insert a
-  span-less clone (re-rendered, prefixes re-checked) with the usual dirty
-  duties. The current API does not preclude it.
+- Copies across parts that carry relationships (`r:` attributes are
+  refused by `detach_as`; copying them needs Layer 3 writes).
 - Formula detection is format-specific and not in core. If a scan helper is
   added here it will match element names (namespace URI + local name),
   never byte patterns.

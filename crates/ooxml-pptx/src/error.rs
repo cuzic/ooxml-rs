@@ -133,12 +133,18 @@ pub enum Error {
     /// `\n` or `\r` passed to a paragraph-level setter (`\v` becomes `a:br`).
     #[error("paragraph breaks are not allowed in paragraph text; use TextBody::set_text or add_paragraph")]
     LineBreakInParagraph,
-    /// A new run or paragraph would need the formatting of an existing
-    /// `a:rPr` / `a:endParaRPr` / `a:pPr` that has child elements (fill,
-    /// fonts, bullets, …) or attributes outside the schema: copying it needs
-    /// a subtree-copy primitive (not in Phase 0). Use `add_run` / `add_paragraph`
-    /// for explicitly unformatted text.
-    #[error("the formatting of {0} cannot be copied in Phase 0 (child elements or unknown attributes)")]
+    /// A new run or paragraph needs a copy of an existing `a:rPr` /
+    /// `a:endParaRPr` / `a:pPr` that the copy primitive refuses
+    /// (`ooxml_core::Lens::detach_as`, any `DetachRefusal`): a relationship
+    /// id (`r:`, Strict `r:`, VML `o:relid`) outside the skipped direct
+    /// links (e.g. a picture fill or bullet, or a link inside `a:defRPr`),
+    /// a document-unique `smtId` or effect container name, an extension
+    /// list, Markup Compatibility
+    /// content, a namespace declaration, a namespace made ignorable by an
+    /// ancestor's `mc:Ignorable`, or text under an inherited
+    /// `xml:space="preserve"`. Use `add_run` / `add_paragraph` for
+    /// explicitly unformatted text.
+    #[error("the formatting of {0} cannot be copied (relationship id, unique id or name, extension list, markup compatibility, namespace declaration or scope)")]
     FormatNotCopyable(&'static str),
 
     // ---- Phase 2 (ADR-0012 §9): slides as units ----
