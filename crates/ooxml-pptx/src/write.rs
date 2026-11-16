@@ -224,17 +224,19 @@ where
     Ok((!raw.attrs().is_empty() || raw.elements().next().is_some()).then_some(d))
 }
 
-/// A paragraph being planned: the part root, its absolute path, its node.
+/// A paragraph being planned: the part, its root, its absolute path, its node.
 #[derive(Clone, Copy)]
 struct ParaAt<'r> {
+    doc: &'r XmlDocument,
     root: &'r RawNode,
     path: &'r [usize],
     node: &'r RawNode,
 }
 
 impl<'r> ParaAt<'r> {
-    fn new(root: &'r RawNode, path: &'r [usize]) -> Self {
-        ParaAt { root, path, node: node_at(root, path).expect("paragraph path") }
+    fn new(doc: &'r XmlDocument, path: &'r [usize]) -> Self {
+        let root = doc.root();
+        ParaAt { doc, root, path, node: node_at(root, path).expect("paragraph path") }
     }
     /// Absolute path of the first child named `q` (below `under`, a child index).
     fn find(&self, under: Option<usize>, q: QName) -> Option<Vec<usize>> {
@@ -293,30 +295,37 @@ fn new_para_format(p: ParaAt<'_>) -> Result<(Option<Detached<ParagraphProperties
     Ok((ppr, fmt))
 }
 
-/// `NamespaceNotInScope` before any change (ADR-0005 §3): every copy must
-/// get its prefixes under the element at `under` (or an element created
-/// below it).
-fn check_copies<'c>(root: &RawNode, under: &[usize], copies: impl IntoIterator<Item = &'c dyn CheckInsert>) -> Result<()> {
+/// `NamespaceNotInScope` / `TooDeep` before any change (ADR-0005 §3): every
+/// copy must get its prefixes, and fit under the depth limit, when inserted
+/// `created` new elements below the element at `under`.
+fn check_copies<'c>(doc: &XmlDocument, under: &[usize], created: usize, copies: impl IntoIterator<Item = &'c dyn CheckInsert>) -> Result<()> {
     for c in copies {
-        c.check(root, under)?;
+        c.check(doc, under, created)?;
+    }
+    Ok(())
+}
+
+/// The plain elements an edit creates below the element at `path` reach
+/// `levels` further down: refuse with `TooDeep` before any change if that
+/// passes the part's depth limit (ADR-0002 note "parser depth limit"; the
+/// core would refuse only at the insert that crosses it, after earlier
+/// inserts of the same edit).
+fn check_depth(doc: &XmlDocument, path: &[usize], levels: usize) -> Result<()> {
+    if path.len() + 1 + levels > doc.max_depth() {
+        let position = node_at(doc.root(), path).and_then(RawNode::span).map_or(0, |s| s.start);
+        return Err(Error::Core(ooxml_core::Error::TooDeep { limit: doc.max_depth(), position }));
     }
     Ok(())
 }
 
 /// `Detached::check_insert_under` for copies of any type.
 trait CheckInsert {
-    fn check(&self, root: &RawNode, under: &[usize]) -> Result<()>;
+    fn check(&self, doc: &XmlDocument, under: &[usize], created: usize) -> Result<()>;
 }
 
 impl<C: ElementSpec> CheckInsert for Detached<C> {
-    fn check(&self, root: &RawNode, under: &[usize]) -> Result<()> {
-        Ok(self.check_insert_under(root, under)?)
-    }
-}
-
-impl RunFmt {
-    fn copies(&self) -> impl Iterator<Item = &dyn CheckInsert> {
-        self.rpr.iter().map(|d| d as &dyn CheckInsert).chain(self.end.iter().map(|d| d as &dyn CheckInsert))
+    fn check(&self, doc: &XmlDocument, under: &[usize], created: usize) -> Result<()> {
+        Ok(self.check_insert_under(doc, under, created)?)
     }
 }
 
@@ -345,7 +354,9 @@ fn plan_paragraph(p: ParaAt<'_>, index: usize, segments: &[impl AsRef<str>]) -> 
     let needs_fmt = (!first_run && !segments[0].as_ref().is_empty()) || segments[1..].iter().any(|s| !s.as_ref().is_empty());
     let fmt = if needs_fmt { run_format(p, &shape)?.rpr } else { None };
     // the new runs go into this paragraph
-    check_copies(p.root, p.path, fmt.iter().map(|d| d as &dyn CheckInsert))?;
+    // new runs (`a:r` + `a:t`, `a:br`) and their `a:rPr` copy go into this paragraph
+    check_depth(p.doc, p.path, 2)?;
+    check_copies(p.doc, p.path, 1, fmt.iter().map(|d| d as &dyn CheckInsert))?;
     let mut remove: Vec<usize> = shape.runs.iter().skip(1).chain(&shape.breaks).copied().collect();
     remove.sort_unstable();
     Ok(ParaPlan { first_run, remove, fmt })
@@ -515,7 +526,7 @@ impl<'a> SlideMut<'a> {
         if *found.kind() == read::ShapeKind::AlternateContent {
             return Err(Error::InsideAlternateContent);
         }
-        let path = found.path().clone();
+        let path = found.path();
         self.shape_mut(&path)
     }
 }
@@ -633,6 +644,7 @@ impl TextBodyMut<'_> {
         let segments = text::paragraph_segments(text)?;
         self.guard.structure()?;
         let count = body_paragraphs(self.node())?.len();
+        check_depth(self.doc, &self.path, 3)?; // a:p / a:r / a:t
         let mut body = body_lens(self.doc, &self.path)?;
         with_body!(&mut body, l => {
             let mut p = append_paragraph(l)?;
@@ -688,7 +700,7 @@ impl TextBodyMut<'_> {
         } else {
             self.guard.structure()?;
         }
-        let root = self.doc.root();
+        let doc: &XmlDocument = self.doc;
         let para_path = |child: usize| [self.path.as_slice(), &[child]].concat();
         let mut plans = Vec::new();
         for (k, &child) in paras.iter().enumerate() {
@@ -699,7 +711,7 @@ impl TextBodyMut<'_> {
             }
             if let Some(segs) = lines.get(k) {
                 let path = para_path(child);
-                plans.push(plan_paragraph(ParaAt::new(root, &path), k, segs)?);
+                plans.push(plan_paragraph(ParaAt::new(doc, &path), k, segs)?);
             }
         }
         let extra = &lines[paras.len().min(lines.len())..];
@@ -709,10 +721,15 @@ impl TextBodyMut<'_> {
             (None, RunFmt::default())
         } else {
             let path = para_path(*paras.last().expect("body_paragraphs: a:p+"));
-            new_para_format(ParaAt::new(root, &path))?
+            new_para_format(ParaAt::new(doc, &path))?
         };
-        // they go into new paragraphs under the body
-        check_copies(root, &self.path, ppr.iter().map(|d| d as &dyn CheckInsert).chain(run_fmt.copies()))?;
+        if !extra.is_empty() {
+            // new paragraphs under the body: a:p / a:r / a:t; a:pPr and
+            // a:endParaRPr one level below the body, a:rPr two
+            check_depth(doc, &self.path, 3)?;
+            check_copies(doc, &self.path, 1, ppr.iter().map(|d| d as &dyn CheckInsert).chain(run_fmt.end.iter().map(|d| d as &dyn CheckInsert)))?;
+            check_copies(doc, &self.path, 2, run_fmt.rpr.iter().map(|d| d as &dyn CheckInsert))?;
+        }
         // Apply: appends first (the only primitive that could still be
         // refused by the core, before anything else changed), then rewrite,
         // then remove surplus paragraphs from the end.
@@ -821,7 +838,7 @@ impl ParagraphMut<'_> {
         self.loc.guard.text()?;
         let mut path = self.loc.body.clone();
         path.push(self.loc.child(self.doc)?);
-        let plan = plan_paragraph(ParaAt::new(self.doc.root(), &path), self.loc.index, &segments)?;
+        let plan = plan_paragraph(ParaAt::new(self.doc, &path), self.loc.index, &segments)?;
         let mut p = self.lens()?;
         apply_paragraph(&mut p, &plan, &segments)
     }
@@ -835,6 +852,9 @@ impl ParagraphMut<'_> {
         text::check_run_text(text)?;
         self.loc.guard.text()?;
         para_shape(self.node()?)?;
+        let mut path = self.loc.body.clone();
+        path.push(self.loc.child(self.doc)?);
+        check_depth(self.doc, &path, 2)?; // a:r / a:t
         let mut p = self.lens()?;
         append_run(&mut p, text, None)
     }
