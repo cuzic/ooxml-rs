@@ -44,6 +44,12 @@
   evaluation that Alternative 5 deferred was carried out for ADR-0002
   (see its Alternatives); outcome: not adopted as the Layer 2
   foundation, kept as a reference and test oracle.
+- **Post-acceptance note (2026-11-16, scope clarification):** ADR-0002
+  §5 parses `workbook.xml` and `sharedStrings.xml` read-only (to locate
+  the first sheet and resolve shared strings), in addition to the
+  worksheet. Edits stay confined to the worksheet part; the extra parts
+  remain dirty-free `Parsed` and are raw-copied per the M2 rule above.
+  "sheet1" means the first sheet in workbook order.
 
 ## Context
 

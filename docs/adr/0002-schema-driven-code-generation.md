@@ -1,6 +1,6 @@
 # ADR-0002: Schema-driven code generation for the typed lens
 
-- Status: **Proposed** (revision 2, after `0002-opus-review-round1.md`)
+- Status: **Proposed** (revision 3, after `0002-opus-review-round2.md`)
 - Date: 2026-11-16
 - Depends on: [ADR-0001](0001-lossless-round-trip-architecture.md)
 
@@ -19,9 +19,21 @@
   (type, element) pair with base-class inheritance resolved (M2); the
   `ooxmlsdk` assessment is corrected (M3); the Phase0 allowlist gains
   the parts needed to find sheet1 and read rich/shared strings (M4); an
-  overrides format is defined (M5); plus m1–m5. Every claim marked
-  *(spike)* was checked by running code in `spikes/adr-0002/` on
-  rustc 1.99.1; see its README.
+  overrides format is defined (M5); plus m1–m5.
+- **Revision 3** (after `0002-opus-review-round2.md`): slot lowering
+  now keeps per-QName and per-slot limits, refuses exclusive choices
+  whose alternatives repeat, and cross-checks the SDK's order against
+  the ECMA XSDs (R2-M1); the default join is namespace-correct, follows
+  global-attribute `ref`s, and drops defaults that don't fit the SDK
+  type instead of failing the build (R2-M2); prefix rules for new nodes
+  (R2-m1); node id = child-index path, and `own_dirty` only when an
+  originally self-closing element gains its first child (R2-m2);
+  `insert_by` sees the index within the slot (R2-m3); `mergeCells` and
+  the read-only parse scope are added to Phase0 (R2-m4); plus
+  R2-m5–m8. The spike was updated to the revision-3 rules.
+
+Every claim marked *(spike)* was checked by running code in
+`spikes/adr-0002/` on rustc 1.99.1; see its README.
 
 ## Context
 
@@ -74,19 +86,47 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
    `PropertyComments`, `PropertyName`, `Validators`, `Version`). The
    ECMA-376 Transitional XSD set has 1,236 `default=` attributes, 775 in
    `sml.xsd` alone, including `CT_Cell`'s `s="0"`, `t="n"`, `cm="0"`,
-   `vm="0"`, `ph="false"`. Defaults are extracted by a plain lookup —
-   (target namespace, `complexType/@name`, attribute name), following
-   `attributeGroup` references — **not** a general XSD processor.
-   *(spike: `xsd_defaults.py` joins 1,449 SDK attribute entries to an
-   XSD default this way, CT_Cell's five included.)* The Transitional
+   `vm="0"`, `ph="false"`. Defaults are extracted by a plain lookup,
+   **not** a general XSD processor:
+   - key = (target namespace, `complexType/@name`, attribute QName),
+     where the attribute's namespace is decided by
+     `attributeFormDefault`/`form` (WordprocessingML is `qualified`,
+     so `w:color` is matched in the `w` namespace, not as `color`);
+   - `attributeGroup` references and a single `extension/@base` level
+     are followed, and so are `ref=` uses of global attribute
+     declarations (`o:insetmode`, `r:dm`, …), whose default lives on the
+     global declaration;
+   - names are compared by namespace URI, never by prefix text.
+
+   *(spike: `join3.py` joins 1,511 SDK attribute entries this way,
+   CT_Cell's five included.)*
+
+   **A default that does not fit the SDK's type is not adopted.** 39
+   joined defaults fall outside the lexical space of the SDK type for
+   the same attribute (`typecheck.py`), e.g. DrawingML percentages
+   (`a:xfrm/@sx default="100%"` vs. SDK `Int32Value`) and
+   `c:CT_SplitType/@val default="auto"` (missing from the SDK enum).
+   None is in SpreadsheetML. The generator drops such a default and
+   emits a `DefaultMismatch` diagnostic. It is adopted only via a
+   `set_default` override with evidence. The underlying cause, a
+   Transitional union type (`ST_Percentage`) that the SDK models as an
+   integer, is fixed where it matters by giving `ooxml-core` the union
+   simple types, never by failing the build. For reads, the same
+   "never lossy" rule as for enums applies to every simple type: a value
+   outside the type's lexical space is returned as an `AttrError`
+   carrying the raw string. It is never coerced or dropped.
+
+   The counts above were measured on `ooxmlsdk`'s copy of the XSDs, whose
+   edition is unrecorded; they are re-measured on the files fetched from
+   Ecma in the vendoring commit. The Transitional
    XSDs are published with ECMA-376 Part 4 (Transitional Migration
    Features, 5th edition, December 2016). Ecma makes its standards
    available free of charge, and Apache POI bundles these same schemas
    on that basis (citing §9.4 of the Ecma by-laws); the publication page
    itself states no licence, so the exact terms are confirmed and quoted
    in `PROVENANCE.md` before vendoring (open question 3). Edition,
-   source URL and checksums are recorded there too. Extension-namespace defaults (x14, x15, …) are not in ECMA-376
-   and come only from overrides citing the relevant [MS-XLSX]/[MS-DOCX]/
+   source URL and checksums are recorded there too. Extension-namespace
+   defaults (x14, x15, …) are not in ECMA-376 and come only from overrides citing the relevant [MS-XLSX]/[MS-DOCX]/
    [MS-PPTX] section.
 3. **Overrides** — `codegen/overrides.toml`, for places where the data
    disagrees with what Office actually writes. Allowed operations, each
@@ -98,6 +138,8 @@ this ADR (source read at v0.15.0); its result is under Alternatives.
    - `set_default { on, attribute, value }`
    - `mce_wrapped { parent, children }` — these children appear in real
      files inside `mc:AlternateContent`, not directly (§4.3).
+   - `set_content { on, slots }` — replace a content model whose SDK
+     lowering disagrees with the ECMA order (§4.1).
    `ooxmlsdk`'s own overrides (`sdk_data/schema_extensions/`) already
    need every one of these operations for SpreadsheetML alone (e.g.
    `xr:uid`, `xr:revisionPtr`, `SheetStateValues::show`, MCE-wrapped
@@ -123,17 +165,22 @@ time.
   hand-written) ← `ooxml-schema` (generated tables and views, one
   cargo feature per namespace group) ← `ooxml-xlsx` / later
   `ooxml-docx`, `ooxml-pptx` (hand-written domain API). Shared
-  namespaces (DrawingML `a:`, `r:`, `mc:`) live in `ooxml-schema` once,
-  behind their own features, so no format crate owns them.
+  schema namespaces (DrawingML `a:` and friends) live in `ooxml-schema`
+  once, behind their own features, so no format crate owns them. The
+  namespace URIs the core runtime itself acts on — `mc` (AC detection,
+  §4.3), `r` (relationship-id attributes such as `r:id`, used by OPC
+  traversal), `xml` — are hand-written constants in `ooxml-core`, not
+  feature-gated.
 - `cargo xtask codegen --check` regenerates in memory and fails on any
   diff, covering all three inputs; CI runs it. Output is deterministic:
   inputs are read in sorted order, all maps are `BTreeMap`, and
   formatting is done inside the generator with a pinned `prettyplease`
   (no dependency on the host's `rustfmt`).
 - `ooxml-schema`'s package ships a `THIRD-PARTY-NOTICES` file (in the
-  crate's `include`) with the .NET Foundation MIT notice and the Ecma
-  provenance note, since generated code embeds names and summaries
-  from the SDK data. A `LICENSE` file under `reference/` alone would not
+  crate's `include`) with the .NET Foundation MIT notice, the Ecma
+  provenance note, and — if any override was taken from `ooxmlsdk` —
+  its MIT/Apache-2.0 notice. Generated code embeds names and summaries
+  from these sources. A `LICENSE` file under `reference/` alone would not
   reach crates.io.
 - **Not used:** `build.rs` generation (cost on every downstream build,
   generated code invisible to review) and procedural macros for the
@@ -161,15 +208,31 @@ The generator resolves `BaseClass` (a .NET class name) **within the same
 schema file** to the abstract entry (`Name` ending in `/`) and merges
 its attributes and elements. Class names repeat across files (e.g.
 `Text` exists in dml, math, chartex and sml), so cross-file lookup is
-an error.
+never attempted. Ten WordprocessingML entries name a base that is not in
+the data at all (`CustomXmlElement` ×5, `SdtElement` ×5, hand-written
+classes in the .NET SDK). Such an entry is still generated, but marked
+`attrs_incomplete`: its typed attribute accessors are omitted and
+writes to it return `Err(IncompleteSpec)` until an `add_attribute`
+override supplies the base's attributes. The generator does not stop.
 
 **QName identity.** A `QName` is (namespace URI, local name); prefixes
 are per-document and never compared. The raw tree records each element
 and attribute name's resolved namespace URI at parse time, next to its
 original prefix (which is still needed when a dirty node is
-re-rendered). A newly created node gets the prefix already bound to its
-URI at the insertion point; if no binding is in scope the write returns
-`Err(NamespaceNotInScope)` (Phase0 never declares namespaces).
+re-rendered). Choosing a prefix for something newly written:
+
+- `xml` (`http://www.w3.org/XML/1998/namespace`) is always bound and is
+  never declared (Namespaces in XML 1.0 §3), so
+  `xml:space="preserve"` on a new `<t>` always works.
+- A namespaced **attribute** needs a non-empty prefix bound to its URI.
+  The default namespace never applies to attributes. An attribute with
+  no namespace (SML's `r`, `s`, `t`) is written unprefixed.
+- A new **element** uses the parent's own prefix when that prefix binds
+  the element's URI. Otherwise it uses the innermost in-scope binding
+  for the URI. If one element declares both the default namespace and a
+  prefix for the URI, the default namespace (empty prefix) is used.
+- If no binding is in scope the write returns `Err(NamespaceNotInScope)`.
+  Phase0 never declares namespaces.
 
 Hand-written (`ooxml-core`), shown in the shape the spike compiled
 *(spike: `ws/core`)*:
@@ -188,8 +251,12 @@ pub trait ElementSpec: 'static {
     note = "allowed children are listed in `{P}::CONTENT`")]
 pub trait ChildOf<P: ElementSpec>: ElementSpec {}
 
-pub struct Lens<'a, E: ElementSpec> { /* &'a tree, node id */ }
-pub struct LensMut<'a, E: ElementSpec> { /* &'a mut tree, node id */ }
+pub struct Slot { names: &'static [QName], max_each: Option<u32>, max_total: Option<u32> }
+pub enum Content { Empty, Text(SimpleType), Slots(&'static [Slot]),
+                   Unsupported(&'static [QName]) /* every allowed child name */ }
+
+pub struct Lens<'a, E: ElementSpec> { /* &'a part root, node id */ }
+pub struct LensMut<'a, E: ElementSpec> { /* &'a mut part root, node id */ }
 // generic reads/writes/insertion on Lens/LensMut: §4
 ```
 
@@ -205,19 +272,22 @@ impl ElementSpec for Cell {
         attr!("t", Enum(&CELL_VALUES), default = "n"), /* cm, vm, ph */
     ];
     const CONTENT: Content = Content::Slots(&[
-        slot!([SML:"f"], 0..=1), slot!([SML:"v"], 0..=1),
-        slot!([SML:"is"], 0..=1), slot!([SML:"extLst"], 0..=1),
+        one!(SML:"f"), one!(SML:"v"), one!(SML:"is"), one!(SML:"extLst"),
     ]);
 }
-impl ChildOf<Row> for Cell {}
+impl ChildOf<Row> for Cell {}   // under cfg(all(..)) if Row and Cell are in different features
 const _: () = assert!(content_contains(Row::CONTENT, Cell::QNAME));
 
 /// Typed view. A local newtype, so inherent methods are legal here.
 pub struct CellView<'a>(pub Lens<'a, Cell>);
 impl<'a> CellView<'a> {
-    pub fn style_index(&self) -> Result<u32, AttrError> { self.0.attr_or_default("s") }
+    pub fn style_index(&self) -> Result<u32, AttrError> { /* absent → default 0 */ }
 }
 pub struct CellViewMut<'a>(pub LensMut<'a, Cell>);
+impl<'a> CellViewMut<'a> {
+    // child views are reborrowed from the parent view, one at a time
+    pub fn value_mut(&mut self) -> Result<CellValueViewMut<'_>, Error> { /* get_or_insert */ }
+}
 ```
 
 Writing the view methods as `impl Lens<'_, Cell> { … }` in a crate
@@ -242,7 +312,8 @@ attributes are never re-rendered (ADR-0001 Layer 2).
 `const _: () = …;` items, which are always evaluated (unlike an inline
 `const {}` in a function body, which is only guaranteed to run when
 reached). They check: every `impl ChildOf<P> for C` has `C::QNAME` in
-`P::CONTENT`; no QName appears twice in one `CONTENT`; every default is
+`P::CONTENT` (searching `Slots` and, for unlowerable models, the
+`Unsupported` name list); no QName appears twice in one `CONTENT`; every default is
 valid for its type. Stable const evaluation can do this with
 hand-written byte loops (`&str == &str` is not const; `const_trait_impl`
 is unstable as of 1.99) and `u32::from_str_radix` (const since 1.82)
@@ -258,6 +329,14 @@ child of which* (`ChildOf` + `on_unimplemented`; *(spike)*: inserting a
 `ChildOf<Cell> for CellValue`). Order, cardinality and unsupported
 content models are **run-time** errors (§4).
 
+**Features and cross-group children.** `impl ChildOf<P> for C` is
+generated only when both entries are allowlisted, and is wrapped in
+`#[cfg(all(feature = "<P's group>", feature = "<C's group>"))]` when the
+two belong to different feature groups. 20 SpreadsheetML-namespace
+entries have DrawingML children, e.g. `xdr14:cNvPr → a:hlinkClick`.
+Phase0's allowlist is entirely within `sml` plus the core constants of
+§2, so `ooxml-xlsx` needs only the `sml` feature.
+
 ### 4. Content models and the write primitives
 
 #### 4.1 Slots
@@ -265,28 +344,54 @@ content models are **run-time** errors (§4).
 The SDK particle kinds across all schemas are 11,278 `Element`, 2,234
 `Sequence`, 1,227 `Choice`, 1,150 `Group`, 142 `Any`, 6 `All`. They are
 lowered to an **ordered list of slots**. A slot is a set of element
-QNames sharing one schema rank, plus cardinality:
+QNames sharing one schema rank, with two limits: `max_each` (per QName)
+and `max_total` (the whole slot). Insertion checks both.
 
-- each element of a sequence is its own slot;
-- a `Choice` (any occurrence) is one slot containing all its
-  alternatives; children of that slot may appear in any order relative
-  to each other;
-- a nested `Sequence`/`Group` with `maxOccurs ≤ 1` is spliced in place;
-- `Any` becomes a wildcard slot (matches unlisted names in that
-  namespace set, so unknown content there keeps a rank);
-- `All` becomes one slot.
+- Each element of a sequence is its own slot, with its own `maxOccurs`.
+- A **repeating** `Choice` (`maxOccurs > 1`) is one slot containing all
+  its alternatives. Its children may appear in any order relative to
+  each other, and both limits come from the choice's `maxOccurs` and
+  each alternative's.
+- A **non-repeating** `Choice` whose alternatives are all single
+  elements with `maxOccurs = 1` is one slot with `max_total = 1`.
+- A **non-repeating** `Choice` where two or more alternatives exist and
+  any of them may repeat means "a run of one kind only". This is not
+  representable as a slot, so the model is **unsupported**
+  (`p188:CT_Comment`, `x:CT_SortState`, …).
+- A nested `Sequence`/`Group` with `maxOccurs ≤ 1` is spliced in place.
+  A repeating one that lowers to a single slot lifts its cardinality
+  onto that slot.
+- `All` becomes one slot with `max_each = 1` and `max_total` unbounded.
+- `Any` becomes a wildcard slot. The SDK data gives a `Namespace` for
+  only 6 of 142 `Any` particles; a missing one is read as `##any`. Even
+  so, `mc:AlternateContent` is governed by §4.3, never by a wildcard.
 
-A content model **cannot** be lowered if a multi-slot sequence/group
-repeats (`maxOccurs > 1`), a `Choice` alternative is itself a multi-slot
-sequence, or a QName lands in two slots. Then
-`Content::Unsupported(&ParticleTree)` is generated: typed reads still
-work; insertion returns `Err(UnsupportedContentModel)`.
+A content model is also **unsupported** if a multi-slot sequence/group
+repeats, if a `Choice` alternative is itself a multi-slot sequence, or
+if a QName lands in two slots. Then `Content::Unsupported(names)` is
+generated: typed reads work, and insertion returns
+`Err(UnsupportedContentModel)`.
+
+**Cross-check against ECMA order.** The SDK data is not always the
+ECMA particle. For example, `x:CT_Filters` is `Choice[x14:filter*,
+x:filter*, x:dateGroupItem*]` in the SDK, but `sequence(filter*,
+dateGroupItem*)` in `sml.xsd`. For every entry whose complex type also
+exists in the ECMA XSDs, the generator lowers the XSD particle the same
+way. If the SDK slots allow an order the XSD forbids (two names share an
+SDK slot but have distinct XSD ranks, or their order is inverted), the
+entry is generated as unsupported and a diagnostic is emitted. A
+`set_content` override can restore it. *(spike: 8 such entries, none in
+Phase0: `xne:macrosheet`, `x:fieldGroup`, four WordprocessingML
+border/margin types with `left`/`start`, `w:sdtPr`, `w:fieldMapData`.
+`CT_Filters` is already unsupported by the exclusive-choice rule.)*
 
 Measured on the data *(spike: `slottable.py`, a heuristic reading of
-`Occurs`)*: of 2,122 content models, 1,368 are flat sequences, 699 more
-lower to slots, **55 do not**, mostly in the 2006 base namespaces. Where
-particle `Occurs` differ by Office version (3 entries, none in Phase0),
-the most permissive one is used.
+`Occurs`)*: of 2,122 content models, 1,574 lower to single-QName slots
+only, 483 to slots that include multi-QName (choice) slots, and **65
+are unsupported** (55 exclusive choices of repeating alternatives, 8
+multi-slot alternatives, 2 repeating multi-slot groups), before the 8
+ECMA-order disagreements above. Where particle `Occurs` differ by Office
+version (3 entries, none in Phase0), the most permissive one is used.
 
 All Phase0 entries are flat sequences or leaves (verified against the
 data): `worksheet` (38 elements), `sheetData` (`row*`), `row`
@@ -297,25 +402,47 @@ data): `worksheet` (38 elements), `sheetData` (`row*`), `row`
 
 | Primitive | Behaviour |
 | --- | --- |
-| `insert_by::<C>(cmp)` | Find `C`'s slot. Position = before the first existing child whose slot rank is greater, or which is in the same slot and for which `cmp(existing)` is `Greater`; else after the last child. If the slot's `maxOccurs` is reached → `Err(AlreadyPresent)`. |
-| `insert::<C>()` | `insert_by` with "append at the end of the slot". |
+| `insert_by::<C>(before)` | Find `C`'s slot. `before(index_in_slot, existing)` is called on the existing children of that slot in document order; the new node goes before the first one for which it returns `true`, else before the first child of a higher-ranked slot, else after the last child. If `max_each` or `max_total` is reached → `Err(AlreadyPresent)`. |
+| `insert::<C>()` | `insert_by` that never returns `true`: append at the end of the slot. |
 | `get_or_insert::<C>()` | Existing child of `C`'s QName, or `insert`. The normal path for `maxOccurs = 1` children. |
 | `remove::<C>()` / `remove_at` | Remove the child node and its whole span. |
 | `set_attr` / `remove_attr` | Typed and untyped (by QName) variants. |
 
-Callers own the within-slot order. `ooxml-xlsx` passes row-number
-comparison when inserting into `sheetData` and column comparison when
-inserting into `row`, which is what ADR-0001's T2 checks
-*(spike: B1, D1 + insert A1, C1 → A1, B1, C1, D1, extLst)*.
+Callers own the within-slot order. `ooxml-xlsx` compares row numbers
+when inserting into `sheetData` and column numbers when inserting into
+`row`, which is what ADR-0001's T2 checks *(spike: B1, D1 + insert A1,
+C1 → A1, B1, C1, D1, extLst)*. Because `before` also receives the index
+within the slot, a sheet whose `row`/`c` elements omit `r` (legal,
+position-implied) can be handled. Phase0 does not: a write into a
+`sheetData` or `row` whose existing children lack `r` returns
+`Err(MissingReference)`.
 
-**Dirty-flag duties are the primitives'**, never generated code's: any
-insert/remove/attribute write sets `own_dirty` on the node whose own tag
-changes — including a parent that was self-closing and gains its first
-child, or loses its last one — and `subtree_dirty` on it and every
-ancestor up to the part root (ADR-0001 Layer 2 rule). Primitives create
-nodes immediately; ADR-0001's "no node until a value is written" is the
-domain layer's job: `CellMut` calls `get_or_insert` only from inside
-`set_string`/`set_number`.
+**Node id.** A node is identified by its path of child indices from the
+part root, which keeps ADR-0001's nested `RawNode` (no parent links).
+`LensMut` holds the part root by `&mut` plus that path. A child view is
+a reborrow of its parent view, so only one child view exists at a time
+*(spike)*. Inserting or removing a child invalidates the indices of its
+later siblings. That is why primitives return the new child's view
+instead of handing out paths.
+
+**Dirty-flag duties are the primitives'**, never generated code's:
+
+- every insert, remove and attribute write sets `subtree_dirty` on the
+  changed node and on every ancestor along the path, up to the part
+  root (ADR-0001 Layer 2);
+- an attribute write sets `own_dirty` on that node;
+- a parent gets `own_dirty` from a child change **only** when its
+  original span was self-closing (`span.close == None`) and it gains its
+  first child (ADR-0001's R2-B2 case);
+- a parent that had a close tag keeps its original open and close tags
+  verbatim even when it loses its last child (`<row …></row>` is
+  well-formed), so the byte diff stays local;
+- an originally self-closing element that gains and then loses children
+  is already `own_dirty` and is re-rendered self-closing.
+
+Primitives create nodes immediately. ADR-0001's "no node until a value
+is written" is the domain layer's job: `CellMut` calls `get_or_insert`
+only from inside `set_string`/`set_number`.
 
 **Whitespace.** A new element goes immediately before the child it was
 positioned before (so after any whitespace text that precedes that
@@ -366,10 +493,19 @@ Therefore:
   - read only: `x:CT_Workbook/x:workbook`, `x:CT_Sheets/x:sheets`,
     `x:CT_Sheet/x:sheet` (to locate sheet1), `x:CT_RElt/x:r` (inline
     strings made only of rich runs), `x:CT_Sst/x:sst`, `x:CT_Rst/x:si`
-    (shared strings, so `cell()` can return text).
+    (shared strings, so `cell()` can return text),
+    `x:CT_MergeCells/x:mergeCells`, `x:CT_MergeCell/x:mergeCell`
+    (ADR-0001 refuses writes into merged ranges).
+- **Parse scope.** These read-only entries mean Phase0 parses
+  `workbook.xml` and `sharedStrings.xml` into Layer 2 trees, not only
+  `sheet1.xml`. This widens ADR-0001's "`RawNode` tree for `sheet1.xml`
+  only" for **reads**; edits are still confined to the worksheet part.
+  The extra parts stay dirty-free `Parsed` and are copied through raw,
+  per ADR-0001's "parsing for inspection must not change the output"
+  rule (its M2). ADR-0001 gets a post-acceptance note saying so.
 - Each namespace group is a cargo feature of `ooxml-schema` (`sml`,
-  `wml`, `pml`, `dml`, `mc`, …), switched in generated code with
-  `cfg_select!` (Rust 1.95). `ooxml-xlsx` enables `sml`.
+  `wml`, `pml`, `dml`, …), switched in generated code with
+  `cfg_select!` (Rust 1.95). `ooxml-xlsx` enables `sml` (§3, features).
 - The SDK's `InitialVersion` is carried as data and has no behavioural
   effect in Phase0.
 
@@ -378,10 +514,19 @@ Therefore:
 `data/parts/*.json` (128 part kinds: content type, relationship type,
 allowed child parts) is generated into a constant table used by
 `ooxml-core::Package`'s Layer 3 registries. Phase0 uses it read-only to
-locate sheet1: the package's `officeDocument` relationship →
-`workbook.xml` → the first `<sheet>` in `<sheets>` → its `r:id` →
-`xl/_rels/workbook.xml.rels` → the worksheet part. The relationship type
-alone does not identify sheet1 in a multi-sheet workbook. (`WorkbookPart`
+locate "sheet1", meaning the **first sheet in workbook order**:
+
+1. the package's `officeDocument` relationship gives the workbook part;
+2. the first `<sheet>` in its `<sheets>` gives an `r:id`;
+3. that id is looked up in the workbook part's relationships part, whose
+   name is derived from the workbook part's name
+   (`<dir>/_rels/<name>.rels`, not a fixed path);
+4. that relationship gives the worksheet part.
+
+In ADR-0001's fixture and template this part is `xl/worksheets/sheet1.xml`.
+In a workbook whose sheets were reordered, the part name can differ, and
+workbook order is what users mean by "the first sheet". The relationship
+type alone does not identify it in a multi-sheet workbook. (`WorkbookPart`
 has no fixed content type in the data, since `.xlsx`/`.xlsm`/`.xltx`
 differ; it is identified by relationship type.)
 
@@ -390,7 +535,8 @@ differ; it is identified by relationship type.)
 1. **Depend on `ooxmlsdk` (v0.15.0) as the typed layer.** It generates
    Rust from the same SDK data, models every part, reuses original
    compressed bytes for unloaded parts (matching ADR-0001 Layer 1), and
-   passes round-trip on 5,477 files across five corpora. Rejected as the
+   reports 5,477 of 5,477 corpus files passing across five corpora:
+   5,366 round-tripped, the rest open-only or expected-invalid. Rejected as the
    Layer 2 foundation because a *loaded* part is fully re-serialized
    from typed structs, in schema order with canonical lexemes. Its
    round-trip suite opens parts eagerly and compares after XML
@@ -444,13 +590,16 @@ differ; it is identified by relationship type.)
   messages; ordering and cardinality are enforced in one place, the
   core primitives, and ADR-0001's row/column ordering has an explicit
   hook (`insert_by`).
-- Positive: slot lowering covers 2,067 of 2,122 content models for
-  insertion, not only the 1,368 flat ones.
+- Positive: slot lowering supports insertion for 2,057 of 2,122 content
+  models (minus the 8 ECMA-order disagreements until overridden), not
+  only the flat ones.
 - Negative: two upstream data sets plus overrides to keep pinned,
   attributed and in sync. A future SDK bump can change both structure
   and the default join, so the generated diff must be read, not skimmed.
-- Negative: 55 content models (mostly WordprocessingML) stay read-only
-  until a later ADR handles repeating multi-slot groups. Any parent with
+- Negative: 65 content models (exclusive choices of repeating
+  alternatives, repeating multi-slot groups) plus the 8 ECMA-order
+  disagreements stay read-only until overrides or a later ADR cover
+  them. Any parent with
   an `mc:AlternateContent` child is insert-refused until the AC-rank
   rule is implemented.
 - Negative: ooxml-rs inherits the SDK's reading of the schemas,
@@ -488,4 +637,4 @@ differ; it is identified by relationship type.)
   RFC 3698 (https://rust-lang.github.io/rfcs/3698-declarative-derive-macros.html);
   E0116 (https://doc.rust-lang.org/error_codes/E0116.html)
 - Spike: `spikes/adr-0002/` (rustc 1.99.1, 2026-11-16)
-- Review: `docs/adr/0002-opus-review-round1.md`
+- Reviews: `docs/adr/0002-opus-review-round1.md`, `docs/adr/0002-opus-review-round2.md`
