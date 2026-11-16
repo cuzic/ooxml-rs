@@ -17,7 +17,7 @@
 - Phase0 の詳細は ADR-0004（`docs/adr/0004-docx-phase0.md`、revision 2）。実装は `crates/ooxml-docx`。
 - 2026-11-16 の更新（ADR-0004 revision 2 と同時）: 文書保護（`w:documentProtection` の強制）も書き込み拒否に加えた。入れ子のフィールドはスタックで全階層を判定する。`Document::new()`（新規作成）は Phase0 から外した（所有者の判断）。
 - Phase2（構造の追加）の設計は ADR-0011（`docs/adr/0011-docx-phase2-structure.md`、Proposed）。Word で初めてパーツと ID を追加するフェーズで、次の 2 つからなる。
-  - `ooxml-core` 側：パーツを追加する API（パーツ名、関係 ID、Content Types）。xlsx Phase3 と共通にする。
+  - `ooxml-core` 側：`core/add-part` のレジストリ API（パーツ名、関係 ID、Content Types）を使う。この API が唯一の規則の置き場で、xlsx・pptx と共通（revision 2）。
   - `ooxml-docx` 側：追記のみの ID レジストリ（描画 ID、注釈 ID、ブックマーク名、番号付け、スタイル）。
   - 根拠は `spikes/docx-phase2/`。
 
@@ -354,15 +354,10 @@ Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The e
 
 **Scope.**
 
-- **Core OPC part-adding API**, shared with xlsx Phase3:
-  - a `PartPlan` that validates every addition before applying any;
-  - part names: smallest free `nameN.ext` under OPC equivalence;
-  - relationship ids: `rId` + (max numeric suffix + 1), never a gap;
-  - content types: a `Default` for new media extensions, an `Override` for XML parts;
-  - appended registry entries only.
-- **Two more additive core changes:** namespace declarations on created elements (`a:` and `pic:` are declared locally by Word, almost never on the root), and `SameType` modulo required skips, as in ADR-0007.
-- **Word registries:**
-  - drawing ids: max + 1 over all stories and both AC branches;
+- **Core registries** (revision 2, after review B1). There is no Word-specific part API. Word uses the core registry API on `core/add-part` (`RegistryPlan` / `Package::apply`), which is the single source of truth for part naming, relationship ids, `Default` vs `Override` and dangling targets. Word adds at most one part per operation and never adds a `Default`.
+- **Two additive lens changes:** namespace declarations on created elements (`a:` and `pic:` are declared locally by Word, including on `a:graphicFrameLocks`), and `SameType` modulo required skips, as in ADR-0007.
+- **Word registries.** Every scope covers definitions **and references** (revision 2), so a new value never adopts a dangling reference:
+  - drawing ids: max + 1 over all `docPr`/`cNvPr` ids in all stories and both AC branches;
   - annotation ids: max + 1 over the union of bookmarks, comments, revisions and permissions;
   - bookmark names: checked, case-insensitive;
   - `numId`/`abstractNumId`: max + 1, with `numId` 0 reserved, plus a fresh `nsid`;
@@ -374,7 +369,7 @@ Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The e
   - hyperlinks (one external relationship per link; internal anchors);
   - bookmarks;
   - lists: create, apply, restart (new `num` with `startOverride`), remove;
-  - section breaks: a copy of the `sectPr` with its header references rewritten (this lifts ADR-0004's A2);
+  - section breaks: a copy of the `sectPr` (with its header references rewritten) for the earlier half, and `w:type` on the later half. This lifts ADR-0004's A2;
   - tables: insert/delete rows and columns, merge or split cells, on a consistent grid only;
   - new paragraphs and run splitting;
   - new paragraph and character styles: latent built-in names are refused, and `stylesWithEffects.xml` is left unchanged.
@@ -383,7 +378,9 @@ Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The e
 **Acceptance.**
 
 - T1–T6 on every changed part.
-- **T-OPC**, shared with xlsx Phase3: every target exists; every part has exactly one content type; ids are unique; there are no orphans. An independent implementation of it runs over `roxmltree`.
+- **T-OPC**, shared with xlsx Phase3: every target exists; every new or changed part has exactly one content type; ids are unique; there are no orphans. An independent implementation of it runs over `roxmltree`.
+- **Deleting operations** refuse ranges that hold footnote references or revisions.
+- **Out of Phase2:** new header/footer parts, new tables, a new styles part.
 - **T-REG:** every allocated value is fresh in its whole scope, and existing values and duplicates are unchanged. Corpus property tests check this.
 - **docx-rs read-back** of tables, numbering, drawings, hyperlinks, bookmarks and sections.
 - **`ooxmlsdk` parse:** evaluated at the start of the implementation.
@@ -422,7 +419,7 @@ Designed in ADR-0011 (`docs/adr/0011-docx-phase2-structure.md`, Proposed). The e
 
 | Registry | Owner (proposed) | Keys | Phase | Rule |
 |---|---|---|---|---|
-| OPC content types / rels | `ooxml-core::Package` | part names, rIds | 2 | ADR-0011 §1 (`PartPlan`; shared with xlsx Phase3) |
+| OPC content types / rels | `ooxml-core::Package` | part names, rIds | 2 | the core registry API on `core/add-part`, single source of truth for Word, xlsx and pptx (ADR-0011 §1, revision 2) |
 | Style IDs | `ooxml-docx::Styles` | `w:styleId` | 1 read, 2 append | never rename; refs to unknown IDs are Err |
 | Numbering | `ooxml-docx::Numbering` | `numId`, `abstractNumId` | 2 | append-only; never reuse a freed ID |
 | Annotation IDs | `ooxml-docx::Annotations` | `w:id` of bookmarks, comments, ins/del/move, perm | 2 | max+1 over the union of all story parts and `comments.xml` (ADR-0011 §2; cross-category collisions: 0 in POI/SDK) |

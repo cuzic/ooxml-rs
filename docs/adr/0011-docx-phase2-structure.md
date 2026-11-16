@@ -1,22 +1,58 @@
 # ADR-0011: Word Phase2: structure (new parts, new IDs, append-only registries)
 
-- Status: **Proposed** (revision 1)
+- Status: **Proposed** (revision 2)
 - Date: 2026-11-16
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 3 and its append-only
     invariant;
   - [ADR-0002](0002-schema-driven-code-generation.md): slots, primitives, allowlist, and the
     post-acceptance notes (depth limit; detach/insert, PR #18);
-  - [ADR-0004](0004-docx-phase0.md): Word Phase0 rev 4, PR #13;
+  - [ADR-0004](0004-docx-phase0.md): Word Phase0, Accepted (PR #13 merged);
   - [ADR-0007](0007-docx-phase1-template-filling.md): Word Phase1, PR #25, under review;
-  - PR #14 (`Package::remove_part`, the interim registry-removal note in ADR-0001).
-- Coordinates with: ADR-0006 (xlsx Phase2, PR #22), which defers part creation to xlsx
-  Phase3 (ADR-0009, reserved). The xlsx roadmap's Phase3 scope asks for the same OPC services
-  this ADR designs (§1).
+  - PR #14 (`Package::remove_part`, the interim registry-removal note in ADR-0001);
+  - **the core registry API on `core/add-part`** (`RegistryPlan` / `Package::apply` and the
+    one-step operations with `check_*` twins; PR pending). By the coordinator's decision of
+    2026-11-16 (review B1) it is the **single source of truth** for:
+    - part naming;
+    - relationship ids;
+    - `Default` vs `Override`;
+    - dangling targets.
+
+    This ADR states only what Word needs from it (§1).
+- Coordinates with: ADR-0006 (xlsx Phase2, PR #22), ADR-0009 (xlsx Phase3, PR #27) and
+  ADR-0012 (pptx Phase2, PR #30), which use the same core API.
 - Evidence: `spikes/docx-phase2/`: `registries.py`, `needs.py` and a README with every
   number. Corpora: fixtures (26), Apache POI (129), Open XML SDK non-Strict (442), docx4j
   (12), template-engine test files (212). Library behaviour comes from source at pinned
-  revisions (§Sources).
+  revisions (§Sources). Revision 2 adds `review1.py` for the facts behind the review findings.
+
+## Revision history
+
+- **Revision 1:** initial draft.
+- **Revision 2** (after `0011-opus-review-round1.md`: B1, M1–M6, m1–m12; branch merged with
+  `origin/main` per m12):
+  - **B1:** revision 1's `PartPlan` and its rules (§1.1–§1.2) are withdrawn. The core API on
+    `core/add-part` is the single source of truth. §1 now lists only Word's requirements on it,
+    and Word's media are registered by core's rule (an existing matching `Default`, else an
+    `Override`). Word never adds a `Default`, as in ADR-0009.
+  - **M1:** a section break writes `w:type` on the **later** `sectPr`, as python-docx does.
+    Restart settings (`pgNumType/@start`, line and note numbering restarts) stay only on the
+    earlier half (§6).
+  - **M2:** `a` is declared locally on `a:graphicFrameLocks` too, as Word does. One general
+    rule: declare on each outermost created element that uses a namespace not in scope (§3).
+  - **M3:** every registry's scope is definitions **and references**, so a new value never
+    adopts a dangling reference: the 22 undefined `pStyle` in POI `60329.docx`, for example
+    (§2).
+  - **M4:** a style id that would be empty after ASCII stripping becomes `a` / `a{n}`, as
+    localized Word writes (§8).
+  - **M5:** `insert_column` does not copy `gridSpan`/`vMerge`/`hMerge`; column 0 copies from
+    the right; legacy `hMerge` tables are refused (§7.3).
+  - **M6:** deleting rows or columns and merging refuse when the range holds a
+    footnote/endnote reference or a revision element. `insert_rows` drops revision elements
+    from copied mark properties (§7).
+  - **m1–m11:** see the sections; the m-numbers are noted in place.
+  - The reviewer's answers to Q1–Q8 are recorded as **proposed defaults** pending the owner
+    (§Open questions).
 
 ## Context
 
@@ -28,11 +64,11 @@ both:
 
 | Feature | New IDs | New parts / registry entries |
 |---|---|---|
-| inline image | `wp:docPr/@id`; relationship id | media part (`word/media/imageN.ext`), relationship, content-type `Default` |
+| inline image | `wp:docPr/@id`; relationship id | media part (`word/media/imageN.ext`), relationship, content type (core's rule, §1) |
 | hyperlink (external) | relationship id | relationship with `TargetMode="External"` |
 | bookmark | annotation `w:id`, bookmark name | — |
 | list | `numId`, `abstractNumId`, `nsid` | often a new `numbering.xml` + relationship + `Override` |
-| header / footer | relationship id | `word/headerN.xml` + relationship + `Override` |
+| header / footer | relationship id | **not in Phase2** (proposed default Q6); section breaks reuse existing parts |
 | style | `w:styleId` | (rarely) a new `styles.xml` |
 | section break | — | — (references to existing header parts are copied) |
 | table row / column / merge | — (Phase2 writes no `w14:paraId`) | — |
@@ -52,129 +88,120 @@ The corpus measurements set the hard requirements:
   files and 92 of 404 SDK files have a numbering part. Only 15 of 101 POI files have a `png`
   content-type `Default`.
 
+**Out of Phase2 (revision 2, review m8):**
+
+- creating header or footer parts and setting a header for one section (Q6);
+- creating whole tables, as opposed to editing existing ones;
+- creating a styles part.
+
+The roadmap's earlier Phase2 list named them; they move to a later structure ADR.
+
 ## Decision
 
-### 1. Core: the OPC part-adding API (Layer 3, `ooxml-core::Package`)
+### 1. Core registries: what Word needs from the `core/add-part` API
 
 `ooxml-core` owns the format-agnostic registries: `[Content_Types].xml`, the relationships
-parts and the part-name space (ADR-0001 Layer 3). PR #14 added a removal that edits them as
-Layer 2 trees. Phase2 needs the additions. The API is designed for Word and for xlsx Phase3
-alike: new worksheets, `sharedStrings.xml`/`styles.xml` where absent, and part names that do
-not assume `sheetN.xml` (xlsx roadmap, Phase3).
+parts and the part-name space (ADR-0001 Layer 3).
 
-#### 1.1 Operations
+**Revision 1 is withdrawn (review B1).** Revision 1 proposed its own `PartPlan` API with its
+own rules (smallest free name, implicit `Default`s). Those conflicted with the API being built
+on `core/add-part` and with ADR-0009 and ADR-0012. The core API is now the single source of
+truth for:
 
-```rust
-impl Package {
-    /// A plan of additions. Nothing changes until `commit`; every check runs first.
-    pub fn plan(&mut self) -> PartPlan<'_>;
-}
+- naming parts;
+- allocating relationship ids;
+- choosing between `Default` and `Override`;
+- treating dangling targets.
 
-impl PartPlan<'_> {
-    /// Reserve a part name. `Exact` fails if taken; `Numbered` picks the smallest free
-    /// `{dir}/{stem}{n}.{ext}`, n >= 1.
-    pub fn add_part(&mut self, name: PartNameRequest, content_type: &str, body: PartBody) -> Result<PartName>;
-    /// A relationship from `source` (None = the package) to an internal part or an external
-    /// URI. Returns the allocated Id.
-    pub fn add_relationship(&mut self, source: Option<&PartName>, rel_type: &str, target: Target) -> Result<RelId>;
-    /// Validate everything, then apply. After a successful validation, `commit` cannot fail.
-    pub fn commit(self) -> Result<Committed>;
-}
+This ADR does not restate those rules, and links to the core PR once it is up. The API, as of
+the branch:
 
-pub enum PartNameRequest { Exact(String), Numbered { dir: String, stem: String, ext: String } }
-pub enum PartBody { Bytes(Vec<u8>), Xml(XmlDocument) }      // Xml: becomes a Parsed, dirty part
-pub enum Target { Internal(PartName), External(String) }
-```
+- `RegistryPlan::new(&Package)` collects steps, each validated completely:
+  - `add_part(name: PartNameRequest, content_type, content)`;
+  - `add_relationship(source, type, Target)`;
+  - `add_default_content_type`;
+  - `set_content_type`.
+- `Package::apply(plan)` cannot fail, except with `StalePlan`. One-step conveniences have
+  `check_*` twins.
+- `PartNameRequest::Numbered("dir/stem{}.ext")` is **one more than the largest number in
+  use**: in parts, `Override`s, relationship targets (dangling ones included), names removed
+  in the session, and names planned earlier. Gaps are never filled.
+- `add_part` registers the content type with nothing when an existing `Default` for the
+  extension has exactly that type, and with an `Override` otherwise.
 
-The format crates use the plan inside their own two-phase writes: check everything, then
-mutate (ADR-0004 §3.3).
+**What Word Phase2 requires of it:**
 
-- A Word image insert plans the media part and its relationship, and the docx crate checks
-  its own Layer 2 edits.
-- Only then are `commit` and the tree edits run.
+1. **At most one new part per operation:**
+   - the media part of `insert_image` (§3);
+   - `numbering.xml` for the first list (§5a).
 
-`commit` applies registry edits and new parts. The format crate applies its own tree edits,
-and these cannot fail after their checks, as in ADR-0007 §7.
+   Each is planned with its relationship in one `RegistryPlan`. The plan borrows
+   `&Package`, so ooxml-docx runs its own Layer 2 dry runs (ADR-0007 §7) while the plan is
+   held. Then `Package::apply` and the tree edits run, in that order. Neither can fail after
+   the checks.
+2. **Media content types:** `add_part` with the sniffed type (`image/png`, `image/jpeg`,
+   `image/gif`). An existing matching `Default` is used, otherwise core writes an `Override`.
+   Word Phase2 **never adds a `Default`**, consistent with ADR-0009. Word reads media
+   registered by `Override`: 2 SDK and 13 template files do so. Proposed default Q1.
+3. **Names:** `Exact("word/numbering.xml")`, falling back to
+   `Numbered("word/numbering{}.xml")` if the name is in use. Media use
+   `Numbered("word/media/image{}.<ext>")`. The extension is that of an existing `Default`
+   for the type when there is one (`jpg` vs `jpeg`, review m5), else the canonical one.
+4. **Relationship ids:** core's rule. Two inputs to the core rules table, from Word's evidence:
+   - ids of another shape (`R44c83fbb49ca402c`, 16 files) occur and must never collide;
+   - a new id should also avoid every value of an `r:`-namespace attribute in the source part,
+     the referenced-but-undefined case of M3. Measured: 0 such dangling `r:*` among 2,805
+     attributes. The upper-case `RID9` question (core compares case-sensitively) goes to the
+     same table.
+5. **Dangling targets** are real: 26 internal targets in 19 SDK files resolve to no part
+   (`review1.py`). Core already avoids their names.
 
-#### 1.2 Rules
+**What else core needs** (additive notes to ADR-0002, separate from `core/add-part`):
 
-- **Part names** follow OPC equivalence: ASCII case-insensitive and percent-decoded, as PR #14
-  does. A name is free when no part, no `Override` and no relationship target (dangling ones
-  included) uses it. `Numbered` takes the **smallest free n ≥ 1**: the corpora have
-  non-contiguous and non-numbered names (`word/footer.xml`; header numbers up to 20), so
-  "count + 1" is wrong. The xlsx needs are the same.
-- **Relationship ids:** `rId{n}`. Here `n` is 1 + the largest numeric suffix among the
-  source's ids that match `rId\d+` (ASCII case-insensitive), advanced past any id equal to
-  `rId{n}` ignoring case. Ids of another shape, such as `R44c83fbb49ca402c` (16 files), are
-  left alone and never collide with `rIdN`. Gaps are **not** reused. A gap may be a
-  relationship that another tool removed while a stale `r:id` survived somewhere.
-  Measured: 1,666/1,673 POI and 6,629/6,654 SDK ids have the `rIdN` shape; 0 duplicates.
-  The largest id allocated is `rId321`.
-- **Relationships part creation:** a source part without a `.rels` part gets one. That is
-  itself a new part, with a `rels` `Default` added if missing; every corpus file has one.
-- **Content types:**
-  - XML parts always get an `Override`. 48 of 212 template files have no `xml` `Default`, and
-    the `xml` `Default` is `application/xml` anyway.
-  - Binary media get a `Default` for their lower-cased extension when the extension has none.
-    That is how producers register media: `Default` in 106 SDK files, `Override` in 2.
-  - If the extension already has a `Default` with a **different** type, the part gets an
-    `Override` instead.
-  - `Default` extensions are compared case-insensitively.
-  - Nothing is ever removed or rewritten.
-- **Registry edits** are Layer 2 edits of `[Content_Types].xml` and the relationships part:
-  - new `Default`, `Override` and `Relationship` elements are appended as the last child;
-  - registry parts that are not touched stay raw (T3).
-  - A registry part that was replaced wholesale (`set_part`) or does not parse is refused,
-    as `RegistryNotEditable` is in PR #14.
-- **New parts are appended** to the zip after every existing entry: Deflated, no extra field,
-  no directory entries. `[Content_Types].xml` keeps its position.
-- **Targets** are written relative to the source part's directory (`media/image3.png` from
-  `word/document.xml`), as Word writes them. The resolution reuses `opc::resolve_target`
-  backwards, and a round-trip check is part of validation.
-- **No implicit sharing.** `add_part` never deduplicates. Content-based reuse is a format
-  decision (§5).
-
-#### 1.3 What else core needs (additive notes to ADR-0002)
-
-1. **Namespace declarations on created elements.** Word declares `a:` on `a:graphic` and
-   `pic:` on `pic:pic`, not on the root. `a` is declared on the main part's root in 1 of
-   101 POI and 1 of 404 SDK writable files. So inserting a picture needs
-   `LensMut::declare_namespace(prefix, uri)` on a **created** node. It is refused on an
-   original node, which would make its start tag dirty. It is also refused when the prefix is
-   already bound to another URI in scope, or is `xml`/`xmlns`. ADR-0002 says "Phase0 never
-   declares namespaces"; this lifts that for created nodes only. The prefix rules of §3 then
-   find the new binding.
-2. **`SameType` modulo required skips** (ADR-0007 §8.2) is reused for table rows (§7).
+1. **Namespace declarations on created elements (§3, review M2).**
+   `LensMut::declare_namespace(prefix, uri)` on a **created** node only; on an original node
+   it is refused, since that would dirty its start tag. If the preferred prefix is already
+   bound to another URI in scope, the domain picks another (`a1`, `a2`, …; review m11) rather
+   than failing. `xml` and `xmlns` are refused. ADR-0002 says "Phase0 never declares
+   namespaces"; this lifts that for created nodes only.
+2. **`SameType` modulo required skips** (ADR-0007 §8.2), reused for table rows (§7).
 
 No core change is needed for relationship attributes in copies. PR #18's `detach_as` refuses
-them (`RelationshipAttribute`), and the one Phase2 copy that needs them, a section break
-(§6), skips `headerReference`/`footerReference` in the copy. It then writes them again with
-typed `set_attr(r:id, …)` of ids that already exist in the same part's relationships.
+them (`RelationshipAttribute`). The one Phase2 copy that needs them is a section break (§6):
+it skips `headerReference`/`footerReference` in the copy, then writes them again with typed
+`set_attr(r:id, …)` of ids that already exist in the same part's relationships.
 
-#### 1.4 Layer 3 invariant, restated for additions
+#### 1.1 Layer 3 invariant, restated for additions
 
-- Additions never change an existing entry. An allocated value is fresh in its whole scope:
-  absent from every place §2 lists, existing duplicates included.
-- Existing duplicates are never repaired.
-- Removal is still limited to PR #14's interim note. Phase2's Word operations remove only
-  content (rows, cells), never registry entries. Unreferenced relationships, media and
-  numbering definitions stay, which is valid: 10 SDK `abstractNum` are unreferenced, and 13
-  template files have relationships their source part never mentions.
+- Additions never change an existing entry.
+- An allocated value is fresh in its whole scope: absent from every **definition and every
+  reference** §2 lists, existing duplicates included.
+- Existing duplicates and dangling references are never repaired.
+- Removal is limited to the core rules (PR #14's interim note). Phase2's Word operations
+  remove only content (rows, cells), never registry entries. Unreferenced relationships,
+  media and numbering definitions stay, which is valid: 10 SDK `abstractNum` are
+  unreferenced, and 13 template files have relationships their source part never mentions.
 
 ### 2. Word registries (`ooxml-docx`), lazily activated
 
 Every registry scans its scope when first needed, as ADR-0006 §2 does for xlsx, and
 allocates from that scan plus what it has already handed out.
 
-| Registry | Scope scanned | Allocation | Evidence |
+**Scopes are definitions and references (revision 2, review M3).** A value counts as used
+when anything **defines** it or **refers** to it. Otherwise a new definition could adopt a
+dangling reference and silently change existing content. For example, POI `60329.docx` has
+22 `w:pStyle` naming the undefined style `EmptyCellLayoutStyle`, and `add_style` with that
+name would restyle 22 paragraphs.
+
+| Registry | Scope scanned: definitions ∪ references | Allocation | Evidence |
 |---|---|---|---|
-| **Drawing ids** (`wp:docPr/@id`) | all story parts (document, headers, footers, notes, comments), **both** branches of every `mc:AlternateContent`, and text boxes. Not the glossary document, which is a document of its own | max + 1. If that would exceed 2³¹ − 1, the smallest free value ≥ 1 *(ECMA types it `unsignedInt`; Word's own limit is (u))*. `pic:cNvPr/@id` is written as `0`, as Word does | duplicates within or across parts: 0 in all corpora; AC-branch duplicates in 9 files (legitimate); largest max + 1 1,073,741,826 |
-| **Annotation ids** (`w:id` of bookmarks, comment ranges and references, the comments part, revisions, `*PrChange`, `numberingChange`, move ranges, `customXml*Range`, permissions) | the **union** over every story part and `comments.xml` | max + 1 over the union, never a gap | cross-category collisions: 0 in POI/SDK, 2 template outputs. The union is the conservative reading (roadmap Q4). Largest max + 1: 137. Footnote/endnote ids are a separate space (Phase3; their separators are `-1`/`0`) |
-| **Bookmark names** | every `bookmarkStart/@w:name` in every story | none: the caller names it. It must be absent ignoring case, at most 40 characters, a letter followed by letters, digits or `_` *(Word's rule, u)*. Names starting with `_` (hidden) are refused for callers | exact duplicates: POI 1 file (LibreOffice `__DdeLink__`), 8 template outputs; case-only duplicates: 0; over 40 characters: 1 |
-| **Numbering** (`numId`, `abstractNumId`) | `numbering.xml` | max + 1 for each. `numId` 0 is reserved ("no numbering": 58 SDK `numPr` use it) and never allocated | duplicates, gaps, dangling references: 0 everywhere; largest max + 1: 100 / 104 |
-| **`nsid`** (`abstractNum`'s hex id) | all `abstractNum/w:nsid` | random 8-hex-digit value absent from the set | duplicates: 0 |
-| **Style ids** | `styles.xml` `w:styleId` (and `stylesWithEffects.xml`, read-only, §8) | caller's name, checked; see §8 | duplicate ids: 0 (ADR-0007 spike) |
-| **Relationship ids, part names, content types** | core (§1) | §1.2 | §1.2 |
+| **Drawing ids** | every `@id` of `wp:docPr` **and of every DrawingML `*:cNvPr`** (`pic:`, `wps:`, `a:`; review m1) in all story parts, both branches of every `mc:AlternateContent`, and text boxes. Not the glossary document, which is a document of its own | max + 1. Above 2³¹ − 1: refused with `DrawingIdsExhausted`, never a gap (review m1, proposed default Q2; ADR-0012's `ShapeIdsExhausted`). New `pic:cNvPr/@id` is `0`, as Word writes | `docPr` duplicates within or across parts: 0; AC-branch duplicates in 9 files (legitimate); other `cNvPr` ids: `wps` POI 8 / tpl 10 / fx 6, DrawingML main SDK 29 (`review1.py`); largest max + 1: 1,073,741,826 |
+| **Annotation ids** | `w:id` of exactly these elements, in every story part and `comments.xml`: `bookmarkStart`/`End`, `commentRangeStart`/`End`/`commentReference`, `w:comment`, `ins`/`del`/`moveFrom`/`moveTo`, `rPrChange`/`pPrChange`/`sectPrChange`/`tblPrChange`/`trPrChange`/`tcPrChange`/`tblGridChange`/`numberingChange`, `cellIns`/`cellDel`/`cellMerge`, `move*RangeStart`/`End`, `customXml*Range*`, `permStart`/`permEnd`. **Not** `w:sdtPr/w:id`, which is random and can be negative (SDK 1,948, 21 negative). Non-numeric values (`permStart`'s `ST_String`) are ignored for the max. The glossary document is included (harmless). Review m2 | max + 1 over the numeric union, never a gap; above 2³¹ − 1 `AnnotationIdsExhausted` | cross-category collisions: 0 in POI/SDK, 2 template outputs. The union is the conservative reading (roadmap Q4). Largest max + 1: 137. Footnote/endnote ids are a separate space (Phase3; separators `-1`/`0`) |
+| **Bookmark names** | every `bookmarkStart/@w:name`, plus every name a `REF`/`PAGEREF`/`NOTEREF`/`HYPERLINK \l` instruction or a `w:hyperlink/@w:anchor` mentions | none: the caller names it. It must be absent ignoring case (Unicode lower-casing), at most 40 characters, and a **Unicode letter** followed by letters, digits or `_` *(Word's UI rule; review m4, proposed default Q3)*. Caller names starting with `_` are refused | exact duplicates: POI 1 file (LibreOffice `__DdeLink__`), 8 template outputs; case-only: 0; over 40 characters: 1; Cyrillic names exist (POI `WordWithAttachments.docx`) |
+| **Numbering** | `numId`: `w:num/@w:numId` ∪ `w:numIdMacAtCleanup/@w:val` ∪ every `w:numPr/w:numId` in the stories, styles and numbering parts. `abstractNumId`: definitions ∪ `w:num/w:abstractNumId` | max + 1 for each. `numId` 0 is reserved ("no numbering": 58 SDK `numPr`) and never allocated (review m3) | duplicates, gaps, dangling references: 0 everywhere; `numIdMacAtCleanup` ≥ max `numId` in 4 SDK files; largest max + 1: 100 / 104 |
+| **`nsid`** | all `abstractNum/w:nsid` | random 8-hex-digit value absent from the set | duplicates: 0 |
+| **Style ids** | `w:styleId` in `styles.xml` ∪ every `pStyle`/`rStyle`/`tblStyle` in the stories and styles, `basedOn`/`next`/`link`, `numbering.xml`'s `w:lvl/w:pStyle`, `styleLink`/`numStyleLink` (`stylesWithEffects.xml` read-only, §8) | derived from the name, checked; see §8 | undefined references: POI 22 `pStyle` + 1 `link`, template 8 `link` (`review1.py`); duplicate ids: 0 |
+| **Relationship ids, part names, content types** | core (§1) | core | §1 |
 
 **No `w14:paraId`/`textId` in Phase2.** New paragraphs and rows get none, as in Phase0:
 both are optional, and Word assigns them on its next save *(u)*. The registry that would
@@ -193,28 +220,42 @@ paragraph or after a given run.
   GIF). `ImageSize::Auto` uses 96 DPI when the file has no DPI *(Word's default, u)*;
   `ImageSize::Emu { cx, cy }` overrides it. Anything else is `UnsupportedImage`. SVG, which
   needs an `asvg:svgBlip` extension and a PNG fallback (1 SDK file), is Phase4.
-- **Media part:** `word/media/image{n}.{ext}` with the smallest free n (§1.2), its relationship
-  from the story part, and its content type. Reuse is in two layers, as in all three libraries
-  (§13):
-  - **package-wide**, a media part with the same bytes, matched by SHA-256 and then a full
-    byte comparison, is reused;
+- **Media part:** named, related and typed through the core API (§1). Reuse is in two layers,
+  as in all three libraries (§13):
+  - **package-wide**, an existing media part is reused when it has the same bytes (SHA-256,
+    then a full byte comparison) **and** a content type equal to the sniffed one (review m5).
+    A part edited in this session is hashed by its current bytes;
   - **per story part**, an existing `…/image` relationship to it is reused (get-or-add);
     otherwise a new relationship is added.
 
   Producers share media parts (POI 2, SDK 6, template 8 files) and reuse one `rId` for
   several drawings (POI 4, SDK 7 files). Hashing reads only parts targeted by image
   relationships.
+  - **Later phases:** replacing or deleting an image must copy-on-write a shared media part,
+    after counting its references in all stories and the glossary (review m5). Phase2 only
+    adds.
 - **XML written:** the minimal form Word writes:
   - `wp:inline` with `distT/B/L/R="0"`;
   - `wp:extent`, `wp:effectExtent` (zeros);
-  - `wp:docPr id descr`, `wp:cNvGraphicFramePr/a:graphicFrameLocks noChangeAspect="1"`;
+  - `wp:docPr id descr`;
+  - `wp:cNvGraphicFramePr/a:graphicFrameLocks noChangeAspect="1"`, where
+    `a:graphicFrameLocks` **declares `a` itself** (revision 2, review M2);
   - `a:graphic` (declares `a`), with `a:graphicData uri=".../picture"`;
   - `pic:pic` (declares `pic`) with `pic:nvPicPr(cNvPr id="0" name, cNvPicPr)`,
     `pic:blipFill(a:blip r:embed, a:stretch/a:fillRect)`, and
     `pic:spPr(a:xfrm(off, ext), a:prstGeom prst="rect"/a:avLst)`.
 
-  `wp` must be in scope on the story root; otherwise `NamespaceNotInScope`, which applies to
-  POI 5 and SDK 6 writable files.
+  **Declaration rule (revision 2, review M2).** On the created subtree, each outermost element
+  that uses a namespace (`a`, `pic`, `wp`, `r`) not in scope at that element declares it
+  (§1). `a:graphicFrameLocks` is a sibling's child of `a:graphic`, so `a:graphic`'s
+  declaration does not reach it. Word declares `a` on both:
+  - measured, `a:graphicFrameLocks` carries its own `xmlns:a` in fx 34/34, POI 60/60,
+    SDK 290/291, docx4j 6/6 and template 40/49;
+  - the 10 without one sit in files that declare `a` on the root.
+
+  With the rule, revision 1's `NamespaceNotInScope` for a story root without `wp` (POI 5,
+  SDK 6 writable files) is gone: `wp` is declared on `w:drawing`'s child `wp:inline` when
+  needed. The same holds for `r`.
 - **Where:** a new run, after the given run or at the end of the paragraph (`insert_by` in
   `w:p`'s content slot). The run gets no `rPr`. The paragraph must pass ADR-0007's paragraph
   checks, so no image is inserted inside a field result, a revision or a content control.
@@ -225,14 +266,17 @@ paragraph or after a given run.
 - **External:** `w:hyperlink r:id` with a new relationship (`…/hyperlink`,
   `TargetMode="External"`) **per hyperlink**. Producers never share one (0 files), and Word
   writes one per link (POI 5, SDK 8 files have several relationships with the same URL). The
-  URI must be absolute (`scheme:`), and the relationship stores it as given. It is never
-  normalised.
+  URI must be absolute (`scheme:`). It is stored as given, never normalised. Core refuses a
+  target with whitespace or control characters (`InvalidTarget`). The caller percent-encodes;
+  ooxml-docx does not do it silently (review m6).
 - **Internal:** `w:hyperlink w:anchor="name"` to an existing bookmark (the name compared
   ignoring case), else `UnknownBookmark`.
 - **Operations:**
   - `insert_hyperlink(position, text, target)` creates a new `w:hyperlink` holding one new
-    run with `w:rStyle` "Hyperlink" when that character style exists (ADR-0007 §5), else no
-    `rPr`.
+    run with the character style **named** "Hyperlink" when it exists, found by `w:name`
+    (ADR-0007 §5), else no `rPr`. Its id is localized: `a`/`aN` in Japanese and Russian Word
+    (review m6).
+  - A position inside an existing `w:hyperlink` is refused (`NestedHyperlink`).
   - `replace_with_hyperlink(match, text, target)` combines ADR-0007's `replace` with run
     splitting (§9). The matched text is removed; `r₀` is split at the match position (§9.2);
     the hyperlink is inserted between the two halves, its run carrying a copy of `r₀`'s
@@ -250,32 +294,42 @@ paragraph or after a given run.
   otherwise `BookmarkSpansContainers`.
 - **Not created:** table-column bookmarks (`colFirst`/`colLast`).
 - **Removal:** `remove_bookmark(name)` removes both markers. The id is never reused: the
-  registry's max stays.
+  registry's max stays. It is refused (review m4) when the name occurs more than once (tpl 8,
+  POI 1 file), or when the name is mentioned by a `REF`/`PAGEREF`/`NOTEREF`/`HYPERLINK \l`
+  instruction or a `w:hyperlink/@w:anchor` (`BookmarkReferenced`).
 
 ### 5a. Lists and numbering
 
 - **`create_list(template: ListTemplate) -> NumId`** (`Bullet`, `Decimal`; Open question 8)
   makes the following additions.
-  - **Numbering part:** created if absent, through the §1 plan. It is `word/numbering.xml`,
-    or the smallest free numbered name if that is taken, with an `Override` of the
-    WordprocessingML numbering type and a `…/numbering` relationship from the main part. 80
+  - **Numbering part:** created if absent, through the core API (§1). It is
+    `word/numbering.xml`, or core's next numbered name if that is in use, with the
+    WordprocessingML numbering content type and a `…/numbering` relationship from the main
+    part. 80
     of 101 writable POI files and 312 of 404 SDK files need this for their first list.
   - **`w:abstractNum`:** a new one with `abstractNumId` = max + 1, a fresh `nsid`,
     `multiLevelType="hybridMultilevel"` and the template's nine `w:lvl`. The generated slots
     of `CT_Numbering` place it after the existing `abstractNum` and before the first `num`.
     Producers keep that order: no violation in any corpus.
-  - **`w:num`:** a new one, appended, with `numId` = max + 1 pointing at it.
+  - **`w:num`:** a new one, with `numId` = max + 1 over §2's scope, pointing at it. It is
+    inserted at the end of the `num` slot, which is before `w:numIdMacAtCleanup` (review m3).
 - **`apply_list(p, num, level)`** writes `w:pPr/w:numPr` (`w:ilvl`, `w:numId`) with
   `get_or_insert`.
   - The `numId` must exist.
   - The paragraph must pass ADR-0007's paragraph checks. A `w:pPrChange` refuses
     (`InsideRevision`).
-- **`restart_list(p)`** restarts numbering at a paragraph that already has a `numId`.
-  - It appends a new `w:num` with the same `abstractNumId` and
+- **`restart_list(p)`** restarts numbering at a paragraph that has its own `w:numPr/w:numId`.
+  - It adds a new `w:num` with the same `abstractNumId` and
     `w:lvlOverride w:ilvl=<p's level>/w:startOverride w:val=<start>`. Producers do this:
     `startOverride` POI 7, SDK 15, template 24.
-  - It reassigns `numId` on `p` and on every later paragraph of the same story that uses the
-    old `numId`, which is what Word's "Restart at 1" does *(u)*.
+  - The old `num`'s `lvlOverride`s for the **other** levels are copied (`detach_as`), so their
+    look does not change (review m3). `num` with `lvlOverride`: POI 9, SDK 18, template 26.
+  - It reassigns `numId` on `p` and on every later paragraph of the same story that carries
+    the old `numId` **in its own `numPr`**, which is what Word's "Restart at 1" does *(u)*.
+  - Paragraphs numbered only through their style are left alone, and the result for them is
+    stated in the API documentation.
+  - If any paragraph to reassign fails ADR-0007's paragraph checks, the whole call is refused,
+    before any write.
 - **`remove_from_list(p)`** removes `w:numPr`. When the paragraph's style carries numbering,
   it writes `w:numId w:val="0"` instead. That is Word's form (58 SDK and 43 template `numPr`
   use it). `numId` 0 is never allocated (§2).
@@ -288,18 +342,28 @@ paragraph or after a given run.
 ### 6. Sections
 
 - **`insert_section_break(after: ParaRef, kind)`** (`nextPage`, `continuous`, `evenPage`,
-  `oddPage`) splits the section S that contains the paragraph. The paragraph gets a copy of
-  S's `w:sectPr` in its `w:pPr`, and S's own `w:sectPr` stays where it is. The copy is made by
-  `detach_as` with `headerReference`/`footerReference` skipped. New references with the same
-  `w:type` and `r:id` values are then inserted with typed setters, after checking each id in
-  the part's relationships (§1.3).
-  - The copy keeps S's header/footer references and page setup, so both halves look like S
-    did.
-  - Only `w:type` is set on the copy.
-  - The copy is refused when S's `sectPr` has `w:sectPrChange` (`InsideRevision`) or when the
-    paragraph already ends a section (`AlreadySectionEnd`).
-  - The paragraph must be a body paragraph, not in a table or content control
-    (`UnsupportedContext`).
+  `oddPage`) splits the section S that contains the paragraph p.
+  - The **earlier half** (ending at p) gets a copy of S's `w:sectPr` in p's `w:pPr`. The copy
+    is made by `detach_as` with `headerReference`/`footerReference` skipped. References with
+    the same `w:type` and `r:id` are then inserted with typed setters, after each id is checked
+    in the part's relationships (§1). The copy keeps S's header/footer references, page setup,
+    start type and restart settings, so the earlier half looks exactly as S did.
+  - **`w:type` = kind is written on the later half**, S's original `w:sectPr` (revision 2,
+    review M1). `w:type` says how a section starts relative to the previous one *(ECMA-376
+    Part 1 §17.6.22)*, so the boundary between the halves is the later half's start.
+    python-docx writes the kind on the later (sentinel) `sectPr` too (`document.py:146-147`,
+    `oxml/document.py:63-71`).
+  - **Restart settings stay only in the earlier half (review M1).** On the later half,
+    `w:pgNumType/@w:start` is removed, so page numbers continue across the break.
+    `w:lnNumType/@w:restart` is set to `continuous` when it is `newSection`. Note numbering
+    (`w:footnotePr`/`w:endnotePr` `w:numRestart`) is left as it is: it is per-section by
+    nature *(u)*.
+    - Measured `sectPr` with `pgNumType/@start`: POI 6, SDK 23, template 11. SDK has 20
+      `footnotePr/numRestart` and 1 `endnotePr/numRestart` (`review1.py`).
+    - Word's behaviour is a `manual_check` item.
+  - The break is refused when S's `w:sectPr` has `w:sectPrChange` (`InsideRevision`; both
+    halves are written now), and when p already ends a section (`AlreadySectionEnd`).
+  - p must be a body paragraph, not in a table or content control (`UnsupportedContext`).
 - **Lifts ADR-0004's A2:** `append_paragraph` may now move the last section's `sectPr`.
   Moving is copy + remove of an element without annotation ids, by the same copy procedure.
 - **Header inheritance:** sections without references inherit from the previous section
@@ -315,7 +379,20 @@ cells inside cell-level content controls are counted. Otherwise the operation fa
 
 Rows or tables holding cell-level `w:sdt`/`w:customXml` (SDK 56 files) are refused
 (`UnsupportedContext`), as are row-level revisions (`trPr/ins|del`, SDK 3) and any target row
-inside a revision.
+inside a revision. A table with legacy `w:hMerge` is refused for column operations and
+merges (review M5).
+
+**Deleting operations refuse notes and revisions (revision 2, review M6).** `delete_rows`,
+`delete_column` and `merge_cells` remove content. They are refused when the removed range
+holds:
+
+- a `w:footnoteReference` or `w:endnoteReference` (`WouldRemoveNote`): removing it would
+  renumber the later notes, make `NOTEREF` results stale and orphan the note. Measured: table
+  rows holding one in POI 3 and SDK 3 files (`review1.py`);
+- any revision element: run-level `ins`/`del`/`moveFrom`/`moveTo`, a paragraph-mark
+  `ins`/`del`, or any `*PrChange`/`cellIns`/`cellDel`/`cellMerge` (`InsideRevision`).
+  Removing it would accept or reject a tracked change silently. W1 does not catch this when
+  `trackRevisions` is off. Measured: rows holding revisions in SDK 3 files.
 
 #### 7.1 Insert rows
 
@@ -324,13 +401,16 @@ row** (`Above` by default, or `Below`):
 
 - `w:tr` keeps no attributes. In particular `w14:paraId`/`textId` and rsids are not copied
   (rows with `w14:paraId`: SDK 54).
-- `w:trPr` and `w:tblPrEx` are copied (`detach_as`). The copy is refused if they contain
+- `w:trPr` and `w:tblPrEx` are copied (`detach_as`), **without `w:tblHeader`** (review m7).
+  Otherwise a row inserted below a heading row would also repeat on every page. Measured:
+  `tblHeader` rows POI 33, SDK 138. The copy is refused if they contain
   `ins`/`del`/`trPrChange`.
 - Per cell:
   - a `w:tc` with a copy of its `w:tcPr`, refused if it has `tcPrChange` or
     `cellIns`/`cellDel`/`cellMerge`;
   - one `w:p` with a copy of the template cell's first paragraph's `w:pPr`, minus `sectPr`,
-    `pPrChange` and `numPr`, plus its mark run properties;
+    `pPrChange` and `numPr`, and with its mark run properties minus `ins`/`del`/`moveFrom`/
+    `moveTo`/`rPrChange` (review M6);
   - no runs.
 - Text is then set with `set_cell_text` (ADR-0007 §3).
 - **Vertical merges:** a new row's cell takes `vMerge="continue"` only when the template
@@ -356,21 +436,30 @@ write.
 
 - **Grid:** a new `w:gridCol` with that width is inserted into `tblGrid`.
 - **Rows:** in every row, the grid column `at` either
-  - falls at a cell boundary or at the row's end: a new cell is inserted there (copy of the
-    left neighbour's `tcPr`, `tcW` set to the width), or
+  - falls at a cell boundary or at the row's end: a new cell is inserted there, or
   - falls inside a cell's span (`gridSpan` > 1) or in `gridBefore`/`gridAfter`: that span is
     widened by one.
+- **The new cell's `tcPr` (revision 2, review M5)** is a copy of the left neighbour's, or the
+  right neighbour's at grid column 0. The copy leaves out:
+  - `gridSpan`, `vMerge` and `hMerge`: a span would break the grid, and a merge would create
+    an unintended one. Measured `gridSpan` > 1: POI 7,534 and SDK 1,658 cells;
+  - `tcPrChange` and `cellIns`/`cellDel`/`cellMerge`;
+  - `tcW`, which is set to the width.
+
+  Its paragraph is built as in §7.1.
 - **Widths:** `tblW` is not changed. When `tblW` is fixed (`w:type="dxa"`), Word reflows *(u)*.
 
 `delete_column` removes the `gridCol`. In each row it removes the cell that covers only that
-column, refused if the cell is not empty, or narrows the span that covers it.
+column, refused if the cell is not empty, or narrows the span that covers it. It is also
+refused when a row would be left with no `w:tc` (`RowWouldBeEmpty`): Word treats a `w:tr`
+without cells as a broken table *(u)*.
 
 #### 7.4 Merge cells
 
 `merge_cells(table, rows, grid_cols)` merges a rectangle:
 
-- horizontally, the first cell of each row gets `gridSpan` = the width, and the other cells
-  of the rectangle are removed;
+- horizontally, the first cell of each row gets `gridSpan` = the width and `tcW` = the sum of
+  the merged cells' widths (review m7). The other cells of the rectangle are removed;
 - vertically, the first row's cell gets `vMerge="restart"` and the cells below
   `vMerge="continue"`.
 
@@ -387,10 +476,18 @@ inverse for cells that `merge_cells` could have produced.
 appends a `w:style` to `styles.xml`:
 
 - **Kinds:** paragraph or character. Table and numbering styles are Phase4.
-- **Id:** the name with every character outside `[A-Za-z0-9]` removed *(Word's apparent rule,
-  u; python-docx removes spaces only, §Sources)*. A collision (ignoring case) with an existing
-  id gets the smallest numeric suffix that is free. The caller may also pass an explicit id,
-  which is checked.
+- **Id (revision 2, review M4; proposed default Q4):**
+  - Start from the name with every character outside `[A-Za-z0-9]` removed. That is Word's
+    rule as observed: `Tělo textu` → `Tlotextu`, `Überschrift 1 Zchn` → `berschrift1Zchn`.
+  - If that is **empty** (a fully Cyrillic or CJK name), the id is `a`, or `a` + the
+    smallest free number, which is how localized Word names such styles. Measured: names that
+    strip to empty, POI 89 / template 30 / fixtures 7; ids of the form `a`/`aN`, POI 131,
+    SDK 131, fixtures 37 (`review1.py`).
+  - A stripped id that starts with a digit is kept: `ST_String` allows it, and Word writes
+    such ids *(u)*.
+  - A collision with §2's scope, which includes dangling references (M3), compared ignoring
+    case, gets the smallest numeric suffix that is free.
+  - The caller may pass an explicit id, which is checked against the same scope.
 - **Name:** must be new ignoring case among `w:name`. A name equal to a **latent** built-in
   style (`Heading 3`, …, `lsdException`) is refused (`BuiltInStyleName`). Word would expect
   its built-in definition, which ooxml-rs cannot reproduce *(u)*. Measured: 19,173 POI and
@@ -441,6 +538,7 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
   | `insert_image` | format: an image adds no paragraph and no text, but changes pagination |
   | `insert_hyperlink`, `add_bookmark` | text |
   | `add_style` | none (it changes no story), except W1/W3 |
+  | `split_run` | none: the text and its formatting are unchanged (review m9) |
   | everything else | structure |
 - **A new bookmark changes no field result.** A `REF` to a name that does not exist yet
   shows an error text, and Word updates it only when fields update *(u)*. Bookmark names
@@ -467,10 +565,11 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
   `w:CT_SectPr/w:sectPr` (the last always copied with its header/footer references skipped,
   §6). Each review checks that the
   subtree holds no document-unique id once the listed skips apply.
-- **New groups `wp` and `pic`:** `wp:CT_Inline/wp:inline`, `wp:CT_PositiveSize2D/wp:extent`,
+- **New file `codegen/allowlist/wpd.toml`** for the `wp` and `pic` entries, which only Word
+  uses: `wp:CT_Inline/wp:inline`, `wp:CT_PositiveSize2D/wp:extent`,
   `wp:CT_EffectExtent/wp:effectExtent`, `wp:CT_NonVisualDrawingProps/wp:docPr`,
   `wp:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr`, and `pic:CT_Picture/pic:pic`
-  with its children. These sit in the allowlist file of the group the SDK assigns them to.
+  with its children. pptx uses `p:pic` and xlsx `xdr:pic`. Proposed default Q7.
 - **Shared DrawingML `a:` entries** (`a:graphic`, `a:graphicData`, `a:blip`, `a:stretch`,
   `a:xfrm`, `a:prstGeom`, `a:graphicFrameLocks`) are shared with PowerPoint's `dml.toml`, and
   ADR-0005's owner must review them.
@@ -487,14 +586,19 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
     entries at the end of the zip.
 - **T-OPC (shared with xlsx Phase3), on every output:**
   - every relationship's internal target exists;
-  - every part has exactly one content type, by `Override` or by `Default`, and every
-    `Override` names an existing part;
+  - every part **added or changed by the operation** has exactly one content type, by
+    `Override` or by `Default`. The check is a difference against the input: POI has 1 file
+    with an untyped part from its producer (review m10). Every new `Override` names an
+    existing part;
+  - no new part name equals an existing relationship target, dangling ones included
+    (review m10);
   - relationship ids are unique per source, ignoring case;
   - no new part is an orphan;
   - every `r:id`/`r:embed` written resolves in its part's relationships;
   - the zip has no duplicate names (OPC equivalence).
 - **T-REG (registries):**
-  - every allocated value is absent from its whole scope (§2) before the write;
+  - every allocated value is absent from its whole scope (§2), **definitions and references**,
+    before the write (review M3);
   - after the write it occurs exactly once, AC branches included;
   - every existing value is unchanged: no id moved, no duplicate repaired;
   - property tests over the corpora run 100 random operations per writable fixture and
@@ -515,7 +619,9 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
 - **Manual:** `manual_check` outputs in Word for each operation:
   - an image in a header;
   - a list restart;
-  - a section break in a landscape document;
+  - a section break in a landscape document, and in a section with
+    `pgNumType/@start` (M1);
+  - `continuous` and `nextPage` breaks, checked at the boundary (M1);
   - merges;
   - a new header on section 2 of 3;
   - a style named like a localized built-in.
@@ -524,20 +630,20 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
 
 | Concern | python-docx 1.2.0 | Apache POI XWPF | docx-rs 0.4.22 | ADR-0011 |
 |---|---|---|---|---|
-| rId | first gap (`opc/rel.py:104-111`); reuses a rel with the same type and target (`:31-47`, `:70-87`) | count+1, then a forward cursor with a collision check (`PackageRelationshipCollection.java:209-229`) | fixed or per-type strings (`rId1`…`rId8`, `rIdHeader{n}`, `rIdImage{n}`); customXml `rId{i+8}` can collide with footnotes' `rId8` (`document_rels.rs:56-117`) | max numeric + 1, never a gap (§1.2) |
-| part names | first free number among all parts (`opc/package.py:109-121`); images by first gap regardless of extension (`package.py:95-110`) | `getNextPartNumber` probes names (`POIXMLDocumentPart.java:614-647`), but headers use the rel count + 1 and can hit an existing name (`XWPFHeaderFooterPolicy.java:185, 237`) | order counters; media always `.png` (`zipper/mod.rs:80-103`, `image_collector.rs:137`) | smallest free n under OPC equivalence, also avoiding dangling Overrides and targets |
-| content types | rebuilt from a whitelist on save; the original is not kept (`opc/pkgwriter.py:80-99`) | Default for a new (extension, type) pair, else Override (`ContentTypeManager.java:152-164`) | fixed Default list incl. non-standard `image/jpg` (`content_types.rs:156-172`) | POI's rule, appended to the existing part |
+| rId | first gap (`opc/rel.py:104-111`); reuses a rel with the same type and target (`:31-47`, `:70-87`) | count+1, then a forward cursor with a collision check (`PackageRelationshipCollection.java:209-229`) | fixed or per-type strings (`rId1`…`rId8`, `rIdHeader{n}`, `rIdImage{n}`); customXml `rId{i+8}` can collide with footnotes' `rId8` (`document_rels.rs:56-117`) | core's rule (`core/add-part`, §1) |
+| part names | first free number among all parts (`opc/package.py:109-121`); images by first gap regardless of extension (`package.py:95-110`) | `getNextPartNumber` probes names (`POIXMLDocumentPart.java:614-647`), but headers use the rel count + 1 and can hit an existing name (`XWPFHeaderFooterPolicy.java:185, 237`) | order counters; media always `.png` (`zipper/mod.rs:80-103`, `image_collector.rs:137`) | core's `Numbered`: max + 1, avoiding dangling targets and Overrides (§1) |
+| content types | rebuilt from a whitelist on save; the original is not kept (`opc/pkgwriter.py:80-99`) | Default for a new (extension, type) pair, else Override (`ContentTypeManager.java:152-164`) | fixed Default list incl. non-standard `image/jpg` (`content_types.rs:156-172`) | core's rule: existing matching `Default`, else `Override`; Word adds no `Default` (§1) |
 | image dedup | package-wide SHA-1; rel per part (`package.py:68-93`, `parts/story.py:27-39`) | checksum + byte compare; rel per part (`XWPFDocument.java:1596-1680`) | (length, crc32) + bytes, package-global; rel per part (`image_collector.rs:15-70`) | SHA-256 + bytes, package-wide; rel get-or-add per part |
-| `docPr` id | max + 1 of `//@id` in **one part** (`parts/story.py:76-88`): a header and the body can collide | lowest free id document-wide (`IdentifierManager.java:120-129`); an existing duplicate is silently re-reserved elsewhere (`:58-114`) | always `1` (`drawing.rs:132`) | max + 1 over all stories and AC branches |
+| `docPr` id | max + 1 of `//@id` in **one part** (`parts/story.py:76-88`): a header and the body can collide | lowest free id document-wide (`IdentifierManager.java:120-129`); an existing duplicate is silently re-reserved elsewhere (`:58-114`) | always `1` (`drawing.rs:132`) | max + 1 over all `docPr`/`cNvPr` ids in all stories and AC branches; refuse above 2³¹ − 1 |
 | `pic:cNvPr` id | 0 (`oxml/shape.py:147-151`) | 0 (`XWPFRun.java:1416-1440`) | 0 (`pic.rs:224`) | 0 (as Word: SDK 265 of 285) |
 | bookmarks | no API | no API | caller's id and name, unchecked (`bookmark_start.rs:14-19`) | annotation union max + 1; name checked |
 | comment ids (Phase3) | max + 1 over comments, first gap above 2³¹ − 1 (`oxml/comments.py:68-87`) | caller's (`XWPFComments.java:286-292`) | caller's | union registry (§2) |
 | numbering | no list API; numbering.xml cannot be created (`parts/numbering.py:11-14`) | `addNum`: count + 1, **no collision check** (`XWPFNumbering.java:145-153`); `abstractNum` max + 1; creates the part (`XWPFDocument.java:1017-1030`) | caller's ids; always emits a built-in num 1 that a caller's 1 duplicates (`numberings.rs:32-46`) | max + 1 each, `numId` 0 reserved, `nsid` fresh; creates the part through §1 |
 | tables | `add_row`/`add_column` keep `tblGrid` (`table.py:37-55`); `merge` moves content into the top cell (`oxml/table.py:661-735`) | `createRow` copies row 0's cell count; `addNewCol` ignores `tblGrid`; new tables have none (`XWPFTable.java:233-307`) | caller sets everything; no checks (`table.rs:36-69`) | consistent-grid precondition; merges only of empty cells |
 | hyperlinks | read-only; the generic `relate_to` would share a rel per URL | new external rel each time (`XWPFParagraph.java:1542-1558`) | new global id each time (`hyperlink.rs:34-50`) | one rel per hyperlink (producers never share) |
-| headers | `next_partname` + `relate_to` + schema-ordered reference (`section.py:316-325, 446-450`) | rel-count naming, body-level `sectPr` only | count + 1 | §1 names, references copied on breaks |
-| section break | clones the sentinel `sectPr` into a new last paragraph, strips the sentinel's references (`oxml/section.py:186-195`) | none | none | copy without references, then the same references rewritten (§6) |
-| styles | styleId = name without spaces (special cases for headings, caption), collisions unchecked (`oxml/styles.py:16-30, 280-290`) | appended unchecked (`XWPFStyles.java:201-206`) | caller's | id derived and checked, latent built-in names refused |
+| headers | `next_partname` + `relate_to` + schema-ordered reference (`section.py:316-325, 446-450`) | rel-count naming, body-level `sectPr` only | count + 1 | not created in Phase2; references copied on breaks |
+| section break | clones the sentinel `sectPr` into a new last paragraph, strips the sentinel's references (`oxml/section.py:186-195`) | none | none | copy into the earlier half, references rewritten; `w:type` on the later half, as python-docx (§6) |
+| styles | styleId = name without spaces (special cases for headings, caption), collisions unchecked (`oxml/styles.py:16-30, 280-290`) | appended unchecked (`XWPFStyles.java:201-206`) | caller's | ASCII-stripped id, `a`/`aN` when empty, checked against definitions and references; latent built-in names refused |
 | `w14:paraId` | none | none | thread-local counter `00000001…`, duplicates reassigned before writing (`paragraph_id.rs`, `mod.rs:963-981`) | none in Phase2 (Alternatives 4) |
 | `stylesWithEffects.xml` | carried unchanged from its template | not referenced | not referenced | left unchanged (Open question 5) |
 
@@ -547,14 +653,16 @@ it hands out is absent everywhere it must be. That check is what T-REG tests.
 
 ## Alternatives considered
 
-1. **Count + 1 for part names and `rId`s** (POI's header naming and `addNum`, docx-rs; §13). Wrong here:
-   - `rIdN` sets that are not `1..n` occur in 4 files and other id shapes in 16;
+1. **Count + 1 for part names and `rId`s** (POI's header naming and `addNum`, docx-rs; §13).
+   Wrong here:
+   - `rIdN` sets that are not `1..n` occur in 4 files, and other id shapes in 16;
    - header numbers go up to 20 with gaps, and `word/footer.xml` exists.
 
-   Max + 1 and smallest-free-name are as cheap and never collide.
-2. **Reuse gaps** (first free `rId`, first free `numId`). Rejected for ids: a gap may be a
-   removed entry whose stale reference survives (ADR-0001's reason for append-only).
-   Accepted for part *names*, where §1.2 also checks dangling `Override`s and targets.
+   Core's max + 1 (§1) does not collide.
+2. **Reuse gaps** (first free `rId`, `numId`, part number). Rejected for ids and, since
+   revision 2, for part names too, following core (review B1). A gap may be a removed entry
+   whose stale reference survives, which is ADR-0001's reason for append-only. Revision 1's
+   "smallest free name" contradicted this.
 3. **A move primitive** (cut and paste a subtree within a part, ids kept because nothing is
    duplicated). It would allow merging non-empty cells and wrapping existing runs into a
    hyperlink. Deferred. It needs a core design of its own: spans, dirty flags, and the depth
@@ -569,6 +677,12 @@ it hands out is absent everywhere it must be. That check is what T-REG tests.
 7. **Write `stylesWithEffects.xml` too.** Deferred: unverified effect *(u)*; Open question 5.
 8. **Core owns all registries, including Word's.** Rejected, as in ADR-0001: core owns only
    the OPC registries; ID spaces with format meaning belong to the format crate.
+9. **A Word-specific part plan in core** (revision 1's `PartPlan`). Withdrawn (B1). One
+   core API serves Word, xlsx and pptx, and its rules table is decided once, by the core PR
+   with the owners of ADR-0009 and ADR-0012.
+10. **Scopes of definitions only** (revision 1). A new style, list or relationship id could
+    adopt a dangling reference and change existing content without a write to it (M3).
+    Rejected.
 
 ## Consequences
 
@@ -576,46 +690,63 @@ it hands out is absent everywhere it must be. That check is what T-REG tests.
   - Structure can be added to real Word files without renumbering or repairing anything.
   - Every new id is fresh in a scope that is measured to be the right one: no `docPr`
     collision across parts in any corpus, so the union scan is sufficient.
-  - The OPC API serves xlsx Phase3 unchanged.
+  - One core registry API serves Word, xlsx and pptx (§1).
+  - New values never adopt a dangling reference (M3).
 - **Positive:** T-OPC and T-REG apply to both formats and are independent of the code they
   check (T7).
-- **Negative:** three additive core changes:
-  - the part plan;
+- **Negative:** this ADR depends on the core registry API (`core/add-part`, PR pending) and
+  on two additive lens changes, each with its own review:
   - namespace declarations on created nodes;
   - `SameType` modulo skips (shared with ADR-0007).
-
-  Each needs its own review.
 - **Negative:** these are refused in Phase2 and wait for a move primitive:
   - merging non-empty cells;
   - wrapping existing text into a hyperlink without splitting into new runs;
   - deleting rows that hold half of a bookmark.
+- **Negative:** deleting and merging operations refuse ranges with footnote references or
+  revisions. Restarting a list leaves paragraphs numbered only through their style
+  unchanged.
 - **Negative:** the allowlist grows by roughly 60 entries across `wml`, `wp`, `pic` and `a`.
   The DrawingML part is shared with PowerPoint and needs that owner's review.
 
 ## Open questions for the project owner
 
-1. **Core part-adding API (§1).** Is the `PartPlan` shape right for xlsx Phase3 as well? It
-   should be reviewed together with ADR-0009 before either is implemented.
-2. **docPr ids above 2³¹.** Is "smallest free" an acceptable fallback, or should it be
-   refused? Word's handling of ids ≥ 2³¹ is unverified.
-3. **Bookmark name rules** (≤ 40 characters, letter first, no `_` prefix for callers): please
-   confirm against Word.
-4. **Style ids from names** (§8): strip everything outside ASCII alphanumerics, or keep
-   Unicode letters? Localized Word keeps them (`Tlotextu` → `Tělo textu` *(u)*).
-5. **`stylesWithEffects.xml`:** leave new styles out (proposed), or append them there too?
-6. **Header on a later section** (§6): copying references preserves both halves' headers.
-   A `set_header(section, …)` that starts a new header for one section would also set
-   explicit references on the following inheriting sections. Should that be in Phase2?
-7. **Allowlist dry run** for the ~60 new entries, and whether the `wp`/`pic` groups go into
-   `dml.toml` or a new `wpd.toml`.
-8. **List templates:** which built-in bullet and decimal definitions should `create_list`
-   write? Copy Word 365's `numbering.xml` defaults from an owner-provided document (preferred)
-   or define our own.
+Revision 2 records the round-1 reviewer's recommendations as **proposed defaults**. They are
+what this revision specifies, pending the owner's confirmation.
+
+1. **Core API.** *Proposed default:* no Word-specific `PartPlan` (B1). The core registry API
+   on `core/add-part` is the single source of truth (coordinator decision, 2026-11-16). One
+   core rules table, agreed with ADR-0009 and ADR-0012, covers:
+   - the `Default` policy (Word adds none);
+   - part names (max + 1, avoiding dangling targets, `Override`s and removed names);
+   - the case sensitivity of `rId`;
+   - whether `r:*` references in the source count as used.
+2. **`docPr` ids above 2³¹ − 1.** *Proposed default:* refuse with `DrawingIdsExhausted`.
+   The observed max is 1,073,741,826, far below.
+3. **Bookmark names.** *Proposed default:* at most 40 characters; a Unicode letter followed by
+   letters, digits or `_`; compared ignoring case; callers may not start a name with `_`.
+   A Word check is added to `manual_check`.
+4. **Style ids.** *Proposed default:* strip to ASCII alphanumerics (`Tlotextu`,
+   `berschrift1Zchn`); when empty, `a` + the smallest free number (M4).
+5. **`stylesWithEffects.xml`.** *Proposed default:* new styles are not added to it.
+6. **Headers for a single section.** *Proposed default:* not in Phase2. A later design covers
+   explicit references on the following sections, `titlePg` and `evenAndOddHeaders`.
+7. **Allowlist.** *Proposed default:*
+   - `wp`/`pic` entries in a new `wpd.toml`;
+   - `a:*` entries in `dml.toml`, reviewed by ADR-0005's owner;
+   - the dry run as the implementation PR's first commit.
+8. **List templates.** *Proposed default:* copy them from the `numbering.xml` of a Word 365
+   document the owner provides, committed as a fixture.
+   - Issue a new `nsid`.
+   - Drop `w:tmpl`, `numStyleLink`/`styleLink` and `w15:restartNumberingAfterBreak`.
+   - Keep the bullet `lvlText` (U+F0B7, …) and its `rFonts` (Symbol, Wingdings, Courier New).
 
 ## Sources
 
-- Spike: `spikes/docx-phase2/README.md`, `registries.py`, `needs.py`; run 2026-11-16,
-  Python 3.15.
+- Spike: `spikes/docx-phase2/README.md`, `registries.py`, `needs.py` and, since revision 2,
+  `review1.py`; run 2026-11-16, Python 3.15.
+- Review: `docs/adr/0011-opus-review-round1.md`.
+- Core registry API: branch `core/add-part` (`crates/ooxml-core/src/package/add.rs`; PR
+  pending).
 - Library source (read, not executed):
   - python-docx `e45454602b53e8e572b179ccf1c91093ec9f4ed7` (`src/docx/`);
   - Apache POI `47dcff769bb395034dddfd59c4609659b6dbc6a4`

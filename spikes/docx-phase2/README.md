@@ -28,7 +28,8 @@ other than Word.
 | Script | Measures | ADR-0011 |
 |---|---|---|
 | `registries.py` | Every ID space and registry. **Drawing ids**: `wp:docPr/@id` duplicates per part, across parts, explained by `mc:AlternateContent` branches; value range; `pic:cNvPr/@id`. **Bookmarks**: id and name duplicates, case-only duplicates, names over 40 characters, hidden names. **Annotation ids**: the union of `w:id` over bookmarks, comments, revisions and permissions, cross-category collisions. **`w14:paraId`/`textId`**. **Numbering**: `num`/`abstractNum` ids, gaps, dangling references, `numId` 0, `nsid`, overrides. **Relationships**: ids, gaps, externals, relationships unused by their source. **`[Content_Types].xml`**. **Media**: naming, sharing, linked, SVG. **Part naming**. **Sections**. **Table grids and merges**. **Hyperlinks**. **Styles** | §2–§8 |
-| `needs.py` | Per writable file, what a first list, style, header or image would have to create (numbering part, Default for `png`/`jpeg`, …). A prototype of every allocation rule in §2, checked for freshness, with the largest value allocated (headroom against 2³¹) | §1, §2 |
+| `review1.py` (revision 2) | The facts behind the round-1 review: restart settings in `sectPr`, `a:graphicFrameLocks` declarations, references to undefined style/num/relationship ids, dangling targets, style names that strip to empty, `a`/`aN` ids, spans and merges in cells, notes and revisions in table rows, other `cNvPr` ids, `sdtPr/w:id`, `numIdMacAtCleanup`, `tblHeader` | §1–§8 |
+| `needs.py` | (Its part-name prototype is revision 1's smallest-free rule. Since revision 2 the core API's max + 1 rule applies; the other allocations are unchanged.) Per writable file, what a first list, style, header or image would have to create (numbering part, Default for `png`/`jpeg`, …). A prototype of every allocation rule in §2, checked for freshness, with the largest value allocated (headroom against 2³¹) | §1, §2 |
 
 ```sh
 S=spikes/docx-phase2; C=<corpus dir>
@@ -176,3 +177,24 @@ to have the wrong grid width.)
 | `HYPERLINK` fields (files) | 2 | 2 | 2 | 0 |
 
 Producers write one relationship per hyperlink and never share one.
+
+### Review round 1 facts (`review1.py`, revision 2)
+
+| | fx | POI | SDK | d4j | tpl |
+|---|---|---|---|---|---|
+| `sectPr` with `pgNumType/@start` (files) | 0 | 6 (6) | 23 (8) | 0 | 11 (11) |
+| `sectPr` with `footnotePr`/`endnotePr` `numRestart` | 0 | 0 | 20 / 1 | 0 | 0 |
+| `a:graphicFrameLocks` declaring `xmlns:a` / not | 34 / 0 | 60 / 0 | 290 / 1 | 6 / 0 | 40 / 9 |
+| references to undefined style ids (`pStyle` / `link`) | 0 / 0 | 22 / 1 | 0 / 0 | 0 / 0 | 0 / 8 |
+| `numId` references to undefined `num` | 0 | 0 | 0 | 0 | 0 |
+| `r:*` attributes / to an undefined relationship | 378 / 0 | 578 / 0 | 1,445 / 0 | 20 / 0 | 384 / 0 |
+| dangling internal relationship targets (files) | 0 | 0 | 26 (19) | 0 | 0 |
+| style names that strip to empty (ASCII alphanumerics) | 7 | 89 | 0 | 0 | 30 |
+| style ids of the form `a`/`aN` | 37 | 131 | 131 | 0 | 16 |
+| cells with `gridSpan` > 1 / `vMerge` / `hMerge` | 7 / 2 / 0 | 7,534 / 3,697 / 0 | 1,658 / 423 / 0 | 45 / 16 / 0 | 71 / 46 / 0 |
+| table rows holding a footnote/endnote reference (files) | 0 | 3 | 9 (3) | 0 | 0 |
+| table rows holding revision elements (files) | 0 | 0 | 3 (3) | 0 | 0 |
+| `cNvPr/@id` other than `pic:` (`wps:` / DrawingML main) | 6 / 0 | 8 / 0 | 0 / 29 | 0 / 0 | 10 / 0 |
+| `sdtPr/w:id` / negative | 9 / 0 | 76 / 31 | 1,948 / 21 | 8 / 0 | 42 / 12 |
+| `numIdMacAtCleanup` ≥ max `numId` (files) | 0 | 0 | 4 | 0 | 0 |
+| rows with `trPr/tblHeader` | 7 | 33 | 138 | 2 | 7 |
