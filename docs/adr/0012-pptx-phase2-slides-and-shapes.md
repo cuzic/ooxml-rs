@@ -101,6 +101,28 @@
   - Cascade relationship types outside §6 found in the wider corpus
     (619 decks): `customXml` (45 slides), `control` (15),
     `legacyDrawing` (1), `chartEx` (4) — refused as §6 says.
+- **Post-acceptance note (2026-11-16, review of PR #51 round 1 — §5 and
+  §3 wording, scope of the implementation PR):**
+  - §5 said both "with no slides or no sections, nothing" and that the
+    invariant "concatenated sections = `p:sldIdLst`" holds after every
+    operation; with sections but no slides the first sentence broke the
+    invariant (review M1). The rule is: **with no sections, nothing; with
+    sections but no slides, the first section** (the new slide is the
+    only one, at position 0). Read §5's sentence that way.
+  - §3: `p14:creationId` has no session high-water mark: a value of a
+    slide deleted in this session may be given again, which is harmless
+    because the slide's `sldId` (which modern comments also name in
+    `pc:sldMk`) never is (review n1).
+  - §6 lists each cascade type "under its transitional and, where
+    defined, strict/Microsoft URI"; the implementation knows the
+    transitional (and Microsoft) URIs only. Strict is refused at open
+    (ADR-0001), and an unknown type is `UnsupportedSlidePart`, so this is
+    fail-closed (review n2).
+  - §4.5 (`add_text_box`, `add_picture`) and §4.6 (`ensure_notes_slide`)
+    are **not** in the first implementation PR (#51): the coordinator
+    moved them to a follow-up PR (2026-11-16), which also verifies N7
+    (media content types). The shape-id allocation they need
+    (`Presentation::next_shape_id`) is in #51 (review m2).
 
 ## Context
 

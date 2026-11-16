@@ -1031,3 +1031,138 @@ fn duplicate_keeps_fragment_links() {
     assert_eq!(rels.matches("Target=\"#_ftn1\"").count(), 2, "{rels}");
     check_structure(&out);
 }
+
+// ------------------------------------------------------------------ review round 1
+
+#[test]
+fn sections_with_no_slides_take_the_next_slide_in_the_first_section() {
+    // review M1: delete every slide, then add: the slide must join the
+    // first section, and later operations must keep working
+    let src = fixture("libreoffice/slide-sections.pptx");
+    let mut p = Presentation::from_bytes(src).unwrap();
+    while p.slide_count() > 0 {
+        p.delete_slide(0).unwrap();
+    }
+    let l = p.layouts().unwrap()[0].clone();
+    p.add_slide(&l, None).unwrap();
+    let first = ids(&p)[0];
+    let s = section_lists(&p.to_bytes().unwrap());
+    assert_eq!(s[0], [first]);
+    assert!(s[1..].iter().all(Vec::is_empty));
+    p.add_slide(&l, None).unwrap();
+    p.move_slide(0, 1).unwrap();
+    let out = p.to_bytes().unwrap();
+    check_structure(&out);
+    let mut q = Presentation::from_bytes(out).unwrap();
+    q.delete_slide(0).unwrap();
+    check_structure(&q.to_bytes().unwrap());
+}
+
+#[test]
+fn add_at_zero_skips_an_empty_first_section() {
+    // review R17 / ADR §5 m11: an empty first section is never filled
+    // implicitly; position 0 joins the section of the slide now first
+    let src = fixture("libreoffice/slide-sections.pptx");
+    let mut p = Presentation::from_bytes(src).unwrap();
+    for _ in 0..3 {
+        p.delete_slide(0).unwrap(); // empties "Default Section"
+    }
+    let l = p.layouts().unwrap()[0].clone();
+    p.add_slide(&l, Some(0)).unwrap();
+    let new = ids(&p)[0];
+    let s = section_lists(&p.to_bytes().unwrap());
+    assert!(s[0].is_empty(), "{s:?}");
+    assert_eq!(s[1][0], new);
+}
+
+#[test]
+fn show_false_counts_as_hidden() {
+    let count = |b: &[u8]| -> i64 {
+        part(b, "docProps/app.xml").split("<HiddenSlides>").nth(1).unwrap().split('<').next().unwrap().parse().unwrap()
+    };
+    let src = patch(&fixture("poi/sample.pptx"), "ppt/slides/slide1.xml", |s| s.replacen("<p:sld ", "<p:sld show=\"false\" ", 1));
+    let before = count(&src);
+    let mut p = Presentation::from_bytes(src).unwrap();
+    p.duplicate_slide(0, None).unwrap();
+    assert_eq!(count(&p.to_bytes().unwrap()), before + 1);
+}
+
+#[test]
+fn new_creation_ids_stay_above_notes_slides() {
+    // review R10: notes slides' creationIds count too
+    let src = patch(&fixture("python-pptx/sld-notes.pptx"), "ppt/notesSlides/notesSlide1.xml", |s| s.replace("val=\"1469883734\"", "val=\"4000000000\""));
+    let mut p = Presentation::from_bytes(src).unwrap();
+    let new_part = p.duplicate_slide(1, None).unwrap().as_slide().info().part_name.clone();
+    let out = p.to_bytes().unwrap();
+    assert!(part(&out, &new_part).contains("val=\"4000000001\""), "{}", part(&out, &new_part));
+}
+
+#[test]
+fn one_tags_copy_per_distinct_target() {
+    // review R14: two r:ids naming one tags part give one copy
+    let src = patch(&fixture("poi/sample.pptx"), "ppt/slides/_rels/slide1.xml.rels", |s| {
+        s.replace("</Relationships>", "<Relationship Id=\"rId98\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/tags\" Target=\"../tags/tag1.xml\"/><Relationship Id=\"rId99\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/tags\" Target=\"../tags/tag1.xml\"/></Relationships>")
+    });
+    let src = patch(&src, "ppt/tags/tag1.xml", |_| "<p:tagLst xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\"/>".into());
+    let src = patch(&src, "[Content_Types].xml", |s| {
+        s.replace("</Types>", "<Override PartName=\"/ppt/tags/tag1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.tags+xml\"/></Types>")
+    });
+    let mut p = Presentation::from_bytes(src).unwrap();
+    p.duplicate_slide(0, None).unwrap();
+    let out = p.to_bytes().unwrap();
+    assert!(has(&out, "ppt/tags/tag2.xml") && !has(&out, "ppt/tags/tag3.xml"));
+    let rels = part(&out, "ppt/slides/_rels/slide3.xml.rels");
+    assert_eq!(rels.matches("../tags/tag2.xml").count(), 2, "{rels}");
+    check_structure(&out);
+}
+
+#[test]
+fn a_comment_id_used_outside_comment_rel_refuses_duplicate() {
+    // review R23: the skipped comment relationship's Id must not be named elsewhere
+    let src = patch(&fixture("libreoffice/modern-comments.pptx"), "ppt/slides/slide1.xml", |s| {
+        s.replacen("<p:cSld>", "<p:cSld xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rId2\">", 1)
+    });
+    let mut p = Presentation::from_bytes(src.clone()).unwrap();
+    assert_matches!(p.duplicate_slide(0, None), Err(Error::UnsupportedContent(_)));
+    assert_eq!(p.to_bytes().unwrap(), unchanged(&src));
+}
+
+#[test]
+fn a_package_relationship_to_the_slide_refuses_delete() {
+    // review R21: a reference whose source is the package itself
+    let src = patch(&fixture("poi/sample.pptx"), "_rels/.rels", |s| {
+        s.replace("</Relationships>", "<Relationship Id=\"rId99\" Type=\"http://example.com/x\" Target=\"ppt/slides/slide1.xml\"/></Relationships>")
+    });
+    let mut p = Presentation::from_bytes(src.clone()).unwrap();
+    assert_matches!(p.delete_slide(0), Err(Error::SlideIsReferenced { .. }));
+    assert_eq!(p.to_bytes().unwrap(), unchanged(&src));
+}
+
+#[test]
+fn a_chart_shared_with_a_layout_keeps_its_whole_tree() {
+    // review R01: candidates referenced from outside drop out until stable;
+    // the chart stays (a layout uses it), so its embedding stays too
+    let src = patch(&fixture("poi/bar-chart.pptx"), "ppt/slideLayouts/_rels/slideLayout1.xml.rels", |s| {
+        s.replace("</Relationships>", "<Relationship Id=\"rId98\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"../charts/chart1.xml\"/></Relationships>")
+    });
+    let mut p = Presentation::from_bytes(src).unwrap();
+    p.delete_slide(0).unwrap();
+    let out = p.to_bytes().unwrap();
+    assert!(has(&out, "ppt/charts/chart1.xml") && has(&out, "ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx"));
+    check_structure(&out);
+}
+
+#[test]
+fn custom_shows_naming_the_slide_by_another_rid_refuse() {
+    // review n3: a custom show may name the slide through another relationship
+    let src0 = fixture("poi/sample.pptx");
+    let src = patch(&src0, "ppt/_rels/presentation.xml.rels", |s| {
+        s.replace("</Relationships>", "<Relationship Id=\"rId98\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide1.xml\"/></Relationships>")
+    });
+    let src = patch(&src, "ppt/presentation.xml", |s| {
+        s.replace("<p:sldSz", "<p:custShowLst><p:custShow name=\"x\" id=\"0\"><p:sldLst><p:sld r:id=\"rId98\"/></p:sldLst></p:custShow></p:custShowLst><p:sldSz")
+    });
+    let mut p = Presentation::from_bytes(src.clone()).unwrap();
+    assert_matches!(p.delete_slide(0), Err(Error::SlideInCustomShow));
+    assert_eq!(p.to_bytes().unwrap(), unchanged(&src));
+}

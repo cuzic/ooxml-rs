@@ -562,12 +562,20 @@ impl crate::Presentation {
         let sections = self.sections()?;
         self.check_rels_readable()?;
         let main = self.main.clone();
-        // custom shows name slides by r:id
+        // custom shows name slides by r:id: any presentation relationship
+        // to the slide part, not only the one in p:sldIdLst (review n3)
+        let _ = &rid;
+        let pres_rels = self.rels_of(&main)?;
+        let rids: Vec<String> = pres_rels
+            .iter()
+            .filter(|r| r.target_mode == TargetMode::Internal && pres_rels.resolve(r).as_deref() == Some(part.as_str()))
+            .map(|r| r.id.clone())
+            .collect();
         let mut in_show = false;
         walk(self.tree(&main)?.root(), &mut |n| {
             if n.is(q(P_NS, "custShow")) {
                 walk(n, &mut |s| {
-                    in_show |= s.is(q(P_NS, "sld")) && s.attr(q(R_NS, "id")) == Some(rid.as_str())
+                    in_show |= s.is(q(P_NS, "sld")) && s.attr(q(R_NS, "id")).is_some_and(|v| rids.iter().any(|r| r == v))
                 });
             }
         });
@@ -967,8 +975,12 @@ fn insert_into_sections(
                 .ok_or(Error::SectionsInconsistent)?,
             0,
         )
+    } else if secs.is_empty() {
+        return Ok(()); // no sections: nothing to join
     } else {
-        return Ok(()); // no slides: nothing to join
+        // sections but no slides: the first section, so the sections still
+        // concatenate to p:sldIdLst (ADR-0012 §5 post-acceptance note)
+        (0, 0)
     };
     with_section_list(doc, |sl| {
         let mut sec = sl

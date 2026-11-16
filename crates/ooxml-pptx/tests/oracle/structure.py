@@ -116,6 +116,81 @@ def check_structure(z, label):
                 assert back == [part], f"{label}: {notes} back-relationship {back} != {part}"
 
 
+CASCADE = {
+    "notesSlide", "comments", "image", "media", "audio", "video", "hdphoto", "chart", "package",
+    "chartStyle", "chartColorStyle", "chartUserShapes", "diagramData", "diagramLayout",
+    "diagramQuickStyle", "diagramColors", "diagramDrawing", "oleObject", "vmlDrawing", "tags",
+    "themeOverride",
+}
+KEEP = {"slideLayout", "notesMaster", "hyperlink", "slide"}
+
+
+def all_rels(z):
+    """{source part: [(type local name, resolved target or None)]} over every .rels part."""
+    out = {}
+    for n in z.namelist():
+        if not n.endswith(".rels"):
+            continue
+        d, f = n.rsplit("_rels/", 1)
+        src = d + f[: -len(".rels")]
+        try:
+            out[src] = [(t.rsplit("/", 1)[-1], target) for _, t, target in read_rels(z, src)]
+        except ET.ParseError:
+            out[src] = []
+    return out
+
+
+def expected_cascade(z, slide):
+    """ADR-0012 §6, computed independently: the slide and every part it
+    reaches through cascade types, minus (to a fixed point) the parts a
+    part outside the set refers to."""
+    names = set(z.namelist())
+    rels = all_rels(z)
+    reach, queue = set(), [slide]
+    while queue:
+        p = queue.pop()
+        for typ, t in rels.get(p, []):
+            if t is None or typ in KEEP or "#" in t or t not in names:
+                continue
+            if t != slide and t not in reach:
+                reach.add(t)
+                queue.append(t)
+    while True:
+        inside = reach | {slide}
+        keep = {c for c in reach if all(src in inside for src, lst in rels.items() for _, t in lst if t == c)}
+        if keep == reach:
+            break
+        reach = keep
+    return reach | {slide}
+
+
+def unreachable(z):
+    rels = all_rels(z)
+    seen, queue = set(), [""]
+    while queue:
+        p = queue.pop()
+        for _, t in rels.get(p, []):
+            if t and t not in seen:
+                seen.add(t)
+                queue.append(t)
+    return {n for n in z.namelist() if not n.endswith(".rels") and n != "[Content_Types].xml" and not n.endswith("/") and n not in seen}
+
+
+def app_counts(z):
+    if "docProps/app.xml" not in z.namelist():
+        return None
+    root = ET.fromstring(z.read("docProps/app.xml"))
+    ep = "{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}"
+    got = {k: (root.find(ep + k).text if root.find(ep + k) is not None else None) for k in ("Slides", "Notes", "HiddenSlides")}
+    slides = slide_list(z)
+    true = {
+        "Slides": str(len(slides)),
+        "Notes": str(sum(1 for _, p in slides if any(t.endswith("/notesSlide") for _, t, _ in read_rels(z, p)))),
+        "HiddenSlides": str(sum(1 for _, p in slides if ET.fromstring(z.read(p)).get("show") in ("0", "false"))),
+    }
+    return got, true
+
+
 def model(path):
     """python-pptx's view: [(slide_id, layout name, [shape texts])]."""
     prs = Presentation(path)
@@ -177,6 +252,21 @@ def main():
                 assert got == layout_placeholders(out, e[1]), f"{label}: placeholders {got}"
             else:
                 assert a[2] == e[2], f"{label}: slide {k} text differs"
+        # delete: exactly the independently computed cascade goes (review m3)
+        if c["op"] == "delete":
+            slide = slide_list(zin)[args["index"]][1]
+            want = expected_cascade(zin, slide)
+            gone = {n for n in zin.namelist() if not n.endswith(".rels")} - set(zout.namelist())
+            assert gone == want, f"{label}: removed {sorted(gone)} != expected {sorted(want)}"
+        # no part becomes unreachable that was reachable before
+        new_unreach = unreachable(zout) - unreachable(zin)
+        assert not new_unreach, f"{label}: newly unreachable {sorted(new_unreach)}"
+        # app.xml counts stay exact where they were exact
+        ci, co = app_counts(zin), app_counts(zout)
+        if ci and co:
+            for k in ("Slides", "Notes", "HiddenSlides"):
+                if ci[0][k] is not None and ci[0][k] == ci[1][k]:
+                    assert co[0][k] == co[1][k], f"{label}: app.xml {k} {co[0][k]} != {co[1][k]}"
         # parts that are not touched by the op keep their bytes
         for info in zin.infolist():
             name = info.filename
