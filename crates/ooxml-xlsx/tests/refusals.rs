@@ -441,3 +441,22 @@ fn f2_unscannable_other_sheet() {
     }
 }
 
+/// F5: cells out of column order: reads and writes in that row are refused
+/// with `OutOfOrder` (there is no safe insertion point).
+#[test]
+fn f5_cells_out_of_order() {
+    let bytes = with_sheet(&format!(r#"{WS_OPEN}<sheetData><row r="1"><c r="C1"><v>3</v></c><c r="A1"><v>1</v></c></row><row r="2"><c r="A2"><v>2</v></c></row></sheetData></worksheet>"#));
+    let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+    {
+        let ws = wb.worksheet().unwrap();
+        assert_matches!(ws.cell(0, 0), Err(Error::OutOfOrder(_)));
+        assert_matches!(ws.cell(0, 2), Err(Error::OutOfOrder(_)));
+        assert_eq!(ws.cell(1, 0).unwrap().unwrap().value().unwrap(), CellValue::Number(2.0), "other rows still read");
+    }
+    for cell in ["A1", "B1", "D1"] {
+        let (wb, r) = apply(&bytes, a1(cell), &W::Num(1.0));
+        assert_matches!(r, Err(Error::OutOfOrder(_)), "{cell}");
+        assert_unchanged(&wb, &bytes);
+    }
+}
+

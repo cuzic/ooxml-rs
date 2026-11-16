@@ -160,6 +160,68 @@ fn e11_pivot_and_table() {
     assert_eq!(refused, 3 * 3);
 }
 
+/// Review round 1, F3: table-header variants. `ExcelPivotTableSample` with
+/// (a) a second table `T2` (`J5:K8`, `headerRowCount="2"`) added to the
+/// sheet (table part, sheet relationship, `tablePart`, content-type
+/// override): both of its header rows are refused in every column, the
+/// first table is still guarded, body cells are Ok; (b) the original table
+/// with `headerRowCount="0"`: its top row is writable.
+#[test]
+fn e11b_table_header_variants() {
+    let name = "poi/ExcelPivotTableSample.xlsx";
+    let input = read(name);
+    let s1 = text(&input, "xl/worksheets/sheet1.xml");
+    let tp = s1.find("<tableParts").unwrap()..s1.find("</tableParts>").unwrap() + "</tableParts>".len();
+    let rid = {
+        let seg = &s1[tp.clone()];
+        let i = seg.find("r:id=\"").unwrap() + 6;
+        seg[i..i + seg[i..].find('"').unwrap()].to_owned()
+    };
+    let s1 = format!(
+        r#"{}<tableParts count="2"><tablePart r:id="{rid}"/><tablePart r:id="rId99"/></tableParts>{}"#,
+        &s1[..tp.start],
+        &s1[tp.end..]
+    );
+    let rels = patched(
+        &input,
+        "xl/worksheets/_rels/sheet1.xml.rels",
+        "</Relationships>",
+        r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table2.xml"/></Relationships>"#,
+    );
+    let ct = patched(
+        &input,
+        "[Content_Types].xml",
+        "</Types>",
+        r#"<Override PartName="/xl/tables/table2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/></Types>"#,
+    );
+    let t2 = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="2" name="T2" displayName="T2" ref="J5:K8" headerRowCount="2"><tableColumns count="2"><tableColumn id="1" name="a"/><tableColumn id="2" name="b"/></tableColumns></table>"#;
+    let bytes = rebuild(
+        &input,
+        &[
+            ("xl/worksheets/sheet1.xml", s1.into_bytes()),
+            ("xl/worksheets/_rels/sheet1.xml.rels", rels),
+            ("xl/tables/table2.xml", t2.to_vec()),
+            ("[Content_Types].xml", ct),
+        ],
+    );
+    for (cell, table) in [("E1", Some("Tabelle1")), ("J5", Some("T2")), ("K5", Some("T2")), ("J6", Some("T2")), ("K6", Some("T2")), ("J7", None), ("K8", None), ("E2", None), ("J4", None)] {
+        let (wb, r) = apply(&bytes, a1(cell), &W::Num(1.0));
+        match table {
+            Some(t) => {
+                assert_matches!(r, Err(Error::TableHeaderCell { ref table, .. }) if table == t, "{cell}");
+                assert_unchanged(&wb, &bytes);
+            }
+            None => r.unwrap_or_else(|e| panic!("{cell}: {e}")),
+        }
+    }
+    // headerRowCount="0": no header row at all
+    let t1 = patched(&input, "xl/tables/table1.xml", r#"totalsRowShown="0""#, r#"totalsRowShown="0" headerRowCount="0""#);
+    let bytes = rebuild(&input, &[("xl/tables/table1.xml", t1)]);
+    for cell in ["E1", "F1", "G1"] {
+        apply(&bytes, a1(cell), &W::Num(1.0)).1.unwrap_or_else(|e| panic!("{cell}: {e}"));
+    }
+}
+
 /// P0-E12: images in cells (`vm`) are refused; a neighbour is Ok.
 #[test]
 fn e12_rich_value_cells() {
