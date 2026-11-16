@@ -1,0 +1,18 @@
+delete_all: invariants hold                                              55611
+invariant F (per-char format) holds                                      55611
+invariant T (text == str.replace) holds                                  55611
+match: cross-run proofing-only difference                                2402 (4.0 %)
+match: cross-run same format                                             88 (0.1 %)
+match: cross-run visible difference                                      6220 (10.4 %)
+match: cross-run, different hlinkClick (subset of the above)             39 (0.1 %)
+match: refused: crosses a:br                                             276 (0.5 %)
+match: refused: crosses a:fld                                            158 (0.3 %)
+match: single run                                                        50572 (84.7 %)
+matches                                                                  59716
+paragraphs with >= 2 runs/fields                                         1070
+paragraphs with text                                                     5321
+replace with \v: applied in a paragraph with a linked run                506
+replace with \v: applied, invariants hold                                111064
+replace with \v: refused LinkSplitByBreak (match ends inside a linked run) 158
+replace_all: applied                                                     55611
+replace_all: refused (paragraph unchanged)                               434

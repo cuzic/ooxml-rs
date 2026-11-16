@@ -427,6 +427,26 @@ impl XmlDocument {
         LensMut::root_with_limit(&mut self.root, self.max_depth)
     }
 
+    /// The element depth limit this document was parsed with (root =
+    /// depth 1); inserts beyond it are refused with `TooDeep`.
+    pub fn max_depth(&self) -> usize {
+        self.max_depth
+    }
+
+    /// Removes the root's child item at `index` together with the
+    /// whitespace-only text item immediately before it, if any (so an
+    /// indented registry part stays tidy). Marks the root `subtree_dirty`;
+    /// the root keeps its original tags (ADR-0002 §4.2). Used by
+    /// [`Package::remove_part`](crate::Package::remove_part) only.
+    pub(crate) fn remove_root_child_with_leading_ws(&mut self, index: usize) {
+        let children = &mut self.root.children;
+        children.remove(index);
+        if index > 0 && matches!(&children[index - 1], RawItem::Text(t) if t.is_whitespace() && !t.cdata) {
+            children.remove(index - 1);
+        }
+        self.root.subtree_dirty = true;
+    }
+
     /// Marks every node `own_dirty` + `subtree_dirty` and forgets text spans,
     /// so that [`Self::serialize`] re-renders the whole tree from
     /// names/attributes/children. This is the T1b oracle's set-up

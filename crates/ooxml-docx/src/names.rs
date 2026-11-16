@@ -30,6 +30,7 @@ pub(crate) const W_TYPE: QName = w("type");
 pub(crate) const R_ID: QName = QName::new(ooxml_schema::wml::NS_R, "id");
 pub(crate) const PROOF_ERR: QName = w("proofErr");
 pub(crate) const BOOKMARK_START: QName = w("bookmarkStart");
+pub(crate) const NAME: QName = w("name");
 pub(crate) const BOOKMARK_END: QName = w("bookmarkEnd");
 pub(crate) const RPR_CHANGE: QName = w("rPrChange");
 pub(crate) const HEADER_REFERENCE: QName = w("headerReference");

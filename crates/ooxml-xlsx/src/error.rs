@@ -30,21 +30,11 @@ pub enum Error {
     #[error("malformed workbook: {0}")]
     Malformed(String),
 
-    /// Value edits are refused because the workbook contains a cell formula
-    /// (an element with the SpreadsheetML namespace and local name `f`) in
-    /// `part`, or a `calcChain.xml` part (ADR-0001 R3-M1). Editing a value
-    /// could leave a stale cached result somewhere; Phase1 (ADR-0003)
-    /// handles this.
-    #[error("the workbook contains formulas ({part}); value edits are refused in Phase0")]
-    FormulaPresent {
-        /// The part that contains a formula (or `calcChain.xml`).
-        part: String,
-    },
-
-    /// A sheet part could not be scanned for formulas (not well-formed, or
-    /// not UTF-8), so it cannot be shown formula-free: value edits are
-    /// refused. Reads still work.
-    #[error("could not check {part} for formulas ({reason}); value edits are refused")]
+    /// A sheet part (or `metadata.xml`) could not be scanned for formulas
+    /// (not well-formed, not UTF-8, an `f` outside a cell, a sheet part with
+    /// formulas that `<sheets>` does not list): the formula census is
+    /// incomplete, so every edit is refused (ADR-0003 §1). Reads still work.
+    #[error("could not check {part} for formulas ({reason}); edits are refused")]
     FormulaScanFailed {
         /// The part that could not be scanned.
         part: String,
@@ -135,6 +125,86 @@ pub enum Error {
     /// workbook, which returns the template's one sheet.
     #[error("adding a worksheet is not supported in Phase0")]
     SheetAdditionUnsupported,
+
+    /// The cell is a non-anchor cell of an array formula, data table or
+    /// dynamic-array spill range (ADR-0003 §5); Excel forbids editing part
+    /// of an array.
+    #[error("cell {cell} is a result cell of the array/spill range anchored at {anchor}")]
+    ArrayResultCell {
+        /// The cell, A1 style.
+        cell: String,
+        /// The anchor cell.
+        anchor: String,
+    },
+
+    /// The cell is the anchor of an array formula, data table or dynamic
+    /// array; array editing is a later phase.
+    #[error("cell {cell} anchors an array formula, data table or dynamic array; array editing is not supported")]
+    ArrayAnchor {
+        /// The cell, A1 style.
+        cell: String,
+    },
+
+    /// The workbook has cell metadata (`c/@cm`) that is not an XLDAPR
+    /// dynamic-array anchor; every edit is refused (ADR-0003 §1).
+    #[error("{part}: cell {cell} has cell metadata (cm) that Phase1 does not model; edits are refused")]
+    UnknownCellMetadata {
+        /// The sheet part.
+        part: String,
+        /// The cell.
+        cell: String,
+    },
+
+    /// The edit would make a formula on a macro sheet or dialog sheet a
+    /// dependent; XLM caches are not modelled (ADR-0003 §5).
+    #[error("the edit would invalidate the macro-sheet formula {sheet}!{cell}")]
+    MacroSheetDependent {
+        /// The macro or dialog sheet.
+        sheet: String,
+        /// The formula cell.
+        cell: String,
+    },
+
+    /// The workbook uses iterative calculation (`calcPr/@iterate`) and the
+    /// edit has dependents: removing their cached values would change what
+    /// Excel computes (ADR-0003 §3.3).
+    #[error("the workbook uses iterative calculation; edits with dependent formulas are refused")]
+    IterativeCalculation,
+
+    /// A shared formula's master was overwritten and its text could not be
+    /// moved to the next member (ADR-0003 §4.2).
+    #[error("cannot hand the shared formula of {cell} to another member: {reason}")]
+    SharedFormulaMaster {
+        /// The master cell.
+        cell: String,
+        /// Why the translation failed.
+        reason: String,
+    },
+
+    /// `set_formula` text that does not lex, or holds characters XML
+    /// cannot carry.
+    #[error("invalid formula {text:?}: {reason}")]
+    InvalidFormula {
+        /// The text.
+        text: String,
+        /// Why.
+        reason: String,
+    },
+
+    /// No sheet with that name or index.
+    #[error("no sheet {0:?}")]
+    NoSuchSheet(String),
+
+    /// The sheet is a chartsheet, macro sheet or dialog sheet, not a
+    /// worksheet.
+    #[error("sheet {0:?} is not a worksheet")]
+    NotAWorksheet(String),
+
+    /// An earlier edit failed while being applied (a bug: the plan had
+    /// proved it would succeed). The workbook may hold a partial edit, so
+    /// every later edit and every save is refused; re-open the file.
+    #[error("the workbook is poisoned by a failed edit ({0}); re-open it")]
+    Poisoned(String),
 
     /// Naming or renaming a sheet is not supported in Phase0 (it touches
     /// `workbook.xml` and `docProps/app.xml` together).
