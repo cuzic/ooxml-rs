@@ -62,6 +62,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "xlsx_formula_edit"
+path = "fuzz_targets/xlsx_formula_edit.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "docx_replace"
 path = "fuzz_targets/docx_replace.rs"
 test = false

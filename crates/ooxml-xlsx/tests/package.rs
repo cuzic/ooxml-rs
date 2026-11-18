@@ -15,7 +15,7 @@ use ooxml_xlsx::{Error, Workbook};
 #[test]
 fn pkg1_zero_edit_passthrough() {
     let fixtures = all_zip_fixtures();
-    assert_eq!(fixtures.len(), 25);
+    assert_eq!(fixtures.len(), 29); // 25 + 4 Phase4 fixtures (ADR-0014)
     for name in fixtures {
         let input = read(&name);
         if name == "poi/SimpleStrict.xlsx" {

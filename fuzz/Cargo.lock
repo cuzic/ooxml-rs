@@ -229,6 +229,7 @@ dependencies = [
 name = "ooxml-xlsx"
 version = "0.1.0"
 dependencies = [
+ "getrandom",
  "ooxml-core",
  "ooxml-schema",
  "quick-xml",

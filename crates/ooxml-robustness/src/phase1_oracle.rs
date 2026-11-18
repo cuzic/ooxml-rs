@@ -1,8 +1,8 @@
-//! The Phase1 (ADR-0003) "nothing else changes" oracle for xlsx edits
+//! The "nothing else changes" oracle for xlsx edits (ADR-0003 and ADR-0006)
 //! (review of PR #36 round 3, M2). Before each successful write the caller
 //! records `Workbook::dependents` and whether the formula-cell set changes;
 //! after the edits every part that changed must differ from the input only
-//! by what Phase1 may write:
+//! by the allowed edits:
 //!
 //! - a sheet with dependents: `v` / `is` children and the `t` attribute of
 //!   the dependent cells, nothing else;
@@ -14,8 +14,10 @@
 //! - `calcChain.xml` (the workbook's calcChain relationship target, as
 //!   ooxml-xlsx resolves it) is removed exactly when the formula set
 //!   changed;
-//! - every other part (other sheets, every other `.rels`, styles, shared
-//!   strings, …) is Layer-1 identical.
+//! - the existing shared-string table: append-only `si` entries and count
+//!   updates after a successful string write;
+//! - every other part (other sheets, every other `.rels`, styles, …) is
+//!   Layer-1 identical.
 //!
 //! The edited sheets are left to the callers' own read-back checks
 //! (insertions there would need a tree alignment).
@@ -23,8 +25,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ooxml_core::{QName, RawItem, RawNode, XmlDocument};
-use ooxml_xlsx::{CellIndex, Workbook};
+use ooxml_xlsx::{CellIndex, SML_NS, Workbook};
 
+const SHARED_STRINGS_REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 const CALC_CHAIN_REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
 
 /// What the successful writes so far may have changed.
@@ -36,6 +39,10 @@ pub struct Phase1Edits {
     formula_set_changed: bool,
     /// Some write had dependents or changed the formula set.
     needs_calc: bool,
+    /// A successful string write could have activated the shared-string registry.
+    wrote_string: bool,
+    /// A write changed the number of cells pointing to shared strings.
+    shared_ref_count_changed: bool,
 }
 
 /// Facts taken just before one write.
@@ -43,6 +50,13 @@ pub struct Phase1Edits {
 pub struct Pending {
     deps: Vec<(String, CellIndex)>,
     had_formula: bool,
+}
+
+impl Pending {
+    /// The dependents `Workbook::dependents` reported before the write.
+    pub fn dependents(&self) -> &[(String, CellIndex)] {
+        &self.deps
+    }
 }
 
 impl Phase1Edits {
@@ -65,11 +79,31 @@ impl Phase1Edits {
         self.formula_set_changed |= changed;
         self.deps.extend(p.deps.into_iter().map(|(s, c)| (s, c.to_string())));
     }
+
+    /// Allow the shared-string reference count to change without appending entries.
+    pub(crate) fn changed_shared_ref_count(&mut self) {
+        self.shared_ref_count_changed = true;
+    }
+
+    /// Call after a successful `set_string` write.
+    pub fn wrote_string(&mut self, p: Pending) {
+        self.wrote(p, false);
+        self.wrote_string = true;
+    }
 }
 
-/// Asserts the Phase1 diff between `base` (the zero-edit save) and `out`;
+/// Asserts the allowed xlsx diff between `base` (the zero-edit save) and `out`;
 /// `skip` are the edited sheet parts.
 pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&str], workbook: &str, edits: &Phase1Edits) {
+    // Two sheets with exactly the same name resolve to the first one in
+    // every by-name lookup (`dependents`, `worksheet_by_name`), so the
+    // dependents cannot be placed: skip this check (Excel never writes such
+    // a workbook; the callers' other checks still run). Review of PR #36
+    // round 4, m12.
+    let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
+    if names.iter().enumerate().any(|(i, n)| names[..i].contains(n)) {
+        return;
+    }
     let a = crate::zipcmp::raw_entries(base).expect("base raw");
     let b = crate::zipcmp::raw_entries(out).expect("out raw");
     let pa = ooxml_core::Package::from_bytes(base.to_vec()).expect("base reopens");
@@ -80,11 +114,13 @@ pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&s
             dep_parts.entry(ws.part_name().to_owned()).or_default().insert(r.clone());
         }
     }
-    let chain: Option<String> = pa
-        .relationships(workbook)
-        .ok()
-        .and_then(|r| r.by_type(CALC_CHAIN_REL).next().and_then(|x| r.resolve(x)))
-        .filter(|p| pa.contains(p));
+    let rels = pa.relationships(workbook).ok();
+    let target = |rel_type| {
+        let r = rels.as_ref()?;
+        r.by_type(rel_type).next().and_then(|x| r.resolve(x)).filter(|p| pa.contains(p))
+    };
+    let chain = target(CALC_CHAIN_REL);
+    let sst = target(SHARED_STRINGS_REL);
     let chain_gone = chain.as_ref().is_some_and(|c| !b.iter().any(|e| &e.name == c));
     if edits.formula_set_changed {
         assert!(chain.is_none() || chain_gone, "the formula-cell set changed but calcChain.xml stayed");
@@ -107,6 +143,8 @@ pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&s
         let (da, db) = (parse(&pa), parse(&pb));
         let ok = if n == workbook {
             edits.needs_calc && eq_with(da.root(), db.root(), &Rule::CalcPr)
+        } else if Some(n) == sst.as_deref() {
+            (edits.wrote_string || edits.shared_ref_count_changed) && shared_strings_diff(&da, &db, edits.wrote_string)
         } else if let Some(refs) = dep_parts.get(n) {
             eq_with(da.root(), db.root(), &Rule::Deps(refs))
         } else if let Some(c) = chain.as_deref().filter(|_| chain_gone && (n == wb_rels || n == "[Content_Types].xml")) {
@@ -114,8 +152,69 @@ pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&s
         } else {
             false
         };
-        assert!(ok, "{n} changed beyond what Phase1 may change");
+        assert!(ok, "{n} changed beyond the allowed xlsx edits");
     }
+}
+
+fn shared_strings_diff(base: &XmlDocument, out: &XmlDocument, allow_append: bool) -> bool {
+    let (a, b) = (base.root(), out.root());
+    let count = QName::new("", "count");
+    let unique = QName::new("", "uniqueCount");
+    let other_attrs = |n: &RawNode| {
+        n.attrs().iter().filter(|x| !x.name().is(count) && !x.name().is(unique)).cloned().collect::<Vec<_>>()
+    };
+    if !a.is(QName::new(SML_NS, "sst")) || a.name() != b.name() || other_attrs(a) != other_attrs(b) {
+        return false;
+    }
+
+    let si = QName::new(SML_NS, "si");
+    let old_len = a.elements().filter(|n| n.is(si)).count();
+    let items: Vec<_> = b.elements().filter(|n| n.is(si)).collect();
+    let Some(appended) = items.get(old_len..) else { return false };
+
+    if !allow_append && !appended.is_empty() {
+        return false;
+    }
+
+    // A missing counter stays missing. uniqueCount changes only on append.
+    let valid_unique_count = if appended.is_empty() {
+        a.attr(unique) == b.attr(unique)
+    } else {
+        b.attr(unique).is_none_or(|v| v.parse::<usize>() == Ok(items.len()))
+    };
+    if a.attr(count).is_some() != b.attr(count).is_some()
+        || b.attr(count).is_some_and(|v| a.attr(count) != Some(v) && v.parse::<u64>().is_err())
+        || a.attr(unique).is_some() != b.attr(unique).is_some()
+        || !valid_unique_count
+    {
+        return false;
+    }
+
+    if let Some(last) = appended.last()
+        && let Some(ext) = b.elements().find(|n| n.is(QName::new(SML_NS, "extLst")))
+        && last.span().expect("parsed si span").end() > ext.span().expect("parsed extLst span").start
+    {
+        return false;
+    }
+
+    let a = a.span().expect("parsed sst span");
+    let b = b.span().expect("parsed sst span");
+    let (a_close, b_close) = (a.close.map_or(a.open_end, |(start, _)| start), b.close.map_or(b.open_end, |(start, _)| start));
+    if base.source()[..a.start] != out.source()[..b.start] || base.source()[a.end()..] != out.source()[b.end()..] {
+        return false;
+    }
+
+    // Compare the entire body after removing just the new entries. Even
+    // whitespace, escapes, comments and extension XML must survive verbatim.
+    let mut body = String::new();
+    let mut cursor = b.open_end;
+    for n in appended {
+        let span = n.span().expect("parsed si span");
+        body.push_str(&out.source()[cursor..span.start]);
+        cursor = span.end();
+    }
+    body.push_str(&out.source()[cursor..b_close]);
+    body == base.source()[a.open_end..a_close]
 }
 
 /// Which difference a comparison tolerates.

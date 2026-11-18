@@ -41,7 +41,7 @@ pub fn check_xlsx_input(data: &[u8]) {
 /// - a refused write leaves the package byte-identical (and, before any
 ///   successful write, the sheet not dirty);
 /// - a successful write reads back as written, before and after a save and
-///   reopen; every part but the sheet stays Layer-1 identical.
+///   reopen; changes outside the edited sheet follow ADR-0003 and ADR-0006.
 pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
     let Ok(mut wb) = Workbook::from_bytes(zip.to_vec()) else { return };
     let _ = (wb.sheet_name().len(), wb.workbook_part().len(), wb.edit_refusal());
@@ -76,6 +76,13 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
         }
         let before = wb.to_bytes().expect("to_bytes worked before");
         let pending = edits.before_write(&mut wb, &target_name, row, col);
+        let overwrites_shared_string = kind == 0
+            && wb.worksheet().is_ok_and(|ws| {
+                ws.cell(row, col)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|cell| cell.raw().attr(ooxml_core::QName::new("", "t")).is_some_and(|t| t.trim() == "s"))
+            });
         let (result, expect) = {
             let Ok(mut ws) = wb.worksheet() else { return };
             match kind {
@@ -105,14 +112,18 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
                 let got = read_cell(&mut wb, row, col);
                 assert_eq!(got.as_ref(), Some(&expect), "write at ({row},{col}) does not read back");
                 written.insert((row, col), expect);
-                edits.wrote(pending, false);
+                if kind == 1 {
+                    edits.wrote_string(pending);
+                } else {
+                    edits.wrote(pending, false);
+                    if overwrites_shared_string {
+                        edits.changed_shared_ref_count();
+                    }
+                }
             }
         }
     }
     let out = wb.to_bytes().unwrap_or_else(|e| panic!("save after edits failed: {e}"));
-    // ADR-0003 Phase1: only the dependents' caches, calcPr and (when a
-    // formula cell was overwritten) calcChain may change outside the
-    // edited sheet (review of PR #36 round 3, M2).
     assert_phase1_diff(&mut wb, &base, &out, &[sheet.as_str()], &workbook, &edits);
     let mut re = Workbook::from_bytes(out).unwrap_or_else(|e| panic!("edited workbook does not reopen: {e}"));
     for ((row, col), v) in &written {

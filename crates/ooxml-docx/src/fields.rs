@@ -280,7 +280,11 @@ fn key(instruction: &str, nested: bool) -> String {
             // inside unquoted paths, so a self-reference fails closed
             // whichever token Word takes as the item.
             let mut skip: Vec<String> = (0..=file).filter_map(|i| argument(rest, i)).collect();
-            let cands: Vec<String> = item_tokens(rest)
+            let (tokens, unescaped) = item_tokens(rest);
+            // unescaped variants of a skipped argument (the file path) are not items
+            let unescaped: Vec<String> =
+                unescaped.into_iter().filter(|(source, _)| !skip.contains(source)).map(|(_, v)| v).collect();
+            let cands: Vec<String> = tokens
                 .into_iter()
                 .filter(|t| match skip.iter().position(|s| s == t) {
                     Some(k) => {
@@ -290,6 +294,12 @@ fn key(instruction: &str, nested: bool) -> String {
                     None => true,
                 })
                 .collect();
+            let mut cands = cands;
+            for v in unescaped {
+                if !cands.contains(&v) {
+                    cands.push(v);
+                }
+            }
             if cands.is_empty() { code } else { format!("{code}{ITEM_ARGUMENT}{})", cands.join(ITEM_SEPARATOR)) }
         }
         _ => code,
@@ -305,7 +315,7 @@ pub const ITEM_SEPARATOR: &str = "\u{1F}";
 /// to whitespace, a quotation mark or `\`. A `\` and the one character after
 /// it (a switch name such as `\a`, `\!`, `\*`, or the second backslash of an
 /// escaped one) are skipped; switch arguments are tokens.
-fn item_tokens(rest: &str) -> Vec<String> {
+fn item_tokens(rest: &str) -> (Vec<String>, Vec<(String, String)>) {
     let mut out = Vec::new();
     let mut chars = rest.chars().peekable();
     let mut cur = String::new();
@@ -336,7 +346,27 @@ fn item_tokens(rest: &str) -> Vec<String> {
         }
     }
     flush(&mut cur, &mut out);
-    out
+    // Review of PR #54, m1: whether Word reads `\` as an escape inside an
+    // argument (`"\OLE_LINK1"`, `x\OLE_LINK1`) is *(u)*. Fail closed: every
+    // piece holding a `\` also yields, without its backslashes, itself and
+    // what follows each `\`.
+    // The variants come with their source piece (normalised), so a caller can
+    // leave out those of an argument it skips.
+    let mut unescaped = Vec::new();
+    // a bare switch (`\a`, `\!`, `\*`) is not an item
+    let switch = |p: &str| p.strip_prefix('\\').is_some_and(|r| r.chars().count() == 1);
+    for piece in rest.split(|c: char| c.is_whitespace() || QUOTES.contains(&c)).filter(|p| p.contains('\\') && !switch(p)) {
+        let source = normalize_name(piece);
+        let mut extra = vec![piece.replace('\\', "")];
+        extra.extend(piece.match_indices('\\').map(|(i, _)| piece[i + 1..].replace('\\', "")));
+        for e in extra {
+            let t = normalize_name(&e);
+            if !t.is_empty() && !out.contains(&t) && !unescaped.iter().any(|(_, v)| v == &t) {
+                unescaped.push((source.clone(), t));
+            }
+        }
+    }
+    (out, unescaped)
 }
 
 /// Is this key (from [`field_key`]) safe under Phase0?
@@ -694,7 +724,13 @@ mod tests {
         // m15: tokens after switches and inside unquoted paths are candidates
         assert_eq!(field_key("INCLUDETEXT \"self.docx\" \\! OLE_LINK1"), "INCLUDETEXT (item OLE_LINK1)");
         assert_eq!(field_key("LINK Word.Document.12 \"self.docx\" \\a OLE_LINK1"), "LINK (item OLE_LINK1)");
-        assert_eq!(field_key("INCLUDETEXT C:\\\\x\\\\self.docx OLE_LINK1"), "INCLUDETEXT (item X\u{1F}SELF.DOCX\u{1F}OLE_LINK1)");
+        assert_eq!(
+            field_key("INCLUDETEXT C:\\\\x\\\\self.docx OLE_LINK1"),
+            "INCLUDETEXT (item X\u{1F}SELF.DOCX\u{1F}OLE_LINK1\u{1F}C:XSELF.DOCX\u{1F}XSELF.DOCX)"
+        );
+        // review of PR #54, m1: an item behind a single backslash is a candidate too
+        assert_eq!(field_key("INCLUDETEXT \"self.docx\" \"\\OLE_LINK1\""), "INCLUDETEXT (item \\OLE_LINK1\u{1F}OLE_LINK1)");
+        assert!(field_key("INCLUDETEXT \"self.docx\" x\\OLE_LINK1").split('\u{1F}').any(|t| t.trim_end_matches(')') == "OLE_LINK1"));
         // m16 (mutant M16): `nested` alone makes a literal-looking source non-literal
         assert_eq!(key("INCLUDETEXT \"a.docx\" bm", true), "INCLUDETEXT (non-literal source)");
         assert_eq!(key("LINK Word.Document.12 \"a.docx\" \"R1C1\"", true), "LINK (non-literal source)");
