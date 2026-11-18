@@ -10,7 +10,8 @@
 use std::collections::BTreeMap;
 
 use ooxml_core::opc::Relationships;
-use ooxml_core::{Package, QName, RawNode, XmlDocument};
+use ooxml_core::{ElementSpec, Package, QName, RawNode, XmlDocument};
+use ooxml_schema::pml;
 
 use crate::error::{Error, Result};
 use crate::names::{A_NS, P_NS};
@@ -194,7 +195,7 @@ pub(crate) fn load(pkg: &mut Package, pres_part: &str, entries: &[(u32, Option<S
         };
         // the notes slide, its notes master and that master's theme (§1.7, §2)
         let notes_name = targets(pkg, &srels, rel::NOTES_SLIDE).into_iter().next();
-        let notes = notes_name.filter(|n| parses(pkg, n)).map(|n| {
+        let notes = notes_name.filter(|n| pkg.xml_part(n).is_ok_and(|doc| doc.root().is(pml::NotesSlide::QNAME))).map(|n| {
             let nrels = get_rels(pkg, &n, &mut rels).unwrap_or_else(|| Relationships::empty(Some(&n)));
             let theme_override = nrels.by_type(rel::THEME_OVERRIDE).next().is_some();
             let master = match targets(pkg, &nrels, rel::NOTES_MASTER).as_slice() {

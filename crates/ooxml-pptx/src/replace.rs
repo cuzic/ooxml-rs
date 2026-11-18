@@ -65,8 +65,9 @@ pub enum Scope {
     Slides,
     /// One slide (0-based index).
     Slide(usize),
-    /// Every slide, each followed by its notes body (ADR-0008 §2; slides
-    /// without notes or without a notes body are skipped).
+    /// Every slide, followed by its notes body when present. A shared notes
+    /// part is searched once, under the first slide that references it
+    /// (ADR-0008 §2).
     SlidesAndNotes,
     /// The notes body of one slide ([`crate::Error::NoNotesSlide`],
     /// [`crate::Error::NoNotesBody`] if there is none).

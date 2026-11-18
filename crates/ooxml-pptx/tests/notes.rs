@@ -103,6 +103,58 @@ fn reading_every_notes_part_is_lossless() {
 }
 
 #[test]
+fn shared_notes_are_replaced_once() {
+    let opts = ReplaceOptions::default().find(FindOptions::default().scope(Scope::SlidesAndNotes));
+    for (body, pattern, replacement, expected) in [
+        ("<a:r><a:t>fo</a:t></a:r><a:r><a:t>o</a:t></a:r><a:r><a:t>!</a:t></a:r><a:r><a:t>tail</a:t></a:r>", "foo", "X", "X!tail"),
+        ("<a:r><a:t>a-b</a:t></a:r>", "-", "\u{b}", "a\u{b}b"),
+    ] {
+        let paragraph = format!("<a:bodyPr/><a:lstStyle/><a:p>{body}</a:p>");
+        let input = patched("poi/sample.pptx", &[
+            ("ppt/slides/_rels/slide2.xml.rels", "../notesSlides/notesSlide2.xml", "../notesSlides/notesSlide1.xml"),
+            (NOTES1, EMPTY_BODY, &paragraph),
+        ]);
+        let mut p = Presentation::from_bytes(input).unwrap();
+        let report = p.replace_all(pattern, replacement, &opts).unwrap();
+        let [matched] = report.replaced.as_slice() else { panic!("{report:?}") };
+        assert!(report.skipped.is_empty());
+        assert!(matched.location.notes);
+        assert_eq!(matched.location.slide, 0);
+        let mut saved = Presentation::from_bytes(p.to_bytes().unwrap()).unwrap();
+        for i in [0, 1] {
+            assert_eq!(saved.notes(i).unwrap().unwrap().text(), expected);
+        }
+    }
+}
+
+#[test]
+fn deck_ignores_notes_relationship_to_slide() {
+    let input = patched("poi/sample.pptx", &[
+        ("ppt/slides/_rels/slide2.xml.rels", "../notesSlides/notesSlide2.xml", "../slides/slide1.xml"),
+    ]);
+    let mut p = Presentation::from_bytes(input.clone()).unwrap();
+    let deck = p.deck().unwrap();
+    let slide = deck.slide(1).unwrap();
+    assert!(slide.notes().is_none());
+    assert!(slide.notes_sheet().is_none());
+    assert_eq!(p.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn first_body_placeholder_without_text_body_wins() {
+    let input = patched("poi/sample.pptx", &[(NOTES1, r#"<p:ph type="sldImg"/>"#, r#"<p:ph type="body"/>"#)]);
+    let mut p = Presentation::from_bytes(input).unwrap();
+    assert!(p.notes(0).unwrap().unwrap().body().is_none());
+    let deck = p.deck().unwrap();
+    assert!(deck.slide(0).unwrap().notes().unwrap().body().is_none());
+    assert_matches!(refused(&mut p, |p| p.notes_mut(0)?.body_mut().map(|_| ())), Error::NoNotesBody);
+    let find = FindOptions::default().scope(Scope::Notes(0));
+    assert_matches!(refused(&mut p, |p| p.find("x", &find)), Error::NoNotesBody);
+    let opts = ReplaceOptions::default().find(find);
+    assert_matches!(refused(&mut p, |p| p.replace_all("x", "y", &opts)), Error::NoNotesBody);
+}
+
+#[test]
 fn notes_text_and_editing() {
     let mut p = Presentation::from_bytes(sample_with_notes_text()).unwrap();
     let n = p.notes(0).unwrap().unwrap();

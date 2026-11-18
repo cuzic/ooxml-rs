@@ -140,18 +140,28 @@ departs from the §5 sketch, and what PR #56 leaves to the stacked notes PR.
   `otherStyle`. The corpus has no such text: 0 of 395 notes runs.
 - **Master placeholders** report `MatchKind::OnMaster`: they inherit from no
   placeholder.
+- **Public enums:** `Role`, `TextStyleKind`, `MatchKind` and `MapSource` are
+  now `#[non_exhaustive]`.
+  New variants are `Role::NotesMaster`, `TextStyleKind::Notes`,
+  `MatchKind::OnMaster`, `MapSource::{NotesOverride, NotesMaster}` and
+  `ChainLink::NotesMaster`.
 - **Notes text and editing:** `Presentation::notes(i)` → `NotesRef`,
   `Presentation::notes_mut(i)` → `NotesMut::body_mut()` (the Phase 0
   `TextBodyMut`), `DeckSlide::notes()`. Without a notes slide the error is
-  `NoNotesSlide { slide_id }`.
-  - The notes body is the first top-level `p:sp` with `p:ph@type="body"`. A
-    body inside `mc:AlternateContent` is used only when there is no other
-    body, and it is refused for editing (`InsideAlternateContent`).
-    python-pptx never sees such a body.
-- **Find/replace:** `Scope::SlidesAndNotes` (each slide followed by its
-  notes body; slides without notes or without a body are skipped) and
-  `Scope::Notes(i)` (`NoNotesSlide`/`NoNotesBody`). `TextLocation::notes`
-  marks a notes match. A failed apply also restores the notes parts.
+  `NoNotesSlide { slide_id }`. `DeckSlide::notes()` and `notes_sheet()`
+  require a relationship target with a `p:notes` root.
+  - The notes body is the first top-level `p:sp` with `p:ph@type="body"`.
+    If it lacks `p:txBody`, the body is absent (`NoNotesBody`), as in
+    python-pptx. A body inside `mc:AlternateContent` is used only when
+    there is no top-level body placeholder. Editing it returns
+    `InsideAlternateContent`. python-pptx never sees such a body.
+- **Find/replace:** `Scope::SlidesAndNotes` searches every slide and its
+  notes body when present. Per the owner decision for PR #76, it processes
+  each notes part once, immediately after the first slide that references
+  it, and uses that slide's index in `TextLocation`. `Scope::Notes(i)`
+  reports `NoNotesSlide`/`NoNotesBody` when appropriate.
+  `TextLocation::notes` marks a notes match. A failed apply also restores
+  the notes parts.
 - **Links on any part:** `PartLinks` from `DeckSlide::link_reader()`,
   `DeckSlide::notes_link_reader()` or `Deck::link_reader(&sheet)`.
 

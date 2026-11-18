@@ -46,8 +46,9 @@ pub(crate) struct BodyLoc {
 }
 
 /// The notes body of a notes part ([`Error::NoNotesBody`] if none): the
-/// first top-level body placeholder; one inside `mc:AlternateContent` only
-/// if there is no other (python-pptx does not see those at all).
+/// first top-level body placeholder, which must have a `p:txBody`. A body
+/// inside `mc:AlternateContent` is a fallback when no top-level placeholder
+/// exists (python-pptx does not see those at all).
 pub(crate) fn body_loc(doc: &XmlDocument) -> Result<BodyLoc> {
     let mut in_ac = None;
     for s in read::shapes_of(doc) {
@@ -69,7 +70,12 @@ pub(crate) fn body_loc(doc: &XmlDocument) -> Result<BodyLoc> {
         if !is_body_placeholder(sp) {
             continue;
         }
-        let Some((ti, _)) = sp.indexed_elements().find(|(_, c)| c.is(pml::TextBody::QNAME)) else { continue };
+        let Some((ti, _)) = sp.indexed_elements().find(|(_, c)| c.is(pml::TextBody::QNAME)) else {
+            if ac {
+                continue;
+            }
+            return Err(Error::NoNotesBody);
+        };
         let shape_id = read::raw_shape_id(sp).unwrap_or(0);
         let loc = BodyLoc { shape: s.path(), body: [base, rel_path, vec![ti]].concat(), shape_id, in_ac: ac };
         if !ac {

@@ -1,5 +1,6 @@
 //! `Presentation`: open/save, the slide list, lazy slide access (ADR-0005 §2).
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use ooxml_core::{ElementSpec, Lens, Package, QName, XmlDocument};
@@ -263,9 +264,14 @@ impl Presentation {
             }
             Scope::Slide(i) => out.push(slide(i)?),
             Scope::SlidesAndNotes => {
+                let mut seen_notes = BTreeSet::new();
                 for i in 0..self.slides.len() {
                     out.push(slide(i)?);
-                    out.extend(notes(i, false)?);
+                    if let Some(unit) = notes(i, false)?
+                        && seen_notes.insert(unit.part.clone())
+                    {
+                        out.push(unit);
+                    }
                 }
             }
             Scope::Notes(i) => out.extend(notes(i, true)?),
@@ -552,10 +558,11 @@ pub(crate) mod fault {
         let before = pres.to_bytes().unwrap();
         let find = crate::FindOptions::default().scope(crate::Scope::SlidesAndNotes);
         let matches = pres.find("shared notes marker", &find).unwrap();
-        assert_eq!(matches.len(), 2);
-        assert!(matches.iter().all(|m| m.location.notes));
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].location.notes);
+        assert_eq!(matches[0].location.slide, 0);
 
-        FAIL_AFTER_SLIDE.set(Some(1));
+        FAIL_AFTER_SLIDE.set(Some(0));
         let result = pres.replace_all("shared notes marker", "shared notes edited", &crate::ReplaceOptions::default().find(find));
         FAIL_AFTER_SLIDE.set(None);
         assert!(result.is_err());
