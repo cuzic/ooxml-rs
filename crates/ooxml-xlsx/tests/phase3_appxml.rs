@@ -328,6 +328,10 @@ fn vector_shape_is_part_of_recognition() {
         good.replace(r#"<vt:vector size="2" baseType="lpstr">"#, r#"<vt:vector baseType="lpstr">"#),
         good.replace(r#"baseType="lpstr""#, r#"baseType="variant""#),
         good.replace("<vt:lpstr>B</vt:lpstr>", "<vt:lpwstr>B</vt:lpwstr>"),
+        // Keep the valid titles and pair counts so only the unexpected child
+        // type makes this vector ineligible for the update.
+        good.replace(r#"size="2" baseType="lpstr""#, r#"size="3" baseType="lpstr""#)
+            .replace("</vt:lpstr></vt:vector></TitlesOfParts>", "</vt:lpstr><vt:lpwstr>extra</vt:lpwstr></vt:vector></TitlesOfParts>"),
         good.replace("<vt:i4>2</vt:i4>", "<vt:i4>2</vt:i4><vt:i4>2</vt:i4>"),
     ];
     for b in bad {
