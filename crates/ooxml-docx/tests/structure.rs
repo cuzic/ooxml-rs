@@ -162,6 +162,33 @@ fn append_moves_the_last_section_with_its_references() {
 }
 
 #[test]
+fn insert_like_neighbour_refuses_paragraph_local_namespace() {
+    let mut doc = open(r#"<w:p xmlns:x="urn:x"><w:pPr><w:jc w:val="left" x:a="1"/></w:pPr></w:p><w:p/>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_paragraph(Place::After(p(0)), "new", &ParagraphSpec::LikeNeighbour)),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == "urn:x"
+    );
+}
+
+#[test]
+fn append_a2_refuses_paragraph_local_namespace_in_section_properties() {
+    let mut doc = open(r#"<w:p xmlns:x="urn:x"><w:pPr><w:sectPr x:a="1"/></w:pPr></w:p>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.append_paragraph("new")),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == "urn:x"
+    );
+}
+
+#[test]
+fn insert_like_neighbour_a2_refuses_paragraph_local_namespace() {
+    let mut doc = open(r#"<w:p xmlns:x="urn:x"><w:pPr><w:jc w:val="left" x:a="1"/><w:sectPr/></w:pPr></w:p>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_paragraph(Place::After(p(0)), "new", &ParagraphSpec::LikeNeighbour)),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == "urn:x"
+    );
+}
+
+#[test]
 fn insert_after_a2_keeps_the_landscape_section() {
     let section = r#"<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>"#;
     let num = r#"<w:numPr><w:ilvl w:val="0"/><w:numId w:val="3"/></w:numPr>"#;

@@ -295,6 +295,7 @@ impl Document {
             Err(Error::UnsupportedContext { .. }) if move_section => return Err(Error::SectionBreakAtEnd),
             result => result?,
         };
+        // Reject a nested final paragraph before validating the neighbour and insertion spec.
         if move_section && parent_path.len() != 1 {
             return Err(Error::SectionBreakAtEnd);
         }
