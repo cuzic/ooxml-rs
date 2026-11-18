@@ -12,7 +12,8 @@ use ooxml_xlsx::{CellValue, Error, Workbook};
 
 fn merged_expect(input: &[u8]) -> impl Fn(ooxml_xlsx::CellIndex) -> Expect {
     let m = merged(input);
-    move |at| if m.iter().any(|r| r.contains(at)) { Expect::Merged } else { Expect::Ok }
+    // ADR-0014 §3: the anchor (top-left) of a merged range is writable.
+    move |at| if m.iter().any(|r| r.contains(at) && r.first != at) { Expect::Merged } else { Expect::Ok }
 }
 
 /// P0-E1: ADR-0001's sweep on the hand-made fixture (A1, A2 shared strings,
@@ -42,7 +43,9 @@ fn e2_61605_sweep_and_new_row() {
     let cells = existing_cells(&input);
     assert_eq!(cells.len(), 46);
     let (ok, refused) = sweep(name, &cells, merged_expect(&input));
-    assert!(ok > 0 && refused == 6 * 4 * 2, "ok {ok}, refused {refused}");
+    // 6 merges of 4 cells, 2 writes each; the anchors are writable since
+    // ADR-0014 §3, so 3 refused cells per merge
+    assert!(ok > 0 && refused == 6 * 3 * 2, "ok {ok}, refused {refused}");
     let out = check_edit(name, &input, a1("B2"), &W::Num(2.0));
     assert!(sheet_xml(&out).contains(r#"<c r="B2" s="1"><v>2</v></c>"#));
     let out = check_edit(name, &input, a1("A20"), &W::Str("new".into()));
@@ -83,7 +86,7 @@ fn e4_reordered_sheets_empty_sheet_data() {
     {
         let mut ws = wb.worksheet().unwrap();
         ws.write_number(0, 0, 1.0).unwrap();
-        ws.write_string(2, 2, "x").unwrap();
+        ws.write_string_inline(2, 2, "x").unwrap();
     }
     let out = wb.to_bytes().unwrap();
     assert_l1_except(&input, &out, &["xl/worksheets/sheet1.xml"]);
@@ -306,7 +309,7 @@ fn e15_from_scratch() {
     {
         let mut ws = wb.add_worksheet().unwrap();
         assert_eq!(ws.name(), "Sheet1");
-        ws.write_string(0, 0, "a").unwrap();
+        ws.write_string_inline(0, 0, "a").unwrap();
         ws.write_number(1, 1, 2.0).unwrap();
     }
     assert_matches!(wb.add_worksheet(), Err(Error::SheetAdditionUnsupported));
@@ -376,13 +379,13 @@ fn repeated_edits_and_escapes() {
     let mut wb = Workbook::from_bytes(input.clone()).unwrap();
     {
         let mut ws = wb.worksheet().unwrap();
-        ws.write_string(1, 1, "first").unwrap();
+        ws.write_string_inline(1, 1, "first").unwrap();
         ws.write_number(1, 1, 3.0).unwrap();
-        ws.write_string(1, 1, "a\u{1}b _x0041_ c\r\nd").unwrap();
-        ws.write_string(0, 0, "\ttabbed").unwrap();
+        ws.write_string_inline(1, 1, "a\u{1}b _x0041_ c\r\nd").unwrap();
+        ws.write_string_inline(0, 0, "\ttabbed").unwrap();
         assert_matches!(ws.write_number(0, 0, f64::NAN), Err(Error::InvalidNumber(_)));
-        assert_matches!(ws.write_string(0, 0, &"x".repeat(32_768)), Err(Error::StringTooLong(32_768)));
-        ws.write_string(2, 0, &"\u{1F61C}".repeat(16_383)).unwrap();
+        assert_matches!(ws.write_string_inline(0, 0, &"x".repeat(32_768)), Err(Error::StringTooLong(32_768)));
+        ws.write_string_inline(2, 0, &"\u{1F61C}".repeat(16_383)).unwrap();
     }
     let out = wb.to_bytes().unwrap();
     let xml = sheet_xml(&out);

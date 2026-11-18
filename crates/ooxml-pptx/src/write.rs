@@ -17,6 +17,10 @@ use crate::read::{self, ShapePath, Slide, SlideInfo, TextBodyRef, find_by_id, ra
 use crate::refs::SlideRefs;
 use crate::text;
 
+mod table;
+pub use table::{CellFill, Edge, Line, Side, TableColor, TableFlag, TableMut};
+pub(crate) use table::TableSession;
+
 pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {
     path.iter().try_fold(root, |n, &i| n.children().get(i).and_then(RawItem::as_element))
 }
@@ -471,6 +475,7 @@ pub(crate) struct Guard {
     paragraphs: bool,
     characters: bool,
     comments: bool,
+    table: bool,
 }
 
 impl Guard {
@@ -480,6 +485,7 @@ impl Guard {
             paragraphs: refs.paragraphs.covers(ids),
             characters: refs.characters.covers(ids),
             comments: refs.comments.covers(ids),
+            table: refs.tables.covers(ids),
         }
     }
     /// Any change to the text of this body.
@@ -511,6 +517,10 @@ pub struct SlideMut<'a> {
     pub(crate) doc: &'a mut XmlDocument,
     pub(crate) info: SlideInfo,
     pub(crate) refs: SlideRefs,
+    /// Style ids defined in `ppt/tableStyles.xml`.
+    pub(crate) table_styles: Vec<String>,
+    /// Table ids deleted in this session (per graphic frame).
+    pub(crate) tables: &'a mut table::TableSession,
 }
 
 impl<'a> SlideMut<'a> {
@@ -558,7 +568,7 @@ impl<'a> SlideMut<'a> {
         }
         ids.reverse(); // own id first, then enclosing groups
         let guard = Guard::new(&self.refs, &ids);
-        Ok(ShapeMut { doc: &mut *self.doc, path: p.to_vec(), guard })
+        Ok(ShapeMut { doc: &mut *self.doc, path: p.to_vec(), guard, styles: &self.table_styles, tables: &mut *self.tables })
     }
 
     /// The shape with this `cNvPr@id` ([`Error::ShapeNotFound`],
@@ -579,6 +589,8 @@ pub struct ShapeMut<'a> {
     doc: &'a mut XmlDocument,
     path: Vec<usize>,
     guard: Guard,
+    styles: &'a [String],
+    tables: &'a mut table::TableSession,
 }
 
 impl ShapeMut<'_> {
@@ -597,6 +609,28 @@ impl ShapeMut<'_> {
         let mut path = self.path.clone();
         path.push(i);
         Ok(TextBodyMut { doc: &mut *self.doc, path, guard: self.guard.clone() })
+    }
+
+    /// The table of a table graphic frame, for structure and property
+    /// edits (ADR-0013 §2, §3; [`Error::NotATable`]).
+    pub fn table_mut(&mut self) -> Result<TableMut<'_>> {
+        let frame = self.node();
+        if !frame.is(GraphicFrame::QNAME) {
+            return Err(Error::NotATable);
+        }
+        let find = |n: &RawNode, q: QName| n.indexed_elements().find(|(_, c)| c.is(q)).map(|(i, _)| i);
+        let gi = find(frame, Graphic::QNAME).ok_or(Error::NotATable)?;
+        let graphic = node_at(frame, &[gi]).expect("found");
+        let di = find(graphic, GraphicData::QNAME).ok_or(Error::NotATable)?;
+        let gd = node_at(graphic, &[di]).expect("found");
+        if gd.attr(QName::new("", "uri")) != Some(crate::names::TABLE_URI) {
+            return Err(Error::NotATable);
+        }
+        let ti = find(gd, Table::QNAME).ok_or(Error::NotATable)?;
+        let mut tbl = self.path.clone();
+        tbl.extend([gi, di, ti]);
+        let deleted = self.tables.deleted.entry(self.guard.shape_id).or_default();
+        Ok(TableMut { doc: &mut *self.doc, frame: self.path.clone(), tbl, guard: self.guard.clone(), styles: self.styles, deleted })
     }
 
     /// The text body of table cell (`row`-th `a:tr`, `col`-th `a:tc`).

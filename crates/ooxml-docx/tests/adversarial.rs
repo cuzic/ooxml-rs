@@ -582,6 +582,11 @@ fn m13_self_referencing_link_is_refused() {
         (r#"INCLUDETEXT "self.docx" \! OLE_LINK1"#, "INCLUDETEXT (self reference)"),
         (r#"INCLUDETEXT C:\\x\\self.docx OLE_LINK1"#, "INCLUDETEXT (self reference)"),
         (r#"LINK Word.Document.12 C:\\x\\self.docx OLE_LINK1"#, "LINK (self reference)"),
+        // review of PR #54: n1 (mutants P2, P3) and m1 (a backslash before the item)
+        (r#"INCLUDETEXT "self.docx" OLE_LINK1 \c MSWord8"#, "INCLUDETEXT (self reference)"),
+        (r#"INCLUDETEXT "OLE_LINK1" OLE_LINK1"#, "INCLUDETEXT (self reference)"),
+        (r#"INCLUDETEXT "self.docx" "\OLE_LINK1""#, "INCLUDETEXT (self reference)"),
+        (r#"LINK Word.Document.12 "self.docx" x\OLE_LINK1"#, "LINK (self reference)"),
         (r#"LINK Word.Document.12 "" "OLE_LINK1""#, "LINK (non-literal source)"),
         ("LINK Word.Document.12", "LINK (non-literal source)"),
     ] {

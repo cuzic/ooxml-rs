@@ -18,6 +18,7 @@ ORDER = [
     "xl/workbook.xml",
     "xl/_rels/workbook.xml.rels",
     "xl/styles.xml",
+    "xl/sharedStrings.xml",
     "xl/theme/theme1.xml",
     "xl/worksheets/sheet1.xml",
 ]

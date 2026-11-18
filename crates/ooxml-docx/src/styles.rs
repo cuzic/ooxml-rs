@@ -114,8 +114,8 @@ impl Document {
         if same.len() > 1 {
             return Err(Error::AmbiguousStyle { id: id.to_owned() });
         }
-        let Some(s) = same.into_iter().find(|s| s.id == id) else {
-            let latent_only = self.styles_root().is_some_and(|r| {
+        let Some(s) = same.first().filter(|s| s.id == id) else {
+            let latent_only = same.is_empty() && self.styles_root().is_some_and(|r| {
                 let key: String = folded.chars().filter(|c| !c.is_whitespace()).collect();
                 r.elements()
                     .filter(|e| e.is(w("latentStyles")))
@@ -158,6 +158,9 @@ impl Document {
             StyleTarget::Run(r) => self.check_formattable_run(r)?,
         }
         if let Some(id) = id {
+            if id.is_empty() {
+                return Err(Error::InvalidValue { what: "style id", value: String::new() });
+            }
             self.resolve_style(id, expected)?;
         }
         match self.plan_style_ref(target, id)? {
@@ -172,7 +175,7 @@ impl Document {
     /// is a no-op.
     ///
     /// Errors, before any change: [`Self::write_gate`] (the document-wide
-    /// W2); [`Error::UnknownStyle`], [`Error::StyleTypeMismatch`],
+    /// W2); [`Error::InvalidValue`] for an empty id; [`Error::UnknownStyle`], [`Error::StyleTypeMismatch`],
     /// [`Error::AmbiguousStyle`]; the paragraph targets and dry run of
     /// [`Self::format_paragraph`].
     pub fn set_paragraph_style(&mut self, p: ParaRef, id: Option<&str>) -> Result<()> {

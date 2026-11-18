@@ -134,3 +134,9 @@ test both require LibreOffice's value for it to be 2, which proves the recalcula
 | `o1_iterate.xlsx` | `iterate="1"`, `A1` = `A1+B1` | edit B1: `Err(IterativeCalculation)`; edit C9: fine |
 | `o1_macro.xlsx` | XLM macro sheet `Macro1!A1` = `Sheet1!A1+1` | edit Sheet1!A1: `Err(MacroSheetDependent)` |
 | `o1_unknown_cm.xlsx` | `cm` pointing at a non-XLDAPR type | every edit: `Err(UnknownCellMetadata)` |
+
+## `p4_sheet_true.xlsx` — sheet `TRUE`
+
+Not an O1 workbook: the input of manual check item 28 (PR #58 round 1 m7). `set_autofilter`
+writes `_xlnm._FilterDatabase` as `TRUE!$A$1:$B$2` without quotes; whether Excel accepts that
+(or wants `'TRUE'!`) is checked in Excel.
