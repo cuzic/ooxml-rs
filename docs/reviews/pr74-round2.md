@@ -46,7 +46,7 @@ converged: yes（Blocker 0 / Major 0）。
 ### m1（Minor）: `w:rPrChange` による拒否が既定のテストで検証されない
 
 - 根拠:
-  - 変異 H（`replace.rs:408` の `has_rpr_change` を無効化）は、`--lib` と iters=1 の smoke を通る。iters=20 で初めて落ちる。
+  - 変異 H（`replace.rs:409` の `has_rpr_change` を無効化）は、`--lib` と iters=1 の smoke を通る。iters=20 で初めて落ちる。
   - `w:rPrChange` を含むのは実フィクスチャの `poi-delins.docx` だけで、合成文書（`docx_replace.rs:479-504`）にはない。
   - オラクル側の予測（`oracle.rs:104-106`）は正しく書かれているが、既定の CI では通らない経路になっている。
 - 修正案: `targeted_docs` に、`w:rPrChange` を持つ run と持たない run を隣り合わせた段落を足す（必要なら `w:ins` で囲んだ run も足す）。`synthetic_substrings` の全部分文字列走査が、そのまま `InsideRevision` の予測を検証する。
