@@ -61,7 +61,10 @@ mod escape;
 mod formula;
 mod graph;
 mod index;
+mod protect;
+mod range;
 mod reference;
+mod sheet_ops;
 mod registry;
 mod setters;
 mod workbook;
@@ -71,10 +74,13 @@ pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;
+pub use sheet_ops::{RewrittenLocation, SheetState};
 pub use registry::dates::ExcelDateTime;
-pub use registry::format::{Alignment, Border, Color, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
+pub use registry::read::FormatRead;
+pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
 pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
+pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it
 /// by one row and column either succeed or fail cleanly? Never panics.

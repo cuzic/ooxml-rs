@@ -1,0 +1,14 @@
+# Document properties allowlist (feature `props`): docProps/app.xml
+# (extended properties, `ap:`) and the variant types it uses (`vt:`).
+
+# xlsx Phase3 (ADR-0009 §11): HeadingPairs/TitlesOfParts upkeep.
+[write]
+names = [
+    # ap:Properties is already allowlisted in pml.toml.
+    "ap:CT_VectorVariant/ap:HeadingPairs",
+    "ap:CT_VectorLpstr/ap:TitlesOfParts",
+    "vt:CT_Vector/vt:vector",
+    "vt:CT_Variant/vt:variant",
+    "xsd:string/vt:lpstr",
+    "xsd:int/vt:i4",
+]

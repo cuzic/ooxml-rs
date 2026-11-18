@@ -18,7 +18,7 @@ use crate::error::{Error, Result};
 use crate::fields::{self, FieldScan, Operation};
 use crate::names::{
     CUSTOM_PROPERTIES_NS, CUSTOM_PROPERTIES_RELATIONSHIP, EVEN_AND_ODD_HEADERS, FOOTER_REFERENCE, HEADER_REFERENCE,
-    R_ID, RECOMMENDED, RPR_CHANGE, SETTINGS_RELATIONSHIP, STORY_RELATIONSHIPS, TITLE_PG, VAL, W_TYPE,
+    R_ID, RECOMMENDED, RPR_CHANGE, SETTINGS_RELATIONSHIP, STYLES_RELATIONSHIP, STORY_RELATIONSHIPS, TITLE_PG, VAL, W_TYPE,
     WRITE_PROTECTION, is,
 };
 use crate::story::{
@@ -87,8 +87,20 @@ pub struct Document {
     /// Per story, per paragraph: the edit generation (ADR-0007 §7).
     pub(crate) generations: Vec<Vec<u64>>,
     pub(crate) id: DocumentId,
+    /// Source of [`Self::generation`] values: every write gives its
+    /// paragraphs a value never used before in this `Document`.
+    gen_counter: u64,
     gates: Vec<Gate>,
-    update_fields: Option<bool>,
+    /// Parts named by the main part's settings relationships (ADR-0007 §6.3).
+    pub(crate) settings_parts: Vec<String>,
+    /// The part named by the main part's styles relationship (ADR-0007 §5).
+    pub(crate) styles_part: Option<String>,
+    /// More than one styles relationship: style setters refuse.
+    pub(crate) styles_ambiguous: bool,
+    /// [`Document::enable_update_fields_on_open`] was called: W2 is lifted
+    /// for every operation (ADR-0007 §6.3).
+    pub(crate) fields_opt_in: bool,
+    pub(crate) update_fields: Option<bool>,
     write_protection: Option<WriteProtection>,
     marked_final: bool,
 }
@@ -149,6 +161,12 @@ impl Document {
         // Every settings relationship (ECMA-376 allows one; with more, any
         // part that turns a gate on turns it on, review round 3, m11).
         let settings = target(SETTINGS_RELATIONSHIP);
+        let settings_parts = settings.clone();
+        // two styles relationships: the style operations fail closed (review of
+        // PR #59, n3), as settings do with AmbiguousSettings
+        let styles_targets = target(STYLES_RELATIONSHIP);
+        let styles_ambiguous = styles_targets.len() > 1;
+        let styles_part = styles_targets.into_iter().next();
         let story_parts: Vec<(StoryKind, String)> = STORY_KINDS
             .iter()
             .zip(STORY_RELATIONSHIPS)
@@ -171,6 +189,12 @@ impl Document {
             }
         }
 
+        // Parsed once and kept (read-only, written raw). A styles part that
+        // does not parse does not fail the open: the style operations report
+        // the error (ADR-0007 §5; Phase0 never read it).
+        if let Some(name) = &styles_part {
+            let _ = pkg.xml_part(name);
+        }
         let custom = CustomProperties::read(&pkg)?;
 
         let mut gates = Vec::new();
@@ -232,10 +256,15 @@ impl Document {
             stories,
             generations,
             id: DocumentId::fresh(),
+            gen_counter: 0,
             gates,
             update_fields,
             write_protection,
             marked_final: custom.marked_final,
+            settings_parts,
+            styles_part,
+            styles_ambiguous,
+            fields_opt_in: false,
         })
     }
 
@@ -281,14 +310,35 @@ impl Document {
     /// The document-level gates for one operation class (ADR-0007 §6.1):
     /// W1 and W3 as in [`Self::write_gate`], and W2 with only the fields
     /// that operation could make stale.
+    ///
+    /// After [`Self::enable_update_fields_on_open`], W2 no longer applies to
+    /// any operation of this `Document` (ADR-0007 §6.3).
     pub fn write_gate_for(&self, op: Operation) -> Result<()> {
-        self.gates.iter().find_map(|g| g.error_for(op)).map_or(Ok(()), Err)
+        self.gates
+            .iter()
+            .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
+            .find_map(|g| g.error_for(op))
+            .map_or(Ok(()), Err)
+    }
+
+    /// W1 and W3 only (the `updateFields` opt-in is a write, not gated by
+    /// W2; ADR-0007 §6.3).
+    pub(crate) fn write_gate_w1_w3(&self) -> Result<()> {
+        self.gates
+            .iter()
+            .filter(|g| !matches!(g, Gate::StaleFieldRisk(_)))
+            .find_map(|g| g.error_for(Operation::Style))
+            .map_or(Ok(()), Err)
     }
 
     /// Every document-level gate that applies to [`Operation::Style`]
     /// (empty if every write is allowed).
     pub fn write_gates(&self) -> Vec<Error> {
-        self.gates.iter().filter_map(|g| g.error_for(Operation::Style)).collect()
+        self.gates
+            .iter()
+            .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
+            .filter_map(|g| g.error_for(Operation::Style))
+            .collect()
     }
 
     /// `settings/w:updateFields` as read (`None` if absent).
@@ -362,17 +412,57 @@ impl Document {
         self.paragraph_at(ParaRef::new(StoryIndex::MAIN, index))
     }
 
-    /// The edit generation of a paragraph (ADR-0007 §7): incremented by
-    /// every write that changes it. Refused calls and writes that leave the
+    /// The edit generation of a paragraph (ADR-0007 §7): changed (to a value
+    /// never used before) by every write that changes it, and, since
+    /// Phase2, by an insert that moves it. Refused calls and writes that leave the
     /// output byte-identical do not change it. 0 for an unknown paragraph.
     pub fn generation(&self, p: ParaRef) -> u64 {
         self.generations.get(p.story.0).and_then(|g| g.get(p.index)).copied().unwrap_or(0)
     }
 
+    /// Re-walks a story after a write that inserted elements on the paths
+    /// of its runs (a `w:pPr` before a paragraph's runs, a `w:rPr` before a
+    /// run's ruby). Paragraphs and runs keep their indices: nothing is
+    /// added to or removed from the flow.
+    pub(crate) fn reindex(&mut self, story: StoryIndex) {
+        let root = self.story_root_node(story);
+        let kind = self.stories[story.0].id.kind;
+        let index = match kind {
+            StoryKind::Main => body::index(root),
+            k => body::index_root(root, story_root(k).1),
+        };
+        debug_assert_eq!(index.paragraphs.len(), self.stories[story.0].index.paragraphs.len());
+        self.stories[story.0].index = index;
+    }
+
     pub(crate) fn bump(&mut self, p: ParaRef) {
+        self.gen_counter += 1;
+        let next = self.gen_counter;
         if let Some(g) = self.generations.get_mut(p.story.0).and_then(|g| g.get_mut(p.index)) {
-            *g += 1;
+            *g = next;
         }
+    }
+
+    /// A paragraph was inserted at `at` (Phase2, ADR-0011 §9.1): later
+    /// paragraphs move up by one and get fresh generations, so a `Match`
+    /// found before the insert is stale for every moved paragraph.
+    pub(crate) fn paragraph_inserted(&mut self, at: ParaRef) {
+        self.reindex_counted(at.story);
+        let g = &mut self.generations[at.story.0];
+        g.insert(at.index.min(g.len()), 0);
+        for i in at.index..self.generations[at.story.0].len() {
+            self.bump(ParaRef::new(at.story, i));
+        }
+    }
+
+    /// Re-walks a story whose paragraph count changed.
+    pub(crate) fn reindex_counted(&mut self, story: StoryIndex) {
+        let root = self.story_root_node(story);
+        let kind = self.stories[story.0].id.kind;
+        self.stories[story.0].index = match kind {
+            StoryKind::Main => body::index(root),
+            k => body::index_root(root, story_root(k).1),
+        };
     }
 
     /// Replaces the content of run `run` of paragraph `paragraph` of the
@@ -423,27 +513,24 @@ impl Document {
         let path = data.index.path(info.frame);
         let kind = data.id.kind;
         let xml = self.pkg.xml_part_mut(&data.id.part)?;
-        let lens = match kind {
-            StoryKind::Main => {
-                let (&b, rest) = path.split_first().ok_or_else(missing)?;
-                run_in(xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(b).ok_or_else(missing)?, rest)
-            }
-            StoryKind::Header => run_in(xml.lens_mut::<Header>()?, &path),
-            StoryKind::Footer => run_in(xml.lens_mut::<Footer>()?, &path),
-            StoryKind::Footnotes => {
-                let (&n, rest) = path.split_first().ok_or_else(missing)?;
-                run_in(xml.lens_mut::<Footnotes>()?.into_child_at::<Footnote>(n).ok_or_else(missing)?, rest)
-            }
-            StoryKind::Endnotes => {
-                let (&n, rest) = path.split_first().ok_or_else(missing)?;
-                run_in(xml.lens_mut::<Endnotes>()?.into_child_at::<Endnote>(n).ok_or_else(missing)?, rest)
-            }
-            StoryKind::Comments => {
-                let (&n, rest) = path.split_first().ok_or_else(missing)?;
-                run_in(xml.lens_mut::<Comments>()?.into_child_at::<Comment>(n).ok_or_else(missing)?, rest)
-            }
-        };
-        f(&mut lens.ok_or_else(missing)?)
+        let (p, rest) = story_para(xml, kind, &path)?.ok_or_else(missing)?;
+        f(&mut run_below(p, rest).ok_or_else(missing)?)
+    }
+
+    /// Runs `f` on a mutable lens on paragraph `at`, reached as
+    /// [`Self::with_run`] reaches runs ([`Error::NoSuchParagraph`] for a
+    /// paragraph inside anything else, e.g. a block-level content control).
+    pub(crate) fn with_para<T>(&mut self, at: ParaRef, f: impl FnOnce(&mut LensMut<'_, P>) -> Result<T>) -> Result<T> {
+        let missing = || Error::NoSuchParagraph(at.index);
+        let data = self.stories.get(at.story.0).ok_or_else(missing)?;
+        let info = data.index.paragraphs.get(at.index).ok_or_else(missing)?;
+        let path = data.index.path(info.frame);
+        let kind = data.id.kind;
+        let xml = self.pkg.xml_part_mut(&data.id.part)?;
+        match story_para(xml, kind, &path)? {
+            Some((mut p, [])) => f(&mut p),
+            _ => Err(missing()),
+        }
     }
 
     /// Appends a paragraph with `text` as the last block of the main
@@ -455,9 +542,13 @@ impl Document {
     /// ([`Operation::Append`]), [`Error::InvalidXmlChar`],
     /// [`Error::NoBody`], [`Error::InsideField`] (the body ends inside an
     /// unterminated field), A1 `Core(UnresolvedSibling)` (the body has an
-    /// `mc:AlternateContent` child), A2 [`Error::SectionBreakAtEnd`] (no
-    /// body-level `w:sectPr`, and the body ends with a paragraph carrying
-    /// `w:pPr/w:sectPr`).
+    /// `mc:AlternateContent` child), A2 [`Error::SectionBreakAtEnd`] only
+    /// when the body ends with a paragraph carrying `w:pPr/w:sectPr` inside a
+    /// table or content control. Since Phase2 (ADR-0011 §6), when that
+    /// paragraph is a body child, its `w:sectPr` moves to the new paragraph
+    /// (copied with its header/footer references written again, then
+    /// removed), so the new paragraph stays in the last section; the move's
+    /// refusals are those of [`Self::insert_section_break`].
     pub fn append_paragraph(&mut self, text: &str) -> Result<usize> {
         self.write_gate_for(Operation::Append)?;
         let pieces = map_text(text)?;
@@ -467,7 +558,9 @@ impl Document {
             return Err(Error::InsideField);
         }
         if ends_with_section_break(self.story_root_node(StoryIndex::MAIN), index) {
-            return Err(Error::SectionBreakAtEnd);
+            // Phase2 lifts A2 (ADR-0011 §6): the last section's sectPr moves to
+            // the new paragraph, when the last paragraph is a body child.
+            return self.append_moving_section(&pieces, &crate::ParagraphSpec::Plain, None);
         }
         let xml = self.pkg.xml_part_mut(&self.main)?;
         let mut body = xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(b).ok_or(Error::NoBody)?;
@@ -549,7 +642,7 @@ fn section_uses(
 /// with default page settings (review round 2 m2; round 3 m8: blocks
 /// without paragraphs after it, such as an empty `w:sdt` or a table without
 /// rows, do not change this).
-fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
+pub(crate) fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
     let Some(body) = index.body.and_then(|b| root.children()[b].as_element()) else { return false };
     if body.elements().any(is::<SectionProperties>) {
         return false;
@@ -583,21 +676,41 @@ where
     Some(Step::Cell(tc, rest))
 }
 
-/// Mutable lens on the run at `path` below `container` (a body, header,
-/// footer, note or comment). Iterative, like the walks.
-fn run_in<'a, E>(container: LensMut<'a, E>, path: &[usize]) -> Option<LensMut<'a, R>>
+/// The paragraph on `path` (from the story part's root) and the rest of
+/// the path below it. `Ok(None)` when the path does not lead to a paragraph
+/// through the story root, a note or comment, `w:body` and tables.
+fn story_para<'a, 'p>(xml: &'a mut XmlDocument, kind: StoryKind, path: &'p [usize]) -> Result<Option<(LensMut<'a, P>, &'p [usize])>> {
+    let Some((&first, rest)) = path.split_first() else { return Ok(None) };
+    Ok(match kind {
+        StoryKind::Main => xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(first).and_then(|b| para_in(b, rest)),
+        StoryKind::Header => para_in(xml.lens_mut::<Header>()?, path),
+        StoryKind::Footer => para_in(xml.lens_mut::<Footer>()?, path),
+        StoryKind::Footnotes => xml.lens_mut::<Footnotes>()?.into_child_at::<Footnote>(first).and_then(|n| para_in(n, rest)),
+        StoryKind::Endnotes => xml.lens_mut::<Endnotes>()?.into_child_at::<Endnote>(first).and_then(|n| para_in(n, rest)),
+        StoryKind::Comments => xml.lens_mut::<Comments>()?.into_child_at::<Comment>(first).and_then(|n| para_in(n, rest)),
+    })
+}
+
+/// The paragraph at the head of `path` below `container` (a body, header,
+/// footer, note or comment, through tables), and the rest of the path.
+/// Iterative, like the walks.
+fn para_in<'a, 'p, E>(container: LensMut<'a, E>, path: &'p [usize]) -> Option<(LensMut<'a, P>, &'p [usize])>
 where
     E: ElementSpec,
     P: ChildOf<E>,
     Table: ChildOf<E>,
 {
     let mut at = step(container, path)?;
-    let (p, rest) = loop {
+    loop {
         match at {
-            Step::Para(p, rest) => break (p, rest),
+            Step::Para(p, rest) => return Some((p, rest)),
             Step::Cell(tc, rest) => at = step::<TableCell>(tc, rest)?,
         }
-    };
+    }
+}
+
+/// The run at `rest` below paragraph `p`, through `w:hyperlink`s only.
+fn run_below<'a>(p: LensMut<'a, P>, rest: &[usize]) -> Option<LensMut<'a, R>> {
     let (&i, mut rest) = rest.split_first()?;
     if rest.is_empty() {
         return p.into_child_at::<R>(i);
@@ -616,7 +729,7 @@ where
 /// Replaces the run's content (everything but `w:rPr` and whitespace-only
 /// text) with `pieces`. Fast path: one `w:t` replaced by one `w:t` keeps
 /// the element and its open tag.
-fn write_pieces(run: &mut LensMut<'_, R>, pieces: &[Piece]) -> Result<()> {
+pub(crate) fn write_pieces(run: &mut LensMut<'_, R>, pieces: &[Piece]) -> Result<()> {
     let content: Vec<usize> = run.node().indexed_elements().filter(|(_, c)| !is::<wml::RunProperties>(c)).map(|(i, _)| i).collect();
     if let ([i], [Piece::Text(s)]) = (&content[..], pieces)
         && run.node().children()[*i].as_element().is_some_and(is::<Text>)

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::Res;
 
 /// Feature groups, in feature order. Each has `codegen/allowlist/<group>.toml`.
-pub const GROUPS: &[&str] = &["sml", "wml", "pml", "dml"];
+pub const GROUPS: &[&str] = &["sml", "wml", "pml", "dml", "props"];
 
 /// One `codegen/allowlist/<group>.toml`:
 ///

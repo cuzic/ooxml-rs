@@ -31,12 +31,19 @@ pub(crate) enum CellOp {
     /// Formula text, without `=`.
     Formula(String),
     RemoveFormula,
+    /// Removes the value and formula (`v`, `is`, `f`, `t`) of an existing
+    /// cell, keeping its style: `merge_clearing` (ADR-0014 §3). Unlike
+    /// `RemoveFormula`, it also applies to a cell without a formula.
+    Clear,
     /// `t="s"` with this shared-string index (Phase2).
     Shared(u32),
     /// `t="b"`.
     Bool(bool),
     /// `t="e"` with this error value (`#N/A`, …).
     Error(&'static str),
+    /// `t="inlineStr"` with rich runs (`is/r`), for a workbook without a
+    /// shared-string table (ADR-0006 §4.6).
+    InlineRich(Vec<crate::registry::strings::RichRun>),
     /// Only the cell's `s` changes (Phase2).
     StyleOnly,
 }
@@ -79,12 +86,32 @@ struct HandOff {
 
 /// Positions of `c` elements to strip, per sheet.
 #[derive(Debug, Default)]
-struct StripPlan {
-    sheets: Vec<(String, Vec<(usize, usize)>)>,
+pub(crate) struct StripPlan {
+    pub(crate) sheets: Vec<(String, Vec<(usize, usize)>)>,
     /// Stripped cells that had `t="s"`.
     shared_refs: i64,
     fids: Vec<usize>,
     anchors: Vec<usize>,
+}
+
+/// Removes the cached value (`v`, `is`, `t`) of the planned cells of one
+/// sheet tree (ADR-0003 §3.1; also used on Phase3's staged clones).
+pub(crate) fn strip_cells(doc: &mut XmlDocument, positions: &[(usize, usize)]) -> Result<i64> {
+    let mut shared = 0;
+    for &(ri, ci) in positions {
+        let ws = doc.lens_mut::<sml::Worksheet>()?;
+        let sd = ws.into_child_by::<sml::SheetData>(|_| true).ok_or_else(|| Error::Malformed("sheetData".into()))?;
+        let row = sd.into_child_at::<sml::Row>(ri).ok_or_else(|| Error::Malformed("planned row".into()))?;
+        let cell = row.into_child_at::<sml::Cell>(ci).ok_or_else(|| Error::Malformed("planned cell".into()))?;
+        shared += i64::from(cell.node().attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"));
+        let mut c = sml::CellViewMut(cell);
+        // every `v` and `is`, duplicates included (schema-invalid, but a
+        // reader would see a survivor), as `write_cell` does (review R4-M1)
+        while c.remove_cell_value() {}
+        while c.remove_inline_string() {}
+        c.remove_data_type()?;
+    }
+    Ok(shared)
 }
 
 fn xml_char_ok(c: char) -> bool {
@@ -101,9 +128,33 @@ impl Workbook {
 
     /// Dependents of a write to `sheet!at` (§3.2).
     pub(crate) fn compute_dependents(&mut self, sheet: usize, at: CellIndex) -> DepSet {
+        self.dependents_of_seeds(&[], vec![Rect::cell(sheet, at.row, at.col)])
+    }
+
+    /// Dependents of a structural edit (ADR-0009 §12): the formulas `fids`
+    /// themselves (their text or meaning changes), everything reading them
+    /// or the `rects`, and the closure of every `Everything` formula.
+    pub(crate) fn dependents_of_seeds(&mut self, fids: &[usize], mut rects: Vec<Rect>) -> DepSet {
         self.graph();
         let g = self.graph.as_ref().expect("built");
-        let d = g.dependents(&self.census, vec![Rect::cell(sheet, at.row, at.col)]);
+        for &fid in fids {
+            if let Some(c) = self.census.get(fid) {
+                rects.push(Rect::cell(c.sheet, c.at.row, c.at.col));
+                if let Some(r) = c.result_range() {
+                    rects.push(Rect { sheet: c.sheet, r1: r.first.row, c1: r.first.col, r2: r.last.row, c2: r.last.col });
+                }
+            }
+        }
+        let mut d = g.dependents(&self.census, rects);
+        for &fid in fids {
+            if self.census.get(fid).is_some() && !d.formulas.contains(&fid) {
+                d.formulas.push(fid);
+                if let Some(r) = self.census.get(fid).and_then(|c| c.result_range().map(|r| (c.sheet, r))) {
+                    let (sheet, r) = r;
+                    d.results.push((fid, Rect { sheet, r1: r.first.row, c1: r.first.col, r2: r.last.row, c2: r.last.col }));
+                }
+            }
+        }
         let mut cells = Vec::new();
         for &fid in &d.formulas {
             let c = self.census.get(fid).expect("alive");
@@ -179,10 +230,17 @@ impl Workbook {
 
     /// [`Self::edit_cell`] with Phase2 registry work.
     pub(crate) fn edit_cell_ext(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra) -> Result<()> {
-        self.check_poisoned()?;
-        if let Some(b) = &self.census.block {
-            return Err(b.to_error());
-        }
+        self.edit_cell_mode(sheet, at, op, extra, false)
+    }
+
+    /// Runs every check of [`Self::edit_cell`] without applying anything
+    /// (parsing and index building aside, which change no bytes).
+    pub(crate) fn check_edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_mode(sheet, at, op, Extra::default(), true)
+    }
+
+    fn edit_cell_mode(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra, dry_run: bool) -> Result<()> {
+        self.check_editable()?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
         let cell = at.to_string();
         let style_only = matches!(op, CellOp::StyleOnly);
@@ -192,7 +250,9 @@ impl Workbook {
 
         // ---- guards on the cell ----
         let ctx = self.contexts.get(&sheet).expect("context loaded with the worksheet");
-        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at)) {
+        // Phase4 (ADR-0014 §3): the anchor of a merged range is writable, as
+        // in Excel; a value in any other cell would be hidden.
+        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
             return Err(Error::MergedCell { cell, range: m.to_string() });
         }
         if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
@@ -281,6 +341,10 @@ impl Workbook {
 
         // ---- registries (ADR-0006) ----
         let reg = self.plan_registries(&part, at, &mut target_plan, &op, extra, strip.shared_refs)?;
+
+        if dry_run {
+            return Ok(());
+        }
 
         if formulas_change {
             self.style_sensitive = None;
@@ -442,7 +506,7 @@ impl Workbook {
 
     /// One pass over each affected sheet's `sheetData`, finding every
     /// dependent that still has a cached value (§3.1, R2-m1).
-    fn plan_strip(&mut self, deps: &DepSet, sheet: usize, at: CellIndex) -> Result<StripPlan> {
+    pub(crate) fn plan_strip(&mut self, deps: &DepSet, sheet: usize, at: CellIndex) -> Result<StripPlan> {
         let mut cells: HashMap<usize, HashSet<CellIndex>> = HashMap::new();
         let mut rects: HashMap<usize, Vec<Rect>> = HashMap::new();
         let mut plan = StripPlan::default();
@@ -508,20 +572,7 @@ impl Workbook {
         // (iii) dependents
         self.fault_point(Step::Strip)?;
         for (p, positions) in &strip.sheets {
-            let doc = self.pkg.xml_part_mut(p)?;
-            for &(ri, ci) in positions {
-                let ws = doc.lens_mut::<sml::Worksheet>()?;
-                let sd = ws.into_child_by::<sml::SheetData>(|_| true).ok_or_else(|| Error::Malformed("sheetData".into()))?;
-                let row = sd.into_child_at::<sml::Row>(ri).ok_or_else(|| Error::Malformed("planned row".into()))?;
-                let cell = row.into_child_at::<sml::Cell>(ci).ok_or_else(|| Error::Malformed("planned cell".into()))?;
-                let mut c = sml::CellViewMut(cell);
-                // every `v` and `is`, duplicates included (schema-invalid,
-                // but a reader would see a survivor), as `write_cell` does
-                // (review R4-M1)
-                while c.remove_cell_value() {}
-                while c.remove_inline_string() {}
-                c.remove_data_type()?;
-            }
+            strip_cells(self.pkg.xml_part_mut(p)?, positions)?;
         }
         // (iv) shared-formula hand-off
         self.fault_point(Step::HandOff)?;
@@ -615,7 +666,7 @@ impl Workbook {
     }
 
     #[cfg(feature = "fault-injection")]
-    fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
         if let Some((at, panic)) = self.fault
             && at == step
         {
@@ -628,7 +679,7 @@ impl Workbook {
 
     #[cfg(not(feature = "fault-injection"))]
     #[inline(always)]
-    fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
         Ok(())
     }
 }

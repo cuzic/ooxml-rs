@@ -233,6 +233,127 @@ const P1_CASES: &[P1Case] = &[
     },
 ];
 
+/// Phase3 (ADR-0009 §9 test oracle 9, XL items): sheet operations.
+const P3_CASES: &[P1Case] = &[
+    P1Case {
+        out: "30-rename-51850.xlsx",
+        input: "fixtures/xlsx/poi/51850.xlsx",
+        edits: "rename `more comments` -> `Mehr Kommentare 2026` (x14 data validation on it; cell formulas, names and links follow)",
+        look_for: "**XL 9(a).** Tab shows the new name; data validation lists on the renamed sheet still work; no repair dialog.",
+        edit: |wb| wb.rename_sheet("more comments", "Mehr Kommentare 2026").map(drop),
+    },
+    P1Case {
+        out: "31-delete-hidden-sheet.xlsx",
+        input: "fixtures/xlsx/poi/TwoSheetsOneHidden.xlsx",
+        edits: "delete the hidden `Sheet1` (only `Sheet2` stays, active and selected)",
+        look_for: "**XL 9(a).** One tab, `Sheet2`, selected; no repair dialog; Unhide is greyed out.",
+        edit: |wb| wb.delete_sheet("Sheet1").map(drop),
+    },
+    P1Case {
+        out: "32-reverse-reordered.xlsx",
+        input: "fixtures/xlsx/poi/reordered_sheets.xlsx",
+        edits: "reverse the tab order (Sheet4, Sheet2, Sheet3, Sheet1 -> Sheet1, Sheet3, Sheet2, Sheet4)",
+        look_for: "**XL 9(a).** Tabs in the new order; each tab shows its own original content; no repair dialog.",
+        edit: |wb| {
+            let n = wb.sheet_names().count();
+            for i in 0..n {
+                wb.move_sheet(n - 1, i)?;
+            }
+            Ok(())
+        },
+    },
+    P1Case {
+        out: "33-delete-ref-errors-3d.xlsx",
+        input: "fixtures/xlsx/synthetic/o1_precise.xlsx",
+        edits: "delete `Sheet2` (formulas on it are gone; references to it become a bare #REF!; 3-D spans with it as an endpoint move inward)",
+        look_for: "**XL 9(b), 9(f).** Formulas that pointed at Sheet2 show #REF! (formula bar: `#REF!`, not `Sheet2!#REF!`); 3-D sums still compute over the remaining sheets; no repair dialog.",
+        edit: |wb| wb.delete_sheet("Sheet2").map(drop),
+    },
+    P1Case {
+        out: "34-rename-chart-source.xlsx",
+        input: "fixtures/xlsx/poi/57362.xlsx",
+        edits: "rename `Sheet1` -> `Daten 1` (the chart's series formulas follow: `'Daten 1'!$A$1:$B$1`)",
+        look_for: "The chart still plots the same data; Select Data shows ='Daten 1'!…; no repair dialog.",
+        edit: |wb| wb.rename_sheet("Sheet1", "Daten 1").map(drop),
+    },
+    P1Case {
+        out: "35-add-hide-tab-colour.xlsx",
+        input: "fixtures/xlsx/synthetic/o1_precise.xlsx",
+        edits: "add `New 1` at the front, hide `Sheet3`, red tab colour on `Sheet1`",
+        look_for: "Tabs: New 1, Sheet1 (red), Sheet2, Defines; Sheet3 under Unhide; formulas recalculate to the same values as the original; no repair dialog.",
+        edit: |wb| {
+            wb.add_sheet("New 1", 0)?;
+            wb.set_sheet_state("Sheet3", ooxml_xlsx::SheetState::Hidden)?;
+            wb.set_tab_color("Sheet1", Some(0xFF0000))
+        },
+    },
+];
+
+/// Phase4 part 1 (ADR-0014 §3, §7, §11, Test oracles 7).
+const P4_CASES: &[P1Case] = &[
+    P1Case {
+        out: "22-merge.xlsx",
+        input: "fixtures/xlsx/poi/61605.xlsx",
+        edits: "Лист1!G1:H2 merged; its anchor G1 = \"MERGED\" (ADR-0014 §3: the anchor is writable)",
+        look_for: "G1:H2 is one merged cell showing MERGED; the six existing merges unchanged. No repair dialog.",
+        edit: |wb| {
+            let mut ws = wb.worksheet()?;
+            ws.merge("G1:H2")?;
+            ws.cell_mut(0, 6)?.set_string("MERGED")
+        },
+    },
+    P1Case {
+        out: "23-merge-clearing.xlsx",
+        input: "fixtures/xlsx/synthetic/o1_precise.xlsx",
+        edits: "Sheet1!A1:B1 merged with merge_clearing (B1's formula is cleared; its dependents lose their caches; fullCalcOnLoad set)",
+        look_for: "A1:B1 is one merged cell showing A1's value; formulas that read B1 recalculate with B1 empty. No repair dialog.",
+        edit: |wb| wb.worksheet()?.merge_clearing("A1:B1"),
+    },
+    P1Case {
+        out: "24-unmerge.xlsx",
+        input: "fixtures/xlsx/poi/61605.xlsx",
+        edits: "the first merged range of Лист1 is unmerged",
+        look_for: "That range shows separate cells; the other five merges unchanged. No repair dialog.",
+        edit: |wb| {
+            let mut ws = wb.worksheet()?;
+            let m = ws.merged_ranges()[0];
+            ws.unmerge(&m.to_string())
+        },
+    },
+    P1Case {
+        out: "25-autofilter.xlsx",
+        input: "fixtures/xlsx/poi/bug66827.xlsx",
+        edits: "Main!A1:B20 autofilter; the leftover hidden _xlnm._FilterDatabase name is reused (ADR-0014 §7, B1)",
+        look_for: "Filter arrows on A1 and B1; filtering works; Formulas > Name Manager shows no duplicate name error. No repair dialog.",
+        edit: |wb| wb.worksheet()?.set_autofilter("A1:B20"),
+    },
+    P1Case {
+        out: "26-autofilter-removed.xlsx",
+        input: "fixtures/xlsx/poi/bug66827.xlsx",
+        edits: "Main!A1:B20 autofilter set, then removed (the sheet's sortState and the name are kept)",
+        look_for: "No filter arrows. Data > Sort still remembers the last sort (if Excel shows it). No repair dialog.",
+        edit: |wb| {
+            let mut ws = wb.worksheet()?;
+            ws.set_autofilter("A1:B20")?;
+            ws.remove_autofilter().map(drop)
+        },
+    },
+    P1Case {
+        out: "27-protected-sha512.xlsx",
+        input: "fixtures/xlsx/poi/61605.xlsx",
+        edits: "Лист1 protected with password `pwd` (SHA-512, random salt, spin count 100,000; ADR-0014 §11)",
+        look_for: "Typing into a cell is refused (sheet protected). Review > Unprotect Sheet asks for a password; `pwd` unprotects, `x` does not. No repair dialog.",
+        edit: |wb| wb.worksheet()?.protect_sheet(&ooxml_xlsx::SheetProtection::new().password("pwd")),
+    },
+    P1Case {
+        out: "28-autofilter-sheet-true.xlsx",
+        input: "fixtures/xlsx/synthetic/p4_sheet_true.xlsx",
+        edits: "TRUE!A1:B2 autofilter; the new _xlnm._FilterDatabase is written `TRUE!$A$1:$B$2`, unquoted (PR #58 round 1 m7)",
+        look_for: "No repair dialog; filter arrows on A1 and B1. Formulas > Name Manager (show hidden names if possible) or a re-save: does Excel keep `TRUE!` or write `'TRUE'!`? Note which.",
+        edit: |wb| wb.worksheet()?.set_autofilter("A1:B2"),
+    },
+];
+
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(std::env::args().nth(1).ok_or("usage: manual_check <outdir>")?);
     let originals = out_dir.join("originals");
@@ -277,12 +398,37 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         std::fs::write(out_dir.join(case.out), output)?;
         writeln!(md, "| [ ] | `{}` | {} | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
     }
+
+    md.push_str(CHECKLIST_P3_HEAD);
+    for case in P3_CASES {
+        let path = Path::new(ROOT).join(case.input);
+        std::fs::copy(&path, originals.join(case.out))?;
+        let mut wb = Workbook::open(&path)?;
+        (case.edit)(&mut wb)?;
+        wb.save(out_dir.join(case.out))?;
+        writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
+    }
+
+    md.push_str(CHECKLIST_P4_HEAD);
+    for case in P4_CASES {
+        let path = Path::new(ROOT).join(case.input);
+        std::fs::copy(&path, originals.join(case.out))?;
+        let mut wb = Workbook::open(&path)?;
+        (case.edit)(&mut wb)?;
+        wb.save(out_dir.join(case.out))?;
+        writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
+    }
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
     // ooxml-xlsx and every worksheet reads with calamine (an independent
     // reader), so the owner's Excel check starts from files known to parse.
-    let outs: Vec<&str> = CASES.iter().map(|c| c.out).chain(P1_CASES.iter().map(|c| c.out)).chain(P2_CASES.iter().map(|c| c.out)).collect();
+    let outs: Vec<&str> = CASES.iter().map(|c| c.out)
+        .chain(P1_CASES.iter().map(|c| c.out))
+        .chain(P2_CASES.iter().map(|c| c.out))
+        .chain(P3_CASES.iter().map(|c| c.out))
+        .chain(P4_CASES.iter().map(|c| c.out))
+        .collect();
     for out in &outs {
         let path = out_dir.join(out);
         Workbook::open(&path).map_err(|e| format!("{out}: ooxml-xlsx cannot re-open it: {e}"))?;
@@ -300,7 +446,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-const CHECKLIST_HEAD: &str = "# ooxml-xlsx Phase0 + Phase1 + Phase2 — manual Excel check
+const CHECKLIST_HEAD: &str = "# ooxml-xlsx — manual Excel check
 
 Open each file below in current Microsoft 365 Excel (desktop). For each one:
 
@@ -340,6 +486,26 @@ const CHECKLIST_P2_HEAD: &str = "
 Excel must open each file **without a repair dialog** and show the formats listed. The XL item
 letters refer to ADR-0006 oracle 10. Where the row says **Record**, write down what Excel does:
 those rows decide an open question (Q2, Q5) or an inferred limit (§5.10), not pass/fail.
+
+| Pass | Output | Input | Edits | Look for | Notes |
+|---|---|---|---|---|---|
+";
+
+const CHECKLIST_P4_HEAD: &str = "
+## Phase4 part 1 (ADR-0014 Test oracles 7): merges, autofilter, protection
+
+| Pass | Output | Input | Edits | Look for | Notes |
+|---|---|---|---|---|---|
+";
+
+const CHECKLIST_P3_HEAD: &str = "
+## Phase3 (ADR-0009): sheet operations
+
+Each file had one structural operation (rename, delete, reorder, add, hide, tab colour). Excel
+must open it **without a repair dialog** and show the result described. Where formulas changed
+(30, 33, 35) Excel recalculates on open and asks to save on close: answer No. Not yet covered:
+`docProps/app.xml` titles (left as they were; Excel rewrites them on save), so File > Info >
+Properties may list old sheet names until saved.
 
 | Pass | Output | Input | Edits | Look for | Notes |
 |---|---|---|---|---|---|
@@ -684,6 +850,62 @@ fn p2_japanese_default_font() -> Built {
     Ok((Some(input), wb.to_bytes()?))
 }
 
+fn rich_runs() -> (Font, Font) {
+    (Font { bold: true, ..Font::default() }, Font { italic: true, color: Some(Color::rgb(0xC00000)), ..Font::default() })
+}
+
+/// Part 2: rich strings into the shared-string table.
+fn p2_rich_shared() -> Built {
+    let (bold, red) = rich_runs();
+    let mut wb = Workbook::new()?;
+    {
+        let mut ws = wb.add_worksheet()?;
+        ws.cell_mut(0, 0)?.set_rich_string(&[(&Font::default(), "plain, "), (&bold, "bold"), (&red, " and red italic")])?;
+        ws.cell_mut(1, 0)?.set_rich_string(&[(&bold, "same "), (&red, "runs")])?;
+        ws.cell_mut(2, 0)?.set_rich_string(&[(&bold, "same "), (&red, "runs")])?;
+        let sup = Font { vert_align: Some(ooxml_xlsx::VertAlign::Superscript), ..Font::default() };
+        ws.cell_mut(3, 0)?.set_rich_string(&[(&Font::default(), "E = mc"), (&sup, "2")])?;
+    }
+    Ok((None, wb.to_bytes()?))
+}
+
+/// Part 2: inline rich strings in a workbook without a shared-string table.
+fn p2_rich_inline() -> Built {
+    let (bold, red) = rich_runs();
+    let input = fixture("fixtures/xlsx/poi/52348.xlsx")?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    if wb.shared_strings_available()? {
+        return Err("52348.xlsx unexpectedly has a shared-string table".into());
+    }
+    wb.worksheet()?.cell_mut(39, 0)?.set_rich_string(&[(&bold, "inline "), (&red, "rich")])?;
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+/// Part 2: a dxf, made visible by a conditional format that already refers
+/// to `dxfId="0"` (the template has an empty `dxfs`).
+fn p2_dxf() -> Built {
+    let base = template()?;
+    let sheet = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>3</v></c></row></sheetData><conditionalFormatting sqref="A1:A3"><cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan"><formula>1</formula></cfRule></conditionalFormatting></worksheet>"#;
+    let s = part_text(&base, "xl/styles.xml")?;
+    // the reference to dxf 0 is dangling until the dxf exists: give the
+    // input one placeholder so the append is not refused, then add ours
+    let s = s.replacen(r#"<dxfs count="0"/>"#, r#"<dxfs count="1"><dxf><font><i/></font></dxf></dxfs>"#, 1);
+    let input = with_part(&with_part(&base, "xl/worksheets/sheet1.xml", sheet)?, "xl/styles.xml", &s)?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    let green = ooxml_xlsx::DxfFormat::new().set_font_color(Color::rgb(0x006100)).set_background_color(Color::rgb(0xC6EFCE));
+    let i = wb.add_differential_format(&green)?;
+    // point a second rule at the new dxf (a hand-made sheet edit; the API
+    // for conditional formats is Phase4)
+    let out = wb.to_bytes()?;
+    let sheet2 = sheet.replace(
+        "</conditionalFormatting></worksheet>",
+        &format!(r#"</conditionalFormatting><conditionalFormatting sqref="B1:B3"><cfRule type="expression" dxfId="{i}" priority="2"><formula>TRUE</formula></cfRule></conditionalFormatting></worksheet>"#),
+    );
+    let out = with_part(&out, "xl/worksheets/sheet1.xml", &sheet2.replace(r#"<c r="A1"><v>1</v></c>"#, r#"<c r="A1"><v>1</v></c><c r="B1"><v>9</v></c>"#))?;
+    Ok((Some(input), out))
+}
+
 const P2_CASES: &[P2Case] = &[
     P2Case {
         out: "22-p2-format-matrix.xlsx",
@@ -789,5 +1011,26 @@ const P2_CASES: &[P2Case] = &[
         edits: "**XL (f), Japanese.** B1 = 1234.5678 with only a number format; B2 with `with_default_font_of(..).set_bold()`",
         look_for: "B1 is 游ゴシック 11 like A1 and shows 1,234.568; B2 is **游ゴシック 11 bold** (not Calibri). No repair dialog.",
         build: p2_japanese_default_font,
+    },
+    P2Case {
+        out: "36-p2-rich-strings-shared.xlsx",
+        input: "(embedded template)",
+        edits: "Part 2: A1 `plain, ` + **bold** + red italic; A2 and A3 the same rich string (one shared item); A4 `E = mc²` with a superscript run",
+        look_for: "Each run shows its own formatting in the cell and in the formula bar; A2 and A3 look identical; A4's 2 is superscript. No repair dialog.",
+        build: p2_rich_shared,
+    },
+    P2Case {
+        out: "37-p2-rich-strings-inline.xlsx",
+        input: "`fixtures/xlsx/poi/52348.xlsx` (no shared-string table)",
+        edits: "Part 2: A40 an inline rich string (`is/r`): **inline** + red italic rich",
+        look_for: "A40 shows both runs formatted. No repair dialog.",
+        build: p2_rich_inline,
+    },
+    P2Case {
+        out: "38-p2-dxf.xlsx",
+        input: "template with a conditional format on A1:A3 (> 1) using dxf 0 (italic)",
+        edits: "Part 2: `add_differential_format(green text on light green)` appends dxf 1; a second rule (hand-written, Phase4 API) shows it on B1",
+        look_for: "A2 and A3 italic (the existing dxf, unchanged); B1 dark green on light green. Home > Conditional Formatting > Manage Rules shows both rules. No repair dialog.",
+        build: p2_dxf,
     },
 ];

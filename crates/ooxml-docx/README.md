@@ -61,6 +61,65 @@ doc.save("filled.docx")?;
 # Ok::<(), ooxml_docx::Error>(())
 ```
 
+## Word Phase1, part 2 (ADR-0007 §4, §5, §6.3)
+
+- **Direct formatting.** `format_run`, `format_paragraph_runs` and `format_paragraph` take a
+  `RunFormat` / `ParagraphFormat` of `Prop<T>` values (`Keep`, `Set`, `Clear`): bold, italic,
+  strike and their complex-script twins, underline, colour, size, highlight, vertical alignment,
+  font slots; alignment, spacing, line spacing, indents, first line/hanging, keep with
+  next/together.
+  - Writing what is already there is a no-op, and the output is byte-identical.
+  - Setting a value removes the attributes that would override it (theme colours and fonts,
+    `*Chars`/`*Lines`/`*Autospacing`). Superseding values inherited from the style chain are
+    cancelled with `0`.
+  - Elements go into their schema slot. Every insertion is dry-run first, so a producer's
+    out-of-order `w:pPr` or `w:settings` refuses before any write.
+- **Styles by id.** `styles()`, `style_ids_by_name()` (case-insensitive, the portable lookup in
+  localized documents), `set_paragraph_style` and `set_run_style`, with `UnknownStyle`
+  (`latent_only`), `StyleTypeMismatch` (`linked`) and `AmbiguousStyle`. `styles.xml` is
+  read-only.
+- **`enable_update_fields_on_open()`** writes `w:updateFields` and lifts W2 for every later
+  operation of this `Document`. Word updates fields on open; other readers keep the stale
+  results.
+
+```rust,no_run
+use ooxml_docx::{Document, Prop, RunFormat, RunRef, ParaRef, StoryIndex};
+
+let mut doc = Document::open("report.docx")?;
+let total = RunRef::new(ParaRef::new(StoryIndex::MAIN, 3), 0);
+doc.format_run(total, &RunFormat { bold: Prop::Set(true), ..RunFormat::default() })?;
+if let Some(id) = doc.style_ids_by_name("heading 2").first().map(|s| s.to_string()) {
+    doc.set_paragraph_style(ParaRef::new(StoryIndex::MAIN, 2), Some(&id))?;
+}
+doc.save("report-formatted.docx")?;
+# Ok::<(), ooxml_docx::Error>(())
+```
+
+## Word Phase2, part 1 (ADR-0011 §4, §6, §9.1, §10)
+
+- **`insert_paragraph(Place::Before | After, text, ParagraphSpec)`**: a new paragraph in the
+  same container as an existing one: body, table cell, header, footer, note or comment.
+  - `ParagraphSpec::LikeNeighbour` copies the neighbour's `w:pPr` without `w:sectPr` and
+    `w:pPrChange`, so a list continues.
+  - `Style(id)` writes an existing paragraph style.
+  - Later paragraphs move up by one and get new generations, so earlier `Match`es on them
+    are stale.
+- **`insert_section_break(after, kind)`** splits the section that holds a body paragraph.
+  - The earlier half gets a copy of the section's `w:sectPr`. The header and footer
+    references are written again after their `r:id`s are checked.
+  - The later half gets `w:type` and keeps numbering continuous: `pgNumType/@start` is
+    removed and `lnNumType` `newSection` becomes `continuous`.
+- **`append_paragraph`** no longer refuses a body that ends with the last section's
+  `w:sectPr` in its last paragraph (ADR-0004 A2): the `w:sectPr` moves to the new paragraph.
+- **`insert_hyperlink(position, text, target)`**, where the target is external
+  (`HyperlinkTarget::External`) or a bookmark (`Bookmark`).
+  - An external target gets a new external relationship of its own, through core's
+    `RegistryPlan`.
+  - `xmlns:r` is declared on the hyperlink only when no prefixed binding is in scope.
+  - The run gets the "Hyperlink" character style when the document has one.
+- **Structure column of W2:** structural edits accept only `TC` and `XE` beyond the safe
+  fields; anything else needs the `updateFields` opt-in.
+
 ## Usage example
 
 `examples/fill_runs.rs` is a runnable walk-through on committed fixtures. It:
@@ -108,8 +167,8 @@ recommended") and `is_marked_final()` are reported, not enforced.
 
 ## Not yet
 
-Paragraph and cell text, formatting, styles and the `updateFields` opt-in (the rest of
-ADR-0007), new structure, and `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
+Paragraph and cell text (ADR-0007 §3, part 3), tables, images, bookmarks, lists and styles
+(ADR-0011, later parts), and `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
 
 Nesting depth is bounded by `ooxml-core`'s parser limit (256 levels by default; real documents reach about
 30), so a hostile file of nested tables is refused at open with `Core(TooDeep)` instead of costing

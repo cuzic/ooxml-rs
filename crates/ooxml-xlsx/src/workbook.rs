@@ -23,6 +23,8 @@ const REL_CHARTSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2
 pub(crate) const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
 const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
+const REL_PIVOT_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable";
+const REL_QUERY_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/queryTable";
 const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 const CT_MACROSHEETS: &[&str] = &["application/vnd.ms-excel.macrosheet+xml", "application/vnd.ms-excel.intlmacrosheet+xml"];
@@ -43,14 +45,25 @@ pub(crate) const TEMPLATE: &[u8] = include_bytes!("../template/blank.xlsx");
 pub(crate) struct TableHeader {
     pub(crate) name: String,
     pub(crate) rows: Option<CellRange>,
+    /// The whole table (`table/@ref`), for Phase4's overlap refusals.
+    pub(crate) range: CellRange,
 }
 
 /// What a worksheet's guards need besides its tree, loaded when the sheet is
 /// first opened for editing.
 #[derive(Debug)]
 pub(crate) struct SheetContext {
+    /// The sheet's merged ranges; Phase4's `merge`/`unmerge` keep it up to
+    /// date in the same apply step as the sheet edit (ADR-0014 §3).
     pub(crate) merges: Vec<CellRange>,
     pub(crate) tables: Vec<TableHeader>,
+    /// The sheet's PivotTable parts; their `location/@ref` is read only
+    /// when a merge needs it (ADR-0014 §3), so a damaged pivot part never
+    /// stops a workbook from opening.
+    pub(crate) pivots: Vec<String>,
+    /// The target of a sheet-level query-table relationship, if any (its
+    /// output range is not located, so overlapping features are refused).
+    pub(crate) query_table: Option<String>,
 }
 
 /// What happens to the cached values of dependents (ADR-0003 §3.3).
@@ -95,6 +108,16 @@ pub enum ApplyStep {
     Target,
     /// Before updating the formula index.
     Index,
+    /// A structural operation (ADR-0009): before the registry plan is
+    /// applied.
+    StructuralApply,
+    /// A structural operation: after apply, before the indexes are rebuilt.
+    StructuralRebuild,
+    /// A structural operation: inside the rebuild, after the package was
+    /// re-read.
+    StructuralReindex,
+    /// Before a Phase4 range-feature edit (merge, autofilter, protection).
+    RangeFeature,
 }
 
 pub(crate) type ApplyStepHook = ApplyStep;
@@ -150,6 +173,8 @@ pub struct Workbook {
     pub(crate) style_sensitive: Option<bool>,
     from_template: bool,
     template_sheet_taken: bool,
+    /// `sheetId`s of sheets deleted in this session (never reused).
+    pub(crate) removed_sheet_ids: Vec<u32>,
     #[cfg(feature = "fault-injection")]
     /// The step to fail at, and whether to panic instead of returning `Err`.
     pub(crate) fault: Option<(ApplyStep, bool)>,
@@ -185,59 +210,63 @@ impl Workbook {
 
     /// Wraps an opened package.
     pub fn from_package(mut pkg: Package) -> Result<Self> {
-        let workbook_part = pkg.main_document_part().ok_or(Error::NoWorkbook)?;
-        let wb_rels = pkg.relationships(&workbook_part)?;
-        let (sheets, names, calc) = read_workbook(&mut pkg, &workbook_part, &wb_rels)?;
-        let first_visible = sheets
-            .iter()
-            .position(|s| s.visible && s.kind == SheetKind::Worksheet)
-            .ok_or(Error::NoVisibleWorksheet)?;
-        let calc_chain = wb_rels
-            .by_type(REL_CALC_CHAIN)
-            .next()
-            .and_then(|r| wb_rels.resolve(r))
-            .filter(|p| pkg.contains(p));
-        let census = formula_census(&pkg, &wb_rels, &sheets)?;
-        let shared_strings = load_shared_strings(&mut pkg, &wb_rels)?;
-        let env = Env {
-            sheets_lc: sheets.iter().map(|s| fold(&s.name)).collect(),
-            names: names
-                .into_iter()
-                .map(|(name, local, text)| {
-                    let scope = match local {
-                        None => Scope::Global,
-                        Some(i) if (i as usize) < sheets.len() => Scope::Local(i as usize),
-                        Some(_) => Scope::Invalid,
-                    };
-                    NameDef::new(&name, scope, &text)
-                })
-                .collect(),
-            bx_any: census.bx_any,
-        };
+        let l = Loaded::load(&mut pkg)?;
         let mut wb = Self {
             pkg,
-            workbook_part,
-            sheets,
-            first_visible,
-            shared_strings,
+            workbook_part: l.workbook_part,
+            sheets: l.sheets,
+            first_visible: l.first_visible,
+            shared_strings: l.shared_strings,
             contexts: HashMap::new(),
             indexes: HashMap::new(),
-            census,
-            env,
+            census: l.census,
+            env: l.env,
             graph: None,
-            calc,
-            calc_chain,
+            calc: l.calc,
+            calc_chain: l.calc_chain,
             policy: CalcPolicy::default(),
             poisoned: None,
             registries: Default::default(),
             style_sensitive: None,
             from_template: false,
             template_sheet_taken: false,
+            removed_sheet_ids: Vec::new(),
             #[cfg(feature = "fault-injection")]
             fault: None,
         };
-        wb.load_context(first_visible)?;
+        wb.load_context(wb.first_visible)?;
         Ok(wb)
+    }
+
+    /// Re-reads every index (sheet list, census, names, calculation state,
+    /// shared strings) from the package, as `open` does (ADR-0009 §2, review
+    /// R2-M2: rebuilt, never hand re-indexed). Used after a structural
+    /// operation's plan is applied. A failure poisons the workbook: the
+    /// package and the indexes may then disagree, so nothing more may be
+    /// edited or saved (ADR-0003 §3.1).
+    pub(crate) fn rebuild(&mut self) -> Result<()> {
+        let r = Loaded::load(&mut self.pkg).and_then(|l| {
+            self.fault_point(ApplyStep::StructuralReindex)?;
+            self.workbook_part = l.workbook_part;
+            self.sheets = l.sheets;
+            self.first_visible = l.first_visible;
+            self.shared_strings = l.shared_strings;
+            self.census = l.census;
+            self.env = l.env;
+            self.calc = l.calc;
+            self.calc_chain = l.calc_chain;
+            self.contexts.clear();
+            self.indexes.clear();
+            self.graph = None;
+            self.registries = Default::default();
+            self.style_sensitive = None;
+            self.load_context(self.first_visible)
+        });
+        if let Err(e) = &r {
+            self.poisoned = Some(format!("re-indexing after a structural edit failed: {e}"));
+            return Err(Error::Poisoned(self.poisoned.clone().unwrap_or_default()));
+        }
+        Ok(())
     }
 
     /// Parses a worksheet (once) and loads its merges and table headers.
@@ -262,7 +291,9 @@ impl Workbook {
             .filter_map(|t| t.id().map(str::to_owned))
             .collect();
         let tables = load_tables(&mut self.pkg, &part, &sheet_rels, &table_parts)?;
-        self.contexts.insert(sheet, SheetContext { merges, tables });
+        let pivots = sheet_rels.by_type(REL_PIVOT_TABLE).filter_map(|rel| sheet_rels.resolve(rel)).filter(|p| self.pkg.contains(p)).collect();
+        let query_table = sheet_rels.by_type(REL_QUERY_TABLE).next().map(|r| r.target.clone());
+        self.contexts.insert(sheet, SheetContext { merges, tables, pivots, query_table });
         self.ensure_index(sheet)?;
         Ok(())
     }
@@ -366,8 +397,10 @@ impl Workbook {
 
     /// `Some(error)` if every edit of this workbook is refused: a sheet part
     /// could not be scanned for formulas, a sheet with formulas lacks `r`
-    /// attributes, the workbook has cell metadata Phase1 does not model, or
-    /// an earlier edit failed while applying ([`Error::Poisoned`]).
+    /// attributes, a cell's `r` names another row than its `row/@r`
+    /// ([`Error::InvalidReference`]), the workbook has cell metadata Phase1
+    /// does not model, or an earlier edit failed while applying
+    /// ([`Error::Poisoned`]).
     pub fn edit_refusal(&self) -> Option<Error> {
         if let Some(p) = &self.poisoned {
             return Some(Error::Poisoned(p.clone()));
@@ -427,11 +460,45 @@ impl Workbook {
         Ok(self.pkg.to_bytes()?)
     }
 
+    pub(crate) fn check_editable(&self) -> Result<()> {
+        self.edit_refusal().map_or(Ok(()), Err)
+    }
+
     pub(crate) fn check_poisoned(&self) -> Result<()> {
         match &self.poisoned {
             Some(p) => Err(Error::Poisoned(p.clone())),
             None => Ok(()),
         }
+    }
+
+    /// Test hook (not API): a fingerprint of every index the workbook keeps
+    /// (sheet list, formula census, defined names, calculation state), for
+    /// the ADR-0009 oracle "rebuilt state == state of the reopened output".
+    #[doc(hidden)]
+    pub fn __index_fingerprint(&self) -> String {
+        use std::fmt::Write as _;
+        let mut out = String::new();
+        let _ = writeln!(out, "workbook {} first_visible {} calc_chain {:?}", self.workbook_part, self.first_visible, self.calc_chain);
+        let _ = writeln!(out, "calc manual={} iterate={} full={}", self.calc.manual, self.calc.iterate, self.calc.full_calc_on_load);
+        for s in &self.sheets {
+            let _ = writeln!(out, "sheet {:?} {:?} {:?} visible={}", s.name, s.part, s.kind, s.visible);
+        }
+        let mut cells: Vec<String> = self
+            .census
+            .alive()
+            .map(|(_, c)| format!("{} {} {:?} {:?} {:?} cache={} {:?}", c.sheet, c.at, c.kind, c.range, c.dynamic, c.has_cache, c.text))
+            .collect();
+        cells.sort();
+        for c in cells {
+            let _ = writeln!(out, "f {c}");
+        }
+        let mut names: Vec<String> = self.env.names.iter().map(|n| format!("{} {:?} {:?}", n.name_lc, n.scope, n.expr.is_some())).collect();
+        names.sort();
+        for n in names {
+            let _ = writeln!(out, "name {n}");
+        }
+        let _ = writeln!(out, "block {:?} shared_strings {:?}", self.census.block.is_some(), self.shared_strings.as_ref().map(Vec::len));
+        out
     }
 
     /// Test hook: make the next edit fail just before `step` of its apply
@@ -449,6 +516,53 @@ impl Workbook {
     #[doc(hidden)]
     pub fn inject_apply_panic(&mut self, step: ApplyStep) {
         self.fault = Some((step, true));
+    }
+}
+
+/// Everything [`Workbook`] derives from its package.
+struct Loaded {
+    workbook_part: String,
+    sheets: Vec<SheetEntry>,
+    first_visible: usize,
+    shared_strings: Option<Vec<String>>,
+    census: Census,
+    env: Env,
+    calc: CalcState,
+    calc_chain: Option<String>,
+}
+
+impl Loaded {
+    fn load(pkg: &mut Package) -> Result<Loaded> {
+        let workbook_part = pkg.main_document_part().ok_or(Error::NoWorkbook)?;
+        let wb_rels = pkg.relationships(&workbook_part)?;
+        let (sheets, names, calc) = read_workbook(pkg, &workbook_part, &wb_rels)?;
+        let first_visible = sheets
+            .iter()
+            .position(|s| s.visible && s.kind == SheetKind::Worksheet)
+            .ok_or(Error::NoVisibleWorksheet)?;
+        let calc_chain = wb_rels
+            .by_type(REL_CALC_CHAIN)
+            .next()
+            .and_then(|r| wb_rels.resolve(r))
+            .filter(|p| pkg.contains(p));
+        let census = formula_census(pkg, &wb_rels, &sheets)?;
+        let shared_strings = load_shared_strings(pkg, &wb_rels)?;
+        let env = Env {
+            sheets_lc: sheets.iter().map(|s| fold(&s.name)).collect(),
+            names: names
+                .into_iter()
+                .map(|(name, local, text)| {
+                    let scope = match local {
+                        None => Scope::Global,
+                        Some(i) if (i as usize) < sheets.len() => Scope::Local(i as usize),
+                        Some(_) => Scope::Invalid,
+                    };
+                    NameDef::new(&name, scope, &text)
+                })
+                .collect(),
+            bx_any: census.bx_any,
+        };
+        Ok(Loaded { workbook_part, sheets, first_visible, shared_strings, census, env, calc, calc_chain })
     }
 }
 
@@ -483,7 +597,8 @@ fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships) -
                 return Err(Error::Malformed(format!("{workbook_part}: <sheet> without name or r:id")));
             };
             let visible = matches!(s.state(), EnumValue::Known(SheetStateValues::Visible));
-            raw.push((name.to_owned(), id.to_owned(), visible));
+            // ST_Xstring: the name as Excel shows it (PR #53 review R2-m4)
+            raw.push((crate::escape::decode(name).into_owned(), id.to_owned(), visible));
         }
         if let Some(dn) = wb.defined_names() {
             for d in dn.defined_name_iter() {
@@ -612,7 +727,7 @@ fn load_tables(pkg: &mut Package, sheet_part: &str, rels: &Relationships, ids: &
             r.last.row = (range.first.row + n - 1).min(range.last.row);
             r
         });
-        out.push(TableHeader { name, rows });
+        out.push(TableHeader { name, rows, range });
     }
     Ok(out)
 }

@@ -17,13 +17,14 @@
 //!   `styles.xml`; apply swaps both in.
 
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 use std::sync::Arc;
 
 use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode, XmlDocument};
 use ooxml_schema::sml;
 
-use super::format::{BUILTIN, Border, Color, Fill, Font, Format, NumFormat, Protection, Side, Underline, is_date_format};
+use super::format::{BUILTIN, Border, Color, DxfFormat, Fill, Font, Format, NumFormat, Protection, Side, Underline, is_date_format};
 use super::{Table, limit, render};
 use crate::error::{Error, Result};
 use crate::workbook::Workbook;
@@ -38,6 +39,7 @@ pub(crate) enum Which {
     Fills,
     Borders,
     CellXfs,
+    Dxfs,
 }
 
 impl Which {
@@ -48,6 +50,7 @@ impl Which {
             Which::Fills => "fills",
             Which::Borders => "borders",
             Which::CellXfs => "cellXfs",
+            Which::Dxfs => "dxfs",
         }
     }
 }
@@ -115,6 +118,9 @@ pub(crate) struct Styles {
     // write, and only a plan that appends copies them (`Arc::make_mut`;
     // PR #50 review M5).
     custom_codes: Arc<HashMap<String, u32>>,
+    /// Custom codes given an id for a `dxf/numFmt` this session (they are
+    /// self-contained and never added to `numFmts`).
+    dxf_codes: Arc<HashMap<String, u32>>,
     redefined: Arc<HashSet<u32>>,
     pub(crate) codes: Arc<HashMap<u32, String>>,
     custom_count: u32,
@@ -166,11 +172,20 @@ fn table_node<'d>(root: &'d RawNode, local: &str) -> Option<&'d RawNode> {
     root.elements().find(|e| e.name().ns() == crate::SML_NS && e.name().local() == local)
 }
 
-/// The largest `numFmtId` attribute value in any XML part (review n6:
-/// lexical rules, content-type selection, UTF-16 decoded; a part that
-/// cannot be decoded refuses).
-fn max_numfmt_id(wb: &Workbook) -> Result<u32> {
-    let mut best = 0u32;
+/// The largest values of the id attributes that share a package-wide space,
+/// in any XML part.
+struct IdScan {
+    /// Every `numFmtId`.
+    numfmt: u32,
+    /// Main-table `dxfId` and `…DxfId` (`cfRule`, table and table-style
+    /// elements, pivot formats): references into `dxfs`.
+    dxf: Option<u32>,
+}
+
+/// Scans every XML part once (review n6: lexical rules, content-type
+/// selection, UTF-16 decoded; a part that cannot be decoded refuses).
+fn scan_ids(wb: &Workbook, styles_part: &str) -> Result<IdScan> {
+    let mut out = IdScan { numfmt: 0, dxf: None };
     let names: Vec<String> = wb.pkg.part_names().map(str::to_owned).collect();
     for name in names {
         let is_xml = wb.pkg.content_type(&name).is_some_and(|ct| {
@@ -182,11 +197,57 @@ fn max_numfmt_id(wb: &Workbook) -> Result<u32> {
         }
         let bytes = wb.pkg.read_part(&name)?;
         let text = decode_xml_text(&bytes).ok_or_else(|| Error::Malformed(format!("{name}: cannot decode to scan numFmtId")))?;
+        out.numfmt = out.numfmt.max(max_attr(&name, &text, "numFmtId", &[])?.unwrap_or(0));
+        let slicer_tags = if name == styles_part && text.contains("slicerStyleElement") { slicer_style_tags(&text) } else { Vec::new() };
+        for (needle, excluded) in [("dxfId", slicer_tags.as_slice()), ("DxfId", &[])] {
+            if let Some(v) = max_attr(&name, &text, needle, excluded)? {
+                out.dxf = out.dxf.max(Some(v));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Opening tags whose unqualified dxfId indexes x14:dxfs (MS-XLSX
+/// §2.6.45 and §2.4.24). Match the namespace and the extension path.
+fn slicer_style_tags(text: &str) -> Vec<Range<usize>> {
+    const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+    let Ok(doc) = XmlDocument::parse(text.as_bytes()) else { return Vec::new() };
+    if !doc.root().is(sml::Stylesheet::QNAME) || doc.source() != text {
+        return Vec::new();
+    }
+    let mut nodes = vec![doc.root()];
+    for (ns, local) in [
+        (crate::SML_NS, "extLst"),
+        (crate::SML_NS, "ext"),
+        (X14, "slicerStyles"),
+        (X14, "slicerStyle"),
+        (X14, "slicerStyleElements"),
+        (X14, "slicerStyleElement"),
+    ] {
+        let name = QName::new(ns, local);
+        nodes = nodes.into_iter().flat_map(RawNode::elements).filter(|node| node.is(name)).collect();
+    }
+    nodes.into_iter().filter_map(RawNode::span).map(|span| span.start..span.open_end).collect()
+}
+
+/// The largest value of attributes whose name ends with `needle` in `text`.
+/// Skip exact unqualified names in the excluded opening tags, which are
+/// in document order. Outside those tags keep the conservative suffix scan.
+fn max_attr(name: &str, text: &str, needle: &str, excluded: &[Range<usize>]) -> Result<Option<u32>> {
+    let mut best: Option<u32> = None;
+    {
         let b = text.as_bytes();
         let mut i = 0;
-        while let Some(off) = text[i..].find("numFmtId") {
-            let mut j = i + off + "numFmtId".len();
+        while let Some(off) = text[i..].find(needle) {
+            let attr = i + off;
+            let mut j = attr + needle.len();
             i = j;
+            if attr > 0 && b[attr - 1].is_ascii_whitespace()
+                && excluded.get(excluded.partition_point(|tag| tag.end <= attr)).is_some_and(|tag| tag.contains(&attr))
+            {
+                continue;
+            }
             while j < b.len() && b[j].is_ascii_whitespace() {
                 j += 1;
             }
@@ -204,13 +265,13 @@ fn max_numfmt_id(wb: &Workbook) -> Result<u32> {
             // a value with references (`&#49;70`) is decoded, never skipped:
             // the scan must not under-estimate (ADR-0006 n6; PR #50 review m7)
             let value = if raw.contains('&') {
-                std::borrow::Cow::Owned(decode_references(raw).ok_or_else(|| Error::Malformed(format!("{name}: cannot decode numFmtId value {raw:?}")))?)
+                std::borrow::Cow::Owned(decode_references(raw).ok_or_else(|| Error::Malformed(format!("{name}: cannot decode {needle} value {raw:?}")))?)
             } else {
                 std::borrow::Cow::Borrowed(raw)
             };
             let v = value.trim_matches([' ', '\t', '\r', '\n']);
             if let Ok(v) = v.parse::<u64>() {
-                best = best.max(v.min(u64::from(u32::MAX)) as u32);
+                best = best.max(Some(v.min(u64::from(u32::MAX)) as u32));
             }
         }
     }
@@ -275,13 +336,14 @@ impl Styles {
     /// SpreadsheetML `styleSheet`.
     pub(crate) fn activate(wb: &mut Workbook) -> Result<Styles> {
         let part = styles_part(wb)?.ok_or(Error::NoStylesPart)?;
-        let max_id = max_numfmt_id(wb)?;
+        let ids = scan_ids(wb, &part)?;
+        let max_id = ids.numfmt;
         let mut sheet_max_s: Option<u32> = None;
         for p in super::census_sheet_parts(wb) {
             let scan = super::scan_sheet(&wb.pkg.read_part(&p)?)?;
             sheet_max_s = sheet_max_s.max(scan.max_s);
         }
-        let doc = wb.pkg.xml_part(&part)?;
+        let doc = super::current_document(wb.pkg.xml_part(&part)?)?;
         let root = doc.root();
         if !root.is(sml::Stylesheet::QNAME) {
             return Err(Error::UnsupportedStylesPart(format!("{part}: root is {{{}}}{}", root.name().ns(), root.name().local())));
@@ -300,6 +362,7 @@ impl Styles {
             csx: Table::default(),
             next_numfmt: max_id.max(163) + 1,
             custom_codes: Arc::default(),
+            dxf_codes: Arc::default(),
             redefined: Arc::default(),
             codes: Arc::default(),
             custom_count: 0,
@@ -316,8 +379,12 @@ impl Styles {
             Which::Fills => sml::Fill::QNAME,
             Which::Borders => sml::Border::QNAME,
             Which::CellXfs => sml::CellFormat::QNAME,
+            Which::Dxfs => sml::DifferentialFormat::QNAME,
         };
-        for w in [Which::NumFmts, Which::Fonts, Which::Fills, Which::Borders, Which::CellXfs] {
+        if let Some(d) = ids.dxf {
+            st.max_ref.insert(Which::Dxfs, d);
+        }
+        for w in [Which::NumFmts, Which::Fonts, Which::Fills, Which::Borders, Which::CellXfs, Which::Dxfs] {
             let node = table_node(root, w.name());
             if let Some(n) = node {
                 st.exists.insert(w);
@@ -326,7 +393,7 @@ impl Styles {
                     st.count_attr.insert(w);
                 }
             }
-            st.tables.insert(w, Table::read(doc, node, entry(w)));
+            st.tables.insert(w, Table::read(&doc, node, entry(w)));
         }
         // fills 0 and 1 are reserved; 0 is a reuse target only as canonical `none`
         let none_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &Fill::NoFill))?;
@@ -349,6 +416,17 @@ impl Styles {
                 }
             }
         }
+        if let Some(dxfs) = table_node(root, "dxfs") {
+            for dxf in dxfs.elements().filter(|e| e.is(sml::DifferentialFormat::QNAME)) {
+                let Some(n) = dxf.elements().find(|e| e.is(sml::NumberingFormat::QNAME)) else { continue };
+                let (Some(id), Some(code)) = (n.attr(QName::new("", "numFmtId")).and_then(|v| v.trim().parse::<u32>().ok()), n.attr(QName::new("", "formatCode"))) else {
+                    continue;
+                };
+                if (164..=65_535).contains(&id) && st.codes.get(&id).is_none_or(|existing| existing == code) {
+                    Arc::make_mut(&mut st.dxf_codes).entry(code.to_owned()).and_modify(|existing| *existing = (*existing).min(id)).or_insert(id);
+                }
+            }
+        }
         // xfs, cell style xfs, named styles
         let xfs = |local: &str| -> Vec<Option<XfInfo>> {
             table_node(root, local)
@@ -357,7 +435,7 @@ impl Styles {
         };
         st.xfs = Arc::new(xfs("cellXfs"));
         st.csx_infos = Arc::new(xfs("cellStyleXfs"));
-        st.csx = Table::read(doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
+        st.csx = Table::read(&doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
         if st.csx.count > 0 {
             st.default = if st.csx.stable { st.csx_infos.first().cloned().flatten() } else { None };
             st.default_unreadable = st.default.is_none();
@@ -454,6 +532,17 @@ enum Group<'a> {
     Font(&'a Font),
     Fill(&'a Fill),
     Border(&'a Border),
+}
+
+impl Styles {
+    /// Plans one differential format (ADR-0006 §5.8): reused when an
+    /// existing `dxf` has exactly its canonical bytes, else appended. The
+    /// result's `s` is the `dxf` index.
+    pub(crate) fn plan_dxf(&self, wb: &mut Workbook, d: &DxfFormat) -> Result<StylePlan> {
+        let mut p = Planner { next: self.clone(), staged: None };
+        let s = p.dxf(wb, d)?;
+        Ok(StylePlan { s, staged: p.staged, next: p.next })
+    }
 }
 
 struct Planner {
@@ -638,6 +727,57 @@ impl Planner {
                 Ok(id)
             }
         }
+    }
+
+    /// The `(numFmtId, formatCode)` of a `dxf/numFmt`. Built-in ids keep
+    /// their id with the table's code. A custom code reuses an id from
+    /// `dxfs` or `numFmts`, or gets one above every id in the package
+    /// (the same space as `numFmts`, ADR-0006 §5.3).
+    fn dxf_num_fmt(&mut self, nf: &NumFormat) -> Result<(u32, String)> {
+        let builtin = |next: &Styles, id: u16| -> Result<(u32, String)> {
+            if next.redefined.contains(&u32::from(id)) {
+                return Err(Error::BuiltinNumFormatRedefined { id: u32::from(id) });
+            }
+            let code = BUILTIN.iter().find(|(b, _)| *b == id).map(|(_, c)| (*c).to_owned());
+            code.map(|c| (u32::from(id), c)).ok_or_else(|| Error::InvalidFormat(format!("built-in number format {id} has no fixed code; give the code")))
+        };
+        match nf {
+            NumFormat::General => builtin(&self.next, 0),
+            NumFormat::Builtin(id) if *id >= 164 => Err(Error::InvalidFormat(format!("numFmtId {id} is not a built-in id (0-163)"))),
+            NumFormat::Builtin(id) => builtin(&self.next, *id),
+            NumFormat::DefaultDate if self.next.redefined.contains(&14) => self.dxf_num_fmt(&NumFormat::Code("yyyy-mm-dd".into())),
+            NumFormat::DefaultDate => builtin(&self.next, 14),
+            NumFormat::Code(code) => {
+                if code.is_empty() {
+                    return Err(Error::InvalidFormat("empty number format code".into()));
+                }
+                if let Some((id, _)) = BUILTIN.iter().find(|(id, c)| c == code && !super::format::LOCALE_DEPENDENT.contains(id))
+                    && !self.next.redefined.contains(&u32::from(*id))
+                {
+                    return Ok((u32::from(*id), code.clone()));
+                }
+                if crate::escape::encode(code) != *code || ooxml_core::value::first_invalid_xml_char(code).is_some() {
+                    return Err(Error::InvalidNumFormat(code.clone()));
+                }
+                if let Some(&id) = self.next.dxf_codes.get(code).or_else(|| self.next.custom_codes.get(code)) {
+                    return Ok((id, code.clone()));
+                }
+                let id = self.next.next_numfmt;
+                if id > 65_535 {
+                    return Err(Error::NumFmtIdExhausted);
+                }
+                self.next.next_numfmt += 1;
+                Arc::make_mut(&mut self.next.dxf_codes).insert(code.clone(), id);
+                Ok((id, code.clone()))
+            }
+        }
+    }
+
+    fn dxf(&mut self, wb: &mut Workbook, d: &DxfFormat) -> Result<u32> {
+        d.validate()?;
+        let nf = d.num_format.as_ref().map(|n| self.dxf_num_fmt(n)).transpose()?;
+        let nf = nf.as_ref().map(|(i, c)| (*i, c.as_str()));
+        self.entry::<sml::DifferentialFormats>(wb, Which::Dxfs, &|p| build_dxf(p, d, nf))
     }
 
     fn default_attr(&self, k: &str) -> String {
@@ -942,6 +1082,104 @@ pub(crate) fn build_border(p: &mut LensMut<'_, sml::Borders>, b: &Border) -> Res
     side::<sml::TopBorder>(&mut n, &b.top)?;
     side::<sml::BottomBorder>(&mut n, &b.bottom)?;
     side::<sml::DiagonalBorder>(&mut n, &b.diagonal)?;
+    Ok(())
+}
+
+/// The canonical `dxf`: only the overriding parts, in schema order (`font`,
+/// `numFmt`, `fill`, `alignment`, `border`, `protection`).
+pub(crate) fn build_dxf(p: &mut LensMut<'_, sml::DifferentialFormats>, d: &DxfFormat, nf: Option<(u32, &str)>) -> Result<()> {
+    let val = QName::new("", "val");
+    let mut x = p.insert::<sml::DifferentialFormat>()?;
+    if let Some(f) = &d.font {
+        let mut n = x.insert::<sml::Font>()?;
+        if f.bold {
+            n.insert::<sml::Bold>()?;
+        }
+        if f.italic {
+            n.insert::<sml::Italic>()?;
+        }
+        if f.strike {
+            n.insert::<sml::Strike>()?;
+        }
+        if let Some(u) = f.underline {
+            let mut e = n.insert::<sml::Underline>()?;
+            match u {
+                Underline::Single => {}
+                Underline::Double => e.set_attr(val, "double")?,
+                Underline::SingleAccounting => e.set_attr(val, "singleAccounting")?,
+                Underline::DoubleAccounting => e.set_attr(val, "doubleAccounting")?,
+            }
+        }
+        if let Some(sz) = f.size {
+            n.insert::<sml::FontSize>()?.set_attr(val, &sz.to_string())?;
+        }
+        if let Some(c) = &f.color {
+            color(&mut n.insert::<sml::Color>()?, c)?;
+        }
+        if let Some(name) = &f.name {
+            n.insert::<sml::FontName>()?.set_attr(val, name)?;
+        }
+    }
+    if let Some((id, code)) = nf {
+        let mut n = x.insert::<sml::NumberingFormat>()?;
+        n.set_attr(QName::new("", "numFmtId"), &id.to_string())?;
+        n.set_attr(QName::new("", "formatCode"), code)?;
+    }
+    if let Some(fill) = &d.fill {
+        let mut n = x.insert::<sml::Fill>()?;
+        let mut pf = n.insert::<sml::PatternFill>()?;
+        match fill {
+            Fill::NoFill => pf.set_attr(QName::new("", "patternType"), "none")?,
+            Fill::Pattern { pattern, fg, bg } => {
+                // in a dxf an omitted patternType means solid (Excel's form)
+                if pattern != "solid" {
+                    pf.set_attr(QName::new("", "patternType"), pattern)?;
+                }
+                if let Some(c) = fg {
+                    color(&mut pf.insert::<sml::ForegroundColor>()?, c)?;
+                }
+                if let Some(c) = bg {
+                    color(&mut pf.insert::<sml::BackgroundColor>()?, c)?;
+                }
+            }
+        }
+    }
+    if let Some(a) = &d.alignment {
+        let mut n = x.insert::<sml::Alignment>()?;
+        for (k, v) in a.attrs() {
+            n.set_attr(QName::new("", k), &v)?;
+        }
+    }
+    if let Some(b) = &d.border {
+        let mut n = x.insert::<sml::Border>()?;
+        if b.diagonal_up {
+            n.set_attr(QName::new("", "diagonalUp"), "1")?;
+        }
+        if b.diagonal_down {
+            n.set_attr(QName::new("", "diagonalDown"), "1")?;
+        }
+        // only the sides that override
+        if b.left.is_some() {
+            side::<sml::LeftBorder>(&mut n, &b.left)?;
+        }
+        if b.right.is_some() {
+            side::<sml::RightBorder>(&mut n, &b.right)?;
+        }
+        if b.top.is_some() {
+            side::<sml::TopBorder>(&mut n, &b.top)?;
+        }
+        if b.bottom.is_some() {
+            side::<sml::BottomBorder>(&mut n, &b.bottom)?;
+        }
+        if b.diagonal.is_some() {
+            side::<sml::DiagonalBorder>(&mut n, &b.diagonal)?;
+        }
+    }
+    if let Some(pr) = &d.protection {
+        let mut n = x.insert::<sml::Protection>()?;
+        n.set_attr(QName::new("", "locked"), if pr.locked { "1" } else { "0" })?;
+        n.set_attr(QName::new("", "hidden"), if pr.hidden { "1" } else { "0" })?;
+    }
     Ok(())
 }
 
