@@ -25,3 +25,96 @@ attribute = "w:val"
 value = "true"
 reason = "WML on/off elements mean 'on' when val is omitted (<w:trackRevisions/>); the XSD (CT_OnOff, ST_OnOff) gives no default and leaves it to prose. ADR-0004's TrackRevisionsOn gate depends on it."
 evidence = "reference/fixtures/docx/poi-delins.docx (word/settings.xml: <w:trackRevisions/>); ECMA-376 Part 1, 17.17.4 ST_OnOff and the val description of each on/off property (e.g. 17.3.2.1 b)"
+
+# ---- ADR-0008 §6: DrawingML percentages read in Phase 1 (`DmlPercent`) ----
+# Evidence for all: ADR-0008 §6; spikes/pptx-phase1/results/percent-633.txt
+# (0 "NN%" values in 633 files, every value an integer, which the SDK's
+# Int32Value types); spikes/pptx-phase1/results/allowlist_p1.txt.
+
+[[override]]
+op = "set_type"
+on = "a:CT_TextCharacterProperties/"
+attribute = "baseline"
+type = "DmlPercent"
+reason = "ST_Percentage (int or \"NN%\"); resolved run property (ADR-0008 §1.3)"
+evidence = "ECMA-376 Part 1 §20.1.10.40; ADR-0008 §6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_TextSpacingPercent/a:spcPct"
+attribute = "val"
+type = "DmlPercent"
+reason = "ST_TextSpacingPercentOrPercentString; line and paragraph spacing"
+evidence = "ADR-0008 §6; spcPct@val appears 5,547 times, always as an integer (roadmap §3.2)"
+
+[[override]]
+op = "set_type"
+on = "a:CT_TextBulletSizePercent/a:buSzPct"
+attribute = "val"
+type = "DmlPercent"
+reason = "the XSD has a string-only \"NN%\" pattern; the SDK and every file use integers"
+evidence = "ADR-0008 §6; 138 buSzPct@val in the roadmap corpus, all integers"
+
+[[override]]
+op = "set_type"
+on = "a:CT_TextNormalAutofit/a:normAutofit"
+attribute = "fontScale"
+type = "DmlPercent"
+reason = "XSD default 100% fits only the union type"
+evidence = "ADR-0008 §6, §1.6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_TextNormalAutofit/a:normAutofit"
+attribute = "lnSpcReduction"
+type = "DmlPercent"
+reason = "XSD default 0% fits only the union type"
+evidence = "ADR-0008 §6, §1.6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_HslColor/a:hslClr"
+attribute = "sat"
+type = "DmlPercent"
+reason = "ST_Percentage; colour spec"
+evidence = "ADR-0008 §6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_HslColor/a:hslClr"
+attribute = "lum"
+type = "DmlPercent"
+reason = "ST_Percentage; colour spec"
+evidence = "ADR-0008 §6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_ScRgbColor/a:scrgbClr"
+attribute = "r"
+type = "DmlPercent"
+reason = "ST_Percentage; colour spec"
+evidence = "ADR-0008 §6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_ScRgbColor/a:scrgbClr"
+attribute = "g"
+type = "DmlPercent"
+reason = "ST_Percentage; colour spec"
+evidence = "ADR-0008 §6"
+
+[[override]]
+op = "set_type"
+on = "a:CT_ScRgbColor/a:scrgbClr"
+attribute = "b"
+type = "DmlPercent"
+reason = "ST_Percentage; colour spec"
+evidence = "ADR-0008 §6"
+
+[[override]]
+op = "set_type"
+on = "p:CT_Presentation/p:presentation"
+attribute = "serverZoom"
+type = "DmlPercent"
+reason = "XSD default 50% fits only the union type; settles ADR-0005 §5's open item"
+evidence = "ADR-0008 §6; ADR-0005 §5"

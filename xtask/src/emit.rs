@@ -260,6 +260,7 @@ impl<'m, 'a> Ctx<'m, 'a> {
                 "Int64" | "Integer" => s("i64", Some("parse_i64"), Fmt::With("with_i64")),
                 "Double" => s("f64", Some("parse_f64"), Fmt::Float(false)),
                 "Single" => s("f32", Some("parse_f32"), Fmt::Float(true)),
+                "DmlPercent" => s("ooxml_core::value::DmlPercent", Some("parse_dml_percent"), Fmt::With("with_dml_percent")),
                 _ => s("&'a str", None, Fmt::Str),
             },
         }

@@ -426,6 +426,33 @@ fn cross_run_phrase(pres: &mut Presentation) -> Option<String> {
 
 /// The text of the second run of the first paragraph with at least two
 /// non-empty runs, if any.
+/// A phrase covering an `a:fld` (rule 1, review #48 r2-m1): the last
+/// character before the field (if any) and the field's cached text.
+fn field_phrase(pres: &mut Presentation) -> Option<String> {
+    for i in 0..pres.slide_count() {
+        let Ok(s) = pres.slide(i) else { continue };
+        for sh in s.shapes() {
+            let Some(b) = sh.text_body() else { continue };
+            for p in b.paragraphs() {
+                let items = p.items();
+                for (k, it) in items.iter().enumerate() {
+                    let TextItem::Field(f) = it else { continue };
+                    let t = f.text();
+                    if t.is_empty() || t.contains(['\n', '\r', '\u{b}']) {
+                        continue;
+                    }
+                    let before = match k.checked_sub(1).map(|k| &items[k]) {
+                        Some(TextItem::Run(r)) => r.text().chars().last(),
+                        _ => None,
+                    };
+                    return Some(before.into_iter().chain(t.chars()).collect());
+                }
+            }
+        }
+    }
+    None
+}
+
 fn whole_run_text(pres: &mut Presentation) -> Option<String> {
     for i in 0..pres.slide_count() {
         let Ok(s) = pres.slide(i) else { continue };
@@ -490,6 +517,9 @@ pub fn replace_cases() -> Vec<Case> {
         if let Some(whole) = whole_run_text(&mut pres) {
             // deletes a whole run of a multi-run paragraph (rule 4)
             out.push(replace_case(format!("replace-whole-run-{tag}"), f, &whole, "", false));
+        }
+        if let Some(phrase) = field_phrase(&mut pres) {
+            out.push(replace_case(format!("replace-field-{tag}"), f, &phrase, "F", false));
         }
         if let Some(phrase) = cross_run_phrase(&mut pres) {
             out.push(replace_case(format!("replace-cross-{tag}"), f, &phrase, "置換", false));
