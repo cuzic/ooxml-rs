@@ -107,8 +107,10 @@ webPublishItems tableParts extLst
 ```
 
 Every Phase4 feature inserts or edits one or two of these elements. ADR-0002 §4.1 places a
-new child in its slot and refuses next to an `mc:AlternateContent` sibling (`UnresolvedSibling`).
-2 corpus worksheets have one.
+new child in its slot and refuses with `UnresolvedSibling` when an `mc:AlternateContent` child
+of the parent makes the position unresolvable. 2 corpus worksheets have one. For a slot with
+`maxOccurs=1` (e.g. `definedNames` in `workbook.xml`), an AC child **anywhere** in the parent
+blocks the insertion, not only an adjacent one: see §13.
 
 ### What the corpus shows
 
@@ -305,7 +307,11 @@ nobody widens the table ad hoc.
   - overlap with an array, data-table or spill result range or anchor (Phase1
     `ArrayResultCell`/`ArrayAnchor`), or with a `vm` cell;
   - overlap with a PivotTable `location/@ref` or a query table's output range
-    (`PivotOverlap`, `QueryTableOverlap`; review m10). Excel's UI refuses these too;
+    (`PivotOverlap`, `QueryTableOverlap`; review m10). Excel's UI refuses these too.
+    As implemented, a sheet with a query-table relationship refuses **every** merge: the query
+    table's output range is not located (it lives in the table or a defined name), so overlap
+    cannot be ruled out (PR #58 round 1 m7). A PivotTable part is read only when a merge needs
+    it; one whose `location/@ref` cannot be read counts as overlapping (round 1 M1);
   - **any value or formula in a non-anchor cell** (`MergeWouldHideValues { cells }`): any cell
     with a `v`, an `is` or an `f` (review m10). Excel's UI warns and discards them; a library
     must not hide data silently.
@@ -714,9 +720,21 @@ New variants:
 
 `RemovedWithBrokenX14Link` is a report, not an error. These pass through unchanged:
 
-- core refusals: `UnresolvedSibling` next to `mc:AlternateContent`, and `RegistryRefusal` from
-  PR #38;
+- core refusals: `UnresolvedSibling` when an `mc:AlternateContent` child makes the new
+  element's position unresolvable, and `RegistryRefusal` from PR #38;
 - ADR-0006 §2's refusal of a `dxfs` with `mc:AlternateContent`.
+
+**Decision 2026-11-16 (PR #58 round 1 M3): keep the refusal, state its real scope.** Core places
+a `maxOccurs=1` slot by a greedy assignment over all of the parent's children, so an AC child
+**anywhere** in the parent refuses the insertion, not only one next to it. For `set_autofilter`
+this matters: a new `definedNames` in `workbook.xml` is refused whenever the workbook has any AC
+child. In the POI corpus (47dcff76), 81 of 349 `workbook.xml` files have one, all of them
+Excel 2013+'s `x15ac:absPath`; 61 of those have no `definedNames`. So `set_autofilter` is refused
+(`Core(UnresolvedSibling)`, every byte unchanged) on most recent, locally saved Excel files that
+define no name yet (57 of the sweep's packages). Reusing or adding to an existing `definedNames`
+is not affected. A separate core follow-up after PR #58 relaxes this: a single-occurrence slot can
+be placed when every AC sibling's own slot is resolvable (as for `x15ac:absPath`, which sits
+between `workbookPr` and `sheets` in every reading), with `check_*` twins and tests.
 
 ## Test oracles
 

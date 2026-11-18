@@ -28,7 +28,8 @@
     out-of-bounds translation; its oracle no longer relies on calamine alone (§4.2).
   - **Minor findings:** m1–m9 are folded in where they apply, each marked inline.
   - The guard table follows the Phase0 owner decisions and coordinator defaults: the first
-    visible worksheet, and refusal of every cell of a merged range.
+    visible worksheet, and refusal of every cell of a merged range (relaxed by ADR-0014 §3 for
+    the anchor: see the guard table).
 - **Revision 3** (after `0003-opus-review-round2.md`; implemented in the same milestone,
   `xlsx-phase1`):
   - **R2-M1 (four soundness holes):**
@@ -656,7 +657,7 @@ on acceptance this text replaces it.
 | An edit would make a macro-sheet or dialog-sheet formula a dependent | `Err(MacroSheetDependent)`: XLM caches are not modelled |
 | Iterative calculation and a non-empty dependent set | `Err(IterativeCalculation)` (§3.3) |
 | `set_formula` text that does not lex | `Err(InvalidFormula)` |
-| Write into any cell of a merged range (top-left included), missing `r`, Strict, encrypted | unchanged from Phase0 |
+| A value or formula write to a **non-anchor** cell of a merged range (ADR-0014 §3: the anchor is writable; style-only writes are allowed on every cell of the range), missing `r`, Strict, encrypted | unchanged from Phase0, except the anchor relaxation |
 | A translation of §4.2 fails | `Err(SharedFormulaMaster)` |
 | A previous apply failed | `Err(Poisoned)` for every edit and save (§3.1) |
 
