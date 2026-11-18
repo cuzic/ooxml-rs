@@ -887,6 +887,46 @@ what this revision specifies, pending the owner's confirmation.
    *Proposed default:* not in Phase2. W3 keeps refusing; the opt-in goes to the later
    document-settings ADR. The corpora have 4 protected POI files.
 
+## Implementation notes (post-acceptance)
+
+### Part 1 (§4, §6, §9.1, §10)
+
+Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
+
+- **Generations.** A paragraph insert moves later paragraphs: they get fresh
+  `Document::generation` values, so a `Match` found before the insert is stale (ADR-0007 §7).
+  Generations are now values never used before in the `Document`, not counters per
+  paragraph.
+- **`insert_paragraph`.**
+  - The neighbour must pass ADR-0007 §4's paragraph checks. A neighbour in a block-level
+    content control or custom XML is `UnsupportedContext`.
+  - The new run has no `w:rPr`. Copying the paragraph mark's run properties needs ADR-0007
+    §8.2's `SameType` rule, which comes with Phase1 part 3; it will be added then.
+  - `ParagraphSpec::Plain` writes no `w:pPr`.
+- **Section breaks.**
+  - Only paragraphs that are direct children of the main body can end a section. A section
+    break inside a table between the paragraph and S is refused.
+  - A missing `w:sectPr` is `NoSectionProperties`.
+  - A `w:sectPrChange` is `TrackedPropertyChange`.
+  - A reference whose `r:id` is not a relationship of the part is `RelIdReferenced`.
+  - `w:printerSettings r:id` makes the copy `NotDetachable`.
+- **A2 lifted.** `append_paragraph` moves the `w:sectPr` by copy and remove. The old
+  paragraph keeps an empty `w:pPr`. Inside a content control, A2 still refuses.
+- **Hyperlinks.**
+  - `w:history="1"` is written, as Word does.
+  - Core's relationship-id allocation already skips ids used by the source part's
+    attributes (PR #38, M7), so ooxml-docx's `RelIdReferenced` check is a safety net that
+    the tests cannot reach (equivalent mutant).
+  - The URI check accepts `scheme:` as RFC 3986 defines it, with any rest; core refuses
+    whitespace and control characters.
+- **Corpus cross-check (throwaway, 821 files).**
+  - Gate and per-run outputs are byte-identical to `main`.
+  - The sweep ran, per file: a paragraph after each of the first 60 paragraphs of every
+    story; up to 3 section breaks; a hyperlink at the end of each of the first 60 body
+    paragraphs; then an append.
+  - Results: 13,565 paragraphs, 1,997 breaks, 14,143 hyperlinks and 774 appends written.
+    After saving and reopening there was no panic, no reopen failure and no text mismatch.
+
 ## Sources
 
 - Spike: `spikes/docx-phase2/README.md`, `registries.py`, `needs.py` and, since revision 2,
@@ -917,3 +957,20 @@ what this revision specifies, pending the owner's confirmation.
   §17.13.6; numbering §17.9). Section numbers are from memory and marked *(u)* where a rule
   depends on them. ECMA-376 Part 2 (OPC: part-name equivalence, content types,
   relationships).
+
+### Post-acceptance note (PR #62, round 1)
+
+- **M1:** In an ADR-0004 A2 document, inserting after the last body-flow
+  paragraph moves its final `w:sectPr` to the new paragraph, as append
+  does. The requested paragraph style or copied properties still apply.
+  If the final paragraph is in a wrapper or table, the insertion returns
+  `SectionBreakAtEnd`. Inserting after an earlier section-ending paragraph
+  places the new paragraph in the following section.
+- **M2:** A paragraph that starts inside a complex field is an
+  `InsideField` target for paragraph, hyperlink and section-break insertion
+  even when it has no runs.
+- **m1–m3:** Splitting after the last paragraph of a section returns
+  `AlreadySectionEnd`. Paragraph and hyperlink insertion refuse separator,
+  continuation separator and continuation notice notes. A section split
+  invalidates the generation of each paragraph whose section properties it
+  changes.

@@ -20,25 +20,97 @@ names = [
     # Phase1 (ADR-0003 §6): formula writes and calcPr/@fullCalcOnLoad.
     "x:CT_CellFormula/x:f",
     "x:CT_CalcPr/x:calcPr",
+    # Phase3 (ADR-0009): sheet operations edit workbook.xml (sheets, names,
+    # views) and sheet parts (tab colour, tabSelected, hyperlink locations).
+    "x:CT_Workbook/x:workbook",
+    "x:CT_Sheets/x:sheets",
+    "x:CT_Sheet/x:sheet",
+    "x:CT_DefinedNames/x:definedNames",
+    "x:CT_DefinedName/x:definedName",
+    "x:CT_BookViews/x:bookViews",
+    "x:CT_BookView/x:workbookView",
+    "x:CT_SheetPr/x:sheetPr",
+    "x:CT_Color/x:tabColor",
+    "x:CT_SheetViews/x:sheetViews",
+    "x:CT_SheetView/x:sheetView",
+    "x:CT_Hyperlinks/x:hyperlinks",
+    "x:CT_Hyperlink/x:hyperlink",
+    # Phase3 rename: a pivot cache's worksheetSource/@sheet (a raw sheet name).
+    "x:CT_PivotCacheDefinition/x:pivotCacheDefinition",
+    "x:CT_CacheSource/x:cacheSource",
+    "x:CT_WorksheetSource/x:worksheetSource",
+    # Phase2 (ADR-0006): shared-string and style registries append entries.
+    "x:CT_Sst/x:sst",
+    "x:CT_Rst/x:si",
+    "x:CT_Stylesheet/x:styleSheet",
+    "x:CT_NumFmts/x:numFmts",
+    "x:CT_NumFmt/x:numFmt",
+    "x:CT_Fonts/x:fonts",
+    "x:CT_Font/x:font",
+    "x:CT_BooleanProperty/x:b",
+    "x:CT_BooleanProperty/x:i",
+    "x:CT_BooleanProperty/x:strike",
+    "x:CT_BooleanProperty/x:condense",
+    "x:CT_BooleanProperty/x:extend",
+    "x:CT_VerticalAlignFontProperty/x:vertAlign",
+    "x:CT_ByteProperty/x:charset",
+    "x:CT_UnderlineProperty/x:u",
+    "x:CT_FontSize/x:sz",
+    "x:CT_Color/x:color",
+    "x:CT_FontNameNonEmpty/x:name",
+    "x:CT_FontFamilyNum/x:family",
+    "x:CT_FontScheme/x:scheme",
+    "x:CT_Fills/x:fills",
+    "x:CT_Fill/x:fill",
+    "x:CT_PatternFill/x:patternFill",
+    "x:CT_Color/x:fgColor",
+    "x:CT_Color/x:bgColor",
+    "x:CT_Borders/x:borders",
+    "x:CT_Border/x:border",
+    "x:CT_BorderPr/x:left",
+    "x:CT_BorderPr/x:right",
+    "x:CT_BorderPr/x:top",
+    "x:CT_BorderPr/x:bottom",
+    "x:CT_BorderPr/x:diagonal",
+    "x:CT_CellXfs/x:cellXfs",
+    "x:CT_Xf/x:xf",
+    "x:CT_CellAlignment/x:alignment",
+    "x:CT_CellProtection/x:protection",
+    # Phase2 part 2 (ADR-0006 §4.2, §5.8): rich strings (si/r/rPr, is/r) and dxfs.
+    "x:CT_RElt/x:r",
+    "x:CT_RPrElt/x:rPr",
+    "x:CT_FontName/x:rFont",
+    "x:CT_IntProperty/x:family",
+    "x:CT_IntProperty/x:charset",
+    "x:CT_Dxfs/x:dxfs",
+    "x:CT_Dxf/x:dxf",
+
+    # Phase4 part 1 (ADR-0014 §3, §7, §11): merged cells, autofilter and its
+    # _xlnm._FilterDatabase name, sheet protection, sheetPr/@filterMode.
+    "x:CT_MergeCells/x:mergeCells",
+    "x:CT_MergeCell/x:mergeCell",
+    "x:CT_AutoFilter/x:autoFilter",
+    "x:CT_SheetProtection/x:sheetProtection",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
 # first sheet, shared/rich strings, merged ranges, table header rows.
 [read]
 names = [
-    "x:CT_Workbook/x:workbook",
-    "x:CT_Sheets/x:sheets",
-    "x:CT_Sheet/x:sheet",
-    "x:CT_RElt/x:r",
-    "x:CT_Sst/x:sst",
-    "x:CT_Rst/x:si",
-    "x:CT_MergeCells/x:mergeCells",
-    "x:CT_MergeCell/x:mergeCell",
+    # Phase4 part 1 (ADR-0014 §7): an autofilter with criteria or a sort is
+    # refused, so these are only detected.
+    "x:CT_FilterColumn/x:filterColumn",
+    "x:CT_SortState/x:sortState",
     # Table header guard (roadmap Q5): tableParts -> table part -> ref/headerRowCount.
     "x:CT_TableParts/x:tableParts",
     "x:CT_TablePart/x:tablePart",
     "x:CT_Table/x:table",
-    # Phase1 (ADR-0003 §6): defined names for dependency analysis.
-    "x:CT_DefinedNames/x:definedNames",
-    "x:CT_DefinedName/x:definedName",
+    # Phase3 (ADR-0009): views keyed by sheetId, VBA code names.
+    "x:CT_CustomWorkbookViews/x:customWorkbookViews",
+    "x:CT_CustomWorkbookView/x:customWorkbookView",
+    # Phase2 (ADR-0006): the default style, named styles, the date system.
+    "x:CT_CellStyleXfs/x:cellStyleXfs",
+    "x:CT_CellStyles/x:cellStyles",
+    "x:CT_CellStyle/x:cellStyle",
+    "x:CT_WorkbookPr/x:workbookPr",
 ]

@@ -85,6 +85,11 @@ pub(crate) enum EditBlock {
     ScanFailed { part: String, reason: String },
     MissingReference { part: String },
     UnknownCellMetadata { part: String, cell: String },
+    /// A cell whose `r` names another row than its `row/@r` (fuzz finding
+    /// F-8): the census (keyed by `c/@r`) and the row index (keyed by row)
+    /// would disagree about where the cell is, and a write could add a
+    /// second cell with the same reference.
+    RowMismatch { part: String, cell: String, row: u32 },
 }
 
 impl EditBlock {
@@ -100,6 +105,7 @@ impl EditBlock {
             EditBlock::UnknownCellMetadata { part, cell } => {
                 Error::UnknownCellMetadata { part: part.clone(), cell: cell.clone() }
             }
+            EditBlock::RowMismatch { part, cell, row } => Error::InvalidReference(format!("{part}: {cell} in row {row}")),
         }
     }
 }
@@ -184,6 +190,7 @@ fn truthy(v: Option<&str>) -> bool {
 #[derive(Default)]
 struct CellScan {
     r: Option<String>,
+    at: Option<Result<CellIndex, Error>>,
     t: Option<String>,
     cm: Option<String>,
     vm: bool,
@@ -222,6 +229,10 @@ pub(crate) fn scan_sheet(
     let mut vm_cells = Vec::new();
     let mut unknown_cm: Option<String> = None;
     let mut bx = false;
+    // The number of the row being read (`row/@r`), and the first cell
+    // naming another row (F-8).
+    let mut row_number: Option<u32> = None;
+    let mut row_mismatch: Option<(String, u32)> = None;
     loop {
         let pos = reader.buffer_position();
         let (ns, ev) = reader.read_resolved_event().map_err(|e| format!("XML error after byte {pos}: {e}"))?;
@@ -233,17 +244,41 @@ pub(crate) fn scan_sheet(
                 let parent = stack.last().map(String::as_str);
                 match local.as_str() {
                     "row" if parent == Some("sheetData") => {
-                        if attr(e, "r")?.is_none() {
+                        let r = attr(e, "r")?;
+                        if r.is_none() {
                             missing_r = true;
+                        }
+                        // Read exactly as the row index reads it (XML whitespace
+                        // trimmed, row 0 invalid), or the two disagree again
+                        // (review of PR #67, M1/m1). A row the index cannot read
+                        // is its own refusal (`BadRowR`), not a mismatch.
+                        if !empty {
+                            row_number = r.as_deref().and_then(ooxml_core::value::parse_u32).filter(|r| *r >= 1);
                         }
                     }
                     "c" if parent == Some("row") => {
                         let mut c = CellScan { r: attr(e, "r")?, t: attr(e, "t")?, cm: attr(e, "cm")?, ..Default::default() };
                         c.vm = attr(e, "vm")?.is_some();
+                        c.at = c.r.as_deref().map(CellIndex::parse);
                         if c.r.is_none() {
                             missing_r = true;
                         }
+                        if row_mismatch.is_none()
+                            && let (Some(row), Some(Ok(at))) = (row_number, &c.at)
+                            && at.row + 1 != row
+                        {
+                            row_mismatch = Some((at.to_string(), row));
+                        }
                         cell = Some(c);
+                    }
+                    // Also check cells below wrappers such as mc:AlternateContent.
+                    // Only direct children of a row enter the formula census.
+                    "c" if row_mismatch.is_none() && let Some(row) = row_number => {
+                        if let Some(Ok(at)) = attr(e, "r")?.as_deref().map(CellIndex::parse)
+                            && at.row + 1 != row
+                        {
+                            row_mismatch = Some((at.to_string(), row));
+                        }
                     }
                     "f" => {
                         let Some(c) = cell.as_mut().filter(|_| parent == Some("c")) else {
@@ -287,6 +322,9 @@ pub(crate) fn scan_sheet(
             }
             Event::End(_) => {
                 let local = stack.pop().unwrap_or_default();
+                if local == "row" && stack.last().map(String::as_str) == Some("sheetData") {
+                    row_number = None;
+                }
                 if local == "f" || local == "v" {
                     sink = TextSink::None;
                 }
@@ -326,6 +364,12 @@ pub(crate) fn scan_sheet(
     }
     if let Some(cell) = unknown_cm {
         census.block(EditBlock::UnknownCellMetadata { part: part.to_owned(), cell });
+    }
+    // Any sheet, with or without formulas: a write to the named cell would
+    // not find it through the row index and add a duplicate, and a formula
+    // anywhere may read it. Fail closed for every edit (reads still work).
+    if let Some((cell, row)) = row_mismatch {
+        census.block(EditBlock::RowMismatch { part: part.to_owned(), cell, row });
     }
     census.bx_any |= bx;
     let mut masters: HashMap<u32, usize> = HashMap::new();
@@ -375,10 +419,7 @@ fn finish_cell(
     bx_any: &mut bool,
 ) -> Result<bool, String> {
     let Some(c) = c else { return Ok(false) };
-    let at = match &c.r {
-        Some(r) => Some(CellIndex::parse(r).map_err(|e| e.to_string())?),
-        None => None,
-    };
+    let at = c.at.transpose().map_err(|e| e.to_string())?;
     if c.vm
         && let Some(at) = at
     {
@@ -516,6 +557,38 @@ mod tests {
 
     const NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
 
+    /// Corpus check for F-8 (review of PR #67, n2): no sheet part of any
+    /// fixture has a cell naming another row, checked on each part on its
+    /// own (so an earlier block of another kind cannot hide it).
+    #[test]
+    fn no_fixture_sheet_has_a_row_mismatch() {
+        fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    collect(&p, out);
+                } else if p.extension().is_some_and(|x| x == "xlsx" || x == "xlsm") {
+                    out.push(p);
+                }
+            }
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference");
+        let mut files = Vec::new();
+        collect(&root.join("fixtures/xlsx"), &mut files);
+        collect(&root.join("round_trip_corpus"), &mut files);
+        let mut sheets = 0;
+        for f in &files {
+            let Ok(pkg) = ooxml_core::Package::from_bytes(std::fs::read(f).unwrap()) else { continue };
+            for part in pkg.part_names().filter(|n| (n.contains("worksheets/") || n.contains("macrosheets/")) && n.ends_with(".xml")) {
+                let mut c = Census::default();
+                let _ = scan_sheet(&pkg.read_part(part).unwrap(), part, 0, &HashSet::new(), &mut c);
+                assert!(!matches!(c.block, Some(EditBlock::RowMismatch { .. })), "{} {part}: {:?}", f.display(), c.block);
+                sheets += 1;
+            }
+        }
+        assert!(sheets >= 60, "{sheets} sheet parts checked");
+    }
+
     fn scan(body: &str, dynamic: &[u32]) -> (Census, Result<(), String>) {
         let mut c = Census::default();
         let xml = format!("<worksheet {NS}><sheetData>{body}</sheetData></worksheet>");
@@ -553,6 +626,24 @@ mod tests {
         assert!(matches!(c.block, Some(EditBlock::UnknownCellMetadata { .. })), "cm without f");
         let (c, _) = scan(r#"<row><c><f>1</f></c></row>"#, &[]);
         assert!(matches!(c.block, Some(EditBlock::MissingReference { .. })));
+        // F-8: a cell naming another row, with or without a formula
+        let (c, _) = scan(r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f></c></row>"#, &[]);
+        assert!(matches!(&c.block, Some(EditBlock::RowMismatch { cell, row: 1, .. }) if cell == "B2"));
+        let (c, _) = scan(r#"<row r="3"><c r="A2"><v>1</v></c></row>"#, &[]);
+        assert!(matches!(c.block, Some(EditBlock::RowMismatch { row: 3, .. })), "values only");
+        let (c, _) = scan(r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B2"><f>A1*2</f></c></row>"#, &[]);
+        assert!(c.block.is_none(), "cells in their own rows");
+        let (c, _) = scan(r#"<row><c r="B2"><v>1</v></c></row>"#, &[]);
+        assert!(c.block.is_none(), "a row without r cannot disagree (Phase0's MissingReference covers it)");
+        // row/@r read like the row index reads it (review of PR #67, M1, m1)
+        for r in [" 1", "\t1", "1 ", "\n1\r"] {
+            let (c, _) = scan(&format!(r#"<row r="{r}"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f></c></row>"#), &[]);
+            assert!(matches!(&c.block, Some(EditBlock::RowMismatch { cell, row: 1, .. }) if cell == "B2"), "row r={r:?}: {:?}", c.block);
+        }
+        let (c, _) = scan(r#"<row r=" 2 "><c r="B2"><f>1</f></c></row>"#, &[]);
+        assert!(c.block.is_none(), "padded row number, cell in its own row");
+        let (c, _) = scan(r#"<row r="0"><c r="A1"><v>1</v></c></row>"#, &[]);
+        assert!(c.block.is_none(), "row 0 is the row index's BadRowR for that sheet, not a mismatch");
         let (c, _) = scan(r#"<row><c><v>1</v></c></row>"#, &[]);
         assert!(c.block.is_none(), "no formulas: only that sheet's own edits are refused (Phase0)");
         let mut c = Census::default();

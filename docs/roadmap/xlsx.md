@@ -409,6 +409,13 @@ owner (ADR-0001 Consequences: no Excel in the sandbox).
 - **Depends on Phase1** for plan → validate → apply with staged clones and for the census
   (`t="s"` counting); value writes with a format invalidate dependents like any value write,
   style-only writes invalidate formulas that call `CELL`/`INFO`.
+- **Status (2026-11-16):** implementation part 1 on `impl/xlsx-phase2` (stacked on Phase1,
+  `impl/xlsx-phase1`): both registries, `Format`, writes with a format, style-only writes,
+  `set_style_index`, `set_named_style`, the preserving setters (Q4), dates, `set_bool`,
+  `set_error`; manual-check files 22–35 for XL items (a)–(g). Part 2 on
+  `impl/xlsx-phase2-part2` (stacked on #50): rich strings (`set_rich_string`, sst and inline),
+  format read-back (`Worksheet::format`, `FormatRead`), the `dxfs` registry
+  (`add_differential_format`); manual-check files 36–38.
 
 ### Phase3 — package structure edits (ADR-0009, Proposed, revision 2)
 

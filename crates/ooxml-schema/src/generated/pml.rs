@@ -2,6 +2,8 @@
 //! `pml` feature group: generated schema markers, views and enums (ADR-0002 §3).
 /// `a`: `http://schemas.openxmlformats.org/drawingml/2006/main`
 pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+/// `ap`: `http://schemas.openxmlformats.org/officeDocument/2006/extended-properties`
+pub const NS_AP: &str = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
 /// `oac`: `http://schemas.microsoft.com/office/drawing/2013/main/command`
 pub const NS_OAC: &str = "http://schemas.microsoft.com/office/drawing/2013/main/command";
 /// `p`: `http://schemas.openxmlformats.org/presentationml/2006/main`
@@ -768,6 +770,54 @@ impl ooxml_core::EnumType for SlideLayoutValues {
         self as usize
     }
 }
+/// `p:ST_ViewType` — List of View Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ViewValues {
+    /// `sldView`
+    SlideView,
+    /// `sldMasterView`
+    SlideMasterView,
+    /// `notesView`
+    NotesView,
+    /// `handoutView`
+    HandoutView,
+    /// `notesMasterView`
+    NotesMasterView,
+    /// `outlineView`
+    OutlineView,
+    /// `sldSorterView`
+    SlideSorterView,
+    /// `sldThumbnailView`
+    SlideThumbnailView,
+}
+impl ooxml_core::EnumType for ViewValues {
+    const VALUES: &'static [&'static str] = &[
+        "sldView",
+        "sldMasterView",
+        "notesView",
+        "handoutView",
+        "notesMasterView",
+        "outlineView",
+        "sldSorterView",
+        "sldThumbnailView",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::SlideView),
+            1 => Some(Self::SlideMasterView),
+            2 => Some(Self::NotesView),
+            3 => Some(Self::HandoutView),
+            4 => Some(Self::NotesMasterView),
+            5 => Some(Self::OutlineView),
+            6 => Some(Self::SlideSorterView),
+            7 => Some(Self::SlideThumbnailView),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `p:ST_ConformanceClass` — ConformanceClassValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConformanceClassValues {
@@ -918,6 +968,8 @@ impl ooxml_core::ElementSpec for ColorMap {
         ],
     );
 }
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ColorMap> for super::dml::ExtensionList {}
 /// Read-only view of [`ColorMap`].
 #[derive(Clone, Debug)]
 pub struct ColorMapView<'a>(pub ooxml_core::Lens<'a, ColorMap>);
@@ -977,6 +1029,11 @@ impl<'a> ColorMapView<'a> {
         &self,
     ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
         self.0.attr_enum(ColorMap::ATTR_FOL_HLINK)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1104,6 +1161,8 @@ impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::TransformGroup {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::NoFill {}
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::SolidFill {}
 /// Read-only view of [`GroupShapeProperties`].
 #[derive(Clone, Debug)]
@@ -1124,6 +1183,11 @@ impl<'a> GroupShapePropertiesView<'a> {
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<super::dml::NoFillView<'a>> {
         self.0.child::<super::dml::NoFill>().map(super::dml::NoFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
     }
     #[cfg(feature = "dml")]
     /// First `a:solidFill` child.
@@ -1663,6 +1727,46 @@ impl<'a> TextBodyViewMut<'a> {
         TextBodyView(self.0.as_lens())
     }
     #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(
+        &mut self,
+    ) -> Option<super::dml::BodyPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<super::dml::BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<super::dml::BodyProperties>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<super::dml::ListStyleViewMut<'_>> {
+        self.0.child_mut::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<super::dml::ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<super::dml::ListStyle>()
+    }
+    #[cfg(feature = "dml")]
     /// First `a:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
         &mut self,
@@ -1774,6 +1878,8 @@ impl ooxml_core::ElementSpec for BodyStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<BodyStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level1ParagraphProperties {}
@@ -1797,6 +1903,11 @@ impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level9ParagraphProperties {}
 #[derive(Clone, Debug)]
 pub struct BodyStyleView<'a>(pub ooxml_core::Lens<'a, BodyStyle>);
 impl<'a> BodyStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -1971,6 +2082,8 @@ impl ooxml_core::ElementSpec for DefaultTextStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level1ParagraphProperties {}
@@ -1994,6 +2107,11 @@ impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level9ParagraphProper
 #[derive(Clone, Debug)]
 pub struct DefaultTextStyleView<'a>(pub ooxml_core::Lens<'a, DefaultTextStyle>);
 impl<'a> DefaultTextStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2168,6 +2286,8 @@ impl ooxml_core::ElementSpec for NotesStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<NotesStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level1ParagraphProperties {}
@@ -2191,6 +2311,11 @@ impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level9ParagraphProperties {
 #[derive(Clone, Debug)]
 pub struct NotesStyleView<'a>(pub ooxml_core::Lens<'a, NotesStyle>);
 impl<'a> NotesStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2365,6 +2490,8 @@ impl ooxml_core::ElementSpec for OtherStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<OtherStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level1ParagraphProperties {}
@@ -2388,6 +2515,11 @@ impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level9ParagraphProperties {
 #[derive(Clone, Debug)]
 pub struct OtherStyleView<'a>(pub ooxml_core::Lens<'a, OtherStyle>);
 impl<'a> OtherStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2562,6 +2694,8 @@ impl ooxml_core::ElementSpec for TitleStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TitleStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level1ParagraphProperties {}
@@ -2585,6 +2719,11 @@ impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level9ParagraphProperties {
 #[derive(Clone, Debug)]
 pub struct TitleStyleView<'a>(pub ooxml_core::Lens<'a, TitleStyle>);
 impl<'a> TitleStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2773,6 +2912,305 @@ impl<'a> TransformView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Transform`]. Reads go through [`TransformViewMut::as_view`].
+#[derive(Debug)]
+pub struct TransformViewMut<'a>(pub ooxml_core::LensMut<'a, Transform>);
+impl<'a> TransformViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TransformView<'_> {
+        TransformView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation (default `0`)
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Transform::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_ROT)
+    }
+    /// Sets `flipH` — Horizontal Flip (default `false`)
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform::ATTR_FLIP_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipH`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_FLIP_H)
+    }
+    /// Sets `flipV` — Vertical Flip (default `false`)
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform::ATTR_FLIP_V, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipV`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_FLIP_V)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:off` child, mutably.
+    pub fn offset_mut(&mut self) -> Option<super::dml::OffsetViewMut<'_>> {
+        self.0.child_mut::<super::dml::Offset>().map(super::dml::OffsetViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:off` child, or a new one in schema position.
+    pub fn get_or_insert_offset(
+        &mut self,
+    ) -> Result<super::dml::OffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Offset>().map(super::dml::OffsetViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:off` child.
+    pub fn remove_offset(&mut self) -> bool {
+        self.0.remove::<super::dml::Offset>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ext` child, mutably.
+    pub fn extents_mut(&mut self) -> Option<super::dml::ExtentsViewMut<'_>> {
+        self.0.child_mut::<super::dml::Extents>().map(super::dml::ExtentsViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:ext` child, or a new one in schema position.
+    pub fn get_or_insert_extents(
+        &mut self,
+    ) -> Result<super::dml::ExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Extents>().map(super::dml::ExtentsViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:ext` child.
+    pub fn remove_extents(&mut self) -> bool {
+        self.0.remove::<super::dml::Extents>()
+    }
+}
+/// `ap:CT_Properties/ap:Properties` — Application Specific File Properties.
+#[derive(Debug)]
+pub enum Properties {}
+impl ooxml_core::ElementSpec for Properties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_AP, "Properties");
+    const SDK_NAME: &'static str = "ap:CT_Properties/ap:Properties";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_AP, "Template"),
+                    ooxml_core::QName::new(NS_AP, "Manager"),
+                    ooxml_core::QName::new(NS_AP, "Company"),
+                    ooxml_core::QName::new(NS_AP, "Pages"),
+                    ooxml_core::QName::new(NS_AP, "Words"),
+                    ooxml_core::QName::new(NS_AP, "Characters"),
+                    ooxml_core::QName::new(NS_AP, "PresentationFormat"),
+                    ooxml_core::QName::new(NS_AP, "Lines"),
+                    ooxml_core::QName::new(NS_AP, "Paragraphs"),
+                    ooxml_core::QName::new(NS_AP, "Slides"),
+                    ooxml_core::QName::new(NS_AP, "Notes"),
+                    ooxml_core::QName::new(NS_AP, "TotalTime"),
+                    ooxml_core::QName::new(NS_AP, "HiddenSlides"),
+                    ooxml_core::QName::new(NS_AP, "MMClips"),
+                    ooxml_core::QName::new(NS_AP, "ScaleCrop"),
+                    ooxml_core::QName::new(NS_AP, "HeadingPairs"),
+                    ooxml_core::QName::new(NS_AP, "TitlesOfParts"),
+                    ooxml_core::QName::new(NS_AP, "LinksUpToDate"),
+                    ooxml_core::QName::new(NS_AP, "CharactersWithSpaces"),
+                    ooxml_core::QName::new(NS_AP, "SharedDoc"),
+                    ooxml_core::QName::new(NS_AP, "HyperlinkBase"),
+                    ooxml_core::QName::new(NS_AP, "HLinks"),
+                    ooxml_core::QName::new(NS_AP, "HyperlinksChanged"),
+                    ooxml_core::QName::new(NS_AP, "DigSig"),
+                    ooxml_core::QName::new(NS_AP, "Application"),
+                    ooxml_core::QName::new(NS_AP, "AppVersion"),
+                    ooxml_core::QName::new(NS_AP, "DocSecurity"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: None,
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "props"))]
+impl ooxml_core::ChildOf<Properties> for super::props::TitlesOfParts {}
+#[cfg(all(feature = "pml", feature = "props"))]
+impl ooxml_core::ChildOf<Properties> for super::props::HeadingPairs {}
+impl ooxml_core::ChildOf<Properties> for HiddenSlides {}
+impl ooxml_core::ChildOf<Properties> for Notes {}
+impl ooxml_core::ChildOf<Properties> for Slides {}
+/// Read-only view of [`Properties`].
+#[derive(Clone, Debug)]
+pub struct PropertiesView<'a>(pub ooxml_core::Lens<'a, Properties>);
+impl<'a> PropertiesView<'a> {
+    #[cfg(feature = "props")]
+    /// First `ap:TitlesOfParts` child.
+    pub fn titles_of_parts(&self) -> Option<super::props::TitlesOfPartsView<'a>> {
+        self.0
+            .child::<super::props::TitlesOfParts>()
+            .map(super::props::TitlesOfPartsView)
+    }
+    #[cfg(feature = "props")]
+    /// First `ap:HeadingPairs` child.
+    pub fn heading_pairs(&self) -> Option<super::props::HeadingPairsView<'a>> {
+        self.0.child::<super::props::HeadingPairs>().map(super::props::HeadingPairsView)
+    }
+    /// First `ap:HiddenSlides` child.
+    pub fn hidden_slides(&self) -> Option<HiddenSlidesView<'a>> {
+        self.0.child::<HiddenSlides>().map(HiddenSlidesView)
+    }
+    /// First `ap:Notes` child.
+    pub fn notes(&self) -> Option<NotesView<'a>> {
+        self.0.child::<Notes>().map(NotesView)
+    }
+    /// First `ap:Slides` child.
+    pub fn slides(&self) -> Option<SlidesView<'a>> {
+        self.0.child::<Slides>().map(SlidesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Properties`]. Reads go through [`PropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct PropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, Properties>);
+impl<'a> PropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PropertiesView<'_> {
+        PropertiesView(self.0.as_lens())
+    }
+    #[cfg(feature = "props")]
+    /// First `ap:TitlesOfParts` child, mutably.
+    pub fn titles_of_parts_mut(
+        &mut self,
+    ) -> Option<super::props::TitlesOfPartsViewMut<'_>> {
+        self.0
+            .child_mut::<super::props::TitlesOfParts>()
+            .map(super::props::TitlesOfPartsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Existing `ap:TitlesOfParts` child, or a new one in schema position.
+    pub fn get_or_insert_titles_of_parts(
+        &mut self,
+    ) -> Result<super::props::TitlesOfPartsViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::props::TitlesOfParts>()
+            .map(super::props::TitlesOfPartsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Removes the first `ap:TitlesOfParts` child.
+    pub fn remove_titles_of_parts(&mut self) -> bool {
+        self.0.remove::<super::props::TitlesOfParts>()
+    }
+    #[cfg(feature = "props")]
+    /// First `ap:HeadingPairs` child, mutably.
+    pub fn heading_pairs_mut(
+        &mut self,
+    ) -> Option<super::props::HeadingPairsViewMut<'_>> {
+        self.0
+            .child_mut::<super::props::HeadingPairs>()
+            .map(super::props::HeadingPairsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Existing `ap:HeadingPairs` child, or a new one in schema position.
+    pub fn get_or_insert_heading_pairs(
+        &mut self,
+    ) -> Result<super::props::HeadingPairsViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::props::HeadingPairs>()
+            .map(super::props::HeadingPairsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Removes the first `ap:HeadingPairs` child.
+    pub fn remove_heading_pairs(&mut self) -> bool {
+        self.0.remove::<super::props::HeadingPairs>()
+    }
+    /// First `ap:HiddenSlides` child, mutably.
+    pub fn hidden_slides_mut(&mut self) -> Option<HiddenSlidesViewMut<'_>> {
+        self.0.child_mut::<HiddenSlides>().map(HiddenSlidesViewMut)
+    }
+    /// Existing `ap:HiddenSlides` child, or a new one in schema position.
+    pub fn get_or_insert_hidden_slides(
+        &mut self,
+    ) -> Result<HiddenSlidesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HiddenSlides>().map(HiddenSlidesViewMut)
+    }
+    /// Removes the first `ap:HiddenSlides` child.
+    pub fn remove_hidden_slides(&mut self) -> bool {
+        self.0.remove::<HiddenSlides>()
+    }
+    /// First `ap:Notes` child, mutably.
+    pub fn notes_mut(&mut self) -> Option<NotesViewMut<'_>> {
+        self.0.child_mut::<Notes>().map(NotesViewMut)
+    }
+    /// Existing `ap:Notes` child, or a new one in schema position.
+    pub fn get_or_insert_notes(
+        &mut self,
+    ) -> Result<NotesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Notes>().map(NotesViewMut)
+    }
+    /// Removes the first `ap:Notes` child.
+    pub fn remove_notes(&mut self) -> bool {
+        self.0.remove::<Notes>()
+    }
+    /// First `ap:Slides` child, mutably.
+    pub fn slides_mut(&mut self) -> Option<SlidesViewMut<'_>> {
+        self.0.child_mut::<Slides>().map(SlidesViewMut)
+    }
+    /// Existing `ap:Slides` child, or a new one in schema position.
+    pub fn get_or_insert_slides(
+        &mut self,
+    ) -> Result<SlidesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Slides>().map(SlidesViewMut)
+    }
+    /// Removes the first `ap:Slides` child.
+    pub fn remove_slides(&mut self) -> bool {
+        self.0.remove::<Slides>()
+    }
+}
+/// `p14:CT_RandomId/p14:creationId` — Defines the CreationId Class.
+#[derive(Debug)]
+pub enum CreationId {}
+impl CreationId {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for CreationId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P14, "creationId");
+    const SDK_NAME: &'static str = "p14:CT_RandomId/p14:creationId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CreationId::ATTR_VAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CreationId`].
+#[derive(Clone, Debug)]
+pub struct CreationIdView<'a>(pub ooxml_core::Lens<'a, CreationId>);
+impl<'a> CreationIdView<'a> {
+    /// `val` — val
+    pub fn val(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CreationId::ATTR_VAL, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CreationId`]. Reads go through [`CreationIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct CreationIdViewMut<'a>(pub ooxml_core::LensMut<'a, CreationId>);
+impl<'a> CreationIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CreationIdView<'_> {
+        CreationIdView(self.0.as_lens())
+    }
+    /// Sets `val` — val
+    pub fn set_val(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(CreationId::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CreationId::ATTR_VAL)
+    }
+}
 /// `p14:CT_Section/p14:section` — Defines the Section Class.
 #[derive(Debug)]
 pub enum Section {}
@@ -2836,6 +3274,47 @@ impl<'a> SectionView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Section`]. Reads go through [`SectionViewMut::as_view`].
+#[derive(Debug)]
+pub struct SectionViewMut<'a>(pub ooxml_core::LensMut<'a, Section>);
+impl<'a> SectionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SectionView<'_> {
+        SectionView(self.0.as_lens())
+    }
+    /// Sets `name` — name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Section::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Section::ATTR_NAME)
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Section::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Section::ATTR_ID)
+    }
+    /// First `p14:sldIdLst` child, mutably.
+    pub fn section_slide_id_list_mut(
+        &mut self,
+    ) -> Option<SectionSlideIdListViewMut<'_>> {
+        self.0.child_mut::<SectionSlideIdList>().map(SectionSlideIdListViewMut)
+    }
+    /// Existing `p14:sldIdLst` child, or a new one in schema position.
+    pub fn get_or_insert_section_slide_id_list(
+        &mut self,
+    ) -> Result<SectionSlideIdListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SectionSlideIdList>().map(SectionSlideIdListViewMut)
+    }
+    /// Removes the first `p14:sldIdLst` child.
+    pub fn remove_section_slide_id_list(&mut self) -> bool {
+        self.0.remove::<SectionSlideIdList>()
+    }
+}
 /// `p14:CT_SectionList/p14:sectionLst` — Defines the SectionList Class.
 #[derive(Debug)]
 pub enum SectionList {}
@@ -2866,6 +3345,37 @@ impl<'a> SectionListView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SectionList`]. Reads go through [`SectionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct SectionListViewMut<'a>(pub ooxml_core::LensMut<'a, SectionList>);
+impl<'a> SectionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SectionListView<'_> {
+        SectionListView(self.0.as_lens())
+    }
+    /// First `p14:section` child matching `pred`, mutably.
+    pub fn section_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SectionViewMut<'_>> {
+        self.0.child_mut_by::<Section>(pred).map(SectionViewMut)
+    }
+    /// Inserts a `p14:section` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_section_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SectionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Section>(before).map(SectionViewMut)
+    }
+    /// Appends a `p14:section` at the end of its slot.
+    pub fn insert_section(&mut self) -> Result<SectionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Section>().map(SectionViewMut)
+    }
+    /// Removes the first `p14:section` child.
+    pub fn remove_section(&mut self) -> bool {
+        self.0.remove::<Section>()
     }
 }
 /// `p14:CT_SectionSlideIdList/p14:sldIdLst` — Defines the SectionSlideIdList Class.
@@ -2902,6 +3412,45 @@ impl<'a> SectionSlideIdListView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`SectionSlideIdList`]. Reads go through [`SectionSlideIdListViewMut::as_view`].
+#[derive(Debug)]
+pub struct SectionSlideIdListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SectionSlideIdList>,
+);
+impl<'a> SectionSlideIdListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SectionSlideIdListView<'_> {
+        SectionSlideIdListView(self.0.as_lens())
+    }
+    /// First `p14:sldId` child matching `pred`, mutably.
+    pub fn section_slide_id_list_entry_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SectionSlideIdListEntryViewMut<'_>> {
+        self.0
+            .child_mut_by::<SectionSlideIdListEntry>(pred)
+            .map(SectionSlideIdListEntryViewMut)
+    }
+    /// Inserts a `p14:sldId` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_section_slide_id_list_entry_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SectionSlideIdListEntryViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<SectionSlideIdListEntry>(before)
+            .map(SectionSlideIdListEntryViewMut)
+    }
+    /// Appends a `p14:sldId` at the end of its slot.
+    pub fn insert_section_slide_id_list_entry(
+        &mut self,
+    ) -> Result<SectionSlideIdListEntryViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SectionSlideIdListEntry>().map(SectionSlideIdListEntryViewMut)
+    }
+    /// Removes the first `p14:sldId` child.
+    pub fn remove_section_slide_id_list_entry(&mut self) -> bool {
+        self.0.remove::<SectionSlideIdListEntry>()
+    }
+}
 /// `p14:CT_SectionSlideIdListEntry/p14:sldId` — Defines the SectionSlideIdListEntry Class.
 #[derive(Debug)]
 pub enum SectionSlideIdListEntry {}
@@ -2935,6 +3484,28 @@ impl<'a> SectionSlideIdListEntryView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SectionSlideIdListEntry`]. Reads go through [`SectionSlideIdListEntryViewMut::as_view`].
+#[derive(Debug)]
+pub struct SectionSlideIdListEntryViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SectionSlideIdListEntry>,
+);
+impl<'a> SectionSlideIdListEntryViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SectionSlideIdListEntryView<'_> {
+        SectionSlideIdListEntryView(self.0.as_lens())
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SectionSlideIdListEntry::ATTR_ID, s),
+        )
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SectionSlideIdListEntry::ATTR_ID)
     }
 }
 /// `p188:CT_Author/p188:author` — Defines the Author Class.
@@ -3846,6 +4417,7 @@ impl ooxml_core::ElementSpec for CommonSlideData {
         ],
     );
 }
+impl ooxml_core::ChildOf<CommonSlideData> for CommonSlideDataExtensionList {}
 impl ooxml_core::ChildOf<CommonSlideData> for ShapeTree {}
 /// Read-only view of [`CommonSlideData`].
 #[derive(Clone, Debug)]
@@ -3855,6 +4427,14 @@ impl<'a> CommonSlideDataView<'a> {
     pub fn name(&self) -> &'a str {
         self.0.attr(CommonSlideData::ATTR_NAME).unwrap_or("")
     }
+    /// First `p:extLst` child.
+    pub fn common_slide_data_extension_list(
+        &self,
+    ) -> Option<CommonSlideDataExtensionListView<'a>> {
+        self.0
+            .child::<CommonSlideDataExtensionList>()
+            .map(CommonSlideDataExtensionListView)
+    }
     /// First `p:spTree` child.
     pub fn shape_tree(&self) -> Option<ShapeTreeView<'a>> {
         self.0.child::<ShapeTree>().map(ShapeTreeView)
@@ -3862,6 +4442,199 @@ impl<'a> CommonSlideDataView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`CommonSlideData`]. Reads go through [`CommonSlideDataViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommonSlideDataViewMut<'a>(pub ooxml_core::LensMut<'a, CommonSlideData>);
+impl<'a> CommonSlideDataViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommonSlideDataView<'_> {
+        CommonSlideDataView(self.0.as_lens())
+    }
+    /// Sets `name` — Name (default ``)
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommonSlideData::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommonSlideData::ATTR_NAME)
+    }
+    /// First `p:extLst` child, mutably.
+    pub fn common_slide_data_extension_list_mut(
+        &mut self,
+    ) -> Option<CommonSlideDataExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<CommonSlideDataExtensionList>()
+            .map(CommonSlideDataExtensionListViewMut)
+    }
+    /// Existing `p:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_common_slide_data_extension_list(
+        &mut self,
+    ) -> Result<CommonSlideDataExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<CommonSlideDataExtensionList>()
+            .map(CommonSlideDataExtensionListViewMut)
+    }
+    /// Removes the first `p:extLst` child.
+    pub fn remove_common_slide_data_extension_list(&mut self) -> bool {
+        self.0.remove::<CommonSlideDataExtensionList>()
+    }
+}
+/// `p:CT_CommonSlideDataExtension/p:ext` — Defines the CommonSlideDataExtension Class.
+#[derive(Debug)]
+pub enum CommonSlideDataExtension {}
+impl CommonSlideDataExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for CommonSlideDataExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "ext");
+    const SDK_NAME: &'static str = "p:CT_CommonSlideDataExtension/p:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommonSlideDataExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P14, "creationId")],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommonSlideDataExtension> for CreationId {}
+/// Read-only view of [`CommonSlideDataExtension`].
+#[derive(Clone, Debug)]
+pub struct CommonSlideDataExtensionView<'a>(
+    pub ooxml_core::Lens<'a, CommonSlideDataExtension>,
+);
+impl<'a> CommonSlideDataExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(CommonSlideDataExtension::ATTR_URI)
+    }
+    /// First `p14:creationId` child.
+    pub fn creation_id(&self) -> Option<CreationIdView<'a>> {
+        self.0.child::<CreationId>().map(CreationIdView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommonSlideDataExtension`]. Reads go through [`CommonSlideDataExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommonSlideDataExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, CommonSlideDataExtension>,
+);
+impl<'a> CommonSlideDataExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommonSlideDataExtensionView<'_> {
+        CommonSlideDataExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommonSlideDataExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommonSlideDataExtension::ATTR_URI)
+    }
+    /// First `p14:creationId` child, mutably.
+    pub fn creation_id_mut(&mut self) -> Option<CreationIdViewMut<'_>> {
+        self.0.child_mut::<CreationId>().map(CreationIdViewMut)
+    }
+    /// Existing `p14:creationId` child, or a new one in schema position.
+    pub fn get_or_insert_creation_id(
+        &mut self,
+    ) -> Result<CreationIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CreationId>().map(CreationIdViewMut)
+    }
+    /// Removes the first `p14:creationId` child.
+    pub fn remove_creation_id(&mut self) -> bool {
+        self.0.remove::<CreationId>()
+    }
+}
+/// `p:CT_CommonSlideDataExtensionList/p:extLst` — Defines the CommonSlideDataExtensionList Class.
+#[derive(Debug)]
+pub enum CommonSlideDataExtensionList {}
+impl ooxml_core::ElementSpec for CommonSlideDataExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "extLst");
+    const SDK_NAME: &'static str = "p:CT_CommonSlideDataExtensionList/p:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommonSlideDataExtensionList> for CommonSlideDataExtension {}
+/// Read-only view of [`CommonSlideDataExtensionList`].
+#[derive(Clone, Debug)]
+pub struct CommonSlideDataExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, CommonSlideDataExtensionList>,
+);
+impl<'a> CommonSlideDataExtensionListView<'a> {
+    /// `p:ext` children in document order.
+    pub fn common_slide_data_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = CommonSlideDataExtensionView<'a>> {
+        self.0.children::<CommonSlideDataExtension>().map(CommonSlideDataExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommonSlideDataExtensionList`]. Reads go through [`CommonSlideDataExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommonSlideDataExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, CommonSlideDataExtensionList>,
+);
+impl<'a> CommonSlideDataExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommonSlideDataExtensionListView<'_> {
+        CommonSlideDataExtensionListView(self.0.as_lens())
+    }
+    /// First `p:ext` child matching `pred`, mutably.
+    pub fn common_slide_data_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommonSlideDataExtensionViewMut<'_>> {
+        self.0
+            .child_mut_by::<CommonSlideDataExtension>(pred)
+            .map(CommonSlideDataExtensionViewMut)
+    }
+    /// Inserts a `p:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_common_slide_data_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommonSlideDataExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<CommonSlideDataExtension>(before)
+            .map(CommonSlideDataExtensionViewMut)
+    }
+    /// Appends a `p:ext` at the end of its slot.
+    pub fn insert_common_slide_data_extension(
+        &mut self,
+    ) -> Result<CommonSlideDataExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommonSlideDataExtension>().map(CommonSlideDataExtensionViewMut)
+    }
+    /// Removes the first `p:ext` child.
+    pub fn remove_common_slide_data_extension(&mut self) -> bool {
+        self.0.remove::<CommonSlideDataExtension>()
     }
 }
 /// `p:CT_Connector/p:cxnSp` — Connection Shape.
@@ -4679,6 +5452,284 @@ impl<'a> NotesSlideView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`NotesSlide`]. Reads go through [`NotesSlideViewMut::as_view`].
+#[derive(Debug)]
+pub struct NotesSlideViewMut<'a>(pub ooxml_core::LensMut<'a, NotesSlide>);
+impl<'a> NotesSlideViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NotesSlideView<'_> {
+        NotesSlideView(self.0.as_lens())
+    }
+    /// Sets `showMasterSp` — Show Master Shapes (default `true`)
+    pub fn set_show_master_shapes(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(NotesSlide::ATTR_SHOW_MASTER_SP, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `showMasterSp`.
+    pub fn remove_show_master_shapes(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NotesSlide::ATTR_SHOW_MASTER_SP)
+    }
+    /// Sets `showMasterPhAnim` — Show Master Placeholder Animations (default `true`)
+    pub fn set_show_master_placeholder_animations(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                NotesSlide::ATTR_SHOW_MASTER_PH_ANIM,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showMasterPhAnim`.
+    pub fn remove_show_master_placeholder_animations(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NotesSlide::ATTR_SHOW_MASTER_PH_ANIM)
+    }
+    /// First `p:cSld` child, mutably.
+    pub fn common_slide_data_mut(&mut self) -> Option<CommonSlideDataViewMut<'_>> {
+        self.0.child_mut::<CommonSlideData>().map(CommonSlideDataViewMut)
+    }
+    /// Existing `p:cSld` child, or a new one in schema position.
+    pub fn get_or_insert_common_slide_data(
+        &mut self,
+    ) -> Result<CommonSlideDataViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CommonSlideData>().map(CommonSlideDataViewMut)
+    }
+    /// Removes the first `p:cSld` child.
+    pub fn remove_common_slide_data(&mut self) -> bool {
+        self.0.remove::<CommonSlideData>()
+    }
+}
+/// `p:CT_OutlineViewProperties/p:outlineViewPr` — Outline View Properties.
+#[derive(Debug)]
+pub enum OutlineViewProperties {}
+impl ooxml_core::ElementSpec for OutlineViewProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "outlineViewPr");
+    const SDK_NAME: &'static str = "p:CT_OutlineViewProperties/p:outlineViewPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "sldLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<OutlineViewProperties> for OutlineViewSlideList {}
+/// Read-only view of [`OutlineViewProperties`].
+#[derive(Clone, Debug)]
+pub struct OutlineViewPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, OutlineViewProperties>,
+);
+impl<'a> OutlineViewPropertiesView<'a> {
+    /// First `p:sldLst` child.
+    pub fn outline_view_slide_list(&self) -> Option<OutlineViewSlideListView<'a>> {
+        self.0.child::<OutlineViewSlideList>().map(OutlineViewSlideListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`OutlineViewProperties`]. Reads go through [`OutlineViewPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct OutlineViewPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, OutlineViewProperties>,
+);
+impl<'a> OutlineViewPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OutlineViewPropertiesView<'_> {
+        OutlineViewPropertiesView(self.0.as_lens())
+    }
+    /// First `p:sldLst` child, mutably.
+    pub fn outline_view_slide_list_mut(
+        &mut self,
+    ) -> Option<OutlineViewSlideListViewMut<'_>> {
+        self.0.child_mut::<OutlineViewSlideList>().map(OutlineViewSlideListViewMut)
+    }
+    /// Existing `p:sldLst` child, or a new one in schema position.
+    pub fn get_or_insert_outline_view_slide_list(
+        &mut self,
+    ) -> Result<OutlineViewSlideListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<OutlineViewSlideList>().map(OutlineViewSlideListViewMut)
+    }
+    /// Removes the first `p:sldLst` child.
+    pub fn remove_outline_view_slide_list(&mut self) -> bool {
+        self.0.remove::<OutlineViewSlideList>()
+    }
+}
+/// `p:CT_OutlineViewSlideEntry/p:sld` — Presentation Slide.
+#[derive(Debug)]
+pub enum OutlineViewSlideListEntry {}
+impl OutlineViewSlideListEntry {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `collapse`
+    pub const ATTR_COLLAPSE: ooxml_core::QName = ooxml_core::QName::new("", "collapse");
+}
+impl ooxml_core::ElementSpec for OutlineViewSlideListEntry {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "sld");
+    const SDK_NAME: &'static str = "p:CT_OutlineViewSlideEntry/p:sld";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: OutlineViewSlideListEntry::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OutlineViewSlideListEntry::ATTR_COLLAPSE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`OutlineViewSlideListEntry`].
+#[derive(Clone, Debug)]
+pub struct OutlineViewSlideListEntryView<'a>(
+    pub ooxml_core::Lens<'a, OutlineViewSlideListEntry>,
+);
+impl<'a> OutlineViewSlideListEntryView<'a> {
+    /// `r:id` — Relationship Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(OutlineViewSlideListEntry::ATTR_R_ID)
+    }
+    /// `collapse` — Collapsed (default `false`)
+    pub fn collapse(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                OutlineViewSlideListEntry::ATTR_COLLAPSE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`OutlineViewSlideListEntry`]. Reads go through [`OutlineViewSlideListEntryViewMut::as_view`].
+#[derive(Debug)]
+pub struct OutlineViewSlideListEntryViewMut<'a>(
+    pub ooxml_core::LensMut<'a, OutlineViewSlideListEntry>,
+);
+impl<'a> OutlineViewSlideListEntryViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OutlineViewSlideListEntryView<'_> {
+        OutlineViewSlideListEntryView(self.0.as_lens())
+    }
+    /// Sets `r:id` — Relationship Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(OutlineViewSlideListEntry::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(OutlineViewSlideListEntry::ATTR_R_ID)
+    }
+    /// Sets `collapse` — Collapsed (default `false`)
+    pub fn set_collapse(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                OutlineViewSlideListEntry::ATTR_COLLAPSE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `collapse`.
+    pub fn remove_collapse(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(OutlineViewSlideListEntry::ATTR_COLLAPSE)
+    }
+}
+/// `p:CT_OutlineViewSlideList/p:sldLst` — List of Presentation Slides.
+#[derive(Debug)]
+pub enum OutlineViewSlideList {}
+impl ooxml_core::ElementSpec for OutlineViewSlideList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "sldLst");
+    const SDK_NAME: &'static str = "p:CT_OutlineViewSlideList/p:sldLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "sld")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<OutlineViewSlideList> for OutlineViewSlideListEntry {}
+/// Read-only view of [`OutlineViewSlideList`].
+#[derive(Clone, Debug)]
+pub struct OutlineViewSlideListView<'a>(pub ooxml_core::Lens<'a, OutlineViewSlideList>);
+impl<'a> OutlineViewSlideListView<'a> {
+    /// `p:sld` children in document order.
+    pub fn outline_view_slide_list_entry_iter(
+        &self,
+    ) -> impl Iterator<Item = OutlineViewSlideListEntryView<'a>> {
+        self.0.children::<OutlineViewSlideListEntry>().map(OutlineViewSlideListEntryView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`OutlineViewSlideList`]. Reads go through [`OutlineViewSlideListViewMut::as_view`].
+#[derive(Debug)]
+pub struct OutlineViewSlideListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, OutlineViewSlideList>,
+);
+impl<'a> OutlineViewSlideListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OutlineViewSlideListView<'_> {
+        OutlineViewSlideListView(self.0.as_lens())
+    }
+    /// First `p:sld` child matching `pred`, mutably.
+    pub fn outline_view_slide_list_entry_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<OutlineViewSlideListEntryViewMut<'_>> {
+        self.0
+            .child_mut_by::<OutlineViewSlideListEntry>(pred)
+            .map(OutlineViewSlideListEntryViewMut)
+    }
+    /// Inserts a `p:sld` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_outline_view_slide_list_entry_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<OutlineViewSlideListEntryViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<OutlineViewSlideListEntry>(before)
+            .map(OutlineViewSlideListEntryViewMut)
+    }
+    /// Appends a `p:sld` at the end of its slot.
+    pub fn insert_outline_view_slide_list_entry(
+        &mut self,
+    ) -> Result<OutlineViewSlideListEntryViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<OutlineViewSlideListEntry>()
+            .map(OutlineViewSlideListEntryViewMut)
+    }
+    /// Removes the first `p:sld` child.
+    pub fn remove_outline_view_slide_list_entry(&mut self) -> bool {
+        self.0.remove::<OutlineViewSlideListEntry>()
+    }
+}
 /// `p:CT_Picture/p:pic` — Defines the Picture Class.
 #[derive(Debug)]
 pub enum Picture {}
@@ -5267,6 +6318,206 @@ impl<'a> PresentationView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Presentation`]. Reads go through [`PresentationViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresentationViewMut<'a>(pub ooxml_core::LensMut<'a, Presentation>);
+impl<'a> PresentationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresentationView<'_> {
+        PresentationView(self.0.as_lens())
+    }
+    /// Sets `serverZoom` — serverZoom (default `50%`)
+    pub fn set_server_zoom(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(Presentation::ATTR_SERVER_ZOOM, s),
+        )
+    }
+    /// Removes `serverZoom`.
+    pub fn remove_server_zoom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_SERVER_ZOOM)
+    }
+    /// Sets `firstSlideNum` — firstSlideNum (default `1`)
+    pub fn set_first_slide_num(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(Presentation::ATTR_FIRST_SLIDE_NUM, s),
+        )
+    }
+    /// Removes `firstSlideNum`.
+    pub fn remove_first_slide_num(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_FIRST_SLIDE_NUM)
+    }
+    /// Sets `showSpecialPlsOnTitleSld` — showSpecialPlsOnTitleSld (default `true`)
+    pub fn set_show_special_placeholder_on_title_slide(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                Presentation::ATTR_SHOW_SPECIAL_PLS_ON_TITLE_SLD,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showSpecialPlsOnTitleSld`.
+    pub fn remove_show_special_placeholder_on_title_slide(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_SHOW_SPECIAL_PLS_ON_TITLE_SLD)
+    }
+    /// Sets `rtl` — rtl (default `false`)
+    pub fn set_right_to_left(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Presentation::ATTR_RTL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `rtl`.
+    pub fn remove_right_to_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_RTL)
+    }
+    /// Sets `removePersonalInfoOnSave` — removePersonalInfoOnSave (default `false`)
+    pub fn set_remove_personal_info_on_save(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                Presentation::ATTR_REMOVE_PERSONAL_INFO_ON_SAVE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `removePersonalInfoOnSave`.
+    pub fn remove_remove_personal_info_on_save(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_REMOVE_PERSONAL_INFO_ON_SAVE)
+    }
+    /// Sets `compatMode` — compatMode (default `false`)
+    pub fn set_compatibility_mode(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(Presentation::ATTR_COMPAT_MODE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `compatMode`.
+    pub fn remove_compatibility_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_COMPAT_MODE)
+    }
+    /// Sets `strictFirstAndLastChars` — strictFirstAndLastChars (default `true`)
+    pub fn set_strict_first_and_last_chars(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                Presentation::ATTR_STRICT_FIRST_AND_LAST_CHARS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `strictFirstAndLastChars`.
+    pub fn remove_strict_first_and_last_chars(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_STRICT_FIRST_AND_LAST_CHARS)
+    }
+    /// Sets `embedTrueTypeFonts` — embedTrueTypeFonts (default `false`)
+    pub fn set_embed_true_type_fonts(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                Presentation::ATTR_EMBED_TRUE_TYPE_FONTS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `embedTrueTypeFonts`.
+    pub fn remove_embed_true_type_fonts(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_EMBED_TRUE_TYPE_FONTS)
+    }
+    /// Sets `saveSubsetFonts` — saveSubsetFonts (default `false`)
+    pub fn set_save_subset_fonts(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                Presentation::ATTR_SAVE_SUBSET_FONTS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `saveSubsetFonts`.
+    pub fn remove_save_subset_fonts(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_SAVE_SUBSET_FONTS)
+    }
+    /// Sets `autoCompressPictures` — autoCompressPictures (default `true`)
+    pub fn set_auto_compress_pictures(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                Presentation::ATTR_AUTO_COMPRESS_PICTURES,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `autoCompressPictures`.
+    pub fn remove_auto_compress_pictures(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_AUTO_COMPRESS_PICTURES)
+    }
+    /// Sets `bookmarkIdSeed` — bookmarkIdSeed (default `1`)
+    pub fn set_bookmark_id_seed(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(Presentation::ATTR_BOOKMARK_ID_SEED, s),
+        )
+    }
+    /// Removes `bookmarkIdSeed`.
+    pub fn remove_bookmark_id_seed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_BOOKMARK_ID_SEED)
+    }
+    /// Sets `conformance` — conformance
+    pub fn set_conformance(
+        &mut self,
+        v: ConformanceClassValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Presentation::ATTR_CONFORMANCE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `conformance`.
+    pub fn remove_conformance(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Presentation::ATTR_CONFORMANCE)
+    }
+    /// First `p:extLst` child, mutably.
+    pub fn presentation_extension_list_mut(
+        &mut self,
+    ) -> Option<PresentationExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<PresentationExtensionList>()
+            .map(PresentationExtensionListViewMut)
+    }
+    /// Existing `p:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_presentation_extension_list(
+        &mut self,
+    ) -> Result<PresentationExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<PresentationExtensionList>()
+            .map(PresentationExtensionListViewMut)
+    }
+    /// Removes the first `p:extLst` child.
+    pub fn remove_presentation_extension_list(&mut self) -> bool {
+        self.0.remove::<PresentationExtensionList>()
+    }
+    /// First `p:sldIdLst` child, mutably.
+    pub fn slide_id_list_mut(&mut self) -> Option<SlideIdListViewMut<'_>> {
+        self.0.child_mut::<SlideIdList>().map(SlideIdListViewMut)
+    }
+    /// Existing `p:sldIdLst` child, or a new one in schema position.
+    pub fn get_or_insert_slide_id_list(
+        &mut self,
+    ) -> Result<SlideIdListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SlideIdList>().map(SlideIdListViewMut)
+    }
+    /// Removes the first `p:sldIdLst` child.
+    pub fn remove_slide_id_list(&mut self) -> bool {
+        self.0.remove::<SlideIdList>()
+    }
+}
 /// `p:CT_PresentationExtension/p:ext` — Defines the PresentationExtension Class.
 #[derive(Debug)]
 pub enum PresentationExtension {}
@@ -5320,6 +6571,39 @@ impl<'a> PresentationExtensionView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`PresentationExtension`]. Reads go through [`PresentationExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresentationExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, PresentationExtension>,
+);
+impl<'a> PresentationExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresentationExtensionView<'_> {
+        PresentationExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresentationExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresentationExtension::ATTR_URI)
+    }
+    /// First `p14:sectionLst` child, mutably.
+    pub fn section_list_mut(&mut self) -> Option<SectionListViewMut<'_>> {
+        self.0.child_mut::<SectionList>().map(SectionListViewMut)
+    }
+    /// Existing `p14:sectionLst` child, or a new one in schema position.
+    pub fn get_or_insert_section_list(
+        &mut self,
+    ) -> Result<SectionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SectionList>().map(SectionListViewMut)
+    }
+    /// Removes the first `p14:sectionLst` child.
+    pub fn remove_section_list(&mut self) -> bool {
+        self.0.remove::<SectionList>()
+    }
+}
 /// `p:CT_PresentationExtensionList/p:extLst` — Defines the PresentationExtensionList Class.
 #[derive(Debug)]
 pub enum PresentationExtensionList {}
@@ -5354,6 +6638,45 @@ impl<'a> PresentationExtensionListView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`PresentationExtensionList`]. Reads go through [`PresentationExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresentationExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, PresentationExtensionList>,
+);
+impl<'a> PresentationExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresentationExtensionListView<'_> {
+        PresentationExtensionListView(self.0.as_lens())
+    }
+    /// First `p:ext` child matching `pred`, mutably.
+    pub fn presentation_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<PresentationExtensionViewMut<'_>> {
+        self.0
+            .child_mut_by::<PresentationExtension>(pred)
+            .map(PresentationExtensionViewMut)
+    }
+    /// Inserts a `p:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_presentation_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<PresentationExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<PresentationExtension>(before)
+            .map(PresentationExtensionViewMut)
+    }
+    /// Appends a `p:ext` at the end of its slot.
+    pub fn insert_presentation_extension(
+        &mut self,
+    ) -> Result<PresentationExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<PresentationExtension>().map(PresentationExtensionViewMut)
+    }
+    /// Removes the first `p:ext` child.
+    pub fn remove_presentation_extension(&mut self) -> bool {
+        self.0.remove::<PresentationExtension>()
     }
 }
 /// `p:CT_Shape/p:sp` — Shape.
@@ -5583,6 +6906,7 @@ impl ooxml_core::ElementSpec for Slide {
 }
 impl ooxml_core::ChildOf<Slide> for ColorMapOverride {}
 impl ooxml_core::ChildOf<Slide> for CommonSlideData {}
+impl ooxml_core::ChildOf<Slide> for SlideExtensionList {}
 impl ooxml_core::ChildOf<Slide> for Timing {}
 impl ooxml_core::ChildOf<Slide> for Transition {}
 /// Read-only view of [`Slide`].
@@ -5621,6 +6945,10 @@ impl<'a> SlideView<'a> {
     pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
         self.0.child::<CommonSlideData>().map(CommonSlideDataView)
     }
+    /// First `p:extLst` child.
+    pub fn slide_extension_list(&self) -> Option<SlideExtensionListView<'a>> {
+        self.0.child::<SlideExtensionList>().map(SlideExtensionListView)
+    }
     /// First `p:timing` child.
     pub fn timing(&self) -> Option<TimingView<'a>> {
         self.0.child::<Timing>().map(TimingView)
@@ -5632,6 +6960,202 @@ impl<'a> SlideView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Slide`]. Reads go through [`SlideViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideViewMut<'a>(pub ooxml_core::LensMut<'a, Slide>);
+impl<'a> SlideViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideView<'_> {
+        SlideView(self.0.as_lens())
+    }
+    /// Sets `showMasterSp` — Show Master Shapes (default `true`)
+    pub fn set_show_master_shapes(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Slide::ATTR_SHOW_MASTER_SP, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `showMasterSp`.
+    pub fn remove_show_master_shapes(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Slide::ATTR_SHOW_MASTER_SP)
+    }
+    /// Sets `showMasterPhAnim` — Show Master Placeholder Animations (default `true`)
+    pub fn set_show_master_placeholder_animations(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(Slide::ATTR_SHOW_MASTER_PH_ANIM, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `showMasterPhAnim`.
+    pub fn remove_show_master_placeholder_animations(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Slide::ATTR_SHOW_MASTER_PH_ANIM)
+    }
+    /// Sets `show` — Show Slide in Slide Show (default `true`)
+    pub fn set_show(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Slide::ATTR_SHOW, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `show`.
+    pub fn remove_show(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Slide::ATTR_SHOW)
+    }
+    /// First `p:cSld` child, mutably.
+    pub fn common_slide_data_mut(&mut self) -> Option<CommonSlideDataViewMut<'_>> {
+        self.0.child_mut::<CommonSlideData>().map(CommonSlideDataViewMut)
+    }
+    /// Existing `p:cSld` child, or a new one in schema position.
+    pub fn get_or_insert_common_slide_data(
+        &mut self,
+    ) -> Result<CommonSlideDataViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CommonSlideData>().map(CommonSlideDataViewMut)
+    }
+    /// Removes the first `p:cSld` child.
+    pub fn remove_common_slide_data(&mut self) -> bool {
+        self.0.remove::<CommonSlideData>()
+    }
+    /// First `p:extLst` child, mutably.
+    pub fn slide_extension_list_mut(&mut self) -> Option<SlideExtensionListViewMut<'_>> {
+        self.0.child_mut::<SlideExtensionList>().map(SlideExtensionListViewMut)
+    }
+    /// Existing `p:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_slide_extension_list(
+        &mut self,
+    ) -> Result<SlideExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SlideExtensionList>().map(SlideExtensionListViewMut)
+    }
+    /// Removes the first `p:extLst` child.
+    pub fn remove_slide_extension_list(&mut self) -> bool {
+        self.0.remove::<SlideExtensionList>()
+    }
+}
+/// `p:CT_SlideExtension/p:ext` — Defines the SlideExtension Class.
+#[derive(Debug)]
+pub enum SlideExtension {}
+impl SlideExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for SlideExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "ext");
+    const SDK_NAME: &'static str = "p:CT_SlideExtension/p:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SlideExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P14, "laserTraceLst"),
+                    ooxml_core::QName::new(NS_P14, "showEvtLst"),
+                    ooxml_core::QName::new(NS_P188, "commentRel"),
+                ],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`SlideExtension`].
+#[derive(Clone, Debug)]
+pub struct SlideExtensionView<'a>(pub ooxml_core::Lens<'a, SlideExtension>);
+impl<'a> SlideExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(SlideExtension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SlideExtension`]. Reads go through [`SlideExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideExtensionViewMut<'a>(pub ooxml_core::LensMut<'a, SlideExtension>);
+impl<'a> SlideExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideExtensionView<'_> {
+        SlideExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SlideExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SlideExtension::ATTR_URI)
+    }
+}
+/// `p:CT_SlideExtensionList/p:extLst` — Defines the SlideExtensionList Class.
+#[derive(Debug)]
+pub enum SlideExtensionList {}
+impl ooxml_core::ElementSpec for SlideExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "extLst");
+    const SDK_NAME: &'static str = "p:CT_SlideExtensionList/p:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SlideExtensionList> for SlideExtension {}
+/// Read-only view of [`SlideExtensionList`].
+#[derive(Clone, Debug)]
+pub struct SlideExtensionListView<'a>(pub ooxml_core::Lens<'a, SlideExtensionList>);
+impl<'a> SlideExtensionListView<'a> {
+    /// `p:ext` children in document order.
+    pub fn slide_extension_iter(&self) -> impl Iterator<Item = SlideExtensionView<'a>> {
+        self.0.children::<SlideExtension>().map(SlideExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SlideExtensionList`]. Reads go through [`SlideExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SlideExtensionList>,
+);
+impl<'a> SlideExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideExtensionListView<'_> {
+        SlideExtensionListView(self.0.as_lens())
+    }
+    /// First `p:ext` child matching `pred`, mutably.
+    pub fn slide_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SlideExtensionViewMut<'_>> {
+        self.0.child_mut_by::<SlideExtension>(pred).map(SlideExtensionViewMut)
+    }
+    /// Inserts a `p:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_slide_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SlideExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SlideExtension>(before).map(SlideExtensionViewMut)
+    }
+    /// Appends a `p:ext` at the end of its slot.
+    pub fn insert_slide_extension(
+        &mut self,
+    ) -> Result<SlideExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SlideExtension>().map(SlideExtensionViewMut)
+    }
+    /// Removes the first `p:ext` child.
+    pub fn remove_slide_extension(&mut self) -> bool {
+        self.0.remove::<SlideExtension>()
     }
 }
 /// `p:CT_SlideIdList/p:sldIdLst` — Defines the SlideIdList Class.
@@ -5664,6 +7188,37 @@ impl<'a> SlideIdListView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SlideIdList`]. Reads go through [`SlideIdListViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideIdListViewMut<'a>(pub ooxml_core::LensMut<'a, SlideIdList>);
+impl<'a> SlideIdListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideIdListView<'_> {
+        SlideIdListView(self.0.as_lens())
+    }
+    /// First `p:sldId` child matching `pred`, mutably.
+    pub fn slide_id_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SlideIdViewMut<'_>> {
+        self.0.child_mut_by::<SlideId>(pred).map(SlideIdViewMut)
+    }
+    /// Inserts a `p:sldId` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_slide_id_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SlideIdViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SlideId>(before).map(SlideIdViewMut)
+    }
+    /// Appends a `p:sldId` at the end of its slot.
+    pub fn insert_slide_id(&mut self) -> Result<SlideIdViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SlideId>().map(SlideIdViewMut)
+    }
+    /// Removes the first `p:sldId` child.
+    pub fn remove_slide_id(&mut self) -> bool {
+        self.0.remove::<SlideId>()
     }
 }
 /// `p:CT_SlideIdListEntry/p:sldId` — Slide ID.
@@ -5716,6 +7271,31 @@ impl<'a> SlideIdView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SlideId`]. Reads go through [`SlideIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlideIdViewMut<'a>(pub ooxml_core::LensMut<'a, SlideId>);
+impl<'a> SlideIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlideIdView<'_> {
+        SlideIdView(self.0.as_lens())
+    }
+    /// Sets `id` — Slide Identifier
+    pub fn set_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(SlideId::ATTR_ID, s))
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SlideId::ATTR_ID)
+    }
+    /// Sets `r:id` — Relationship Identifier
+    pub fn set_relationship_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SlideId::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_relationship_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SlideId::ATTR_R_ID)
     }
 }
 /// `p:CT_SlideLayout/p:sldLayout` — Slide Layout.
@@ -6980,6 +8560,271 @@ impl<'a> SoundActionView<'a> {
         self.0.raw()
     }
 }
+/// `p:CT_ViewProperties/p:viewPr` — Presentation-wide View Properties.
+#[derive(Debug)]
+pub enum ViewProperties {}
+impl ViewProperties {
+    /// `lastView`
+    pub const ATTR_LAST_VIEW: ooxml_core::QName = ooxml_core::QName::new("", "lastView");
+    /// `showComments`
+    pub const ATTR_SHOW_COMMENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showComments",
+    );
+}
+impl ooxml_core::ElementSpec for ViewProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "viewPr");
+    const SDK_NAME: &'static str = "p:CT_ViewProperties/p:viewPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ViewProperties::ATTR_LAST_VIEW,
+            ty: ooxml_core::SimpleType::Enum(
+                <ViewValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("sldView"),
+        },
+        ooxml_core::AttrSpec {
+            name: ViewProperties::ATTR_SHOW_COMMENTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "normalViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "slideViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "outlineViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "notesTextViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "sorterViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "notesViewPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "gridSpacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ViewProperties> for OutlineViewProperties {}
+/// Read-only view of [`ViewProperties`].
+#[derive(Clone, Debug)]
+pub struct ViewPropertiesView<'a>(pub ooxml_core::Lens<'a, ViewProperties>);
+impl<'a> ViewPropertiesView<'a> {
+    /// `lastView` — Last View (default `sldView`)
+    pub fn last_view(&self) -> ooxml_core::EnumValue<'a, ViewValues> {
+        self.0.attr_enum_or(ViewProperties::ATTR_LAST_VIEW, "sldView")
+    }
+    /// `showComments` — Show Comments (default `true`)
+    pub fn show_comments(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ViewProperties::ATTR_SHOW_COMMENTS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `p:outlineViewPr` child.
+    pub fn outline_view_properties(&self) -> Option<OutlineViewPropertiesView<'a>> {
+        self.0.child::<OutlineViewProperties>().map(OutlineViewPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ViewProperties`]. Reads go through [`ViewPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct ViewPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, ViewProperties>);
+impl<'a> ViewPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ViewPropertiesView<'_> {
+        ViewPropertiesView(self.0.as_lens())
+    }
+    /// Sets `lastView` — Last View (default `sldView`)
+    pub fn set_last_view(&mut self, v: ViewValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ViewProperties::ATTR_LAST_VIEW, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `lastView`.
+    pub fn remove_last_view(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ViewProperties::ATTR_LAST_VIEW)
+    }
+    /// Sets `showComments` — Show Comments (default `true`)
+    pub fn set_show_comments(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ViewProperties::ATTR_SHOW_COMMENTS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showComments`.
+    pub fn remove_show_comments(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ViewProperties::ATTR_SHOW_COMMENTS)
+    }
+    /// First `p:outlineViewPr` child, mutably.
+    pub fn outline_view_properties_mut(
+        &mut self,
+    ) -> Option<OutlineViewPropertiesViewMut<'_>> {
+        self.0.child_mut::<OutlineViewProperties>().map(OutlineViewPropertiesViewMut)
+    }
+    /// Existing `p:outlineViewPr` child, or a new one in schema position.
+    pub fn get_or_insert_outline_view_properties(
+        &mut self,
+    ) -> Result<OutlineViewPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<OutlineViewProperties>().map(OutlineViewPropertiesViewMut)
+    }
+    /// Removes the first `p:outlineViewPr` child.
+    pub fn remove_outline_view_properties(&mut self) -> bool {
+        self.0.remove::<OutlineViewProperties>()
+    }
+}
+/// `xsd:int/ap:HiddenSlides` — Number of Hidden Slides.
+#[derive(Debug)]
+pub enum HiddenSlides {}
+impl ooxml_core::ElementSpec for HiddenSlides {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_AP, "HiddenSlides");
+    const SDK_NAME: &'static str = "xsd:int/ap:HiddenSlides";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::Int32,
+    );
+}
+/// Read-only view of [`HiddenSlides`].
+#[derive(Clone, Debug)]
+pub struct HiddenSlidesView<'a>(pub ooxml_core::Lens<'a, HiddenSlides>);
+impl<'a> HiddenSlidesView<'a> {
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HiddenSlides`]. Reads go through [`HiddenSlidesViewMut::as_view`].
+#[derive(Debug)]
+pub struct HiddenSlidesViewMut<'a>(pub ooxml_core::LensMut<'a, HiddenSlides>);
+impl<'a> HiddenSlidesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HiddenSlidesView<'_> {
+        HiddenSlidesView(self.0.as_lens())
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `xsd:int/ap:Notes` — Number of Slides Containing Notes.
+#[derive(Debug)]
+pub enum Notes {}
+impl ooxml_core::ElementSpec for Notes {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_AP, "Notes");
+    const SDK_NAME: &'static str = "xsd:int/ap:Notes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::Int32,
+    );
+}
+/// Read-only view of [`Notes`].
+#[derive(Clone, Debug)]
+pub struct NotesView<'a>(pub ooxml_core::Lens<'a, Notes>);
+impl<'a> NotesView<'a> {
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Notes`]. Reads go through [`NotesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NotesViewMut<'a>(pub ooxml_core::LensMut<'a, Notes>);
+impl<'a> NotesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NotesView<'_> {
+        NotesView(self.0.as_lens())
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `xsd:int/ap:Slides` — Slides Metadata Element.
+#[derive(Debug)]
+pub enum Slides {}
+impl ooxml_core::ElementSpec for Slides {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_AP, "Slides");
+    const SDK_NAME: &'static str = "xsd:int/ap:Slides";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::Int32,
+    );
+}
+/// Read-only view of [`Slides`].
+#[derive(Clone, Debug)]
+pub struct SlidesView<'a>(pub ooxml_core::Lens<'a, Slides>);
+impl<'a> SlidesView<'a> {
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Slides`]. Reads go through [`SlidesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SlidesViewMut<'a>(pub ooxml_core::LensMut<'a, Slides>);
+impl<'a> SlidesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SlidesView<'_> {
+        SlidesView(self.0.as_lens())
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
 /// `xsd:string/p:text` — Defines the Text Class.
 #[derive(Debug)]
 pub enum Text {}
@@ -7005,6 +8850,8 @@ impl<'a> TextView<'a> {
     }
 }
 const _: () = ooxml_core::schema::assert_spec::<ColorMap>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<ColorMap, super::dml::ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<ColorMapOverride>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
@@ -7026,6 +8873,11 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     GroupShapeProperties,
     super::dml::NoFill,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GroupShapeProperties,
+    super::dml::ExtensionList,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
@@ -7093,6 +8945,8 @@ const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::ListStyle
 const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::Paragraph>();
 const _: () = ooxml_core::schema::assert_spec::<BodyStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<BodyStyle, super::dml::ExtensionList>();
+#[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     BodyStyle,
     super::dml::DefaultParagraphProperties,
@@ -7143,6 +8997,11 @@ const _: () = ooxml_core::schema::assert_child::<
     super::dml::Level9ParagraphProperties,
 >();
 const _: () = ooxml_core::schema::assert_spec::<DefaultTextStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::ExtensionList,
+>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     DefaultTextStyle,
@@ -7197,6 +9056,11 @@ const _: () = ooxml_core::schema::assert_spec::<NotesStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     NotesStyle,
+    super::dml::ExtensionList,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
     super::dml::DefaultParagraphProperties,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
@@ -7248,6 +9112,11 @@ const _: () = ooxml_core::schema::assert_spec::<OtherStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     OtherStyle,
+    super::dml::ExtensionList,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
     super::dml::DefaultParagraphProperties,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
@@ -7296,6 +9165,11 @@ const _: () = ooxml_core::schema::assert_child::<
     super::dml::Level9ParagraphProperties,
 >();
 const _: () = ooxml_core::schema::assert_spec::<TitleStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::ExtensionList,
+>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     TitleStyle,
@@ -7351,6 +9225,21 @@ const _: () = ooxml_core::schema::assert_spec::<Transform>();
 const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Offset>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Extents>();
+const _: () = ooxml_core::schema::assert_spec::<Properties>();
+#[cfg(all(feature = "pml", feature = "props"))]
+const _: () = ooxml_core::schema::assert_child::<
+    Properties,
+    super::props::TitlesOfParts,
+>();
+#[cfg(all(feature = "pml", feature = "props"))]
+const _: () = ooxml_core::schema::assert_child::<
+    Properties,
+    super::props::HeadingPairs,
+>();
+const _: () = ooxml_core::schema::assert_child::<Properties, HiddenSlides>();
+const _: () = ooxml_core::schema::assert_child::<Properties, Notes>();
+const _: () = ooxml_core::schema::assert_child::<Properties, Slides>();
+const _: () = ooxml_core::schema::assert_spec::<CreationId>();
 const _: () = ooxml_core::schema::assert_spec::<Section>();
 const _: () = ooxml_core::schema::assert_child::<Section, SectionSlideIdList>();
 const _: () = ooxml_core::schema::assert_spec::<SectionList>();
@@ -7390,7 +9279,18 @@ const _: () = ooxml_core::schema::assert_child::<CommentAuthorList, CommentAutho
 const _: () = ooxml_core::schema::assert_spec::<PCommentList>();
 const _: () = ooxml_core::schema::assert_child::<PCommentList, PComment>();
 const _: () = ooxml_core::schema::assert_spec::<CommonSlideData>();
+const _: () = ooxml_core::schema::assert_child::<
+    CommonSlideData,
+    CommonSlideDataExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_child::<CommonSlideData, ShapeTree>();
+const _: () = ooxml_core::schema::assert_spec::<CommonSlideDataExtension>();
+const _: () = ooxml_core::schema::assert_child::<CommonSlideDataExtension, CreationId>();
+const _: () = ooxml_core::schema::assert_spec::<CommonSlideDataExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<
+    CommonSlideDataExtensionList,
+    CommonSlideDataExtension,
+>();
 const _: () = ooxml_core::schema::assert_spec::<ConnectionShape>();
 const _: () = ooxml_core::schema::assert_child::<ConnectionShape, ShapeProperties>();
 const _: () = ooxml_core::schema::assert_child::<ConnectionShape, ShapeStyle>();
@@ -7467,6 +9367,17 @@ const _: () = ooxml_core::schema::assert_child::<NotesMaster, CommonSlideData>()
 const _: () = ooxml_core::schema::assert_spec::<NotesSlide>();
 const _: () = ooxml_core::schema::assert_child::<NotesSlide, ColorMapOverride>();
 const _: () = ooxml_core::schema::assert_child::<NotesSlide, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_spec::<OutlineViewProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    OutlineViewProperties,
+    OutlineViewSlideList,
+>();
+const _: () = ooxml_core::schema::assert_spec::<OutlineViewSlideListEntry>();
+const _: () = ooxml_core::schema::assert_spec::<OutlineViewSlideList>();
+const _: () = ooxml_core::schema::assert_child::<
+    OutlineViewSlideList,
+    OutlineViewSlideListEntry,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Picture>();
 const _: () = ooxml_core::schema::assert_child::<Picture, ShapeProperties>();
 const _: () = ooxml_core::schema::assert_child::<Picture, ShapeStyle>();
@@ -7513,8 +9424,12 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_spec::<Slide>();
 const _: () = ooxml_core::schema::assert_child::<Slide, ColorMapOverride>();
 const _: () = ooxml_core::schema::assert_child::<Slide, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_child::<Slide, SlideExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<Slide, Timing>();
 const _: () = ooxml_core::schema::assert_child::<Slide, Transition>();
+const _: () = ooxml_core::schema::assert_spec::<SlideExtension>();
+const _: () = ooxml_core::schema::assert_spec::<SlideExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<SlideExtensionList, SlideExtension>();
 const _: () = ooxml_core::schema::assert_spec::<SlideIdList>();
 const _: () = ooxml_core::schema::assert_child::<SlideIdList, SlideId>();
 const _: () = ooxml_core::schema::assert_spec::<SlideId>();
@@ -7546,4 +9461,12 @@ const _: () = ooxml_core::schema::assert_spec::<TextElement>();
 const _: () = ooxml_core::schema::assert_child::<TextElement, CharRange>();
 const _: () = ooxml_core::schema::assert_child::<TextElement, ParagraphIndexRange>();
 const _: () = ooxml_core::schema::assert_spec::<SoundAction>();
+const _: () = ooxml_core::schema::assert_spec::<ViewProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    ViewProperties,
+    OutlineViewProperties,
+>();
+const _: () = ooxml_core::schema::assert_spec::<HiddenSlides>();
+const _: () = ooxml_core::schema::assert_spec::<Notes>();
+const _: () = ooxml_core::schema::assert_spec::<Slides>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();

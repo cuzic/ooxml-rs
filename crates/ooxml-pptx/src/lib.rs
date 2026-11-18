@@ -28,14 +28,17 @@
 //! [ADR-0005]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0005-pptx-phase0.md
 //! [ADR-0008]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0008-pptx-phase1-deck-reading.md
 
+mod builtin_styles;
 mod deck;
 mod deckread;
 mod error;
 mod names;
+mod new_deck;
 mod notes;
 mod presentation;
 mod read;
 mod refs;
+mod slides;
 mod replace;
 mod resolve;
 mod text;
@@ -47,12 +50,14 @@ pub use deckread::{
     Timing, Transition, UNDERSTOOD_NAMESPACES,
 };
 pub use error::{Error, Result};
+pub use new_deck::NewOptions;
 pub use resolve::{
     Autofit, BodyProps, Bullet, ClrMap, Color, Family, Fill, Font, Lookup, MapSource, MatchKind, Outline, ParaProps, PlaceholderMatch,
     Reason, Rect, Resolved, Role, RunItem, RunProps, Source, Spacing, TextStyleKind, WinnerAttr, Xfrm, script_for_lang,
 };
 pub use notes::{NotesMut, NotesRef};
 pub use presentation::Presentation;
+pub use slides::LayoutRef;
 pub use read::{
     CellRef, FieldRef, ParagraphRef, PlaceholderRef, RunRef, ShapeKind, ShapePath, ShapeRef, Slide, SlideInfo,
     TableRef, TextBodyRef, TextItem,
@@ -60,4 +65,4 @@ pub use read::{
 pub use replace::{
     FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
-pub use write::{ParagraphMut, RunMut, ShapeMut, SlideMut, TextBodyMut};
+pub use write::{CacheReport, CellFill, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, SmartArtMut, SmartArtNode, TableColor, TableFlag, TableMut, TextBodyMut};

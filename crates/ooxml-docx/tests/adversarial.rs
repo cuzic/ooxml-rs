@@ -183,15 +183,25 @@ fn m1_fields_in_paragraph_level_alternate_content() {
 
 // ---- m2: the last section's sectPr in the last paragraph ----------------
 
-/// P01: append is refused (A2) instead of starting a new, default section.
+/// P01: append never starts a new, default section. Since Word Phase2
+/// (ADR-0011 §6 lifts A2) the last section's `w:sectPr` moves to the new
+/// paragraph when the paragraph holding it is a body child; inside a
+/// content control append is still refused.
 #[test]
 fn m2_append_after_paragraph_level_last_section_is_refused() {
     let last = r#"<w:p><w:pPr><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr></w:pPr></w:p>"#;
     for body in [
         format!(r#"<w:p><w:r><w:t>last</w:t></w:r></w:p>{last}"#),
         format!(r#"<w:p><w:r><w:t>last</w:t></w:r></w:p>{last}<w:bookmarkEnd w:id="0"/>"#),
-        format!(r#"<w:sdt><w:sdtContent><w:p><w:r><w:t>a</w:t></w:r></w:p>{last}</w:sdtContent></w:sdt>"#),
     ] {
+        let mut doc = Document::from_bytes(docx(&body, None, None)).unwrap();
+        doc.append_paragraph("NEW").unwrap();
+        let out = body_of(&main_xml(&doc));
+        assert!(out.contains(r#"<w:p><w:pPr></w:pPr></w:p><w:p><w:pPr><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr></w:pPr><w:r><w:t>NEW</w:t></w:r></w:p>"#), "{out}");
+        assert_eq!(out.matches("<w:sectPr>").count(), 1);
+    }
+    {
+        let body = format!(r#"<w:sdt><w:sdtContent><w:p><w:r><w:t>a</w:t></w:r></w:p>{last}</w:sdtContent></w:sdt>"#);
         let input = docx(&body, None, None);
         let mut doc = Document::from_bytes(input.clone()).unwrap();
         assert_matches!(doc.append_paragraph("NEW"), Err(Error::SectionBreakAtEnd), "{body}");
@@ -460,10 +470,12 @@ fn m8_a2_with_blocks_without_paragraphs_after_the_break() {
         r#"<w:tbl><w:tblPr/><w:tblGrid/></w:tbl>"#,
         r#"<w:sdtContent/>"#,
     ] {
-        let input = docx(&format!("{last}{trailer}"), None, None);
-        let mut doc = Document::from_bytes(input.clone()).unwrap();
-        assert_matches!(doc.append_paragraph("NEW"), Err(Error::SectionBreakAtEnd), "{trailer}");
-        assert_eq!(entries(&doc.to_bytes().unwrap()), entries(&input));
+        // Since ADR-0011 §6 the sectPr moves to the new paragraph, which
+        // is placed right after the old last paragraph (before the trailer).
+        let mut doc = Document::from_bytes(docx(&format!("{last}{trailer}"), None, None)).unwrap();
+        doc.append_paragraph("NEW").unwrap();
+        let out = body_of(&main_xml(&doc));
+        assert!(out.contains(&format!(r#"<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr></w:pPr><w:r><w:t>NEW</w:t></w:r></w:p>{trailer}"#)), "{out}");
     }
     let orphan = r#"<w:p><w:r><w:t>last</w:t></w:r></w:p><w:sdtContent><w:p><w:pPr><w:sectPr><w:pgSz w:orient="landscape"/></w:sectPr></w:pPr></w:p></w:sdtContent>"#;
     assert_matches!(Document::from_bytes(docx(orphan, None, None)).unwrap().append_paragraph("NEW"), Err(Error::SectionBreakAtEnd));
@@ -570,6 +582,11 @@ fn m13_self_referencing_link_is_refused() {
         (r#"INCLUDETEXT "self.docx" \! OLE_LINK1"#, "INCLUDETEXT (self reference)"),
         (r#"INCLUDETEXT C:\\x\\self.docx OLE_LINK1"#, "INCLUDETEXT (self reference)"),
         (r#"LINK Word.Document.12 C:\\x\\self.docx OLE_LINK1"#, "LINK (self reference)"),
+        // review of PR #54: n1 (mutants P2, P3) and m1 (a backslash before the item)
+        (r#"INCLUDETEXT "self.docx" OLE_LINK1 \c MSWord8"#, "INCLUDETEXT (self reference)"),
+        (r#"INCLUDETEXT "OLE_LINK1" OLE_LINK1"#, "INCLUDETEXT (self reference)"),
+        (r#"INCLUDETEXT "self.docx" "\OLE_LINK1""#, "INCLUDETEXT (self reference)"),
+        (r#"LINK Word.Document.12 "self.docx" x\OLE_LINK1"#, "LINK (self reference)"),
         (r#"LINK Word.Document.12 "" "OLE_LINK1""#, "LINK (non-literal source)"),
         ("LINK Word.Document.12", "LINK (non-literal source)"),
     ] {

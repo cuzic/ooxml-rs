@@ -116,7 +116,10 @@ fn kind(status: &Result<(), ooxml_docx::Refusal>) -> Result<(), &'static str> {
 fn production_and_reference_agree_and_accepted_matches_satisfy_the_oracles() {
     let full = std::env::var_os("OOXML_T7_FULL").is_some();
     let mut total = Stats::default();
-    for stem in writable() {
+    // OOXML_T7_ONLY=<stem>[,<stem>…] limits the run to those fixtures, so the
+    // full mode can run per fixture (review of PR #52, n4)
+    let only: Option<Vec<String>> = std::env::var("OOXML_T7_ONLY").ok().map(|v| v.split(',').map(str::to_owned).collect());
+    for stem in writable().filter(|s| only.as_ref().is_none_or(|o| o.iter().any(|x| x == s))) {
         let input = fixture(stem);
         let doc = Document::from_bytes(input.clone()).unwrap();
         let mut stats = Stats::default();
@@ -199,7 +202,9 @@ fn production_and_reference_agree_and_accepted_matches_satisfy_the_oracles() {
         total.applied += stats.applied;
     }
     eprintln!("T7 total: {total:?}");
-    assert!(total.applied > 500, "{total:?}");
+    if only.is_none() {
+        assert!(total.applied > 500, "{total:?}");
+    }
 }
 
 /// A child element of a run in the paragraph-text model.

@@ -18,6 +18,30 @@
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.2 (A4–A7), §6 Phase3
 - Evidence: [`spikes/xlsx-phase3/`](../../spikes/xlsx-phase3/README.md)
 - Review: [round 1](0009-opus-review-round1.md), [round 2](0009-opus-review-round2.md), [round 3](0009-opus-review-round3.md) (converged)
+- **Implementation note (2026-11-16, PR #53 — staging, no change to the decision):**
+  - §11 (`docProps/app.xml` upkeep) ships in a follow-up PR (#55, stacked on #53). Until it
+    merges, no operation touches `docProps/app.xml`: it stays byte-identical (L1), so after an
+    add, delete or rename its `TitlesOfParts`/`HeadingPairs` are stale. That is the state
+    §11 already accepts for an unrecognized `app.xml`; Excel rebuilds the part on save and no
+    reader uses it to list sheets. Each operation's rustdoc says so.
+    **Update (PR #55):** §11 is implemented; each operation keeps a recognized `app.xml`
+    consistent.
+  - The closed-world scan (§6) matches a location by namespace and path, as the rewriter
+    reaches it (PR #53 review B1): `f` only as a cell formula (`sheetData/row/c/f`) or a
+    chart's `c:f`/`c15:f`. The table's other formula rows (DV, CF, x14 `xm:f`, table
+    formulas, `connections.xml`, form controls, `@textlink`, `c:pivotSource`) are refused
+    (`UnrewritableReference`), not rewritten, in this version.
+  - Raw-name rows (§6, review B2): a pivot cache's `worksheetSource/@sheet` is rewritten; a
+    consolidation `rangeSet/@sheet` or `dataRef/@sheet` naming the sheet refuses.
+    Raw names are compared after XML and `_xHHHH_` decoding and written as ST_Xstring
+    (PR #53 review round 2, R2-B1). `webPublishItem/@sourceObject` is a raw-name location
+    this version does not know: it is left as it was (the known blind spot above; 0 in the
+    corpus).
+  - Over-refusals kept on purpose (each refuses rather than risk a stale reference): an
+    External relationship whose target is `#Sheet!…` (only Internal targets are retargeted);
+    a pivot cache that does not parse; a chart that does not parse but mentions the sheet.
+    Another workbook's names (`externalLink` parts) and pivot sources with `r:id` do not
+    refuse.
 
 ## Revision history
 
@@ -720,6 +744,8 @@ invents structure.
 - **Recognized shape:**
   - `HeadingPairs` is a `vt:vector` of (`vt:lpstr` label, `vt:i4` count) pairs;
   - `TitlesOfParts` is a `vt:lpstr` vector whose size equals the sum of the counts;
+  - each vector's `size` equals its child count and its `baseType` is `variant` /
+    `lpstr` (PR #55 review m3); titles are plain `xsd:string` text, not ST_Xstring (m2);
   - the first block lists the worksheets that are not `veryHidden`, in workbook order.
 
   This holds in 290/294 corpus files that have both elements.
@@ -729,7 +755,9 @@ invents structure.
   - the "Named Ranges" block, if it exists;
   - the `vt:vector/@size` attributes.
 
-  Labels are never changed or translated, and blocks are never created or removed. If an
+  Labels are never changed or translated, and blocks are never created. A block that the
+  operation empties is removed with its pair, as Excel writes the part (no count-0 pairs;
+  PR #55 review m1, implementation note); a block already empty in the input is left as it is. If an
   operation would need a block that does not exist (e.g. the first chart sheet), **all of**
   `app.xml` is left untouched for that operation, so a partial update never leaves the counts
   inconsistent.
@@ -738,8 +766,8 @@ invents structure.
     (review m1).
 - **Unrecognized, stale or absent** `app.xml` (48 of 342 packages lack the elements or the
   part; 4 are stale) is left untouched (L1).
-- This is a Layer 2 edit of `app.xml` with an allowlist entry for `ep:HeadingPairs`,
-  `ep:TitlesOfParts`, `vt:vector`, `vt:variant`, `vt:lpstr`, `vt:i4`.
+- This is a Layer 2 edit of `app.xml` with an allowlist entry for `ap:HeadingPairs`,
+  `ap:TitlesOfParts`, `vt:vector`, `vt:variant`, `vt:lpstr`, `vt:i4`.
 
 ### 12. Interaction with Phase1 and Phase2 (summary)
 
