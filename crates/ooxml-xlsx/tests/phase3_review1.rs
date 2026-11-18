@@ -670,7 +670,7 @@ fn unsupported_sheet_parts_refuse_delete() {
 /// R2-B1: raw names are matched after XML and ST_Xstring decoding.
 #[test]
 fn raw_names_with_entities() {
-    for (sheet, attr) in [("R&D", "R&amp;D"), ("It's", "It&apos;s"), ("Data", "D&#97;ta"), ("a<b\"c", "a&lt;b&quot;c")] {
+    for (sheet, attr) in [("R&D", "R&amp;D"), ("開発&設計", "開発&amp;設計"), ("It's", "It&apos;s"), ("Data", "D&#97;ta"), ("a<b\"c", "a&lt;b&quot;c")] {
         let base = common::p1::book(&[("A", ""), (&sheet.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;"), "")], "", "");
         let input = with_pivot(&base, &pivot(&format!(r#"<worksheetSource ref="A1:B3" sheet="{attr}"/>"#)));
         let mut wb = Workbook::from_bytes(input).unwrap();
@@ -702,6 +702,59 @@ fn raw_names_round_trip() {
         assert!(rw.iter().any(|r| r.location == "worksheetSource sheet"), "{mid:?}");
         assert!(text(&wb.to_bytes().unwrap(), "xl/pivotCache/pivotCacheDefinition1.xml").contains(r#"sheet="Back""#), "{mid:?}");
     }
+}
+
+/// Unsupported extension content must not inherit the scan exemptions for
+/// chart formulas, worksheet cell values, hyperlinks or relationship targets.
+#[test]
+fn scan_exemptions_require_the_supported_namespace_and_path() {
+    let base = two_sheets();
+    let chart = br#"<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:extLst><c:ext uri="{X}"><other:f xmlns:other="urn:extension">Data!A1</other:f></c:ext></c:extLst></c:chartSpace>"#;
+    let chart_part = "xl/charts/chart1.xml";
+    let input = rebuild(&base, &[(chart_part, chart.to_vec()), ct_add(&base, &override_(chart_part, CHART_CT))]);
+    assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
+
+    for extension in [r#"<v>Data!A1</v>"#, r#"<hyperlink ref="A1" location="Data!A1"/>"#] {
+        let sheet = format!(r#"<sheetData/><extLst><ext uri="{{X}}">{extension}</ext></extLst>"#);
+        let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", ws(&sheet))]);
+        assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
+    }
+
+    let relationships = br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="Data!A1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="other.xlsx" TargetMode="External"/></Relationships>"#;
+    let input = rebuild(&base, &[("xl/worksheets/_rels/sheet1.xml.rels", relationships.to_vec())]);
+    assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
+}
+
+#[test]
+fn structural_edits_update_the_shared_string_count() {
+    let sst = format!(r#"<sst xmlns="{WS_NS}" count="2" uniqueCount="1"><si><t>x</t></si></sst>"#);
+    let base = common::p1::book(
+        &[
+            ("A", r#"<row r="1"><c r="A1" t="s"><f>Data!A1</f><v>0</v></c></row>"#),
+            ("Data", r#"<row r="1"><c r="A1" t="s"><v>0</v></c></row>"#),
+        ],
+        "",
+        "",
+    );
+    let rels = text(&base, "xl/_rels/workbook.xml.rels").replace(
+        "</Relationships>",
+        concat!(r#"<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>"#, "</Relationships>"),
+    );
+    let input = rebuild(&base, &[
+        ("xl/_rels/workbook.xml.rels", rels.into_bytes()),
+        ("xl/sharedStrings.xml", sst.into_bytes()),
+        ct_add(&base, &override_("xl/sharedStrings.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml")),
+    ]);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet_by_name("A").unwrap().cell_mut(0, 1).unwrap().set_string("x").unwrap();
+    wb.delete_sheet("Data").unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(text(&out, "xl/sharedStrings.xml").contains(r#"count="1""#));
+    assert!(text(&out, "xl/worksheets/sheet1.xml").contains("<f>#REF!</f>"));
+
+    wb.worksheet_by_name("A").unwrap().cell_mut(0, 2).unwrap().set_string("x").unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert!(text(&out, "xl/sharedStrings.xml").contains(r#"count="2""#));
 }
 
 /// R2-m1: an External relationship with a `#Sheet!` target is not
