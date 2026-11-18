@@ -70,7 +70,7 @@ converged: yes/no（Blocker n / Major n / Minor n / nit n）
 
 作者（Codex）とマージ手順が読めるように、レビューファイルを **PR ブランチにコミットして push する**
 （このファイルだけの docs コミット。メッセージは `docs: PR #NN review round K`）。
-push が拒否されたら `git pull --no-rebase` してから push し直す（force-push しない）。
+push が拒否されたら `git pull --no-rebase origin <branch>` してから push し直す（force-push しない）。
 ADR のレビューも同じく、その ADR の PR ブランチに入れる。
 
 最後の返答では、結論・判定・指摘を 1 行ずつと、push したコミットの SHA を返す。

@@ -27,11 +27,12 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
    SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid) || exit 1; echo "SHA=$SHA"
    git fetch origin || exit 1
    git merge-base --is-ancestor "$R" "$SHA" || { echo "レビューした SHA が head の祖先でない"; exit 1; }
-   git log --no-merges --oneline "$R..$SHA" --not origin/main     # PR 側の全コミット（マージの第 2 親も含む）
+   git log --no-merges --stat --format="%h %s" "$R..$SHA" --not origin/main     # PR 側の全コミット（マージの第 2 親も含む）
    for m in $(git log --merges --format=%H "$R..$SHA" --not origin/main); do git show --remerge-diff --stat "$m"; done  # 手書きの衝突解消
    ```
 
    - 列挙されたコミットとして許されるのは、レビューファイルのコミットと、指摘 ID を挙げた Minor/nit の修正だけ。
+     指摘 ID が付いていても、`--stat` が指摘の範囲より明らかに大きければ再レビューに回す。
    - マージコミットの `--remerge-diff` は空であること。ただし生成物の再生成だけなら CI の `codegen --check` で可。
    - それ以外（新機能、Major 級の変更、説明の無いコミット、手書きの衝突解消）があれば、マージせずに
      `$R..$SHA` の差分だけを短く再レビューする。
