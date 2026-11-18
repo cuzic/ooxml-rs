@@ -233,6 +233,62 @@ const P1_CASES: &[P1Case] = &[
     },
 ];
 
+/// Phase3 (ADR-0009 §9 test oracle 9, XL items): sheet operations.
+const P3_CASES: &[P1Case] = &[
+    P1Case {
+        out: "30-rename-51850.xlsx",
+        input: "fixtures/xlsx/poi/51850.xlsx",
+        edits: "rename `more comments` -> `Mehr Kommentare 2026` (x14 data validation on it; cell formulas, names and links follow)",
+        look_for: "**XL 9(a).** Tab shows the new name; data validation lists on the renamed sheet still work; no repair dialog.",
+        edit: |wb| wb.rename_sheet("more comments", "Mehr Kommentare 2026").map(drop),
+    },
+    P1Case {
+        out: "31-delete-hidden-sheet.xlsx",
+        input: "fixtures/xlsx/poi/TwoSheetsOneHidden.xlsx",
+        edits: "delete the hidden `Sheet1` (only `Sheet2` stays, active and selected)",
+        look_for: "**XL 9(a).** One tab, `Sheet2`, selected; no repair dialog; Unhide is greyed out.",
+        edit: |wb| wb.delete_sheet("Sheet1").map(drop),
+    },
+    P1Case {
+        out: "32-reverse-reordered.xlsx",
+        input: "fixtures/xlsx/poi/reordered_sheets.xlsx",
+        edits: "reverse the tab order (Sheet4, Sheet2, Sheet3, Sheet1 -> Sheet1, Sheet3, Sheet2, Sheet4)",
+        look_for: "**XL 9(a).** Tabs in the new order; each tab shows its own original content; no repair dialog.",
+        edit: |wb| {
+            let n = wb.sheet_names().count();
+            for i in 0..n {
+                wb.move_sheet(n - 1, i)?;
+            }
+            Ok(())
+        },
+    },
+    P1Case {
+        out: "33-delete-ref-errors-3d.xlsx",
+        input: "fixtures/xlsx/synthetic/o1_precise.xlsx",
+        edits: "delete `Sheet2` (formulas on it are gone; references to it become a bare #REF!; 3-D spans with it as an endpoint move inward)",
+        look_for: "**XL 9(b), 9(f).** Formulas that pointed at Sheet2 show #REF! (formula bar: `#REF!`, not `Sheet2!#REF!`); 3-D sums still compute over the remaining sheets; no repair dialog.",
+        edit: |wb| wb.delete_sheet("Sheet2").map(drop),
+    },
+    P1Case {
+        out: "34-rename-chart-source.xlsx",
+        input: "fixtures/xlsx/poi/57362.xlsx",
+        edits: "rename `Sheet1` -> `Daten 1` (the chart's series formulas follow: `'Daten 1'!$A$1:$B$1`)",
+        look_for: "The chart still plots the same data; Select Data shows ='Daten 1'!…; no repair dialog.",
+        edit: |wb| wb.rename_sheet("Sheet1", "Daten 1").map(drop),
+    },
+    P1Case {
+        out: "35-add-hide-tab-colour.xlsx",
+        input: "fixtures/xlsx/synthetic/o1_precise.xlsx",
+        edits: "add `New 1` at the front, hide `Sheet3`, red tab colour on `Sheet1`",
+        look_for: "Tabs: New 1, Sheet1 (red), Sheet2, Defines; Sheet3 under Unhide; formulas recalculate to the same values as the original; no repair dialog.",
+        edit: |wb| {
+            wb.add_sheet("New 1", 0)?;
+            wb.set_sheet_state("Sheet3", ooxml_xlsx::SheetState::Hidden)?;
+            wb.set_tab_color("Sheet1", Some(0xFF0000))
+        },
+    },
+];
+
 /// Phase4 part 1 (ADR-0014 §3, §7, §11, Test oracles 7).
 const P4_CASES: &[P1Case] = &[
     P1Case {
@@ -343,6 +399,16 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         writeln!(md, "| [ ] | `{}` | {} | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
     }
 
+    md.push_str(CHECKLIST_P3_HEAD);
+    for case in P3_CASES {
+        let path = Path::new(ROOT).join(case.input);
+        std::fs::copy(&path, originals.join(case.out))?;
+        let mut wb = Workbook::open(&path)?;
+        (case.edit)(&mut wb)?;
+        wb.save(out_dir.join(case.out))?;
+        writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
+    }
+
     md.push_str(CHECKLIST_P4_HEAD);
     for case in P4_CASES {
         let path = Path::new(ROOT).join(case.input);
@@ -360,6 +426,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let outs: Vec<&str> = CASES.iter().map(|c| c.out)
         .chain(P1_CASES.iter().map(|c| c.out))
         .chain(P2_CASES.iter().map(|c| c.out))
+        .chain(P3_CASES.iter().map(|c| c.out))
         .chain(P4_CASES.iter().map(|c| c.out))
         .collect();
     for out in &outs {
@@ -379,7 +446,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-const CHECKLIST_HEAD: &str = "# ooxml-xlsx Phase0 + Phase1 + Phase2 — manual Excel check
+const CHECKLIST_HEAD: &str = "# ooxml-xlsx — manual Excel check
 
 Open each file below in current Microsoft 365 Excel (desktop). For each one:
 
@@ -426,6 +493,19 @@ those rows decide an open question (Q2, Q5) or an inferred limit (§5.10), not p
 
 const CHECKLIST_P4_HEAD: &str = "
 ## Phase4 part 1 (ADR-0014 Test oracles 7): merges, autofilter, protection
+
+| Pass | Output | Input | Edits | Look for | Notes |
+|---|---|---|---|---|---|
+";
+
+const CHECKLIST_P3_HEAD: &str = "
+## Phase3 (ADR-0009): sheet operations
+
+Each file had one structural operation (rename, delete, reorder, add, hide, tab colour). Excel
+must open it **without a repair dialog** and show the result described. Where formulas changed
+(30, 33, 35) Excel recalculates on open and asks to save on close: answer No. Not yet covered:
+`docProps/app.xml` titles (left as they were; Excel rewrites them on save), so File > Info >
+Properties may list old sheet names until saved.
 
 | Pass | Output | Input | Edits | Look for | Notes |
 |---|---|---|---|---|---|
