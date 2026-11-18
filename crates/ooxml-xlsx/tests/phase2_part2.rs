@@ -177,6 +177,49 @@ fn format_read_back_rewrites_to_the_same_style() {
 }
 
 #[test]
+fn format_read_back_reuses_xf_with_no_alignment_or_protection_under_custom_normal() {
+    let mut wb = Workbook::new().unwrap();
+    wb.add_worksheet().unwrap().cell_mut(0, 0).unwrap().set_number(1.0).unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let styles = text(&bytes, "xl/styles.xml").replacen(
+        r#"<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>"#,
+        r#"<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"><alignment vertical="center"/><protection locked="0"/></xf></cellStyleXfs>"#,
+        1,
+    );
+    assert!(styles.contains(r#"<alignment vertical="center"/><protection locked="0"/>"#));
+    let input = p1::with_part(&bytes, "xl/styles.xml", &styles);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    let read = ws.format(0, 0).unwrap().unwrap();
+    let FormatRead::Expressible(format) = read else { panic!("{read:?}") };
+    ws.cell_mut(0, 1).unwrap().set_number(2.0).unwrap();
+    ws.cell_mut(0, 1).unwrap().set_format(&format).unwrap();
+    assert_eq!(ws.cell(0, 1).unwrap().unwrap().style_index().unwrap(), 0);
+    assert_eq!(format.alignment, Some(ooxml_xlsx::Alignment::default()));
+    assert_eq!(format.protection, Some(ooxml_xlsx::Protection::default()));
+    assert_eq!(text(&wb.to_bytes().unwrap(), "xl/styles.xml"), styles);
+}
+
+#[test]
+fn format_read_back_round_trips_an_existing_workbook() {
+    // This POI workbook's Normal uses numFmtId 164 and explicit alignment
+    // and protection. Its A1 uses an xf with apply flags and both children.
+    let bytes = include_bytes!("../../../reference/fixtures/xlsx/poi/62272.xlsx");
+    let mut wb = Workbook::from_bytes(bytes.as_slice()).unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    let read = ws.format(0, 0).unwrap().unwrap();
+    let FormatRead::Expressible(format) = read else { panic!("{read:?}") };
+    ws.cell_mut(0, 1).unwrap().set_number_with_format(1.0, &format).unwrap();
+    let mut reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    let mut ws = reopened.worksheet().unwrap();
+    assert_eq!(ws.format(0, 0).unwrap(), Some(FormatRead::Expressible(format.clone())));
+    // The fixture assigns a custom ID to Excel's General format.
+    assert_eq!(format.num_format, Some(ooxml_xlsx::NumFormat::Code("General".into())));
+    let expected = Format { num_format: Some(ooxml_xlsx::NumFormat::General), ..*format };
+    assert_eq!(ws.format(0, 1).unwrap(), Some(FormatRead::Expressible(Box::new(expected))));
+}
+
+#[test]
 fn format_read_back_reports_what_is_not_expressible() {
     let s = text(&base(), "xl/styles.xml")
         .replacen(r#"<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>"#, r#"<cellStyleXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>"#, 1)
@@ -210,7 +253,8 @@ fn dxfs_are_appended_in_canonical_form_and_reused() {
     let mut wb = Workbook::from_bytes(input.clone()).unwrap();
     assert_eq!(wb.add_differential_format(&red_on_yellow).unwrap(), 0);
     assert_eq!(wb.add_differential_format(&red_on_yellow).unwrap(), 0, "reused within the session");
-    assert_eq!(wb.add_differential_format(&DxfFormat::new().set_num_format("0.0%")).unwrap(), 1);
+    let percent = DxfFormat::new().set_num_format("0.0%");
+    assert_eq!(wb.add_differential_format(&percent).unwrap(), 1);
     let out = wb.to_bytes().unwrap();
     assert_l1_except(&input, &out, &["xl/styles.xml"]);
     let st = text(&out, "xl/styles.xml");
@@ -223,10 +267,16 @@ fn dxfs_are_appended_in_canonical_form_and_reused() {
     // later gets a different id (164 is taken in the package)
     let mut wb = Workbook::from_bytes(out.clone()).unwrap();
     assert_eq!(wb.add_differential_format(&red_on_yellow).unwrap(), 0);
+    assert_eq!(wb.add_differential_format(&percent).unwrap(), 1, "number format reused after reopening");
+    assert_eq!(wb.add_differential_format(&percent).unwrap(), 1, "number format reused within the session");
+    assert_eq!(text(&wb.to_bytes().unwrap(), "xl/styles.xml"), st);
     wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number_with_format(1.0, &Format::new().set_num_format("0.0%")).unwrap();
     let out2 = wb.to_bytes().unwrap();
     assert_eq!(dxfs(&out2), dxfs(&out));
     assert!(text(&out2, "xl/styles.xml").contains(r#"<numFmt numFmtId="165" formatCode="0.0%"/>"#));
+    let mut wb = Workbook::from_bytes(out2.clone()).unwrap();
+    assert_eq!(wb.add_differential_format(&percent).unwrap(), 1, "original dxf ID still wins after adding a cell format");
+    assert_eq!(text(&wb.to_bytes().unwrap(), "xl/styles.xml"), text(&out2, "xl/styles.xml"));
 }
 
 #[test]
@@ -401,6 +451,24 @@ fn dxf_references_under_other_attribute_names_count_as_dangling() {
     let e = wb.add_differential_format(&DxfFormat::new().set_bold());
     assert!(matches!(e, Err(Error::DanglingReference { ref table, index: 0 }) if table == "dxfs"), "{e:?}");
     assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+}
+
+#[test]
+fn slicer_style_references_use_the_extension_dxfs() {
+    let extension = concat!(
+        r#"<extLst><ext uri="{EB79DEF2-80B8-43E5-95BD-54CBDDF9020C}">"#,
+        r#"<s:slicerStyles xmlns:s="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><s:slicerStyle name="Custom">"#,
+        r#"<s:slicerStyleElements><s:slicerStyleElement type="whole" dxfId="0"/></s:slicerStyleElements>"#,
+        r#"</s:slicerStyle></s:slicerStyles></ext><ext uri="{46F421CA-312F-682F-3DD2-61675219B42D}">"#,
+        r#"<s:dxfs xmlns:s="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" count="1"><dxf/></s:dxfs></ext></extLst>"#,
+    );
+    let styles = text(&base(), "xl/styles.xml").replace("</styleSheet>", &format!("{extension}</styleSheet>"));
+    let input = p1::with_part(&base(), "xl/styles.xml", &styles);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    assert_eq!(wb.add_differential_format(&DxfFormat::new().set_bold()).unwrap(), 0);
+    let out = wb.to_bytes().unwrap();
+    assert_eq!(dxfs(&out).len(), 1);
+    assert!(text(&out, "xl/styles.xml").contains(extension));
 }
 
 #[test]

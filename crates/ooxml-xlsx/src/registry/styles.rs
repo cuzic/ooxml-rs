@@ -17,6 +17,7 @@
 //!   `styles.xml`; apply swaps both in.
 
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 use std::sync::Arc;
 
 use ooxml_core::name::MC_ALTERNATE_CONTENT;
@@ -176,14 +177,14 @@ fn table_node<'d>(root: &'d RawNode, local: &str) -> Option<&'d RawNode> {
 struct IdScan {
     /// Every `numFmtId`.
     numfmt: u32,
-    /// Every `dxfId` and `…DxfId` (`cfRule`, table and table-style
+    /// Main-table `dxfId` and `…DxfId` (`cfRule`, table and table-style
     /// elements, pivot formats): references into `dxfs`.
     dxf: Option<u32>,
 }
 
 /// Scans every XML part once (review n6: lexical rules, content-type
 /// selection, UTF-16 decoded; a part that cannot be decoded refuses).
-fn scan_ids(wb: &Workbook) -> Result<IdScan> {
+fn scan_ids(wb: &Workbook, styles_part: &str) -> Result<IdScan> {
     let mut out = IdScan { numfmt: 0, dxf: None };
     let names: Vec<String> = wb.pkg.part_names().map(str::to_owned).collect();
     for name in names {
@@ -196,9 +197,10 @@ fn scan_ids(wb: &Workbook) -> Result<IdScan> {
         }
         let bytes = wb.pkg.read_part(&name)?;
         let text = decode_xml_text(&bytes).ok_or_else(|| Error::Malformed(format!("{name}: cannot decode to scan numFmtId")))?;
-        out.numfmt = out.numfmt.max(max_attr(&name, &text, "numFmtId")?.unwrap_or(0));
-        for needle in ["dxfId", "DxfId"] {
-            if let Some(v) = max_attr(&name, &text, needle)? {
+        out.numfmt = out.numfmt.max(max_attr(&name, &text, "numFmtId", &[])?.unwrap_or(0));
+        let slicer_tags = if name == styles_part && text.contains("slicerStyleElement") { slicer_style_tags(&text) } else { Vec::new() };
+        for (needle, excluded) in [("dxfId", slicer_tags.as_slice()), ("DxfId", &[])] {
+            if let Some(v) = max_attr(&name, &text, needle, excluded)? {
                 out.dxf = out.dxf.max(Some(v));
             }
         }
@@ -206,16 +208,46 @@ fn scan_ids(wb: &Workbook) -> Result<IdScan> {
     Ok(out)
 }
 
+/// Opening tags whose unqualified dxfId indexes x14:dxfs (MS-XLSX
+/// §2.6.45 and §2.4.24). Match the namespace and the extension path.
+fn slicer_style_tags(text: &str) -> Vec<Range<usize>> {
+    const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+    let Ok(doc) = XmlDocument::parse(text.as_bytes()) else { return Vec::new() };
+    if !doc.root().is(sml::Stylesheet::QNAME) || doc.source() != text {
+        return Vec::new();
+    }
+    let mut nodes = vec![doc.root()];
+    for (ns, local) in [
+        (crate::SML_NS, "extLst"),
+        (crate::SML_NS, "ext"),
+        (X14, "slicerStyles"),
+        (X14, "slicerStyle"),
+        (X14, "slicerStyleElements"),
+        (X14, "slicerStyleElement"),
+    ] {
+        let name = QName::new(ns, local);
+        nodes = nodes.into_iter().flat_map(RawNode::elements).filter(|node| node.is(name)).collect();
+    }
+    nodes.into_iter().filter_map(RawNode::span).map(|span| span.start..span.open_end).collect()
+}
+
 /// The largest value of attributes whose name ends with `needle` in `text`.
-/// An over-estimate is harmless; an under-estimate is not.
-fn max_attr(name: &str, text: &str, needle: &str) -> Result<Option<u32>> {
+/// Skip exact unqualified names in the excluded opening tags, which are
+/// in document order. Outside those tags keep the conservative suffix scan.
+fn max_attr(name: &str, text: &str, needle: &str, excluded: &[Range<usize>]) -> Result<Option<u32>> {
     let mut best: Option<u32> = None;
     {
         let b = text.as_bytes();
         let mut i = 0;
         while let Some(off) = text[i..].find(needle) {
-            let mut j = i + off + needle.len();
+            let attr = i + off;
+            let mut j = attr + needle.len();
             i = j;
+            if attr > 0 && b[attr - 1].is_ascii_whitespace()
+                && excluded.get(excluded.partition_point(|tag| tag.end <= attr)).is_some_and(|tag| tag.contains(&attr))
+            {
+                continue;
+            }
             while j < b.len() && b[j].is_ascii_whitespace() {
                 j += 1;
             }
@@ -304,7 +336,7 @@ impl Styles {
     /// SpreadsheetML `styleSheet`.
     pub(crate) fn activate(wb: &mut Workbook) -> Result<Styles> {
         let part = styles_part(wb)?.ok_or(Error::NoStylesPart)?;
-        let ids = scan_ids(wb)?;
+        let ids = scan_ids(wb, &part)?;
         let max_id = ids.numfmt;
         let mut sheet_max_s: Option<u32> = None;
         for p in super::census_sheet_parts(wb) {
@@ -381,6 +413,17 @@ impl Styles {
                     if e.attrs().len() == 2 && e.elements().next().is_none() {
                         Arc::make_mut(&mut st.custom_codes).entry(code.to_owned()).or_insert(id);
                     }
+                }
+            }
+        }
+        if let Some(dxfs) = table_node(root, "dxfs") {
+            for dxf in dxfs.elements().filter(|e| e.is(sml::DifferentialFormat::QNAME)) {
+                let Some(n) = dxf.elements().find(|e| e.is(sml::NumberingFormat::QNAME)) else { continue };
+                let (Some(id), Some(code)) = (n.attr(QName::new("", "numFmtId")).and_then(|v| v.trim().parse::<u32>().ok()), n.attr(QName::new("", "formatCode"))) else {
+                    continue;
+                };
+                if (164..=65_535).contains(&id) && st.codes.get(&id).is_none_or(|existing| existing == code) {
+                    Arc::make_mut(&mut st.dxf_codes).entry(code.to_owned()).and_modify(|existing| *existing = (*existing).min(id)).or_insert(id);
                 }
             }
         }
@@ -687,9 +730,9 @@ impl Planner {
     }
 
     /// The `(numFmtId, formatCode)` of a `dxf/numFmt`. Built-in ids keep
-    /// their id with the table's code; a custom code gets the id of an
-    /// identical `numFmts` entry, or one allocated above every id in the
-    /// package (the same space as `numFmts`, ADR-0006 §5.3).
+    /// their id with the table's code. A custom code reuses an id from
+    /// `dxfs` or `numFmts`, or gets one above every id in the package
+    /// (the same space as `numFmts`, ADR-0006 §5.3).
     fn dxf_num_fmt(&mut self, nf: &NumFormat) -> Result<(u32, String)> {
         let builtin = |next: &Styles, id: u16| -> Result<(u32, String)> {
             if next.redefined.contains(&u32::from(id)) {
@@ -713,11 +756,11 @@ impl Planner {
                 {
                     return Ok((u32::from(*id), code.clone()));
                 }
-                if let Some(&id) = self.next.custom_codes.get(code).or_else(|| self.next.dxf_codes.get(code)) {
-                    return Ok((id, code.clone()));
-                }
                 if crate::escape::encode(code) != *code || ooxml_core::value::first_invalid_xml_char(code).is_some() {
                     return Err(Error::InvalidNumFormat(code.clone()));
+                }
+                if let Some(&id) = self.next.dxf_codes.get(code).or_else(|| self.next.custom_codes.get(code)) {
+                    return Ok((id, code.clone()));
                 }
                 let id = self.next.next_numfmt;
                 if id > 65_535 {

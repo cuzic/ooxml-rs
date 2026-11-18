@@ -586,7 +586,8 @@ pub struct DxfFormat {
     pub num_format: Option<NumFormat>,
     /// Font overrides.
     pub font: Option<DxfFont>,
-    /// Fill.
+    /// Fill. For a solid fill with only `fg` set, this writes just `fgColor`.
+    /// Set `bg` for the solid colour Excel uses in a differential format.
     pub fill: Option<Fill>,
     /// Borders (only the sides that are set are written).
     pub border: Option<Border>,

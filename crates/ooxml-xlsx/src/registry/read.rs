@@ -291,7 +291,8 @@ pub(crate) fn read_format(doc: &XmlDocument, s: u32) -> FormatRead {
         return FormatRead::Expressible(Box::new(Format::new()));
     }
     let Some(xf) = entry(cell_xfs, s, "cellXfs", &mut reasons) else { return not(reasons) };
-    let mut f = Format::new();
+    // Absent children have application defaults. Unset Format groups inherit Normal.
+    let mut f = Format { alignment: Some(Alignment::default()), protection: Some(Protection::default()), ..Format::new() };
     if has_foreign_attrs(xf) {
         reasons.push("xf extension attributes".into());
     }
