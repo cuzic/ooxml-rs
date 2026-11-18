@@ -166,4 +166,7 @@ names = [
     "a:CT_TextCharacterProperties/a:endParaRPr",
     "a:CT_TextParagraphProperties/a:pPr",
     # ADR-0013 §2: new table cells copy the formatting of a neighbour cell.
+    "a:CT_TableCellProperties/a:tcPr",
+    "a:CT_TextBodyProperties/a:bodyPr",
+    "a:CT_TextListStyle/a:lstStyle",
 ]

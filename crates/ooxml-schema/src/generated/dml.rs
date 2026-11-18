@@ -8758,6 +8758,41 @@ impl ooxml_core::ChildOf<TableCellProperties> for TopBorderLineProperties {}
 impl ooxml_core::ChildOf<TableCellProperties> for NoFill {}
 impl ooxml_core::ChildOf<TableCellProperties> for ExtensionList {}
 impl ooxml_core::ChildOf<TableCellProperties> for SolidFill {}
+impl ooxml_core::schema::__private::Sealed for TableCellProperties {}
+impl ooxml_core::Detachable for TableCellProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
 /// Read-only view of [`TableCellProperties`].
 #[derive(Clone, Debug)]
 pub struct TableCellPropertiesView<'a>(pub ooxml_core::Lens<'a, TableCellProperties>);
@@ -10305,6 +10340,41 @@ impl ooxml_core::ChildOf<BodyProperties> for ExtensionList {}
 impl ooxml_core::ChildOf<BodyProperties> for NoAutoFit {}
 impl ooxml_core::ChildOf<BodyProperties> for NormalAutoFit {}
 impl ooxml_core::ChildOf<BodyProperties> for ShapeAutoFit {}
+impl ooxml_core::schema::__private::Sealed for BodyProperties {}
+impl ooxml_core::Detachable for BodyProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
 /// Read-only view of [`BodyProperties`].
 #[derive(Clone, Debug)]
 pub struct BodyPropertiesView<'a>(pub ooxml_core::Lens<'a, BodyProperties>);
@@ -12763,6 +12833,41 @@ impl ooxml_core::ChildOf<ListStyle> for Level6ParagraphProperties {}
 impl ooxml_core::ChildOf<ListStyle> for Level7ParagraphProperties {}
 impl ooxml_core::ChildOf<ListStyle> for Level8ParagraphProperties {}
 impl ooxml_core::ChildOf<ListStyle> for Level9ParagraphProperties {}
+impl ooxml_core::schema::__private::Sealed for ListStyle {}
+impl ooxml_core::Detachable for ListStyle {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
 /// Read-only view of [`ListStyle`].
 #[derive(Clone, Debug)]
 pub struct ListStyleView<'a>(pub ooxml_core::Lens<'a, ListStyle>);
