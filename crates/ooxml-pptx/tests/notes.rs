@@ -275,7 +275,7 @@ fn notes_resolve_in_the_notes_master_context() {
     assert_matches!(rp.size.source(), Some(Source::MasterTextStyle { style: TextStyleKind::Notes, part: "ppt/notesMasters/notesMaster1.xml", level: 0 }));
     assert_eq!(rp.bold.value(), Some(&true));
     let Some(ooxml_pptx::Fill::Solid(c)) = rp.fill.value() else { panic!("{:?}", rp.fill) };
-    assert_eq!((c.theme_slot, c.map_source), (Some("dk1"), Some(MapSource::NotesMaster)));
+    assert_eq!((c.theme_slot.map(|t| t.as_str()), c.map_source), (Some("dk1"), Some(MapSource::NotesMaster)));
     let m = sheet.placeholder_match(&body).unwrap().unwrap();
     assert_eq!((m.kind, m.layout.is_none(), m.master.is_some()), (MatchKind::Type, true, true));
     let g = sheet.geometry(&body).unwrap();
