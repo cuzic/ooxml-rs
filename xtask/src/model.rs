@@ -210,6 +210,8 @@ impl<'a> Model<'a> {
             "HexBinaryValue" => "HexBinary",
             "Base64BinaryValue" => "Base64Binary",
             "ListValue" => "List",
+            // ADR-0008 §6: only through a `set_type` override.
+            "DmlPercent" => "DmlPercent",
             "EnumValue" => {
                 return match self.resolve_enum(ty, file, diags, ctx) {
                     Some((f, e)) => Ty::Enum(f, e),
@@ -258,6 +260,14 @@ impl<'a> Model<'a> {
                 "OnOff" => matches!(d, "true" | "false" | "0" | "1" | "on" | "off"),
                 "TrueFalse" => matches!(d, "t" | "f" | "true" | "false"),
                 "TrueFalseBlank" => matches!(d, "t" | "f" | "true" | "false" | ""),
+                "DmlPercent" => {
+                    d.parse::<i32>().is_ok()
+                        || d.strip_suffix('%').is_some_and(|n| {
+                            let n = n.strip_prefix('-').unwrap_or(n);
+                            let (i, f) = n.split_once('.').unwrap_or((n, "0"));
+                            !i.is_empty() && !f.is_empty() && i.bytes().chain(f.bytes()).all(|b| b.is_ascii_digit())
+                        })
+                }
                 "Double" | "Single" | "Decimal" => {
                     matches!(d, "INF" | "-INF" | "NaN") || (d.parse::<f64>().is_ok() && !d.bytes().any(|b| b.is_ascii_alphabetic() && b != b'e' && b != b'E'))
                 }
@@ -329,7 +339,14 @@ impl<'a> Model<'a> {
         let ctx = format!("{decl_name}@{}", a.qname);
         let ty = self.map_type(&a.ty, decl_file, diags, &ctx);
         let default = self.xsd_default(decl_name, &ns, &local);
+        // A `set_type` override on this attribute decides the type; the
+        // default is judged against that type when it is applied.
+        let retyped = self.overrides_for(decl_name).into_iter().any(|o| match o {
+            Override::SetType { attribute, .. } => self.resolve_qname(attribute).is_some_and(|(n, l, _)| n == ns && l == local),
+            _ => false,
+        });
         let default = match default {
+            Some(_) if retyped => None,
             Some(d) if !self.default_fits(&ty, &d) => {
                 diags.push(format!("DefaultMismatch {ctx}: XSD default {d:?} does not fit SDK type {}; dropped", a.ty));
                 None
@@ -439,8 +456,20 @@ impl<'a> Model<'a> {
                 },
                 Override::SetType { attribute, ty, .. } => {
                     let new_ty = self.map_type(ty, at.0, diags, name);
+                    let rejoin = |x: &Attr| self.xsd_default(name, &x.ns, &x.local);
                     match self.find_attr(&mut attrs, attribute) {
-                        Some(x) => x.ty = new_ty,
+                        Some(x) => {
+                            let d = rejoin(x);
+                            x.default = match d {
+                                Some(d) if self.default_fits(&new_ty, &d) => Some(d),
+                                Some(d) => {
+                                    diags.push(format!("DefaultMismatch {name}@{attribute}: XSD default {d:?} does not fit set_type {ty}; dropped"));
+                                    None
+                                }
+                                None => None,
+                            };
+                            x.ty = new_ty;
+                        }
                         None => diags.push(format!("OverrideError {name}: set_type on unknown attribute {attribute}")),
                     }
                 }

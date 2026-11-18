@@ -1,0 +1,98 @@
+name: Fuzz smoke
+
+# Short robustness runs over the untrusted-input surface (ooxml-core's zip
+# and XML readers, the lens, ooxml-xlsx, ooxml-pptx). Not part of ci.yml:
+# run it by hand, or let the weekly schedule catch regressions.
+# Findings: docs/testing/fuzz-findings-2026-11.md; harness and how-to:
+# fuzz/README.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "cargo-fuzz time per target, in seconds, counted after libFuzzer has run the (thinned) seed corpus once"
+        default: "60"
+      smoke_iters:
+        description: "OOXML_SMOKE_ITERS for the stable smoke test"
+        default: "50"
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Same toolchain and cargo-fuzz as the runs in the findings document, so a
+  # weekly failure means a code change, not a toolchain update.
+  FUZZ_NIGHTLY: nightly-2026-11-14  # rustc 5f4effd57 (2026-11-13)
+  CARGO_FUZZ_VERSION: 0.13.2
+  # Seeds per target: libFuzzer executes the whole initial corpus before
+  # -max_total_time starts (pptx_edit's full corpus alone takes minutes).
+  SEEDS_PER_TARGET: "64"
+
+jobs:
+  stable-smoke:
+    name: stable property smoke (Rust 1.99, release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - uses: Swatinem/rust-cache@v2
+      - name: smoke
+        env:
+          SMOKE_ITERS: ${{ inputs.smoke_iters || '50' }}
+        run: |
+          case "$SMOKE_ITERS" in ''|*[!0-9]*) echo "smoke_iters must be a number" >&2; exit 1;; esac
+          OOXML_SMOKE_ITERS="$SMOKE_ITERS" cargo test --release -p ooxml-robustness --test smoke
+      - name: keep failing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failures
+          path: target/tmp/smoke-failures/
+          if-no-files-found: ignore
+
+  cargo-fuzz:
+    name: cargo-fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [package_roundtrip, xml_t1, xml_t1b, lens_ops, xlsx_edit, pptx_edit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.FUZZ_NIGHTLY }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            fuzz
+      - name: install cargo-fuzz
+        run: cargo +"$FUZZ_NIGHTLY" install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked
+      - name: seed corpus from reference/fixtures
+        run: cargo +"$FUZZ_NIGHTLY" run -q -p ooxml-robustness --example seed_corpus -- fuzz/corpus "$SEEDS_PER_TARGET"
+      - name: fuzz/Cargo.lock is up to date
+        run: cargo +"$FUZZ_NIGHTLY" metadata --locked --format-version 1 --manifest-path fuzz/Cargo.toml > /dev/null
+      - name: fuzz
+        working-directory: fuzz
+        env:
+          TARGET: ${{ matrix.target }}
+          SECONDS_PER_TARGET: ${{ inputs.seconds || '60' }}
+        run: |
+          case "$SECONDS_PER_TARGET" in ''|*[!0-9]*) echo "seconds must be a number" >&2; exit 1;; esac
+          cargo +"$FUZZ_NIGHTLY" fuzz run "$TARGET" "corpus/$TARGET" -- \
+            -max_total_time="$SECONDS_PER_TARGET" -timeout=10 -rss_limit_mb=2048
+      - name: keep crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/
+          if-no-files-found: ignore

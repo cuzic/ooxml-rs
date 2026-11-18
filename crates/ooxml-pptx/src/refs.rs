@@ -135,25 +135,15 @@ impl SlideRefs {
                 let mut below = Vec::new();
                 descendants(a, &mut below);
                 self.scan_table_anchor(a, &below);
-                let text_like = below.iter().any(|n| {
-                    n.name().local() == "txMk"
-                        || n.attr(QName::new("", "cp")).is_some()
-                        || n.attr(QName::new("", "len")).is_some()
-                });
-                let safe = (a.is(QName::new(PC_NS, "sldMkLst")) || a.is(QName::new(AC_NS, "deMkLst"))) && !text_like;
-                if safe {
+                let c = classify_anchor_descendants(a, &below);
+                if c.safe {
                     continue;
                 }
-                let ids: Vec<Option<&str>> = below
-                    .iter()
-                    .filter(|n| n.name().ns() == AC_NS)
-                    .filter_map(|n| n.attr(QName::new("", "id")).map(Some))
-                    .collect();
-                if ids.is_empty() {
+                if c.ids.is_empty() {
                     self.comments.all = true;
                 }
-                for id in ids {
-                    self.comments.add(id);
+                for id in c.ids {
+                    self.comments.add(Some(id));
                 }
             }
         }
@@ -205,6 +195,37 @@ impl SlideRefs {
             }
         }
     }
+}
+
+/// A modern comment anchor, classified once for locking (above) and for
+/// reading (`Comment::anchor`, ADR-0008 §3.3: "the anchor classifier is
+/// the one Phase 0 uses for locks").
+#[derive(Debug)]
+pub(crate) struct AnchorClass<'a> {
+    /// `pc:sldMkLst` or `ac:deMkLst` without text offsets: no text is referenced.
+    pub safe: bool,
+    /// A text range (`ac:txMk`, `@cp`/`@len` below the anchor).
+    pub text: bool,
+    /// `@id` of every `ac:*` moniker below the anchor, in document order.
+    pub ids: Vec<&'a str>,
+    /// The first `@cp` / `@len`.
+    pub cp: Option<&'a str>,
+    pub len: Option<&'a str>,
+}
+
+pub(crate) fn classify_anchor(a: &RawNode) -> AnchorClass<'_> {
+    let mut below = Vec::new();
+    descendants(a, &mut below);
+    classify_anchor_descendants(a, &below)
+}
+
+fn classify_anchor_descendants<'a>(a: &RawNode, below: &[&'a RawNode]) -> AnchorClass<'a> {
+    let text = below.iter().any(|n| n.name().local() == "txMk" || n.attr(QName::new("", "cp")).is_some() || n.attr(QName::new("", "len")).is_some());
+    let safe = (a.is(QName::new(PC_NS, "sldMkLst")) || a.is(QName::new(AC_NS, "deMkLst"))) && !text;
+    let ids = below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id"))).collect();
+    let cp = below.iter().find_map(|n| n.attr(QName::new("", "cp")));
+    let len = below.iter().find_map(|n| n.attr(QName::new("", "len")));
+    AnchorClass { safe, text, ids, cp, len }
 }
 
 #[cfg(test)]

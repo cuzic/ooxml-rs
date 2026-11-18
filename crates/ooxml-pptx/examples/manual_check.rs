@@ -435,7 +435,112 @@ fn main() -> R {
         });
     }
 
-    // 17–19. Phase 1b tables (ADR-0013 §7 "Manual")
+    // 17–22: ADR-0008 manual checks M1–M3, M5–M7 (inheritance rules the
+    // corpus cannot settle). Each deck is poi/sample.pptx with documented
+    // XML edits; the checklist states what ooxml-pptx resolves so the owner
+    // can compare. (M4, a notes edit, belongs to ADR-0008 §2, not built yet.)
+    {
+        fn sample_with(edits: &[(&str, &str, &str)]) -> R<Presentation> {
+            let mut pkg = Package::open(fixture("poi/sample.pptx"))?;
+            for (part, from, to) in edits {
+                let x = String::from_utf8(pkg.read_part(part)?)?;
+                if !x.contains(from) {
+                    return Err(format!("{part}: {from:?} not found").into());
+                }
+                pkg.set_part(part, x.replacen(from, to, 1).into_bytes())?;
+            }
+            Ok(Presentation::from_bytes(pkg.to_bytes()?)?)
+        }
+        /// "size / typeface / fill (source)" of the first run of every text shape on slide 1.
+        fn predict(p: &mut Presentation) -> R<String> {
+            let deck = p.deck()?;
+            let s = deck.slide(0)?;
+            let mut out = Vec::new();
+            for sh in s.slide().shapes() {
+                let Some(b) = sh.text_body() else { continue };
+                let Some(para) = b.paragraphs().into_iter().next() else { continue };
+                let Some(TextItem::Run(r)) = para.items().into_iter().find(|i| matches!(i, TextItem::Run(_))) else { continue };
+                let rp = s.run_props(&sh, b, para, ooxml_pptx::RunItem::Run(r))?;
+                let bp = s.body_props(&sh)?;
+                out.push(format!(
+                    "{}: size {:?} from {:?}; latin {:?}; fill {:?}; autofit {:?}",
+                    sh.name().unwrap_or("?"),
+                    rp.size.value(),
+                    rp.size.source(),
+                    rp.latin.typeface(),
+                    rp.fill.value().map(|f| format!("{f:?}")),
+                    bp.autofit.value(),
+                ));
+            }
+            Ok(out.join("; "))
+        }
+        const SLIDE: &str = "ppt/slides/slide1.xml";
+        const MASTER: &str = "ppt/slideMasters/slideMaster1.xml";
+        const LAYOUT: &str = "ppt/slideLayouts/slideLayout1.xml";
+        let other_style = r#"</p:bodyStyle><p:otherStyle><a:lvl1pPr><a:defRPr sz="4000"/></a:lvl1pPr></p:otherStyle>"#;
+        let shapes = r#"<p:sp><p:nvSpPr><p:cNvPr id="90" name="M1 text box"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="5300000"/><a:ext cx="3800000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr wrap="square"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Text box</a:t></a:r></a:p></p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="91" name="M1 shape"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="4600000" y="5300000"/><a:ext cx="3800000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:style><a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style><p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Shape</a:t></a:r></a:p></p:txBody></p:sp></p:spTree>"#;
+        type Edit<'e> = (&'e str, &'e str, &'e str);
+        type Case<'e> = (&'e str, &'e str, Vec<Edit<'e>>, &'e str, Vec<&'static str>);
+        let cases: Vec<Case<'_>> = vec![
+            (
+                "17-M1-text-box-shape-styles",
+                "M1: a text box (txBox=\"1\") and an autoshape with p:style/a:fontRef, no size of their own; defaultTextStyle has no size, otherStyle says 40 pt, bodyStyle 32 pt",
+                vec![(MASTER, "</p:bodyStyle>", other_style), (SLIDE, "</p:spTree>", shapes)],
+                "Q1/Q2: POI order (defaultTextStyle, then otherStyle) predicts 40 pt for both; LibreOffice predicts the application default (18 pt); the ECMA note predicts bodyStyle (32 pt) for the text box",
+                vec!["Opens without a repair prompt.", "Text box size: ____ pt; shape size: ____ pt; shape text colour (white = fontRef lt1?): ____"],
+            ),
+            (
+                "18-M2-explicit-idx-missing",
+                "M2: the subtitle's p:ph gets idx=\"4294967295\" (no layout placeholder has it)",
+                vec![(SLIDE, r#"<p:ph type="subTitle" idx="1"/>"#, r#"<p:ph type="subTitle" idx="4294967295"/>"#)],
+                "§1.2: matched by type (subTitle) on the layout",
+                vec!["Opens without a repair prompt.", "Home → Reset: the subtitle moves to the layout's subtitle position (yes / no / elsewhere)."],
+            ),
+            (
+                "19-M3-layout-transition",
+                "M3: the title layout gets <p:transition><p:fade/></p:transition>; the slide has none",
+                vec![(LAYOUT, "</p:sldLayout>", r#"<p:transition spd="slow"><p:fade/></p:transition></p:sldLayout>"#)],
+                "§3.4 / Q5: Slide::transition is None; the layout's is reported separately",
+                vec!["Opens without a repair prompt.", "Slide Show: slide 1 fades in (layout transition applies) — yes / no."],
+            ),
+            (
+                "20-M5-paragraph-defRPr",
+                "M5: the title paragraph's own a:pPr gets <a:defRPr sz=\"6000\"/>; the run has no size",
+                vec![(SLIDE, r#"<a:pPr hangingPunct="1"/><a:r><a:rPr lang="en-US"><a:sym"#, r#"<a:pPr hangingPunct="1"><a:defRPr sz="6000"/></a:pPr><a:r><a:rPr lang="en-US"><a:sym"#)],
+                "§1.3 step 2: 60 pt from ParagraphDefault (POI); 44 pt if PowerPoint ignores a paragraph's defRPr",
+                vec!["Opens without a repair prompt.", "Title size: ____ pt."],
+            ),
+            (
+                "21-M6-layout-color-map",
+                "M6: the slide keeps a:masterClrMapping; its layout overrides the map with tx1=\"lt1\" (white)",
+                vec![(LAYOUT, "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>", r#"<p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="lt1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:clrMapOvr>"#)],
+                "§1.4: the layout override applies (POI, LibreOffice test file): title text white; ECMA's text would give the master's map (black)",
+                vec!["Opens without a repair prompt.", "Title text colour: white / black / other: ____"],
+            ),
+            (
+                "22-M7-autofit-and-link-colour",
+                "M7: the title layout placeholder gets <a:normAutofit fontScale=\"50000\"/>, the slide body none; the title run gets a next-slide action link with ahyp:hlinkClr val=\"tx\"",
+                vec![
+                    (LAYOUT, "<a:bodyPr/>", r#"<a:bodyPr><a:normAutofit fontScale="50000"/></a:bodyPr>"#),
+                    (SLIDE, r#"<a:rPr lang="en-US"><a:sym"#, r#"<a:rPr lang="en-US"><a:hlinkClick r:id="" action="ppaction://hlinkshowjump?jump=nextslide"><a:extLst><a:ext uri="{A12FA001-AC4F-418D-AE19-62706E023703}"><ahyp:hlinkClr xmlns:ahyp="http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor" val="tx"/></a:ext></a:extLst></a:hlinkClick><a:sym"#),
+                ],
+                "§1.6: autofit kind inherited (normAutofit) but its scale Unresolved(InheritedAutofitScale); the link's colour rule is RunColor (hlinkClr tx)",
+                vec!["Opens without a repair prompt.", "Does the title text shrink? ____", "Is the linked title in the run colour (not the hyperlink colour)? ____", "Does clicking it in Slide Show go to the next slide? ____"],
+            ),
+        ];
+        for (name, edit, edits, predicts, observe) in cases {
+            let mut p = sample_with(&edits)?;
+            let prediction = predict(&mut p)?;
+            items.push(Item {
+                file: save(&out, name, &p)?,
+                source: "poi/sample.pptx (SYNTHETIC edits, ADR-0008 §7 Manual)",
+                edit: format!("{edit}. Expected by the rule: {predicts}. ooxml-pptx resolves: {prediction}"),
+                observe,
+            });
+        }
+    }
+
+    // 23–25. Phase 1b tables (ADR-0013 §7 "Manual")
     {
         let mut p = Presentation::open(fixture("poi/table_test2.pptx"))?;
         {
@@ -446,7 +551,7 @@ fn main() -> R {
             t.insert_column(2)?; // inside the gridSpan=2 merges of column 2–3
         }
         items.push(Item {
-            file: save(&out, "17-table-insert-inside-merges", &p)?,
+            file: save(&out, "23-table-insert-inside-merges", &p)?,
             source: "poi/table_test2.pptx, slide 1",
             edit: "insert_row(4) inside the vertical merges; insert_column(2) inside the horizontal merges".into(),
             observe: vec![
@@ -471,7 +576,7 @@ fn main() -> R {
             t.set_fill(3, 1, &CellFill::Solid(Color::Rgb([0xFF, 0xF2, 0xCC])))?;
         }
         items.push(Item {
-            file: save(&out, "18-table-merge-borders-fill", &p)?,
+            file: save(&out, "24-table-merge-borders-fill", &p)?,
             source: "poi/table_test2.pptx, slide 1",
             edit: "merge(3,1)-(4,2) (texts one/two/three moved into the merged cell), thick red left border and accent-2 bottom border on the merged range, light yellow fill".into(),
             observe: vec![
@@ -492,7 +597,7 @@ fn main() -> R {
             t.set_style(Some("{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}"))?; // a built-in style id
         }
         items.push(Item {
-            file: save(&out, "19-table-delete-and-built-in-style", &p)?,
+            file: save(&out, "25-table-delete-and-built-in-style", &p)?,
             source: "poi/table_test2.pptx, slide 1",
             edit: "delete_row(6), delete_column(5), table style set to a built-in id ({073A0DAA-…}) that tableStyles.xml does not define".into(),
             observe: vec![
@@ -502,7 +607,7 @@ fn main() -> R {
         });
     }
 
-    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4) and tables (17–19, ADR-0013) — manual check in Microsoft 365 PowerPoint\n\n");
+    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4), inheritance (17–22, ADR-0008 §7 M1–M7), and tables (23–25, ADR-0013) — manual check in Microsoft 365 PowerPoint\n\n");
     md.push_str("Generated by `cargo run -p ooxml-pptx --example manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
     md.push_str("For each file: open it in current Microsoft 365 PowerPoint (desktop), tick what holds, and write notes for anything else.\n");
     md.push_str("Inputs are third-party fixtures from `reference/fixtures/pptx/` (see its README for licences); do not redistribute the outputs.\n\n");

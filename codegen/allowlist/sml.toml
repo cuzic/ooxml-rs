@@ -20,6 +20,43 @@ names = [
     # Phase1 (ADR-0003 §6): formula writes and calcPr/@fullCalcOnLoad.
     "x:CT_CellFormula/x:f",
     "x:CT_CalcPr/x:calcPr",
+    # Phase2 (ADR-0006): shared-string and style registries append entries.
+    "x:CT_Sst/x:sst",
+    "x:CT_Rst/x:si",
+    "x:CT_Stylesheet/x:styleSheet",
+    "x:CT_NumFmts/x:numFmts",
+    "x:CT_NumFmt/x:numFmt",
+    "x:CT_Fonts/x:fonts",
+    "x:CT_Font/x:font",
+    "x:CT_BooleanProperty/x:b",
+    "x:CT_BooleanProperty/x:i",
+    "x:CT_BooleanProperty/x:strike",
+    "x:CT_BooleanProperty/x:condense",
+    "x:CT_BooleanProperty/x:extend",
+    "x:CT_VerticalAlignFontProperty/x:vertAlign",
+    "x:CT_ByteProperty/x:charset",
+    "x:CT_UnderlineProperty/x:u",
+    "x:CT_FontSize/x:sz",
+    "x:CT_Color/x:color",
+    "x:CT_FontNameNonEmpty/x:name",
+    "x:CT_FontFamilyNum/x:family",
+    "x:CT_FontScheme/x:scheme",
+    "x:CT_Fills/x:fills",
+    "x:CT_Fill/x:fill",
+    "x:CT_PatternFill/x:patternFill",
+    "x:CT_Color/x:fgColor",
+    "x:CT_Color/x:bgColor",
+    "x:CT_Borders/x:borders",
+    "x:CT_Border/x:border",
+    "x:CT_BorderPr/x:left",
+    "x:CT_BorderPr/x:right",
+    "x:CT_BorderPr/x:top",
+    "x:CT_BorderPr/x:bottom",
+    "x:CT_BorderPr/x:diagonal",
+    "x:CT_CellXfs/x:cellXfs",
+    "x:CT_Xf/x:xf",
+    "x:CT_CellAlignment/x:alignment",
+    "x:CT_CellProtection/x:protection",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
@@ -30,8 +67,6 @@ names = [
     "x:CT_Sheets/x:sheets",
     "x:CT_Sheet/x:sheet",
     "x:CT_RElt/x:r",
-    "x:CT_Sst/x:sst",
-    "x:CT_Rst/x:si",
     "x:CT_MergeCells/x:mergeCells",
     "x:CT_MergeCell/x:mergeCell",
     # Table header guard (roadmap Q5): tableParts -> table part -> ref/headerRowCount.
@@ -41,4 +76,9 @@ names = [
     # Phase1 (ADR-0003 §6): defined names for dependency analysis.
     "x:CT_DefinedNames/x:definedNames",
     "x:CT_DefinedName/x:definedName",
+    # Phase2 (ADR-0006): the default style, named styles, the date system.
+    "x:CT_CellStyleXfs/x:cellStyleXfs",
+    "x:CT_CellStyles/x:cellStyles",
+    "x:CT_CellStyle/x:cellStyle",
+    "x:CT_WorkbookPr/x:workbookPr",
 ]

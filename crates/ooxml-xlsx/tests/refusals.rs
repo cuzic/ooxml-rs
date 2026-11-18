@@ -79,7 +79,7 @@ fn r7_cell_mut_without_setter() {
 fn r8_no_formula_write_api() {
     let mut wb = Workbook::from_bytes(read("minimal")).unwrap();
     let mut ws = wb.worksheet().unwrap();
-    ws.cell_mut(0, 0).unwrap().set_string("=1+1").unwrap();
+    ws.cell_mut(0, 0).unwrap().set_string_inline("=1+1").unwrap();
     assert_eq!(ws.cell(0, 0).unwrap().unwrap().formula(), None, "a leading = is text, not a formula");
 }
 
@@ -548,7 +548,7 @@ fn n1_refusals_change_nothing_same_path() {
     let p = dir.join("x.xlsx");
     std::fs::write(&p, &ext_first).unwrap();
     let mut wb = Workbook::open(&p).unwrap();
-    assert!(unresolved(&wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string("new")));
+    assert!(unresolved(&wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string_inline("new")));
     wb.save(&p).unwrap();
     assert_l1_except(&ext_first, &std::fs::read(&p).unwrap(), &[]);
     let mut wb = Workbook::open(&p).unwrap();
