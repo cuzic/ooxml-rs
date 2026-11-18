@@ -10,25 +10,33 @@
 //! - find returns every exact, leftmost non-overlapping match in paragraph order;
 //! - a refused call (`Err`) leaves the package byte-identical;
 //! - after `Ok`, every paragraph's text is its old text with exactly the
-//!   applied matches replaced (all needle occurrences minus the report's
-//!   skipped ones; `\r\n`/`\r` in a replacement read back as `\n`), and
+//!   matches accepted by the raw XML oracle replaced (`\r\n`/`\r` in a replacement read back as `\n`), and
 //!   `replaced` counts them; paragraphs without an applied match keep their
 //!   text, and each paragraph written gets a fresh generation;
 //! - per story part, the bytes change only inside the spans of the touched
 //!   paragraphs; parts without an applied match stay Layer-1 identical;
-//! - the ordered `w:rPr` elements of every written paragraph are preserved;
+//! - run start tags, properties and unaffected content children retain their bytes;
 //! - a `Match` whose paragraph changed since `find` is `StaleMatch`, and
 //!   changes nothing; one from an unchanged paragraph is still accepted;
 //! - the output reopens with the same paragraph texts.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Range,
+};
 
-use ooxml_core::{Package, RawNode};
-use ooxml_docx::{Document, Error, Match, OnRefused, ParaRef, ReplaceOptions, ReplaceReport};
+use ooxml_core::Package;
+use ooxml_docx::{
+    Document, Error, Match, OnRefused, ParaRef, Refusal, ReplaceOptions, ReplaceReport, RunFormatting, Scope,
+};
 
 use crate::fixtures::{DOCX, decode};
 use crate::input::Input;
 use crate::zipcmp::assert_l1_except;
+
+mod oracle;
+
+use oracle::ParagraphXml;
 
 /// Oracle counters: calls with applied matches, applied matches, skipped
 /// matches, refused calls, stale matches refused, written paragraphs.
@@ -58,17 +66,9 @@ fn texts(doc: &Document) -> BTreeMap<ParaRef, String> {
 }
 
 fn story_part(doc: &Document, p: ParaRef) -> String {
-    doc.story_at(p.story()).map(|s| s.id().part().to_owned()).unwrap_or_default()
-}
-
-fn rprs(n: &RawNode, out: &mut Vec<RawNode>) {
-    for c in n.elements() {
-        if c.name().ns() == W_NS && c.name().local() == "rPr" {
-            out.push(c.clone());
-        } else {
-            rprs(c, out);
-        }
-    }
+    doc.story_at(p.story())
+        .map(|s| s.id().part().to_owned())
+        .unwrap_or_default()
 }
 
 /// A needle cut from a random non-empty paragraph text (1–8 characters).
@@ -142,7 +142,24 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
         } else {
             OnRefused::Skip
         };
-        let opts = ReplaceOptions::default().on_refused(on_refused);
+        let anchor = *before_texts
+            .keys()
+            .nth(usize::from(ops.u16()) % before_texts.len())
+            .expect("needle has a paragraph");
+        let scope = match ops.u8() % 3 {
+            1 => Scope::Story(doc.story_at(anchor.story()).expect("story").id().clone()),
+            2 => Scope::Paragraph(anchor),
+            _ => Scope::All,
+        };
+        let formatting = match ops.u8() % 3 {
+            1 => RunFormatting::Identical,
+            2 => RunFormatting::FirstRun,
+            _ => RunFormatting::IgnoreInvisible,
+        };
+        let opts = ReplaceOptions::with_scope(scope)
+            .on_refused(on_refused)
+            .formatting(formatting);
+        let mut models = BTreeMap::new();
         let found = doc.find(&needle, &opts);
         let found = match found {
             Ok(f) => f,
@@ -156,13 +173,36 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
         };
         let expected_matches: Vec<_> = before_texts
             .iter()
-            .flat_map(|(p, text)| text.match_indices(&needle).map(move |(start, hit)| (*p, start..start + hit.len())))
+            .filter(|(p, _)| match &opts.scope {
+                Scope::All => true,
+                Scope::Story(_) => p.story() == anchor.story(),
+                Scope::Paragraph(para) => *p == para,
+                _ => unreachable!("oracle generates only known scopes"),
+            })
+            .flat_map(|(p, text)| {
+                text.match_indices(&needle)
+                    .map(move |(start, hit)| (*p, start..start + hit.len()))
+            })
             .collect();
         assert!(
             found.iter().map(|m| (m.para, m.range.clone())).eq(expected_matches),
             "find ranges for {needle:?}"
         );
-        assert!(found.iter().all(|m| m.text == needle && m.generation == before_gen[&m.para]));
+        assert!(
+            found
+                .iter()
+                .all(|m| m.text == needle && m.generation == before_gen[&m.para])
+        );
+        let mut predict = |m: &Match| {
+            models
+                .entry(m.para)
+                .or_insert_with(|| ParagraphXml::read(&before_doc.paragraph_at(m.para).expect("paragraph")))
+                .refusal(&m.range, &before_texts[&m.para], formatting)
+        };
+        for m in &found {
+            assert_status(m, predict(m));
+        }
+
         // what each call applies: (match, replacement)
         let rep = replacement(&mut ops);
         let (result, attempted): (Result<ReplaceReport, Error>, Vec<(Match, String)>) = match kind {
@@ -187,13 +227,19 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
             _ => {
                 // a match from an earlier find: StaleMatch exactly when its
                 // paragraph changed since
-                let Some(m) = old_matches.get(usize::from(ops.u8()) % old_matches.len().max(1)).cloned() else {
+                let Some(m) = old_matches
+                    .get(usize::from(ops.u8()) % old_matches.len().max(1))
+                    .cloned()
+                else {
                     continue;
                 };
                 let stale = doc.generation(m.para) != m.generation;
                 let r = doc.replace_at(&m, &rep, &opts);
                 if stale && doc.write_gate_for(ooxml_docx::Operation::Text).is_ok() {
-                    assert!(matches!(r, Err(Error::StaleMatch)), "a match from a changed paragraph gave {r:?}");
+                    assert!(
+                        matches!(r, Err(Error::StaleMatch)),
+                        "a match from a changed paragraph gave {r:?}"
+                    );
                     bump(4, 1);
                 }
                 if !stale {
@@ -204,40 +250,52 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
         };
         old_matches.extend(found.iter().cloned());
         let after = doc.to_bytes().expect("saves");
+        let stale = attempted.iter().any(|(m, _)| before_gen[&m.para] != m.generation);
+        let mut predicted = |reported: &[Refusal], mode| expected_refusals(&attempted, reported, mode, &mut predict);
         let report = match result {
             Err(e) => {
                 bump(3, 1);
-                assert!(after == before, "refused replace (kind {kind}, {e:?}) changed the package");
+                assert!(
+                    after == before,
+                    "refused replace (kind {kind}, {e:?}) changed the package"
+                );
                 assert_eq!(texts(&doc), before_texts, "refusal changed in-memory text");
                 assert!(
                     before_gen.iter().all(|(p, g)| doc.generation(*p) == *g),
                     "refusal changed generations"
                 );
+                if let Error::ReplaceRefused { refused } = &e {
+                    assert_eq!(on_refused, OnRefused::Refuse);
+                    assert!(!predicted(refused, on_refused).is_empty(), "spurious refusal");
+                } else {
+                    let gated = before_doc.write_gate_for(ooxml_docx::Operation::Text).is_err();
+                    let invalid_replacement = attempted
+                        .iter()
+                        .any(|(_, text)| ooxml_core::value::first_invalid_xml_char(text).is_some())
+                        || (kind <= 1 && ooxml_core::value::first_invalid_xml_char(&rep).is_some());
+                    assert!(
+                        gated
+                            || (invalid_replacement && matches!(e, Error::InvalidXmlChar { .. }))
+                            || (stale && matches!(e, Error::StaleMatch)),
+                        "unexpected replace error: {e:?}"
+                    );
+                }
                 continue;
             }
             Ok(r) => r,
         };
-        assert!(
-            on_refused == OnRefused::Skip || report.skipped.is_empty(),
-            "OnRefused::Refuse returned skipped matches"
-        );
-        for (i, skip) in report.skipped.iter().enumerate() {
-            assert!(
-                attempted.iter().any(|(m, _)| m.para == skip.para && m.range == skip.range),
-                "unattempted match reported skipped"
-            );
-            assert!(
-                !report.skipped[..i].iter().any(|s| s.para == skip.para && s.range == skip.range),
-                "duplicate skipped match"
-            );
-        }
-        // expected texts
-        let skipped: Vec<(ParaRef, std::ops::Range<usize>)> = report.skipped.iter().map(|s| (s.para, s.range.clone())).collect();
-        let applied: Vec<&(Match, String)> = attempted
+        assert!(!stale, "replace accepted a stale match");
+        let skipped = predicted(&report.skipped, on_refused);
+        assert!(on_refused == OnRefused::Skip || skipped.is_empty());
+        let applied: Vec<_> = attempted
             .iter()
-            .filter(|(m, _)| !skipped.iter().any(|(p, r)| *p == m.para && *r == m.range))
+            .filter(|(m, _)| !skipped.contains(&(m.para, m.range.start, m.range.end)))
             .collect();
-        assert_eq!(report.replaced, applied.len(), "replaced count (kind {kind}, needle {needle:?})");
+        assert_eq!(
+            report.replaced,
+            applied.len(),
+            "replaced count (kind {kind}, needle {needle:?})"
+        );
         bump(0, usize::from(!applied.is_empty()));
         bump(1, applied.len());
         bump(2, report.skipped.len());
@@ -261,7 +319,10 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
             expected.insert(*p, s);
         }
         let now = texts(&doc);
-        assert_eq!(now, expected, "paragraph texts after replacing {needle:?} (kind {kind})");
+        assert_eq!(
+            now, expected,
+            "paragraph texts after replacing {needle:?} (kind {kind})"
+        );
         let written: Vec<_> = by_para
             .iter()
             .filter(|(_, edits)| edits.iter().any(|(m, r)| *r != m.text))
@@ -281,15 +342,67 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
                 assert_eq!(now, *g, "generation of unwritten {p:?}");
             }
         }
-        for (m, r) in &applied {
-            if *r != m.text {
-                assert_uniform_formatting(&before_doc, m);
-            }
-        }
-        let reopened = Document::from_bytes(after.clone()).unwrap_or_else(|e| panic!("edited document does not reopen: {e:?}"));
-        check_parts(&before, &after, &before_doc, &reopened, &written);
+        let reopened =
+            Document::from_bytes(after.clone()).unwrap_or_else(|e| panic!("edited document does not reopen: {e:?}"));
+        check_parts(&before, &after, &before_doc, &reopened, &written, &by_para, &models);
         assert_eq!(texts(&reopened), now, "paragraph texts after reopen");
     }
+}
+
+fn assert_status(m: &Match, expected: Option<&str>) {
+    assert_eq!(
+        m.status.as_ref().err().map(|r| r.reason.kind()),
+        expected,
+        "find status for {:?} in {:?} at {:?}",
+        m.text,
+        m.para,
+        m.range
+    );
+}
+
+fn key(para: ParaRef, range: &Range<usize>) -> (ParaRef, usize, usize) {
+    (para, range.start, range.end)
+}
+
+fn expected_refusals(
+    attempted: &[(Match, String)],
+    reported: &[Refusal],
+    mode: OnRefused,
+    mut predict: impl FnMut(&Match) -> Option<&'static str>,
+) -> BTreeSet<(ParaRef, usize, usize)> {
+    let mut expected: BTreeMap<_, _> = attempted
+        .iter()
+        .filter_map(|(m, _)| predict(m).map(|reason| (key(m.para, &m.range), reason)))
+        .collect();
+    let mut actual = BTreeMap::new();
+    for refusal in reported {
+        let position = key(refusal.para, &refusal.range);
+        let reason = refusal.reason.kind();
+        assert!(actual.insert(position, reason).is_none(), "duplicate refusal");
+        if reason == "Core" {
+            // Insertion dry runs happen at replace time, beyond find's classification.
+            assert!(
+                mode == OnRefused::Skip || expected.is_empty(),
+                "dry run preceded classification"
+            );
+            assert!(
+                attempted
+                    .iter()
+                    .any(|(m, replacement)| key(m.para, &m.range) == position && m.text != *replacement),
+                "dry run refused an unedited match"
+            );
+        }
+    }
+    for (&position, &reason) in &actual {
+        if reason == "Core" {
+            assert!(
+                expected.insert(position, reason).is_none(),
+                "dry run hid an ADR refusal"
+            );
+        }
+    }
+    assert_eq!(actual, expected, "replace refusal reasons and ranges");
+    expected.into_keys().collect()
 }
 
 /// Return the bytes between edited paragraphs, including gaps between
@@ -318,7 +431,15 @@ fn outside_paragraphs(bytes: &[u8], doc: &Document, paras: &[ParaRef]) -> Vec<Ve
     gaps
 }
 
-fn check_parts(before: &[u8], after: &[u8], old: &Document, new: &Document, written: &[ParaRef]) {
+fn check_parts(
+    before: &[u8],
+    after: &[u8],
+    old: &Document,
+    new: &Document,
+    written: &[ParaRef],
+    edits: &BTreeMap<ParaRef, Vec<&(Match, String)>>,
+    models: &BTreeMap<ParaRef, ParagraphXml<'_>>,
+) {
     if written.is_empty() {
         assert!(before == after, "no-op changed the package");
         return;
@@ -326,13 +447,6 @@ fn check_parts(before: &[u8], after: &[u8], old: &Document, new: &Document, writ
     let mut by_part = BTreeMap::<String, Vec<ParaRef>>::new();
     for p in written {
         by_part.entry(story_part(old, *p)).or_default().push(*p);
-        let (mut old_rpr, mut new_rpr) = (Vec::new(), Vec::new());
-        rprs(old.paragraph_at(*p).expect("old paragraph").raw(), &mut old_rpr);
-        rprs(new.paragraph_at(*p).expect("new paragraph").raw(), &mut new_rpr);
-        assert!(
-            old_rpr.len() == new_rpr.len() && old_rpr.iter().zip(&new_rpr).all(|(a, b)| a.structurally_eq(b)),
-            "run formatting changed in {p:?}"
-        );
     }
     let touched: Vec<_> = by_part.keys().map(String::as_str).collect();
     assert_l1_except(before, after, &touched, "docx_replace");
@@ -341,6 +455,15 @@ fn check_parts(before: &[u8], after: &[u8], old: &Document, new: &Document, writ
     for (name, paras) in by_part {
         let a = pa.read_part(&name).expect("old part");
         let b = pb.read_part(&name).expect("new part");
+        for p in &paras {
+            let new_paragraph = new.paragraph_at(*p).expect("new paragraph");
+            let ranges: Vec<_> = edits[p]
+                .iter()
+                .filter(|(m, r)| m.text != *r)
+                .map(|(m, _)| &m.range)
+                .collect();
+            models[p].check_locality(new_paragraph.runs().map(|run| run.raw()), &a, &b, &ranges);
+        }
         assert!(
             outside_paragraphs(&a, old, &paras) == outside_paragraphs(&b, new, &paras),
             "{name}: bytes changed outside the written paragraphs"
@@ -371,8 +494,12 @@ pub fn targeted_docs() -> Vec<crate::fixtures::Fixture> {
             r#"<w:p><w:r><w:t>see </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t> end</w:t></w:r></w:p>"#,
         ),
         (
+            "whitespace",
+            r#"<w:p><w:r><w:t> {{name}} </w:t><w:tab/><w:t xml:space="preserve"> stay </w:t></w:r></w:p>"#,
+        ),
+        (
             "hyperlink-bookmark",
-            r#"<w:p><w:r><w:t>go </w:t></w:r><w:hyperlink w:anchor="x"><w:r><w:t>here now</w:t></w:r></w:hyperlink><w:r><w:t>ab</w:t></w:r><w:bookmarkStart w:id="0" w:name="m"/><w:r><w:t>cd</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p>"#,
+            r#"<w:p><w:r><w:t>go </w:t></w:r><w:hyperlink w:anchor="x"><w:r><w:t>here now</w:t></w:r></w:hyperlink><w:r><w:t>a</w:t></w:r><w:bookmarkStart w:id="1" w:name="point"/><w:bookmarkEnd w:id="1"/><w:r><w:t>b</w:t></w:r><w:bookmarkStart w:id="0" w:name="m"/><w:r><w:t>c</w:t></w:r><w:commentRangeStart w:id="2"/><w:r><w:t>d</w:t></w:r><w:commentRangeEnd w:id="2"/><w:bookmarkEnd w:id="0"/></w:p>"#,
         ),
     ];
     let ct = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/></Types>"#;
@@ -397,73 +524,6 @@ pub fn targeted_docs() -> Vec<crate::fixtures::Fixture> {
         .collect()
 }
 
-/// `w:rPr` without what `RunFormatting::IgnoreInvisible` may ignore (a
-/// superset of it: `w:noProof`, `w:lang`, `w:rFonts/@w:hint`), so the
-/// check never refuses what the library may accept.
-fn visible_rpr(run: &RawNode) -> String {
-    let Some(rpr) = run.elements().find(|e| e.name().ns() == W_NS && e.name().local() == "rPr") else {
-        return String::new();
-    };
-    let mut out = String::new();
-    for c in rpr.elements() {
-        let l = c.name().local();
-        if c.name().ns() == W_NS && (l == "noProof" || l == "lang") {
-            continue;
-        }
-        if l == "rFonts" && c.attrs().iter().all(|a| a.name().local() == "hint") && c.elements().next().is_none() {
-            continue; // nothing left once the hint is dropped
-        }
-        out.push_str(l);
-        for a in c.attrs() {
-            if l == "rFonts" && a.name().local() == "hint" {
-                continue;
-            }
-            out.push_str(&format!(" {}={:?}", a.name().local(), a.value()));
-        }
-        // nested children (rare): compare structurally by text
-        if c.elements().next().is_some() {
-            out.push_str(&format!(
-                "{:?}",
-                c.elements().map(|e| e.name().local().to_owned()).collect::<Vec<_>>()
-            ));
-        }
-        out.push(';');
-    }
-    out
-}
-
-fn assert_uniform_formatting(doc: &Document, m: &Match) {
-    let Some(p) = doc.paragraph_at(m.para) else {
-        return;
-    };
-    let runs: Vec<_> = p.runs().collect();
-    // offsets are reliable only when every run's text is in Paragraph::text
-    if runs
-        .iter()
-        .any(|r| matches!(r.context(), ooxml_docx::RunContext::Deleted | ooxml_docx::RunContext::MovedFrom))
-    {
-        return;
-    }
-    let total: usize = runs.iter().map(|r| r.text().len()).sum();
-    if total != p.text().len() {
-        return;
-    }
-    let mut at = 0;
-    let mut seen: Vec<String> = Vec::new();
-    for r in &runs {
-        let len = r.text().len();
-        if len > 0 && at < m.range.end && at + len > m.range.start {
-            seen.push(visible_rpr(r.raw()));
-        }
-        at += len;
-    }
-    assert!(
-        seen.windows(2).all(|w| w[0] == w[1]),
-        "an applied match {:?} spans runs with visibly different formatting: {seen:?}",
-        m.text
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -484,13 +544,85 @@ mod tests {
     }
 
     #[test]
+    fn synthetic_substrings() {
+        for fixture in targeted_docs() {
+            let (before, original) = open_fixture(&fixture);
+            let before_texts = texts(&original);
+            let main = *before_texts.keys().next().expect("main paragraph");
+            let text = &before_texts[&main];
+            let boundaries: Vec<_> = text
+                .char_indices()
+                .map(|(index, _)| index)
+                .chain([text.len()])
+                .collect();
+            let mut models = BTreeMap::new();
+            for &para in before_texts.keys() {
+                models.insert(
+                    para,
+                    ParagraphXml::read(&original.paragraph_at(para).expect("paragraph")),
+                );
+            }
+            let mut needles = BTreeSet::new();
+            for (index, &start) in boundaries.iter().enumerate() {
+                needles.extend(boundaries[index + 1..].iter().map(|&end| &text[start..end]));
+            }
+            for formatting in [
+                RunFormatting::IgnoreInvisible,
+                RunFormatting::Identical,
+                RunFormatting::FirstRun,
+            ] {
+                let opts = ReplaceOptions::default()
+                    .formatting(formatting)
+                    .on_refused(OnRefused::Skip);
+                for needle in &needles {
+                    let mut doc = Document::from_bytes(before.clone()).expect("fixture");
+                    let matches = doc.find(needle, &opts).expect("find");
+                    let predict = |m: &Match| models[&m.para].refusal(&m.range, &before_texts[&m.para], formatting);
+                    for m in &matches {
+                        assert_status(m, predict(m));
+                    }
+                    let applied: Vec<_> = matches.into_iter().map(|m| (m, "R".to_owned())).collect();
+                    let report = doc.replace(needle, "R", &opts).expect("skip");
+                    let refused = expected_refusals(&applied, &report.skipped, OnRefused::Skip, predict);
+                    assert_eq!(report.replaced, applied.len() - refused.len());
+                    if fixture.name == "replace/split.docx" && matches!(*needle, "{{name}}" | "x") {
+                        let mut edits = BTreeMap::<_, Vec<_>>::new();
+                        for edit in &applied {
+                            if !refused.contains(&key(edit.0.para, &edit.0.range)) {
+                                edits.entry(edit.0.para).or_default().push(edit);
+                            }
+                        }
+                        let written: Vec<_> = edits.keys().copied().collect();
+                        let after = doc.to_bytes().expect("save");
+                        let reopened = Document::from_bytes(after.clone()).expect("reopen");
+                        check_parts(&before, &after, &original, &reopened, &written, &edits, &models);
+                    }
+                }
+            }
+            let placeholder = match fixture.name.as_str() {
+                "replace/split.docx" => "{{name}}",
+                "replace/proofing.docx" => "{{ab}}",
+                _ => continue,
+            };
+            let mut doc = original;
+            let report = doc
+                .replace(placeholder, "value", &ReplaceOptions::default())
+                .expect("cross-run placeholder");
+            assert_eq!(report.replaced, 2);
+            assert!(report.skipped.is_empty());
+        }
+    }
+
+    #[test]
     fn replace_refusals_preserve_bytes() {
         let fixtures = targeted_docs();
         for (fixture, needle, reason) in [
             ("mixed", "boldplain", "MixedFormatting"),
             ("field", "1", "InsideField"),
+            ("whitespace", "{{name}}", "UnpreservedWhitespace"),
             ("hyperlink-bookmark", "go here", "MatchCrossesBoundary"),
             ("hyperlink-bookmark", "abcd", "MarkerInsideMatch"),
+            ("hyperlink-bookmark", "cd", "MarkerInsideMatch"),
         ] {
             let f = fixtures
                 .iter()
@@ -518,7 +650,10 @@ mod tests {
             assert_eq!(report.replaced, 0);
             assert_eq!(report.skipped.len(), 2);
             assert!(report.skipped.iter().all(|r| r.reason.kind() == reason));
-            assert!(doc.to_bytes().expect("save") == before, "skipping {reason} changed the package");
+            assert!(
+                doc.to_bytes().expect("save") == before,
+                "skipping {reason} changed the package"
+            );
         }
     }
 }
