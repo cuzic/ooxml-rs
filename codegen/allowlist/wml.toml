@@ -47,8 +47,38 @@ names = [
     "w:CT_HdrFtrRef/w:footerReference",
     "w:CT_PageNumber/w:pgNumType",
     "w:CT_LineNumber/w:lnNumType",
+    # Word Phase2 part 2 (ADR-0011 §7): tables.
+    "w:CT_Tbl/w:tbl",
+    "w:CT_Row/w:tr",
+    "w:CT_Tc/w:tc",
+    "w:CT_TblGrid/w:tblGrid",
+    "w:CT_TblGridCol/w:gridCol",
+    "w:CT_TcPr/w:tcPr",
+    "w:CT_VMerge/w:vMerge",
+    "w:CT_DecimalNumber/w:gridSpan",
+    "w:CT_TblWidth/w:tcW",
+    "w:CT_TrPr/w:trPr",
+    "w:CT_TblPrEx/w:tblPrEx",
+    "w:CT_DecimalNumber/w:gridBefore",
+    "w:CT_DecimalNumber/w:gridAfter",
+    # Word Phase2 part 2 (ADR-0011 §3, §11): inline images. The wp and pic
+    # entries are listed here rather than in a new wpd.toml group (Q7): the
+    # generator's groups are features, and only ooxml-docx uses them.
+    "w:CT_Drawing/w:drawing",
+    "wp:CT_Inline/wp:inline",
+    "a:CT_PositiveSize2D/wp:extent",
+    "wp:CT_EffectExtent/wp:effectExtent",
+    "a:CT_NonVisualDrawingProps/wp:docPr",
+    "a:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr",
+    "pic:CT_Picture/pic:pic",
+    "pic:CT_PictureNonVisual/pic:nvPicPr",
+    "a:CT_NonVisualDrawingProps/pic:cNvPr",
+    "a:CT_NonVisualPictureProperties/pic:cNvPicPr",
+    "a:CT_BlipFillProperties/pic:blipFill",
+    "a:CT_ShapeProperties/pic:spPr",
 ]
 
+# (ADR-0011 §7 reads w:hMerge raw.)
 # Word Phase0 read-only: navigation to runs (document, tables, hyperlinks),
 # run content classification, field markers, revisions, and the settings
 # flags behind the document-level write gates.
@@ -57,9 +87,6 @@ names = [
     "w:CT_Document/w:document",
     "w:CT_PPr/w:pPr",
     "w:CT_RPr/w:rPr",
-    "w:CT_Tbl/w:tbl",
-    "w:CT_Row/w:tr",
-    "w:CT_Tc/w:tc",
     "w:CT_Empty/w:cr",
     "w:CT_Empty/w:noBreakHyphen",
     "w:CT_Empty/w:softHyphen",
@@ -101,4 +128,11 @@ names = [
 names = [
     "w:CT_PPr/w:pPr",
     "w:CT_SectPr/w:sectPr",
+    # ADR-0011 §7: row and cell properties of template rows; the revision
+    # children (ins/del/trPrChange, tcPrChange/cellIns/cellDel/cellMerge,
+    # tblPrExChange) are refused before copying, tblHeader, gridSpan,
+    # vMerge, hMerge and tcW are skipped where §7 says so.
+    "w:CT_TrPr/w:trPr",
+    "w:CT_TcPr/w:tcPr",
+    "w:CT_TblPrEx/w:tblPrEx",
 ]

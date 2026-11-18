@@ -49,6 +49,9 @@
 //! part 1: new paragraphs ([`Document::insert_paragraph`]), section breaks
 //! ([`Document::insert_section_break`], and `append_paragraph` moving the
 //! last section's `w:sectPr`), hyperlinks ([`Document::insert_hyperlink`]).
+//! Part 2: tables ([`Document::insert_rows`], [`Document::delete_rows`],
+//! [`Document::insert_column`], [`Document::delete_column`],
+//! [`Document::merge_cells`]) and inline images ([`Document::insert_image`]).
 //!
 //! ```no_run
 //! use ooxml_docx::{Document, ReplaceOptions};
@@ -67,11 +70,13 @@ mod document;
 mod error;
 pub mod fields;
 mod format;
+mod images;
 mod names;
 mod replace;
 mod story;
 mod structure;
 mod styles;
+mod tables;
 mod text;
 
 pub use document::{Document, Paragraph, Run};
@@ -82,7 +87,9 @@ pub use format::{
     Underline, VertAlign,
 };
 pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
+pub use images::{DrawingId, ImageSize};
 pub use styles::{StyleInfo, StyleKind};
+pub use tables::{RowTemplate, TableRef};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
     Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,

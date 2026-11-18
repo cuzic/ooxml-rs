@@ -120,6 +120,26 @@ doc.save("report-formatted.docx")?;
 - **Structure column of W2:** structural edits accept only `TC` and `XE` beyond the safe
   fields; anything else needs the `updateFields` opt-in.
 
+## Word Phase2, part 2 (ADR-0011 §3, §7)
+
+- **Tables** (`TableRef`, by document order in a story; nested tables included):
+  - `insert_rows` copies a template row's properties: no `tblHeader`, no ids, no rsids, and a
+    vertical merge continues only into a merge;
+  - `delete_rows` refuses note references, revisions, fields and broken anchors, and repairs
+    vertical merges;
+  - `insert_column` / `delete_column` work on grid columns and widen or narrow spans,
+    `gridBefore` and `gridAfter`;
+  - `merge_cells` merges empty cells (`gridSpan` + `vMerge`).
+
+  Every operation needs a consistent grid (`InconsistentGrid`).
+- **Images.** `insert_image(position, bytes, ImageSize, alt)` inserts an inline PNG, JPEG or
+  GIF picture.
+  - The format and size come from the bytes.
+  - An identical media part and an existing relationship are reused. Otherwise the part and
+    relationship are added through core's registry; no new `Default` content type is added.
+  - The drawing id is fresh across every story.
+  - `wp`, `r`, `a` and `pic` are declared only where they are not in scope.
+
 ## Usage example
 
 `examples/fill_runs.rs` is a runnable walk-through on committed fixtures. It:
@@ -167,8 +187,8 @@ recommended") and `is_marked_final()` are reported, not enforced.
 
 ## Not yet
 
-Paragraph and cell text (ADR-0007 §3, part 3), tables, images, bookmarks, lists and styles
-(ADR-0011, later parts), and `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
+Paragraph and cell text (ADR-0007 §3, part 3), bookmarks, lists and new styles (ADR-0011, later
+parts), and `Document::new()` (from scratch) — see `docs/roadmap/docx.md`.
 
 Nesting depth is bounded by `ooxml-core`'s parser limit (256 levels by default; real documents reach about
 30), so a hostile file of nested tables is refused at open with `Core(TooDeep)` instead of costing

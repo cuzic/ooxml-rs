@@ -366,6 +366,42 @@ impl ooxml_core::EnumType for SchemeColorValues {
         self as usize
     }
 }
+/// `a:ST_BlipCompression` — Blip Compression Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BlipCompressionValues {
+    /// `email`
+    Email,
+    /// `screen`
+    Screen,
+    /// `print`
+    Print,
+    /// `hqprint`
+    HighQualityPrint,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for BlipCompressionValues {
+    const VALUES: &'static [&'static str] = &[
+        "email",
+        "screen",
+        "print",
+        "hqprint",
+        "none",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Email),
+            1 => Some(Self::Screen),
+            2 => Some(Self::Print),
+            3 => Some(Self::HighQualityPrint),
+            4 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_ShapeType` — Preset Shape Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShapeTypeValues {
@@ -2669,6 +2705,131 @@ impl<'a> ThemeElementsView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_Blip/a:blip` — Defines the Blip Class.
+#[derive(Debug)]
+pub enum Blip {}
+impl Blip {
+    /// `r:embed`
+    pub const ATTR_R_EMBED: ooxml_core::QName = ooxml_core::QName::new(NS_R, "embed");
+    /// `r:link`
+    pub const ATTR_R_LINK: ooxml_core::QName = ooxml_core::QName::new(NS_R, "link");
+    /// `cstate`
+    pub const ATTR_CSTATE: ooxml_core::QName = ooxml_core::QName::new("", "cstate");
+}
+impl ooxml_core::ElementSpec for Blip {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "blip");
+    const SDK_NAME: &'static str = "a:CT_Blip/a:blip";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Blip::ATTR_R_EMBED,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: Blip::ATTR_R_LINK,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: Blip::ATTR_CSTATE,
+            ty: ooxml_core::SimpleType::Enum(
+                <BlipCompressionValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "alphaBiLevel"),
+                    ooxml_core::QName::new(NS_A, "alphaCeiling"),
+                    ooxml_core::QName::new(NS_A, "alphaFloor"),
+                    ooxml_core::QName::new(NS_A, "alphaInv"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "alphaModFix"),
+                    ooxml_core::QName::new(NS_A, "alphaRepl"),
+                    ooxml_core::QName::new(NS_A, "biLevel"),
+                    ooxml_core::QName::new(NS_A, "blur"),
+                    ooxml_core::QName::new(NS_A, "clrChange"),
+                    ooxml_core::QName::new(NS_A, "clrRepl"),
+                    ooxml_core::QName::new(NS_A, "duotone"),
+                    ooxml_core::QName::new(NS_A, "fillOverlay"),
+                    ooxml_core::QName::new(NS_A, "grayscl"),
+                    ooxml_core::QName::new(NS_A, "hsl"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "tint"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`Blip`].
+#[derive(Clone, Debug)]
+pub struct BlipView<'a>(pub ooxml_core::Lens<'a, Blip>);
+impl<'a> BlipView<'a> {
+    /// `r:embed` — Embedded Picture Reference (default ``)
+    pub fn embed(&self) -> &'a str {
+        self.0.attr(Blip::ATTR_R_EMBED).unwrap_or("")
+    }
+    /// `r:link` — Linked Picture Reference (default ``)
+    pub fn link(&self) -> &'a str {
+        self.0.attr(Blip::ATTR_R_LINK).unwrap_or("")
+    }
+    /// `cstate` — Compression state for blips. (default `none`)
+    pub fn compression_state(&self) -> ooxml_core::EnumValue<'a, BlipCompressionValues> {
+        self.0.attr_enum_or(Blip::ATTR_CSTATE, "none")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Blip`]. Reads go through [`BlipViewMut::as_view`].
+#[derive(Debug)]
+pub struct BlipViewMut<'a>(pub ooxml_core::LensMut<'a, Blip>);
+impl<'a> BlipViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BlipView<'_> {
+        BlipView(self.0.as_lens())
+    }
+    /// Sets `r:embed` — Embedded Picture Reference (default ``)
+    pub fn set_embed(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Blip::ATTR_R_EMBED, v)
+    }
+    /// Removes `r:embed`.
+    pub fn remove_embed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blip::ATTR_R_EMBED)
+    }
+    /// Sets `r:link` — Linked Picture Reference (default ``)
+    pub fn set_link(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Blip::ATTR_R_LINK, v)
+    }
+    /// Removes `r:link`.
+    pub fn remove_link(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blip::ATTR_R_LINK)
+    }
+    /// Sets `cstate` — Compression state for blips. (default `none`)
+    pub fn set_compression_state(
+        &mut self,
+        v: BlipCompressionValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Blip::ATTR_CSTATE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cstate`.
+    pub fn remove_compression_state(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blip::ATTR_CSTATE)
+    }
+}
 /// `a:CT_Color/a:buClr` — Color Specified.
 #[derive(Debug)]
 pub enum BulletColor {}
@@ -3856,10 +4017,15 @@ impl ooxml_core::ElementSpec for CustomGeometry {
         ],
     );
 }
+impl ooxml_core::ChildOf<CustomGeometry> for AdjustValueList {}
 /// Read-only view of [`CustomGeometry`].
 #[derive(Clone, Debug)]
 pub struct CustomGeometryView<'a>(pub ooxml_core::Lens<'a, CustomGeometry>);
 impl<'a> CustomGeometryView<'a> {
+    /// First `a:avLst` child.
+    pub fn adjust_value_list(&self) -> Option<AdjustValueListView<'a>> {
+        self.0.child::<AdjustValueList>().map(AdjustValueListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -4321,6 +4487,42 @@ impl<'a> FontSchemeView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_GeomGuideList/a:avLst` — List of Shape Adjust Values.
+#[derive(Debug)]
+pub enum AdjustValueList {}
+impl ooxml_core::ElementSpec for AdjustValueList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "avLst");
+    const SDK_NAME: &'static str = "a:CT_GeomGuideList/a:avLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "gd")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`AdjustValueList`].
+#[derive(Clone, Debug)]
+pub struct AdjustValueListView<'a>(pub ooxml_core::Lens<'a, AdjustValueList>);
+impl<'a> AdjustValueListView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AdjustValueList`]. Reads go through [`AdjustValueListViewMut::as_view`].
+#[derive(Debug)]
+pub struct AdjustValueListViewMut<'a>(pub ooxml_core::LensMut<'a, AdjustValueList>);
+impl<'a> AdjustValueListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AdjustValueListView<'_> {
+        AdjustValueListView(self.0.as_lens())
+    }
+}
 /// `a:CT_GraphicalObject/a:graphic` — Graphic Object.
 #[derive(Debug)]
 pub enum Graphic {}
@@ -4353,6 +4555,29 @@ impl<'a> GraphicView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Graphic`]. Reads go through [`GraphicViewMut::as_view`].
+#[derive(Debug)]
+pub struct GraphicViewMut<'a>(pub ooxml_core::LensMut<'a, Graphic>);
+impl<'a> GraphicViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GraphicView<'_> {
+        GraphicView(self.0.as_lens())
+    }
+    /// First `a:graphicData` child, mutably.
+    pub fn graphic_data_mut(&mut self) -> Option<GraphicDataViewMut<'_>> {
+        self.0.child_mut::<GraphicData>().map(GraphicDataViewMut)
+    }
+    /// Existing `a:graphicData` child, or a new one in schema position.
+    pub fn get_or_insert_graphic_data(
+        &mut self,
+    ) -> Result<GraphicDataViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GraphicData>().map(GraphicDataViewMut)
+    }
+    /// Removes the first `a:graphicData` child.
+    pub fn remove_graphic_data(&mut self) -> bool {
+        self.0.remove::<GraphicData>()
+    }
+}
 /// `a:CT_GraphicalObjectData/a:graphicData` — Graphic Object Data.
 #[derive(Debug)]
 pub enum GraphicData {}
@@ -4383,6 +4608,7 @@ impl ooxml_core::ElementSpec for GraphicData {
 }
 impl ooxml_core::ChildOf<GraphicData> for ColIdIdentifier {}
 impl ooxml_core::ChildOf<GraphicData> for RowIdIdentifier {}
+impl ooxml_core::ChildOf<GraphicData> for Blip {}
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Theme {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
@@ -4417,6 +4643,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::SlideMaster {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::ViewProperties {}
 #[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Picture {}
+#[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Comments {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Document {}
@@ -4432,6 +4660,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::wml::Header {}
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Styles {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Inline {}
 /// Read-only view of [`GraphicData`].
 #[derive(Clone, Debug)]
 pub struct GraphicDataView<'a>(pub ooxml_core::Lens<'a, GraphicData>);
@@ -4451,6 +4681,10 @@ impl<'a> GraphicDataView<'a> {
         &self,
     ) -> impl Iterator<Item = RowIdIdentifierView<'a>> {
         self.0.children::<RowIdIdentifier>().map(RowIdIdentifierView)
+    }
+    /// `a:blip` children in document order.
+    pub fn blip_iter(&self) -> impl Iterator<Item = BlipView<'a>> {
+        self.0.children::<Blip>().map(BlipView)
     }
     /// `a:graphic` children in document order.
     pub fn graphic_iter(&self) -> impl Iterator<Item = GraphicView<'a>> {
@@ -4577,6 +4811,11 @@ impl<'a> GraphicDataView<'a> {
             .map(super::pml::ViewPropertiesView)
     }
     #[cfg(feature = "wml")]
+    /// `pic:pic` children in document order.
+    pub fn picture_iter(&self) -> impl Iterator<Item = super::wml::PictureView<'a>> {
+        self.0.children::<super::wml::Picture>().map(super::wml::PictureView)
+    }
+    #[cfg(feature = "wml")]
     /// `w:comments` children in document order.
     pub fn comments_iter(&self) -> impl Iterator<Item = super::wml::CommentsView<'a>> {
         self.0.children::<super::wml::Comments>().map(super::wml::CommentsView)
@@ -4616,9 +4855,448 @@ impl<'a> GraphicDataView<'a> {
     pub fn styles_iter(&self) -> impl Iterator<Item = super::wml::StylesView<'a>> {
         self.0.children::<super::wml::Styles>().map(super::wml::StylesView)
     }
+    #[cfg(feature = "wml")]
+    /// `wp:inline` children in document order.
+    pub fn inline_iter(&self) -> impl Iterator<Item = super::wml::InlineView<'a>> {
+        self.0.children::<super::wml::Inline>().map(super::wml::InlineView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`GraphicData`]. Reads go through [`GraphicDataViewMut::as_view`].
+#[derive(Debug)]
+pub struct GraphicDataViewMut<'a>(pub ooxml_core::LensMut<'a, GraphicData>);
+impl<'a> GraphicDataViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GraphicDataView<'_> {
+        GraphicDataView(self.0.as_lens())
+    }
+    /// Sets `uri` — Uniform Resource Identifier
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(GraphicData::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicData::ATTR_URI)
+    }
+    /// First `a16:colId` child matching `pred`, mutably.
+    pub fn col_id_identifier_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ColIdIdentifierViewMut<'_>> {
+        self.0.child_mut_by::<ColIdIdentifier>(pred).map(ColIdIdentifierViewMut)
+    }
+    /// Removes the first `a16:colId` child.
+    pub fn remove_col_id_identifier(&mut self) -> bool {
+        self.0.remove::<ColIdIdentifier>()
+    }
+    /// First `a16:rowId` child matching `pred`, mutably.
+    pub fn row_id_identifier_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RowIdIdentifierViewMut<'_>> {
+        self.0.child_mut_by::<RowIdIdentifier>(pred).map(RowIdIdentifierViewMut)
+    }
+    /// Removes the first `a16:rowId` child.
+    pub fn remove_row_id_identifier(&mut self) -> bool {
+        self.0.remove::<RowIdIdentifier>()
+    }
+    /// First `a:blip` child matching `pred`, mutably.
+    pub fn blip_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlipViewMut<'_>> {
+        self.0.child_mut_by::<Blip>(pred).map(BlipViewMut)
+    }
+    /// Removes the first `a:blip` child.
+    pub fn remove_blip(&mut self) -> bool {
+        self.0.remove::<Blip>()
+    }
+    /// First `a:graphic` child matching `pred`, mutably.
+    pub fn graphic_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GraphicViewMut<'_>> {
+        self.0.child_mut_by::<Graphic>(pred).map(GraphicViewMut)
+    }
+    /// Removes the first `a:graphic` child.
+    pub fn remove_graphic(&mut self) -> bool {
+        self.0.remove::<Graphic>()
+    }
+    /// First `a:tbl` child matching `pred`, mutably.
+    pub fn table_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableViewMut<'_>> {
+        self.0.child_mut_by::<Table>(pred).map(TableViewMut)
+    }
+    /// Removes the first `a:tbl` child.
+    pub fn remove_table(&mut self) -> bool {
+        self.0.remove::<Table>()
+    }
+    /// First `dgm:dataModel` child matching `pred`, mutably.
+    pub fn data_model_root_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DgmDataModelRootViewMut<'_>> {
+        self.0.child_mut_by::<DgmDataModelRoot>(pred).map(DgmDataModelRootViewMut)
+    }
+    /// Removes the first `dgm:dataModel` child.
+    pub fn remove_data_model_root(&mut self) -> bool {
+        self.0.remove::<DgmDataModelRoot>()
+    }
+    /// First `dsp:drawing` child matching `pred`, mutably.
+    pub fn drawing_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DspDrawingViewMut<'_>> {
+        self.0.child_mut_by::<DspDrawing>(pred).map(DspDrawingViewMut)
+    }
+    /// Removes the first `dsp:drawing` child.
+    pub fn remove_drawing(&mut self) -> bool {
+        self.0.remove::<DspDrawing>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p14:creationId` child matching `pred`, mutably.
+    pub fn creation_id_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::CreationIdViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::CreationId>(pred)
+            .map(super::pml::CreationIdViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p14:creationId` child.
+    pub fn remove_creation_id(&mut self) -> bool {
+        self.0.remove::<super::pml::CreationId>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p14:sectionLst` child matching `pred`, mutably.
+    pub fn section_list_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::SectionListViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::SectionList>(pred)
+            .map(super::pml::SectionListViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p14:sectionLst` child.
+    pub fn remove_section_list(&mut self) -> bool {
+        self.0.remove::<super::pml::SectionList>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p:notes` child matching `pred`, mutably.
+    pub fn notes_slide_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::NotesSlideViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::NotesSlide>(pred)
+            .map(super::pml::NotesSlideViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p:notes` child.
+    pub fn remove_notes_slide(&mut self) -> bool {
+        self.0.remove::<super::pml::NotesSlide>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p:presentation` child matching `pred`, mutably.
+    pub fn presentation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::PresentationViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::Presentation>(pred)
+            .map(super::pml::PresentationViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p:presentation` child.
+    pub fn remove_presentation(&mut self) -> bool {
+        self.0.remove::<super::pml::Presentation>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p:sld` child matching `pred`, mutably.
+    pub fn slide_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::SlideViewMut<'_>> {
+        self.0.child_mut_by::<super::pml::Slide>(pred).map(super::pml::SlideViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p:sld` child.
+    pub fn remove_slide(&mut self) -> bool {
+        self.0.remove::<super::pml::Slide>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p:viewPr` child matching `pred`, mutably.
+    pub fn view_properties_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::ViewPropertiesViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::ViewProperties>(pred)
+            .map(super::pml::ViewPropertiesViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p:viewPr` child.
+    pub fn remove_view_properties(&mut self) -> bool {
+        self.0.remove::<super::pml::ViewProperties>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `pic:pic` child matching `pred`, mutably.
+    pub fn picture_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::PictureViewMut<'_>> {
+        self.0.child_mut_by::<super::wml::Picture>(pred).map(super::wml::PictureViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `pic:pic` child.
+    pub fn remove_picture(&mut self) -> bool {
+        self.0.remove::<super::wml::Picture>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `wp:inline` child matching `pred`, mutably.
+    pub fn inline_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::InlineViewMut<'_>> {
+        self.0.child_mut_by::<super::wml::Inline>(pred).map(super::wml::InlineViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `wp:inline` child.
+    pub fn remove_inline(&mut self) -> bool {
+        self.0.remove::<super::wml::Inline>()
+    }
+}
+/// `a:CT_GraphicalObjectFrameLocking/a:graphicFrameLocks` — Graphic Frame Locks.
+#[derive(Debug)]
+pub enum GraphicFrameLocks {}
+impl GraphicFrameLocks {
+    /// `noGrp`
+    pub const ATTR_NO_GRP: ooxml_core::QName = ooxml_core::QName::new("", "noGrp");
+    /// `noDrilldown`
+    pub const ATTR_NO_DRILLDOWN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "noDrilldown",
+    );
+    /// `noSelect`
+    pub const ATTR_NO_SELECT: ooxml_core::QName = ooxml_core::QName::new("", "noSelect");
+    /// `noChangeAspect`
+    pub const ATTR_NO_CHANGE_ASPECT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "noChangeAspect",
+    );
+    /// `noMove`
+    pub const ATTR_NO_MOVE: ooxml_core::QName = ooxml_core::QName::new("", "noMove");
+    /// `noResize`
+    pub const ATTR_NO_RESIZE: ooxml_core::QName = ooxml_core::QName::new("", "noResize");
+}
+impl ooxml_core::ElementSpec for GraphicFrameLocks {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "graphicFrameLocks");
+    const SDK_NAME: &'static str = "a:CT_GraphicalObjectFrameLocking/a:graphicFrameLocks";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_GRP,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_DRILLDOWN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_SELECT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_MOVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: GraphicFrameLocks::ATTR_NO_RESIZE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<GraphicFrameLocks> for ExtensionList {}
+/// Read-only view of [`GraphicFrameLocks`].
+#[derive(Clone, Debug)]
+pub struct GraphicFrameLocksView<'a>(pub ooxml_core::Lens<'a, GraphicFrameLocks>);
+impl<'a> GraphicFrameLocksView<'a> {
+    /// `noGrp` — Disallow Shape Grouping (default `false`)
+    pub fn no_grouping(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_GRP,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noDrilldown` — Disallow Selection of Child Shapes (default `false`)
+    pub fn no_drilldown(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_DRILLDOWN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noSelect` — Disallow Shape Selection (default `false`)
+    pub fn no_selection(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_SELECT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noChangeAspect` — Disallow Aspect Ratio Change (default `false`)
+    pub fn no_change_aspect(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noMove` — Disallow Shape Movement (default `false`)
+    pub fn no_move(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_MOVE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `noResize` — Disallow Shape Resize (default `false`)
+    pub fn no_resize(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                GraphicFrameLocks::ATTR_NO_RESIZE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GraphicFrameLocks`]. Reads go through [`GraphicFrameLocksViewMut::as_view`].
+#[derive(Debug)]
+pub struct GraphicFrameLocksViewMut<'a>(pub ooxml_core::LensMut<'a, GraphicFrameLocks>);
+impl<'a> GraphicFrameLocksViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GraphicFrameLocksView<'_> {
+        GraphicFrameLocksView(self.0.as_lens())
+    }
+    /// Sets `noGrp` — Disallow Shape Grouping (default `false`)
+    pub fn set_no_grouping(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(GraphicFrameLocks::ATTR_NO_GRP, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `noGrp`.
+    pub fn remove_no_grouping(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_GRP)
+    }
+    /// Sets `noDrilldown` — Disallow Selection of Child Shapes (default `false`)
+    pub fn set_no_drilldown(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_DRILLDOWN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noDrilldown`.
+    pub fn remove_no_drilldown(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_DRILLDOWN)
+    }
+    /// Sets `noSelect` — Disallow Shape Selection (default `false`)
+    pub fn set_no_selection(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_SELECT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noSelect`.
+    pub fn remove_no_selection(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_SELECT)
+    }
+    /// Sets `noChangeAspect` — Disallow Aspect Ratio Change (default `false`)
+    pub fn set_no_change_aspect(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noChangeAspect`.
+    pub fn remove_no_change_aspect(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_CHANGE_ASPECT)
+    }
+    /// Sets `noMove` — Disallow Shape Movement (default `false`)
+    pub fn set_no_move(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(GraphicFrameLocks::ATTR_NO_MOVE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `noMove`.
+    pub fn remove_no_move(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_MOVE)
+    }
+    /// Sets `noResize` — Disallow Shape Resize (default `false`)
+    pub fn set_no_resize(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GraphicFrameLocks::ATTR_NO_RESIZE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noResize`.
+    pub fn remove_no_resize(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GraphicFrameLocks::ATTR_NO_RESIZE)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
     }
 }
 /// `a:CT_GroupTransform2D/a:xfrm` — 2D Transform for Grouped Objects.
@@ -6784,6 +7462,7 @@ impl ooxml_core::ElementSpec for PresetGeometry {
         ],
     );
 }
+impl ooxml_core::ChildOf<PresetGeometry> for AdjustValueList {}
 /// Read-only view of [`PresetGeometry`].
 #[derive(Clone, Debug)]
 pub struct PresetGeometryView<'a>(pub ooxml_core::Lens<'a, PresetGeometry>);
@@ -6792,9 +7471,44 @@ impl<'a> PresetGeometryView<'a> {
     pub fn preset(&self) -> Option<ooxml_core::EnumValue<'a, ShapeTypeValues>> {
         self.0.attr_enum(PresetGeometry::ATTR_PRST)
     }
+    /// First `a:avLst` child.
+    pub fn adjust_value_list(&self) -> Option<AdjustValueListView<'a>> {
+        self.0.child::<AdjustValueList>().map(AdjustValueListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`PresetGeometry`]. Reads go through [`PresetGeometryViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresetGeometryViewMut<'a>(pub ooxml_core::LensMut<'a, PresetGeometry>);
+impl<'a> PresetGeometryViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresetGeometryView<'_> {
+        PresetGeometryView(self.0.as_lens())
+    }
+    /// Sets `prst` — Preset Shape
+    pub fn set_preset(&mut self, v: ShapeTypeValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresetGeometry::ATTR_PRST, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `prst`.
+    pub fn remove_preset(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresetGeometry::ATTR_PRST)
+    }
+    /// First `a:avLst` child, mutably.
+    pub fn adjust_value_list_mut(&mut self) -> Option<AdjustValueListViewMut<'_>> {
+        self.0.child_mut::<AdjustValueList>().map(AdjustValueListViewMut)
+    }
+    /// Existing `a:avLst` child, or a new one in schema position.
+    pub fn get_or_insert_adjust_value_list(
+        &mut self,
+    ) -> Result<AdjustValueListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<AdjustValueList>().map(AdjustValueListViewMut)
+    }
+    /// Removes the first `a:avLst` child.
+    pub fn remove_adjust_value_list(&mut self) -> bool {
+        self.0.remove::<AdjustValueList>()
     }
 }
 /// `a:CT_RegularTextRun/a:r` — Text Run.
@@ -6859,6 +7573,112 @@ impl<'a> RunViewMut<'a> {
     /// Removes the first `a:t` child.
     pub fn remove_text(&mut self) -> bool {
         self.0.remove::<Text>()
+    }
+}
+/// `a:CT_RelativeRect/a:fillRect` — Fill Rectangle.
+#[derive(Debug)]
+pub enum FillRectangle {}
+impl FillRectangle {
+    /// `l`
+    pub const ATTR_L: ooxml_core::QName = ooxml_core::QName::new("", "l");
+    /// `t`
+    pub const ATTR_T: ooxml_core::QName = ooxml_core::QName::new("", "t");
+    /// `r`
+    pub const ATTR_R: ooxml_core::QName = ooxml_core::QName::new("", "r");
+    /// `b`
+    pub const ATTR_B: ooxml_core::QName = ooxml_core::QName::new("", "b");
+}
+impl ooxml_core::ElementSpec for FillRectangle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "fillRect");
+    const SDK_NAME: &'static str = "a:CT_RelativeRect/a:fillRect";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_T,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FillRectangle::ATTR_B,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FillRectangle`].
+#[derive(Clone, Debug)]
+pub struct FillRectangleView<'a>(pub ooxml_core::Lens<'a, FillRectangle>);
+impl<'a> FillRectangleView<'a> {
+    /// `l` — Left Offset
+    pub fn left(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_L, ooxml_core::value::parse_i32)
+    }
+    /// `t` — Top Offset
+    pub fn top(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_T, ooxml_core::value::parse_i32)
+    }
+    /// `r` — Right Offset
+    pub fn right(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_R, ooxml_core::value::parse_i32)
+    }
+    /// `b` — Bottom Offset
+    pub fn bottom(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FillRectangle::ATTR_B, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FillRectangle`]. Reads go through [`FillRectangleViewMut::as_view`].
+#[derive(Debug)]
+pub struct FillRectangleViewMut<'a>(pub ooxml_core::LensMut<'a, FillRectangle>);
+impl<'a> FillRectangleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FillRectangleView<'_> {
+        FillRectangleView(self.0.as_lens())
+    }
+    /// Sets `l` — Left Offset
+    pub fn set_left(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_L, s))
+    }
+    /// Removes `l`.
+    pub fn remove_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_L)
+    }
+    /// Sets `t` — Top Offset
+    pub fn set_top(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_T, s))
+    }
+    /// Removes `t`.
+    pub fn remove_top(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_T)
+    }
+    /// Sets `r` — Right Offset
+    pub fn set_right(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_R, s))
+    }
+    /// Removes `r`.
+    pub fn remove_right(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_R)
+    }
+    /// Sets `b` — Bottom Offset
+    pub fn set_bottom(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FillRectangle::ATTR_B, s))
+    }
+    /// Removes `b`.
+    pub fn remove_bottom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FillRectangle::ATTR_B)
     }
 }
 /// `a:CT_SRgbColor/a:srgbClr` — RGB Color Model - Hex Variant.
@@ -7291,6 +8111,61 @@ impl<'a> SolidFillViewMut<'a> {
     /// Removes the first `a:schemeClr` child.
     pub fn remove_scheme_color(&mut self) -> bool {
         self.0.remove::<SchemeColor>()
+    }
+}
+/// `a:CT_StretchInfoProperties/a:stretch` — Stretch.
+#[derive(Debug)]
+pub enum Stretch {}
+impl ooxml_core::ElementSpec for Stretch {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "stretch");
+    const SDK_NAME: &'static str = "a:CT_StretchInfoProperties/a:stretch";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "fillRect")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Stretch> for FillRectangle {}
+/// Read-only view of [`Stretch`].
+#[derive(Clone, Debug)]
+pub struct StretchView<'a>(pub ooxml_core::Lens<'a, Stretch>);
+impl<'a> StretchView<'a> {
+    /// First `a:fillRect` child.
+    pub fn fill_rectangle(&self) -> Option<FillRectangleView<'a>> {
+        self.0.child::<FillRectangle>().map(FillRectangleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Stretch`]. Reads go through [`StretchViewMut::as_view`].
+#[derive(Debug)]
+pub struct StretchViewMut<'a>(pub ooxml_core::LensMut<'a, Stretch>);
+impl<'a> StretchViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StretchView<'_> {
+        StretchView(self.0.as_lens())
+    }
+    /// First `a:fillRect` child, mutably.
+    pub fn fill_rectangle_mut(&mut self) -> Option<FillRectangleViewMut<'_>> {
+        self.0.child_mut::<FillRectangle>().map(FillRectangleViewMut)
+    }
+    /// Existing `a:fillRect` child, or a new one in schema position.
+    pub fn get_or_insert_fill_rectangle(
+        &mut self,
+    ) -> Result<FillRectangleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FillRectangle>().map(FillRectangleViewMut)
+    }
+    /// Removes the first `a:fillRect` child.
+    pub fn remove_fill_rectangle(&mut self) -> bool {
+        self.0.remove::<FillRectangle>()
     }
 }
 /// `a:CT_SupplementalFont/a:font` — Font.
@@ -8889,10 +9764,15 @@ impl ooxml_core::ElementSpec for PictureBullet {
         ],
     );
 }
+impl ooxml_core::ChildOf<PictureBullet> for Blip {}
 /// Read-only view of [`PictureBullet`].
 #[derive(Clone, Debug)]
 pub struct PictureBulletView<'a>(pub ooxml_core::Lens<'a, PictureBullet>);
 impl<'a> PictureBulletView<'a> {
+    /// First `a:blip` child.
+    pub fn blip(&self) -> Option<BlipView<'a>> {
+        self.0.child::<Blip>().map(BlipView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -16520,6 +17400,67 @@ impl<'a> Transform2DView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Transform2D`]. Reads go through [`Transform2DViewMut::as_view`].
+#[derive(Debug)]
+pub struct Transform2DViewMut<'a>(pub ooxml_core::LensMut<'a, Transform2D>);
+impl<'a> Transform2DViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Transform2DView<'_> {
+        Transform2DView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation (default `0`)
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Transform2D::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform2D::ATTR_ROT)
+    }
+    /// Sets `flipH` — Horizontal Flip (default `false`)
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform2D::ATTR_FLIP_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipH`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform2D::ATTR_FLIP_H)
+    }
+    /// Sets `flipV` — Vertical Flip (default `false`)
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform2D::ATTR_FLIP_V, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipV`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform2D::ATTR_FLIP_V)
+    }
+    /// First `a:off` child, mutably.
+    pub fn offset_mut(&mut self) -> Option<OffsetViewMut<'_>> {
+        self.0.child_mut::<Offset>().map(OffsetViewMut)
+    }
+    /// Existing `a:off` child, or a new one in schema position.
+    pub fn get_or_insert_offset(
+        &mut self,
+    ) -> Result<OffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Offset>().map(OffsetViewMut)
+    }
+    /// Removes the first `a:off` child.
+    pub fn remove_offset(&mut self) -> bool {
+        self.0.remove::<Offset>()
+    }
+    /// First `a:ext` child, mutably.
+    pub fn extents_mut(&mut self) -> Option<ExtentsViewMut<'_>> {
+        self.0.child_mut::<Extents>().map(ExtentsViewMut)
+    }
+    /// Existing `a:ext` child, or a new one in schema position.
+    pub fn get_or_insert_extents(
+        &mut self,
+    ) -> Result<ExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Extents>().map(ExtentsViewMut)
+    }
+    /// Removes the first `a:ext` child.
+    pub fn remove_extents(&mut self) -> bool {
+        self.0.remove::<Extents>()
+    }
+}
 /// `a:ST_Guid/a:tableStyleId` — Table Style ID.
 #[derive(Debug)]
 pub enum TableStyleId {}
@@ -18073,6 +19014,7 @@ const _: () = ooxml_core::schema::assert_spec::<ThemeElements>();
 const _: () = ooxml_core::schema::assert_child::<ThemeElements, ColorScheme>();
 const _: () = ooxml_core::schema::assert_child::<ThemeElements, FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<ThemeElements, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<Blip>();
 const _: () = ooxml_core::schema::assert_spec::<BulletColor>();
 const _: () = ooxml_core::schema::assert_child::<BulletColor, HslColor>();
 const _: () = ooxml_core::schema::assert_child::<BulletColor, PresetColor>();
@@ -18193,6 +19135,7 @@ const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light1Color>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light2Color>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<CustomGeometry>();
+const _: () = ooxml_core::schema::assert_child::<CustomGeometry, AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<DataModelExtension>();
 const _: () = ooxml_core::schema::assert_spec::<DgmDataModelExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -18226,11 +19169,13 @@ const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, MajorFont>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, MinorFont>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<Graphic>();
 const _: () = ooxml_core::schema::assert_child::<Graphic, GraphicData>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicData>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, ColIdIdentifier>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, RowIdIdentifier>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, Blip>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Theme>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
@@ -18280,6 +19225,8 @@ const _: () = ooxml_core::schema::assert_child::<
     super::pml::ViewProperties,
 >();
 #[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Picture>();
+#[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Comments>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Document>();
@@ -18295,6 +19242,10 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Header
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Styles>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Inline>();
+const _: () = ooxml_core::schema::assert_spec::<GraphicFrameLocks>();
+const _: () = ooxml_core::schema::assert_child::<GraphicFrameLocks, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<TransformGroup>();
 const _: () = ooxml_core::schema::assert_child::<TransformGroup, ChildOffset>();
 const _: () = ooxml_core::schema::assert_child::<TransformGroup, Offset>();
@@ -18333,9 +19284,11 @@ const _: () = ooxml_core::schema::assert_spec::<ChildExtents>();
 const _: () = ooxml_core::schema::assert_spec::<Extents>();
 const _: () = ooxml_core::schema::assert_spec::<PresetColor>();
 const _: () = ooxml_core::schema::assert_spec::<PresetGeometry>();
+const _: () = ooxml_core::schema::assert_child::<PresetGeometry, AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
+const _: () = ooxml_core::schema::assert_spec::<FillRectangle>();
 const _: () = ooxml_core::schema::assert_spec::<RgbColorModelHex>();
 const _: () = ooxml_core::schema::assert_spec::<RgbColorModelPercentage>();
 const _: () = ooxml_core::schema::assert_spec::<SchemeColor>();
@@ -18346,6 +19299,8 @@ const _: () = ooxml_core::schema::assert_child::<SolidFill, RgbColorModelHex>();
 const _: () = ooxml_core::schema::assert_child::<SolidFill, RgbColorModelPercentage>();
 const _: () = ooxml_core::schema::assert_child::<SolidFill, SchemeColor>();
 const _: () = ooxml_core::schema::assert_child::<SolidFill, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Stretch>();
+const _: () = ooxml_core::schema::assert_child::<Stretch, FillRectangle>();
 const _: () = ooxml_core::schema::assert_spec::<SupplementalFont>();
 const _: () = ooxml_core::schema::assert_spec::<SystemColor>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
@@ -18390,6 +19345,7 @@ const _: () = ooxml_core::schema::assert_child::<TableRow, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableCell>();
 const _: () = ooxml_core::schema::assert_spec::<AutoNumberedBullet>();
 const _: () = ooxml_core::schema::assert_spec::<PictureBullet>();
+const _: () = ooxml_core::schema::assert_child::<PictureBullet, Blip>();
 const _: () = ooxml_core::schema::assert_spec::<TextBody>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, BodyProperties>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, ListStyle>();
