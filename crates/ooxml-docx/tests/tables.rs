@@ -233,3 +233,100 @@ fn fixture_sweep() {
     eprintln!("tables sweep: {ok} inserts (each undone), {refusals} refusals");
     assert!(ok > 20, "{ok}");
 }
+
+#[test]
+fn delete_rows_preserves_vertical_merge_boundaries() {
+    let restart = r#"<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc></w:tr>"#;
+    let continuation = "<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc></w:tr>";
+    let plain = "<w:tr><w:tc><w:p/></w:tc></w:tr>";
+    for (rows, range, remaining) in [
+        (vec![restart, continuation, restart, continuation], 1..3, vec![restart, restart]),
+        (vec![restart, continuation, continuation, continuation], 1..3, vec![restart, continuation]),
+        (vec![plain, restart, continuation, continuation], 1..3, vec![plain, restart]),
+        (vec![restart, continuation, restart, continuation], 1..2, vec![restart, restart, continuation]),
+        (vec![restart, continuation, restart, continuation], 2..4, vec![restart, continuation]),
+    ] {
+        let input = table(&[1000], &rows.into_iter().map(str::to_owned).collect::<Vec<_>>());
+        let mut doc = open(&input);
+        doc.delete_rows(t0(), range.clone()).unwrap();
+        let expected = table(&[1000], &remaining.into_iter().map(str::to_owned).collect::<Vec<_>>());
+        assert_eq!(body_of(&doc), expected, "deleted {range:?} from {input}");
+    }
+}
+
+#[test]
+fn cell_removal_refuses_revisions() {
+    for (name, contents) in [
+        ("cellIns", r#"<w:tcPr><w:cellIns w:id="1" w:author="a"/></w:tcPr><w:p/>"#),
+        ("tcPrChange", r#"<w:tcPr><w:tcPrChange w:id="1" w:author="a"><w:tcPr/></w:tcPrChange></w:tcPr><w:p/>"#),
+        ("ins", r#"<w:p><w:pPr><w:rPr><w:ins w:id="1" w:author="a"/></w:rPr></w:pPr></w:p>"#),
+        ("pPrChange", r#"<w:p><w:pPr><w:pPrChange w:id="1" w:author="a"><w:pPr/></w:pPrChange></w:pPr></w:p>"#),
+    ] {
+        let row = format!("<w:tr>{}<w:tc>{contents}</w:tc></w:tr>", cell(""));
+        let mut doc = open(&table(&[1000, 1000], &[row]));
+        for err in [
+            refused(&mut doc, |d| d.merge_cells(t0(), 0..1, 0..2)),
+            refused(&mut doc, |d| d.delete_column(t0(), 1)),
+        ] {
+            assert_matches!(err, Error::RevisionInRange { element } if element == format!("w:{name}"));
+        }
+    }
+}
+
+#[test]
+fn cell_removal_shares_note_field_and_comment_checks() {
+    let cases = [
+        (r#"<w:r><w:footnoteReference w:id="1"/></w:r>"#, Error::WouldRemoveNote),
+        (r#"<w:fldSimple w:instr="PAGE"/>"#, Error::InsideField),
+        (r#"<w:commentRangeStart w:id="1"/>"#, Error::AnchorWouldBreak { marker: "w:commentRangeStart".into() }),
+    ];
+    for (contents, expected) in cases {
+        let row = format!("<w:tr>{}<w:tc><w:p>{contents}</w:p></w:tc></w:tr>", cell(""));
+        let mut doc = open(&table(&[1000, 1000], &[row]));
+        for err in [
+            refused(&mut doc, |d| d.merge_cells(t0(), 0..1, 0..2)),
+            refused(&mut doc, |d| d.delete_column(t0(), 1)),
+        ] {
+            assert_eq!(std::mem::discriminant(&err), std::mem::discriminant(&expected), "{err}");
+        }
+    }
+}
+
+#[test]
+fn horizontal_merge_refuses_vertical_merge_crossing_bottom() {
+    let rows = [
+        format!(r#"<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc>{}</w:tr>"#, cell("")),
+        format!("<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>{}</w:tr>", cell("")),
+    ];
+    let mut doc = open(&table(&[1000, 1000], &rows));
+    assert_matches!(refused(&mut doc, |d| d.merge_cells(t0(), 0..1, 0..2)), Error::MergeOverlaps);
+}
+
+#[test]
+fn span_changes_adjust_only_known_dxa_widths() {
+    for (unit, grid_known, widened, narrowed) in [
+        ("dxa", true, 2700, 1500),
+        ("pct", true, 2000, 2000),
+        ("dxa", false, 2000, 2000),
+    ] {
+        let row = format!(r#"<w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="{unit}"/><w:gridSpan w:val="2"/></w:tcPr><w:p/></w:tc></w:tr>"#);
+        let mut input = table(&[1200, 800], &[row]);
+        if !grid_known {
+            input = input.replace(r#"<w:gridCol w:w="800"/>"#, "<w:gridCol/>");
+        }
+        let mut doc = open(&input);
+        doc.insert_column(t0(), 1, 700).unwrap();
+        assert!(body_of(&doc).contains(&format!(r#"<w:tcW w:w="{widened}" w:type="{unit}"/><w:gridSpan w:val="3"/>"#)));
+        doc.delete_column(t0(), 0).unwrap();
+        assert!(body_of(&doc).contains(&format!(r#"<w:tcW w:w="{narrowed}" w:type="{unit}"/><w:gridSpan w:val="2"/>"#)));
+    }
+}
+
+#[test]
+fn merge_keeps_preferred_width_when_grid_width_is_unknown() {
+    let row = format!(r#"<w:tr><w:tc><w:tcPr><w:tcW w:w="1234" w:type="dxa"/></w:tcPr><w:p/></w:tc>{}</w:tr>"#, cell(""));
+    let input = table(&[1200, 800], &[row]).replace(r#"<w:gridCol w:w="800"/>"#, "<w:gridCol/>");
+    let mut doc = open(&input);
+    doc.merge_cells(t0(), 0..1, 0..2).unwrap();
+    assert!(body_of(&doc).contains(r#"<w:tcW w:w="1234" w:type="dxa"/><w:gridSpan w:val="2"/>"#));
+}

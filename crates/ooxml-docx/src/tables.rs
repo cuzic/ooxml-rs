@@ -95,6 +95,19 @@ struct Grid {
     hmerge: bool,
 }
 
+fn grid_width(col: &(usize, Option<String>)) -> Option<u64> {
+    col.1.as_deref()?.trim().parse().ok()
+}
+
+/// Existing preferred width, adjustable only when it and the spanned grid use twips.
+fn span_width(tc: &RawNode, cols: &[(usize, Option<String>)]) -> Option<u64> {
+    let tcw = child(child(tc, "tcPr")?, "tcW")?;
+    if tcw.attr(w("type")) != Some("dxa") || !cols.iter().all(|col| grid_width(col).is_some()) {
+        return None;
+    }
+    tcw.attr(w("w"))?.trim().parse().ok()
+}
+
 /// `w:val` of an `ST_DecimalNumber` element (0 when absent).
 fn decimal(n: Option<&RawNode>) -> Result<usize> {
     match n.and_then(|e| e.attr(VAL)) {
@@ -469,7 +482,7 @@ impl Document {
     ///
     /// Errors, before any change: as [`Self::insert_rows`];
     /// [`Error::TableWouldBeEmpty`]; [`Error::WouldRemoveNote`];
-    /// [`Error::InsideRevision`]; [`Error::InsideField`];
+    /// [`Error::RevisionInRange`]; [`Error::InsideField`];
     /// [`Error::AnchorWouldBreak`] (a range marker whose partner is outside
     /// the removed rows, or any comment anchor or reference).
     pub fn delete_rows(&mut self, t: TableRef, range: Range<usize>) -> Result<()> {
@@ -498,13 +511,14 @@ impl Document {
                 if c.vmerge != Some(VMerge::Continue) {
                     continue;
                 }
-                // the merge starts inside the removed rows, or above them
-                let starts_inside = grid.rows[range.clone()]
-                    .iter()
-                    .any(|r| r.cells.iter().any(|x| x.start == c.start && x.vmerge == Some(VMerge::Restart)));
-                let continued_from_above = range.start > 0
-                    && grid.rows[..range.start].iter().rev().find_map(|r| r.cells.iter().find(|x| x.start == c.start)).is_some_and(|x| x.vmerge.is_some());
-                if starts_inside && !continued_from_above {
+                // Follow the original chain only through the deleted rows.
+                // A gap or a different span ends the chain.
+                let boundary = grid.rows[range.clone()].iter().rev().map(|row| {
+                    row.cell_at(c.start)
+                        .filter(|cell| cell.start == c.start && cell.span == c.span)
+                        .and_then(|cell| cell.vmerge)
+                }).find(|&merge| merge != Some(VMerge::Continue));
+                if boundary == Some(Some(VMerge::Restart)) {
                     repairs.push((next.item, c.item));
                 }
             }
@@ -551,7 +565,7 @@ impl Document {
         let tbl = node_at(doc.root(), &path);
         enum RowEdit {
             NewCell { before_cell: Option<usize>, tcpr: Box<Option<ooxml_core::Detached<TableCellProperties>>>, ppr: Box<Option<ooxml_core::Detached<ParagraphProperties>>> },
-            Widen { cell: usize, span: usize },
+            Widen { cell: usize, span: usize, width: Option<u64> },
             Before(usize),
             After(usize),
         }
@@ -562,7 +576,10 @@ impl Document {
             let edit = if at_grid_col < row.before || (row.cells.is_empty() && at_grid_col <= row.before && row.before > 0) {
                 RowEdit::Before(row.before + 1)
             } else if let Some(c) = row.cells.iter().find(|c| c.start < at_grid_col && at_grid_col < c.start + c.span) {
-                RowEdit::Widen { cell: c.item, span: c.span + 1 }
+                let tc = tr.children()[c.item].as_element().expect("cell");
+                let width = span_width(tc, &grid.cols[c.start..c.start + c.span])
+                    .and_then(|old| old.checked_add(u64::from(width)));
+                RowEdit::Widen { cell: c.item, span: c.span + 1, width }
             } else if at_grid_col > end {
                 RowEdit::After(row.after + 1)
             } else {
@@ -641,10 +658,14 @@ impl Document {
                 RowEdit::After(v) => {
                     row.get_or_insert::<TableRowProperties>()?.get_or_insert::<GridAfter>()?.set_attr(VAL, &v.to_string())?;
                 }
-                RowEdit::Widen { cell, span } => {
+                RowEdit::Widen { cell, span, width } => {
                     let k = row.node().children()[..cell].iter().filter(|x| x.as_element().is_some_and(is::<TableCell>)).count();
                     let mut c = row.nth_child_mut::<TableCell>(k).expect("cell");
-                    c.get_or_insert::<TableCellProperties>()?.get_or_insert::<GridSpan>()?.set_attr(VAL, &span.to_string())?;
+                    let mut pr = c.child_mut::<TableCellProperties>().expect("tcPr");
+                    pr.child_mut::<GridSpan>().expect("gridSpan").set_attr(VAL, &span.to_string())?;
+                    if let Some(width) = width {
+                        pr.child_mut::<TableCellWidth>().expect("tcW").set_attr(w("w"), &width.to_string())?;
+                    }
                 }
                 RowEdit::NewCell { before_cell, tcpr, ppr } => {
                     let pos = before_cell.unwrap_or_else(|| {
@@ -675,6 +696,8 @@ impl Document {
     /// `gridBefore` or `gridAfter` covering it.
     ///
     /// Errors, before any change: as [`Self::insert_column`];
+    /// [`Error::RevisionInRange`], [`Error::WouldRemoveNote`],
+    /// [`Error::InsideField`], [`Error::AnchorWouldBreak`] (comment anchors);
     /// [`Error::CellNotEmpty`]; [`Error::RowWouldBeEmpty`];
     /// [`Error::TableWouldBeEmpty`] (the last grid column).
     pub fn delete_column(&mut self, t: TableRef, at_grid_col: usize) -> Result<()> {
@@ -696,7 +719,7 @@ impl Document {
         let tbl = node_at(doc.root(), &path);
         enum RowEdit {
             Remove(usize),
-            Narrow(usize, usize),
+            Narrow { cell: usize, span: usize, width: Option<u64> },
             Before(usize),
             After(usize),
         }
@@ -709,10 +732,14 @@ impl Document {
                 RowEdit::After(row.after - 1)
             } else {
                 let c = row.cell_at(at_grid_col).expect("consistent grid");
+                let tc = tr.children()[c.item].as_element().expect("cell");
                 if c.span > 1 {
-                    RowEdit::Narrow(c.item, c.span - 1)
+                    let width = span_width(tc, &grid.cols[c.start..c.start + c.span])
+                        .zip(grid_width(&grid.cols[at_grid_col]))
+                        .and_then(|(old, removed)| old.checked_sub(removed));
+                    RowEdit::Narrow { cell: c.item, span: c.span - 1, width }
                 } else {
-                    let tc = tr.children()[c.item].as_element().expect("cell");
+                    check_removable(tc)?;
                     if !cell_is_empty(tc) {
                         return Err(Error::CellNotEmpty);
                     }
@@ -739,10 +766,13 @@ impl Document {
                 RowEdit::Remove(item) => {
                     row.remove_at(item);
                 }
-                RowEdit::Narrow(item, span) => {
-                    let ck = cell_k(&row, item);
+                RowEdit::Narrow { cell, span, width } => {
+                    let ck = cell_k(&row, cell);
                     let mut c = row.nth_child_mut::<TableCell>(ck).expect("cell");
                     let mut pr = c.child_mut::<TableCellProperties>().expect("tcPr");
+                    if let Some(width) = width {
+                        pr.child_mut::<TableCellWidth>().expect("tcW").set_attr(w("w"), &width.to_string())?;
+                    }
                     if span == 1 {
                         pr.remove::<GridSpan>();
                     } else {
@@ -774,7 +804,9 @@ impl Document {
     ///
     /// Errors, before any change: as [`Self::insert_column`];
     /// [`Error::MergeOverlaps`] (a cell or vertical merge crosses the
-    /// rectangle's edge); [`Error::MergeNonEmpty`].
+    /// rectangle's edge); [`Error::MergeNonEmpty`]; [`Error::RevisionInRange`],
+    /// [`Error::WouldRemoveNote`], [`Error::InsideField`],
+    /// [`Error::AnchorWouldBreak`] (comment anchors).
     pub fn merge_cells(&mut self, t: TableRef, rows: Range<usize>, grid_cols: Range<usize>) -> Result<()> {
         self.table_gate()?;
         let (path, grid) = self.locate_table(t)?;
@@ -806,7 +838,11 @@ impl Document {
                 }
             }
             for (j, c) in inside.iter().enumerate() {
-                if (k, j) != (0, 0) && !cell_is_empty(tr.children()[c.item].as_element().expect("cell")) {
+                let tc = tr.children()[c.item].as_element().expect("cell");
+                if j > 0 {
+                    check_removable(tc)?;
+                }
+                if (k, j) != (0, 0) && !cell_is_empty(tc) {
                     return Err(Error::MergeNonEmpty);
                 }
             }
@@ -817,7 +853,7 @@ impl Document {
         {
             return Err(Error::MergeOverlaps);
         }
-        let width: Option<u64> = grid.cols[grid_cols.clone()].iter().map(|(_, wd)| wd.as_deref().and_then(|v| v.parse::<u64>().ok())).sum();
+        let width = grid.cols[grid_cols.clone()].iter().try_fold(0u64, |sum, col| sum.checked_add(grid_width(col)?));
         let row_ks: Vec<usize> = rows.clone().collect();
         let xml = self.pkg.xml_part_mut(&part)?;
         let mut tl = crate::structure::table_lens(xml, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;

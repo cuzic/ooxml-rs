@@ -180,3 +180,40 @@ fn fixture_sweep() {
     eprintln!("image sweep: {ok} images");
     assert!(ok > 30, "{ok}");
 }
+
+#[test]
+fn image_extent_bounds_and_zero_rounded_dpi() {
+    const MAX: u64 = 27_273_042_316_900;
+    let at = RunPosition::EndOf(p(0));
+    let mut doc = open("<w:p/>");
+    let mut image = png();
+    let density = image.windows(4).position(|bytes| bytes == b"pHYs").unwrap() + 4;
+    image[density..density + 4].copy_from_slice(&19u32.to_be_bytes());
+    doc.insert_image(at, &image, ImageSize::Auto, "").unwrap();
+    let body = body_of(&doc);
+    assert!(body.contains(r#"<wp:extent cx="38100" cy="19050"/>"#), "{body}");
+    assert!(body.contains(r#"<a:ext cx="38100" cy="19050"/>"#), "{body}");
+
+    doc.insert_image(at, &image, ImageSize::Emu { cx: MAX, cy: MAX }, "").unwrap();
+    let body = body_of(&doc);
+    for name in ["wp:extent", "a:ext"] {
+        assert!(body.contains(&format!(r#"<{name} cx="{MAX}" cy="{MAX}"/>"#)), "{body}");
+    }
+    for (cx, cy) in [(MAX + 1, 1), (1, MAX + 1), (0, 1), (1, 0)] {
+        assert_matches!(
+            refused(&mut doc, |d| d.insert_image(at, &image, ImageSize::Emu { cx, cy }, "")),
+            Error::InvalidValue { what: "image size", .. }
+        );
+    }
+
+    // 20 px/m rounds to 1 DPI. Test the adjacent pixel widths around the EMU limit.
+    image[density..density + 4].copy_from_slice(&20u32.to_be_bytes());
+    let pixels = u32::try_from(MAX / 914_400).unwrap();
+    image[16..20].copy_from_slice(&pixels.to_be_bytes());
+    doc.insert_image(at, &image, ImageSize::Auto, "").unwrap();
+    image[16..20].copy_from_slice(&(pixels + 1).to_be_bytes());
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_image(at, &image, ImageSize::Auto, "")),
+        Error::InvalidValue { what: "image size", .. }
+    );
+}

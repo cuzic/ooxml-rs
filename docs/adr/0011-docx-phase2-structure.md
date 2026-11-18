@@ -944,10 +944,19 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
 - **"Empty" for `delete_column` and `merge_cells`:** exactly one paragraph holding nothing but
   `w:pPr`. That is stricter than "no runs with text, no anchors", and fails closed.
 - **Widths.** `merge_cells` writes `w:tcW` = the sum of the merged grid columns (dxa), when
-  every one of them has a width. `insert_column`'s new cell gets `w:tcW` = the width (dxa).
+  every one of them has a numeric width and the sum is representable. `insert_column`'s new
+  cell gets `w:tcW` = the width (dxa). When a column edit changes a cell span and every grid
+  column in the original span has a numeric width, the operation adds or subtracts the edited
+  column's width from an existing numeric dxa `w:tcW`. When the width cannot be calculated,
+  the existing `w:tcW` is preserved. Column edits also preserve non-dxa widths.
+- **Revisions in removed cells.** `delete_column` and `merge_cells` share the removal checks
+  of `delete_rows` for revisions, notes, fields and comment anchors. All three use
+  `RevisionInRange` for revision elements.
 - **Generations.** After a table edit, every paragraph from the table on gets a fresh
   generation.
 - **Images.**
+  - **Extent.** A PNG density rounding to zero on either axis falls back to 96 DPI.
+    Both automatic and explicit dimensions must be in 1–27273042316900 EMU.
   - **Allowlist.** The `wp` and `pic` entries are in `wml.toml`, not a new `wpd.toml` group
     (Q7): the generator's groups are cargo features, and only ooxml-docx uses these entries.
     The shared `a:` entries are in `dml.toml`, where `a:graphic` and `a:graphicData` move from

@@ -25,6 +25,8 @@ use crate::structure::RunPosition;
 const IMAGE_REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const PIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
 const EMU_PER_INCH: u64 = 914_400;
+// OOXML ST_PositiveCoordinate upper bound.
+const MAX_IMAGE_EMU: u64 = 27_273_042_316_900;
 
 fn q(local: &'static str) -> QName {
     QName::new("", local)
@@ -89,7 +91,9 @@ pub(crate) fn sniff(b: &[u8]) -> Option<ImageInfo> {
                 let (x, y, unit) = (be32(b, i + 8)?, be32(b, i + 12)?, *b.get(i + 16)?);
                 if unit == 1 && x > 0 && y > 0 {
                     // pixels per metre, rounded to whole dots per inch (3780 → 96, 5670 → 144)
-                    dpi = Some(((f64::from(x) * 0.0254).round(), (f64::from(y) * 0.0254).round()));
+                    let dx = (f64::from(x) * 0.0254).round();
+                    let dy = (f64::from(y) * 0.0254).round();
+                    dpi = (dx > 0.0 && dy > 0.0).then_some((dx, dy));
                 }
             }
             if ty == b"IDAT" || ty == b"IEND" {
@@ -200,6 +204,7 @@ impl Document {
     /// Errors, before any change: [`Self::write_gate_for`]
     /// ([`Operation::Format`]); the paragraph checks of
     /// [`Self::insert_paragraph`]; [`Error::UnsupportedImage`];
+    /// [`Error::InvalidValue`] (extent outside `1..=27273042316900` EMU);
     /// [`Error::DrawingIdsExhausted`]; [`Error::NestedHyperlink`] /
     /// [`Error::UnsupportedContext`] for the run position;
     /// [`Error::RelIdReferenced`]; `Core(TooDeep)` and other dry-run
@@ -217,7 +222,7 @@ impl Document {
             ImageSize::Auto => info.emu(),
             ImageSize::Emu { cx, cy } => (cx, cy),
         };
-        if cx == 0 || cy == 0 {
+        if !(1..=MAX_IMAGE_EMU).contains(&cx) || !(1..=MAX_IMAGE_EMU).contains(&cy) {
             return Err(Error::InvalidValue { what: "image size", value: format!("{cx}×{cy}") });
         }
         let id = self.max_drawing_id() + 1;
