@@ -107,26 +107,35 @@ fn no_fixture_is_refused_by_the_row_check() {
     assert!(opened >= 40, "{opened} fixtures opened");
 }
 
-/// `row/@r` is read as the row index reads it: XML whitespace around the
-/// number does not hide a mismatch (review of PR #67, M1), and row 0 stays
-/// the index's own refusal of that sheet, not a workbook-wide mismatch (m1).
+/// XML whitespace around the row number must not hide a mismatched B2 (M1).
 #[test]
-fn padded_row_numbers_and_row_zero() {
-    for r in [" 1", "\t1", "1 "] {
-        let input = book(&[("Sheet1", &format!(r#"<row r="{r}"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#))], "", "");
-        let mut wb = Workbook::from_bytes(input).expect("opens");
-        assert_matches!(wb.edit_refusal(), Some(Error::InvalidReference(_)), "row r={r:?}");
-        let before = wb.to_bytes().unwrap();
+fn padded_row_numbers_block_mismatched_cells() {
+    for (r, second_row) in [
+        (" 1", ""),
+        (" 1", r#"<row r="2"><c r="B2"><v>3</v></c></row>"#),
+        ("&#9;1", ""),
+        ("1 ", ""),
+    ] {
+        let rows = format!(r#"<row r="{r}"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>{second_row}"#);
+        let input = book(&[("Sheet1", &rows)], "", "");
+        let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
+        assert_matches!(wb.edit_refusal(), Some(Error::InvalidReference(ref m)) if m.contains("B2 in row 1"), "row r={r:?}");
         assert_matches!(wb.worksheet().unwrap().cell_mut(1, 1).unwrap().set_formula("A1*3"), Err(Error::InvalidReference(_)));
-        assert_eq!(wb.to_bytes().unwrap(), before);
+        assert_eq!(wb.to_bytes().unwrap(), input);
     }
+}
+
+/// An invalid row number only refuses edits on its own sheet (m1).
+#[test]
+fn row_zero_only_refuses_its_own_sheet() {
     let input = book(
         &[("Sheet1", r#"<row r="0"><c r="A1"><v>1</v></c></row>"#), ("Sheet2", r#"<row r="1"><c r="A1"><v>1</v></c></row>"#)],
         "",
         "",
     );
-    let mut wb = Workbook::from_bytes(input).expect("opens");
+    let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
     assert!(wb.edit_refusal().is_none(), "{:?}", wb.edit_refusal());
     assert_matches!(wb.worksheet_by_name("Sheet1").unwrap().cell_mut(0, 0).unwrap().set_number(2.0), Err(Error::InvalidReference(ref m)) if m == "0");
+    assert_eq!(wb.to_bytes().unwrap(), input);
     wb.worksheet_by_name("Sheet2").unwrap().cell_mut(0, 0).unwrap().set_number(2.0).expect("another sheet still edits");
 }

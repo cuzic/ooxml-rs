@@ -190,6 +190,7 @@ fn truthy(v: Option<&str>) -> bool {
 #[derive(Default)]
 struct CellScan {
     r: Option<String>,
+    at: Option<Result<CellIndex, Error>>,
     t: Option<String>,
     cm: Option<String>,
     vm: bool,
@@ -256,11 +257,12 @@ pub(crate) fn scan_sheet(
                     "c" if parent == Some("row") => {
                         let mut c = CellScan { r: attr(e, "r")?, t: attr(e, "t")?, cm: attr(e, "cm")?, ..Default::default() };
                         c.vm = attr(e, "vm")?.is_some();
+                        c.at = c.r.as_deref().map(CellIndex::parse);
                         if c.r.is_none() {
                             missing_r = true;
                         }
                         if row_mismatch.is_none()
-                            && let (Some(row), Some(at)) = (row_number, c.r.as_deref().and_then(|r| CellIndex::parse(r).ok()))
+                            && let (Some(row), Some(Ok(at))) = (row_number, &c.at)
                             && at.row + 1 != row
                         {
                             row_mismatch = Some((at.to_string(), row));
@@ -403,10 +405,7 @@ fn finish_cell(
     bx_any: &mut bool,
 ) -> Result<bool, String> {
     let Some(c) = c else { return Ok(false) };
-    let at = match &c.r {
-        Some(r) => Some(CellIndex::parse(r).map_err(|e| e.to_string())?),
-        None => None,
-    };
+    let at = c.at.transpose().map_err(|e| e.to_string())?;
     if c.vm
         && let Some(at) = at
     {
