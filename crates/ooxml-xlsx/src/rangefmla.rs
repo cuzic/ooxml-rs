@@ -32,7 +32,21 @@ impl Workbook {
         let e = parse(&t).map_err(|e| bad(format!("{} at byte {}", e.message, e.at)))?;
         let own = fold(&self.sheets[sheet].name);
         let mut first = None;
-        walk(&e, &mut |p| {
+        let mut unsupported = false;
+        visit(&e, &mut |expr| {
+            let p = match expr {
+                Expr::Opaque => {
+                    unsupported = true;
+                    return;
+                }
+                Expr::Func { name, .. } if name.starts_with("[QUALIFIED]") => {
+                    unsupported = true;
+                    return;
+                }
+                Expr::Ref(r) => &r.prefix,
+                Expr::Name { prefix, .. } => prefix,
+                _ => return,
+            };
             if first.is_some() {
                 return;
             }
@@ -45,6 +59,9 @@ impl Workbook {
             };
             first = Some(other);
         });
+        if unsupported {
+            return Err(bad("opaque reference or sheet-qualified function".into()));
+        }
         match first {
             None => Ok(t),
             Some(n) if !n.is_empty() && !self.sheets.iter().any(|s| fold(&s.name) == fold(&n)) => Err(Error::UnknownSheet(n)),
@@ -53,17 +70,26 @@ impl Workbook {
     }
 }
 
-pub(crate) fn walk(e: &Expr, f: &mut impl FnMut(&Prefix)) {
+pub(crate) fn visit(e: &Expr, f: &mut impl FnMut(&Expr)) {
+    f(e);
     match e {
-        Expr::Ref(r) => f(&r.prefix),
-        Expr::Name { prefix, .. } => f(prefix),
-        Expr::Func { args, .. } => args.iter().for_each(|a| walk(a, f)),
-        Expr::Unary(a) => walk(a, f),
-        Expr::Union(v) => v.iter().for_each(|a| walk(a, f)),
+        Expr::Func { args, .. } | Expr::Union(args) => args.iter().for_each(|a| visit(a, f)),
+        Expr::Unary(a) => visit(a, f),
         Expr::Binary(_, a, b) | Expr::Range(a, b) | Expr::Intersect(a, b) => {
-            walk(a, f);
-            walk(b, f);
+            visit(a, f);
+            visit(b, f);
         }
-        _ => {}
+        Expr::Ref(_) | Expr::Name { .. } | Expr::Lit | Expr::Missing | Expr::Opaque => {}
     }
+}
+
+/// Between comparisons have two operands. Other comparisons have one.
+pub(crate) fn check_second_formula(between: bool, has_second: bool) -> Result<()> {
+    if between != has_second {
+        return Err(Error::InvalidSetting {
+            what: "formula2".into(),
+            reason: "required for between and notBetween, forbidden for other operators".into(),
+        });
+    }
+    Ok(())
 }

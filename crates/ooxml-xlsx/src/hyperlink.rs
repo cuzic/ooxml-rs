@@ -8,14 +8,14 @@
 //! package as it is now, and applied; then the `hyperlink` element. A
 //! failure after the first change is a bug and poisons the workbook.
 
-use ooxml_core::{ElementSpec, Package, QName, RegistryPlan, Target};
+use ooxml_core::{ElementSpec, NsDecl, Package, QName, RegistryPlan, Target};
 use ooxml_schema::sml;
 
 use crate::edit::CellOp;
 use crate::error::{Error, Result};
 use crate::escape;
 use crate::formula::lexer::Prefix;
-use crate::formula::parse::parse;
+use crate::formula::parse::{Expr, parse};
 use crate::formula::precedents::fold;
 use crate::reference::CellRange;
 use crate::workbook::Workbook;
@@ -23,7 +23,7 @@ use crate::worksheet::Worksheet;
 
 const REL_HYPERLINK: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 const R_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const XMLNS_NS: &str = "http://www.w3.org/2000/xmlns/";
+const REL_NS_DECL: [NsDecl<'static>; 1] = [NsDecl::new("r", R_NS)];
 /// rust_xlsxwriter's limit for a link target.
 const MAX_URL: usize = 2080;
 
@@ -137,7 +137,12 @@ impl Workbook {
     fn check_location(&self, loc: &str) -> Result<()> {
         let e = parse(loc).map_err(|e| Error::InvalidFormula { text: loc.to_owned(), reason: format!("{} at byte {}", e.message, e.at) })?;
         let mut missing = None;
-        crate::rangefmla::walk(&e, &mut |p| {
+        crate::rangefmla::visit(&e, &mut |expr| {
+            let p = match expr {
+                Expr::Ref(r) => &r.prefix,
+                Expr::Name { prefix, .. } => prefix,
+                _ => return,
+            };
             if let Prefix::Sheet(n) | Prefix::Sheets(n, _) = p
                 && !self.sheets.iter().any(|s| fold(&s.name) == fold(n))
             {
@@ -179,20 +184,18 @@ impl Workbook {
             if let Some(h) = ws.elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
                 for e in h.elements().filter(|e| e.is(sml::Hyperlink::QNAME)) {
                     let existing = e.attr(q("ref")).unwrap_or_default();
-                    if CellRange::parse(existing).is_ok_and(|x| x.intersects(&r)) {
+                    if !CellRange::parse(existing).is_ok_and(|x| !x.intersects(&r)) {
                         return Err(Error::HyperlinkOverlap { range: r.to_string(), existing: existing.to_owned() });
                     }
                 }
             }
-            if target.is_some() && !ws.attrs().iter().any(|a| a.name().ns() == XMLNS_NS && a.value() == R_NS) {
-                return Err(ooxml_core::Error::NamespaceNotInScope(R_NS.into()).into());
-            }
         }
+        let decls: &[_] = if target.is_some() { &REL_NS_DECL } else { &[] };
         {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             match ws.child_mut::<sml::Hyperlinks>() {
-                Some(h) => h.check_insert::<sml::Hyperlink>()?,
+                Some(h) => h.check_insert_with_ns::<sml::Hyperlink>(decls).map(drop)?,
                 None => ws.check_insert_by::<sml::Hyperlinks>(|_, _| false)?,
             }
         }
@@ -225,7 +228,7 @@ impl Workbook {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             let mut hs = ws.get_or_insert::<sml::Hyperlinks>()?;
-            let mut h = hs.insert::<sml::Hyperlink>()?;
+            let mut h = hs.insert_with_ns::<sml::Hyperlink>(decls)?;
             h.set_attr(q("ref"), &r.to_string())?;
             if let Some(id) = &id {
                 h.set_attr(QName::new(R_NS, "id"), id)?;
@@ -300,7 +303,8 @@ fn add_rel(pkg: &mut Package, part: &str, target: &str) -> Result<String> {
 
 impl Worksheet<'_> {
     /// Adds a hyperlink on `range` (ADR-0014 §4). External links get a new
-    /// external relationship of the sheet; the cell value changes only with
+    /// external relationship of the sheet and declare its namespace on the
+    /// new link when needed. The cell value changes only with
     /// [`LinkOptions::text`]. Refused, with every byte unchanged: overlap
     /// with a hyperlink ([`Error::HyperlinkOverlap`]), a non-anchor cell of
     /// a merged range ([`Error::MergedCell`]), a bad target

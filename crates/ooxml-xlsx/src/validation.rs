@@ -165,6 +165,8 @@ impl Workbook {
         self.check_editable()?;
         let new = ranges(sqref)?;
         let sqref = new.iter().map(ToString::to_string).collect::<Vec<_>>().join(" ");
+        let between = matches!(v.operator, Some(ValidationOperator::Between | ValidationOperator::NotBetween));
+        crate::rangefmla::check_second_formula(between, v.formula2.is_some())?;
         // formulas
         let formula1 = match (&v.list, &v.formula1) {
             (Some(items), _) => {
@@ -203,15 +205,16 @@ impl Workbook {
             let mut existing: Vec<String> = ws
                 .elements()
                 .filter(|e| e.is(sml::DataValidations::QNAME))
-                .flat_map(|d| d.elements().filter(|e| e.is(sml::DataValidation::QNAME)).filter_map(|e| e.attr(q("sqref")).map(str::to_owned)).collect::<Vec<_>>())
+                .flat_map(|d| d.elements().filter(|e| e.is(sml::DataValidation::QNAME)))
+                .map(|e| e.attr(q("sqref")).unwrap_or_default().to_owned())
                 .collect();
             for (_, ext) in x14::exts(ws, x14::URI_DV) {
-                for dvs in ext.elements() {
-                    existing.extend(dvs.elements().filter_map(x14::sqref));
+                for dvs in ext.elements().filter(|e| e.is(x14::DataValidations::QNAME)) {
+                    existing.extend(dvs.elements().filter(|e| e.is(x14::DV_RULE)).map(|e| x14::sqref(e).unwrap_or_default()));
                 }
             }
             for e in existing {
-                if overlaps(&ranges(&e).unwrap_or_default(), &new) {
+                if !ranges(&e).is_ok_and(|old| !overlaps(&old, &new)) {
                     return Err(Error::ValidationOverlap { sqref, existing: e });
                 }
             }
@@ -254,10 +257,9 @@ impl Workbook {
             let mut hits = Vec::new();
             for (ei, ext) in x14::exts(ws, x14::URI_DV) {
                 for (di, dvs) in ext.indexed_elements().filter(|(_, e)| e.is(x14::DataValidations::QNAME)) {
-                    let items: Vec<usize> = dvs.indexed_elements().filter(|(_, r)| x14::sqref(r).and_then(|s| ranges(&s).ok()) == Some(want.clone())).map(|(i, _)| i).collect();
-                    let total = dvs.elements().count();
+                    let items: Vec<usize> = dvs.indexed_elements().filter(|(_, r)| r.is(x14::DV_RULE) && x14::sqref(r).and_then(|s| ranges(&s).ok()) == Some(want.clone())).map(|(i, _)| i).collect();
                     if !items.is_empty() {
-                        hits.push((ei, di, items, total));
+                        hits.push((ei, di, items));
                     }
                 }
             }
@@ -281,19 +283,26 @@ impl Workbook {
                     dvs.set_attr(q("count"), &n.to_string())?;
                 }
             }
-            for (ei, di, items, total) in ext_hits.iter().rev() {
+            for (ei, di, items) in ext_hits.iter().rev() {
                 let mut list = ws.child_mut::<sml::WorksheetExtensionList>().expect("planned");
-                if items.len() == *total {
-                    list.remove_at(*ei); // the ext became empty
-                    continue;
+                let ext_empty;
+                {
+                    let mut ext = x14::child_at::<_, sml::WorksheetExtension>(&mut list, *ei);
+                    let mut dvs = x14::child_at::<_, x14::DataValidations>(&mut ext, *di);
+                    for &i in items.iter().rev() {
+                        dvs.remove_at(i);
+                    }
+                    if dvs.node().elements().next().is_none() {
+                        ext.remove_at(*di);
+                    } else {
+                        let n = dvs.node().elements().filter(|e| e.is(x14::DV_RULE)).count();
+                        dvs.set_attr(q("count"), &n.to_string())?;
+                    }
+                    ext_empty = ext.node().elements().next().is_none();
                 }
-                let ext = list.into_child_at::<sml::WorksheetExtension>(*ei).expect("planned");
-                let mut dvs = ext.into_child_at::<x14::DataValidations>(*di).expect("planned");
-                for &i in items.iter().rev() {
-                    dvs.remove_at(i);
+                if ext_empty {
+                    list.remove_at(*ei);
                 }
-                let n = dvs.node().elements().count();
-                dvs.set_attr(q("count"), &n.to_string())?;
             }
             Ok(())
         })

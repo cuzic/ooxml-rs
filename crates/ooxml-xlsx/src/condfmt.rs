@@ -1,12 +1,12 @@
 //! Phase4 part 2: conditional formatting (ADR-0014 §6), 2007 forms.
 //!
-//! Formats: a rule refers to a `dxf` by index. Until Phase2's `dxfs`
-//! registry (ADR-0006 §5 item 8, PR #50) is on main, a rule can only name an
-//! **existing** `dxf` (`Rule::with_dxf`), checked against `styles.xml`;
-//! colour scales, data bars and icon sets need none.
+//! Register a format with [`Workbook::add_differential_format`] and pass its
+//! index to [`Rule::with_dxf`]. Colour scales, data bars and icon sets need no
+//! differential format.
 
-use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode};
+use ooxml_core::{ChildOf, ElementSpec, EnumType, LensMut, QName, RawNode};
 use ooxml_schema::sml;
+pub use ooxml_schema::sml::IconSetValues;
 
 use crate::error::{Error, Result};
 use crate::reference::CellRange;
@@ -96,8 +96,8 @@ pub enum RuleKind {
     ColorScale(Vec<(Cfvo, String)>),
     /// A data bar between two thresholds, in an ARGB colour.
     DataBar(Cfvo, Cfvo, String),
-    /// An icon set (`"3TrafficLights1"`, …) with its thresholds.
-    IconSet(String, Vec<Cfvo>),
+    /// A 2007 icon set with one threshold per icon.
+    IconSet(IconSetValues, Vec<Cfvo>),
 }
 
 /// A conditional-format rule.
@@ -193,7 +193,9 @@ impl Workbook {
             Ok(t.replace('"', "\"\""))
         };
         Ok(match kind {
-            RuleKind::CellIs(_, f1, f2) => {
+            RuleKind::CellIs(op, f1, f2) => {
+                let between = matches!(op, CfOperator::Between | CfOperator::NotBetween);
+                crate::rangefmla::check_second_formula(between, f2.is_some())?;
                 let mut v = vec![self.check_range_formula(sheet, f1)?];
                 if let Some(f2) = f2 {
                     v.push(self.check_range_formula(sheet, f2)?);
@@ -215,29 +217,52 @@ impl Workbook {
                 if !(2..=3).contains(&stops.len()) || stops.iter().any(|(_, c)| !argb_ok(c)) {
                     return Err(Error::InvalidSetting { what: "colour scale".into(), reason: "2 or 3 stops with ARGB colours".into() });
                 }
-                self.cfvo_formulas(sheet, stops.iter().map(|(c, _)| c))?;
+                self.check_thresholds(sheet, stops.iter().map(|(c, _)| c))?;
                 Vec::new()
             }
             RuleKind::DataBar(a, b, c) => {
                 if !argb_ok(c) {
                     return Err(Error::InvalidSetting { what: "data bar".into(), reason: format!("{c:?} is not ARGB") });
                 }
-                self.cfvo_formulas(sheet, [a, b].into_iter())?;
+                self.check_thresholds(sheet, [a, b].into_iter())?;
                 Vec::new()
             }
-            RuleKind::IconSet(_, cfvos) => {
-                self.cfvo_formulas(sheet, cfvos.iter())?;
+            RuleKind::IconSet(set, cfvos) => {
+                // ST_IconSetType spells each set with its icon count first.
+                let count = usize::from(set.as_str().as_bytes()[0] - b'0');
+                if cfvos.len() != count {
+                    return Err(Error::InvalidSetting {
+                        what: "icon set".into(),
+                        reason: format!("{} requires {count} thresholds", set.as_str()),
+                    });
+                }
+                self.check_thresholds(sheet, cfvos.iter())?;
                 Vec::new()
+            }
+            RuleKind::Top10 { rank, percent, .. } if *rank == 0 || (*percent && *rank > 100) => {
+                return Err(Error::InvalidSetting {
+                    what: "top10 rank".into(),
+                    reason: "must be positive and at most 100 for a percentage".into(),
+                });
             }
             _ => Vec::new(),
         })
     }
 
-    fn cfvo_formulas<'a>(&self, sheet: usize, cfvos: impl Iterator<Item = &'a Cfvo>) -> Result<()> {
+    fn check_thresholds<'a>(&self, sheet: usize, cfvos: impl Iterator<Item = &'a Cfvo>) -> Result<()> {
         for c in cfvos {
-            if let Cfvo::Formula(f) = c {
-                self.check_range_formula(sheet, f)?;
-            }
+            let reason = match c {
+                Cfvo::Formula(f) => {
+                    self.check_range_formula(sheet, f)?;
+                    continue;
+                }
+                Cfvo::Num(n) if !n.is_finite() => "number must be finite",
+                Cfvo::Percent(n) | Cfvo::Percentile(n) if !(0.0..=100.0).contains(n) => {
+                    "percentage and percentile must be between 0 and 100"
+                }
+                _ => continue,
+            };
+            return Err(Error::InvalidSetting { what: "conditional formatting threshold".into(), reason: reason.into() });
         }
         Ok(())
     }
@@ -257,6 +282,12 @@ impl Workbook {
         let (prios, pivot) = priorities(self.pkg.xml_part(&part)?.root());
         if first && pivot {
             return Err(Error::PivotConditionalFormat(sqref));
+        }
+        if first && prios.contains(&0) {
+            return Err(Error::InvalidSetting {
+                what: "conditional formatting priority".into(),
+                reason: "cannot insert first when an existing priority is zero".into(),
+            });
         }
         let max_priority = prios.into_iter().max().unwrap_or(0);
         if max_priority >= i32::MAX as u32 {
@@ -539,7 +570,7 @@ fn write_rule(r: &mut LensMut<'_, sml::ConditionalFormattingRule>, rule: &Rule, 
         }
         RuleKind::IconSet(set, cfvos) => {
             let mut is = r.insert::<sml::IconSet>()?;
-            is.set_attr(q("iconSet"), set)?;
+            is.set_attr(q("iconSet"), set.as_str())?;
             for c in cfvos {
                 cfvo(&mut is, c)?;
             }

@@ -237,6 +237,47 @@ fn data_validation_add_and_remove() {
     assert!(out_xml(&wb).contains("<extLst></extLst>") || !out_xml(&wb).contains("CCE6A557"), "{}", out_xml(&wb));
 }
 
+#[test]
+fn validation_review_refusals_are_atomic() {
+    use ooxml_xlsx::{Validation, ValidationOperator as Op, ValidationType};
+
+    let input = book(&[("S", ""), ("Other", "")], "", "");
+    for rule in [
+        Validation::custom("Other!A1#>0"),
+        Validation::list_from("Other!$A$1#"),
+        Validation::custom("Other!F(1)>0"),
+        Validation::custom("Table1[Col]>0"),
+    ] {
+        let (_, result) = try_on(&input, |ws| ws.add_validation("A1", &rule));
+        assert_matches!(result, Err(Error::InvalidFormula { .. }));
+    }
+    for (op, second) in [(Op::Between, None), (Op::NotBetween, None), (Op::Equal, Some("2"))] {
+        let rule = Validation::compare(ValidationType::Whole, op, "1", second);
+        let (_, result) = try_on(&input, |ws| ws.add_validation("A1", &rule));
+        assert_matches!(result, Err(Error::InvalidSetting { .. }));
+    }
+    let plain = sheet_with("", r#"<dataValidations count="1"><dataValidation sqref="A:A"/></dataValidations>"#, "");
+    let x14 = sheet_with("", &X14_DV.replace("D1:D9", "A:A"), "");
+    for input in [plain, x14] {
+        let (_, result) = try_on(&input, |ws| ws.add_validation("A5", &Validation::custom("1")));
+        assert_matches!(result, Err(Error::ValidationOverlap { existing, .. }) if existing == "A:A");
+    }
+}
+
+#[test]
+fn remove_x14_validation_preserves_unknown_siblings() {
+    let sibling = r#"<x14:other vendor="keep" />"#;
+    let ext_sibling = r#"<ext uri="other"><vendor/></ext>"#;
+    let input = X14_DV.replace("</ext>", &format!("{sibling}</ext>"))
+        .replace("</extLst>", &format!("{ext_sibling}</extLst>"));
+    let (wb, result) = try_on(&sheet_with("", &input, ""), |ws| ws.remove_validation("D1:D9"));
+    result.unwrap();
+    let start = input.find("<x14:dataValidations").unwrap();
+    let end = input.find(sibling).unwrap();
+    let expected = format!("{}{}", &input[..start], &input[end..]);
+    assert!(out_xml(&wb).contains(&expected));
+}
+
 // ---- hyperlinks (§4) ----
 
 #[test]
@@ -300,6 +341,32 @@ fn hyperlinks_external_internal_and_removal() {
     res.unwrap();
 }
 
+#[test]
+fn hyperlink_unparseable_existing_range_is_atomic() {
+    use ooxml_xlsx::{Link, LinkOptions};
+    let input = sheet_with("", r#"<hyperlinks><hyperlink ref="A:A" location="S!B1"/></hyperlinks>"#, "");
+    let (_, result) = try_on(&input, |ws| ws.set_hyperlink("A5", &Link::Location("S!B1".into()), &LinkOptions::default()));
+    assert_matches!(result, Err(Error::HyperlinkOverlap { existing, .. }) if existing == "A:A");
+}
+
+#[test]
+fn external_hyperlink_declares_relationship_namespace_locally() {
+    use ooxml_xlsx::{Link, LinkOptions};
+    for existing in ["", r#"<hyperlinks xmlns:r="urn:vendor"><hyperlink ref="A1" location="S!B1"/></hyperlinks>"#] {
+        let input = sheet_with("", existing, "");
+        let (wb, result) = try_on(&input, |ws| {
+            ws.set_hyperlink("A2", &Link::Url("https://example.com".into()), &LinkOptions::default())?;
+            let links = ws.hyperlinks()?;
+            assert_eq!(links.last().unwrap().target.as_deref(), Some("https://example.com"));
+            Ok(())
+        });
+        result.unwrap();
+        let xml = out_xml(&wb);
+        let prefix = if existing.is_empty() { "r" } else { "r1" };
+        assert!(xml.contains(&format!(r#"<hyperlink xmlns:{prefix}="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ref="A2" {prefix}:id="rId1"/>"#)), "{xml}");
+    }
+}
+
 // ---- conditional formatting (§6) ----
 
 fn cf_try(input: &[u8], f: impl FnOnce(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<()>) -> String {
@@ -344,7 +411,7 @@ fn conditional_formats_add_priorities_and_kinds() {
         ws.add_conditional_format("D1:D9", &Rule::new(RuleKind::AboveAverage(false)))?;
         ws.add_conditional_format("E1:E9", &Rule::new(RuleKind::ColorScale(vec![(Cfvo::Min, "FFF8696B".into()), (Cfvo::Percentile(50.0), "FFFFEB84".into()), (Cfvo::Max, "FF63BE7B".into())])))?;
         ws.add_conditional_format("F1:F9", &Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Formula("=$A$1".into()), "FF638EC6".into())))?;
-        ws.add_conditional_format("G1:G9", &Rule::new(RuleKind::IconSet("3Arrows".into(), vec![Cfvo::Percent(0.0), Cfvo::Percent(33.0), Cfvo::Num(67.5)])))?;
+        ws.add_conditional_format("G1:G9", &Rule::new(RuleKind::IconSet(ooxml_xlsx::IconSetValues::ThreeArrows, vec![Cfvo::Percent(0.0), Cfvo::Percent(33.0), Cfvo::Num(67.5)])))?;
         ws.add_conditional_format("H1:H9", &Rule::new(RuleKind::DuplicateValues))
     });
     for want in [
@@ -405,6 +472,42 @@ fn conditional_format_refusals_and_removal() {
     let broken = sheet_with("", r#"<conditionalFormatting sqref="A1"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF000000"/></dataBar><extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:id>{0000}</x14:id></ext></extLst></cfRule></conditionalFormatting>"#, "");
     let (_, r) = try_on(&broken, |ws| ws.remove_conditional_format("A1", None));
     assert!(r.unwrap().broken_x14_link);
+}
+
+#[test]
+fn conditional_format_review_refusals_are_atomic() {
+    use ooxml_core::EnumType;
+    use ooxml_xlsx::{CfOperator as Op, Cfvo, IconSetValues, Rule, RuleKind};
+
+    let input = book(&[("S", ""), ("Other", "")], "", "");
+    for formula in ["Other!A1#>0", "SUM(Other!F(1))>0", "Table1[Col]>0"] {
+        let rule = Rule::new(RuleKind::Expression(formula.into()));
+        let (_, result) = try_on(&input, |ws| ws.add_conditional_format("A1", &rule));
+        assert_matches!(result, Err(Error::InvalidFormula { .. }));
+    }
+    for set in ["3Stars", "3Triangles", "5Boxes", "NoIcons", "Bogus"] {
+        assert_eq!(IconSetValues::parse(set), None);
+    }
+    for kind in [
+        RuleKind::CellIs(Op::Between, "1".into(), None),
+        RuleKind::CellIs(Op::NotBetween, "1".into(), None),
+        RuleKind::CellIs(Op::Equal, "1".into(), Some("2".into())),
+        RuleKind::IconSet(IconSetValues::ThreeArrows, vec![Cfvo::Min]),
+        RuleKind::IconSet(IconSetValues::FourArrows, vec![Cfvo::Min; 5]),
+        RuleKind::DataBar(Cfvo::Num(f64::NAN), Cfvo::Max, "FF000000".into()),
+        RuleKind::DataBar(Cfvo::Num(f64::INFINITY), Cfvo::Max, "FF000000".into()),
+        RuleKind::DataBar(Cfvo::Percent(-1.0), Cfvo::Max, "FF000000".into()),
+        RuleKind::DataBar(Cfvo::Min, Cfvo::Percentile(101.0), "FF000000".into()),
+        RuleKind::Top10 { rank: 0, percent: false, bottom: false },
+        RuleKind::Top10 { rank: 101, percent: true, bottom: false },
+    ] {
+        let rule = Rule::new(kind);
+        let (_, result) = try_on(&input, |ws| ws.add_conditional_format("A1", &rule));
+        assert_matches!(result, Err(Error::InvalidSetting { .. }));
+    }
+    let zero = sheet_with("", r#"<conditionalFormatting sqref="A1"><cfRule type="uniqueValues" priority="0"/></conditionalFormatting>"#, "");
+    let (_, result) = try_on(&zero, |ws| ws.add_conditional_format_first("A2", &Rule::new(RuleKind::UniqueValues)));
+    assert_matches!(result, Err(Error::InvalidSetting { .. }));
 }
 
 #[test]

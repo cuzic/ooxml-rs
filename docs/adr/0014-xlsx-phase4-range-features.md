@@ -242,6 +242,16 @@ Each feature's write path is a set of **allowlist entries** (ADR-0002 §5), prom
 to write in `codegen/allowlist/sml.toml`, plus hand-written x14 lenses for the `extLst` forms
 (§5, §6). Nothing outside those elements is re-rendered.
 
+**Post-acceptance note (PR #77).** The `validations()` and `conditional_formats()`
+read APIs are deferred to a follow-up after Part 2. For new rules, opaque references and
+sheet-qualified calls are refused with `InvalidFormula`. Between and notBetween comparisons
+require two formulas. Conditional formatting uses the 2007 `IconSetValues` enum and requires
+one threshold per icon, finite numbers, percentages and percentiles in 0–100, and positive
+top10 ranks (at most 100 for a percentage). Invalid settings, including insertion at priority
+1 when priority 0 exists, return `InvalidSetting`. An unparseable existing validation or
+hyperlink range returns its respective overlap error. External hyperlinks declare the
+relationship namespace on the new hyperlink if needed.
+
 ### 2. Locality: the allowed changes, per feature (revision 2, review M5)
 
 Phase1's byte-exact allowed-diff oracle (ADR-0003 §7) is reused. For each call, the expected

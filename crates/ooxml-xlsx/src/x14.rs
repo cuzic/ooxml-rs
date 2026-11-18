@@ -6,6 +6,7 @@ use ooxml_core::{AttrSpec, ChildOf, Content, ElementSpec, LensMut, QName, RawNod
 use ooxml_schema::sml;
 
 pub(crate) const NS_X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+pub(crate) const DV_RULE: QName = QName::new(NS_X14, "dataValidation");
 pub(crate) const NS_XM: &str = "http://schemas.microsoft.com/office/excel/2006/main";
 /// `ext/@uri` of x14 data validations.
 pub(crate) const URI_DV: &str = "{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}";
