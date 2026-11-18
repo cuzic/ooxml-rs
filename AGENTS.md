@@ -1,0 +1,98 @@
+# ooxml-rs — エージェント共通ガイド（Codex・Claude 共通）
+
+Rust で xlsx / docx / pptx を **ロスレスに往復編集** するライブラリ。設計の出発点は
+`docs/adr/0001-lossless-round-trip-architecture.md`。実装前に、担当フェーズの ADR
+（`docs/adr/`、Accepted のもの）とその review ファイルを読むこと。
+
+## 役割分担
+
+| 担当 | 仕事 |
+| --- | --- |
+| Claude | ADR の設計と spike、owner への質問の整理、PR の敵対的レビュー（Blocker/Major 探し）、マージ判断 |
+| Codex | Accepted ADR に沿った実装、レビュー指摘の修正、main の取り込みと衝突解消、テスト・fixture・fuzz target の追加 |
+| CI / スクリプト | テスト、clippy、`codegen --check`、python-pptx オラクル、変異テストやコーパス走査などの機械的検証 |
+
+仕事は Issue か PR 本文の「タスク仕様」（スコープ・受け入れ条件・触ってよいファイル）で渡す。
+仕様に無い判断が要るときは、実装で決めずに PR 本文の「Open questions」に書いて止める。
+
+## 完了の定義（どの PR も）
+
+```sh
+cargo test --workspace --all-features
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo xtask codegen --check
+```
+
+- 3 つとも通ること。pptx に触れたら `.github/workflows/ci.yml` の python-pptx オラクルも手元で回す。
+- **拒否は無変更**: 編集 API が `Err` を返したら、保存結果は入力とバイト単位で同一（`Err ⇒ byte-identical`）。
+  新しい拒否には必ずこのテストを付ける。
+- **局所性**: 編集は触ったノードの span の外を変えない（ADR-0001 の T1/T1b/T2）。
+- 新しい公開 API・拒否・挙動変更は、該当 ADR の post-acceptance note か PR 本文に記録する。
+- 新しいコードには、それを壊す変異（手書きでよい）を最低 1 つ用意し、テストで落ちることを確かめる。
+
+## 安全規則
+
+- **第三者ファイルは信頼しない入力**。コーパスや fixture を読むスクリプトは `python3 -I`、
+  エンティティ解決なし、DTD を含む part は読み飛ばす。ダウンロードしたものを実行しない。
+- プローブや一時ファイルはリポジトリの外（スクラッチ領域）に置く。リポジトリに `PWNED` のような
+  検証用の残骸を残さない。
+- 生成物（`crates/ooxml-schema/src/generated/`、`codegen/report.txt`）は手で直さず、
+  `codegen/allowlist/*.toml` や `codegen/overrides.toml` を直して `cargo xtask codegen` で再生成する。
+  生成型の公開名を変える変更は ADR-0002 の note に書く。
+- コミットやコメントにマシン固有の情報（ユーザー名、uid、絶対パス）を入れない。
+
+## Git の約束
+
+- ブランチは `plan/… impl/… core/… fix/… test/… docs/… chore/… perf/… spike/…`。
+  1 つの作業に 1 つの `git worktree`。共有 checkout でブランチを切り替えない。
+- **merge で追従し、rebase / force-push はしない**。衝突した生成物は再生成する。
+- エージェントは PR を作って更新するが、**マージはしない**（owner か Claude の merge 手順が行う）。
+- 積み上げ PR はタイトルに「stacked on #NN」と書く。
+- コミット末尾に `Co-Authored-By:` トレーラーを付ける。PR 本文の末尾はツールの既定の署名に従う。
+
+## リポジトリの地図
+
+| 場所 | 中身 |
+| --- | --- |
+| `crates/ooxml-core` | OPC パッケージ、Layer 2 の `XmlDocument`/`RawNode`/lens、`RegistryPlan`（part・関係の追加削除） |
+| `crates/ooxml-schema` | `cargo xtask codegen` の生成物（`*View`/`*ViewMut`、`ChildOf`、slot） |
+| `crates/ooxml-{xlsx,docx,pptx}` | 各形式の API。`examples/<format>_manual_check.rs` が owner 用の手動確認一式を書く |
+| `crates/ooxml-robustness`, `fuzz/` | fuzz target と oracle（PR #36 で入る予定。`fuzz/README.md`） |
+| `codegen/` | allowlist、overrides、生成レポート |
+| `reference/` | 同梱した SDK データ・ECMA XSD・fixture（`reference/fixtures/<format>/`） |
+| `docs/adr/`, `docs/reviews/` | 設計と、そのレビュー記録（`docs/reviews/prNN-roundK.md`） |
+| `docs/process.md` | 開発プロセスの実態 |
+
+## Rust バージョン方針
+
+- MSRV は **1.99**、edition は **2024**（`Cargo.toml` の `[workspace.package]`）。
+  古い Rust 向けの回避策（外部 crate による代替、手書きのポインタ演算など）は書かない。
+- 新しい std API があるなら、それを第一候補にする。既存コードを触るときに古い書き方を見つけたら置き換える。
+- 1.97 以降の機能はモデルの学習データにない可能性が高い。下の表を正とし、
+  不明な API は `rustup doc --std` か <https://doc.rust-lang.org/stable/std/> で確認してから使う。
+
+### 優先して使う API（ooxml-rs での用途つき）
+
+| 用途 | 使うもの | 版 | 使わないもの |
+| --- | --- | --- | --- |
+| Layer 2 `ElementSpan` のオフセット計算（quick-xml が借用で返したスライス → 入力内の範囲） | `str::substr_range` / `<[T]>::subslice_range`（戻り値は `std::ops::Range` ではなく新しい `core::range::Range`） | 1.98 | `as_ptr()` の差分計算 |
+| 数値属性（`r="B2"` の行番号、`s="3"`）の出力 | `<整数>::format_into` + `core::fmt::NumBuffer` | 1.98 | `itoa` crate、`to_string()` |
+| 引用符・括弧で囲まれた値の除去 | `str::strip_circumfix` | 1.98 | `strip_prefix` と `strip_suffix` の連続呼び出し |
+| `Option`/`Result` の既定値への変換 | `map_or_default` | 1.98 | `map_or(Default::default(), …)` |
+| 子要素を挿入してすぐ編集（dirty フラグ設定） | `Vec::insert_mut` / `push_mut` | 1.95 | `insert` の後に `&mut v[i]` を取り直す |
+| 名前空間ごとの feature による生成コードの切り替え | `cfg_select!` | 1.95 | `cfg-if` crate |
+| QName による分岐 | match の腕での `if let` ガード、let chains | 1.95 / 1.88 | 入れ子の `if let` |
+| エラー経路のヒント | `core::hint::cold_path` | 1.95 | — |
+| タグ・属性を文字列化せずに出力 | `std::fmt::from_fn` | 1.93 | 中間の `String` を作ること |
+| バイト位置を文字境界へ丸める（エラー表示での切り出し） | `str::floor_char_boundary` / `ceil_char_boundary` | 1.91 | 手書きのループ |
+| 型の識別を const 文脈で行う（生成表の検証） | const な `TypeId::of` | 1.91 | — |
+| 逆引き表などの遅延初期化 | `LazyLock`（`get` / `force_mut` は 1.94） | 1.80 | `once_cell`、`lazy_static` |
+| テストでのパターン一致 | `std::assert_matches!`（prelude に無いのでパス指定か `use`） | 1.96 | `assert!(matches!(…))` |
+| 型エラーの文言（`ChildOf` など生成 trait） | `#[diagnostic::on_unimplemented]`、`#[diagnostic::do_not_recommend]` | 1.78 / 1.85 | — |
+| 生成表のコンパイル時検証 | インライン `const { … }` | 1.79 | 実行時の `assert!` |
+| lint 抑制 | `#[expect(…)]` | 1.81 | `#[allow(…)]` |
+
+### まだ使えないもの（1.99 時点で nightly 限定。回避策を作り込まない）
+
+`macro_rules!` による derive / 属性マクロ（`macro_derive`）、const trait（`const_trait_impl`）、
+`adt_const_params`、`generic_const_exprs`。

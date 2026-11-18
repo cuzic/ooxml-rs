@@ -1,47 +1,21 @@
-# ooxml-rs — 作業ガイド
+# ooxml-rs — Claude 向けガイド
 
-設計の出発点は `docs/adr/0001-lossless-round-trip-architecture.md`。実装前に読むこと。
+共通の規則（役割分担、完了の定義、安全規則、Git、Rust 方針）は AGENTS.md にある。
 
-## Rust バージョン方針
+@AGENTS.md
 
-- MSRV は **1.99**、edition は **2024**（`Cargo.toml` の `[workspace.package]`）。
-  古い Rust 向けの回避策（外部 crate による代替、手書きのポインタ演算など）は書かない。
-- 新しい std API があるなら、それを第一候補にする。既存コードを触るときに古い書き方を見つけたら置き換える。
-- 1.97 以降の機能はモデルの学習データにない可能性が高い。下の表を正とし、
-  不明な API は `rustup doc --std` か <https://doc.rust-lang.org/stable/std/> で確認してから使う。
+## Claude の仕事と進め方
 
-### 優先して使う API（ooxml-rs での用途つき）
+- **設計**: ADR と spike。数値は spike か出典から。owner が決めることは AskUserQuestion でまとめて聞く。
+- **レビュー**: `.claude/skills/review-pr` の手順。Blocker/Major を探すのが目的で、
+  変異テストやコーパス走査は CI かスクリプトの結果を読む（レビュー中に長時間回さない）。
+- **実装と修正は Codex に渡す**: `.claude/skills/codex-task` でタスク仕様を書く。
+  Claude 自身が実装するのは、仕様に落とせない判断を含む小さな変更だけ。
+- **マージ**: `.claude/skills/merge-pr` の手順（CI 全緑の確認、積み上げ PR の付け替え）。
 
-| 用途 | 使うもの | 版 | 使わないもの |
-| --- | --- | --- | --- |
-| Layer 2 `ElementSpan` のオフセット計算（quick-xml が借用で返したスライス → 入力内の範囲） | `str::substr_range` / `<[T]>::subslice_range`（戻り値は `std::ops::Range` ではなく新しい `core::range::Range`） | 1.98 | `as_ptr()` の差分計算 |
-| 数値属性（`r="B2"` の行番号、`s="3"`）の出力 | `<整数>::format_into` + `core::fmt::NumBuffer` | 1.98 | `itoa` crate、`to_string()` |
-| 引用符・括弧で囲まれた値の除去 | `str::strip_circumfix` | 1.98 | `strip_prefix` と `strip_suffix` の連続呼び出し |
-| `Option`/`Result` の既定値への変換 | `map_or_default` | 1.98 | `map_or(Default::default(), …)` |
-| 子要素を挿入してすぐ編集（dirty フラグ設定） | `Vec::insert_mut` / `push_mut` | 1.95 | `insert` の後に `&mut v[i]` を取り直す |
-| 名前空間ごとの feature による生成コードの切り替え | `cfg_select!` | 1.95 | `cfg-if` crate |
-| QName による分岐 | match の腕での `if let` ガード、let chains | 1.95 / 1.88 | 入れ子の `if let` |
-| エラー経路のヒント | `core::hint::cold_path` | 1.95 | — |
-| タグ・属性を文字列化せずに出力 | `std::fmt::from_fn` | 1.93 | 中間の `String` を作ること |
-| バイト位置を文字境界へ丸める（エラー表示での切り出し） | `str::floor_char_boundary` / `ceil_char_boundary` | 1.91 | 手書きのループ |
-| 型の識別を const 文脈で行う（生成表の検証） | const な `TypeId::of` | 1.91 | — |
-| 逆引き表などの遅延初期化 | `LazyLock`（`get` / `force_mut` は 1.94） | 1.80 | `once_cell`、`lazy_static` |
-| テストでのパターン一致 | `std::assert_matches!`（prelude に無いのでパス指定か `use`） | 1.96 | `assert!(matches!(…))` |
-| 型エラーの文言（`ChildOf` など生成 trait） | `#[diagnostic::on_unimplemented]`、`#[diagnostic::do_not_recommend]` | 1.78 / 1.85 | — |
-| 生成表のコンパイル時検証 | インライン `const { … }` | 1.79 | 実行時の `assert!` |
-| lint 抑制 | `#[expect(…)]` | 1.81 | `#[allow(…)]` |
+## トークンの使い方
 
-### まだ使えないもの（1.99 時点で nightly 限定。回避策を作り込まない）
-
-`macro_rules!` による derive / 属性マクロ（`macro_derive`）、const trait（`const_trait_impl`）、
-`adt_const_params`、`generic_const_exprs`。
-
-## コード生成
-
-- スキーマ由来のコードは生成ツールで作り、生成物をリポジトリに置く（`build.rs` での生成や、大規模な proc-macro は使わない）。
-- 生成物は手で直さず、生成ツールか入力データを直す。
-
-## 検証
-
-- `cargo clippy --workspace --all-targets -- -D warnings`。clippy は `rust-version` を読み、
-  MSRV 内で使える新しい書き方を提案する lint が有効になるので、警告を残さない。
+- 同時に動かすサブエージェントは 2〜3 まで。タスクごとに新しいエージェントを立て、終わったら閉じる。
+  引き継ぎは PR 本文と `docs/reviews/` で行い、長寿命のエージェントに状態を持たせない。
+- 収束の規則: Blocker/Major が出たラウンドだけ再レビューする。Minor/nit の修正は CI 通過で可。
+- ビルドやテストの待ち時間に通知へ短い返事を重ねない。結果が出たときにまとめて報告する。

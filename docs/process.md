@@ -13,6 +13,16 @@ wish-list.
   switched between branches.
 - **Stacked PRs** say so in their title ("stacked on #14, merge after #14").
 
+## Who does what
+
+- **Claude** designs (ADRs, spikes), reviews PRs adversarially and decides merges.
+- **Codex** implements against Accepted ADRs, fixes review findings and resolves merge
+  conflicts, from task specs written as Issues or PR comments.
+- **CI and scripts** run the mechanical checks.
+
+The shared rules are in `AGENTS.md`; Claude-specific workflow is in `CLAUDE.md` and
+`.claude/skills/` (`review-pr`, `merge-pr`, `codex-task`).
+
 ## Design first
 
 - A phase starts with an **ADR** (`docs/adr/`, status Proposed) and a **spike**
@@ -35,6 +45,9 @@ wish-list.
   a revision-history entry mapping finding → fix, and a new round follows.
 - Rounds continue until a round finds **no Blocker or Major**. The ADR is then marked Accepted,
   or the implementation PR is merged. Remaining Minors may go to a follow-up PR.
+- A fix round that addresses only Minors and nits does not need another review: passing CI is
+  enough. Mutation runs and corpus sweeps are read from CI or script output rather than rerun
+  inside a review.
 - **Review files are committed** with the work they review: `docs/adr/NNNN-opus-review-roundK.md`
   for ADRs (ADR-0001's predate the numbering: `opus-review-roundK.md`), and `docs/reviews/prNN-roundK.md` or `<area>-impl-roundK.md` for implementation PRs.
 - The project owner decides open questions; reviewers' recommendations are recorded as proposed
@@ -58,7 +71,8 @@ wish-list.
 - **Merge, not rebase.** Branches are brought up to date by merging `origin/main` and pushing
   normally. No force-pushes to PR branches; generated files are regenerated on conflict.
 - **Small commits.** Commits written by agents carry a `Co-Authored-By` trailer.
-- **The owner merges PRs.** Agents open PRs and update them, but do not merge.
+- **Agents do not merge.** They open and update PRs; merges follow `.claude/skills/merge-pr`
+  (all CI checks green, stacked PRs retargeted to `main` before their base branch is deleted).
 
 Note: ADRs were reviewed until converged from the start (ADR-0001, ADR-0002). The rule was
 extended to implementation PRs later: the foundation PRs #6, #9 and #10 merged on CI alone, and
