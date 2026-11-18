@@ -41,6 +41,8 @@ pub struct Phase1Edits {
     needs_calc: bool,
     /// A successful string write could have activated the shared-string registry.
     wrote_string: bool,
+    /// A write changed the number of cells pointing to shared strings.
+    shared_ref_count_changed: bool,
 }
 
 /// Facts taken just before one write.
@@ -76,6 +78,11 @@ impl Phase1Edits {
         self.needs_calc |= !p.deps.is_empty() || changed;
         self.formula_set_changed |= changed;
         self.deps.extend(p.deps.into_iter().map(|(s, c)| (s, c.to_string())));
+    }
+
+    /// Allow the shared-string reference count to change without appending entries.
+    pub(crate) fn changed_shared_ref_count(&mut self) {
+        self.shared_ref_count_changed = true;
     }
 
     /// Call after a successful `set_string` write.
@@ -137,7 +144,7 @@ pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&s
         let ok = if n == workbook {
             edits.needs_calc && eq_with(da.root(), db.root(), &Rule::CalcPr)
         } else if Some(n) == sst.as_deref() {
-            edits.wrote_string && shared_strings_diff(&da, &db)
+            (edits.wrote_string || edits.shared_ref_count_changed) && shared_strings_diff(&da, &db, edits.wrote_string)
         } else if let Some(refs) = dep_parts.get(n) {
             eq_with(da.root(), db.root(), &Rule::Deps(refs))
         } else if let Some(c) = chain.as_deref().filter(|_| chain_gone && (n == wb_rels || n == "[Content_Types].xml")) {
@@ -149,7 +156,7 @@ pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&s
     }
 }
 
-fn shared_strings_diff(base: &XmlDocument, out: &XmlDocument) -> bool {
+fn shared_strings_diff(base: &XmlDocument, out: &XmlDocument, allow_append: bool) -> bool {
     let (a, b) = (base.root(), out.root());
     let count = QName::new("", "count");
     let unique = QName::new("", "uniqueCount");
@@ -164,6 +171,10 @@ fn shared_strings_diff(base: &XmlDocument, out: &XmlDocument) -> bool {
     let old_len = a.elements().filter(|n| n.is(si)).count();
     let items: Vec<_> = b.elements().filter(|n| n.is(si)).collect();
     let Some(appended) = items.get(old_len..) else { return false };
+
+    if !allow_append && !appended.is_empty() {
+        return false;
+    }
 
     // A missing counter stays missing. uniqueCount changes only on append.
     let valid_unique_count = if appended.is_empty() {

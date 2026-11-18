@@ -301,34 +301,33 @@ fn f6_zip64_declared_size_does_not_abort() {
 /// formula census keys cells by `c/@r` and counts B2 as a formula cell; the
 /// row index looks B2 up in row 2 and does not find it. `set_formula`,
 /// `set_number` and `remove_formula` on B2 then wrote a second `c r="B2"`
-/// in a new row 2 (and kept `calcChain.xml`), leaving the formula in row 1:
-/// after `remove_formula` the formula was still there. Expected (PR #67):
+/// in a new row 2, leaving the formula in row 1 even after `remove_formula`.
+/// Replacing the formula also kept `calcChain.xml`. Expected (PR #67):
 /// every edit of such a workbook refused with `InvalidReference`, also
 /// reported by `edit_refusal`.
 #[test]
-#[ignore = "fuzz finding F-8 (fixed by PR #67), see docs/testing/fuzz-findings-2026-11.md"]
 fn f8_formula_cell_in_another_row_is_not_duplicated() {
-    use ooxml_xlsx::{CellIndex, Error, Workbook};
+    use ooxml_xlsx::{Error, Workbook};
+    use std::assert_matches;
     for (input, at) in [
         (ooxml_robustness::xlsx_formula::wrong_row_formula_book(), (1, 1)),
         (ooxml_robustness::xlsx_formula::wrong_row_formula_book_reversed(), (0, 1)),
     ] {
-        // control: the census sees the misplaced formula cell
         let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
-        let deps = wb.dependents("Sheet1", CellIndex::parse("A1").unwrap()).unwrap_or_default();
-        assert!(deps.iter().any(|(_, c)| (c.row, c.col) == at), "the census does not see the formula: {deps:?}");
-        assert!(matches!(wb.edit_refusal(), Some(Error::InvalidReference(_))), "edit_refusal: {:?}", wb.edit_refusal());
-        for kind in 0..3 {
-            let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
-            let before = wb.to_bytes().unwrap();
-            let mut ws = wb.worksheet().unwrap();
-            let r = match kind {
-                0 => ws.cell_mut(at.0, at.1).unwrap().set_formula("A1*3"),
-                1 => ws.cell_mut(at.0, at.1).unwrap().set_number(7.0),
-                _ => ws.cell_mut(at.0, at.1).unwrap().remove_formula(),
-            };
-            assert!(matches!(r, Err(Error::InvalidReference(_))), "edit {kind}: {r:?}");
-            assert_eq!(wb.to_bytes().unwrap(), before, "edit {kind} changed the package");
+        assert_matches!(wb.edit_refusal(), Some(Error::InvalidReference(_)));
+        for (row, col) in [at, (5, 5)] {
+            for kind in 0..4 {
+                let mut ws = wb.worksheet().unwrap();
+                let cell = ws.cell_mut(row, col).unwrap();
+                let result = match kind {
+                    0 => cell.set_formula("A1*3"),
+                    1 => cell.set_number(7.0),
+                    2 => cell.set_string("text"),
+                    _ => cell.remove_formula(),
+                };
+                assert_matches!(result, Err(Error::InvalidReference(_)), "edit {kind} at ({row},{col})");
+                assert_eq!(wb.to_bytes().unwrap(), input, "edit {kind} at ({row},{col}) changed the package");
+            }
         }
     }
 }

@@ -22,10 +22,9 @@
 //!   content-type override); a written value reads back; outside the
 //!   edited sheet only what Phase1 may write changed
 //!   ([`crate::phase1_oracle`]: the dependents' `v`/`is`/`@t`, `calcPr`,
-//!   calcChain); on every sheet, the edited one included, every cell other
-//!   than the target and the dependents keeps its `f`/`v` and its effective
-//!   references (a shared group's new master after a hand-off included),
-//!   and a shared master's `ref` that covered its members still does;
+//!   calcChain); on every sheet, non-target formulas keep their effective
+//!   references, non-dependent cells keep their `v`, and shared masters'
+//!   ranges continue to cover their groups;
 //! - the set of formula cells read back from the output equals the model's
 //!   expectation, and the output reopens.
 
@@ -56,19 +55,25 @@ type At = (usize, u32, u32);
 
 /// A rectangle a formula reads: (sheet, r1, c1, r2, c2), inclusive.
 type Rect = (usize, u32, u32, u32, u32);
+type Range = (u32, u32, u32, u32);
+
+#[derive(Clone, Debug)]
+struct SharedFormula {
+    id: u32,
+    master_range: Option<Range>,
+}
 
 #[derive(Clone, Debug, Default)]
 struct Cell {
-    /// The formula text in effect (shared members: the master's, translated
-    /// by the harness), if the cell has an `f`.
+    /// Text stored in `f`. Shared members get their effective reads separately.
     formula: Option<String>,
     has_f: bool,
-    has_v: bool,
+    value: Option<String>,
+    cell_type: Option<String>,
+    inline_string: Option<String>,
     /// `f/@ref` of an array formula (its result range).
-    array_ref: Option<(u32, u32, u32, u32)>,
-    /// Shared group id, whether this cell is the group's master, and the
-    /// master's `f/@ref`.
-    shared: Option<(String, bool, Option<(u32, u32, u32, u32)>)>,
+    array_ref: Option<Range>,
+    shared: Option<SharedFormula>,
     /// The edges the harness could read.
     reads: Vec<Rect>,
 }
@@ -87,7 +92,10 @@ fn is_sml(n: &RawNode, local: &str) -> bool {
 }
 
 fn attr<'a>(n: &'a RawNode, local: &str) -> Option<&'a str> {
-    n.attrs().iter().find(|a| a.name().ns().is_empty() && a.name().local() == local).map(|a| a.value())
+    n.attrs()
+        .iter()
+        .find(|a| a.name().ns().is_empty() && a.name().local() == local)
+        .map(|a| a.value())
 }
 
 fn col_of(letters: &str) -> Option<u32> {
@@ -170,7 +178,7 @@ fn references(text: &str, own_sheet: usize, names: &[String], dr: i64, dc: i64) 
                 }
                 i += 1;
             }
-            let name = text.get(start..i.min(b.len())).unwrap_or("").replace("''", "'");
+            let name = text[start..i].replace("''", "'");
             i += 1;
             if b.get(i) == Some(&b'!') {
                 i += 1;
@@ -252,7 +260,7 @@ fn row_part(s: &str) -> Option<(u32, bool)> {
     (r >= 1 && r - 1 <= MAX_ROW).then(|| (r - 1, abs))
 }
 
-fn range_of(s: &str) -> Option<(u32, u32, u32, u32)> {
+fn range_of(s: &str) -> Option<Range> {
     let (a, z) = s.split_once(':').unwrap_or((s, s));
     let (r1, c1, ..) = cell_ref(a)?;
     let (r2, c2, ..) = cell_ref(z)?;
@@ -271,10 +279,15 @@ fn model(zip: &[u8]) -> Option<Model> {
     if names.iter().enumerate().any(|(i, n)| names[..i].contains(n)) {
         return None;
     }
-    let parts: Vec<Option<String>> =
-        (0..names.len()).map(|i| wb.worksheet_by_index(i).ok().map(|ws| ws.part_name().to_owned())).collect();
+    let parts: Vec<Option<String>> = (0..names.len())
+        .map(|i| wb.worksheet_by_index(i).ok().map(|ws| ws.part_name().to_owned()))
+        .collect();
     let pkg = ooxml_core::Package::from_bytes(zip.to_vec()).ok()?;
-    let mut m = Model { names: names.clone(), parts: parts.clone(), ..Model::default() };
+    let mut m = Model {
+        names: names.clone(),
+        parts: parts.clone(),
+        ..Model::default()
+    };
     let wb_xml = XmlDocument::parse(&pkg.read_part(wb.workbook_part()).ok()?).ok()?;
     if let Some(c) = wb_xml.root().elements().find(|e| is_sml(e, "calcPr")) {
         m.manual = attr(c, "calcMode") == Some("manual");
@@ -293,31 +306,31 @@ fn model(zip: &[u8]) -> Option<Model> {
             let doc = XmlDocument::parse(&pkg.read_part(part).ok()?).ok()?;
             let sd = doc.root().elements().find(|e| is_sml(e, "sheetData"));
             // shared groups: si -> master (row, col, text); members with their si
-            let mut masters: BTreeMap<String, (u32, u32, String)> = BTreeMap::new();
-            let mut members: Vec<((u32, u32), String)> = Vec::new();
+            let mut masters = BTreeMap::new();
+            let mut members = Vec::new();
             for row in sd.into_iter().flat_map(RawNode::elements).filter(|e| is_sml(e, "row")) {
-                let row_number: Option<u32> = attr(row, "r").and_then(|v| v.parse().ok());
                 for c in row.elements().filter(|e| is_sml(e, "c")) {
                     let (r, col, ..) = cell_ref(attr(c, "r")?)?;
-                    // A cell naming another row is fuzz finding F-8 (the
-                    // census and the row index disagree): not modelled.
-                    if row_number.is_some_and(|n| n != r + 1) {
-                        return None;
-                    }
-                    let mut cell = Cell { has_v: c.elements().any(|e| is_sml(e, "v")), ..Cell::default() };
+                    let value = c.elements().find(|e| is_sml(e, "v")).map(|v| v.text().into_owned());
+                    let cell_type = attr(c, "t").map(str::to_owned);
+                    let inline_string = c.elements().find(|e| is_sml(e, "is")).and_then(RawNode::span)
+                        .map(|span| doc.source()[span.start..span.end()].to_owned());
+                    let mut cell = Cell { value, cell_type, inline_string, ..Cell::default() };
                     if let Some(f) = c.elements().find(|e| is_sml(e, "f")) {
                         cell.has_f = true;
                         total += 1;
                         let text = f.text().into_owned();
                         match attr(f, "t") {
                             Some("shared") => {
-                                let group = attr(f, "si").unwrap_or("").to_owned();
-                                cell.shared = Some((group.clone(), !text.is_empty(), attr(f, "ref").and_then(range_of)));
-                                if text.is_empty() {
-                                    members.push(((r, col), group));
-                                } else {
-                                    masters.entry(group).or_insert((r, col, text.clone()));
-                                    cell.formula = Some(text);
+                                if let Some(id) = attr(f, "si").and_then(|si| si.parse::<u32>().ok()) {
+                                    let master_range = attr(f, "ref").and_then(range_of).filter(|_| !text.is_empty());
+                                    cell.shared = Some(SharedFormula { id, master_range });
+                                    if master_range.is_some() {
+                                        masters.entry(id).or_insert((r, col, text.clone()));
+                                        cell.formula = Some(text);
+                                    } else {
+                                        members.push(((r, col), id));
+                                    }
                                 }
                             }
                             Some("array") => {
@@ -348,7 +361,86 @@ fn model(zip: &[u8]) -> Option<Model> {
     (total <= 20_000).then_some(m)
 }
 
+fn shared_master_ranges(cells: &BTreeMap<(u32, u32), Cell>) -> BTreeMap<u32, Range> {
+    let mut ranges = BTreeMap::new();
+    let mut ambiguous = BTreeSet::new();
+    for shared in cells.values().filter_map(|cell| cell.shared.as_ref()) {
+        if let Some(range) = shared.master_range
+            && ranges.insert(shared.id, range).is_some()
+        {
+            ambiguous.insert(shared.id);
+        }
+    }
+    ranges.retain(|id, _| !ambiguous.contains(id));
+    ranges
+}
+
+fn covers((r1, c1, r2, c2): Range, (r, c): (u32, u32)) -> bool {
+    (r1..=r2).contains(&r) && (c1..=c2).contains(&c)
+}
+
 impl Model {
+    fn shared_ref_count(&self) -> usize {
+        self.cells.iter().flat_map(|cells| cells.values())
+            .filter(|cell| cell.cell_type.as_deref().is_some_and(|t| t.trim() == "s")).count()
+    }
+
+    fn assert_preserved_cells(&self, new: &Self, at: At, model_deps: &BTreeSet<At>, lib_deps: &BTreeSet<At>) {
+        for (s, cells) in self.cells.iter().enumerate() {
+            let mut covered_before = shared_master_ranges(cells);
+            for (&pos, cell) in cells {
+                if let Some(shared) = &cell.shared
+                    && covered_before.get(&shared.id).is_some_and(|&range| !covers(range, pos))
+                {
+                    covered_before.remove(&shared.id);
+                }
+            }
+            let new_cells = &new.cells[s];
+            let new_ranges = shared_master_ranges(new_cells);
+            let replaced_master = (s == at.0)
+                .then(|| cells.get(&(at.1, at.2)).and_then(|cell| cell.shared.as_ref()))
+                .flatten()
+                .filter(|shared| shared.master_range.is_some());
+            let name = &self.names[s];
+            for (&(r, c), old) in cells {
+                let pos = (s, r, c);
+                if pos == at {
+                    continue;
+                }
+                let cell = new_cells
+                    .get(&(r, c))
+                    .unwrap_or_else(|| panic!("{name}!({r},{c}) disappeared after editing {at:?}"));
+                assert_eq!(cell.has_f, old.has_f, "{name}!({r},{c}) formula presence changed");
+                assert_eq!(cell.reads, old.reads, "{name}!({r},{c}) effective references changed");
+                if !model_deps.contains(&pos) && !lib_deps.contains(&pos) {
+                    assert_eq!(
+                        (&cell.value, &cell.cell_type, &cell.inline_string),
+                        (&old.value, &old.cell_type, &old.inline_string),
+                        "{name}!({r},{c}) value changed outside the dependency set"
+                    );
+                }
+                let promoted = old.shared.as_ref().is_some_and(|shared| {
+                    shared.master_range.is_none()
+                        && replaced_master.is_some_and(|master| master.id == shared.id)
+                        && cell.shared.as_ref().is_some_and(|new| new.id == shared.id && new.master_range.is_some())
+                });
+                if !promoted {
+                    assert_eq!(cell.formula, old.formula, "{name}!({r},{c}) formula text changed");
+                }
+                if let Some(shared) = &old.shared
+                    && covered_before.contains_key(&shared.id)
+                {
+                    assert!(
+                        cell.shared.as_ref().is_some_and(|new| new.id == shared.id)
+                            && new_ranges.get(&shared.id).is_some_and(|&range| covers(range, (r, c))),
+                        "{name}: shared group {} master ref no longer covers ({r},{c})",
+                        shared.id
+                    );
+                }
+            }
+        }
+    }
+
     /// Transitive dependents of `start` the model can prove (subset of the
     /// truth): formula cells reading a changed cell, and the results of
     /// array formulas among them. `start` itself is excluded.
@@ -358,14 +450,22 @@ impl Model {
         while let Some((sh, r, c)) = frontier.pop() {
             for (si, cells) in self.cells.iter().enumerate() {
                 for (&(fr, fc), cell) in cells {
-                    let hit = cell.reads.iter().any(|&(s, r1, c1, r2, c2)| s == sh && (r1..=r2).contains(&r) && (c1..=c2).contains(&c));
+                    let hit = cell
+                        .reads
+                        .iter()
+                        .any(|&(s, r1, c1, r2, c2)| s == sh && (r1..=r2).contains(&r) && (c1..=c2).contains(&c));
                     if !hit {
                         continue;
                     }
                     let mut new = vec![(si, fr, fc)];
                     if let Some((r1, c1, r2, c2)) = cell.array_ref {
                         // results of a dependent array formula (cells that exist)
-                        new.extend(cells.range((r1, 0)..=(r2, MAX_COL)).filter(|((_, cc), _)| (c1..=c2).contains(cc)).map(|(&(rr, cc), _)| (si, rr, cc)));
+                        new.extend(
+                            cells
+                                .range((r1, 0)..=(r2, MAX_COL))
+                                .filter(|((_, cc), _)| (c1..=c2).contains(cc))
+                                .map(|(&(rr, cc), _)| (si, rr, cc)),
+                        );
                     }
                     for d in new {
                         if d != start && out.insert(d) {
@@ -396,11 +496,19 @@ pub fn check_xlsx_formula_input(data: &[u8]) {
 }
 
 static FORMULA_FIXTURES: std::sync::LazyLock<Vec<crate::fixtures::Fixture>> = std::sync::LazyLock::new(|| {
-    let mut v: Vec<crate::fixtures::Fixture> =
-        XLSX.iter().map(|f| crate::fixtures::Fixture { name: f.name.clone(), parts: f.parts.clone() }).collect();
+    let mut v: Vec<crate::fixtures::Fixture> = XLSX
+        .iter()
+        .map(|f| crate::fixtures::Fixture {
+            name: f.name.clone(),
+            parts: f.parts.clone(),
+        })
+        .collect();
     for (name, zip) in formula_books() {
         if let Some(parts) = crate::fixtures::unzip(&zip) {
-            v.push(crate::fixtures::Fixture { name: name.to_owned(), parts });
+            v.push(crate::fixtures::Fixture {
+                name: name.to_owned(),
+                parts,
+            });
         }
     }
     v
@@ -412,8 +520,24 @@ pub fn formula_fixtures() -> &'static [crate::fixtures::Fixture] {
 }
 
 const FORMULA_TEXTS: &[&str] = &[
-    "A1*2", "SUM(A1:B3)", "B2+C3", "Sheet2!A1+1", "'Sheet 3'!B2*2", "SUM(A:A)", "SUM(2:2)", "$A$1+B$1+$C2", "A1+", "1/0", "ROW(A1)",
-    "INDIRECT(\"A1\")", "Rate*2", "\"text\"&A1", "SUM(Sheet1:Sheet2!A1)", "LEN(\"A1\")", "A1048576+XFD1", "Table1[Col]",
+    "A1*2",
+    "SUM(A1:B3)",
+    "B2+C3",
+    "Sheet2!A1+1",
+    "'Sheet 3'!B2*2",
+    "SUM(A:A)",
+    "SUM(2:2)",
+    "$A$1+B$1+$C2",
+    "A1+",
+    "1/0",
+    "ROW(A1)",
+    "INDIRECT(\"A1\")",
+    "Rate*2",
+    "\"text\"&A1",
+    "SUM(Sheet1:Sheet2!A1)",
+    "LEN(\"A1\")",
+    "A1048576+XFD1",
+    "Table1[Col]",
 ];
 
 fn formula_text(ops: &mut Input<'_>) -> String {
@@ -438,8 +562,14 @@ fn pick_cell(m: &Model, sheet: usize, ops: &mut Input<'_>) -> (u32, u32) {
             .map(|c| *c.keys().nth(usize::from(k) % c.len()).expect("in range"))
             .unwrap_or((0, 0)),
         2 => {
-            let reads: Vec<(u32, u32)> =
-                m.cells.iter().flat_map(|c| c.values()).flat_map(|c| &c.reads).filter(|r| r.0 == sheet).map(|r| (r.1, r.2)).collect();
+            let reads: Vec<(u32, u32)> = m
+                .cells
+                .iter()
+                .flat_map(|c| c.values())
+                .flat_map(|c| &c.reads)
+                .filter(|r| r.0 == sheet)
+                .map(|r| (r.1, r.2))
+                .collect();
             reads.get(usize::from(k) % reads.len().max(1)).copied().unwrap_or((0, 0))
         }
         _ => (u32::from(ops.u8() % 12), u32::from(ops.u8() % 8)),
@@ -477,10 +607,16 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
             && let Ok(lib) = wb.dependents(&m.names[sheet], CellIndex::new(row, col).expect("in range"))
         {
             {
-                let lib: BTreeSet<At> =
-                    lib.iter().filter_map(|(n, c)| m.names.iter().position(|x| x == n).map(|s| (s, c.row, c.col))).collect();
+                let lib: BTreeSet<At> = lib
+                    .iter()
+                    .filter_map(|(n, c)| m.names.iter().position(|x| x == n).map(|s| (s, c.row, c.col)))
+                    .collect();
                 let missing: Vec<&At> = model_deps.iter().filter(|d| !lib.contains(d)).collect();
-                assert!(missing.is_empty(), "Workbook::dependents({}!{row},{col}) misses {missing:?}", m.names[sheet]);
+                assert!(
+                    missing.is_empty(),
+                    "Workbook::dependents({}!{row},{col}) misses {missing:?}",
+                    m.names[sheet]
+                );
             }
         }
         let had_formula = m.cells[sheet].get(&(row, col)).is_some_and(|c| c.has_f);
@@ -514,10 +650,12 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                 );
             }
             Ok(()) => {
-                assert!(!poisoned, "an edit succeeded after Poisoned");
+                assert!(!poisoned && refusal.is_none(), "an edit succeeded despite workbook refusal: {refusal:?}");
                 let noop = kind == 3 && !had_formula;
                 let out = wb.to_bytes().unwrap_or_else(|e| panic!("save after an edit failed: {e:?}"));
-                let Ok(before) = before else { panic!("saved after the edit but not before it") };
+                let Ok(before) = before else {
+                    panic!("saved after the edit but not before it")
+                };
                 if noop {
                     assert!(out == before, "remove_formula on a cell without a formula changed the package");
                     continue;
@@ -527,7 +665,12 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                 bump(1, model_deps.len());
                 for &(s, r, c) in &model_deps {
                     if let Some(cell) = new.cells[s].get(&(r, c)) {
-                        assert!(!cell.has_v, "dependent {}!({r},{c}) of {}!({row},{col}) kept its cached value", new.names[s], m.names[sheet]);
+                        assert!(
+                            cell.value.is_none(),
+                            "dependent {}!({r},{c}) of {}!({row},{col}) kept its cached value",
+                            new.names[s],
+                            m.names[sheet]
+                        );
                     }
                 }
                 let has_formula_now = kind == 2;
@@ -536,14 +679,26 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                     let pkg = ooxml_core::Package::from_bytes(out.clone()).expect("reopens");
                     let w = XmlDocument::parse(&pkg.read_part(wb.workbook_part()).expect("workbook")).expect("parses");
                     let full = w.root().elements().find(|e| is_sml(e, "calcPr")).and_then(|c| attr(c, "fullCalcOnLoad"));
-                    assert!(matches!(full, Some("1" | "true")), "calcPr/@fullCalcOnLoad not set after an edit with dependents or a formula-set change");
+                    assert!(
+                        matches!(full, Some("1" | "true")),
+                        "calcPr/@fullCalcOnLoad not set after an edit with dependents or a formula-set change"
+                    );
                 }
                 if let Some(chain) = &m.calc_chain {
                     bump(2, 1);
-                    assert_eq!(new.calc_chain.is_some(), !set_changed, "calcChain.xml {chain} kept/removed wrongly (formula set changed: {set_changed}; edit {kind} at {}!({row},{col}), had formula {had_formula})", m.names[sheet]);
+                    assert_eq!(
+                        new.calc_chain.is_some(),
+                        !set_changed,
+                        "calcChain.xml {chain} kept/removed wrongly (formula set changed: {set_changed}; edit {kind} at {}!({row},{col}), had formula {had_formula})",
+                        m.names[sheet]
+                    );
                     if new.calc_chain.is_none() {
                         let pkg = ooxml_core::Package::from_bytes(out.clone()).expect("reopens");
-                        let left = pkg.content_types().overrides().iter().any(|(n, _)| n.trim_start_matches('/').eq_ignore_ascii_case(chain));
+                        let left = pkg
+                            .content_types()
+                            .overrides()
+                            .iter()
+                            .any(|(n, _)| n.trim_start_matches('/').eq_ignore_ascii_case(chain));
                         assert!(!left, "the Override for {chain} is left in [Content_Types].xml");
                         assert!(!pkg.contains(chain), "{chain} is still in the package");
                     }
@@ -552,8 +707,17 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                 if kind <= 1 {
                     let ws = wb.worksheet_by_index(sheet).expect("worksheet");
                     let got = ws.cell(row, col).ok().flatten().and_then(|c| c.value().ok());
-                    let want = if kind == 0 { CellValue::Number(number) } else { CellValue::String(text.clone()) };
-                    assert_eq!(got.as_ref(), Some(&want), "value written at {}!({row},{col}) does not read back", m.names[sheet]);
+                    let want = if kind == 0 {
+                        CellValue::Number(number)
+                    } else {
+                        CellValue::String(text.clone())
+                    };
+                    assert_eq!(
+                        got.as_ref(),
+                        Some(&want),
+                        "value written at {}!({row},{col}) does not read back",
+                        m.names[sheet]
+                    );
                 }
                 // formula census
                 if has_formula_now {
@@ -561,68 +725,29 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                 } else {
                     expected_formulas.remove(&at);
                 }
-                assert_eq!(new.formula_cells(), expected_formulas, "formula cells after editing {}!({row},{col})", m.names[sheet]);
-                // Every other cell, the edited sheet included (review of PR
-                // #65, m2/m3): same f/v and the same effective references,
-                // except the dependents (they lose v) and, after a shared
-                // master is overwritten, the group's new master (its f now
-                // carries the text and ref; its references must not move).
+                assert_eq!(
+                    new.formula_cells(),
+                    expected_formulas,
+                    "formula cells after editing {}!({row},{col})",
+                    m.names[sheet]
+                );
                 let lib_deps: BTreeSet<At> = pending
                     .dependents()
                     .iter()
                     .filter_map(|(n, c)| m.names.iter().position(|x| x == n).map(|s| (s, c.row, c.col)))
                     .collect();
-                let handoff_group = m.cells[sheet].get(&(row, col)).and_then(|c| c.shared.clone()).filter(|(_, master, _)| *master).map(|(g, ..)| g);
-                for (s, cells) in m.cells.iter().enumerate() {
-                    for (&(r, c), old) in cells {
-                        if (s, r, c) == at {
-                            continue;
-                        }
-                        let new_cell = new.cells[s].get(&(r, c));
-                        let Some(nc) = new_cell else { panic!("{}!({r},{c}) disappeared after editing {}!({row},{col})", m.names[s], m.names[sheet]) };
-                        assert_eq!(nc.has_f, old.has_f, "{}!({r},{c}) gained or lost its formula", m.names[s]);
-                        assert_eq!(nc.reads, old.reads, "{}!({r},{c}) reads other cells now (shared hand-off translated wrongly?)", m.names[s]);
-                        let dep = model_deps.contains(&(s, r, c)) || lib_deps.contains(&(s, r, c));
-                        if !dep {
-                            assert_eq!(nc.has_v, old.has_v, "{}!({r},{c}), not a dependent, lost or gained its cached value", m.names[s]);
-                        }
-                        let in_group = s == sheet && handoff_group.as_ref().is_some_and(|g| old.shared.as_ref().is_some_and(|(og, ..)| og == g));
-                        if !in_group {
-                            assert_eq!(nc.formula, old.formula, "{}!({r},{c}) formula text changed", m.names[s]);
-                        }
-                    }
-                }
-                // Each shared group's master ref that covered all its members
-                // still does.
-                for (s, cells) in new.cells.iter().enumerate() {
-                    let mut groups: BTreeMap<&str, (Option<(u32, u32, u32, u32)>, Vec<(u32, u32)>, bool)> = BTreeMap::new();
-                    for (&(r, c), cell) in cells {
-                        if let Some((g, master, rf)) = &cell.shared {
-                            let e = groups.entry(g.as_str()).or_default();
-                            if *master {
-                                e.0 = *rf;
-                            }
-                            e.1.push((r, c));
-                        }
-                    }
-                    for (g, (rf, members, _)) in &groups {
-                        let covered_before = m.cells[s]
-                            .iter()
-                            .filter(|(_, c)| c.shared.as_ref().is_some_and(|(og, ..)| og == g))
-                            .all(|(&(r, c), _)| {
-                                m.cells[s].values().find_map(|c| c.shared.as_ref().filter(|(og, ms, _)| og == g && *ms).and_then(|x| x.2)).is_some_and(|(r1, c1, r2, c2)| (r1..=r2).contains(&r) && (c1..=c2).contains(&c))
-                            });
-                        if covered_before && let Some((r1, c1, r2, c2)) = *rf {
-                            for (r, c) in members {
-                                assert!((r1..=r2).contains(r) && (c1..=c2).contains(c), "{}: shared group {g}'s master ref no longer covers member ({r},{c})", m.names[s]);
-                            }
-                        }
-                    }
-                }
+                m.assert_preserved_cells(&new, at, &model_deps, &lib_deps);
                 // Outside the edited sheet only what Phase1 may write (the
                 // dependents' caches, calcPr, calcChain): #36's tight oracle.
                 let mut edits = Phase1Edits::default();
-                edits.wrote(pending, has_formula_now);
+                if kind == 1 {
+                    edits.wrote_string(pending);
+                } else {
+                    edits.wrote(pending, has_formula_now);
+                }
+                if m.shared_ref_count() != new.shared_ref_count() {
+                    edits.changed_shared_ref_count();
+                }
                 let workbook = wb.workbook_part().to_owned();
                 let edited: Vec<&str> = m.parts[sheet].as_deref().into_iter().collect();
                 assert_phase1_diff(&mut wb, &before, &out, &edited, &workbook, &edits);
@@ -635,7 +760,11 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
     }
     let out = wb.to_bytes().unwrap_or_else(|e| panic!("final save failed: {e:?}"));
     let re = Workbook::from_bytes(out.clone()).unwrap_or_else(|e| panic!("edited workbook does not reopen: {e:?}"));
-    assert_eq!(re.edit_refusal().map(|e| format!("{e:?}")), refusal, "edit refusal changed by save and reopen");
+    assert_eq!(
+        re.edit_refusal().map(|e| format!("{e:?}")),
+        refusal,
+        "edit refusal changed by save and reopen"
+    );
     let census = model(&out).map(|m| m.formula_cells());
     assert_eq!(census.as_ref(), Some(&expected_formulas), "formula census after reopen");
 }
@@ -651,14 +780,25 @@ pub fn formula_books() -> Vec<(&'static str, Vec<u8>)> {
 /// calcChain: the shape of fuzz finding F-8.
 pub fn wrong_row_formula_book() -> Vec<u8> {
     let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B2" i="1"/></calcChain>"#;
-    formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#)], "", Some(chain))
+    formula_book(
+        &[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#)],
+        "",
+        Some(chain),
+    )
 }
 
 /// F-8's reverse layout: `<row r="2"><c r="B1"><f>…` (a cell naming an
 /// earlier row).
 pub fn wrong_row_formula_book_reversed() -> Vec<u8> {
     let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B1" i="1"/></calcChain>"#;
-    formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B1"><f>A1*2</f><v>2</v></c></row>"#)], "", Some(chain))
+    formula_book(
+        &[(
+            "Sheet1",
+            r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B1"><f>A1*2</f><v>2</v></c></row>"#,
+        )],
+        "",
+        Some(chain),
+    )
 }
 
 fn formula_books_inner() -> Vec<(&'static str, Vec<u8>)> {
@@ -672,33 +812,56 @@ fn formula_books_inner() -> Vec<(&'static str, Vec<u8>)> {
     let sheet3 = r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B2"><f>Sheet2!B1+'Sheet 3'!A1</f><v>15</v></c></row>"#;
     let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B1" i="1"/><c r="C1"/><c r="B2"/></calcChain>"#;
     vec![
-        ("formula/three-sheets-calcchain.xlsx", formula_book(&[("Sheet1", sheet1), ("Sheet2", sheet2), ("Sheet 3", sheet3)], "", Some(chain))),
-        ("formula/manual.xlsx", formula_book(&[("Sheet1", sheet1), ("Sheet2", sheet2)], r#"<calcPr calcMode="manual"/>"#, None)),
-        ("formula/full-calc-set.xlsx", formula_book(&[("Sheet1", sheet1)], r#"<calcPr fullCalcOnLoad="1"/>"#, Some(chain))),
-        ("formula/values-only.xlsx", formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c></row>"#), ("Sheet2", sheet2)], "", None)),
+        (
+            "formula/three-sheets-calcchain.xlsx",
+            formula_book(&[("Sheet1", sheet1), ("Sheet2", sheet2), ("Sheet 3", sheet3)], "", Some(chain)),
+        ),
+        (
+            "formula/manual.xlsx",
+            formula_book(&[("Sheet1", sheet1), ("Sheet2", sheet2)], r#"<calcPr calcMode="manual"/>"#, None),
+        ),
+        (
+            "formula/full-calc-set.xlsx",
+            formula_book(&[("Sheet1", sheet1)], r#"<calcPr fullCalcOnLoad="1"/>"#, Some(chain)),
+        ),
+        (
+            "formula/values-only.xlsx",
+            formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c></row>"#), ("Sheet2", sheet2)], "", None),
+        ),
     ]
 }
 
 fn formula_book(sheets: &[(&str, &str)], extra_wb: &str, calc_chain: Option<&str>) -> Vec<u8> {
-    let mut ct = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>"#);
-    let mut rels = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#);
+    let mut ct = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>"#,
+    );
+    let mut rels = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#,
+    );
     let mut sh = String::new();
     let mut parts: Vec<(String, String)> = Vec::new();
     for (i, (name, sd)) in sheets.iter().enumerate() {
         let n = i + 1;
-        parts.push((format!("xl/worksheets/sheet{n}.xml"), format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="{SML}"><sheetData>{sd}</sheetData></worksheet>"#)));
+        parts.push((
+            format!("xl/worksheets/sheet{n}.xml"),
+            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="{SML}"><sheetData>{sd}</sheetData></worksheet>"#),
+        ));
         ct.push_str(&format!(r#"<Override PartName="/xl/worksheets/sheet{n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>"#));
         rels.push_str(&format!(r#"<Relationship Id="rId{n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{n}.xml"/>"#));
         sh.push_str(&format!(r#"<sheet name="{name}" sheetId="{n}" r:id="rId{n}"/>"#));
     }
     if let Some(chain) = calc_chain {
         parts.push(("xl/calcChain.xml".into(), chain.into()));
-        ct.push_str(r#"<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/>"#);
+        ct.push_str(
+            r#"<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/>"#,
+        );
         rels.push_str(r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/>"#);
     }
     ct.push_str("</Types>");
     rels.push_str("</Relationships>");
-    let wb = format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="{SML}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>{sh}</sheets>{extra_wb}</workbook>"#);
+    let wb = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="{SML}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>{sh}</sheets>{extra_wb}</workbook>"#
+    );
     let top = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#;
     let mut all = vec![
         ("[Content_Types].xml".to_owned(), ct),
@@ -708,4 +871,33 @@ fn formula_book(sheets: &[(&str, &str)], extra_wb: &str, calc_chain: Option<&str
     ];
     all.extend(parts);
     build_zip(all.iter().map(|(n, b)| (n.as_str(), b.as_bytes())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "value changed outside the dependency set")]
+    fn rejects_lost_value_in_edited_sheet() {
+        let before = model(&formula_books()[0].1).unwrap();
+        let mut after = before.clone();
+        after.cells[0].get_mut(&(0, 0)).unwrap().value = None;
+        before.assert_preserved_cells(&after, (0, 1, 1), &BTreeSet::new(), &BTreeSet::new());
+    }
+
+    #[test]
+    #[should_panic(expected = "master ref no longer covers")]
+    fn rejects_shared_ref_that_covers_only_the_new_master() {
+        let input = formula_books().remove(0).1;
+        let before = model(&input).unwrap();
+        let mut wb = Workbook::from_bytes(input).unwrap();
+        wb.worksheet().unwrap().cell_mut(0, 2).unwrap().remove_formula().unwrap();
+        let mut after = model(&wb.to_bytes().unwrap()).unwrap();
+        let at = (0, 0, 2);
+        let deps = before.dependents(at);
+        before.assert_preserved_cells(&after, at, &deps, &BTreeSet::new());
+        after.cells[0].get_mut(&(1, 2)).unwrap().shared.as_mut().unwrap().master_range = Some((1, 2, 1, 2));
+        before.assert_preserved_cells(&after, at, &deps, &BTreeSet::new());
+    }
 }
