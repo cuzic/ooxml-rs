@@ -17,6 +17,7 @@ mod emit;
 mod lower;
 mod manual_check;
 mod model;
+mod pptx_template;
 mod sdk;
 mod stats;
 mod xsd;
@@ -169,13 +170,15 @@ fn run() -> Res<bool> {
             Ok(ok)
         }
         ["manual-check", out] => manual_check::run(&root, Path::new(out)),
+        ["pptx-template"] => pptx_template::run(&root, false),
+        ["pptx-template", "--check"] => pptx_template::run(&root, true),
         ["stats"] => {
             let out = generate(&root)?;
             print!("{}", out[REPORT_FILE]);
             Ok(true)
         }
         _ => {
-            eprintln!("usage: cargo xtask codegen [--check] | cargo xtask stats | cargo xtask manual-check <outdir>");
+            eprintln!("usage: cargo xtask codegen [--check] | cargo xtask stats | cargo xtask manual-check <outdir> | cargo xtask pptx-template [--check]");
             Ok(false)
         }
     }

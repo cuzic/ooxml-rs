@@ -19,7 +19,7 @@ use ooxml_schema::dml;
 
 use super::{Guard, TextBodyMut, node_at};
 use crate::error::{Error, Result};
-use crate::names::R_NS;
+use crate::names::{R_NS, REL_DIAGRAM_DATA, REL_DIAGRAM_DRAWING};
 use crate::read::{self, ShapeKind};
 
 /// `a:graphicData@uri` of a SmartArt frame.
@@ -27,9 +27,6 @@ pub(crate) const DIAGRAM_URI: &str = "http://schemas.openxmlformats.org/drawingm
 const DGM: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 const DSP: &str = "http://schemas.microsoft.com/office/drawing/2008/diagram";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
-/// Relationship type of the drawing cache.
-const REL_DIAGRAM_DATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData";
-pub(crate) const REL_DIAGRAM_DRAWING: &str = "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing";
 /// Proofing attributes that may differ between a data run and its cache run.
 const PROOFING: [&str; 5] = ["lang", "altLang", "dirty", "err", "smtClean"];
 
@@ -262,6 +259,7 @@ impl crate::Presentation {
         let guard = Guard {
             shape_id: frame_id,
             paragraphs: false, // node animations target data model ids, not paragraphs (review m6)
+            table: false,
             characters: false,
             comments: refs.comments.covers(&[frame_id]),
         };

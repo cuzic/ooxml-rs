@@ -69,6 +69,61 @@
   | N9 ADR-0016 notes API, `app.xml` `Notes` | one creation API (`ensure_notes_slide`, extended by ADR-0016 to create the notes master); every creation path counts `Notes` | §4.6, §7 |
   | Q5 | the review's recommendation recorded | Open questions |
 
+- **Post-acceptance note (2026-11-16, owner decision):** Q1–Q5's proposed
+  defaults are accepted — the predecessor's section; stale
+  `TitlesOfParts` accepted; deleting a referenced slide is refused; the
+  16:9 template with the 11 standard layouts; footers not reproduced.
+- **Post-acceptance note (2026-11-16, implementation — no change to the
+  decisions):** found while implementing `impl/pptx-phase2`:
+  - `p14:creationId` sits in `p:cSld/p:extLst/p:ext`
+    (`{BB962C8B-…}`; 1,159 of 1,159 corpus slides), not in `p:sld/p:extLst`;
+    notes slides carry it in the same place (140 of 471), and the
+    duplicated notes slide gets the next value as §4.4 says. A
+    `creationId` anywhere else is refused (`UnsupportedContent`) rather
+    than copied unchanged.
+  - Until ADR-0008 (PR #28) is implemented, `LayoutRef` is defined in
+    this crate with the fields §4.1 needs (master index and part, layout
+    part, `p:cSld@name`, `@type`); ADR-0008 adopts it.
+  - `move_slide` rebuilds the moved `p:sldId` from `id` and `r:id`; a
+    `p:sldId` with children or other attributes (0 in the corpus) is
+    refused (`UnsupportedContent`). `duplicate_slide(index, None)`
+    places the copy right after the original.
+  - Shape-id allocation is exposed as `Presentation::next_shape_id(slide)`
+    for `add_text_box`/`add_picture`.
+  - #38's `copy_relationships` gained the type filter (`skip_types`)
+    requested in §2 (N1), so `duplicate_slide` no longer refuses slides
+    with comments: comment relationships (legacy and modern) are skipped,
+    and the copy's `p:sld/p:extLst/p:ext` holding `p188:commentRel` (the
+    modern-comment reference) is removed; any other reference to a
+    skipped `Id` in the copy is refused (`UnsupportedContent`). #38 also
+    copies fragment-only targets (`#_ftn1`) verbatim, so
+    `with_japanese.pptx` duplicates.
+  - Cascade relationship types outside §6 found in the wider corpus
+    (619 decks): `customXml` (45 slides), `control` (15),
+    `legacyDrawing` (1), `chartEx` (4) — refused as §6 says.
+- **Post-acceptance note (2026-11-16, review of PR #51 round 1 — §5 and
+  §3 wording, scope of the implementation PR):**
+  - §5 said both "with no slides or no sections, nothing" and that the
+    invariant "concatenated sections = `p:sldIdLst`" holds after every
+    operation; with sections but no slides the first sentence broke the
+    invariant (review M1). The rule is: **with no sections, nothing; with
+    sections but no slides, the first section** (the new slide is the
+    only one, at position 0). Read §5's sentence that way.
+  - §3: `p14:creationId` has no session high-water mark: a value of a
+    slide deleted in this session may be given again, which is harmless
+    because the slide's `sldId` (which modern comments also name in
+    `pc:sldMk`) never is (review n1).
+  - §6 lists each cascade type "under its transitional and, where
+    defined, strict/Microsoft URI"; the implementation knows the
+    transitional (and Microsoft) URIs only. Strict is refused at open
+    (ADR-0001), and an unknown type is `UnsupportedSlidePart`, so this is
+    fail-closed (review n2).
+  - §4.5 (`add_text_box`, `add_picture`) and §4.6 (`ensure_notes_slide`)
+    are **not** in the first implementation PR (#51): the coordinator
+    moved them to a follow-up PR (2026-11-16), which also verifies N7
+    (media content types). The shape-id allocation they need
+    (`Presentation::next_shape_id`) is in #51 (review m2).
+
 ## Context
 
 Phase 0/0.1 (ADR-0005) edits text **inside** existing slides and never

@@ -401,17 +401,46 @@
       the destination scope then counts them, so a detached copy whose URIs
       are unbound at the destination can be inserted with declarations instead
       of being refused.
-- **Post-acceptance note (2026-11-16, type names outside a group's own
-  namespace — no change to the decisions):** an allowlisted entry whose
-  element is not in its feature group's own namespace (`a:` in `dml`,
-  `p:` in `pml`, `w:` in `wml`, `x:` in `sml`) always gets its prefix in
-  the Rust name (`dsp:sp` → `DspShape`, `dgm:t` → `DgmTextBody`); the
-  group's own namespace keeps plain names (`a:txBody` stays
-  `dml::TextBody`). So adding an entry never renames an existing type
-  (ADR-0013 §4; review #63 m3). On `main` at the time of writing no
-  existing name changes; entries that open PRs add outside their group's
-  namespace (`p14:`/`ap:` in `pml`, `a16:` in `dml`) get prefixed names
-  when those PRs merge this rule.
+- **Post-acceptance note (2026-11-16, children of a wildcard-only parent;
+  `[detach]` for table cells — additive, no change to the decisions;
+  requested by ADR-0013 §2 and its review round 3 P1/N7):**
+  (1) `overrides.toml`'s `add_child` accepts the anchor `before = "##any"`
+  / `after = "##any"`: the new child is placed relative to the parent's
+  `xsd:any` item. This is for parents whose SDK content is a single `Any`
+  with no `Children` (`a:CT_OfficeArtExtension/a:ext`), for which the
+  "wildcard parents" rule generates no `ChildOf` and a named sibling to
+  anchor on does not exist. Used for `a16:rowId` and `a16:colId` under
+  `a:ext` (ADR-0013 §2; 152 / 135 corpus ids, all under the URIs
+  `{0D108BD9-…}` / `{9D8B030D-…}`): `a:ext`'s content becomes
+  `rowId? colId? any`, so `ChildOf<a:ext>` exists for the two ids and
+  every other extension still falls in the wildcard slot. Which child an
+  `a:ext` holds is decided by its `uri`; the format crate writes the
+  matching pair, the generated content does not enforce it. Because `a16:rowId`/`colId` are now allowlisted global elements,
+  the existing "wildcard parents" rule also makes them `ChildOf` the
+  wildcard-content parents such as `a:graphicData` (and generates the
+  matching iterators). That is semantically meaningless there; no format
+  crate uses it (review #57 m5).
+  (2) `dml.toml`'s `[detach]` gains `a:CT_TableCellProperties/a:tcPr`,
+  `a:CT_TextBodyProperties/a:bodyPr` and `a:CT_TextListStyle/a:lstStyle`
+  (new table cells copy a neighbour's formatting). Reviewed as the
+  "detach/insert" note requires: their subtrees reach 128 complex types
+  (183 SDK entries) — line, fill (solid, gradient, pattern, blip), effect,
+  3-D (`a:cell3D`, `a:scene3d`, `a:sp3d`, bevel, light rig, camera),
+  autofit, bullet, spacing, tab and font types, the nine `a:lvlNpPr`
+  levels, and extensions (`ahyp:hlinkClr`, `a14`/`a1611`/`asvg`/`ask`/
+  `aoe`/`woe`/`wp15` blip and line extensions). None holds a shape id,
+  `p:ph@idx` or `w14:paraId`. The attributes that must stay unique are
+  the two already listed in `unique_attrs` (`a:rPr@smtId` inside
+  `a:lstStyle`'s `a:defRPr`, `a:CT_EffectContainer@name`). Relationship
+  ids (`a:blip@r:embed`/`r:link`, `a:hlinkClick@r:id` in `a:defRPr`) and
+  every `a:extLst` are refused by `detach_as` as before, so a source cell
+  holding them makes the new cell `FormatNotCopyable`.
+- **Post-acceptance note (SmartArt generated names):** SmartArt elements
+  in the diagram and diagram drawing namespaces get `Dgm` and `Dsp`
+  prefixes in `dml` (for example, `dgm:t` becomes `DgmTextBody` and
+  `dsp:sp` becomes `DspShape`). Existing generated names on main are
+  preserved, including `dml::TextBody`, `dml::RowIdIdentifier`, and
+  `pml::SectionList`.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
