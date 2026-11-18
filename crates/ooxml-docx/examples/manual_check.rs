@@ -236,6 +236,7 @@ fn phase1(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::E
         "Open question 2: does line 1 show spaces inside the brackets (\"[ unpreserved edges ]\") like line 2, or not (\"[unpreserved edges]\")? Line 3 must look like line 2.",
     );
     phase1_part2(out, &mut push)?;
+    phase2_part1(out, &mut push)?;
     Ok(())
 }
 
@@ -325,6 +326,62 @@ fn phase1_part2(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, Str
     Ok(())
 }
 
+/// Word Phase2 part 1 items (ADR-0011 §4, §6, §9.1, §12 "Manual").
+fn phase2_part1(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, String, &'static str)) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{HyperlinkTarget, ParaRef, ParagraphSpec, Place, RunPosition, SectionBreak, StoryIndex};
+    let p = |i| ParaRef::new(StoryIndex::MAIN, i);
+    let para = |t: &str| format!("<w:p><w:r><w:t>{t}</w:t></w:r></w:p>");
+    let body = |n: usize| (1..=n).map(|i| para(&format!("Paragraph {i}. The quick brown fox jumps over the lazy dog."))).collect::<String>();
+    // 21/22: nextPage and continuous breaks in a landscape section with page numbering starting at 5
+    for (file, kind, label) in [
+        ("21-section-break-next-page.docx", SectionBreak::NextPage, "nextPage"),
+        ("22-section-break-continuous.docx", SectionBreak::Continuous, "continuous"),
+    ] {
+        let sect = r#"<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/><w:pgNumType w:start="5"/><w:cols w:num="2"/></w:sectPr>"#;
+        let mut doc = synthetic_with_sect(&body(6), sect)?;
+        doc.insert_section_break(p(2), kind)?;
+        save(&doc, out, file)?;
+        push(
+            file,
+            "",
+            format!("Synthetic: a landscape two-column section with page numbers starting at 5; a {label} break after paragraph 3"),
+            "Paragraphs 1–3 and 4–6 are separate sections, both landscape and two columns (Layout > Breaks shows the break kind). Page numbers start at 5 in the first section and continue (not restart) in the second; Word may show the restart only in the first section's Page Number Format dialog.",
+        );
+    }
+    // 23: inserted paragraphs (list continuation, table cell) and an append that moves the last sectPr
+    let sect_last = r#"<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="2880" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:pPr><w:r><w:t>Last paragraph, holding the section properties (top margin 2 inches).</w:t></w:r></w:p>"#;
+    let list = r#"<w:p><w:pPr><w:ind w:left="720" w:hanging="360"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>Item one</w:t></w:r></w:p><w:tbl><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+    let mut doc = synthetic(&format!("{list}{sect_last}"))?;
+    doc.insert_paragraph(Place::After(p(0)), "Item two (inserted, same pPr)", &ParagraphSpec::LikeNeighbour)?;
+    doc.insert_paragraph(Place::After(p(2)), "Second paragraph in the cell (inserted)", &ParagraphSpec::Plain)?;
+    doc.append_paragraph("APPENDED: still in the same section (2-inch top margin)")?;
+    save(&doc, out, "23-insert-paragraphs-and-append-moving-sectPr.docx")?;
+    push(
+        "23-insert-paragraphs-and-append-moving-sectPr.docx",
+        "",
+        "Synthetic: a paragraph inserted after a list item with the same properties, one in a table cell, and an append after a paragraph holding the last section's sectPr (the sectPr moves to the new paragraph)".into(),
+        "The inserted list item shows the same indentation as item one (no numbering definition exists in this file, so no number is shown); the cell has two paragraphs; the appended paragraph is on the same page, in the same section (no section break, 2-inch top margin unchanged).",
+    );
+    // 24: hyperlinks, external and to a bookmark, in a document whose root lacks xmlns:r
+    let body = r#"<w:p><w:r><w:t xml:space="preserve">External link: </w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">Internal link: </w:t></w:r></w:p><w:p><w:bookmarkStart w:id="0" w:name="Target"/><w:r><w:t>Bookmark target</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.insert_hyperlink(RunPosition::EndOf(p(0)), "example.com", &HyperlinkTarget::External("https://example.com/".into()))?;
+    doc.insert_hyperlink(RunPosition::EndOf(p(1)), "go to the bookmark", &HyperlinkTarget::Bookmark("Target".into()))?;
+    save(&doc, out, "24-hyperlinks.docx")?;
+    push(
+        "24-hyperlinks.docx",
+        "",
+        "Synthetic (root without xmlns:r): an external hyperlink and one to a bookmark".into(),
+        "Ctrl+click opens https://example.com/ and jumps to \"Bookmark target\" respectively; no repair dialog (the first hyperlink declares xmlns:r itself).",
+    );
+    Ok(())
+}
+
+/// [`synthetic`] with a body-level `w:sectPr`.
+fn synthetic_with_sect(body: &str, sect: &str) -> Result<Document, Box<dyn std::error::Error>> {
+    synthetic(&format!("{body}{sect}"))
+}
+
 /// [`save`] without the reopen-through-the-gates check (the opt-in is per
 /// `Document`, so a reopened copy is gated again).
 fn save_ungated(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -357,7 +414,11 @@ fn synthetic_with_styles(body: &str, styles: Option<&str>) -> Result<Document, B
         ),
         (
             "word/document.xml",
-            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}<w:sectPr/></w:body></w:document>"#),
+            {
+                // a body that brings its own section properties gets no default one
+                let sect = if body.contains("<w:sectPr") { "" } else { "<w:sectPr/>" };
+                format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}{sect}</w:body></w:document>"#)
+            },
         ),
     ];
     if let Some(st) = styles {
