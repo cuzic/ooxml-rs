@@ -32,10 +32,11 @@ fn child_is(n: &RawNode, i: usize, q: QName) -> bool {
     n.children().get(i).and_then(RawItem::as_element).is_some_and(|c| c.is(q))
 }
 
-/// Typed descent from `p:sld` along a node path (ADR-0002: every step is a
+/// Typed descent from `p:sld` (or `p:notes`, ADR-0008 §2) along a node path (ADR-0002: every step is a
 /// `ChildOf` edge of the generated schema).
 enum Cursor<'d> {
     Sld(LensMut<'d, pml::Slide>),
+    Notes(LensMut<'d, pml::NotesSlide>),
     CSld(LensMut<'d, CommonSlideData>),
     Tree(LensMut<'d, ShapeTree>),
     Grp(LensMut<'d, GroupShape>),
@@ -78,6 +79,7 @@ impl<'d> Cursor<'d> {
     fn step(self, i: usize) -> Option<Self> {
         match self {
             Cursor::Sld(l) => l.into_child_at::<CommonSlideData>(i).map(Cursor::CSld),
+            Cursor::Notes(l) => l.into_child_at::<CommonSlideData>(i).map(Cursor::CSld),
             Cursor::CSld(l) => l.into_child_at::<ShapeTree>(i).map(Cursor::Tree),
             Cursor::Tree(l) => group_step!(l, i),
             Cursor::Grp(l) => group_step!(l, i),
@@ -134,10 +136,12 @@ macro_rules! with_body {
 }
 
 /// The cursor at the root of a part this crate edits text in: a slide, a
-/// SmartArt data model or a SmartArt drawing.
+/// notes slide, a SmartArt data model or a SmartArt drawing.
 fn root_cursor(doc: &mut XmlDocument) -> Result<Cursor<'_>> {
     let root = doc.root();
-    if root.is(dml::DgmDataModelRoot::QNAME) {
+    if root.is(pml::NotesSlide::QNAME) {
+        Ok(Cursor::Notes(doc.lens_mut::<pml::NotesSlide>()?))
+    } else if root.is(dml::DgmDataModelRoot::QNAME) {
         Ok(Cursor::DModel(doc.lens_mut::<dml::DgmDataModelRoot>()?))
     } else if root.is(dml::DspDrawing::QNAME) {
         Ok(Cursor::Drawing(doc.lens_mut::<dml::DspDrawing>()?))
@@ -535,6 +539,11 @@ pub(crate) struct Guard {
 }
 
 impl Guard {
+    /// A body nothing refers into: notes bodies (no `p:timing`, no comment
+    /// anchors in notes parts; ADR-0008 §2).
+    pub(crate) fn unlocked(shape_id: u32) -> Self {
+        Guard { shape_id, paragraphs: false, characters: false, comments: false, table: false }
+    }
     fn new(refs: &SlideRefs, ids: &[u32]) -> Self {
         Guard {
             shape_id: ids[0],
@@ -732,6 +741,13 @@ pub struct TextBodyMut<'a> {
     doc: &'a mut XmlDocument,
     path: Vec<usize>,
     guard: Guard,
+}
+
+impl<'a> TextBodyMut<'a> {
+    /// A body at `path` (a node path from the part root) in `doc`.
+    pub(crate) fn new(doc: &'a mut XmlDocument, path: Vec<usize>, guard: Guard) -> Self {
+        TextBodyMut { doc, path, guard }
+    }
 }
 
 impl TextBodyMut<'_> {

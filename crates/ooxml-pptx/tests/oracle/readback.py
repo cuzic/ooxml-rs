@@ -111,7 +111,13 @@ def dump_prs(prs, site=None):
     for sid, partname, part in slide_parts(prs):
         shapes = []
         walk(part.slide.shapes, shapes)
-        slides.append({'slide_id': sid, 'partname': partname, 'shapes': shapes})
+        # the notes body (ADR-0008 §2); has_notes_slide never creates one
+        notes = None
+        if part.slide.has_notes_slide:
+            ph = part.slide.notes_slide.notes_placeholder
+            if ph is not None:
+                notes = body(ph._element.find(qn('p:txBody')))
+        slides.append({'slide_id': sid, 'partname': partname, 'shapes': shapes, 'notes': notes})
     return {'slides': slides}
 
 
