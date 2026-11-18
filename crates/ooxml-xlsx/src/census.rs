@@ -252,7 +252,9 @@ pub(crate) fn scan_sheet(
                         // trimmed, row 0 invalid), or the two disagree again
                         // (review of PR #67, M1/m1). A row the index cannot read
                         // is its own refusal (`BadRowR`), not a mismatch.
-                        row_number = r.as_deref().and_then(ooxml_core::value::parse_u32).filter(|r| *r >= 1);
+                        if !empty {
+                            row_number = r.as_deref().and_then(ooxml_core::value::parse_u32).filter(|r| *r >= 1);
+                        }
                     }
                     "c" if parent == Some("row") => {
                         let mut c = CellScan { r: attr(e, "r")?, t: attr(e, "t")?, cm: attr(e, "cm")?, ..Default::default() };
@@ -268,6 +270,15 @@ pub(crate) fn scan_sheet(
                             row_mismatch = Some((at.to_string(), row));
                         }
                         cell = Some(c);
+                    }
+                    // Also check cells below wrappers such as mc:AlternateContent.
+                    // Only direct children of a row enter the formula census.
+                    "c" if row_mismatch.is_none() && let Some(row) = row_number => {
+                        if let Some(Ok(at)) = attr(e, "r")?.as_deref().map(CellIndex::parse)
+                            && at.row + 1 != row
+                        {
+                            row_mismatch = Some((at.to_string(), row));
+                        }
                     }
                     "f" => {
                         let Some(c) = cell.as_mut().filter(|_| parent == Some("c")) else {
@@ -311,6 +322,9 @@ pub(crate) fn scan_sheet(
             }
             Event::End(_) => {
                 let local = stack.pop().unwrap_or_default();
+                if local == "row" && stack.last().map(String::as_str) == Some("sheetData") {
+                    row_number = None;
+                }
                 if local == "f" || local == "v" {
                     sink = TextSink::None;
                 }

@@ -17,9 +17,10 @@ use common::p1::*;
 use common::*;
 use ooxml_xlsx::{Error, Workbook};
 
+const MC: &str = r#"xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
+
 fn refuses_every_edit(input: &[u8]) {
     let mut wb = Workbook::from_bytes(input.to_vec()).expect("opens");
-    let before = wb.to_bytes().unwrap();
     assert_matches!(wb.edit_refusal(), Some(Error::InvalidReference(ref m)) if m.contains("B2 in row 1"), "{:?}", wb.edit_refusal());
     let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
     for name in &names {
@@ -31,7 +32,7 @@ fn refuses_every_edit(input: &[u8]) {
             assert_matches!(ws.cell_mut(row, col).unwrap().remove_formula(), Err(Error::InvalidReference(_)));
         }
     }
-    assert_eq!(wb.to_bytes().unwrap(), before, "a refused edit changed the package");
+    assert_eq!(wb.to_bytes().unwrap(), input, "a refused edit changed the package");
     // reads keep their Phase0 behaviour (rows without a misplaced cell read
     // normally)
     assert_matches!(wb.worksheet().unwrap().cell(7, 0), Ok(None));
@@ -136,6 +137,31 @@ fn row_zero_only_refuses_its_own_sheet() {
     let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
     assert!(wb.edit_refusal().is_none(), "{:?}", wb.edit_refusal());
     assert_matches!(wb.worksheet_by_name("Sheet1").unwrap().cell_mut(0, 0).unwrap().set_number(2.0), Err(Error::InvalidReference(ref m)) if m == "0");
+    assert_eq!(wb.to_bytes().unwrap(), input);
+    wb.worksheet_by_name("Sheet2").unwrap().cell_mut(0, 0).unwrap().set_number(2.0).expect("another sheet still edits");
+}
+
+#[test]
+fn alternate_content_in_row_blocks_mismatched_value_cell() {
+    let rows = format!(
+        r#"<row r="1"><c r="A1"><v>1</v></c><mc:AlternateContent {MC} xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><mc:Choice Requires="x14"><c r="B2"><v>2</v></c></mc:Choice></mc:AlternateContent></row>"#
+    );
+    let input = book(&[("Sheet1", &rows)], "", "");
+    refuses_every_edit(&input);
+}
+
+#[test]
+fn alternate_content_in_sheet_data_only_refuses_its_own_sheet() {
+    let rows = format!(
+        r#"<row r="1"><c r="A1"><v>1</v></c></row><mc:AlternateContent {MC} xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><mc:Choice Requires="x14"><row r="2"><c r="B2"><v>2</v></c></row></mc:Choice></mc:AlternateContent>"#
+    );
+    let input = book(&[("Sheet1", &rows), ("Sheet2", r#"<row r="1"><c r="A1"><v>1</v></c></row>"#)], "", "");
+    let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
+    assert!(wb.edit_refusal().is_none(), "{:?}", wb.edit_refusal());
+    assert_matches!(
+        wb.worksheet_by_name("Sheet1").unwrap().cell_mut(1, 1).unwrap().set_formula("A1*3"),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+    );
     assert_eq!(wb.to_bytes().unwrap(), input);
     wb.worksheet_by_name("Sheet2").unwrap().cell_mut(0, 0).unwrap().set_number(2.0).expect("another sheet still edits");
 }
