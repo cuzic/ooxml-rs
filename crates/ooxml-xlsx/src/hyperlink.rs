@@ -151,7 +151,7 @@ impl Workbook {
     }
 
     fn set_hyperlink(&mut self, sheet: usize, range: &str, link: &Link, opts: &LinkOptions) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let r = CellRange::parse(range)?;
         let (target, location) = split_link(link)?;
         if let Some(l) = &location
@@ -240,7 +240,7 @@ impl Workbook {
     }
 
     fn remove_hyperlink(&mut self, sheet: usize, range: &str) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let r = CellRange::parse(range)?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
         let (items, total) = {

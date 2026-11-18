@@ -162,7 +162,7 @@ fn overlaps(a: &[CellRange], b: &[CellRange]) -> bool {
 
 impl Workbook {
     fn add_validation(&mut self, sheet: usize, sqref: &str, v: &Validation) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let new = ranges(sqref)?;
         let sqref = new.iter().map(ToString::to_string).collect::<Vec<_>>().join(" ");
         // formulas
@@ -240,13 +240,13 @@ impl Workbook {
     }
 
     fn remove_validation(&mut self, sheet: usize, sqref: &str) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let want = ranges(sqref)?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
-        let (plain, ext_hits): (Vec<usize>, Vec<(usize, usize, Vec<usize>, usize)>) = {
+        let (plain, ext_hits) = {
             let doc = self.pkg.xml_part(&part)?;
             let ws = doc.root();
-            let plain = ws
+            let plain: Vec<usize> = ws
                 .elements()
                 .find(|e| e.is(sml::DataValidations::QNAME))
                 .map(|d| d.indexed_elements().filter(|(_, e)| e.is(sml::DataValidation::QNAME) && e.attr(q("sqref")).and_then(|s| ranges(s).ok()) == Some(want.clone())).map(|(i, _)| i).collect())

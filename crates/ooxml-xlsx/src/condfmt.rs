@@ -243,7 +243,7 @@ impl Workbook {
     }
 
     fn add_conditional_format(&mut self, sheet: usize, sqref: &str, rule: &Rule, first: bool) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let rs = ranges(sqref)?;
         let sqref = rs.iter().map(ToString::to_string).collect::<Vec<_>>().join(" ");
         let top_left = rs[0].first.to_string();
@@ -258,7 +258,14 @@ impl Workbook {
         if first && pivot {
             return Err(Error::PivotConditionalFormat(sqref));
         }
-        let priority = if first { 1 } else { prios.iter().max().map_or(1, |m| m + 1) };
+        let max_priority = prios.into_iter().max().unwrap_or(0);
+        if max_priority >= i32::MAX as u32 {
+            return Err(Error::InvalidSetting {
+                what: "conditional formatting priority".into(),
+                reason: "no higher priority value fits in the schema's signed integer".into(),
+            });
+        }
+        let priority = if first { 1 } else { max_priority + 1 };
         {
             let doc = self.pkg.xml_part_mut(&part)?;
             let ws = doc.lens_mut::<sml::Worksheet>()?;
@@ -280,7 +287,7 @@ impl Workbook {
     }
 
     fn remove_conditional_format(&mut self, sheet: usize, sqref: &str, priority: Option<u32>) -> Result<CfRemoval> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let want = ranges(sqref)?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
         // (block item, rule items, block emptied), x14 ids
@@ -543,6 +550,9 @@ fn write_rule(r: &mut LensMut<'_, sml::ConditionalFormattingRule>, rule: &Rule, 
 }
 
 impl Worksheet<'_> {
+    /// Use [`Workbook::add_differential_format`] to register a format for
+    /// [`Rule::with_dxf`]. The priority must fit in a signed 32-bit integer.
+    ///
     /// Adds a rule on `sqref` with the lowest priority (`max + 1` over the
     /// sheet's 2007 and x14 rules), in a new `conditionalFormatting` block
     /// after the last one (ADR-0014 §6). Refused, with every byte unchanged:

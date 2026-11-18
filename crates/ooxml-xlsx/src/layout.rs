@@ -198,7 +198,7 @@ impl Workbook {
         plan: impl FnOnce(Option<&RawNode>) -> Result<()>,
         apply: impl FnOnce(&mut LensMut<'_, sml::SheetViewElement>) -> Result<()>,
     ) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let (has_views, item, node) = self.view0(sheet)?;
         plan(node.as_ref())?;
         let part = self.sheet_part_of(sheet);
@@ -381,7 +381,7 @@ impl Worksheet<'_> {
         let sheet = self.sheet;
         let (_, _, node) = self.wb.view0(sheet)?;
         if !node.as_ref().is_some_and(|v| v.elements().any(|e| e.is(sml::Pane::QNAME))) {
-            self.wb.check_poisoned()?;
+            self.wb.check_editable()?;
             return Ok(false);
         }
         let cell = carried_selection(node.as_ref());
@@ -471,7 +471,7 @@ fn ordered(mut attrs: Vec<(QName, String)>) -> Vec<(QName, String)> {
 
 impl Workbook {
     fn set_columns(&mut self, sheet: usize, first: u32, last: u32, edit: ColEdit) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         if first > last || last >= MAX_COLS {
             return Err(setting("columns", format!("{first}..={last} is not a column range")));
         }
@@ -640,7 +640,7 @@ impl Workbook {
     }
 
     fn set_row(&mut self, sheet: usize, row: u32, edit: RowEdit) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         if row >= MAX_ROWS {
             return Err(setting("row", format!("{row} is beyond the sheet")));
         }
@@ -801,7 +801,7 @@ impl Workbook {
     where
         E: ooxml_core::ChildOf<sml::Worksheet>,
     {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let part = self.sheet_part_of(sheet);
         {
             let doc = self.pkg.xml_part_mut(&part)?;
@@ -983,7 +983,7 @@ impl Worksheet<'_> {
             ws.raw().elements().filter(|e| e.is(E::QNAME)).flat_map(|c| c.elements()).any(|b| b.is(sml::Break::QNAME) && b.attr(q("id")).and_then(|v| v.trim().parse::<u32>().ok()) == Some(id))
         };
         if exists {
-            self.wb.check_poisoned()?;
+            self.wb.check_editable()?;
             return Ok(false);
         }
         self.wb.edit_sheet_child::<E>(self.sheet, |c| {

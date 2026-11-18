@@ -10,6 +10,8 @@ use common::p1::{book, with_part};
 use common::*;
 use ooxml_xlsx::{Error, HeaderFooter, Margins, Orientation, PageSetup, PrintOptions, Workbook, WorkbookProtection};
 
+type ErrorCheck = fn(&Error) -> bool;
+
 const SML: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
 fn try_on<T>(input: &[u8], f: impl FnOnce(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<T>) -> (Workbook, ooxml_xlsx::Result<T>) {
@@ -213,7 +215,7 @@ fn data_validation_add_and_remove() {
     }
     assert!(!out_xml(&wb).contains("dataValidations"));
     // refusals
-    let cases: Vec<(Validation, fn(&Error) -> bool)> = vec![
+    let cases: Vec<(Validation, ErrorCheck)> = vec![
         (Validation::list_from("Other!$A$1:$A$3"), |e| matches!(e, Error::CrossSheetReference { .. })),
         (Validation::custom("Nope!A1>0"), |e| matches!(e, Error::UnknownSheet(_))),
         (Validation::list(&["a,b"]), |e| matches!(e, Error::ListItemHasComma(_))),
@@ -273,7 +275,7 @@ fn hyperlinks_external_internal_and_removal() {
     assert!(text(&out2, "xl/worksheets/_rels/sheet1.xml.rels").contains("example.com"), "the relationship stays");
     // refusals
     let with = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap().to_bytes().unwrap();
-    let cases: Vec<(&str, Link, fn(&Error) -> bool)> = vec![
+    let cases: Vec<(&str, Link, ErrorCheck)> = vec![
         ("A1", Link::Url("example.com".into()), |e| matches!(e, Error::InvalidUrl(_))),
         ("A1", Link::Url(format!("https://x/{}", "a".repeat(2100))), |e| matches!(e, Error::InvalidUrl(_))),
         ("A1", Link::Location("Nope!A1".into()), |e| matches!(e, Error::UnknownSheet(_))),
@@ -363,7 +365,7 @@ fn conditional_formats_add_priorities_and_kinds() {
 fn conditional_format_refusals_and_removal() {
     use ooxml_xlsx::{CfOperator, Cfvo, Rule, RuleKind};
     let input = book(&[("S", ""), ("Other", "")], "", "");
-    let cases: Vec<(Rule, fn(&Error) -> bool)> = vec![
+    let cases: Vec<(Rule, ErrorCheck)> = vec![
         (Rule::new(RuleKind::Expression("Other!A1>0".into())), |e| matches!(e, Error::CrossSheetReference { .. })),
         (Rule::new(RuleKind::CellIs(CfOperator::Equal, "Nope!A1".into(), None)), |e| matches!(e, Error::UnknownSheet(_))),
         (Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Formula("Other!$A$1".into()), "FF000000".into())), |e| matches!(e, Error::CrossSheetReference { .. })),
@@ -403,4 +405,90 @@ fn conditional_format_refusals_and_removal() {
     let broken = sheet_with("", r#"<conditionalFormatting sqref="A1"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF000000"/></dataBar><extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:id>{0000}</x14:id></ext></extLst></cfRule></conditionalFormatting>"#, "");
     let (_, r) = try_on(&broken, |ws| ws.remove_conditional_format("A1", None));
     assert!(r.unwrap().broken_x14_link);
+}
+
+#[test]
+fn workbook_edit_refusal_covers_part2() {
+    use ooxml_xlsx::{Link, LinkOptions, Rule, RuleKind, Validation, Worksheet};
+
+    let input = book(
+        &[
+            ("Mismatch", r#"<row r="1"><c r="B2"><f>A1*2</f><v>2</v></c></row>"#),
+            ("Edits", ""),
+        ],
+        "",
+        "",
+    );
+    type Edit = fn(&mut Worksheet<'_>) -> ooxml_xlsx::Result<()>;
+    fn rule() -> Rule {
+        Rule::new(RuleKind::Expression("A1>0".into()))
+    }
+    let edits: &[(&str, Edit)] = &[
+        ("set hyperlink", |ws| ws.set_hyperlink("A1", &Link::Location("B2".into()), &LinkOptions::default())),
+        ("remove hyperlink", |ws| ws.remove_hyperlink("A1")),
+        ("add validation", |ws| ws.add_validation("A1", &Validation::list(&["yes"]))),
+        ("remove validation", |ws| ws.remove_validation("A1")),
+        ("add conditional formatting", |ws| ws.add_conditional_format("A1", &rule())),
+        ("prepend conditional formatting", |ws| ws.add_conditional_format_first("A1", &rule())),
+        ("remove conditional formatting", |ws| ws.remove_conditional_format("A1", None).map(drop)),
+        ("freeze panes", |ws| ws.freeze_panes(1, 0)),
+        ("split panes", |ws| ws.split_panes(1200, 0)),
+        ("unfreeze", |ws| ws.unfreeze().map(drop)),
+        ("zoom", |ws| ws.set_zoom(90)),
+        ("gridlines", |ws| ws.set_show_gridlines(false)),
+        ("right to left", |ws| ws.set_right_to_left(true)),
+        ("column width", |ws| ws.set_column_width(0, 0, 17.5)),
+        ("column hidden", |ws| ws.set_column_hidden(0, 0, true)),
+        ("column outline", |ws| ws.set_column_outline(0, 0, 1)),
+        ("row height", |ws| ws.set_row_height(0, 22.5)),
+        ("row hidden", |ws| ws.set_row_hidden(0, true)),
+        ("row outline", |ws| ws.set_row_outline(0, 1)),
+        ("page setup", |ws| ws.set_page_setup(&PageSetup::default())),
+        ("margins", |ws| ws.set_margins(&Margins::default())),
+        ("print options", |ws| ws.set_print_options(&PrintOptions::default())),
+        ("header and footer", |ws| ws.set_header_footer(&HeaderFooter::default())),
+        ("row break", |ws| ws.add_row_break(1).map(drop)),
+        ("column break", |ws| ws.add_col_break(1).map(drop)),
+    ];
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    for (name, edit) in edits {
+        let result = edit(&mut wb.worksheet_by_name("Edits").unwrap());
+        assert_matches!(result, Err(Error::InvalidReference(ref reason)) if reason.contains("B2 in row 1"), "{name}");
+        assert_unchanged(&wb, &input);
+    }
+    let result = wb.protect_workbook(&WorkbookProtection::new());
+    assert_matches!(result, Err(Error::InvalidReference(ref reason)) if reason.contains("B2 in row 1"));
+    assert_unchanged(&wb, &input);
+    let result = wb.unprotect_workbook();
+    assert_matches!(result, Err(Error::InvalidReference(ref reason)) if reason.contains("B2 in row 1"));
+    assert_unchanged(&wb, &input);
+}
+
+#[test]
+fn conditional_format_priority_limit_is_atomic() {
+    use ooxml_xlsx::{Rule, RuleKind};
+
+    let input = sheet_with("", r#"<conditionalFormatting sqref="A1"><cfRule type="uniqueValues" priority="2147483647"/></conditionalFormatting>"#, "");
+    let rule = Rule::new(RuleKind::UniqueValues);
+    let (_, append) = try_on(&input, |ws| ws.add_conditional_format("B1", &rule));
+    let (_, prepend) = try_on(&input, |ws| ws.add_conditional_format_first("B1", &rule));
+    assert_matches!(append, Err(Error::InvalidSetting { .. }));
+    assert_matches!(prepend, Err(Error::InvalidSetting { .. }));
+}
+
+#[test]
+fn conditional_format_uses_the_differential_format_registry() {
+    use ooxml_xlsx::{DxfFormat, Rule, RuleKind};
+
+    let mut wb = Workbook::new().unwrap();
+    let format = DxfFormat::new().set_num_format("0.000");
+    let id = wb.add_differential_format(&format).unwrap();
+    assert_eq!(wb.add_differential_format(&format).unwrap(), id);
+    let rule = Rule::new(RuleKind::UniqueValues).with_dxf(id);
+    wb.worksheet().unwrap().add_conditional_format("A1", &rule).unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let styles = String::from_utf8(part(&bytes, "xl/styles.xml")).unwrap();
+    assert!(styles.contains(r#"<dxfs count="1">"#), "{styles}");
+    let sheet = sheet_xml(&bytes);
+    assert!(sheet.contains(&format!(r#"dxfId="{id}""#)), "{sheet}");
 }

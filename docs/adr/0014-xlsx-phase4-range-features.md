@@ -590,6 +590,7 @@ nobody widens the table ad hoc.
 - Print area and print titles: ADR-0009 rev 2 §9's `set_print_area`/`set_print_titles`.
 
 ### 11. Protection
+> Implementation note (PR #58 review m1): The worksheet API uses `SheetProtection` to avoid a name collision with Phase 2 cell-format `Protection`.
 
 - **`protect_sheet(Protection)`** writes `sheetProtection` with `sheet="1"` and the flags the
   caller chooses.

@@ -422,7 +422,7 @@ pub fn check(input: &[u8], output: &[u8], sheet_part: &str, rows: &[Allowed], ce
             if open.ends_with("/>") {
                 open.as_bytes().to_vec()
             } else {
-                format!("{open}</{}>", &text[open_tag(root).start + 1..].split([' ', '>', '/']).next().unwrap_or_default()).into_bytes()
+                format!("{open}</{}>", text[open_tag(root).start + 1..].split([' ', '>', '/']).next().unwrap_or_default()).into_bytes()
             }
         };
         if a == b {
