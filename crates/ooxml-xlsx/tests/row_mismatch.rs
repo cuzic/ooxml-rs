@@ -15,7 +15,7 @@ use std::assert_matches;
 
 use common::p1::*;
 use common::*;
-use ooxml_xlsx::{Error, Workbook};
+use ooxml_xlsx::{Error, SheetProtection, Workbook, Worksheet};
 
 const MC: &str = r#"xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
 
@@ -68,6 +68,43 @@ fn a_cell_naming_another_row_blocks_every_edit() {
         "",
         "",
     ));
+}
+
+/// A mismatch on one sheet blocks range edits on another, including
+/// removal of an existing merge, filter, or protection.
+#[test]
+fn f8_blocks_phase4_range_edits() {
+    let input = book(
+        &[
+            ("Mismatch", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#),
+            ("RangeEdits", ""),
+        ],
+        "",
+        "",
+    );
+    let sheet = patched(
+        &input,
+        "xl/worksheets/sheet2.xml",
+        "</sheetData>",
+        r#"</sheetData><sheetProtection sheet="1"/><autoFilter ref="A1:B3"/><mergeCells count="1"><mergeCell ref="A5:B6"/></mergeCells>"#,
+    );
+    let input = rebuild(&input, &[("xl/worksheets/sheet2.xml", sheet)]);
+    type Edit = fn(&mut Worksheet<'_>) -> ooxml_xlsx::Result<()>;
+    let edits: [(&str, Edit); 7] = [
+        ("merge", |ws| ws.merge("A2:B3")),
+        ("merge_clearing", |ws| ws.merge_clearing("A2:B3")),
+        ("unmerge", |ws| ws.unmerge("A5:B6")),
+        ("set_autofilter", |ws| ws.set_autofilter("A1:B3")),
+        ("remove_autofilter", |ws| ws.remove_autofilter().map(drop)),
+        ("protect_sheet", |ws| ws.protect_sheet(&SheetProtection::new())),
+        ("unprotect_sheet", |ws| ws.unprotect_sheet().map(drop)),
+    ];
+    for (name, edit) in edits {
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        let result = edit(&mut wb.worksheet_by_name("RangeEdits").unwrap());
+        assert_matches!(result, Err(Error::InvalidReference(ref m)) if m.contains("B2 in row 1"), "{name}");
+        assert_eq!(wb.to_bytes().unwrap(), input, "{name} changed the package");
+    }
 }
 
 /// Control: the same cells in their own rows edit normally, without a

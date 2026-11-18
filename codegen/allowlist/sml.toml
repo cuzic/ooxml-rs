@@ -65,6 +65,16 @@ names = [
     "x:CT_IntProperty/x:charset",
     "x:CT_Dxfs/x:dxfs",
     "x:CT_Dxf/x:dxf",
+
+    # Phase4 part 1 (ADR-0014 §3, §7, §11): merged cells, autofilter and its
+    # _xlnm._FilterDatabase name, sheet protection, sheetPr/@filterMode.
+    "x:CT_MergeCells/x:mergeCells",
+    "x:CT_MergeCell/x:mergeCell",
+    "x:CT_DefinedNames/x:definedNames",
+    "x:CT_DefinedName/x:definedName",
+    "x:CT_AutoFilter/x:autoFilter",
+    "x:CT_SheetProtection/x:sheetProtection",
+    "x:CT_SheetPr/x:sheetPr",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
@@ -74,15 +84,14 @@ names = [
     "x:CT_Workbook/x:workbook",
     "x:CT_Sheets/x:sheets",
     "x:CT_Sheet/x:sheet",
-    "x:CT_MergeCells/x:mergeCells",
-    "x:CT_MergeCell/x:mergeCell",
+    # Phase4 part 1 (ADR-0014 §7): an autofilter with criteria or a sort is
+    # refused, so these are only detected.
+    "x:CT_FilterColumn/x:filterColumn",
+    "x:CT_SortState/x:sortState",
     # Table header guard (roadmap Q5): tableParts -> table part -> ref/headerRowCount.
     "x:CT_TableParts/x:tableParts",
     "x:CT_TablePart/x:tablePart",
     "x:CT_Table/x:table",
-    # Phase1 (ADR-0003 §6): defined names for dependency analysis.
-    "x:CT_DefinedNames/x:definedNames",
-    "x:CT_DefinedName/x:definedName",
     # Phase2 (ADR-0006): the default style, named styles, the date system.
     "x:CT_CellStyleXfs/x:cellStyleXfs",
     "x:CT_CellStyles/x:cellStyles",
