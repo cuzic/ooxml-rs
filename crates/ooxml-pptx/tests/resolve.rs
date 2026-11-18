@@ -748,6 +748,10 @@ fn slide_rect_nested_flipped_and_invalid() {
         ("", r#"<a:ext cx="200" cy="200"/><a:chOff x="0" y="0"/><a:chExt cx="100" cy="100"/>"#),
         ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="100"/>"#),
         ("", r#"<a:off x="q" y="1000"/><a:ext cx="200" cy="200"/>"#),
+        ("", r#"<a:off x="NaN" y="1000"/><a:ext cx="200" cy="200"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200.5" cy="200"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chOff x="bad" y="0"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chExt cx="100"/>"#),
     ] {
         let g = group(85, attrs, member, xfrm);
         let mut p = patched(&[(SLIDE, "</p:spTree>", &format!("{g}</p:spTree>"))]);

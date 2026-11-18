@@ -825,7 +825,9 @@ impl<'a> Sheet<'a> {
             // Some(None): element absent; None: present but invalid
             let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<Option<(f64, f64)>> {
                 let Some(e) = child(gx, a(n)) else { return Some(None) };
-                Some(Some((e.attr(un(ax))?.parse().ok()?, e.attr(un(ay))?.parse().ok()?)))
+                let x = e.attr(un(ax))?.parse::<i64>().ok()?;
+                let y = e.attr(un(ay))?.parse::<i64>().ok()?;
+                Some(Some((x as f64, y as f64)))
             };
             let (Some(Some(off)), Some(Some(ext))) = (pt("off", "x", "y"), pt("ext", "cx", "cy")) else { return Ok(None) };
             let (Some(ch_off), Some(ch_ext)) = (pt("chOff", "x", "y"), pt("chExt", "cx", "cy")) else { return Ok(None) };

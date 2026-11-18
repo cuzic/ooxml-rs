@@ -401,8 +401,8 @@ impl Presentation {
             return Ok(report);
         }
         // Apply. Every check ran above, so a failure here is a bug; it is
-        // still made harmless (review #48 m4): each slide's tree is cloned
-        // before it is changed, and on any error every changed slide is
+        // still made harmless (review #48 m4): each part's tree is cloned
+        // before it is changed, and on any error every changed part is
         // restored, so `Err` leaves the package byte-identical.
         let mut backups: Vec<(String, XmlDocument)> = Vec::new();
         let mut failure = None;
@@ -440,9 +440,9 @@ impl Presentation {
             }
         }
         if let Some(e) = failure {
-            // restore every slide even if one restore fails (review #48 r2
-            // nit); the first error of all is returned
-            for (part, doc) in backups {
+            // Restore in reverse order so a shared part ends with its
+            // original tree. Attempt every restore and return the apply error.
+            for (part, doc) in backups.into_iter().rev() {
                 match self.pkg.xml_part_mut(&part) {
                     Ok(d) => *d = doc,
                     Err(_) => core::hint::cold_path(),
@@ -530,5 +530,35 @@ pub(crate) mod fault {
         let rep = pres.replace_all("e", "E", &o).unwrap();
         assert!(rep.replaced.iter().any(|m| m.location.notes));
         assert_eq!(pres.notes(0).unwrap().unwrap().text(), "sEE thE notEs");
+    }
+
+    #[test]
+    fn a_failure_restores_a_notes_part_shared_by_two_slides() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/sample.pptx");
+        let mut pkg = ooxml_core::Package::from_bytes(std::fs::read(path).unwrap()).unwrap();
+        for (part, original, replacement) in [
+            ("ppt/slides/_rels/slide2.xml.rels", "../notesSlides/notesSlide2.xml", "../notesSlides/notesSlide1.xml"),
+            (
+                "ppt/notesSlides/notesSlide1.xml",
+                r#"<a:p><a:endParaRPr lang="en-US"/></a:p>"#,
+                "<a:p><a:r><a:t>shared notes marker</a:t></a:r></a:p>",
+            ),
+        ] {
+            let xml = String::from_utf8(pkg.read_part(part).unwrap()).unwrap();
+            assert!(xml.contains(original));
+            pkg.set_part(part, xml.replacen(original, replacement, 1).into_bytes()).unwrap();
+        }
+        let mut pres = super::Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let before = pres.to_bytes().unwrap();
+        let find = crate::FindOptions::default().scope(crate::Scope::SlidesAndNotes);
+        let matches = pres.find("shared notes marker", &find).unwrap();
+        assert_eq!(matches.len(), 2);
+        assert!(matches.iter().all(|m| m.location.notes));
+
+        FAIL_AFTER_SLIDE.set(Some(1));
+        let result = pres.replace_all("shared notes marker", "shared notes edited", &crate::ReplaceOptions::default().find(find));
+        FAIL_AFTER_SLIDE.set(None);
+        assert!(result.is_err());
+        assert_eq!(pres.to_bytes().unwrap(), before);
     }
 }

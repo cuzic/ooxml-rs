@@ -165,6 +165,11 @@ fn notes_refusals() {
     assert_matches!(refused(&mut p, |p| p.notes_mut(0)?.body_mut().map(|_| ())), Error::NoNotesBody);
     let o = FindOptions::default().scope(Scope::Notes(0));
     assert_matches!(refused(&mut p, |p| p.find("x", &o)), Error::NoNotesBody);
+    let opts = ReplaceOptions::default().find(o);
+    assert_matches!(
+        refused(&mut p, |p| p.replace_all("x", "y", &opts)),
+        Error::NoNotesBody
+    );
     // ... and SlidesAndNotes skips it
     assert!(p.find("Lorem", &FindOptions::default().scope(Scope::SlidesAndNotes)).unwrap().iter().all(|m| !m.location.notes));
     // SYNTHETIC: the notes body inside mc:AlternateContent → InsideAlternateContent
