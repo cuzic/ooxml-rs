@@ -229,6 +229,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
     {
         return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
     }
+    index.check_edit()?;
     let loc = locate(doc, index, part, at)?;
     if index.sheet_data && loc.row.is_none() {
         let ws = doc.lens_mut::<sml::Worksheet>()?;
@@ -631,7 +632,8 @@ impl CellMut<'_, '_> {
     /// [`Error::TableHeaderCell`], [`Error::RichValueCell`],
     /// [`Error::MissingReference`], [`Error::OutOfOrder`]; core refusals
     /// such as `UnresolvedSibling` if `sheetData` itself must be inserted
-    /// next to an `mc:AlternateContent`.
+    /// next to an `mc:AlternateContent`, or if a foreign wrapper under
+    /// `sheetData` hides a spreadsheet row or cell from the index.
     pub fn set_string(self, value: &str) -> Result<()> {
         let ws = &mut *self.ws;
         ws.wb.write_string(ws.sheet, self.at, value, None)

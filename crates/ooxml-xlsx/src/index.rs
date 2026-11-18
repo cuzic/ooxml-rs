@@ -16,7 +16,7 @@
 //! PR #29 review m1).
 
 use ooxml_core::{Content, ElementSpec, RawNode, XmlDocument};
-use ooxml_core::name::MC_ALTERNATE_CONTENT;
+use ooxml_core::name::{MC_ALTERNATE_CONTENT, MC_NS};
 use ooxml_schema::sml;
 
 use crate::error::{Error, Result};
@@ -67,6 +67,8 @@ pub(crate) struct SheetIndex {
     pub(crate) sd_len: usize,
     /// `mc:AlternateContent` in `worksheet` (no `sheetData`) or in `sheetData`.
     pub(crate) alternate: Option<&'static str>,
+    /// A foreign wrapper under `sheetData` contains an SML row or cell.
+    wrapped_grid: bool,
     pub(crate) rows: std::result::Result<Vec<RowEntry>, SheetErr>,
 }
 
@@ -86,6 +88,16 @@ pub(crate) struct Located {
 
 fn has_ac(n: &RawNode) -> bool {
     n.elements().any(|c| c.is(MC_ALTERNATE_CONTENT))
+}
+
+/// Match resolved names so extension elements named `row` or `c` are harmless.
+fn contains_wrapped_grid(node: &RawNode, under_foreign: bool) -> bool {
+    if under_foreign && (node.is(sml::Row::QNAME) || node.is(sml::Cell::QNAME)) {
+        return true;
+    }
+    let ns = node.name().ns();
+    let under_foreign = under_foreign || (ns != crate::SML_NS && ns != MC_NS);
+    node.elements().any(|child| contains_wrapped_grid(child, under_foreign))
 }
 
 /// `(cells_end, misordered)` of a row (see [`RowEntry`]).
@@ -128,25 +140,34 @@ impl SheetIndex {
         let root = doc.root();
         let Some(sd) = root.elements().find(|e| e.is(sml::SheetData::QNAME)) else {
             let alternate = has_ac(root).then_some("worksheet");
-            return SheetIndex { sheet_data: false, sd_len: 0, alternate, rows: Ok(Vec::new()) };
+            return SheetIndex { sheet_data: false, sd_len: 0, alternate, wrapped_grid: false, rows: Ok(Vec::new()) };
         };
         let sd_len = sd.children().len();
         let alternate = has_ac(sd).then_some("sheetData");
+        let wrapped_grid = contains_wrapped_grid(sd, false);
         let mut rows: Vec<RowEntry> = Vec::new();
         for (i, n) in sd.indexed_elements().filter(|(_, n)| n.is(sml::Row::QNAME)) {
             let Some(r) = n.attr(sml::Row::ATTR_R) else {
-                return SheetIndex { sheet_data: true, sd_len, alternate, rows: Err(SheetErr::MissingRowR) };
+                return SheetIndex { sheet_data: true, sd_len, alternate, wrapped_grid, rows: Err(SheetErr::MissingRowR) };
             };
             let Some(r) = ooxml_core::value::parse_u32(r).filter(|r| *r >= 1) else {
-                return SheetIndex { sheet_data: true, sd_len, alternate, rows: Err(SheetErr::BadRowR(r.to_owned())) };
+                return SheetIndex { sheet_data: true, sd_len, alternate, wrapped_grid, rows: Err(SheetErr::BadRowR(r.to_owned())) };
             };
             if rows.last().is_some_and(|e| r <= e.row) {
-                return SheetIndex { sheet_data: true, sd_len, alternate, rows: Err(SheetErr::RowsOutOfOrder) };
+                return SheetIndex { sheet_data: true, sd_len, alternate, wrapped_grid, rows: Err(SheetErr::RowsOutOfOrder) };
             }
             let (cells_end, misordered) = row_tail(n);
             rows.push(RowEntry { row: r, item: i, alternate: has_ac(n), cells_end, misordered, cells: row_cells(n, r) });
         }
-        SheetIndex { sheet_data: true, sd_len, alternate, rows: Ok(rows) }
+        SheetIndex { sheet_data: true, sd_len, alternate, wrapped_grid, rows: Ok(rows) }
+    }
+
+    /// Editing this sheet could duplicate grid entries the index cannot see.
+    pub(crate) fn check_edit(&self) -> Result<()> {
+        if self.wrapped_grid {
+            return Err(ooxml_core::Error::UnresolvedSibling(sml::SheetData::QNAME).into());
+        }
+        Ok(())
     }
 
     fn sheet_error(e: &SheetErr, part: &str) -> Error {
