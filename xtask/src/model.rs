@@ -479,7 +479,15 @@ impl<'a> Model<'a> {
                         continue;
                     };
                     let anchor = after.as_ref().or(before.as_ref()).unwrap();
-                    match p.items.iter().position(|i| i.name.as_deref() == Some(anchor.as_str())) {
+                    // `##any` anchors on the wildcard item, for parents whose content
+                    // is only `xsd:any` (`a:ext`; ADR-0002 note "children of a
+                    // wildcard-only parent").
+                    let found = if anchor == "##any" {
+                        p.items.iter().position(|i| i.kind.as_deref() == Some("Any"))
+                    } else {
+                        p.items.iter().position(|i| i.name.as_deref() == Some(anchor.as_str()))
+                    };
+                    match found {
                         Some(pos) => {
                             let occurs = match max {
                                 Some(0) => vec![crate::sdk::Occurs { min: Some(0), max: None }],

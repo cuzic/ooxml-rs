@@ -918,6 +918,8 @@ impl ooxml_core::ElementSpec for ColorMap {
         ],
     );
 }
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ColorMap> for super::dml::ExtensionList {}
 /// Read-only view of [`ColorMap`].
 #[derive(Clone, Debug)]
 pub struct ColorMapView<'a>(pub ooxml_core::Lens<'a, ColorMap>);
@@ -977,6 +979,11 @@ impl<'a> ColorMapView<'a> {
         &self,
     ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
         self.0.attr_enum(ColorMap::ATTR_FOL_HLINK)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1104,6 +1111,8 @@ impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::TransformGroup {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::NoFill {}
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::SolidFill {}
 /// Read-only view of [`GroupShapeProperties`].
 #[derive(Clone, Debug)]
@@ -1124,6 +1133,11 @@ impl<'a> GroupShapePropertiesView<'a> {
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<super::dml::NoFillView<'a>> {
         self.0.child::<super::dml::NoFill>().map(super::dml::NoFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
     }
     #[cfg(feature = "dml")]
     /// First `a:solidFill` child.
@@ -1663,6 +1677,46 @@ impl<'a> TextBodyViewMut<'a> {
         TextBodyView(self.0.as_lens())
     }
     #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(
+        &mut self,
+    ) -> Option<super::dml::BodyPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<super::dml::BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<super::dml::BodyProperties>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<super::dml::ListStyleViewMut<'_>> {
+        self.0.child_mut::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<super::dml::ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<super::dml::ListStyle>()
+    }
+    #[cfg(feature = "dml")]
     /// First `a:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
         &mut self,
@@ -1774,6 +1828,8 @@ impl ooxml_core::ElementSpec for BodyStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<BodyStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level1ParagraphProperties {}
@@ -1797,6 +1853,11 @@ impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level9ParagraphProperties {}
 #[derive(Clone, Debug)]
 pub struct BodyStyleView<'a>(pub ooxml_core::Lens<'a, BodyStyle>);
 impl<'a> BodyStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -1971,6 +2032,8 @@ impl ooxml_core::ElementSpec for DefaultTextStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level1ParagraphProperties {}
@@ -1994,6 +2057,11 @@ impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level9ParagraphProper
 #[derive(Clone, Debug)]
 pub struct DefaultTextStyleView<'a>(pub ooxml_core::Lens<'a, DefaultTextStyle>);
 impl<'a> DefaultTextStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2168,6 +2236,8 @@ impl ooxml_core::ElementSpec for NotesStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<NotesStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level1ParagraphProperties {}
@@ -2191,6 +2261,11 @@ impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level9ParagraphProperties {
 #[derive(Clone, Debug)]
 pub struct NotesStyleView<'a>(pub ooxml_core::Lens<'a, NotesStyle>);
 impl<'a> NotesStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2365,6 +2440,8 @@ impl ooxml_core::ElementSpec for OtherStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<OtherStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level1ParagraphProperties {}
@@ -2388,6 +2465,11 @@ impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level9ParagraphProperties {
 #[derive(Clone, Debug)]
 pub struct OtherStyleView<'a>(pub ooxml_core::Lens<'a, OtherStyle>);
 impl<'a> OtherStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2562,6 +2644,8 @@ impl ooxml_core::ElementSpec for TitleStyle {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::ExtensionList {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TitleStyle> for super::dml::DefaultParagraphProperties {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level1ParagraphProperties {}
@@ -2585,6 +2669,11 @@ impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level9ParagraphProperties {
 #[derive(Clone, Debug)]
 pub struct TitleStyleView<'a>(pub ooxml_core::Lens<'a, TitleStyle>);
 impl<'a> TitleStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
+    }
     #[cfg(feature = "dml")]
     /// First `a:defPPr` child.
     pub fn default_paragraph_properties(
@@ -2771,6 +2860,73 @@ impl<'a> TransformView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Transform`]. Reads go through [`TransformViewMut::as_view`].
+#[derive(Debug)]
+pub struct TransformViewMut<'a>(pub ooxml_core::LensMut<'a, Transform>);
+impl<'a> TransformViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TransformView<'_> {
+        TransformView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation (default `0`)
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Transform::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_ROT)
+    }
+    /// Sets `flipH` — Horizontal Flip (default `false`)
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform::ATTR_FLIP_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipH`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_FLIP_H)
+    }
+    /// Sets `flipV` — Vertical Flip (default `false`)
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Transform::ATTR_FLIP_V, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipV`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Transform::ATTR_FLIP_V)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:off` child, mutably.
+    pub fn offset_mut(&mut self) -> Option<super::dml::OffsetViewMut<'_>> {
+        self.0.child_mut::<super::dml::Offset>().map(super::dml::OffsetViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:off` child, or a new one in schema position.
+    pub fn get_or_insert_offset(
+        &mut self,
+    ) -> Result<super::dml::OffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Offset>().map(super::dml::OffsetViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:off` child.
+    pub fn remove_offset(&mut self) -> bool {
+        self.0.remove::<super::dml::Offset>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ext` child, mutably.
+    pub fn extents_mut(&mut self) -> Option<super::dml::ExtentsViewMut<'_>> {
+        self.0.child_mut::<super::dml::Extents>().map(super::dml::ExtentsViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:ext` child, or a new one in schema position.
+    pub fn get_or_insert_extents(
+        &mut self,
+    ) -> Result<super::dml::ExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Extents>().map(super::dml::ExtentsViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:ext` child.
+    pub fn remove_extents(&mut self) -> bool {
+        self.0.remove::<super::dml::Extents>()
     }
 }
 /// `p14:CT_Section/p14:section` — Defines the Section Class.
@@ -7005,6 +7161,8 @@ impl<'a> TextView<'a> {
     }
 }
 const _: () = ooxml_core::schema::assert_spec::<ColorMap>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<ColorMap, super::dml::ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<ColorMapOverride>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
@@ -7026,6 +7184,11 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     GroupShapeProperties,
     super::dml::NoFill,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GroupShapeProperties,
+    super::dml::ExtensionList,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
@@ -7093,6 +7256,8 @@ const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::ListStyle
 const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::Paragraph>();
 const _: () = ooxml_core::schema::assert_spec::<BodyStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<BodyStyle, super::dml::ExtensionList>();
+#[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     BodyStyle,
     super::dml::DefaultParagraphProperties,
@@ -7143,6 +7308,11 @@ const _: () = ooxml_core::schema::assert_child::<
     super::dml::Level9ParagraphProperties,
 >();
 const _: () = ooxml_core::schema::assert_spec::<DefaultTextStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::ExtensionList,
+>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     DefaultTextStyle,
@@ -7197,6 +7367,11 @@ const _: () = ooxml_core::schema::assert_spec::<NotesStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     NotesStyle,
+    super::dml::ExtensionList,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
     super::dml::DefaultParagraphProperties,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
@@ -7248,6 +7423,11 @@ const _: () = ooxml_core::schema::assert_spec::<OtherStyle>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     OtherStyle,
+    super::dml::ExtensionList,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
     super::dml::DefaultParagraphProperties,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
@@ -7296,6 +7476,11 @@ const _: () = ooxml_core::schema::assert_child::<
     super::dml::Level9ParagraphProperties,
 >();
 const _: () = ooxml_core::schema::assert_spec::<TitleStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::ExtensionList,
+>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     TitleStyle,

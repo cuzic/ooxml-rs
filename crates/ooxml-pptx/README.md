@@ -29,6 +29,7 @@ if let Some(title) = pres.slide(0)?.placeholders().first().map(|p| p.id()).trans
 | `add_run`, `add_paragraph` | explicitly unformatted (inherit the list/placeholder style) |
 | `add_break`, `remove_run`, `remove_paragraph`, `remove_field` | as named |
 | `Presentation::find`, `Presentation::replace_all` | cross-run find/replace on the slides ([ADR-0008](../../docs/adr/0008-pptx-phase1-deck-reading.md) §4, Accepted): the run where a match starts keeps its format, covered runs are removed or trimmed, `\v` in the replacement → `a:br` + a run copying the start run's format; a match over a field, an animated/comment-anchored text, an AC shape or a merged cell is refused; all matches are checked before the first change (`OnRefusal::Skip`/`Abort`) |
+| `TableMut::set_fill`, `TableMut::set_border` | set a table cell fill or border using `TableColor::Rgb` or `TableColor::Scheme` for solid colours |
 
 Refused with a typed `Error`, before anything changes: edits that would
 shift animated or comment-anchored text, remove a field implicitly, touch
@@ -79,6 +80,21 @@ types; `slide_rect`, `ShapeRef::is_text_box`, `RunProps::xsd_default` and
 the Q4 helper `RunProps::script_font_candidate` complete §1. Notes, layout and master contexts (§1.7) and notes
 editing (§2) are not implemented yet.
 
+Tables (Phase 1b, [ADR-0013](../../docs/adr/0013-pptx-phase1b-tables-and-smartart.md)
+§2–§3) through `ShapeMut::table_mut()`:
+
+| Edit | Behaviour |
+| --- | --- |
+| `insert_row(at)`, `insert_column(at)` | height/width and cell formatting copied from above/left (else below/right); inside a merge the new cells join it; new `a16:rowId`/`colId` when the table has ids (never an id deleted in this session); the frame size follows |
+| `delete_row(r)`, `delete_column(c)` | merges through it shrink (a span reaching 1 is removed); refused through a merge origin and for the only row/column |
+| `merge(r1, c1, r2, c2)`, `unmerge(r, c)` | edge form (PowerPoint's); the other cells' paragraphs move to the origin; refused over a merged cell |
+| `set_border(r, c, edge, line)`, `set_borders(line)` | both cells of a shared edge, the whole outline of a merged range |
+| `set_fill`, `set_margin`, `set_anchor`, `set_flag`, `set_style`, `set_column_width`, `set_row_height` | `a:tcPr` / `a:tblPr`; styles defined in `tableStyles.xml` or one of the 74 built-in ids |
+
+Structural edits are refused on a table a modern comment anchors into,
+and on a table that is not well-formed; every refusal leaves the slide
+unchanged.
+
 Development:
 
 - `cargo test -p ooxml-pptx` — L1/T1/T1b (`tests/roundtrip.rs`), T2
@@ -101,6 +117,11 @@ Development:
   `python3 -I crates/ooxml-pptx/tests/oracle/resolve_check.py OUT.json reference/fixtures/pptx`
   (known geometry differences in `tests/oracle/geometry_known_differences.json`;
   the POI table for O2b is `tests/oracle/poi_known_differences.md`).
+- Phase 1b tables: `tests/tables.rs`, the merge-rule property test
+  `tests/table_model.rs` (`TABLE_MODEL_CASES=N` for more cases), the
+  python-pptx oracle `cargo run --release -p ooxml-pptx --example table_cases -- OUT`
+  then `python3 -I crates/ooxml-pptx/tests/oracle/tables.py [--site DIR] OUT reference/fixtures/pptx`,
+  and a corpus sweep `cargo run --release -p ooxml-pptx --example table_sweep -- [--out DIR] DIR...`.
 - Manual check in PowerPoint:
   `cargo run -p ooxml-pptx --example pptx_manual_check -- OUT` writes edited
   files and `OUT/CHECKLIST.md`. `cargo xtask manual-check <outdir>` runs the
