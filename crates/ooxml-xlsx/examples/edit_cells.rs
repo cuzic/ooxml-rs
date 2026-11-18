@@ -79,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Refusals are typed errors, and nothing is changed.
     let strict = format!("{REFERENCE}/fixtures/xlsx/poi/SimpleStrict.xlsx");
     match Workbook::open(&strict) {
-        Err(Error::Core(e)) => println!("refused at open (ooxml-core): {e}"),
+        Err(Error::Core(e @ ooxml_core::Error::StrictNotSupported(_))) => println!("refused at open (Strict): {e}"),
         other => println!("unexpected: {:?}", other.map(|_| ())),
     }
     Ok(())
