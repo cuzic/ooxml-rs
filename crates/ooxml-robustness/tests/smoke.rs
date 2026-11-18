@@ -156,6 +156,6 @@ fn docx_replace() {
     }
     let [calls, applied, skipped, refused, stale, changed] =
         ooxml_robustness::docx_replace::STATS.each_ref().map(|a| a.load(std::sync::atomic::Ordering::Relaxed));
-    eprintln!("docx_replace: {calls} calls with applied matches ({applied} matches, {changed} paragraphs changed), {skipped} skipped, {refused} refused calls, {stale} stale matches refused");
+    eprintln!("docx_replace: {calls} calls with applied matches ({applied} matches, {changed} paragraphs written), {skipped} skipped, {refused} refused calls, {stale} stale matches refused");
     assert!(applied > 0 && changed > 0, "the oracles never fired");
 }
