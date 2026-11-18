@@ -720,6 +720,13 @@ fn scan_exemptions_require_the_supported_namespace_and_path() {
         assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
     }
 
+    // The census recognizes the immediate cell parent in this extension,
+    // while the rewriter visits only the worksheet's top-level sheetData.
+    let sheet = r#"<sheetData/><extLst><ext uri="{X}"><sheetData><row r="1"><c r="A1"><f>Data!A1</f></c></row></sheetData></ext></extLst>"#;
+    let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", ws(sheet))]);
+    assert!(Workbook::from_bytes(input.clone()).unwrap().edit_refusal().is_none());
+    assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
+
     let relationships = br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="Data!A1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="other.xlsx" TargetMode="External"/></Relationships>"#;
     let input = rebuild(&base, &[("xl/worksheets/_rels/sheet1.xml.rels", relationships.to_vec())]);
     assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
