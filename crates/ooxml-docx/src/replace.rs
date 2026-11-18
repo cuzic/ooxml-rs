@@ -160,7 +160,9 @@ pub enum RefusalReason {
     /// text run, or another paragraph child (ADR-0007 §1.1 "boundary").
     #[error("the match crosses {boundary}")]
     MatchCrossesBoundary {
-        /// What is crossed, e.g. `w:hyperlink`, `m:oMath`, `w:r (inside a field)`.
+        /// What is crossed, e.g. `w:hyperlink`, `m:oMath`, `w:r (inside a field)`,
+        /// or `text` / `markup` for non-whitespace text or a comment or
+        /// processing instruction directly in the paragraph (review of PR #52, n2).
         boundary: String,
     },
     /// A range marker lies strictly inside the match.
@@ -919,6 +921,12 @@ impl Document {
         self.write_gate_for(Operation::Text)?;
         let mut by_para: std::collections::BTreeMap<ParaRef, Vec<(Edit, bool)>> = std::collections::BTreeMap::new();
         for (m, replacement) in edits {
+            // a hand-made Match with an empty range would insert, bypassing
+            // find's EmptyNeedle, or count a write that never happens (review
+            // of PR #52, m2)
+            if m.range.is_empty() {
+                return Err(Error::EmptyNeedle);
+            }
             let fresh = m.doc == self.id
                 && m.generation == self.generation(m.para)
                 && self.paragraph_at(m.para).is_some_and(|p| p.text().get(m.range.clone()) == Some(m.text.as_str()));
