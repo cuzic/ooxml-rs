@@ -23,7 +23,7 @@ pub const MAX_SPIN_COUNT: u32 = 10_000_000;
 /// unlocked cells is allowed, everything else is not. Sheet protection is an
 /// Excel UI setting; it does not stop edits through this crate.
 #[derive(Clone)]
-pub struct Protection {
+pub struct SheetProtection {
     password: Option<String>,
     salt: Option<[u8; 16]>,
     spin_count: u32,
@@ -32,9 +32,9 @@ pub struct Protection {
 }
 
 /// The password is redacted (PR #58 round 1 m4).
-impl std::fmt::Debug for Protection {
+impl std::fmt::Debug for SheetProtection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Protection")
+        f.debug_struct("SheetProtection")
             .field("password", &self.password.as_ref().map(|_| "<redacted>"))
             .field("salt", &self.salt)
             .field("spin_count", &self.spin_count)
@@ -102,14 +102,14 @@ impl Default for Allow {
     }
 }
 
-impl Default for Protection {
+impl Default for SheetProtection {
     fn default() -> Self {
-        Protection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, allow: Allow::default(), legacy: false }
+        SheetProtection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, allow: Allow::default(), legacy: false }
     }
 }
 
-impl Protection {
-    /// Protection without a password, with Excel's default permissions.
+impl SheetProtection {
+    /// Sheet protection without a password, with Excel's default permissions.
     pub fn new() -> Self {
         Self::default()
     }
@@ -296,17 +296,17 @@ impl WorkbookProtection {
     pub fn new() -> Self {
         Self::default()
     }
-    /// See [`Protection::password`].
+    /// See [`SheetProtection::password`].
     pub fn password(mut self, password: &str) -> Self {
         self.password = Some(password.to_owned());
         self
     }
-    /// See [`Protection::with_salt`].
+    /// See [`SheetProtection::with_salt`].
     pub fn with_salt(mut self, salt: [u8; 16]) -> Self {
         self.salt = Some(salt);
         self
     }
-    /// See [`Protection::with_spin_count`].
+    /// See [`SheetProtection::with_spin_count`].
     pub fn with_spin_count(mut self, spin_count: u32) -> Self {
         self.spin_count = spin_count;
         self
@@ -321,7 +321,7 @@ impl WorkbookProtection {
         self.lock_windows = on;
         self
     }
-    /// See [`Protection::legacy_hash`] (`workbookPassword`).
+    /// See [`SheetProtection::legacy_hash`] (`workbookPassword`).
     pub fn legacy_hash(mut self) -> Self {
         self.legacy = true;
         self

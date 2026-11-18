@@ -41,6 +41,9 @@ pub(crate) struct SlideRefs {
     pub characters: Lock,
     /// Text ranges anchored by modern comments (or unverifiable anchors).
     pub comments: Lock,
+    /// Tables with a comment anchored inside them (rows, columns, cells),
+    /// or unverifiable anchors: structural edits refused (ADR-0013 §2).
+    pub tables: Lock,
 }
 
 const fn p(local: &'static str) -> QName {
@@ -100,11 +103,13 @@ impl SlideRefs {
     pub(crate) fn scan_comments(&mut self, part: Option<&XmlDocument>) {
         let Some(doc) = part else {
             self.comments.all = true;
+            self.tables.all = true;
             return;
         };
         let root = doc.root();
         if !root.is(QName::new(P188_NS, "cmLst")) {
             self.comments.all = true;
+            self.tables.all = true;
             return;
         }
         for cm in root.elements() {
@@ -113,6 +118,7 @@ impl SlideRefs {
             }
             if !cm.is(QName::new(P188_NS, "cm")) {
                 self.comments.all = true;
+                self.tables.all = true;
                 continue;
             }
             let anchors: Vec<&RawNode> = cm
@@ -123,33 +129,103 @@ impl SlideRefs {
                 .collect();
             if anchors.is_empty() {
                 self.comments.all = true;
+                self.tables.all = true;
             }
             for a in anchors {
                 let mut below = Vec::new();
                 descendants(a, &mut below);
-                let text_like = below.iter().any(|n| {
-                    n.name().local() == "txMk"
-                        || n.attr(QName::new("", "cp")).is_some()
-                        || n.attr(QName::new("", "len")).is_some()
-                });
-                let safe = (a.is(QName::new(PC_NS, "sldMkLst")) || a.is(QName::new(AC_NS, "deMkLst"))) && !text_like;
-                if safe {
+                self.scan_table_anchor(a, &below);
+                let c = classify_anchor_descendants(a, &below);
+                if c.safe {
                     continue;
                 }
-                let ids: Vec<Option<&str>> = below
-                    .iter()
-                    .filter(|n| n.name().ns() == AC_NS)
-                    .filter_map(|n| n.attr(QName::new("", "id")).map(Some))
-                    .collect();
-                if ids.is_empty() {
+                if c.ids.is_empty() {
                     self.comments.all = true;
                 }
-                for id in ids {
-                    self.comments.add(id);
+                for id in c.ids {
+                    self.comments.add(Some(id));
                 }
             }
         }
     }
+}
+
+impl SlideRefs {
+    /// ADR-0013 §2 (review N5): an anchor inside a table — a list of a
+    /// table kind, or **any** list holding `rowId`/`colId` or a
+    /// `tcMk`/`trMk`/`gridColMk`/`tblMk` — locks the frame ids below it;
+    /// an anchor ADR-0005 §6 cannot verify (no known kind) locks every
+    /// table. A whole-frame anchor (`deMkLst` with only `graphicFrameMk`
+    /// and slide/document monikers) does not lock.
+    fn scan_table_anchor(&mut self, a: &RawNode, below: &[&RawNode]) {
+        const TABLE_LISTS: [&str; 4] = ["tblMkLst", "tcMkLst", "trMkLst", "gridColMkLst"];
+        const TABLE_MKS: [&str; 4] = ["tcMk", "trMk", "gridColMk", "tblMk"];
+        let local = a.name().local();
+        let ns_ok = a.name().ns() == AC_NS || a.name().ns() == PC_NS;
+        let inside = (ns_ok && TABLE_LISTS.contains(&local))
+            || below.iter().any(|n| {
+                (n.name().ns() == AC_NS && TABLE_MKS.contains(&n.name().local()))
+                    || n.attr(QName::new("", "rowId")).is_some()
+                    || n.attr(QName::new("", "colId")).is_some()
+            });
+        if inside {
+            let ids: Vec<Option<&str>> =
+                below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id")).map(Some)).collect();
+            if ids.is_empty() {
+                self.tables.all = true;
+            }
+            for id in ids {
+                self.tables.add(id);
+            }
+        } else {
+            // not inside a table: like ADR-0005 §6, an anchor that names
+            // shapes locks those ids only (a table among them is locked);
+            // one with no id at all cannot be verified and locks every
+            // table (review #57 m3)
+            let named = below.iter().any(|n| n.name().ns() == AC_NS && n.attr(QName::new("", "id")).is_some());
+            let safe = ns_ok && matches!(local, "sldMkLst" | "deMkLst");
+            if !safe {
+                if named {
+                    for id in below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id"))) {
+                        self.tables.add(Some(id));
+                    }
+                } else {
+                    self.tables.all = true;
+                }
+            }
+        }
+    }
+}
+
+/// A modern comment anchor, classified once for locking (above) and for
+/// reading (`Comment::anchor`, ADR-0008 §3.3: "the anchor classifier is
+/// the one Phase 0 uses for locks").
+#[derive(Debug)]
+pub(crate) struct AnchorClass<'a> {
+    /// `pc:sldMkLst` or `ac:deMkLst` without text offsets: no text is referenced.
+    pub safe: bool,
+    /// A text range (`ac:txMk`, `@cp`/`@len` below the anchor).
+    pub text: bool,
+    /// `@id` of every `ac:*` moniker below the anchor, in document order.
+    pub ids: Vec<&'a str>,
+    /// The first `@cp` / `@len`.
+    pub cp: Option<&'a str>,
+    pub len: Option<&'a str>,
+}
+
+pub(crate) fn classify_anchor(a: &RawNode) -> AnchorClass<'_> {
+    let mut below = Vec::new();
+    descendants(a, &mut below);
+    classify_anchor_descendants(a, &below)
+}
+
+fn classify_anchor_descendants<'a>(a: &RawNode, below: &[&'a RawNode]) -> AnchorClass<'a> {
+    let text = below.iter().any(|n| n.name().local() == "txMk" || n.attr(QName::new("", "cp")).is_some() || n.attr(QName::new("", "len")).is_some());
+    let safe = (a.is(QName::new(PC_NS, "sldMkLst")) || a.is(QName::new(AC_NS, "deMkLst"))) && !text;
+    let ids = below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id"))).collect();
+    let cp = below.iter().find_map(|n| n.attr(QName::new("", "cp")));
+    let len = below.iter().find_map(|n| n.attr(QName::new("", "len")));
+    AnchorClass { safe, text, ids, cp, len }
 }
 
 #[cfg(test)]

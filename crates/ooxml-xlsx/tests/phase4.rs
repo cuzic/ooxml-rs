@@ -9,7 +9,7 @@ use std::assert_matches;
 
 use common::p1::{book, with_part};
 use common::*;
-use ooxml_xlsx::{Allow, CellValue, Error, Protection, Workbook};
+use ooxml_xlsx::{Allow, CellValue, Error, SheetProtection, Workbook};
 
 const SML: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
@@ -76,11 +76,11 @@ fn unmerge_of_a_duplicated_ref_keeps_the_other() {
 /// writes no hash.
 #[test]
 fn protection_debug_and_empty_password() {
-    let p = Protection::new().password("hunter2");
+    let p = SheetProtection::new().password("hunter2");
     let d = format!("{p:?}");
     assert!(!d.contains("hunter2") && d.contains("<redacted>"), "{d}");
     let input = sheet_with("", "");
-    let (wb, r) = try_on(&input, 0, |ws| ws.protect_sheet(&Protection::new().password("")));
+    let (wb, r) = try_on(&input, 0, |ws| ws.protect_sheet(&SheetProtection::new().password("")));
     r.unwrap();
     let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
     assert!(xml.contains("<sheetProtection ") && !xml.contains("hashValue"), "{xml}");
@@ -300,7 +300,7 @@ fn protection_hash_matches_excel() {
     let salt_b64 = attr(&xml, "saltValue").unwrap();
     let want = attr(&xml, "hashValue").unwrap();
     let salt = decode_b64(&salt_b64);
-    let p = Protection::new().password("pwd").with_salt(salt.try_into().unwrap()).with_spin_count(100_000);
+    let p = SheetProtection::new().password("pwd").with_salt(salt.try_into().unwrap()).with_spin_count(100_000);
     let (wb, r) = try_on(&input, 0, |ws| ws.protect_sheet(&p));
     r.unwrap();
     let out = sheet_xml(&wb.to_bytes().unwrap());
@@ -329,12 +329,12 @@ fn decode_b64(s: &str) -> Vec<u8> {
 #[test]
 fn protection_flags_replacement_and_refusals() {
     // defaults: objects/scenarios protected, selecting allowed
-    let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&Protection::new()));
+    let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&SheetProtection::new()));
     r.unwrap();
     assert!(sheet_xml(&wb.to_bytes().unwrap()).contains(r#"<sheetProtection sheet="1" objects="1" scenarios="1"/>"#));
     // allow formatting cells, forbid selecting locked cells
     let allow = Allow { format_cells: true, select_locked_cells: false, ..Allow::default() };
-    let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&Protection::new().allow(allow)));
+    let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&SheetProtection::new().allow(allow)));
     r.unwrap();
     let xml = sheet_xml(&wb.to_bytes().unwrap());
     assert_eq!(attr(&xml, "formatCells").as_deref(), Some("0"));
@@ -342,7 +342,7 @@ fn protection_flags_replacement_and_refusals() {
     assert_eq!(attr(&xml, "formatRows"), None, "the default is not written");
     // a legacy password is replaced, an unknown attribute kept
     let legacy = sheet_with(r#"<sheetProtection password="EBF6" sheet="1" formatCells="0" futureFlag="x"/>"#, "");
-    let (wb, r) = try_on(&legacy, 0, |ws| ws.protect_sheet(&Protection::new().password("a").with_salt([1; 16]).with_spin_count(10)));
+    let (wb, r) = try_on(&legacy, 0, |ws| ws.protect_sheet(&SheetProtection::new().password("a").with_salt([1; 16]).with_spin_count(10)));
     r.unwrap();
     let xml = sheet_xml(&wb.to_bytes().unwrap());
     assert_eq!(attr(&xml, "password"), None);
@@ -352,7 +352,7 @@ fn protection_flags_replacement_and_refusals() {
     // the default salt is random
     let salts: Vec<String> = (0..2)
         .map(|_| {
-            let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&Protection::new().password("a").with_spin_count(1)));
+            let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&SheetProtection::new().password("a").with_spin_count(1)));
             r.unwrap();
             attr(&sheet_xml(&wb.to_bytes().unwrap()), "saltValue").unwrap()
         })
@@ -360,7 +360,7 @@ fn protection_flags_replacement_and_refusals() {
     assert_eq!(salts[0].len(), 24);
     assert_ne!(salts[0], salts[1]);
     // refusals
-    let (_, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&Protection::new().password("a").with_spin_count(10_000_001)));
+    let (_, r) = try_on(&sheet_with("", ""), 0, |ws| ws.protect_sheet(&SheetProtection::new().password("a").with_spin_count(10_000_001)));
     assert_matches!(r, Err(Error::InvalidSpinCount(10_000_001)));
     let (wb, r) = try_on(&sheet_with("", ""), 0, |ws| ws.unprotect_sheet());
     assert!(!r.unwrap());
@@ -379,7 +379,7 @@ fn a_failure_while_applying_poisons() {
     let ops: [Op; 4] = [
         |ws| ws.merge("B2:C3"),
         |ws| ws.set_autofilter("A1:B2"),
-        |ws| ws.protect_sheet(&Protection::new()),
+        |ws| ws.protect_sheet(&SheetProtection::new()),
         |ws| ws.merge_clearing("D1:E1"),
     ];
     let input = Workbook::new().unwrap().to_bytes().unwrap();

@@ -174,7 +174,7 @@ fn workbook_protection_and_legacy_hash() {
     let r = wb.protect_workbook(&WorkbookProtection::new().password("a").with_spin_count(20_000_000));
     assert_matches!(r, Err(Error::InvalidSpinCount(_)));
     // the sheet's legacy option
-    let (wb, r) = try_on(&input, |ws| ws.protect_sheet(&ooxml_xlsx::Protection::new().password("password").legacy_hash()));
+    let (wb, r) = try_on(&input, |ws| ws.protect_sheet(&ooxml_xlsx::SheetProtection::new().password("password").legacy_hash()));
     r.unwrap();
     assert!(out_xml(&wb).contains(r#"<sheetProtection password="83AF" sheet="1" objects="1" scenarios="1"/>"#));
 }

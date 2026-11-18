@@ -15,7 +15,7 @@ mod common;
 use common::p1::{book, with_part};
 use common::p4::{Allowed, Kind, Part, Val, check, sheet, sheet_rels, workbook};
 use common::{part, read, rebuild};
-use ooxml_xlsx::{Protection, Workbook, WorkbookProtection};
+use ooxml_xlsx::{SheetProtection, Workbook, WorkbookProtection};
 
 const MERGE: &[Allowed] = &[sheet("mergeCells", Kind::Container), sheet("mergeCells/mergeCell", Kind::Create)];
 const MERGE_CLEARING: &[Allowed] = &[
@@ -269,7 +269,7 @@ fn cases() -> Vec<Case> {
     out.push(run("filterMode", "`remove_autofilter`", b, 0, |ws| assert!(ws.remove_autofilter().unwrap())));
     // protect_sheet: from scratch, over Excel's SHA-512 protection, over a
     // legacy password (every hash attribute replaced)
-    let p = Protection::new().password("pwd").with_salt([7; 16]).with_spin_count(1000);
+    let p = SheetProtection::new().password("pwd").with_salt([7; 16]).with_spin_count(1000);
     out.push(run("template", "`protect_sheet`/`unprotect_sheet`", template(), 0, |ws| ws.protect_sheet(&p).unwrap()));
     out.push(run("sha512", "`protect_sheet`/`unprotect_sheet`", read("poi/workbookProtection-sheet_password-2013.xlsx"), 0, |ws| ws.protect_sheet(&p).unwrap()));
     let b = book(&[("S", "")], "", "");
@@ -481,7 +481,7 @@ fn cleared_cells(input: &[u8], output: &[u8], range: &str) -> Result<Vec<String>
     Ok(out)
 }
 
-/// Corpus sweep (ignored;/// Corpus sweep (ignored; `OOXML_XLSX_CORPUS=<dir>` of POI `test-data/
+/// Corpus sweep (ignored; `OOXML_XLSX_CORPUS=<dir>` of POI `test-data/
 /// spreadsheet` at 47dcff76). On the first worksheet of every readable
 /// package, each call is either refused with every byte unchanged, or its
 /// output reopens and passes the byte-exact oracle for its row.
@@ -498,7 +498,7 @@ fn corpus_sweep() {
     let ops: [(&str, &str, Op); 25] = [
         ("merge", "`merge`", |ws| Some(ws.merge("XFA1048570:XFB1048571").map(|()| String::new()))),
         ("set_autofilter", "`set_autofilter`", |ws| Some(ws.set_autofilter("XFA1048570:XFB1048571").map(|()| String::new()))),
-        ("protect_sheet", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&Protection::new().password("p").with_salt([3; 16]).with_spin_count(10)).map(|()| String::new()))),
+        ("protect_sheet", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&SheetProtection::new().password("p").with_salt([3; 16]).with_spin_count(10)).map(|()| String::new()))),
         ("unprotect_sheet", "", |ws| Some(ws.unprotect_sheet().map(|_| String::new()))),
         // round 1 m6: existing merges and autofilters, and used cells
         ("unmerge", "`unmerge`", |ws| {
@@ -542,7 +542,7 @@ fn corpus_sweep() {
             Some(ws.set_margins(&Margins::default()).and_then(|()| ws.set_print_options(&PrintOptions { gridlines: true, ..PrintOptions::default() })).and_then(|()| ws.set_header_footer(&HeaderFooter { odd_footer: Some("&CPage &P of &N".into()), ..HeaderFooter::default() })).map(|()| String::new()))
         }),
         ("add_breaks", "`add_row_break`/`add_col_break`", |ws| Some(ws.add_row_break(1_048_000).and_then(|_| ws.add_col_break(16000)).map(|_| String::new()))),
-        ("protect_sheet(legacy)", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&Protection::new().password("password").legacy_hash()).map(|()| String::new()))),
+        ("protect_sheet(legacy)", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&SheetProtection::new().password("password").legacy_hash()).map(|()| String::new()))),
     ];
     let (mut ok, mut opened) = (0, 0);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();

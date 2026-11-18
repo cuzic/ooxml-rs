@@ -94,6 +94,7 @@ impl FindOptions {
 
 /// What a match across visibly different runs does (ADR-0008 §4 rule 6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MixedFormat {
     /// The replacement takes the start run's format (typing over a selection).
     #[default]
@@ -105,6 +106,7 @@ pub enum MixedFormat {
 
 /// What `replace_all` does when some match is refused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OnRefusal {
     /// Apply the other matches; list the refused ones in the report.
     #[default]
@@ -398,6 +400,10 @@ pub(crate) fn plan_paragraph(
                 // element below the a:p) before any change. No separate
                 // depth check: a created a:r/a:rPr/a:t sits at the depth of
                 // the start run's own elements, which the parser accepted.
+                // The destination check is defensive: a copy of an a:rPr
+                // that already sits under an a:r of this paragraph always
+                // fits there, so it never fails in practice (review #48
+                // round 2: mutant R1-M12 survives for that reason).
                 let run = start.orig.expect("an original run");
                 let src = node_at(p, &[run])
                     .and_then(|r| r.indexed_elements().find(|(_, c)| c.is(RunProperties::QNAME)))

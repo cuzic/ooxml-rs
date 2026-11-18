@@ -17,6 +17,36 @@ names = [
     "w:CT_Text/w:t",
     "w:CT_Empty/w:tab",
     "w:CT_Br/w:br",
+    # Word Phase1 (ADR-0007 §4, §5, §6.3): property containers, the direct
+    # formatting subset, style references, the updateFields opt-in.
+    "w:CT_OnOff/w:b",
+    "w:CT_OnOff/w:bCs",
+    "w:CT_OnOff/w:i",
+    "w:CT_OnOff/w:iCs",
+    "w:CT_OnOff/w:strike",
+    "w:CT_Underline/w:u",
+    "w:CT_Color/w:color",
+    "w:CT_HpsMeasure/w:sz",
+    "w:CT_HpsMeasure/w:szCs",
+    "w:CT_Highlight/w:highlight",
+    "w:CT_VerticalAlignRun/w:vertAlign",
+    "w:CT_Fonts/w:rFonts",
+    "w:CT_Jc/w:jc",
+    "w:CT_Spacing/w:spacing",
+    "w:CT_Ind/w:ind",
+    "w:CT_OnOff/w:keepNext",
+    "w:CT_OnOff/w:keepLines",
+    "w:CT_String/w:pStyle",
+    "w:CT_String253/w:rStyle",
+    # Word Phase2 (ADR-0011 §4, §6, §9.1): hyperlinks, section breaks,
+    # inserted paragraphs.
+    "w:CT_Hyperlink/w:hyperlink",
+    "w:CT_SectPr/w:sectPr",
+    "w:CT_SectType/w:type",
+    "w:CT_HdrFtrRef/w:headerReference",
+    "w:CT_HdrFtrRef/w:footerReference",
+    "w:CT_PageNumber/w:pgNumType",
+    "w:CT_LineNumber/w:lnNumType",
 ]
 
 # Word Phase0 read-only: navigation to runs (document, tables, hyperlinks),
@@ -25,10 +55,8 @@ names = [
 [read]
 names = [
     "w:CT_Document/w:document",
-    "w:CT_SectPr/w:sectPr",
     "w:CT_PPr/w:pPr",
     "w:CT_RPr/w:rPr",
-    "w:CT_Hyperlink/w:hyperlink",
     "w:CT_Tbl/w:tbl",
     "w:CT_Row/w:tr",
     "w:CT_Tc/w:tc",
@@ -59,4 +87,18 @@ names = [
     "w:CT_FtnEdn/w:endnote",
     "w:CT_Comments/w:comments",
     "w:CT_Comment/w:comment",
+    # Word Phase1 (ADR-0007 §5): style lookup.
+    "w:CT_Styles/w:styles",
+    "w:CT_Style/w:style",
+    "w:CT_StyleName/w:name",
+]
+
+# Word Phase2 (ADR-0011 §11): copied by detach_as. pPr is copied without
+# sectPr and pPrChange (skipped); a paragraph mark holding revision elements
+# (w:id) is refused before copying. sectPr is copied without its header and
+# footer references (r:id), which are written again with typed setters.
+[detach]
+names = [
+    "w:CT_PPr/w:pPr",
+    "w:CT_SectPr/w:sectPr",
 ]
