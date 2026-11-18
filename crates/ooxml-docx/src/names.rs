@@ -90,6 +90,9 @@ pub(crate) const CUSTOM_PROPERTIES_NS: &str =
 pub(crate) const SETTINGS_RELATIONSHIP: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
 
+/// Relationship type of `styles.xml`.
+pub(crate) const STYLES_RELATIONSHIP: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
+
 /// `prefix:local` for messages.
 pub(crate) fn display_name(node: &RawNode) -> String {
     match node.name().prefix() {

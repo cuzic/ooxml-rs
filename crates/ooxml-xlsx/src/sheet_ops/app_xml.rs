@@ -22,7 +22,7 @@
 //! - Recognition includes each vector's `size` (equal to its child count)
 //!   and `baseType` (`variant` / `lpstr`) (review m3).
 
-use ooxml_core::{ElementSpec, XmlDocument};
+use ooxml_core::{ElementSpec, QName, XmlDocument};
 use ooxml_schema::props;
 
 use super::names::{PrefixEdit, mentions_prefix, rewrite_location};
@@ -44,11 +44,22 @@ fn listed_names(sheets: &[Listed], kind: SheetKind) -> Vec<String> {
     sheets.iter().filter(|s| s.kind == kind && !s.very_hidden).map(|s| s.name.clone()).collect()
 }
 
+// The root schema marker belongs to the pml feature. Check its QName
+// here so XLSX can use the typed children without enabling that feature.
+fn property_index<E: ElementSpec>(doc: &XmlDocument) -> Option<usize> {
+    let root = doc.root();
+    if !root.is(QName::new("http://schemas.openxmlformats.org/officeDocument/2006/extended-properties", "Properties")) {
+        return None;
+    }
+    root.indexed_elements().find_map(|(i, e)| e.is(E::QNAME).then_some(i))
+}
+
 /// `(label, titles)` blocks of a recognized app.xml.
 fn blocks(doc: &XmlDocument) -> Option<Vec<(String, Vec<String>)>> {
-    let p = props::PropertiesView(doc.lens::<props::Properties>().ok()?);
-    let hp = p.heading_pairs()?.vt_vector()?;
-    let tp = p.titles_of_parts()?.vt_vector()?;
+    let hp = props::HeadingPairsView(doc.lens_at(&[property_index::<props::HeadingPairs>(doc)?]).ok()?);
+    let tp = props::TitlesOfPartsView(doc.lens_at(&[property_index::<props::TitlesOfParts>(doc)?]).ok()?);
+    let hp = hp.vt_vector()?;
+    let tp = tp.vt_vector()?;
     // every child of both vectors must be what the shape says, and each
     // vector's size and baseType must agree with them
     if hp.raw().elements().any(|e| !e.is(props::Variant::QNAME)) || tp.raw().elements().any(|e| !e.is(props::VTLPSTR::QNAME)) {
@@ -144,9 +155,10 @@ pub(crate) fn update(doc: &XmlDocument, before: &[Listed], after: &[Listed], edi
 /// blocks) are removed.
 fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)], gone: &[usize]) -> Result<()> {
     let titles: Vec<&String> = blocks.iter().flat_map(|(_, t)| t).collect();
-    let mut p = props::PropertiesViewMut(doc.lens_mut::<props::Properties>()?);
+    let hp_path = [property_index::<props::HeadingPairs>(doc).expect("recognized")];
+    let tp_path = [property_index::<props::TitlesOfParts>(doc).expect("recognized")];
     {
-        let mut hp = p.heading_pairs_mut().expect("recognized");
+        let mut hp = props::HeadingPairsViewMut(doc.lens_mut_at(&hp_path)?);
         let mut v = hp.vt_vector_mut().expect("recognized");
         for (bi, (_, t)) in blocks.iter().enumerate() {
             if gone.contains(&bi) {
@@ -167,7 +179,7 @@ fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)], gone: &[usize]
             }
         }
     }
-    let mut tp = p.titles_of_parts_mut().expect("recognized");
+    let mut tp = props::TitlesOfPartsViewMut(doc.lens_mut_at(&tp_path)?);
     let mut v = tp.vt_vector_mut().expect("recognized");
     let old_len = v.as_view().vtlpstr_iter().count();
     for (i, t) in titles.iter().enumerate() {
@@ -187,7 +199,7 @@ fn write(doc: &mut XmlDocument, blocks: &[(String, Vec<String>)], gone: &[usize]
     if v.as_view().size().ok().flatten() != Some(titles.len() as u32) {
         v.set_size(titles.len() as u32)?;
     }
-    let mut hp = p.heading_pairs_mut().expect("recognized");
+    let mut hp = props::HeadingPairsViewMut(doc.lens_mut_at(&hp_path)?);
     let mut hv = hp.vt_vector_mut().expect("recognized");
     let pairs = 2 * (blocks.len() - gone.len()) as u32;
     if hv.as_view().size().ok().flatten() != Some(pairs) {

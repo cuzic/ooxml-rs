@@ -4,7 +4,7 @@
 # xlsx Phase3 (ADR-0009 §11): HeadingPairs/TitlesOfParts upkeep.
 [write]
 names = [
-    "ap:CT_Properties/ap:Properties",
+    # ap:Properties is already allowlisted in pml.toml.
     "ap:CT_VectorVariant/ap:HeadingPairs",
     "ap:CT_VectorLpstr/ap:TitlesOfParts",
     "vt:CT_Vector/vt:vector",

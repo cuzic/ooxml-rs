@@ -104,108 +104,6 @@ impl ooxml_core::EnumType for VectorBaseValues {
         self as usize
     }
 }
-/// `ap:CT_Properties/ap:Properties` — Application Specific File Properties.
-#[derive(Debug)]
-pub enum Properties {}
-impl ooxml_core::ElementSpec for Properties {
-    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_AP, "Properties");
-    const SDK_NAME: &'static str = "ap:CT_Properties/ap:Properties";
-    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
-    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
-        &[
-            ooxml_core::Slot {
-                names: &[
-                    ooxml_core::QName::new(NS_AP, "Template"),
-                    ooxml_core::QName::new(NS_AP, "Manager"),
-                    ooxml_core::QName::new(NS_AP, "Company"),
-                    ooxml_core::QName::new(NS_AP, "Pages"),
-                    ooxml_core::QName::new(NS_AP, "Words"),
-                    ooxml_core::QName::new(NS_AP, "Characters"),
-                    ooxml_core::QName::new(NS_AP, "PresentationFormat"),
-                    ooxml_core::QName::new(NS_AP, "Lines"),
-                    ooxml_core::QName::new(NS_AP, "Paragraphs"),
-                    ooxml_core::QName::new(NS_AP, "Slides"),
-                    ooxml_core::QName::new(NS_AP, "Notes"),
-                    ooxml_core::QName::new(NS_AP, "TotalTime"),
-                    ooxml_core::QName::new(NS_AP, "HiddenSlides"),
-                    ooxml_core::QName::new(NS_AP, "MMClips"),
-                    ooxml_core::QName::new(NS_AP, "ScaleCrop"),
-                    ooxml_core::QName::new(NS_AP, "HeadingPairs"),
-                    ooxml_core::QName::new(NS_AP, "TitlesOfParts"),
-                    ooxml_core::QName::new(NS_AP, "LinksUpToDate"),
-                    ooxml_core::QName::new(NS_AP, "CharactersWithSpaces"),
-                    ooxml_core::QName::new(NS_AP, "SharedDoc"),
-                    ooxml_core::QName::new(NS_AP, "HyperlinkBase"),
-                    ooxml_core::QName::new(NS_AP, "HLinks"),
-                    ooxml_core::QName::new(NS_AP, "HyperlinksChanged"),
-                    ooxml_core::QName::new(NS_AP, "DigSig"),
-                    ooxml_core::QName::new(NS_AP, "Application"),
-                    ooxml_core::QName::new(NS_AP, "AppVersion"),
-                    ooxml_core::QName::new(NS_AP, "DocSecurity"),
-                ],
-                wildcard: None,
-                max_each: Some(1),
-                max_total: None,
-            },
-        ],
-    );
-}
-impl ooxml_core::ChildOf<Properties> for TitlesOfParts {}
-impl ooxml_core::ChildOf<Properties> for HeadingPairs {}
-/// Read-only view of [`Properties`].
-#[derive(Clone, Debug)]
-pub struct PropertiesView<'a>(pub ooxml_core::Lens<'a, Properties>);
-impl<'a> PropertiesView<'a> {
-    /// First `ap:TitlesOfParts` child.
-    pub fn titles_of_parts(&self) -> Option<TitlesOfPartsView<'a>> {
-        self.0.child::<TitlesOfParts>().map(TitlesOfPartsView)
-    }
-    /// First `ap:HeadingPairs` child.
-    pub fn heading_pairs(&self) -> Option<HeadingPairsView<'a>> {
-        self.0.child::<HeadingPairs>().map(HeadingPairsView)
-    }
-    /// The underlying raw node.
-    pub fn raw(&self) -> &'a ooxml_core::RawNode {
-        self.0.raw()
-    }
-}
-/// Mutable view of [`Properties`]. Reads go through [`PropertiesViewMut::as_view`].
-#[derive(Debug)]
-pub struct PropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, Properties>);
-impl<'a> PropertiesViewMut<'a> {
-    /// Read-only view of the same node.
-    pub fn as_view(&self) -> PropertiesView<'_> {
-        PropertiesView(self.0.as_lens())
-    }
-    /// First `ap:TitlesOfParts` child, mutably.
-    pub fn titles_of_parts_mut(&mut self) -> Option<TitlesOfPartsViewMut<'_>> {
-        self.0.child_mut::<TitlesOfParts>().map(TitlesOfPartsViewMut)
-    }
-    /// Existing `ap:TitlesOfParts` child, or a new one in schema position.
-    pub fn get_or_insert_titles_of_parts(
-        &mut self,
-    ) -> Result<TitlesOfPartsViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<TitlesOfParts>().map(TitlesOfPartsViewMut)
-    }
-    /// Removes the first `ap:TitlesOfParts` child.
-    pub fn remove_titles_of_parts(&mut self) -> bool {
-        self.0.remove::<TitlesOfParts>()
-    }
-    /// First `ap:HeadingPairs` child, mutably.
-    pub fn heading_pairs_mut(&mut self) -> Option<HeadingPairsViewMut<'_>> {
-        self.0.child_mut::<HeadingPairs>().map(HeadingPairsViewMut)
-    }
-    /// Existing `ap:HeadingPairs` child, or a new one in schema position.
-    pub fn get_or_insert_heading_pairs(
-        &mut self,
-    ) -> Result<HeadingPairsViewMut<'_>, ooxml_core::Error> {
-        self.0.get_or_insert::<HeadingPairs>().map(HeadingPairsViewMut)
-    }
-    /// Removes the first `ap:HeadingPairs` child.
-    pub fn remove_heading_pairs(&mut self) -> bool {
-        self.0.remove::<HeadingPairs>()
-    }
-}
 /// `ap:CT_VectorLpstr/ap:TitlesOfParts` — Part Titles.
 #[derive(Debug)]
 pub enum TitlesOfParts {}
@@ -723,9 +621,6 @@ impl<'a> VTLPSTRViewMut<'a> {
         self.0.set_text(v)
     }
 }
-const _: () = ooxml_core::schema::assert_spec::<Properties>();
-const _: () = ooxml_core::schema::assert_child::<Properties, TitlesOfParts>();
-const _: () = ooxml_core::schema::assert_child::<Properties, HeadingPairs>();
 const _: () = ooxml_core::schema::assert_spec::<TitlesOfParts>();
 const _: () = ooxml_core::schema::assert_child::<TitlesOfParts, VTVector>();
 const _: () = ooxml_core::schema::assert_spec::<HeadingPairs>();

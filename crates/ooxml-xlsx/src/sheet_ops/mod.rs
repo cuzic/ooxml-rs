@@ -92,6 +92,7 @@ struct Change {
     /// changes, every other byte is kept).
     bytes: BTreeMap<String, Vec<u8>>,
     rewritten: Vec<RewrittenLocation>,
+    removed_shared_refs: i64,
 }
 
 impl Change {
@@ -199,10 +200,7 @@ impl<'a, E: ElementSpec> NthAt<'a, E> for LensMut<'a, E> {
 impl Workbook {
     /// Refusals common to every structural operation.
     fn structural_guard(&mut self) -> Result<()> {
-        self.check_poisoned()?;
-        if let Some(b) = &self.census.block {
-            return Err(b.to_error());
-        }
+        self.check_editable()?;
         let rels = self.pkg.relationships(&self.workbook_part)?;
         if rels.by_type(REL_REVISIONS).next().is_some() {
             return Err(Error::SharedWorkbook);
@@ -296,7 +294,7 @@ impl Workbook {
                 if gone.iter().any(|&g| self.sheets[g].part.as_deref() == Some(part.as_str())) {
                     continue;
                 }
-                strip_cells(change.doc(&mut self.pkg, part)?, positions)?;
+                change.removed_shared_refs += strip_cells(change.doc(&mut self.pkg, part)?, positions)?;
             }
         }
         if !self.calc.manual && !self.calc.full_calc_on_load {
@@ -309,11 +307,35 @@ impl Workbook {
         Ok(())
     }
 
+    /// Updates the optional count in the same plan as the sheet changes.
+    fn stage_shared_string_count(&mut self, change: &mut Change) -> Result<()> {
+        if change.removed_shared_refs == 0 {
+            return Ok(());
+        }
+        let rels = self.pkg.relationships(&self.workbook_part)?;
+        let Some(part) = rels.by_type(crate::workbook::REL_SHARED_STRINGS).next().and_then(|r| rels.resolve(r)) else {
+            return Ok(());
+        };
+        let count = ooxml_core::QName::new("", "count");
+        if !self.pkg.contains(&part) || self.pkg.xml_part(&part)?.root().attr(count).is_none() {
+            return Ok(());
+        }
+        let mut refs = 0;
+        for p in crate::registry::census_sheet_parts(self) {
+            refs += crate::registry::scan_sheet(&self.pkg.read_part(&p)?)?.shared as i64;
+        }
+        let remaining = refs - change.removed_shared_refs;
+        change.doc(&mut self.pkg, &part)?.lens_mut::<sml::SharedStringTable>()?
+            .set_attr(count, &remaining.to_string())?;
+        Ok(())
+    }
+
     /// Stages the change's clones and runs `steps`, applies, rebuilds.
-    fn commit(&mut self, change: Change, steps: impl FnOnce(&mut RegistryPlan, &Package) -> Result<()>) -> Result<Vec<RewrittenLocation>> {
+    fn commit(&mut self, mut change: Change, steps: impl FnOnce(&mut RegistryPlan, &Package) -> Result<()>) -> Result<Vec<RewrittenLocation>> {
         let mut plan = RegistryPlan::new(&self.pkg);
         // staged content first: the removals' reference scans read it
-        let Change { docs, bytes, rewritten } = change;
+        self.stage_shared_string_count(&mut change)?;
+        let Change { docs, bytes, rewritten, .. } = change;
         for (part, doc) in docs {
             plan.stage_part(&self.pkg, &part, doc)?;
         }
@@ -321,7 +343,7 @@ impl Workbook {
             plan.stage_part(&self.pkg, &part, b)?;
         }
         steps(&mut plan, &self.pkg)?;
-        self.finish(plan, Change { docs: BTreeMap::new(), bytes: BTreeMap::new(), rewritten })
+        self.finish(plan, Change { rewritten, ..Change::default() })
     }
 
     /// Stages the change's clones into `plan`, then applies and rebuilds
@@ -1185,6 +1207,9 @@ impl Workbook {
         let worksheet: Vec<bool> = self.sheets.iter().map(|s| s.kind == SheetKind::Worksheet).collect();
         let edit = PrefixEdit::Delete { deleted: d, order, names, worksheet };
         let mut change = Change::default();
+        if set.iter().any(|p| same_name(p, &part)) {
+            change.removed_shared_refs = crate::registry::scan_sheet(&self.pkg.read_part(&part)?)?.shared as i64;
+        }
         let ename = entry.name.clone();
         let mentions = move |t: &str| names::mentions_prefix(t, &ename);
         self.rewrite_everywhere(&mut change, &edit, &mentions, &[d], &skip)?;

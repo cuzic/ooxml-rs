@@ -342,3 +342,15 @@ fn vector_shape_is_part_of_recognition() {
     let a = String::from_utf8(app(&wb.to_bytes().unwrap()).unwrap()).unwrap();
     assert!(a.contains(r#"<vt:vector size="3" baseType="lpstr">"#), "{a}");
 }
+
+#[test]
+fn app_properties_root_requires_the_extended_properties_namespace() {
+    let base = common::p1::book(&[("A", ""), ("B", "")], "", "");
+    let xml = app_of(&[("Worksheets", &["A", "B"])])
+        .replace("<Properties ", r#"<other:Properties xmlns:other="urn:other" "#)
+        .replace("</Properties>", "</other:Properties>");
+    let input = with_app(&base, &xml);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    wb.add_sheet("C", 2).unwrap();
+    assert_eq!(app(&input), app(&wb.to_bytes().unwrap()));
+}

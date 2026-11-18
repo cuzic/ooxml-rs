@@ -47,16 +47,24 @@ fn r4_r5_missing_reference() {
     }
 }
 
-/// P0-R6 (+ coordinator default): every cell of a merged range is refused,
-/// the top-left one included.
+/// P0-R6, relaxed by ADR-0014 §3: a value write to a non-anchor cell of a
+/// merged range is refused; the anchor (top-left) is writable, as in Excel.
 #[test]
 fn r6_merged() {
     let input = read("poi/61605.xlsx");
+    let merges = merged(&input);
     for cell in ["B1", "C1", "E1", "B9"] {
-        let (wb, r) = apply(&input, a1(cell), &W::Num(1.0));
-        assert_matches!(r, Err(Error::MergedCell { ref range, .. }) if range.starts_with('B'), "{cell}");
-        assert_unchanged(&wb, &input);
+        let at = a1(cell);
+        let anchor = merges.iter().any(|m| m.first == at);
+        let (wb, r) = apply(&input, at, &W::Num(1.0));
+        if anchor {
+            r.unwrap_or_else(|e| panic!("{cell}: the anchor is writable: {e}"));
+        } else {
+            assert_matches!(r, Err(Error::MergedCell { ref range, .. }) if range.starts_with('B'), "{cell}");
+            assert_unchanged(&wb, &input);
+        }
     }
+    assert!(["B1", "B9"].iter().any(|c| merges.iter().any(|m| m.first == a1(c))), "the test covers an anchor");
 }
 
 /// P0-R7: `cell_mut` without a setter changes nothing at all.
@@ -79,7 +87,7 @@ fn r7_cell_mut_without_setter() {
 fn r8_no_formula_write_api() {
     let mut wb = Workbook::from_bytes(read("minimal")).unwrap();
     let mut ws = wb.worksheet().unwrap();
-    ws.cell_mut(0, 0).unwrap().set_string("=1+1").unwrap();
+    ws.cell_mut(0, 0).unwrap().set_string_inline("=1+1").unwrap();
     assert_eq!(ws.cell(0, 0).unwrap().unwrap().formula(), None, "a leading = is text, not a formula");
 }
 
@@ -548,7 +556,7 @@ fn n1_refusals_change_nothing_same_path() {
     let p = dir.join("x.xlsx");
     std::fs::write(&p, &ext_first).unwrap();
     let mut wb = Workbook::open(&p).unwrap();
-    assert!(unresolved(&wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string("new")));
+    assert!(unresolved(&wb.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string_inline("new")));
     wb.save(&p).unwrap();
     assert_l1_except(&ext_first, &std::fs::read(&p).unwrap(), &[]);
     let mut wb = Workbook::open(&p).unwrap();
