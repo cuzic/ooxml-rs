@@ -149,7 +149,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
         let mut result = self.root.xml_space_preserve().unwrap_or(false);
         let mut n = self.root;
         for &i in &self.path {
-            n = n.children[i].as_element().expect("path points at an element");
+            n = n.children()[i].as_element().expect("path points at an element");
             if let Some(p) = n.xml_space_preserve() {
                 result = p;
             }
@@ -253,7 +253,7 @@ fn ancestor_context(root: &RawNode, path: &[usize], include_root: bool) -> Ances
             ctx.preserve = p;
         }
         let Some(&i) = rest.next() else { break };
-        n = n.children[i].as_element().expect("validated path");
+        n = n.children()[i].as_element().expect("validated path");
     }
     ctx
 }
@@ -268,7 +268,7 @@ struct AncestorContext {
 fn element_at<'r>(root: &'r RawNode, path: &[usize], expected: QName) -> Result<&'r RawNode> {
     let mut node = root;
     for &i in path {
-        node = node.children.get(i).and_then(RawItem::as_element).ok_or_else(|| Error::WrongElement {
+        node = node.children().get(i).and_then(RawItem::as_element).ok_or_else(|| Error::WrongElement {
             expected,
             found_ns: String::new(),
             found_local: "(no element at this path)".into(),
@@ -310,7 +310,7 @@ fn subtree_height(n: &RawNode) -> usize {
 }
 
 fn has_text(n: &RawNode) -> bool {
-    n.children.iter().any(|c| match c {
+    n.children().iter().any(|c| match c {
         RawItem::Text(t) => !t.value.is_empty(),
         RawItem::Element(e) => e.xml_space_preserve().is_none() && has_text(e),
         RawItem::Markup(_) => false,
@@ -386,7 +386,7 @@ impl<C: ElementSpec> Detached<C> {
         // parent depth = path len + 1; the copy's deepest element
         // (saturating: a huge `created` must refuse, not wrap):
         if parent_path.len().saturating_add(1).saturating_add(created).saturating_add(self.height()) > doc.max_depth() {
-            return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span().map_or(0, |s| s.start) });
         }
         check_destination(&self.root, self.text_inherits_space, root, parent_path)?;
         let decls = declarations(root, parent_path);
@@ -439,18 +439,18 @@ fn detach_node(n: &RawNode, skip: &[QName], ignorable: &[String], unique: &[Uniq
         }
         attrs.push(RawAttr { name: XName::new(a.name.ns().into(), a.name.local(), None), value: a.value.clone() });
     }
-    let mut children = Vec::with_capacity(n.children.len());
-    for c in &n.children {
+    let mut children = Vec::with_capacity(n.children().len());
+    for c in n.children() {
         children.push(match c {
             RawItem::Element(e) if skip.iter().any(|q| e.is(*q)) => continue,
             RawItem::Element(e) => RawItem::Element(detach_node(e, &[], ignorable, unique)?),
-            RawItem::Text(t) => RawItem::Text(RawText { value: t.value.clone(), span: None, cdata: t.cdata }),
+            RawItem::Text(t) => RawItem::Text(RawText::written(t.value.clone(), t.cdata)),
             RawItem::Markup(m) => RawItem::Markup(m.clone()),
         });
     }
     let mut out = RawNode::new_created(XName::new(n.name.ns().into(), n.name.local(), None));
-    out.attrs = attrs;
-    out.children = children;
+    out.attrs = attrs.into_boxed_slice();
+    out.set_children(children);
     Ok(out)
 }
 
@@ -539,7 +539,7 @@ pub(crate) fn is_ncname(s: &str) -> bool {
 
 /// Declaration attributes as `(prefix, uri)`.
 fn plain(declarations: Vec<RawAttr>) -> Vec<(String, String)> {
-    declarations.into_iter().map(|a| (a.name.local().to_owned(), a.value)).collect()
+    declarations.into_iter().map(|a| (a.name.local().to_owned(), a.value().to_owned())).collect()
 }
 
 /// The request-only checks of [`NsDecl`]s (independent of the scope), so
@@ -618,10 +618,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// Sets `subtree_dirty` on this node and every ancestor.
     fn mark_path(&mut self) {
         let mut n = &mut *self.root;
-        n.subtree_dirty = true;
+        n.mark_subtree_dirty();
         for &i in &self.path {
-            n = n.children[i].as_element_mut().expect("path points at an element");
-            n.subtree_dirty = true;
+            n = n.child_mut(i).and_then(RawItem::as_element_mut).expect("path points at an element");
+            n.mark_subtree_dirty();
         }
     }
 
@@ -653,7 +653,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// `&mut self` accessors, the result keeps the full lifetime `'a`, so a
     /// helper can return a grandchild lens.
     pub fn into_child_at<C: ChildOf<E>>(mut self, index: usize) -> Option<LensMut<'a, C>> {
-        let is_c = self.node().children.get(index)?.as_element().is_some_and(|n| n.is(C::QNAME));
+        let is_c = self.node().children().get(index)?.as_element().is_some_and(|n| n.is(C::QNAME));
         if !is_c {
             return None;
         }
@@ -779,7 +779,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         if s.max_each.is_some_and(|m| same_q >= m) || s.max_total.is_some_and(|m| same_slot >= m) {
             return Err(Error::AlreadyPresent(q));
         }
-        Ok(Placement { index: at.unwrap_or(node.children.len()) })
+        Ok(Placement { index: at.unwrap_or(node.children().len()) })
     }
 
     /// The bindings `decls` add under this node: (prefix, uri) for every
@@ -819,7 +819,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         // Refused like the parser would refuse it, so an edited tree can
         // always be parsed again and recursive walks stay bounded.
         if self.path.len() + 2 > self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         let slots = self.slots()?;
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
@@ -841,7 +841,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         };
         let declarations = new
             .into_iter()
-            .map(|(p, u)| RawAttr { name: XName::new(XMLNS_NS.into(), &p, Some("xmlns")), value: u })
+            .map(|(p, u)| RawAttr { name: XName::new(XMLNS_NS.into(), &p, Some("xmlns")), value: u.as_str().into() })
             .collect();
         Ok((XName::new(C::QNAME.ns.into(), C::QNAME.local, prefix.as_deref()), declarations))
     }
@@ -854,12 +854,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     ) -> Result<LensMut<'_, C>> {
         let InsertPlan { index, name, declarations } = self.plan_insert::<C>(slot, before, decls)?;
         let parent = self.node_mut();
-        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
-            parent.own_dirty = true; // self-closing parent gains its first child
+        if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
+            parent.mark_own_dirty(); // self-closing parent gains its first child
         }
         let mut node = RawNode::new_created(name);
-        node.attrs = declarations;
-        parent.children.insert(index, RawItem::Element(node));
+        node.attrs = declarations.into_boxed_slice();
+        parent.insert_child(index, RawItem::Element(node));
         self.mark_path();
         Ok(self.descend(index))
     }
@@ -946,12 +946,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     pub fn insert_at_with_ns<C: ChildOf<E>>(&mut self, index: usize, decls: &[NsDecl<'_>]) -> Result<LensMut<'_, C>> {
         let (name, declarations) = self.plan_insert_at::<C>(index, decls)?;
         let parent = self.node_mut();
-        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
-            parent.own_dirty = true; // self-closing parent gains its first child
+        if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
+            parent.mark_own_dirty(); // self-closing parent gains its first child
         }
         let mut node = RawNode::new_created(name);
-        node.attrs = declarations;
-        parent.children.insert(index, RawItem::Element(node));
+        node.attrs = declarations.into_boxed_slice();
+        parent.insert_child(index, RawItem::Element(node));
         self.mark_path();
         Ok(self.descend(index))
     }
@@ -973,12 +973,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     fn plan_insert_at<C: ChildOf<E>>(&self, index: usize, decls: &[NsDecl<'_>]) -> Result<(XName, Vec<RawAttr>)> {
         validate_decls(decls)?;
-        let len = self.node().children.len();
+        let len = self.node().children().len();
         if index > len {
             return Err(Error::InsertIndexOutOfRange { index, len });
         }
         if self.path.len() + 2 > self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         let slots = self.slots()?;
         let slot = match Self::slot_of(slots, C::QNAME)[..] {
@@ -986,7 +986,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
             _ => return Err(Error::AmbiguousSlot(C::QNAME)),
         };
-        let children = &self.node().children;
+        let children = self.node().children();
         let listed = |n: &RawNode| -> Result<Option<Vec<usize>>> {
             if n.is(MC_ALTERNATE_CONTENT) {
                 return Err(Error::UnresolvedSibling(E::QNAME));
@@ -1171,7 +1171,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         // "parser depth limit"): its deepest element is at
         // parent depth (path len + 1) + height.
         if self.path.len() + 1 + d.height() > self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         check_destination(&d.root, d.text_inherits_space, self.root, &self.path)?;
@@ -1179,10 +1179,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         let parent_prefix = self.node().name.prefix();
         let node = with_prefixes(d.root.clone(), &decls, parent_prefix)?;
         let parent = self.node_mut();
-        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
-            parent.own_dirty = true; // self-closing parent gains its first child
+        if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
+            parent.mark_own_dirty(); // self-closing parent gains its first child
         }
-        parent.children.insert(index, RawItem::Element(node));
+        parent.insert_child(index, RawItem::Element(node));
         self.mark_path();
         Ok(self.descend(index))
     }
@@ -1207,10 +1207,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// Returns `false` if out of range.
     pub fn remove_at(&mut self, index: usize) -> bool {
         let parent = self.node_mut();
-        if index >= parent.children.len() {
+        if index >= parent.children().len() {
             return false;
         }
-        parent.children.remove(index);
+        parent.remove_child(index);
         self.mark_path();
         true
     }
@@ -1246,14 +1246,14 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         let node = self.node_mut();
         match existing {
             Some(i) => {
-                if node.attrs[i].value == value {
+                if node.attrs[i].value() == value {
                     return Ok(()); // no change, no dirt
                 }
                 node.attrs[i].value = value.into();
             }
-            None => node.attrs.push(RawAttr { name: XName::new(q.ns.into(), q.local, prefix.as_deref()), value: value.into() }),
+            None => node.push_attr(RawAttr { name: XName::new(q.ns.into(), q.local, prefix.as_deref()), value: value.into() }),
         }
-        node.own_dirty = true;
+        node.mark_own_dirty();
         self.mark_path();
         Ok(())
     }
@@ -1266,8 +1266,8 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         let Some(i) = node.attrs.iter().position(|a| a.name.is(q)) else {
             return Ok(false);
         };
-        node.attrs.remove(i);
-        node.own_dirty = true;
+        node.remove_attr(i);
+        node.mark_own_dirty();
         self.mark_path();
         Ok(true)
     }
@@ -1288,17 +1288,17 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             self.set_attr(XML_SPACE, "preserve")?;
         }
         let node = self.node_mut();
-        if node.text() == value && node.children.iter().all(|c| matches!(c, RawItem::Text(_))) {
+        if node.text() == value && node.children().iter().all(|c| matches!(c, RawItem::Text(_))) {
             return Ok(());
         }
-        let first = node.children.iter().position(|c| matches!(c, RawItem::Text(_)));
-        node.children.retain(|c| !matches!(c, RawItem::Text(_)));
+        let first = node.children().iter().position(|c| matches!(c, RawItem::Text(_)));
+        node.retain_children(|c| !matches!(c, RawItem::Text(_)));
         if !value.is_empty() {
-            if node.span.is_some_and(|s| s.close.is_none()) && node.children.is_empty() {
-                node.own_dirty = true;
+            if node.span().is_some_and(|s| s.close.is_none()) && node.children().is_empty() {
+                node.mark_own_dirty();
             }
-            let at = first.unwrap_or(node.children.len()).min(node.children.len());
-            node.children.insert(at, RawItem::Text(RawText { value: value.into(), span: None, cdata: false }));
+            let at = first.unwrap_or(node.children().len()).min(node.children().len());
+            node.insert_child(at, RawItem::Text(RawText::written(value.into(), false)));
         }
         self.mark_path();
         Ok(())
@@ -1319,7 +1319,7 @@ fn declarations<'r>(root: &'r RawNode, path: &[usize]) -> Vec<(usize, Option<&'r
                 .map(|a| (depth, a.name.declared_prefix(), a.value.as_str())),
         );
         let Some(&i) = path.get(depth) else { break };
-        n = n.children[i].as_element().expect("path points at an element");
+        n = n.children()[i].as_element().expect("path points at an element");
         depth += 1;
     }
     out
@@ -1394,6 +1394,11 @@ fn attr_prefix_in(decls: &[(usize, Option<&str>, &str)], uri: &str) -> Result<Op
 /// a parent with declarations `decls` and prefix `parent_prefix` (the copy
 /// declares nothing itself, so `decls` hold for the whole subtree).
 fn with_prefixes(mut n: RawNode, decls: &[(usize, Option<&str>, &str)], parent_prefix: Option<&str>) -> Result<RawNode> {
+    apply_prefixes(&mut n, decls, parent_prefix)?;
+    Ok(n)
+}
+
+fn apply_prefixes(n: &mut RawNode, decls: &[(usize, Option<&str>, &str)], parent_prefix: Option<&str>) -> Result<()> {
     let ns: Arc<str> = n.name.ns().into();
     let prefix = element_prefix_in(decls, parent_prefix, &ns)?;
     n.name = XName::new(ns, n.name.local(), prefix.as_deref());
@@ -1402,13 +1407,10 @@ fn with_prefixes(mut n: RawNode, decls: &[(usize, Option<&str>, &str)], parent_p
         let p = attr_prefix_in(decls, &ans)?;
         a.name = XName::new(ans, a.name.local(), p.as_deref());
     }
-    let children = std::mem::take(&mut n.children);
-    n.children = children
-        .into_iter()
-        .map(|c| match c {
-            RawItem::Element(e) => with_prefixes(e, decls, prefix.as_deref()).map(RawItem::Element),
-            other => Ok(other),
-        })
-        .collect::<Result<_>>()?;
-    Ok(n)
+    for child in n.children_slice_mut() {
+        if let RawItem::Element(element) = child {
+            apply_prefixes(element, decls, prefix.as_deref())?;
+        }
+    }
+    Ok(())
 }

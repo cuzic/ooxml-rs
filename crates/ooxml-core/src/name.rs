@@ -122,19 +122,13 @@ impl fmt::Debug for XName {
 }
 
 impl XName {
-    /// Builds a name from its parts (one allocation; the parser interns
-    /// instead).
+    /// Builds an owned name from its parts.
     pub fn new(ns: Arc<str>, local: &str, prefix: Option<&str>) -> Self {
         XName(Arc::new(XNameData { ns, local: local.into(), prefix: prefix.map(Into::into) }))
     }
 
     /// Resolved namespace URI (`""` for no namespace).
     pub fn ns(&self) -> &str {
-        &self.0.ns
-    }
-
-    /// The namespace URI's shared allocation (the interner's key).
-    pub(crate) fn ns_arc(&self) -> &Arc<str> {
         &self.0.ns
     }
 

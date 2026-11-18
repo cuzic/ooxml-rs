@@ -20,6 +20,73 @@ use ooxml_core::{
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+#[path = "support/frozen.rs"]
+mod frozen;
+
+fn compare_tree(actual: &ooxml_core::RawNode, expected: &frozen::RawNode) {
+    fn name(actual: &ooxml_core::XName, expected: &frozen::XName) {
+        assert_eq!(
+            (actual.ns(), actual.local(), actual.prefix()),
+            (expected.ns(), expected.local(), expected.prefix())
+        );
+    }
+    name(actual.name(), expected.name());
+    assert_eq!(actual.span().map(|s| (s.start, s.open_end, s.close)),
+               expected.span().map(|s| (s.start, s.open_end, s.close)));
+    assert_eq!(actual.attrs().len(), expected.attrs().len());
+    for (a, b) in actual.attrs().iter().zip(expected.attrs()) {
+        name(a.name(), b.name());
+        assert_eq!(a.value(), b.value());
+    }
+    assert_eq!(actual.children().len(), expected.children().len());
+    for (a, b) in actual.children().iter().zip(expected.children()) {
+        match (a, b) {
+            (ooxml_core::RawItem::Element(a), frozen::RawItem::Element(b)) => compare_tree(a, b),
+            (ooxml_core::RawItem::Text(a), frozen::RawItem::Text(b)) => {
+                assert_eq!((a.value(), a.is_cdata(), a.span()), (b.value(), b.is_cdata(), b.span()));
+            }
+            (ooxml_core::RawItem::Markup(a), frozen::RawItem::Markup(b)) => {
+                assert_eq!(format!("{:?}", a.kind()), format!("{:?}", b.kind()));
+                assert_eq!(a.raw(), b.raw());
+            }
+            _ => panic!("different child kinds"),
+        }
+    }
+}
+
+fn compare_parsers(input: &[u8], context: &str) {
+    match (XmlDocument::parse(input), frozen::XmlDocument::parse(input)) {
+        (Ok(mut actual), Ok(mut expected)) => {
+            compare_tree(actual.root(), expected.root());
+            assert_eq!(actual.serialize().as_bytes(), input, "{context}: T1");
+            actual.force_rerender();
+            expected.force_rerender();
+            let rendered = actual.serialize();
+            assert_eq!(rendered, expected.serialize(), "{context}: full re-render");
+            let reparsed = XmlDocument::parse(rendered.as_bytes()).unwrap();
+            assert!(actual.root().structurally_eq(reparsed.root()), "{context}: T1b");
+        }
+        (Err(actual), Err(expected)) => assert_eq!(format!("{actual:?}"), format!("{expected:?}"), "{context}"),
+        (actual, _) => panic!("{context}: parse outcomes differ, compact error: {:?}", actual.err()),
+    }
+}
+
+#[test]
+fn compact_parser_matches_frozen_on_generated_xml() {
+    for count in [0, 1, 64, 256] {
+        let mut input = String::from("\u{feff}<?xml version='1.0'?><!--prolog--><r xmlns='urn:r' xmlns:p='urn:p'>");
+        for i in 0..count {
+            use std::fmt::Write;
+            write!(input, "<p:n{i} p:id='a&#x9;b\t\r\nc' empty=''>α\r\n&amp;β&#x20;<![CDATA[γ\r\nδ]]><?keep one?><!--keep--><p:n{i} xmlns:p='urn:other'/></p:n{i}>").unwrap();
+        }
+        input.push_str("</r><!--epilog-->");
+        compare_parsers(input.as_bytes(), "generated XML");
+    }
+    for input in ["<r><p:n/></r>", "<r>&undeclared;</r>", "<r><x></r>", "<r xmlns:p=''/>"] {
+        compare_parsers(input.as_bytes(), "generated malformed XML");
+    }
+}
+
 // ---- allocation probe (F-6, zip bomb) ----
 
 /// Records the largest single allocation request made by the measuring
@@ -341,6 +408,11 @@ fn every_fixture_opens_parses_and_round_trips() {
         for n in &names {
             if !(n.ends_with(".xml") || n.ends_with(".rels")) {
                 continue;
+            }
+            let bytes = pkg.read_part(n).unwrap();
+            // Corpus files are untrusted and DTD-bearing parts are excluded.
+            if !bytes.windows(b"<!DOCTYPE".len()).any(|window| window == b"<!DOCTYPE") {
+                compare_parsers(&bytes, &format!("{} {n}", f.display()));
             }
             match pkg.xml_part(n) {
                 Ok(_) => parsed += 1,

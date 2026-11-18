@@ -222,6 +222,12 @@ pub enum Error {
         /// The archive length.
         len: u64,
     },
+    /// A Layer 2 XML source exceeds the largest representable byte offset.
+    #[error("XML part has {len} bytes, exceeding the 32-bit XML span limit")]
+    XmlPartTooLarge {
+        /// Length of the XML source in bytes.
+        len: usize,
+    },
     /// A part decompresses (or declares that it decompresses) to more than
     /// [`ParseOptions::max_part_bytes`](crate::xml::ParseOptions::max_part_bytes).
     #[error("part {part:?} decompresses to more than the limit of {limit} bytes")]
