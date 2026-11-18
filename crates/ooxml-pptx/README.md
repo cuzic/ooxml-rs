@@ -1,7 +1,8 @@
 # ooxml-pptx
 
-PowerPoint (PresentationML) for ooxml-rs, Phase 0 and 0.1
-([ADR-0005](../../docs/adr/0005-pptx-phase0.md)): open and save any
+PowerPoint (PresentationML) for ooxml-rs, Phase 0, 0.1
+([ADR-0005](../../docs/adr/0005-pptx-phase0.md)) and Phase 2
+([ADR-0012](../../docs/adr/0012-pptx-phase2-slides-and-shapes.md)): open and save any
 `.pptx`/`.pptm`/`.ppsx`/`.potx` losslessly (untouched parts keep their
 compressed bytes; untouched XML keeps its bytes), walk slides and shapes,
 read text, and edit text **inside existing text bodies** — shapes, group
@@ -37,6 +38,26 @@ an `mc:AlternateContent` branch or a merged cell, write content Phase 0
 does not model, need a formatting copy that holds a relationship reference or markup-compatibility content, or
 contain characters XML 1.0 cannot hold. Only direct values are read
 (placeholder inheritance is Phase 1).
+
+Slides as units (Phase 2). Each operation is one registry transaction:
+refused before any change, otherwise only the slide list, the parts it
+adds or removes and the registries change.
+
+| Operation | Behaviour |
+| --- | --- |
+| `Presentation::new()`, `new_with(NewOptions)` | built-in template: 16:9, the 11 standard layouts in PowerPoint's order, a notes master, no slides |
+| `layouts()` | every layout of every master in `p:sldMasterIdLst` (`LayoutRef`) |
+| `add_slide(&layout, at)` | new `slide{N}.xml` (largest number + 1), placeholders cloned python-pptx's way (`type`/`orient`/`sz`/`idx`; no date, footer, slide number) |
+| `move_slide(from, to)` | only `p:sldIdLst` and sections change |
+| `delete_slide(i)` | removes the slide, its notes and every part only it uses (charts, media, …); refused when anything else references the slide |
+| `duplicate_slide(i, at)` | same relationship `Id`s; layout and media shared, notes and tags copied, new `p14:creationId`; comments not copied; slides with charts, diagrams or OLE refused |
+| `next_shape_id(i)` | one more than every id, `spid` and comment moniker of the slide |
+| `add_text_box`, `add_picture`, `ensure_notes_slide` | not yet (ADR-0012 §4.5–§4.6, a follow-up PR) |
+
+Ids are never reused: `p:sldId` stays above every id seen in the session,
+part numbers and `rId`s above every one in use or removed. Sections stay
+equal to `p:sldIdLst`; `docProps/app.xml` `Slides`/`Notes`/`HiddenSlides`
+are kept exact.
 
 ## Usage example
 
@@ -109,6 +130,16 @@ Development:
   `cargo run -p ooxml-pptx --example oracle_cases -- OUT` then
   `python3 -I crates/ooxml-pptx/tests/oracle/check.py OUT reference/fixtures/pptx`
   with python-pptx from `tests/oracle/requirements.txt`
+  (`--site DIR` if it is installed into a directory).
+- Phase 2: `tests/structure.rs` (locality, refusals, sweep of every
+  fixture slide) and `tests/new_deck.rs`; the independent structure oracle
+  `cargo run --release -p ooxml-pptx --example structure_cases -- OUT` then
+  `python3 -I crates/ooxml-pptx/tests/oracle/structure.py [--site DIR] OUT reference/fixtures/pptx`;
+  a corpus sweep `cargo run --release -p ooxml-pptx --example structure_sweep -- [--out DIR] DIR...`.
+- The template: hand-written parts in `template/parts/`, built into
+  `template/template.pptx` by `cargo xtask pptx-template` (`--check` in CI
+  compares part names, order and content).
+
   (`--site DIR` if it is installed into a directory). The cases include
   deck-wide `replace_all` calls (ADR-0008 §7 O5): `check.py` finds the
   matches itself, decides the paragraph-local refusals (rules 1, 5, 6)

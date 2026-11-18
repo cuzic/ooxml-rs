@@ -4207,6 +4207,8 @@ impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Theme {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
 #[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::CreationId {}
+#[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::SectionList {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::AuthorList {}
@@ -4230,6 +4232,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::Slide {}
 impl ooxml_core::ChildOf<GraphicData> for super::pml::SlideLayout {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::SlideMaster {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::ViewProperties {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Comments {}
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -4275,6 +4279,13 @@ impl<'a> GraphicDataView<'a> {
     /// `a:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p14:creationId` children in document order.
+    pub fn creation_id_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::CreationIdView<'a>> {
+        self.0.children::<super::pml::CreationId>().map(super::pml::CreationIdView)
     }
     #[cfg(feature = "pml")]
     /// `p14:sectionLst` children in document order.
@@ -4361,6 +4372,15 @@ impl<'a> GraphicDataView<'a> {
         &self,
     ) -> impl Iterator<Item = super::pml::SlideMasterView<'a>> {
         self.0.children::<super::pml::SlideMaster>().map(super::pml::SlideMasterView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:viewPr` children in document order.
+    pub fn view_properties_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::ViewPropertiesView<'a>> {
+        self.0
+            .children::<super::pml::ViewProperties>()
+            .map(super::pml::ViewPropertiesView)
     }
     #[cfg(feature = "wml")]
     /// `w:comments` children in document order.
@@ -16307,6 +16327,8 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Theme>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
 #[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::CreationId>();
+#[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::SectionList>();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::AuthorList>();
@@ -16342,6 +16364,11 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Slide>
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::SlideLayout>();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::SlideMaster>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::pml::ViewProperties,
+>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Comments>();
 #[cfg(all(feature = "dml", feature = "wml"))]
