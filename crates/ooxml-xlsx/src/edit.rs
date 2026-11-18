@@ -193,10 +193,7 @@ impl Workbook {
     }
 
     fn edit_cell_mode(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra, dry_run: bool) -> Result<()> {
-        self.check_poisoned()?;
-        if let Some(b) = &self.census.block {
-            return Err(b.to_error());
-        }
+        self.check_editable()?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
         let cell = at.to_string();
         let style_only = matches!(op, CellOp::StyleOnly);

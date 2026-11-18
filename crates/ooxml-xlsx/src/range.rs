@@ -82,7 +82,7 @@ impl Workbook {
     /// The refusals shared by `merge` and `merge_clearing`, and the
     /// non-anchor cells that hold a value or a formula.
     fn plan_merge(&mut self, sheet: usize, range: &str) -> Result<(CellRange, Vec<CellIndex>)> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let r = CellRange::parse(range)?;
         if r.first == r.last {
             return Err(Error::MergeSingleCell(r.to_string()));
@@ -226,7 +226,7 @@ impl Workbook {
     }
 
     pub(crate) fn unmerge(&mut self, sheet: usize, range: &str) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let r = CellRange::parse(range)?;
         if !self.contexts.get(&sheet).expect("context").merges.contains(&r) {
             return Err(Error::NoSuchMerge(r.to_string()));
@@ -265,7 +265,7 @@ impl Workbook {
     // ---- autofilter (ADR-0014 §7) ----
 
     pub(crate) fn set_autofilter(&mut self, sheet: usize, range: &str) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let r = CellRange::parse(range)?;
         let ctx = self.contexts.get(&sheet).expect("context");
         if let Some(t) = ctx.tables.iter().find(|t| t.range.intersects(&r)) {
@@ -375,7 +375,7 @@ impl Workbook {
     }
 
     pub(crate) fn remove_autofilter(&mut self, sheet: usize) -> Result<bool> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let part = self.sheet_part(sheet);
         let doc = self.pkg.xml_part(&part)?;
         let ws = doc.lens::<sml::Worksheet>()?;
@@ -399,7 +399,7 @@ impl Workbook {
     // ---- protection (ADR-0014 §11) ----
 
     pub(crate) fn protect_sheet(&mut self, sheet: usize, p: &SheetProtection) -> Result<()> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let attrs = p.attributes()?;
         let part = self.sheet_part(sheet);
         {
@@ -427,7 +427,7 @@ impl Workbook {
     }
 
     pub(crate) fn unprotect_sheet(&mut self, sheet: usize) -> Result<bool> {
-        self.check_poisoned()?;
+        self.check_editable()?;
         let part = self.sheet_part(sheet);
         let present = self.pkg.xml_part(&part)?.lens::<sml::Worksheet>()?.child::<sml::SheetProtection>().is_some();
         if !present {

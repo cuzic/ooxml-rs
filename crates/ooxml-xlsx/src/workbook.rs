@@ -446,6 +446,10 @@ impl Workbook {
         Ok(self.pkg.to_bytes()?)
     }
 
+    pub(crate) fn check_editable(&self) -> Result<()> {
+        self.edit_refusal().map_or(Ok(()), Err)
+    }
+
     pub(crate) fn check_poisoned(&self) -> Result<()> {
         match &self.poisoned {
             Some(p) => Err(Error::Poisoned(p.clone())),
