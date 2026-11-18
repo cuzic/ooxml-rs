@@ -91,6 +91,26 @@ fn run_properties_are_written_in_slot_order() {
 }
 
 #[test]
+fn clearing_last_run_property_removes_rpr() {
+    let mut doc = open("<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>a</w:t></w:r></w:p>");
+    let f = RunFormat { bold: Prop::Clear, ..RunFormat::default() };
+    doc.format_run(r(0, 0), &f).unwrap();
+    assert_eq!(body_of(&doc), "<w:p><w:r><w:t>a</w:t></w:r></w:p>");
+}
+
+#[test]
+fn property_edits_refuse_alternate_content_siblings() {
+    let ac = r#"<compat:AlternateContent xmlns:compat="http://schemas.openxmlformats.org/markup-compatibility/2006"><compat:Fallback/></compat:AlternateContent>"#;
+    let mut doc = open(&format!("<w:p><w:pPr><w:keepNext/>{ac}</w:pPr><w:r><w:rPr><w:b/>{ac}</w:rPr><w:t>a</w:t></w:r></w:p>"));
+    for prop in [Prop::Set(false), Prop::Clear] {
+        let run = RunFormat { bold: prop.clone(), ..RunFormat::default() };
+        let para = ParagraphFormat { keep_next: prop, ..ParagraphFormat::default() };
+        assert_matches!(refused(&mut doc, |d| d.format_run(r(0, 0), &run)), Error::Core(CoreError::UnresolvedSibling(_)));
+        assert_matches!(refused(&mut doc, |d| d.format_paragraph(p(0), &para)), Error::Core(CoreError::UnresolvedSibling(_)));
+    }
+}
+
+#[test]
 fn superseding_attributes_are_removed() {
     // the complex-script slot's theme attribute is spelled `w:cstheme` (review m3)
     let mut doc = open(r#"<w:p><w:r><w:rPr><w:rFonts w:cs="Arial" w:cstheme="minorBidi"/></w:rPr><w:t>a</w:t></w:r></w:p>"#);
@@ -207,6 +227,7 @@ fn refusals_before_any_write() {
     // targets
     let fld = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>PAGE</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>"#;
     let mut doc = open(fld);
+    assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(0), None)), Error::InsideField);
     assert_matches!(refused(&mut doc, |d| d.format_run(r(0, 3), &bold())), Error::InsideField);
     assert_matches!(refused(&mut doc, |d| d.format_paragraph(p(0), &ParagraphFormat { keep_next: Prop::Set(true), ..Default::default() })), Error::InsideField);
     let mut doc = open(r#"<w:p><w:r><w:rPr><w:rPrChange w:id="1" w:author="a"><w:rPr/></w:rPrChange></w:rPr><w:t>a</w:t></w:r></w:p>"#);
@@ -302,6 +323,27 @@ fn styles_by_id() {
     let mut doc = open("<w:p/>");
     assert_matches!(refused(&mut doc, |d| d.set_paragraph_style(p(0), Some("Normal"))), Error::UnknownStyle { latent_only: false, .. });
     assert!(doc.styles().next().is_none());
+}
+
+#[test]
+fn style_id_refusals() {
+    let styles = r#"<w:latentStyles><w:lsdException w:name="heading 1"/></w:latentStyles><w:style w:styleId="Heading1"/><w:style/>"#;
+    let mut doc = open_with("<w:p><w:r><w:t>a</w:t></w:r></w:p>", Some(styles), None);
+    assert_matches!(
+        refused(&mut doc, |d| d.set_paragraph_style(p(0), Some(""))),
+        Error::InvalidValue { what: "style id", value } if value.is_empty()
+    );
+    assert_matches!(
+        refused(&mut doc, |d| d.set_paragraph_style(p(0), Some("heading1"))),
+        Error::UnknownStyle { id, latent_only: false } if id == "heading1"
+    );
+
+    let styles = r#"<w:style w:type="character"/>"#;
+    let mut doc = open_with("<w:p><w:r><w:t>a</w:t></w:r></w:p>", Some(styles), None);
+    assert_matches!(
+        refused(&mut doc, |d| d.set_run_style(r(0, 0), Some(""))),
+        Error::InvalidValue { what: "style id", value } if value.is_empty()
+    );
 }
 
 #[test]

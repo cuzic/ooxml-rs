@@ -353,9 +353,13 @@ impl<'a> Planner<'a> {
         Planner { container, plan: ContainerPlan::default() }
     }
 
-    /// The single existing element of `kind`; `DuplicateProperty` if two.
+    /// The single existing element of `kind`, if its siblings can be resolved.
     fn existing(&self, kind: Kind) -> Result<Option<(usize, &'a RawNode)>> {
         let Some(c) = self.container else { return Ok(None) };
+        if c.elements().any(|e| e.is(MC_ALTERNATE_CONTENT)) {
+            let parent = if c.is(RunProperties::QNAME) { RunProperties::QNAME } else { ParagraphProperties::QNAME };
+            return Err(Error::Core(ooxml_core::Error::UnresolvedSibling(parent)));
+        }
         let q = kind.qname();
         let mut found = c.indexed_elements().filter(|(_, e)| e.is(q));
         let first = found.next();
