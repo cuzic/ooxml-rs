@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: ooxml-rs の PR または ADR を敵対的にレビューし、docs/reviews/prNN-roundK.md（ADR は docs/adr/NNNN-opus-review-roundK.md）を書く。PR のレビュー、レビューラウンド、収束判定を頼まれたときに使う。
+description: ooxml-rs の PR または ADR を敵対的にレビューし、docs/reviews/prNN-roundK.md（ADR は docs/adr/NNNN-opus-review-roundK.md）を PR ブランチにコミットする。PR のレビュー、レビューラウンド、収束判定を頼まれたときに使う。
 ---
 
 # PR / ADR の敵対的レビュー
@@ -14,7 +14,8 @@ description: ooxml-rs の PR または ADR を敵対的にレビューし、docs
 
 ## 手順
 
-1. **独立したコピーで作業する**: `git clone` でスクラッチ領域に複製し、PR の head を checkout する。
+1. **独立したコピーで作業する**: `git clone` でスクラッチ領域に複製し、`gh pr checkout NN` する。
+   レビューする head の SHA（`git rev-parse HEAD`）を控える。
    作業中の worktree を `cp -a` しない（git のメタデータを共有して他の作業を壊す）。
    他のエージェントのプロセスを `pkill` で止めない。
 2. **前ラウンドの解消確認**: 各指摘が直ったかをプローブで確かめる。説明文ではなく挙動で判定する。
@@ -26,6 +27,7 @@ description: ooxml-rs の PR または ADR を敵対的にレビューし、docs
    - 名前空間・`mc:AlternateContent`・`xml:space`・エスケープ（`&` `<` `"`、`_xHHHH_`）
 4. **機械的検証は結果を読む**: 変異テスト・コーパス走査・fuzz は CI か既存スクリプトの出力を使う。
    足りないときだけ手書きの変異を数個入れ、テストで落ちるかを見る。長時間の実行で待たない。
+   プローブや変異はコミットしない（レビューファイルだけをコミットする）。
 5. **他の open PR との干渉**: 同じファイル・生成物・公開名に触る PR がないか `gh pr list` で確認する。
 
 ## 重大度
@@ -39,10 +41,12 @@ description: ooxml-rs の PR または ADR を敵対的にレビューし、docs
 
 ## 出力
 
-`docs/reviews/prNN-roundK.md`（未コミットで置く。コミットは作者かマージ手順が行う）:
+`docs/reviews/prNN-roundK.md`:
 
 ```markdown
 # PR #NN レビュー（Opus, round K）
+
+対象: <branch> @ <レビューした head の SHA>
 
 ## 結論（先に）
 <2〜4 文。converged: yes/no と理由>
@@ -60,4 +64,12 @@ converged: yes/no（Blocker n / Major n / Minor n / nit n）
 ```
 
 **converged: yes** は Blocker と Major が 0 のとき。Minor は follow-up に回してよい。
-最後の返答では、結論・判定・指摘を 1 行ずつとファイルパスを返す。
+
+## 届け方
+
+作者（Codex）とマージ手順が読めるように、レビューファイルを **PR ブランチにコミットして push する**
+（このファイルだけの docs コミット。メッセージは `docs: PR #NN review round K`）。
+push が拒否されたら `git pull --no-rebase` してから push し直す（force-push しない）。
+ADR のレビューも同じく、その ADR の PR ブランチに入れる。
+
+最後の返答では、結論・判定・指摘を 1 行ずつと、push したコミットの SHA を返す。

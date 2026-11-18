@@ -12,7 +12,9 @@ Rust で xlsx / docx / pptx を **ロスレスに往復編集** するライブ�
 | Codex | Accepted ADR に沿った実装、レビュー指摘の修正、main の取り込みと衝突解消、テスト・fixture・fuzz target の追加 |
 | CI / スクリプト | テスト、clippy、`codegen --check`、python-pptx オラクル、変異テストやコーパス走査などの機械的検証 |
 
-仕事は Issue か PR 本文の「タスク仕様」（スコープ・受け入れ条件・触ってよいファイル）で渡す。
+仕事は「タスク仕様」（スコープ・受け入れ条件・触ってよいファイル）で渡す。新しい作業は `[codex] …` の Issue、
+既存 PR への修正や main の取り込みはその PR の `## [codex] タスク仕様` コメントに書く。
+レビュー指摘の根拠は PR ブランチにコミットされた `docs/reviews/prNN-roundK.md` を読む。
 仕様に無い判断が要るときは、実装で決めずに PR 本文の「Open questions」に書いて止める。
 
 ## 完了の定義（どの PR も）
@@ -23,7 +25,16 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo xtask codegen --check
 ```
 
-- 3 つとも通ること。pptx に触れたら `.github/workflows/ci.yml` の python-pptx オラクルも手元で回す。
+- 3 つとも通ること。
+- `ooxml-pptx` か `ooxml-core` に触れたら、CI の python-pptx オラクル（`.github/workflows/ci.yml`）も通ること。
+  手元で回す場合（pip にネットワークが要る。無ければ CI に任せる）:
+
+  ```sh
+  T=$(mktemp -d)   # リポジトリの外
+  python3 -m venv "$T/venv" && "$T/venv/bin/pip" install -r crates/ooxml-pptx/tests/oracle/requirements.txt
+  cargo run --release -p ooxml-pptx --example oracle_cases -- "$T/cases"
+  "$T/venv/bin/python" -I crates/ooxml-pptx/tests/oracle/check.py "$T/cases" reference/fixtures/pptx
+  ```
 - **拒否は無変更**: 編集 API が `Err` を返したら、保存結果は入力とバイト単位で同一（`Err ⇒ byte-identical`）。
   新しい拒否には必ずこのテストを付ける。
 - **局所性**: 編集は触ったノードの span の外を変えない（ADR-0001 の T1/T1b/T2）。
@@ -36,19 +47,23 @@ cargo xtask codegen --check
   エンティティ解決なし、DTD を含む part は読み飛ばす。ダウンロードしたものを実行しない。
 - プローブや一時ファイルはリポジトリの外（スクラッチ領域）に置く。リポジトリに `PWNED` のような
   検証用の残骸を残さない。
-- 生成物（`crates/ooxml-schema/src/generated/`、`codegen/report.txt`）は手で直さず、
+- 生成物（`crates/ooxml-schema/src/generated/`、`crates/ooxml-core/src/generated/parts.rs`、
+  `codegen/report.txt`）は手で直さず、
   `codegen/allowlist/*.toml` や `codegen/overrides.toml` を直して `cargo xtask codegen` で再生成する。
   生成型の公開名を変える変更は ADR-0002 の note に書く。
 - コミットやコメントにマシン固有の情報（ユーザー名、uid、絶対パス）を入れない。
 
 ## Git の約束
 
-- ブランチは `plan/… impl/… core/… fix/… test/… docs/… chore/… perf/… spike/…`。
+- ブランチは `plan/… impl/… core/… fix/… test/… docs/… chore/… ci/… perf/… spike/…`。
   1 つの作業に 1 つの `git worktree`。共有 checkout でブランチを切り替えない。
 - **merge で追従し、rebase / force-push はしない**。衝突した生成物は再生成する。
-- エージェントは PR を作って更新するが、**マージはしない**（owner か Claude の merge 手順が行う）。
+- Codex は PR を作って更新するが、**マージはしない**。マージは Claude が `.claude/skills/merge-pr` の手順で
+  行う（owner が行ってもよい）。レビューを担当した Claude は、レビューファイルのコミットだけを PR ブランチに push する。
 - 積み上げ PR はタイトルに「stacked on #NN」と書く。
-- コミット末尾に `Co-Authored-By:` トレーラーを付ける。PR 本文の末尾はツールの既定の署名に従う。
+- コミット末尾に、使っているツールの `Co-Authored-By:` トレーラーを付ける
+  （例: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`）。PR 本文の末尾はツールの既定の署名に従う。
+- レビュー指摘を直すコミットのメッセージには指摘 ID（`M1` `m2` など）を書く。
 
 ## リポジトリの地図
 
@@ -56,9 +71,12 @@ cargo xtask codegen --check
 | --- | --- |
 | `crates/ooxml-core` | OPC パッケージ、Layer 2 の `XmlDocument`/`RawNode`/lens、`RegistryPlan`（part・関係の追加削除） |
 | `crates/ooxml-schema` | `cargo xtask codegen` の生成物（`*View`/`*ViewMut`、`ChildOf`、slot） |
-| `crates/ooxml-{xlsx,docx,pptx}` | 各形式の API。`examples/<format>_manual_check.rs` が owner 用の手動確認一式を書く |
-| `crates/ooxml-robustness`, `fuzz/` | fuzz target と oracle（PR #36 で入る予定。`fuzz/README.md`） |
+| `crates/ooxml-{xlsx,docx,pptx}` | 各形式の API。`examples/manual_check.rs` が owner 用の手動確認ファイルを書き、`cargo xtask manual-check <outdir>` が 3 形式分を zip と CHECKLIST.md にまとめる |
+| `crates/ooxml-bench` | 性能計測 |
+| `crates/ooxml-robustness`, `fuzz/` | fuzz target と oracle（**まだ main に無い**。PR #36 で入る予定） |
+| `xtask/` | `cargo xtask codegen`（生成）と `cargo xtask manual-check` |
 | `codegen/` | allowlist、overrides、生成レポート |
+| `spikes/` | ADR ごとの計測用スクリプト（使い捨て。コーパスは信頼しない入力として読む） |
 | `reference/` | 同梱した SDK データ・ECMA XSD・fixture（`reference/fixtures/<format>/`） |
 | `docs/adr/`, `docs/reviews/` | 設計と、そのレビュー記録（`docs/reviews/prNN-roundK.md`） |
 | `docs/process.md` | 開発プロセスの実態 |
