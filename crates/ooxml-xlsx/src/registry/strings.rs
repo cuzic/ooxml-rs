@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use ooxml_core::{ElementSpec, LensMut, QName};
 use ooxml_schema::sml;
 
-use super::{Table, census_sheet_parts, render, scan_sheet};
+use super::{Table, census_sheet_parts, current_document, render, scan_sheet};
 use crate::error::{Error, Result};
 use crate::workbook::Workbook;
 
@@ -64,12 +64,12 @@ impl SharedStrings {
         for p in census_sheet_parts(wb) {
             refs += scan_sheet(&wb.pkg.read_part(&p)?)?.shared as i64;
         }
-        let doc = wb.pkg.xml_part(&part)?;
+        let doc = current_document(wb.pkg.xml_part(&part)?)?;
         let root = doc.root();
         if !root.is(sml::SharedStringTable::QNAME) {
             return Err(Error::Malformed(format!("{part}: root is not sst")));
         }
-        let t = Table::read(doc, Some(root), sml::SharedStringItem::QNAME);
+        let t = Table::read(&doc, Some(root), sml::SharedStringItem::QNAME);
         if t.has_ac {
             // indices behind an mc:AlternateContent depend on the reader
             return Err(ooxml_core::Error::UnresolvedSibling(sml::SharedStringTable::QNAME).into());

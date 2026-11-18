@@ -6,7 +6,7 @@ mod common;
 use std::assert_matches;
 
 use common::*;
-use ooxml_xlsx::{Error, Workbook};
+use ooxml_xlsx::{Error, Format, Workbook};
 
 const WS_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const PIVOT_CT: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml";
@@ -688,15 +688,18 @@ fn raw_names_with_entities() {
     }
 }
 
-/// R2-B1: this crate's own output round-trips: rename to `P&L` (and a
-/// name with `<`, `"` and LF), then rename again.
+/// R2-B1 and round 3 n1: XML and ST_Xstring escapes round-trip in pivot sources.
 #[test]
 fn raw_names_round_trip() {
-    for mid in ["P&L", "a<b\"c", "x\ny"] {
+    for mid in ["P&L", "a<b\"c", "x\ny", "x_x0041_y"] {
         let input = with_pivot(&two_sheets(), &pivot(r#"<worksheetSource ref="A1:B3" sheet="Data"/>"#));
         let mut wb = Workbook::from_bytes(input).unwrap();
         wb.rename_sheet("Data", mid).unwrap();
-        let mut wb = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+        let out = wb.to_bytes().unwrap();
+        if mid == "x_x0041_y" {
+            assert!(text(&out, "xl/pivotCache/pivotCacheDefinition1.xml").contains(r#"sheet="x_x005F_x0041_y""#));
+        }
+        let mut wb = Workbook::from_bytes(out).unwrap();
         assert_eq!(wb.sheet_names().nth(1), Some(mid));
         let rw = wb.rename_sheet(mid, "Back").unwrap();
         assert!(rw.iter().any(|r| r.location == "worksheetSource sheet"), "{mid:?}");
@@ -762,6 +765,47 @@ fn structural_edits_update_the_shared_string_count() {
     wb.worksheet_by_name("A").unwrap().cell_mut(0, 2).unwrap().set_string("x").unwrap();
     let out = wb.to_bytes().unwrap();
     assert!(text(&out, "xl/sharedStrings.xml").contains(r#"count="2""#));
+}
+
+#[test]
+fn shared_strings_reuse_entries_after_structural_edit() {
+    let mut wb = Workbook::new().unwrap();
+    wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_string("y").unwrap();
+    wb.set_tab_color("Sheet1", Some(0x112233)).unwrap();
+    let mut reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+
+    for book in [&mut wb, &mut reopened] {
+        book.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string("y").unwrap();
+    }
+
+    let out = wb.to_bytes().unwrap();
+    let sst = text(&out, "xl/sharedStrings.xml");
+    assert_eq!(sst.matches("<si>").count(), 1);
+    assert_eq!(sst.matches("<si><t>y</t></si>").count(), 1);
+    let reopened = reopened.to_bytes().unwrap();
+    assert_eq!(sst, text(&reopened, "xl/sharedStrings.xml"));
+    assert_eq!(text(&out, "xl/worksheets/sheet1.xml"), text(&reopened, "xl/worksheets/sheet1.xml"));
+}
+
+#[test]
+fn styles_reuse_entries_after_structural_edit() {
+    let mut wb = Workbook::new().unwrap();
+    let bold = Format::new().set_bold();
+    wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_format(&bold).unwrap();
+    wb.set_tab_color("Sheet1", Some(0x112233)).unwrap();
+    let saved = wb.to_bytes().unwrap();
+    let styles = text(&saved, "xl/styles.xml");
+    let mut reopened = Workbook::from_bytes(saved).unwrap();
+
+    for book in [&mut wb, &mut reopened] {
+        book.worksheet().unwrap().cell_mut(0, 1).unwrap().set_format(&bold).unwrap();
+        assert_eq!(text(&book.to_bytes().unwrap(), "xl/styles.xml"), styles);
+    }
+
+    assert_eq!(
+        text(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml"),
+        text(&reopened.to_bytes().unwrap(), "xl/worksheets/sheet1.xml"),
+    );
 }
 
 /// R2-m1: an External relationship with a `#Sheet!` target is not
