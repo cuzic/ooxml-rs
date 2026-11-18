@@ -86,12 +86,32 @@ struct HandOff {
 
 /// Positions of `c` elements to strip, per sheet.
 #[derive(Debug, Default)]
-struct StripPlan {
-    sheets: Vec<(String, Vec<(usize, usize)>)>,
+pub(crate) struct StripPlan {
+    pub(crate) sheets: Vec<(String, Vec<(usize, usize)>)>,
     /// Stripped cells that had `t="s"`.
     shared_refs: i64,
     fids: Vec<usize>,
     anchors: Vec<usize>,
+}
+
+/// Removes the cached value (`v`, `is`, `t`) of the planned cells of one
+/// sheet tree (ADR-0003 §3.1; also used on Phase3's staged clones).
+pub(crate) fn strip_cells(doc: &mut XmlDocument, positions: &[(usize, usize)]) -> Result<i64> {
+    let mut shared = 0;
+    for &(ri, ci) in positions {
+        let ws = doc.lens_mut::<sml::Worksheet>()?;
+        let sd = ws.into_child_by::<sml::SheetData>(|_| true).ok_or_else(|| Error::Malformed("sheetData".into()))?;
+        let row = sd.into_child_at::<sml::Row>(ri).ok_or_else(|| Error::Malformed("planned row".into()))?;
+        let cell = row.into_child_at::<sml::Cell>(ci).ok_or_else(|| Error::Malformed("planned cell".into()))?;
+        shared += i64::from(cell.node().attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"));
+        let mut c = sml::CellViewMut(cell);
+        // every `v` and `is`, duplicates included (schema-invalid, but a
+        // reader would see a survivor), as `write_cell` does (review R4-M1)
+        while c.remove_cell_value() {}
+        while c.remove_inline_string() {}
+        c.remove_data_type()?;
+    }
+    Ok(shared)
 }
 
 fn xml_char_ok(c: char) -> bool {
@@ -108,9 +128,33 @@ impl Workbook {
 
     /// Dependents of a write to `sheet!at` (§3.2).
     pub(crate) fn compute_dependents(&mut self, sheet: usize, at: CellIndex) -> DepSet {
+        self.dependents_of_seeds(&[], vec![Rect::cell(sheet, at.row, at.col)])
+    }
+
+    /// Dependents of a structural edit (ADR-0009 §12): the formulas `fids`
+    /// themselves (their text or meaning changes), everything reading them
+    /// or the `rects`, and the closure of every `Everything` formula.
+    pub(crate) fn dependents_of_seeds(&mut self, fids: &[usize], mut rects: Vec<Rect>) -> DepSet {
         self.graph();
         let g = self.graph.as_ref().expect("built");
-        let d = g.dependents(&self.census, vec![Rect::cell(sheet, at.row, at.col)]);
+        for &fid in fids {
+            if let Some(c) = self.census.get(fid) {
+                rects.push(Rect::cell(c.sheet, c.at.row, c.at.col));
+                if let Some(r) = c.result_range() {
+                    rects.push(Rect { sheet: c.sheet, r1: r.first.row, c1: r.first.col, r2: r.last.row, c2: r.last.col });
+                }
+            }
+        }
+        let mut d = g.dependents(&self.census, rects);
+        for &fid in fids {
+            if self.census.get(fid).is_some() && !d.formulas.contains(&fid) {
+                d.formulas.push(fid);
+                if let Some(r) = self.census.get(fid).and_then(|c| c.result_range().map(|r| (c.sheet, r))) {
+                    let (sheet, r) = r;
+                    d.results.push((fid, Rect { sheet, r1: r.first.row, c1: r.first.col, r2: r.last.row, c2: r.last.col }));
+                }
+            }
+        }
         let mut cells = Vec::new();
         for &fid in &d.formulas {
             let c = self.census.get(fid).expect("alive");
@@ -462,7 +506,7 @@ impl Workbook {
 
     /// One pass over each affected sheet's `sheetData`, finding every
     /// dependent that still has a cached value (§3.1, R2-m1).
-    fn plan_strip(&mut self, deps: &DepSet, sheet: usize, at: CellIndex) -> Result<StripPlan> {
+    pub(crate) fn plan_strip(&mut self, deps: &DepSet, sheet: usize, at: CellIndex) -> Result<StripPlan> {
         let mut cells: HashMap<usize, HashSet<CellIndex>> = HashMap::new();
         let mut rects: HashMap<usize, Vec<Rect>> = HashMap::new();
         let mut plan = StripPlan::default();
@@ -528,20 +572,7 @@ impl Workbook {
         // (iii) dependents
         self.fault_point(Step::Strip)?;
         for (p, positions) in &strip.sheets {
-            let doc = self.pkg.xml_part_mut(p)?;
-            for &(ri, ci) in positions {
-                let ws = doc.lens_mut::<sml::Worksheet>()?;
-                let sd = ws.into_child_by::<sml::SheetData>(|_| true).ok_or_else(|| Error::Malformed("sheetData".into()))?;
-                let row = sd.into_child_at::<sml::Row>(ri).ok_or_else(|| Error::Malformed("planned row".into()))?;
-                let cell = row.into_child_at::<sml::Cell>(ci).ok_or_else(|| Error::Malformed("planned cell".into()))?;
-                let mut c = sml::CellViewMut(cell);
-                // every `v` and `is`, duplicates included (schema-invalid,
-                // but a reader would see a survivor), as `write_cell` does
-                // (review R4-M1)
-                while c.remove_cell_value() {}
-                while c.remove_inline_string() {}
-                c.remove_data_type()?;
-            }
+            strip_cells(self.pkg.xml_part_mut(p)?, positions)?;
         }
         // (iv) shared-formula hand-off
         self.fault_point(Step::HandOff)?;
