@@ -152,3 +152,48 @@ mod tests {
         assert_eq!(format_f64(2.5), "2.5");
     }
 }
+
+/// A DrawingML percentage (`ST_Percentage` and its Transitional unions,
+/// ADR-0002 §1.2, ADR-0008 §6): either an integer in thousandths of a
+/// percent (`50000` = 50 %, what Office writes) or the literal `"NN%"` form
+/// the XSD also allows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DmlPercent {
+    /// `val="50000"`: thousandths of a percent.
+    Thousandths(i32),
+    /// `val="50%"` / `val="-12.5%"`: percent.
+    Literal {
+        /// The value in percent.
+        percent: f64,
+    },
+}
+
+impl DmlPercent {
+    /// The value in percent (`Thousandths(50000)` → 50.0).
+    pub fn percent(self) -> f64 {
+        match self {
+            DmlPercent::Thousandths(t) => f64::from(t) / 1000.0,
+            DmlPercent::Literal { percent } => percent,
+        }
+    }
+}
+
+/// Parses a [`DmlPercent`]: an `xsd:int`, or `-?\d+(\.\d+)?%`.
+pub fn parse_dml_percent(s: &str) -> Option<DmlPercent> {
+    let t = trim_xml_ws(s);
+    if let Some(num) = t.strip_suffix('%') {
+        return crate::schema::const_is_percent_literal(t).then(|| num.parse().ok()).flatten().map(|percent| DmlPercent::Literal { percent });
+    }
+    parse_i32(t).map(DmlPercent::Thousandths)
+}
+
+/// Formats a [`DmlPercent`] the way Office writes it (thousandths; a
+/// literal is rounded) and passes the text to `f`.
+pub fn with_dml_percent<R>(v: DmlPercent, f: impl FnOnce(&str) -> R) -> R {
+    let t = match v {
+        DmlPercent::Thousandths(t) => t,
+        DmlPercent::Literal { percent } => (percent * 1000.0).round() as i32,
+    };
+    with_i32(t, f)
+}
+

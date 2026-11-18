@@ -87,21 +87,22 @@ fn refused(reason: MoveRefusal, name: &str) -> Error {
 /// `MustUnderstand`) or `prefix:local` / `prefix:*` (the others).
 const MC_PREFIX_LISTS: [&str; 5] = ["Ignorable", "MustUnderstand", "ProcessContent", "PreserveElements", "PreserveAttributes"];
 
-/// What the subtree needs from its context.
+/// What the subtree needs from its context (shared with the same-part copy,
+/// `same_part.rs`).
 #[derive(Default)]
-struct Usage<'n> {
+pub(super) struct Usage<'n> {
     /// Prefixes used but not declared inside the subtree (`None` = the
     /// default namespace), from element and attribute names and from Markup
     /// Compatibility attribute values.
-    free_prefixes: BTreeSet<Option<&'n str>>,
+    pub(super) free_prefixes: BTreeSet<Option<&'n str>>,
     /// Namespaces of element and attribute names.
-    uris: BTreeSet<&'n str>,
+    pub(super) uris: BTreeSet<&'n str>,
     /// Text whose whitespace handling the subtree inherits.
-    inherits_text: bool,
+    pub(super) inherits_text: bool,
 }
 
 impl<'n> Usage<'n> {
-    fn of(n: &'n RawNode) -> Self {
+    pub(super) fn of(n: &'n RawNode) -> Self {
         let mut u = Usage::default();
         let mut declared = Vec::new();
         u.walk(n, &mut declared, false);

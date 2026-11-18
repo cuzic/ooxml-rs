@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use ooxml_core::{ElementSpan, RawNode, XmlDocument};
-use ooxml_docx::{Document, Error};
+use ooxml_docx::{Document, Error, Operation};
 
 use crate::fixtures::{DOCX, decode};
 use crate::input::Input;
@@ -95,26 +95,27 @@ fn invalid_char(text: &str) -> Option<char> {
     text.chars().find(|&c| (c < ' ' && !matches!(c, '\t' | '\n' | '\r')) || c == '\u{FFFE}' || c == '\u{FFFF}')
 }
 
-/// The outcome `set_run_text(p, r, text)` must have, from the public API
-/// only, in ooxml-docx's documented order: write gate, paragraph/run
-/// lookup, `check_settable`, text characters.
+/// Predicts `set_run_text(p, r, text)` using the public API.
+/// In `crates/ooxml-docx/src/document.rs`, `Document::set_run_text` checks
+/// the paragraph before delegating to `set_run_text_at`, which checks the
+/// text gate, run index, `check_settable`, and text characters in that order.
 fn predict_set(doc: &Document, p: usize, r: usize, text: &str) -> Result<(), String> {
-    doc.write_gate().map_err(|e| format!("{e:?}"))?;
     let para = doc.paragraph(p).ok_or_else(|| format!("{:?}", Error::NoSuchParagraph(p)))?;
+    doc.write_gate_for(Operation::Text).map_err(|e| format!("{e:?}"))?;
     let run = para.run(r).ok_or_else(|| format!("{:?}", Error::NoSuchRun { paragraph: p, run: r }))?;
     run.check_settable().map_err(|e| format!("{e:?}"))?;
     invalid_char(text).map_or(Ok(()), |ch| Err(format!("{:?}", Error::InvalidXmlChar { ch })))
 }
 
-/// The outcome `append_paragraph(text)` must have (ADR-0004 §6): write
-/// gate, text characters, a body, no field left open at the end of the
+/// The outcome `append_paragraph(text)` must have (ADR-0004 §6 and
+/// ADR-0007 §6.1): append gate, text characters, a body, no field left open at the end of the
 /// body flow (recounted here from the runs' own `w:fldChar` children), and
 /// not A2 (no body-level `w:sectPr` while the last paragraph carries
 /// `w:pPr/w:sectPr`). `Ok` may still turn into a lens refusal of the
 /// insertion itself (`mc:AlternateContent` in the body), checked by the
 /// caller.
 fn predict_append(doc: &Document, parsed: &XmlDocument, text: &str) -> Result<(), String> {
-    doc.write_gate().map_err(|e| format!("{e:?}"))?;
+    doc.write_gate_for(Operation::Append).map_err(|e| format!("{e:?}"))?;
     if let Some(ch) = invalid_char(text) {
         return Err(format!("{:?}", Error::InvalidXmlChar { ch }));
     }
@@ -358,4 +359,25 @@ pub fn targeted_inputs() -> Vec<Vec<u8>> {
             input
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_paragraph_precedes_document_protection() {
+        let zip = std::fs::read(crate::fixtures::fixtures_dir().join("docx/poi-documentProtection_readonly_no_password.docx"))
+            .expect("read the protected fixture");
+        let doc = Document::from_bytes(zip.clone()).expect("open the protected fixture");
+        std::assert_matches!(doc.write_gate_for(Operation::Text), Err(Error::DocumentProtected { .. }));
+        let count = doc.paragraph_count();
+        assert!(count > 0);
+        let [lo, hi] = u16::try_from(count).expect("paragraph index fits in the edit input").to_le_bytes();
+
+        // Kind 2 selects a paragraph by index. Try the first missing paragraph
+        // and then paragraph 0, so the oracle checks both errors and both saves.
+        let ops = [2, 1, 0, lo, hi, 0, 2, 1, 0, 0, 0, 0];
+        check_docx(&zip, Input::new(&ops));
+    }
 }

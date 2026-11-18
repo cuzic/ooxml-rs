@@ -42,7 +42,10 @@ fn check_xml_chars(value: &str) -> Result<()> {
         }
     }
 }
-use crate::xml::{RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
+use crate::xml::{DocToken, RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
+
+mod same_part;
+pub use same_part::{SamePartDetached, SamePartOptions, ext_uri};
 
 fn check_root<E: ElementSpec>(root: &RawNode) -> Result<()> {
     if root.is(E::QNAME) {
@@ -61,12 +64,16 @@ pub struct Lens<'a, E: ElementSpec> {
     root: &'a RawNode,
     node: &'a RawNode,
     path: Vec<usize>,
+    /// The document the root belongs to, when the lens came from
+    /// [`crate::XmlDocument::lens`] / [`crate::XmlDocument::lens_at`]
+    /// (same-part copies need it).
+    doc: Option<DocToken>,
     _e: PhantomData<fn() -> E>,
 }
 
 impl<E: ElementSpec> Clone for Lens<'_, E> {
     fn clone(&self) -> Self {
-        Lens { root: self.root, node: self.node, path: self.path.clone(), _e: PhantomData }
+        Lens { root: self.root, node: self.node, path: self.path.clone(), doc: self.doc, _e: PhantomData }
     }
 }
 
@@ -77,10 +84,15 @@ impl<E: ElementSpec> std::fmt::Debug for Lens<'_, E> {
 }
 
 impl<'a, E: ElementSpec> Lens<'a, E> {
+    pub(crate) fn with_doc(mut self, doc: DocToken) -> Self {
+        self.doc = Some(doc);
+        self
+    }
+
     /// A lens on `root`, which must be the element `E::QNAME`.
     pub fn root(root: &'a RawNode) -> Result<Self> {
         check_root::<E>(root)?;
-        Ok(Lens { root, node: root, path: Vec::new(), _e: PhantomData })
+        Ok(Lens { root, node: root, path: Vec::new(), doc: None, _e: PhantomData })
     }
 
     /// The raw node.
@@ -148,7 +160,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
     fn child_lens<C: ElementSpec>(&self, index: usize, node: &'a RawNode) -> Lens<'a, C> {
         let mut path = self.path.clone();
         path.push(index);
-        Lens { root: self.root, node, path, _e: PhantomData }
+        Lens { root: self.root, node, path, doc: self.doc, _e: PhantomData }
     }
 
     /// Child elements named `C::QNAME`, in document order.
@@ -176,7 +188,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
                 found_local: E::QNAME.local.into(),
             });
         }
-        Ok(Lens { root: self.root, node: self.node, path: self.path, _e: PhantomData })
+        Ok(Lens { root: self.root, node: self.node, path: self.path, doc: self.doc, _e: PhantomData })
     }
 
     /// An owned, span-less copy of this element's subtree, renamed to
@@ -313,7 +325,7 @@ impl<'a, E: ElementSpec> Lens<'a, E> {
     pub fn at(root: &'a RawNode, path: &[usize]) -> Result<Self> {
         let node = element_at(root, path, E::QNAME)?;
         check_root::<E>(node)?;
-        Ok(Lens { root, node, path: path.to_vec(), _e: PhantomData })
+        Ok(Lens { root, node, path: path.to_vec(), doc: None, _e: PhantomData })
     }
 }
 
@@ -448,6 +460,9 @@ pub struct LensMut<'a, E: ElementSpec> {
     path: Vec<usize>,
     /// Depth limit for inserted elements (the root is depth 1).
     max_depth: usize,
+    /// As [`Lens`]'s `doc`: set by [`crate::XmlDocument::lens_mut`] /
+    /// [`crate::XmlDocument::lens_mut_at`].
+    doc: Option<DocToken>,
     _e: PhantomData<fn() -> E>,
 }
 
@@ -565,9 +580,19 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         Self::root_with_limit(root, crate::xml::DEFAULT_MAX_DEPTH)
     }
 
+    pub(crate) fn with_doc(mut self, doc: DocToken) -> Self {
+        self.doc = Some(doc);
+        self
+    }
+
+    pub(crate) fn at_with_limit(root: &'a mut RawNode, path: &[usize], max_depth: usize) -> Result<Self> {
+        check_root::<E>(element_at(root, path, E::QNAME)?)?;
+        Ok(LensMut { root, path: path.to_vec(), max_depth, doc: None, _e: PhantomData })
+    }
+
     pub(crate) fn root_with_limit(root: &'a mut RawNode, max_depth: usize) -> Result<Self> {
         check_root::<E>(root)?;
-        Ok(LensMut { root, path: Vec::new(), max_depth, _e: PhantomData })
+        Ok(LensMut { root, path: Vec::new(), max_depth, doc: None, _e: PhantomData })
     }
 
     /// The raw node (read-only; mutation goes through the primitives).
@@ -583,7 +608,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     /// A read-only lens on the same node.
     pub fn as_lens(&self) -> Lens<'_, E> {
-        Lens { root: self.root, node: node_at(self.root, &self.path), path: self.path.clone(), _e: PhantomData }
+        Lens { root: self.root, node: node_at(self.root, &self.path), path: self.path.clone(), doc: self.doc, _e: PhantomData }
     }
 
     fn node_mut(&mut self) -> &mut RawNode {
@@ -603,7 +628,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     fn descend<C: ElementSpec>(&mut self, index: usize) -> LensMut<'_, C> {
         let mut path = self.path.clone();
         path.push(index);
-        LensMut { root: &mut *self.root, path, max_depth: self.max_depth, _e: PhantomData }
+        LensMut { root: &mut *self.root, path, max_depth: self.max_depth, doc: self.doc, _e: PhantomData }
     }
 
     /// Mutable lens on the first child named `C::QNAME`.
@@ -633,7 +658,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return None;
         }
         self.path.push(index);
-        Some(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
+        Some(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, doc: self.doc, _e: PhantomData })
     }
 
     /// Consuming variant of [`Self::child_mut_by`].
@@ -651,7 +676,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 found_local: E::QNAME.local.into(),
             });
         }
-        Ok(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, _e: PhantomData })
+        Ok(LensMut { root: self.root, path: self.path, max_depth: self.max_depth, doc: self.doc, _e: PhantomData })
     }
 
     // ---- insertion ----

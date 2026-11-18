@@ -242,6 +242,18 @@ impl<'a> ShapeRef<'a> {
         Lens::root(ph).ok().map(|l| PlaceholderRef(PlaceholderShapeView(l)))
     }
 
+    /// `p:nvSpPr/p:cNvSpPr@txBox` (raw, ADR-0008 §1.3 / owner decision Q1):
+    /// a text box rather than an autoshape. Both resolve the same way; this
+    /// lets callers treat them differently.
+    pub fn is_text_box(&self) -> bool {
+        let Some(node) = self.representative() else { return false };
+        first_element(node, |c| c.name().local() == "nvSpPr")
+            .and_then(|nv| first_element(nv, |c| c.name().local() == "cNvSpPr"))
+            .and_then(|c| c.attr(QName::new("", "txBox")))
+            .and_then(ooxml_core::value::parse_bool)
+            .unwrap_or(false)
+    }
+
     /// The shape's `p:txBody`, if it is a `p:sp` with one.
     pub fn text_body(&self) -> Option<TextBodyRef<'a>> {
         if self.kind != ShapeKind::Shape {
