@@ -141,6 +141,8 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [pml] Write a:CT_Transform2D/p:xfrm -> Transform (2 slots, 3 attrs)
   [dml] Write a:ST_Guid/a:tableStyleId -> TableStyleId (text, 0 attrs)
   [pml] Write ap:CT_Properties/ap:Properties -> Properties (1 slots, 0 attrs)
+  [props] Write ap:CT_VectorLpstr/ap:TitlesOfParts -> TitlesOfParts (1 slots, 0 attrs)
+  [props] Write ap:CT_VectorVariant/ap:HeadingPairs -> HeadingPairs (1 slots, 0 attrs)
   [dml] Write dgm:CT_DataModelRoot/dgm:dataModel -> DgmDataModelRoot (5 slots, 0 attrs)
   [dml] Write dgm:CT_ElemPropSet/dgm:prSet -> DgmPropertySet (2 slots, 28 attrs)
   [dml] Write dgm:CT_Pt/dgm:pt -> DgmPoint (4 slots, 3 attrs)
@@ -209,6 +211,8 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [pml] Read p:CT_TLTextTargetElement/p:txEl -> TextElement (1 slots, 0 attrs)
   [pml] Read p:CT_TransitionSoundAction/p:sndAc -> SoundAction (1 slots, 0 attrs)
   [pml] Write p:CT_ViewProperties/p:viewPr -> ViewProperties (8 slots, 2 attrs)
+  [props] Write vt:CT_Variant/vt:variant -> Variant (1 slots, 0 attrs)
+  [props] Write vt:CT_Vector/vt:vector -> VTVector (1 slots, 2 attrs)
   [wml] Write w:CT_Body/w:body -> Body (2 slots, 0 attrs)
   [wml] Write w:CT_Br/w:br -> Break (empty, 2 attrs)
   [wml] Write w:CT_Color/w:color -> Color (empty, 4 attrs)
@@ -362,8 +366,10 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [pml] Write xsd:int/ap:HiddenSlides -> HiddenSlides (text, 0 attrs)
   [pml] Write xsd:int/ap:Notes -> Notes (text, 0 attrs)
   [pml] Write xsd:int/ap:Slides -> Slides (text, 0 attrs)
+  [props] Write xsd:int/vt:i4 -> VTInt32 (text, 0 attrs)
   [dml] Write xsd:string/a:t -> Text (text, 0 attrs)
   [pml] Read xsd:string/p:text -> Text (text, 0 attrs)
+  [props] Write xsd:string/vt:lpstr -> VTLPSTR (text, 0 attrs)
 
 ## Diagnostics (54 total: {"DefaultMismatch": 36, "EcmaOrder": 8, "UnresolvedBase": 10})
 DefaultMismatch a:CT_AlphaModulateFixedEffect/a:alphaModFix@:amt: XSD default "100%" does not fit SDK type Int32Value; dropped
