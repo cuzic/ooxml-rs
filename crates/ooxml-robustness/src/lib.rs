@@ -14,6 +14,7 @@
 //! contract says otherwise.
 
 pub mod docx;
+pub mod docx_replace;
 pub mod fixtures;
 pub mod input;
 pub mod lens;
@@ -27,6 +28,7 @@ pub mod xlsx_formula;
 pub mod zipcmp;
 
 pub use docx::{check_docx, check_docx_input};
+pub use docx_replace::{check_docx_replace, check_docx_replace_input};
 pub use lens::check_lens_ops;
 pub use package::check_package;
 pub use pptx::{check_pptx, check_pptx_input};
