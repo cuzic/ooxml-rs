@@ -152,8 +152,15 @@ fn notes_refusals() {
                 let id = p.slide(i).unwrap().info().slide_id;
                 assert_matches!(refused(&mut p, |p| p.notes_mut(i).map(|_| ())), Error::NoNotesSlide { slide_id } if slide_id == id);
                 let o = FindOptions::default().scope(Scope::Notes(i));
-                assert_matches!(refused(&mut p, |p| p.find("e", &o)), Error::NoNotesSlide { .. });
-                assert_matches!(refused(&mut p, |p| p.replace_all("e", "E", &ReplaceOptions::default().find(o.clone()))), Error::NoNotesSlide { .. });
+                assert_matches!(
+                    refused(&mut p, |p| p.find("e", &o)),
+                    Error::NoNotesSlide { slide_id } if slide_id == id
+                );
+                let opts = ReplaceOptions::default().find(o);
+                assert_matches!(
+                    refused(&mut p, |p| p.replace_all("e", "E", &opts)),
+                    Error::NoNotesSlide { slide_id } if slide_id == id
+                );
                 checked += 1;
             }
         }
