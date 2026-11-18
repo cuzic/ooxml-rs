@@ -6,10 +6,11 @@
 //! rows/columns; shared-formula members translated from their master;
 //! anything it cannot read — names, 3-D references, structured references,
 //! functions like `INDIRECT` — simply yields no edge), and closes them
-//! transitively, with array results. Every edge it finds is a real
-//! precedent, so its dependent set is a **subset** of what ooxml-xlsx must
-//! invalidate (the library over-approximates whatever it cannot read
-//! precisely). The checks:
+//! transitively, with array results. Every edge it finds is one the
+//! library also reports (it keeps reference arguments such as `ROW(A1)`'s
+//! as precedents, and turns what it cannot resolve, like `[1]Sheet1!A1`,
+//! into "depends on everything"), so its dependent set is a **subset** of
+//! what ooxml-xlsx invalidates. The checks:
 //!
 //! - `Err` ⇒ the package saves byte-identical; after `Err(Poisoned)` every
 //!   later edit and the save are `Poisoned` too;
@@ -21,7 +22,10 @@
 //!   content-type override); a written value reads back; outside the
 //!   edited sheet only what Phase1 may write changed
 //!   ([`crate::phase1_oracle`]: the dependents' `v`/`is`/`@t`, `calcPr`,
-//!   calcChain);
+//!   calcChain); on every sheet, the edited one included, every cell other
+//!   than the target and the dependents keeps its `f`/`v` and its effective
+//!   references (a shared group's new master after a hand-off included),
+//!   and a shared master's `ref` that covered its members still does;
 //! - the set of formula cells read back from the output equals the model's
 //!   expectation, and the output reopens.
 
@@ -62,6 +66,9 @@ struct Cell {
     has_v: bool,
     /// `f/@ref` of an array formula (its result range).
     array_ref: Option<(u32, u32, u32, u32)>,
+    /// Shared group id, whether this cell is the group's master, and the
+    /// master's `f/@ref`.
+    shared: Option<(String, bool, Option<(u32, u32, u32, u32)>)>,
     /// The edges the harness could read.
     reads: Vec<Rect>,
 }
@@ -72,7 +79,6 @@ struct Model {
     parts: Vec<Option<String>>,
     cells: Vec<BTreeMap<(u32, u32), Cell>>,
     manual: bool,
-    full_calc: bool,
     calc_chain: Option<String>,
 }
 
@@ -152,20 +158,19 @@ fn references(text: &str, own_sheet: usize, names: &[String], dr: i64, dc: i64) 
             continue;
         }
         if c == b'\'' {
-            let mut name = String::new();
             i += 1;
+            let start = i;
             while i < b.len() {
                 if b[i] == b'\'' {
                     if b.get(i + 1) == Some(&b'\'') {
-                        name.push('\'');
                         i += 2;
                         continue;
                     }
                     break;
                 }
-                name.push(b[i] as char);
                 i += 1;
             }
+            let name = text.get(start..i.min(b.len())).unwrap_or("").replace("''", "'");
             i += 1;
             if b.get(i) == Some(&b'!') {
                 i += 1;
@@ -259,6 +264,13 @@ fn range_of(s: &str) -> Option<(u32, u32, u32, u32)> {
 fn model(zip: &[u8]) -> Option<Model> {
     let mut wb = Workbook::from_bytes(zip.to_vec()).ok()?;
     let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
+    // Two sheets with exactly the same name (Excel never writes them):
+    // every lookup by name resolves to the first, so the model, which
+    // works by index, cannot be compared with name-based answers
+    // (review of PR #65, m1; #36 m12).
+    if names.iter().enumerate().any(|(i, n)| names[..i].contains(n)) {
+        return None;
+    }
     let parts: Vec<Option<String>> =
         (0..names.len()).map(|i| wb.worksheet_by_index(i).ok().map(|ws| ws.part_name().to_owned())).collect();
     let pkg = ooxml_core::Package::from_bytes(zip.to_vec()).ok()?;
@@ -266,7 +278,6 @@ fn model(zip: &[u8]) -> Option<Model> {
     let wb_xml = XmlDocument::parse(&pkg.read_part(wb.workbook_part()).ok()?).ok()?;
     if let Some(c) = wb_xml.root().elements().find(|e| is_sml(e, "calcPr")) {
         m.manual = attr(c, "calcMode") == Some("manual");
-        m.full_calc = matches!(attr(c, "fullCalcOnLoad"), Some("1" | "true"));
     }
     // The calculation chain is the workbook's calcChain relationship target
     // (a part merely named calcChain.xml is not one).
@@ -301,6 +312,7 @@ fn model(zip: &[u8]) -> Option<Model> {
                         match attr(f, "t") {
                             Some("shared") => {
                                 let group = attr(f, "si").unwrap_or("").to_owned();
+                                cell.shared = Some((group.clone(), !text.is_empty(), attr(f, "ref").and_then(range_of)));
                                 if text.is_empty() {
                                     members.push(((r, col), group));
                                 } else {
@@ -538,11 +550,10 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                 }
                 // value read-back
                 if kind <= 1 {
-                    let mut ws = wb.worksheet_by_index(sheet).expect("worksheet");
+                    let ws = wb.worksheet_by_index(sheet).expect("worksheet");
                     let got = ws.cell(row, col).ok().flatten().and_then(|c| c.value().ok());
                     let want = if kind == 0 { CellValue::Number(number) } else { CellValue::String(text.clone()) };
                     assert_eq!(got.as_ref(), Some(&want), "value written at {}!({row},{col}) does not read back", m.names[sheet]);
-                    let _ = &mut ws;
                 }
                 // formula census
                 if has_formula_now {
@@ -551,6 +562,63 @@ pub fn check_xlsx_formula(zip: &[u8], mut ops: Input<'_>) {
                     expected_formulas.remove(&at);
                 }
                 assert_eq!(new.formula_cells(), expected_formulas, "formula cells after editing {}!({row},{col})", m.names[sheet]);
+                // Every other cell, the edited sheet included (review of PR
+                // #65, m2/m3): same f/v and the same effective references,
+                // except the dependents (they lose v) and, after a shared
+                // master is overwritten, the group's new master (its f now
+                // carries the text and ref; its references must not move).
+                let lib_deps: BTreeSet<At> = pending
+                    .dependents()
+                    .iter()
+                    .filter_map(|(n, c)| m.names.iter().position(|x| x == n).map(|s| (s, c.row, c.col)))
+                    .collect();
+                let handoff_group = m.cells[sheet].get(&(row, col)).and_then(|c| c.shared.clone()).filter(|(_, master, _)| *master).map(|(g, ..)| g);
+                for (s, cells) in m.cells.iter().enumerate() {
+                    for (&(r, c), old) in cells {
+                        if (s, r, c) == at {
+                            continue;
+                        }
+                        let new_cell = new.cells[s].get(&(r, c));
+                        let Some(nc) = new_cell else { panic!("{}!({r},{c}) disappeared after editing {}!({row},{col})", m.names[s], m.names[sheet]) };
+                        assert_eq!(nc.has_f, old.has_f, "{}!({r},{c}) gained or lost its formula", m.names[s]);
+                        assert_eq!(nc.reads, old.reads, "{}!({r},{c}) reads other cells now (shared hand-off translated wrongly?)", m.names[s]);
+                        let dep = model_deps.contains(&(s, r, c)) || lib_deps.contains(&(s, r, c));
+                        if !dep {
+                            assert_eq!(nc.has_v, old.has_v, "{}!({r},{c}), not a dependent, lost or gained its cached value", m.names[s]);
+                        }
+                        let in_group = s == sheet && handoff_group.as_ref().is_some_and(|g| old.shared.as_ref().is_some_and(|(og, ..)| og == g));
+                        if !in_group {
+                            assert_eq!(nc.formula, old.formula, "{}!({r},{c}) formula text changed", m.names[s]);
+                        }
+                    }
+                }
+                // Each shared group's master ref that covered all its members
+                // still does.
+                for (s, cells) in new.cells.iter().enumerate() {
+                    let mut groups: BTreeMap<&str, (Option<(u32, u32, u32, u32)>, Vec<(u32, u32)>, bool)> = BTreeMap::new();
+                    for (&(r, c), cell) in cells {
+                        if let Some((g, master, rf)) = &cell.shared {
+                            let e = groups.entry(g.as_str()).or_default();
+                            if *master {
+                                e.0 = *rf;
+                            }
+                            e.1.push((r, c));
+                        }
+                    }
+                    for (g, (rf, members, _)) in &groups {
+                        let covered_before = m.cells[s]
+                            .iter()
+                            .filter(|(_, c)| c.shared.as_ref().is_some_and(|(og, ..)| og == g))
+                            .all(|(&(r, c), _)| {
+                                m.cells[s].values().find_map(|c| c.shared.as_ref().filter(|(og, ms, _)| og == g && *ms).and_then(|x| x.2)).is_some_and(|(r1, c1, r2, c2)| (r1..=r2).contains(&r) && (c1..=c2).contains(&c))
+                            });
+                        if covered_before && let Some((r1, c1, r2, c2)) = *rf {
+                            for (r, c) in members {
+                                assert!((r1..=r2).contains(r) && (c1..=c2).contains(c), "{}: shared group {g}'s master ref no longer covers member ({r},{c})", m.names[s]);
+                            }
+                        }
+                    }
+                }
                 // Outside the edited sheet only what Phase1 may write (the
                 // dependents' caches, calcPr, calcChain): #36's tight oracle.
                 let mut edits = Phase1Edits::default();
@@ -584,6 +652,13 @@ pub fn formula_books() -> Vec<(&'static str, Vec<u8>)> {
 pub fn wrong_row_formula_book() -> Vec<u8> {
     let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B2" i="1"/></calcChain>"#;
     formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B2"><f>A1*2</f><v>2</v></c></row>"#)], "", Some(chain))
+}
+
+/// F-8's reverse layout: `<row r="2"><c r="B1"><f>…` (a cell naming an
+/// earlier row).
+pub fn wrong_row_formula_book_reversed() -> Vec<u8> {
+    let chain = r#"<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="B1" i="1"/></calcChain>"#;
+    formula_book(&[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="B1"><f>A1*2</f><v>2</v></c></row>"#)], "", Some(chain))
 }
 
 fn formula_books_inner() -> Vec<(&'static str, Vec<u8>)> {

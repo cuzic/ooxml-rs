@@ -45,6 +45,13 @@ pub struct Pending {
     had_formula: bool,
 }
 
+impl Pending {
+    /// The dependents `Workbook::dependents` reported before the write.
+    pub fn dependents(&self) -> &[(String, CellIndex)] {
+        &self.deps
+    }
+}
+
 impl Phase1Edits {
     /// Call just before writing `sheet!(row, col)`.
     pub fn before_write(&self, wb: &mut Workbook, sheet: &str, row: u32, col: u32) -> Pending {
@@ -70,6 +77,15 @@ impl Phase1Edits {
 /// Asserts the Phase1 diff between `base` (the zero-edit save) and `out`;
 /// `skip` are the edited sheet parts.
 pub fn assert_phase1_diff(wb: &mut Workbook, base: &[u8], out: &[u8], skip: &[&str], workbook: &str, edits: &Phase1Edits) {
+    // Two sheets with exactly the same name resolve to the first one in
+    // every by-name lookup (`dependents`, `worksheet_by_name`), so the
+    // dependents cannot be placed: skip this check (Excel never writes such
+    // a workbook; the callers' other checks still run). Review of PR #36
+    // round 4, m12.
+    let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
+    if names.iter().enumerate().any(|(i, n)| names[..i].contains(n)) {
+        return;
+    }
     let a = crate::zipcmp::raw_entries(base).expect("base raw");
     let b = crate::zipcmp::raw_entries(out).expect("out raw");
     let pa = ooxml_core::Package::from_bytes(base.to_vec()).expect("base reopens");
