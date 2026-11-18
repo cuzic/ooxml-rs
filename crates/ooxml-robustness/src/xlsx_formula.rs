@@ -311,12 +311,24 @@ fn model(zip: &[u8]) -> Option<Model> {
             for row in sd.into_iter().flat_map(RawNode::elements).filter(|e| is_sml(e, "row")) {
                 for c in row.elements().filter(|e| is_sml(e, "c")) {
                     let (r, col, ..) = cell_ref(attr(c, "r")?)?;
-                    let value = c.elements().find(|e| is_sml(e, "v")).map(|v| v.text().into_owned());
+                    let mut values = c.elements().filter(|e| is_sml(e, "v"));
+                    let value = values.next();
+                    let mut formulas = c.elements().filter(|e| is_sml(e, "f"));
+                    let formula = formulas.next();
+                    // The model reads direct cell children. Ambiguous or nested
+                    // formula/value elements can be interpreted differently by the census.
+                    if values.next().is_some()
+                        || formulas.next().is_some()
+                        || value.into_iter().chain(formula).any(|node| node.elements().next().is_some())
+                    {
+                        return None;
+                    }
+                    let value = value.map(|node| node.text().into_owned());
                     let cell_type = attr(c, "t").map(str::to_owned);
                     let inline_string = c.elements().find(|e| is_sml(e, "is")).and_then(RawNode::span)
                         .map(|span| doc.source()[span.start..span.end()].to_owned());
                     let mut cell = Cell { value, cell_type, inline_string, ..Cell::default() };
-                    if let Some(f) = c.elements().find(|e| is_sml(e, "f")) {
+                    if let Some(f) = formula {
                         cell.has_f = true;
                         total += 1;
                         let text = f.text().into_owned();
@@ -341,7 +353,9 @@ fn model(zip: &[u8]) -> Option<Model> {
                             _ => cell.formula = Some(text),
                         }
                     }
-                    cells.insert((r, col), cell);
+                    if cells.insert((r, col), cell).is_some() {
+                        return None;
+                    }
                 }
             }
             for cell in cells.values_mut() {

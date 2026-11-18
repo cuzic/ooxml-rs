@@ -76,6 +76,13 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
         }
         let before = wb.to_bytes().expect("to_bytes worked before");
         let pending = edits.before_write(&mut wb, &target_name, row, col);
+        let overwrites_shared_string = kind == 0
+            && wb.worksheet().is_ok_and(|ws| {
+                ws.cell(row, col)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|cell| cell.raw().attr(ooxml_core::QName::new("", "t")).is_some_and(|t| t.trim() == "s"))
+            });
         let (result, expect) = {
             let Ok(mut ws) = wb.worksheet() else { return };
             match kind {
@@ -109,6 +116,9 @@ pub fn check_xlsx(zip: &[u8], mut ops: Input<'_>) {
                     edits.wrote_string(pending);
                 } else {
                     edits.wrote(pending, false);
+                    if overwrites_shared_string {
+                        edits.changed_shared_ref_count();
+                    }
                 }
             }
         }
