@@ -86,54 +86,84 @@ impl fmt::Display for QName {
 /// `xmlns` declarations are stored as attributes in [`XMLNS_NS`]: the
 /// default declaration has local name `xmlns` and no prefix, `xmlns:p` has
 /// prefix `xmlns` and local name `p` (the usual DOM convention).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct XName {
+///
+/// One thin pointer (ADR-0010 stage 1a): the parser interns names per
+/// document, so equal names usually share one allocation. Equality compares
+/// the pointer first, then the content; the hash is computed from the
+/// content only, so it agrees with equality.
+#[derive(Clone)]
+pub struct XName(Arc<XNameData>);
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct XNameData {
     ns: Arc<str>,
     local: Box<str>,
     prefix: Option<Box<str>>,
 }
 
+impl PartialEq for XName {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || *self.0 == *other.0
+    }
+}
+
+impl Eq for XName {}
+
+impl std::hash::Hash for XName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl fmt::Debug for XName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("XName").field("ns", &self.0.ns).field("local", &self.0.local).field("prefix", &self.0.prefix).finish()
+    }
+}
+
 impl XName {
-    /// Builds a name from its parts.
+    /// Builds a name from its parts (one allocation; the parser interns
+    /// instead).
     pub fn new(ns: Arc<str>, local: &str, prefix: Option<&str>) -> Self {
-        Self {
-            ns,
-            local: local.into(),
-            prefix: prefix.map(Into::into),
-        }
+        XName(Arc::new(XNameData { ns, local: local.into(), prefix: prefix.map(Into::into) }))
     }
 
     /// Resolved namespace URI (`""` for no namespace).
     pub fn ns(&self) -> &str {
-        &self.ns
+        &self.0.ns
+    }
+
+    /// The namespace URI's shared allocation (the interner's key).
+    pub(crate) fn ns_arc(&self) -> &Arc<str> {
+        &self.0.ns
     }
 
     /// Local name.
     pub fn local(&self) -> &str {
-        &self.local
+        &self.0.local
     }
 
     /// Original (or chosen) prefix; `None` means unprefixed.
     pub fn prefix(&self) -> Option<&str> {
-        self.prefix.as_deref()
+        self.0.prefix.as_deref()
     }
 
     /// True if this name is `q` (namespace URI and local name; prefix ignored).
     pub fn is(&self, q: QName) -> bool {
-        *self.ns == *q.ns && *self.local == *q.local
+        *self.0.ns == *q.ns && *self.0.local == *q.local
     }
 
     /// True for `xmlns` / `xmlns:*` declarations.
     pub fn is_namespace_declaration(&self) -> bool {
-        &*self.ns == XMLNS_NS
+        &*self.0.ns == XMLNS_NS
     }
 
     /// The prefix a namespace declaration declares: `None` for the default
     /// namespace (`xmlns="…"`), `Some(p)` for `xmlns:p`. `None` also for
     /// non-declarations; check [`Self::is_namespace_declaration`] first.
     pub fn declared_prefix(&self) -> Option<&str> {
-        if self.is_namespace_declaration() && self.prefix.is_some() {
-            Some(&self.local)
+        if self.is_namespace_declaration() && self.0.prefix.is_some() {
+            Some(&self.0.local)
         } else {
             None
         }
@@ -142,9 +172,9 @@ impl XName {
     /// Displays the name as written in markup (`prefix:local` or `local`),
     /// without building an intermediate `String`.
     pub fn display(&self) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| match &self.prefix {
-            Some(p) => write!(f, "{p}:{}", self.local),
-            None => f.write_str(&self.local),
+        fmt::from_fn(move |f| match &self.0.prefix {
+            Some(p) => write!(f, "{p}:{}", self.0.local),
+            None => f.write_str(&self.0.local),
         })
     }
 }
