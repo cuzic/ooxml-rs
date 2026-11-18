@@ -195,6 +195,17 @@ fn insert_after_a2_keeps_the_landscape_section() {
 }
 
 #[test]
+fn styled_a2_insertion_refuses_a_missing_wml_attribute_prefix() {
+    let xml = format!(r#"<document xmlns="{W_NS}"><body><p><pPr><sectPr/></pPr></p></body></document>"#);
+    let styles = story_xml("styles", r#"<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/></w:style>"#);
+    let mut doc = Document::from_bytes(package(&xml, &[("styles", "styles.xml", &styles)])).unwrap();
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_paragraph(Place::After(p(0)), "x", &ParagraphSpec::Style("Quote".into()))),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == W_NS
+    );
+}
+
+#[test]
 fn empty_paragraph_inside_a_complex_field_refuses_structure_edits() {
     let body = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>HYPERLINK "https://example.com/"</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>first</w:t></w:r></w:p><w:p/><w:p><w:r><w:t>last</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><w:sectPr/>"#;
     let mut doc = open(body);

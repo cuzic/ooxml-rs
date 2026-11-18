@@ -302,6 +302,9 @@ impl Document {
         let pieces = map_text(text)?;
         if let ParagraphSpec::Style(id) = spec {
             self.resolve_style(id, StyleKind::Paragraph)?;
+            if !crate::format::wml_prefix_in_scope(self.story_root_node(anchor.story), &parent_path) {
+                return Err(Error::Core(ooxml_core::Error::NamespaceNotInScope(NS_W.into())));
+            }
         }
         let kind = self.stories[anchor.story.0].id.kind;
         let part = self.stories[anchor.story.0].id.part.clone();
