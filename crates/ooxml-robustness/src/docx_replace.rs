@@ -13,7 +13,7 @@
 //!   applied matches replaced (all needle occurrences minus the report's
 //!   skipped ones; `\r\n`/`\r` in a replacement read back as `\n`), and
 //!   `replaced` counts them; paragraphs without an applied match keep their
-//!   text, and each paragraph written gets one generation increment;
+//!   text, and each paragraph written gets a fresh generation;
 //! - per story part, the bytes change only inside the spans of the touched
 //!   paragraphs; parts without an applied match stay Layer-1 identical;
 //! - the ordered `w:rPr` elements of every written paragraph are preserved;
@@ -21,7 +21,7 @@
 //!   changes nothing; one from an unchanged paragraph is still accepted;
 //! - the output reopens with the same paragraph texts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ooxml_core::{Package, RawNode};
 use ooxml_docx::{Document, Error, Match, OnRefused, ParaRef, ReplaceOptions, ReplaceReport};
@@ -268,8 +268,18 @@ pub fn check_docx_replace(zip: &[u8], mut ops: Input<'_>) {
             .map(|(p, _)| *p)
             .collect();
         bump(5, written.len());
+        let previous_max = before_gen.values().copied().max().unwrap_or_default();
+        let mut fresh_generations = BTreeSet::new();
         for (p, g) in &before_gen {
-            assert_eq!(doc.generation(*p), g + u64::from(written.contains(p)), "generation of {p:?}");
+            let now = doc.generation(*p);
+            if written.contains(p) {
+                assert!(
+                    now > previous_max && fresh_generations.insert(now),
+                    "expected a fresh generation of {p:?}"
+                );
+            } else {
+                assert_eq!(now, *g, "generation of unwritten {p:?}");
+            }
         }
         for (m, r) in &applied {
             if *r != m.text {
