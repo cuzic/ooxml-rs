@@ -57,11 +57,12 @@ pub(crate) struct Extra {
 }
 
 /// What the apply phase installs in the registries.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct RegistryApply {
-    string: Option<StringPlan>,
+    strings: Vec<StringPlan>,
     /// Change in the number of `t="s"` cells (target and stripped cells).
     refs_delta: i64,
+    refs_changed: bool,
     styles: Option<StylePlan>,
 }
 
@@ -82,6 +83,36 @@ struct HandOff {
     text: String,
     range: CellRange,
     loc: Located,
+}
+
+/// One cell of a [`CellWritePlan`].
+#[derive(Debug)]
+pub(crate) struct PlannedWrite {
+    sheet: usize,
+    part: String,
+    at: CellIndex,
+    op: CellOp,
+    /// The formula the write replaces, if any.
+    target: Option<usize>,
+    style: Option<u32>,
+}
+
+/// The Phase1 multi-cell write plan (ADR-0003 addendum P5-pre; ADR-0017
+/// §2.1): everything one operation's cell writes need, validated together.
+/// Its `calcPr` change and calcChain removal can go into a registry
+/// transaction ([`Workbook::apply_writes_with`]); the rest is applied in
+/// place.
+#[derive(Debug)]
+pub(crate) struct CellWritePlan {
+    writes: Vec<PlannedWrite>,
+    strip: StripPlan,
+    handoffs: Vec<(String, HandOff)>,
+    /// `workbook.xml` with `calcPr/@fullCalcOnLoad`, cloned from the
+    /// current state.
+    staged: Option<XmlDocument>,
+    /// `calcChain.xml`, to remove.
+    chain: Option<String>,
+    registry: RegistryApply,
 }
 
 /// Positions of `c` elements to strip, per sheet.
@@ -170,11 +201,6 @@ impl Workbook {
         DepSet { formulas: d.formulas, results: d.results, cells }
     }
 
-    /// Plans, validates and applies one cell edit.
-    pub(crate) fn edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
-        self.edit_cell_ext(sheet, at, op, Extra::default())
-    }
-
     /// Activates the shared-string registry if the workbook has a
     /// shared-string part; `false` if it has none (ADR-0006 §4.6).
     pub(crate) fn shared_strings_active(&mut self) -> Result<bool> {
@@ -228,78 +254,143 @@ impl Workbook {
         Ok(wb.defined_names().is_some_and(|dn| dn.defined_name_iter().any(|d| sensitive(&d.0.text()))))
     }
 
-    /// [`Self::edit_cell`] with Phase2 registry work.
+    /// Plans and applies one cell edit.
+    pub(crate) fn edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_ext(sheet, at, op, Extra::default())
+    }
+
+    /// Plans and applies one cell edit with Phase2 registry work.
     pub(crate) fn edit_cell_ext(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra) -> Result<()> {
-        self.edit_cell_mode(sheet, at, op, extra, false)
+        let plan = self.plan_writes(vec![(sheet, at, op, extra)])?;
+        self.apply_writes(plan)
     }
 
-    /// Runs every check of [`Self::edit_cell`] without applying anything
-    /// (parsing and index building aside, which change no bytes).
+    /// Runs all the cell checks without applying the plan.
     pub(crate) fn check_edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
-        self.edit_cell_mode(sheet, at, op, Extra::default(), true)
+        self.plan_writes(vec![(sheet, at, op, Extra::default())]).map(|_| ())
     }
 
-    fn edit_cell_mode(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra, dry_run: bool) -> Result<()> {
+    /// Validates all writes, dependent cache strips and registry changes
+    /// before applying any of them (ADR-0003 §3.1a).
+    pub(crate) fn plan_writes(&mut self, writes: Vec<(usize, CellIndex, CellOp, Extra)>) -> Result<CellWritePlan> {
         self.check_editable()?;
-        let part = self.sheets[sheet].part.clone().expect("worksheet");
-        let cell = at.to_string();
-        let style_only = matches!(op, CellOp::StyleOnly);
-        if style_only {
-            return self.edit_style_only(sheet, &part, at, extra);
-        }
-
-        // ---- guards on the cell ----
-        let ctx = self.contexts.get(&sheet).expect("context loaded with the worksheet");
-        // Phase4 (ADR-0014 §3): the anchor of a merged range is writable, as
-        // in Excel; a value in any other cell would be hidden.
-        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
-            return Err(Error::MergedCell { cell, range: m.to_string() });
-        }
-        if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
-            return Err(Error::TableHeaderCell { cell, table: t.name.clone() });
-        }
-        let target = self.census.at(sheet, at);
-        if let Some(fid) = target {
-            let c = self.census.get(fid).expect("alive");
-            if matches!(c.kind, FKind::Array | FKind::DataTable) || c.dynamic {
-                return Err(Error::ArrayAnchor { cell });
+        let mut registry = RegistryApply::default();
+        let mut appends = HashMap::new();
+        let mut planned: Vec<PlannedWrite> = Vec::with_capacity(writes.len());
+        let mut seen: HashSet<(usize, CellIndex)> = HashSet::new();
+        let mut groups: HashSet<(usize, u32)> = HashSet::new();
+        let mut handoffs = Vec::new();
+        let mut deps = DepSet::default();
+        let (mut dep_formulas, mut dep_results, mut dep_cells) = (HashSet::new(), HashSet::new(), HashSet::new());
+        let mut formula_set_changes = false;
+        for (sheet, at, mut op, mut extra) in writes {
+            let part = self.sheets[sheet].part.clone().expect("worksheet");
+            let cell = at.to_string();
+            if !seen.insert((sheet, at)) {
+                return Err(Error::DuplicateCellWrite { cell });
             }
-        }
-        if let Some(a) = self.census.result_anchor(sheet, at) {
-            let anchor = self.census.get(a).expect("alive").at.to_string();
-            return Err(Error::ArrayResultCell { cell, anchor });
-        }
-        if let CellOp::Formula(text) = &op {
-            let bad = |reason: String| Error::InvalidFormula { text: text.clone(), reason };
-            if let Some(ch) = text.chars().find(|c| !xml_char_ok(*c)) {
-                return Err(bad(format!("character U+{:04X} cannot be stored in XML", ch as u32)));
+
+            let style_only = matches!(op, CellOp::StyleOnly);
+            // ---- guards on value and formula writes ----
+            let target = if style_only { None } else { self.census.at(sheet, at) };
+            if !style_only {
+                let ctx = self.contexts.get(&sheet).expect("context loaded with the worksheet");
+                if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
+                    return Err(Error::MergedCell { cell, range: m.to_string() });
+                }
+                if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
+                    return Err(Error::TableHeaderCell { cell, table: t.name.clone() });
+                }
+                if let Some(fid) = target {
+                    let c = self.census.get(fid).expect("alive");
+                    if matches!(c.kind, FKind::Array | FKind::DataTable) || c.dynamic {
+                        return Err(Error::ArrayAnchor { cell });
+                    }
+                }
+                if let Some(a) = self.census.result_anchor(sheet, at) {
+                    let anchor = self.census.get(a).expect("alive").at.to_string();
+                    return Err(Error::ArrayResultCell { cell, anchor });
+                }
+                if let CellOp::Formula(text) = &op {
+                    let bad = |reason: String| Error::InvalidFormula { text: text.clone(), reason };
+                    if let Some(ch) = text.chars().find(|c| !xml_char_ok(*c)) {
+                        return Err(bad(format!("character U+{:04X} cannot be stored in XML", ch as u32)));
+                    }
+                    parse(text).map_err(|e| bad(format!("{} at byte {}", e.message, e.at)))?;
+                    // the file form of future functions and dynamic-array operators
+                    // (ADR-0003 addendum P5-pre, ADR-0017 Q7)
+                    match crate::formula::future::check(text) {
+                        Ok(()) => {}
+                        Err(crate::formula::future::Refusal::MissingPrefix { name, prefix }) => return Err(Error::MissingFunctionPrefix { name, prefix }),
+                        Err(crate::formula::future::Refusal::Operator { operator, file_form }) => return Err(Error::DynamicArrayOperator { operator, file_form }),
+                    }
+                }
+                if matches!(op, CellOp::RemoveFormula) && target.is_none() {
+                    continue;
+                }
             }
-            parse(text).map_err(|e| bad(format!("{} at byte {}", e.message, e.at)))?;
+            if let Some(string) = &mut extra.string {
+                let reg = self.registries.strings.as_ref().ok_or_else(|| Error::Malformed("shared-string plan without a registry".into()))?;
+                reg.reserve(string, &mut appends);
+                op = CellOp::Shared(string.index);
+            }
+
+            // ---- the target in Layer 2 (validated here; re-located at apply) ----
+            self.ensure_index(sheet)?;
+            let index = self.indexes.get(&sheet).expect("built");
+            let mut target_plan = plan_target(self.pkg.xml_part_mut(&part)?, index, &part, at, &op)?;
+            self.plan_registries(&part, at, &mut target_plan, &op, extra, &mut registry)?;
+            formula_set_changes |= match op {
+                CellOp::Formula(_) => target.is_none(),
+                _ => target.is_some(),
+            };
+
+            // ---- shared groups: one cell per group per batch; hand-off (§4.2) ----
+            if let Some(fid) = target {
+                let c = self.census.get(fid).expect("alive").clone();
+                if let FKind::Shared { si, master } = c.kind {
+                    if !groups.insert((sheet, si)) {
+                        return Err(Error::SharedFormulaMaster {
+                            cell,
+                            reason: format!("another cell of shared group {si} is written in the same batch"),
+                        });
+                    }
+                    if master && let Some(h) = self.plan_handoff(&c, si, sheet, &part)? {
+                        handoffs.push((part.clone(), h));
+                    }
+                }
+            }
+
+            // ---- dependents (union) ----
+            let d = if !style_only || self.style_sensitive()? {
+                self.compute_dependents(sheet, at)
+            } else {
+                DepSet::default()
+            };
+            for fid in d.formulas {
+                let f = self.census.get(fid).expect("alive");
+                if (!style_only || (f.sheet, f.at) != (sheet, at)) && dep_formulas.insert(fid) {
+                    deps.formulas.push(fid);
+                }
+            }
+            for (fid, r) in d.results {
+                if dep_results.insert(fid) {
+                    deps.results.push((fid, r));
+                }
+            }
+            for c in d.cells {
+                if (!style_only || c != (sheet, at)) && dep_cells.insert(c) {
+                    deps.cells.push(c);
+                }
+            }
+            planned.push(PlannedWrite { sheet, part, at, op, target, style: target_plan.style });
         }
-        if matches!(op, CellOp::RemoveFormula) && target.is_none() {
-            return Ok(());
-        }
+        // a shared member being written whose group's master is handed off
+        // was refused above (one cell per group)
+        let written: HashSet<_> = planned.iter().filter(|w| !matches!(w.op, CellOp::StyleOnly)).map(|w| (w.sheet, w.at)).collect();
 
-        // ---- the target in Layer 2 ----
-        self.ensure_index(sheet)?;
-        let index = self.indexes.get(&sheet).expect("built");
-        let mut target_plan = plan_target(self.pkg.xml_part_mut(&part)?, index, &part, at, &op)?;
-        let formula_set_changes = match op {
-            CellOp::Formula(_) => target.is_none(),
-            _ => target.is_some(),
-        };
-        // a formula is written or removed: the style-sensitivity answer may change
-        let formulas_change = matches!(op, CellOp::Formula(_)) || target.is_some();
-
-        // ---- shared-formula hand-off (§4.2) ----
-        let handoff = match target.map(|f| (f, self.census.get(f).expect("alive").clone())) {
-            Some((_, c @ FCell { kind: FKind::Shared { si, master: true }, .. })) => self.plan_handoff(&c, si, sheet, &part)?,
-            _ => None,
-        };
-
-        // ---- dependents and their guards ----
-        let deps = self.compute_dependents(sheet, at);
-        let others: Vec<_> = deps.cells.iter().filter(|&&c| c != (sheet, at)).copied().collect();
+        // ---- dependents' guards ----
+        let others: Vec<_> = deps.cells.iter().filter(|c| !written.contains(c)).copied().collect();
         for &fid in &deps.formulas {
             let c = self.census.get(fid).expect("alive");
             if matches!(self.sheets[c.sheet].kind, SheetKind::MacroSheet | SheetKind::DialogSheet) {
@@ -315,11 +406,11 @@ impl Workbook {
 
         // ---- strip plan ----
         let strip = match self.policy {
-            CalcPolicy::StripDependentCaches => self.plan_strip(&deps, sheet, at)?,
+            CalcPolicy::StripDependentCaches => self.plan_strip(&deps, &written)?,
             CalcPolicy::KeepStaleCaches => StripPlan::default(),
         };
 
-        // ---- calcPr on a clone of workbook.xml ----
+        // ---- calcPr on a clone of workbook.xml (cloned from the current state) ----
         let needs_calc = !others.is_empty() || formula_set_changes;
         let staged = if needs_calc && !self.calc.manual && !self.calc.full_calc_on_load {
             let mut doc: XmlDocument = self.pkg.xml_part(&self.workbook_part)?.clone();
@@ -338,79 +429,64 @@ impl Workbook {
         if let Some(p) = &chain {
             self.pkg.check_remove_part(p, &[REL_CALC_CHAIN])?;
         }
+        registry.refs_delta -= strip.shared_refs;
+        registry.refs_changed |= strip.shared_refs != 0;
+        Ok(CellWritePlan { writes: planned, strip, handoffs, staged, chain, registry })
+    }
 
-        // ---- registries (ADR-0006) ----
-        let reg = self.plan_registries(&part, at, &mut target_plan, &op, extra, strip.shared_refs)?;
-
-        if dry_run {
+    /// Applies a plan on its own: the calcChain removal and `workbook.xml`
+    /// in place, then the in-place part (§3.1 apply order).
+    pub(crate) fn apply_writes(&mut self, plan: CellWritePlan) -> Result<()> {
+        if plan.writes.is_empty() {
             return Ok(());
         }
-
-        if formulas_change {
-            self.style_sensitive = None;
-        }
-        // ---- apply ----
         // Poisoned *before* apply and cleared only on success: a panic inside
         // apply (a bug) that a caller catches also leaves the workbook
         // poisoned (review R3-m3).
         self.poisoned = Some("an edit was interrupted while being applied".into());
-        let result = self.apply(sheet, &part, at, &target_plan, &op, target, chain, staged, &strip, handoff, reg);
-        match result {
-            Ok(()) => {
-                self.poisoned = None;
-                Ok(())
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                self.poisoned = Some(msg.clone());
-                Err(Error::Poisoned(msg))
-            }
-        }
+        let result = self.apply_steps(plan, false);
+        self.finish_apply(result)
     }
 
-    /// The style-only path: the cell keeps its value; dependents are
-    /// invalidated only in a style-sensitive workbook (§7).
-    fn edit_style_only(&mut self, sheet: usize, part: &str, at: CellIndex, extra: Extra) -> Result<()> {
-        self.ensure_index(sheet)?;
-        let index = self.indexes.get(&sheet).expect("built");
-        let mut target_plan = plan_target(self.pkg.xml_part_mut(part)?, index, part, at, &CellOp::StyleOnly)?;
-        let (strip, staged) = if self.style_sensitive()? {
-            let deps = self.compute_dependents(sheet, at);
-            let others: Vec<_> = deps.cells.iter().filter(|&&c| c != (sheet, at)).copied().collect();
-            for &fid in &deps.formulas {
-                let c = self.census.get(fid).expect("alive");
-                if (c.sheet, c.at) != (sheet, at) && matches!(self.sheets[c.sheet].kind, SheetKind::MacroSheet | SheetKind::DialogSheet) {
-                    return Err(Error::MacroSheetDependent { sheet: self.sheets[c.sheet].name.clone(), cell: c.at.to_string() });
-                }
-            }
-            if let Some(&(_, c)) = others.iter().find(|k| self.census.vm_cells.contains(k)) {
-                return Err(Error::RichValueCell { cell: c.to_string() });
-            }
-            if self.calc.iterate && !others.is_empty() {
-                return Err(Error::IterativeCalculation);
-            }
-            let strip = match self.policy {
-                CalcPolicy::StripDependentCaches => self.plan_strip(&deps, sheet, at)?,
-                CalcPolicy::KeepStaleCaches => StripPlan::default(),
-            };
-            let staged = if !others.is_empty() && !self.calc.manual && !self.calc.full_calc_on_load {
-                let mut doc: XmlDocument = self.pkg.xml_part(&self.workbook_part)?.clone();
-                {
-                    let mut wb = doc.lens_mut::<sml::Workbook>()?;
-                    let mut calc = wb.get_or_insert::<sml::CalculationProperties>()?;
-                    calc.set_attr(sml::CalculationProperties::ATTR_FULL_CALC_ON_LOAD, "1")?;
-                }
-                Some(doc)
-            } else {
-                None
-            };
-            (strip, staged)
-        } else {
-            (StripPlan::default(), None)
-        };
-        let reg = self.plan_registries(part, at, &mut target_plan, &CellOp::StyleOnly, extra, strip.shared_refs)?;
+    /// Applies a plan as part of a registry transaction (ADR-0017 §2.1):
+    /// the `calcPr` change and the calcChain removal are folded into
+    /// `registry` (a staged `workbook.xml`, `remove_parts`), which the
+    /// caller built **after** [`Self::plan_writes`] with every other step
+    /// of its operation; then `Package::apply` runs, then the in-place part.
+    ///
+    /// A refusal while folding is an ordinary `Err` (nothing changed).
+    /// `StalePlan` from `Package::apply` is also an ordinary `Err`: it is
+    /// returned before anything changes, so the poison is cleared.
+    #[cfg_attr(not(test), expect(dead_code, reason = "the entry for Phase5 operations (ADR-0017 §2.1); exercised by tests"))]
+    pub(crate) fn apply_writes_with(&mut self, plan: CellWritePlan, mut registry: ooxml_core::RegistryPlan) -> Result<()> {
+        if let Some(doc) = &plan.staged {
+            registry.stage_part(&self.pkg, &self.workbook_part, doc.clone())?;
+        }
+        if let Some(p) = &plan.chain {
+            registry.remove_parts(&self.pkg, &[p.as_str()], &[REL_CALC_CHAIN])?;
+        }
+        use crate::workbook::ApplyStepHook as Step;
         self.poisoned = Some("an edit was interrupted while being applied".into());
-        let result = self.apply(sheet, part, at, &target_plan, &CellOp::StyleOnly, None, None, staged, &strip, None, reg);
+        #[cfg(feature = "fault-injection")]
+        if self.fault == Some((Step::StaleRegistryPlan, false)) {
+            // a step-1 ordering bug: the package changes after the plan
+            self.fault = None;
+            let wb = self.workbook_part.clone();
+            self.pkg.xml_part_mut(&wb)?;
+        }
+        if let Err(e) = self.fault_point(Step::Registry) {
+            return self.finish_apply(Err(e));
+        }
+        if let Err(e) = self.pkg.apply(registry) {
+            // only StalePlan, returned before anything changed
+            self.poisoned = None;
+            return Err(e.into());
+        }
+        let result = self.apply_steps(plan, true);
+        self.finish_apply(result)
+    }
+
+    fn finish_apply(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
                 self.poisoned = None;
@@ -427,7 +503,7 @@ impl Workbook {
     /// Plans the registry side of an edit: the style (on a staged clone of
     /// `styles.xml`), the shared-string append (dry-run checked) and the
     /// change in `t="s"` cells. Changes nothing.
-    fn plan_registries(&mut self, part: &str, at: CellIndex, target_plan: &mut TargetPlan, op: &CellOp, extra: Extra, stripped_shared: i64) -> Result<RegistryApply> {
+    fn plan_registries(&mut self, part: &str, at: CellIndex, target_plan: &mut TargetPlan, op: &CellOp, extra: Extra, registry: &mut RegistryApply) -> Result<()> {
         let (old_t_s, current_s) = {
             let doc = self.pkg.xml_part(part)?;
             match located_cell(doc, &target_plan.loc) {
@@ -438,29 +514,34 @@ impl Workbook {
                 None => (false, missing_cell_style(doc, &target_plan.loc, at)),
             }
         };
-        let styles = match &extra.style {
-            Some(req) => {
-                self.styles()?;
-                let st = self.registries.styles.take().expect("activated");
-                let plan = st.plan(self, req, current_s);
-                self.registries.styles = Some(st);
-                let plan = plan?;
-                target_plan.style = Some(plan.s);
-                Some(plan)
-            }
-            None => None,
-        };
-        let mut refs_delta = -stripped_shared;
-        if !matches!(op, CellOp::StyleOnly) {
-            refs_delta += i64::from(matches!(op, CellOp::Shared(_))) - i64::from(old_t_s);
+        if let Some(req) = &extra.style {
+            self.styles()?;
+            let current_plan = registry.styles.take();
+            let st = self.registries.styles.take().expect("activated");
+            let (base, staged) = match &current_plan {
+                Some(plan) => (&plan.next, plan.staged.as_ref()),
+                None => (&st, None),
+            };
+            let plan = base.plan(self, req, current_s, staged);
+            self.registries.styles = Some(st);
+            let plan = plan?;
+            target_plan.style = Some(plan.s);
+            registry.styles = Some(plan);
         }
-        if let Some(sp) = &extra.string {
-            let reg = self.registries.strings.as_ref().ok_or_else(|| Error::Malformed("shared-string plan without a registry".into()))?;
+        if !matches!(op, CellOp::StyleOnly) {
+            let delta = i64::from(matches!(op, CellOp::Shared(_))) - i64::from(old_t_s);
+            registry.refs_delta += delta;
+            registry.refs_changed |= delta != 0;
+        }
+        if let Some(sp) = extra.string {
+            let reg = self.registries.strings.as_ref().expect("reserved");
             let doc = self.pkg.xml_part(&reg.part)?;
             crate::worksheet::check_insertable::<sml::SharedStringTable>(doc.root().elements(), sml::SharedStringItem::QNAME)?;
-            let _ = sp;
+            if sp.will_append() {
+                registry.strings.push(sp);
+            }
         }
-        Ok(RegistryApply { string: extra.string, refs_delta, styles })
+        Ok(())
     }
 
     fn plan_handoff(&mut self, m: &FCell, si: u32, sheet: usize, part: &str) -> Result<Option<HandOff>> {
@@ -505,14 +586,15 @@ impl Workbook {
     }
 
     /// One pass over each affected sheet's `sheetData`, finding every
-    /// dependent that still has a cached value (§3.1, R2-m1).
-    pub(crate) fn plan_strip(&mut self, deps: &DepSet, sheet: usize, at: CellIndex) -> Result<StripPlan> {
+    /// dependent that still has a cached value (§3.1, R2-m1). Cells the
+    /// plan writes are not stripped: they get new content.
+    pub(crate) fn plan_strip(&mut self, deps: &DepSet, written: &HashSet<(usize, CellIndex)>) -> Result<StripPlan> {
         let mut cells: HashMap<usize, HashSet<CellIndex>> = HashMap::new();
         let mut rects: HashMap<usize, Vec<Rect>> = HashMap::new();
         let mut plan = StripPlan::default();
         for &fid in &deps.formulas {
             let c = self.census.get(fid).expect("alive");
-            if (c.sheet, c.at) != (sheet, at) && c.has_cache {
+            if !written.contains(&(c.sheet, c.at)) && c.has_cache {
                 cells.entry(c.sheet).or_default().insert(c.at);
                 plan.fids.push(fid);
             }
@@ -541,42 +623,42 @@ impl Workbook {
         Ok(plan)
     }
 
-    #[expect(clippy::too_many_arguments)]
-    fn apply(
-        &mut self,
-        sheet: usize,
-        part: &str,
-        at: CellIndex,
-        target_plan: &TargetPlan,
-        op: &CellOp,
-        target: Option<usize>,
-        chain: Option<String>,
-        staged: Option<XmlDocument>,
-        strip: &StripPlan,
-        handoff: Option<HandOff>,
-        reg: RegistryApply,
-    ) -> Result<()> {
+    /// The in-place steps of §3.1, in order. With `registry_done`, the
+    /// calcChain removal and `workbook.xml` were applied by
+    /// `Package::apply`; only the in-memory state follows them.
+    fn apply_steps(&mut self, plan: CellWritePlan, registry_done: bool) -> Result<()> {
         use crate::workbook::ApplyStepHook as Step;
-        // (i) calcChain
-        self.fault_point(Step::RemoveCalcChain)?;
-        if let Some(p) = &chain {
-            self.pkg.remove_part(p, &[REL_CALC_CHAIN])?;
-            self.calc_chain = None;
+        let CellWritePlan { writes, strip, handoffs, staged, chain, registry } = plan;
+        if registry_done {
+            if chain.is_some() {
+                self.calc_chain = None;
+            }
+            if staged.is_some() {
+                self.calc.full_calc_on_load = true;
+            }
+        } else {
+            // (i) calcChain
+            self.fault_point(Step::RemoveCalcChain)?;
+            if let Some(p) = &chain {
+                self.pkg.remove_part(p, &[REL_CALC_CHAIN])?;
+                self.calc_chain = None;
+            }
+            // (ii) workbook.xml
+            self.fault_point(Step::CalcPr)?;
+            if let Some(doc) = staged {
+                *self.pkg.xml_part_mut(&self.workbook_part.clone())? = doc;
+                self.calc.full_calc_on_load = true;
+            }
         }
-        // (ii) workbook.xml
-        self.fault_point(Step::CalcPr)?;
-        if let Some(doc) = staged {
-            *self.pkg.xml_part_mut(&self.workbook_part.clone())? = doc;
-            self.calc.full_calc_on_load = true;
-        }
-        // (iii) dependents
+        // (iii) dependents, at the positions planned on the tree before any
+        // write of this plan (writes come after)
         self.fault_point(Step::Strip)?;
         for (p, positions) in &strip.sheets {
             strip_cells(self.pkg.xml_part_mut(p)?, positions)?;
         }
-        // (iv) shared-formula hand-off
+        // (iv) shared-formula hand-offs
         self.fault_point(Step::HandOff)?;
-        if let Some(h) = &handoff {
+        for (part, h) in &handoffs {
             let doc = self.pkg.xml_part_mut(part)?;
             let (Some(ri), Some(ci)) = (h.loc.row, h.loc.cell) else { return Err(Error::Malformed("hand-off".into())) };
             let ws = doc.lens_mut::<sml::Worksheet>()?;
@@ -588,32 +670,41 @@ impl Workbook {
             f.set_reference(&h.range.to_string())?;
             f.set_text(&h.text)?;
         }
-        // (v) registries
+        // (v) Phase2 registry updates.
         self.fault_point(Step::Registries)?;
-        if let Some(p) = reg.styles {
+        if let Some(p) = registry.styles {
             if let Some(doc) = p.staged {
                 *self.pkg.xml_part_mut(&p.next.part)? = doc;
             }
             self.registries.styles = Some(p.next);
         }
-        SharedStrings::apply(self, reg.string.as_ref(), reg.refs_delta)?;
-        // (vi) the target cell
-        self.fault_point(Step::Target)?;
-        let effect = match write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op) {
-            Ok(effect) => effect,
-            Err(e) => {
-                // The tree may have changed before the failure (unreachable
-                // after a successful plan): keep the index true to the tree,
-                // since reads still work on a poisoned workbook (PR #29 m4).
-                if let Ok(doc) = self.pkg.xml_part(part) {
-                    let index = SheetIndex::build(doc);
-                    self.indexes.insert(sheet, index);
+        SharedStrings::apply(self, &registry.strings, registry.refs_delta, registry.refs_changed)?;
+
+        // (vi) the target cells, each located again on the current tree: an
+        // earlier write of the plan may have inserted its row or cell
+        for (k, w) in writes.iter().enumerate() {
+            self.fault_point(if k == 0 { Step::Target } else { Step::LaterTarget })?;
+            let index = self.indexes.get(&w.sheet).expect("built in plan_writes");
+            let written = plan_target(self.pkg.xml_part_mut(&w.part)?, index, &w.part, w.at, &w.op).and_then(|mut tp| {
+                tp.style = w.style;
+                write_cell(self.pkg.xml_part_mut(&w.part)?, &tp, w.at, &w.op)
+            });
+            let effect = match written {
+                Ok(effect) => effect,
+                Err(e) => {
+                    // The tree may have changed before the failure (unreachable
+                    // after a successful plan): keep the index true to the tree,
+                    // since reads still work on a poisoned workbook (PR #29 m4).
+                    if let Ok(doc) = self.pkg.xml_part(&w.part) {
+                        let index = SheetIndex::build(doc);
+                        self.indexes.insert(w.sheet, index);
+                    }
+                    return Err(e);
                 }
-                return Err(e);
+            };
+            if let Some(index) = self.indexes.get_mut(&w.sheet) {
+                effect.update(index, w.at);
             }
-        };
-        if let Some(index) = self.indexes.get_mut(&sheet) {
-            effect.update(index, at);
         }
         // (vii) the index
         self.fault_point(Step::Index)?;
@@ -627,39 +718,44 @@ impl Workbook {
                 c.results_stripped = true;
             }
         }
-        if let Some(h) = handoff
-            && let Some(Some(c)) = self.census.cells.get_mut(h.new_master)
-        {
-            if let FKind::Shared { si, .. } = c.kind {
-                c.kind = FKind::Shared { si, master: true };
+        for (_, h) in handoffs {
+            if let Some(Some(c)) = self.census.cells.get_mut(h.new_master) {
+                if let FKind::Shared { si, .. } = c.kind {
+                    c.kind = FKind::Shared { si, master: true };
+                }
+                c.text = h.text;
+                c.range = Some(h.range);
             }
-            c.text = h.text;
-            c.range = Some(h.range);
         }
-        if let Some(fid) = target {
-            self.census.remove(fid);
-        }
-        if let CellOp::Formula(text) = op {
-            let c = FCell {
-                sheet,
-                at,
-                kind: FKind::Normal,
-                range: None,
-                volatile: false,
-                dynamic: false,
-                spill_error: false,
-                ambiguous_group: false,
-                has_cache: false,
-                results_stripped: false,
-                text: text.clone(),
-            };
-            let prec = self.graph.as_ref().map(|_| {
-                let census = &self.census;
-                precedents_of(&self.env, census, &c, &|s, si| census.master_of(s, si), &mut HashMap::new())
-            });
-            let fid = self.census.push(c);
-            if let (Some(g), Some(p)) = (self.graph.as_mut(), prec) {
-                g.add(fid, p);
+        for w in writes {
+            if w.target.is_some() || matches!(w.op, CellOp::Formula(_)) {
+                self.style_sensitive = None;
+            }
+            if let Some(fid) = w.target {
+                self.census.remove(fid);
+            }
+            if let CellOp::Formula(text) = w.op {
+                let c = FCell {
+                    sheet: w.sheet,
+                    at: w.at,
+                    kind: FKind::Normal,
+                    range: None,
+                    volatile: false,
+                    dynamic: false,
+                    spill_error: false,
+                    ambiguous_group: false,
+                    has_cache: false,
+                    results_stripped: false,
+                    text,
+                };
+                let prec = self.graph.as_ref().map(|_| {
+                    let census = &self.census;
+                    precedents_of(&self.env, census, &c, &|s, si| census.master_of(s, si), &mut HashMap::new())
+                });
+                let fid = self.census.push(c);
+                if let (Some(g), Some(p)) = (self.graph.as_mut(), prec) {
+                    g.add(fid, p);
+                }
             }
         }
         Ok(())
@@ -770,4 +866,147 @@ fn missing_cell_style(doc: &XmlDocument, loc: &Located, at: CellIndex) -> u32 {
         })
         .and_then(|c| c.attr(QName::new("", "style")).and_then(parse))
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    //! The registry path of a [`CellWritePlan`] (ADR-0003 addendum P5-pre,
+    //! ADR-0017 §2.1). The public `write_cells` uses the in-place path; the
+    //! registry path is for Phase5's operations, so it is tested here.
+
+    use super::*;
+
+    fn synthetic(name: &str) -> Vec<u8> {
+        std::fs::read(format!("{}/../../reference/fixtures/xlsx/synthetic/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+    }
+
+    fn sheet(wb: &Workbook, name: &str) -> usize {
+        wb.sheets.iter().position(|s| s.name == name).unwrap()
+    }
+
+    fn writes(wb: &Workbook) -> Vec<(usize, CellIndex, CellOp, Extra)> {
+        let s1 = sheet(wb, "Sheet1");
+        vec![
+            (s1, CellIndex::parse("A1").unwrap(), CellOp::Number("5".into()), Extra::default()),
+            (s1, CellIndex::parse("B12").unwrap(), CellOp::Formula("A1*7".into()), Extra::default()),
+            (s1, CellIndex::parse("C12").unwrap(), CellOp::Text("t".into()), Extra::default()),
+        ]
+    }
+
+    #[test]
+    fn mixed_cell_ops_accumulate_styles_like_single_writes() {
+        let mut batch = Workbook::new().unwrap();
+        let sheet = sheet(&batch, "Sheet1");
+        let writes = || {
+            let at = |cell| CellIndex::parse(cell).unwrap();
+            let style = |code| Extra {
+                style: Some(StyleRequest::Format(Box::new(crate::Format::new().set_num_format(code)))),
+                ..Extra::default()
+            };
+            vec![
+                (sheet, at("A1"), CellOp::Bool(true), style("0.00")),
+                (sheet, at("B1"), CellOp::Error("#N/A"), style("0.000")),
+                (sheet, at("C1"), CellOp::StyleOnly, style("0.00")),
+                (sheet, at("D1"), CellOp::Clear, Extra::default()),
+                (sheet, at("E1"), CellOp::InlineRich(vec![crate::registry::strings::RichRun {
+                    font: None,
+                    escaped: "rich".into(),
+                }]), Extra::default()),
+            ]
+        };
+
+        let plan = batch.plan_writes(writes()).unwrap();
+        batch.apply_writes(plan).unwrap();
+        let mut single = Workbook::new().unwrap();
+        for (sheet, at, op, extra) in writes() {
+            single.edit_cell_ext(sheet, at, op, extra).unwrap();
+        }
+        assert_eq!(batch.to_bytes().unwrap(), single.to_bytes().unwrap());
+    }
+
+    /// Folding `calcPr` and the calcChain removal into a registry
+    /// transaction gives the same package as the in-place path.
+    #[test]
+    fn the_registry_path_matches_the_in_place_path() {
+        for name in ["o1_precise.xlsx", "o1_no_calcpr.xlsx", "o1_manual.xlsx"] {
+            let input = synthetic(name);
+            let mut a = Workbook::from_bytes(input.clone()).unwrap();
+            let p = a.plan_writes(writes(&a)).unwrap();
+            a.apply_writes(p).unwrap();
+            let mut b = Workbook::from_bytes(input.clone()).unwrap();
+            let p = b.plan_writes(writes(&b)).unwrap();
+            let reg = ooxml_core::RegistryPlan::new(&b.pkg);
+            b.apply_writes_with(p, reg).unwrap();
+            assert_eq!(a.to_bytes().unwrap(), b.to_bytes().unwrap(), "{name}");
+            assert_eq!(b.calc_chain, None, "{name}");
+            // the workbook stays usable on both paths
+            b.edit_cell(sheet(&b, "Sheet1"), CellIndex::parse("A2").unwrap(), CellOp::Number("1".into())).unwrap();
+        }
+    }
+
+    /// A refusal while folding (here: the caller's transaction already
+    /// removes `calcChain.xml`, so the plan's removal conflicts) is an
+    /// ordinary `Err`: nothing changed, no poison.
+    #[test]
+    fn a_fold_refusal_changes_nothing() {
+        let input = synthetic("o1_precise.xlsx");
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        let p = wb.plan_writes(writes(&wb)).unwrap();
+        let chain = wb.calc_chain.clone().expect("o1_precise has a calcChain");
+        let mut reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+        reg.remove_parts(&wb.pkg, &[chain.as_str()], &[REL_CALC_CHAIN]).unwrap();
+        let e = wb.apply_writes_with(p, reg);
+        assert!(matches!(e, Err(Error::Core(_))), "{e:?}");
+        assert!(wb.poisoned.is_none());
+        assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+    }
+
+    /// `StalePlan` (an ordering bug in step 1, injected) is returned before
+    /// anything changes: an ordinary `Err`, no poison (ADR-0017 r2-m5).
+    #[cfg(feature = "fault-injection")]
+    #[test]
+    fn a_stale_registry_plan_is_an_ordinary_error() {
+        use crate::workbook::ApplyStep;
+        let input = synthetic("o1_precise.xlsx");
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        let p = wb.plan_writes(writes(&wb)).unwrap();
+        let reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+        wb.inject_apply_failure(ApplyStep::StaleRegistryPlan);
+        let e = wb.apply_writes_with(p, reg);
+        assert!(matches!(e, Err(Error::Core(ooxml_core::Error::RegistryRefused { reason: ooxml_core::RegistryRefusal::StalePlan, .. }))), "{e:?}");
+        assert!(wb.poisoned.is_none());
+        let out = wb.to_bytes().unwrap();
+        assert_eq!(out, Workbook::from_bytes(input).unwrap().to_bytes().unwrap(), "nothing changed");
+        // planning again works
+        let p = wb.plan_writes(writes(&wb)).unwrap();
+        let reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+        wb.apply_writes_with(p, reg).unwrap();
+    }
+
+    /// Fault injection (an `Err` and a panic) before `Package::apply` and
+    /// before each in-place step poisons the workbook (ADR-0017 §2.1).
+    #[cfg(feature = "fault-injection")]
+    #[test]
+    fn faults_on_the_registry_path_poison() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        use crate::workbook::ApplyStep;
+        let input = synthetic("o1_precise.xlsx");
+        for step in [ApplyStep::Registry, ApplyStep::Strip, ApplyStep::HandOff, ApplyStep::Target, ApplyStep::LaterTarget, ApplyStep::Index] {
+            for panic in [false, true] {
+                let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+                let p = wb.plan_writes(writes(&wb)).unwrap();
+                let reg = ooxml_core::RegistryPlan::new(&wb.pkg);
+                if panic {
+                    wb.inject_apply_panic(step);
+                    let r = catch_unwind(AssertUnwindSafe(|| wb.apply_writes_with(p, reg)));
+                    assert!(r.is_err(), "{step:?}: the injected panic fired");
+                } else {
+                    wb.inject_apply_failure(step);
+                    assert!(matches!(wb.apply_writes_with(p, reg), Err(Error::Poisoned(_))), "{step:?}");
+                }
+                assert!(matches!(wb.to_bytes(), Err(Error::Poisoned(_))), "{step:?} panic={panic}");
+            }
+        }
+    }
 }

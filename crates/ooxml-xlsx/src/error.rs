@@ -212,6 +212,37 @@ pub enum Error {
     #[error("naming or renaming a sheet is not supported in Phase0")]
     SheetNamingUnsupported,
 
+    /// A batch write ([`crate::Worksheet::write_cells`]) names the same cell
+    /// twice (ADR-0003 addendum P5-pre).
+    #[error("cell {cell} is written more than once in one batch")]
+    DuplicateCellWrite {
+        /// The cell.
+        cell: String,
+    },
+
+    /// A formula calls a known future function (added to Excel after the
+    /// 2007 format) without its file prefix; Excel would show `#NAME?`
+    /// (ADR-0003 addendum P5-pre, ADR-0017 Q7). Write the file form, or
+    /// convert with [`crate::add_future_prefixes`].
+    #[error("{name} must be written as {prefix}{name} in the file")]
+    MissingFunctionPrefix {
+        /// The function, without prefix.
+        name: String,
+        /// The prefix it needs (`_xlfn.` or `_xlfn._xlws.`).
+        prefix: &'static str,
+    },
+
+    /// A formula uses the spill (`A1#`) or implicit-intersection (`@`)
+    /// operator, whose file forms are function calls (ADR-0003 addendum
+    /// P5-pre, ADR-0017 review m7).
+    #[error("the {operator} operator is written as {file_form} in the file")]
+    DynamicArrayOperator {
+        /// `#` or `@`.
+        operator: char,
+        /// `_xlfn.ANCHORARRAY(…)` or `_xlfn.SINGLE(…)`.
+        file_form: &'static str,
+    },
+
     /// A sheet name Excel would not accept (ADR-0009 §3): empty or longer
     /// than 31 UTF-16 units, one of `: \\ / ? * [ ]`, U+0000 or U+0003, a
     /// leading or trailing `'`, or `History`.
@@ -284,6 +315,7 @@ pub enum Error {
         /// Number of references found.
         count: usize,
     },
+
     /// A format or style write needs `styles.xml` and the workbook has none
     /// (ADR-0006 §5.1; creating the part is out of scope).
     #[error("the workbook has no styles part")]

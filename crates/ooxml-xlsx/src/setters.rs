@@ -20,6 +20,12 @@ impl Workbook {
     /// A string write: shared when the workbook has a shared-string table,
     /// else inline.
     pub(crate) fn write_string(&mut self, sheet: usize, at: CellIndex, value: &str, style: Option<StyleRequest>) -> Result<()> {
+        let (op, mut extra) = self.plan_string_write(value)?;
+        extra.style = style;
+        self.edit_cell_ext(sheet, at, op, extra)
+    }
+
+    pub(crate) fn plan_string_write(&mut self, value: &str) -> Result<(CellOp, Extra)> {
         let units = value.encode_utf16().count();
         if units > MAX_STRING_LEN {
             return Err(Error::StringTooLong(units));
@@ -31,9 +37,9 @@ impl Workbook {
         if self.shared_strings_active()? {
             let plan = self.registries.strings.as_ref().expect("active").plan(&escaped, value)?;
             let index = plan.index;
-            self.edit_cell_ext(sheet, at, CellOp::Shared(index), Extra { string: Some(plan), style })
+            Ok((CellOp::Shared(index), Extra { string: Some(plan), style: None }))
         } else {
-            self.edit_cell_ext(sheet, at, CellOp::Text(escaped), Extra { string: None, style })
+            Ok((CellOp::Text(escaped), Extra::default()))
         }
     }
 

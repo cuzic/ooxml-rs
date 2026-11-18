@@ -25,7 +25,7 @@ use crate::edit::strip_cells;
 use crate::error::{Error, Result};
 use crate::formula::lexer::{Prefix, TokKind, lex};
 use crate::formula::precedents::{Rect, fold};
-use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
+use crate::reference::{MAX_COLS, MAX_ROWS};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, REL_WORKSHEET, Workbook};
 use app_xml::Listed;
 use names::{PrefixEdit, Unrewritable, rewrite_formula, rewrite_location, validate_sheet_name};
@@ -289,7 +289,7 @@ impl Workbook {
             return Err(Error::IterativeCalculation);
         }
         if self.policy == CalcPolicy::StripDependentCaches {
-            let strip = self.plan_strip(&deps, usize::MAX, CellIndex { row: 0, col: 0 })?;
+            let strip = self.plan_strip(&deps, &HashSet::new())?;
             for (part, positions) in &strip.sheets {
                 if gone.iter().any(|&g| self.sheets[g].part.as_deref() == Some(part.as_str())) {
                     continue;

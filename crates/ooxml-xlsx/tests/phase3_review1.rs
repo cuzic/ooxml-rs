@@ -6,7 +6,7 @@ mod common;
 use std::assert_matches;
 
 use common::*;
-use ooxml_xlsx::{Error, Format, Workbook};
+use ooxml_xlsx::{CellIndex, CellWrite, Error, Format, Workbook};
 
 const WS_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const PIVOT_CT: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml";
@@ -774,8 +774,13 @@ fn shared_strings_reuse_entries_after_structural_edit() {
     wb.set_tab_color("Sheet1", Some(0x112233)).unwrap();
     let mut reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
 
-    for book in [&mut wb, &mut reopened] {
-        book.worksheet().unwrap().cell_mut(0, 1).unwrap().set_string("y").unwrap();
+    let writes = [
+        (CellIndex::parse("B1").unwrap(), CellWrite::String("y")),
+        (CellIndex::parse("C1").unwrap(), CellWrite::String("y")),
+    ];
+    wb.worksheet().unwrap().write_cells(&writes).unwrap();
+    for col in [1, 2] {
+        reopened.worksheet().unwrap().cell_mut(0, col).unwrap().set_string("y").unwrap();
     }
 
     let out = wb.to_bytes().unwrap();

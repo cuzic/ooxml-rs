@@ -104,8 +104,19 @@ pub enum ApplyStep {
     HandOff,
     /// Before installing registry additions (`styles.xml`, `sharedStrings.xml`).
     Registries,
-    /// Before writing the target cell.
+    /// Before writing the (first) target cell.
     Target,
+    /// Before writing the second cell of a multi-cell plan (the first one
+    /// is already written: a partly applied plan).
+    LaterTarget,
+    /// Before `Package::apply` of a registry transaction (ADR-0003 addendum
+    /// P5-pre).
+    Registry,
+    /// Not a failure point: changes the package between planning and
+    /// `Package::apply`, so the registry transaction is stale (the plan's
+    /// ordering bug ADR-0017 §2.1 describes). Used with
+    /// `inject_apply_failure` only.
+    StaleRegistryPlan,
     /// Before updating the formula index.
     Index,
     /// A structural operation (ADR-0009): before the registry plan is
