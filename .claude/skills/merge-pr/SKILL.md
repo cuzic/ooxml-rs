@@ -17,15 +17,18 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
 
 ## 手順
 
+シェルの変数は Bash の呼び出しをまたいで残らない。各コードブロックは 1 回の呼び出しで実行し、
+先頭の `PR` `R` `SHA` には**リテラルの値**を書く（手順 3・4 の `SHA` は手順 1 で表示された値を書き写す）。
+
 1. **マージする head を固定し、収束後のコミットをすべて確認する**。`R` はレビューファイルの対象 SHA:
 
    ```sh
    PR=NN; R=<reviewed sha>
-   git fetch origin
-   SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid) || exit 1
+   SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid) || exit 1; echo "SHA=$SHA"
+   git fetch origin || exit 1
    git merge-base --is-ancestor "$R" "$SHA" || { echo "レビューした SHA が head の祖先でない"; exit 1; }
    git log --no-merges --oneline "$R..$SHA" --not origin/main     # PR 側の全コミット（マージの第 2 親も含む）
-   for m in $(git log --merges --format=%H "$R..$SHA"); do git show --remerge-diff --stat "$m"; done  # 手書きの衝突解消
+   for m in $(git log --merges --format=%H "$R..$SHA" --not origin/main); do git show --remerge-diff --stat "$m"; done  # 手書きの衝突解消
    ```
 
    - 列挙されたコミットとして許されるのは、レビューファイルのコミットと、指摘 ID を挙げた Minor/nit の修正だけ。
@@ -34,9 +37,11 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
      `$R..$SHA` の差分だけを短く再レビューする。
 2. **main との関係を確認する**。CONFLICTING、または前回の取り込み以降に main で同じ crate や生成物が
    変わっているなら、Codex に main の取り込みを依頼する（`codex-task`）。取り込み後は手順 1 からやり直す。
-3. **CI 全緑を確かめる**。`gh pr merge` は CI が赤でも通るので、必ずこのゲートを通す（`$PR` `$SHA` は手順 1 のもの）:
+3. **CI 全緑を確かめる**。`gh pr merge` は CI が赤でも通るので、必ずこのゲートを通す。
+   CI は 10 分近くかかるので、Bash ツールの `timeout` を 600000 にするか、バックグラウンドで実行して完了通知を待つ:
 
    ```sh
+   PR=NN; SHA=<手順 1 の SHA>; : "${PR:?}" "${SHA:?}"
    gh pr checks "$PR" --watch --interval 30 >/dev/null 2>&1   # 待つだけ。判定は下で行う
    n=$(gh pr checks "$PR" --json bucket --jq 'length') || { echo "checks を取得できない（0 件など）"; exit 1; }
    bad=$(gh pr checks "$PR" --json bucket --jq '[.[] | select(.bucket != "pass")] | length') || exit 1
@@ -47,7 +52,14 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
    - checks が 0 件（push 直後の "no checks reported"）、取得失敗、pending、`UNKNOWN` はすべて止まる側に倒れる。
      少し置いてからやり直す。
    - `n -ge 2` は現在の CI のジョブ数（Rust と python-pptx）。ジョブを増減したらここも直す。
-4. **固定した head でマージする**: `gh pr merge "$PR" --merge --match-head-commit "$SHA"`（`--delete-branch` は付けない）。
+4. **固定した head でマージする**（`--delete-branch` は付けない）:
+
+   ```sh
+   PR=NN; SHA=<手順 1 の SHA>; : "${PR:?}" "${SHA:?}"
+   gh pr merge "$PR" --merge --match-head-commit "$SHA"
+   ```
+
+   `SHA` が空だと gh は head を固定しないので、`${SHA:?}` で必ず止める。
    手順 1 の後に head が動いていればマージは拒否されるので、手順 1 からやり直す。
 5. **積み上げ PR を付け替えてから、ブランチを消す**。このブランチを base にしている PR を main に向ける:
 

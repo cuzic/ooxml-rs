@@ -59,7 +59,8 @@ cargo xtask codegen --check
   1 つの作業に 1 つの `git worktree`。共有 checkout でブランチを切り替えない。
 - **merge で追従し、rebase / force-push はしない**。衝突した生成物は再生成する。
 - PR ブランチには Claude のレビューファイルのコミットも入る。既存 PR で作業を始める前と、push が拒否されたときは
-  `git pull --no-rebase` する。
+  `git pull --no-rebase origin <branch>` する（ブランチ名を必ず書く。上流が main のままだと main を取ってくる）。
+  新しいブランチの最初の push は `git push -u origin <branch>`。
 - main の取り込みで手書きの衝突解消をしたら、そのマージコミットのメッセージに、何をどう解いたかを書く
   （マージ前に `git show --remerge-diff` で確認される）。
 - Codex は PR を作って更新するが、**マージはしない**。マージは Claude が `.claude/skills/merge-pr` の手順で
