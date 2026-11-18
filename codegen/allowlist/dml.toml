@@ -33,6 +33,21 @@ names = [
     "a16:CT_Identifier/a16:colId",
     "a:CT_Point2D/a:off",
     "a:CT_PositiveSize2D/a:ext",
+
+    # Phase 1b (ADR-0013 §4): SmartArt node text, in the data model and in
+    # the drawing cache, and the cache reference (`dsp:dataModelExt`).
+    "dgm:CT_DataModelRoot/dgm:dataModel",
+    "dgm:CT_PtList/dgm:ptLst",
+    "dgm:CT_Pt/dgm:pt",
+    "dgm:CT_ElemPropSet/dgm:prSet",
+    "a:CT_TextBody/dgm:t",
+    "a:CT_DataModelExtensionList/dgm:extLst",
+    "a:CT_DataModelExtension/a:ext",
+    "dsp:CT_Drawing/dsp:drawing",
+    "dsp:CT_GroupShape/dsp:spTree",
+    "dsp:CT_GroupShape/dsp:grpSp",
+    "dsp:CT_Shape/dsp:sp",
+    "a:CT_TextBody/dsp:txBody",
 ]
 
 # Phase0 read-only. a:rPr / a:pPr / a:endParaRPr are read entries: Phase0

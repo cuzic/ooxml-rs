@@ -8,10 +8,56 @@ pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main"
 pub const NS_A16: &str = "http://schemas.microsoft.com/office/drawing/2014/main";
 /// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
 pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
+/// `dgm`: `http://schemas.openxmlformats.org/drawingml/2006/diagram`
+pub const NS_DGM: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
+/// `dgm14`: `http://schemas.microsoft.com/office/drawing/2010/diagram`
+pub const NS_DGM14: &str = "http://schemas.microsoft.com/office/drawing/2010/diagram";
+/// `dsp`: `http://schemas.microsoft.com/office/drawing/2008/diagram`
+pub const NS_DSP: &str = "http://schemas.microsoft.com/office/drawing/2008/diagram";
 /// `r`: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 /// `thm15`: `http://schemas.microsoft.com/office/thememl/2012/main`
 pub const NS_THM15: &str = "http://schemas.microsoft.com/office/thememl/2012/main";
+/// `dgm:ST_PtType` — Point Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PointValues {
+    /// `node`
+    Node,
+    /// `asst`
+    Assistant,
+    /// `doc`
+    Document,
+    /// `pres`
+    Presentation,
+    /// `parTrans`
+    ParentTransition,
+    /// `sibTrans`
+    SiblingTransition,
+}
+impl ooxml_core::EnumType for PointValues {
+    const VALUES: &'static [&'static str] = &[
+        "node",
+        "asst",
+        "doc",
+        "pres",
+        "parTrans",
+        "sibTrans",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Node),
+            1 => Some(Self::Assistant),
+            2 => Some(Self::Document),
+            3 => Some(Self::Presentation),
+            4 => Some(Self::ParentTransition),
+            5 => Some(Self::SiblingTransition),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_FontCollectionIndex` — Font Collection Index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontCollectionIndexValues {
@@ -3819,6 +3865,140 @@ impl<'a> CustomGeometryView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_DataModelExtension/a:ext` — Defines the DataModelExtension Class.
+#[derive(Debug)]
+pub enum DataModelExtension {}
+impl DataModelExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for DataModelExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ext");
+    const SDK_NAME: &'static str = "a:CT_DataModelExtension/a:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DataModelExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_DSP, "dataModelExt"),
+                    ooxml_core::QName::new(NS_DGM14, "recolorImg"),
+                ],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`DataModelExtension`].
+#[derive(Clone, Debug)]
+pub struct DataModelExtensionView<'a>(pub ooxml_core::Lens<'a, DataModelExtension>);
+impl<'a> DataModelExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(DataModelExtension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DataModelExtension`]. Reads go through [`DataModelExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct DataModelExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DataModelExtension>,
+);
+impl<'a> DataModelExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DataModelExtensionView<'_> {
+        DataModelExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataModelExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataModelExtension::ATTR_URI)
+    }
+}
+/// `a:CT_DataModelExtensionList/dgm:extLst` — Defines the DataModelExtensionList Class.
+#[derive(Debug)]
+pub enum DgmDataModelExtensionList {}
+impl ooxml_core::ElementSpec for DgmDataModelExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DGM, "extLst");
+    const SDK_NAME: &'static str = "a:CT_DataModelExtensionList/dgm:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DgmDataModelExtensionList> for DataModelExtension {}
+/// Read-only view of [`DgmDataModelExtensionList`].
+#[derive(Clone, Debug)]
+pub struct DgmDataModelExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, DgmDataModelExtensionList>,
+);
+impl<'a> DgmDataModelExtensionListView<'a> {
+    /// `a:ext` children in document order.
+    pub fn data_model_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = DataModelExtensionView<'a>> {
+        self.0.children::<DataModelExtension>().map(DataModelExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DgmDataModelExtensionList`]. Reads go through [`DgmDataModelExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct DgmDataModelExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DgmDataModelExtensionList>,
+);
+impl<'a> DgmDataModelExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DgmDataModelExtensionListView<'_> {
+        DgmDataModelExtensionListView(self.0.as_lens())
+    }
+    /// First `a:ext` child matching `pred`, mutably.
+    pub fn data_model_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DataModelExtensionViewMut<'_>> {
+        self.0.child_mut_by::<DataModelExtension>(pred).map(DataModelExtensionViewMut)
+    }
+    /// Inserts a `a:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_data_model_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DataModelExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DataModelExtension>(before).map(DataModelExtensionViewMut)
+    }
+    /// Appends a `a:ext` at the end of its slot.
+    pub fn insert_data_model_extension(
+        &mut self,
+    ) -> Result<DataModelExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DataModelExtension>().map(DataModelExtensionViewMut)
+    }
+    /// Removes the first `a:ext` child.
+    pub fn remove_data_model_extension(&mut self) -> bool {
+        self.0.remove::<DataModelExtension>()
+    }
+}
 /// `a:CT_EmptyElement/a:masterClrMapping` — Master Color Mapping.
 #[derive(Debug)]
 pub enum MasterColorMapping {}
@@ -4206,6 +4386,8 @@ impl ooxml_core::ChildOf<GraphicData> for RowIdIdentifier {}
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Theme {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
+impl ooxml_core::ChildOf<GraphicData> for DgmDataModelRoot {}
+impl ooxml_core::ChildOf<GraphicData> for DspDrawing {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::CreationId {}
 #[cfg(all(feature = "dml", feature = "pml"))]
@@ -4281,6 +4463,16 @@ impl<'a> GraphicDataView<'a> {
     /// `a:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
+    }
+    /// `dgm:dataModel` children in document order.
+    pub fn data_model_root_iter(
+        &self,
+    ) -> impl Iterator<Item = DgmDataModelRootView<'a>> {
+        self.0.children::<DgmDataModelRoot>().map(DgmDataModelRootView)
+    }
+    /// `dsp:drawing` children in document order.
+    pub fn drawing_iter(&self) -> impl Iterator<Item = DspDrawingView<'a>> {
+        self.0.children::<DspDrawing>().map(DspDrawingView)
     }
     #[cfg(feature = "pml")]
     /// `p14:creationId` children in document order.
@@ -8767,6 +8959,236 @@ impl<'a> TextBodyViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> TextBodyView<'_> {
         TextBodyView(self.0.as_lens())
+    }
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(&mut self) -> Option<BodyPropertiesViewMut<'_>> {
+        self.0.child_mut::<BodyProperties>().map(BodyPropertiesViewMut)
+    }
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BodyProperties>().map(BodyPropertiesViewMut)
+    }
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<BodyProperties>()
+    }
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<ListStyleViewMut<'_>> {
+        self.0.child_mut::<ListStyle>().map(ListStyleViewMut)
+    }
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ListStyle>().map(ListStyleViewMut)
+    }
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<ListStyle>()
+    }
+    /// First `a:p` child matching `pred`, mutably.
+    pub fn paragraph_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ParagraphViewMut<'_>> {
+        self.0.child_mut_by::<Paragraph>(pred).map(ParagraphViewMut)
+    }
+    /// Inserts a `a:p` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_paragraph_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Paragraph>(before).map(ParagraphViewMut)
+    }
+    /// Appends a `a:p` at the end of its slot.
+    pub fn insert_paragraph(
+        &mut self,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Paragraph>().map(ParagraphViewMut)
+    }
+    /// Removes the first `a:p` child.
+    pub fn remove_paragraph(&mut self) -> bool {
+        self.0.remove::<Paragraph>()
+    }
+}
+/// `a:CT_TextBody/dgm:t` — Text Body.
+#[derive(Debug)]
+pub enum DgmTextBody {}
+impl ooxml_core::ElementSpec for DgmTextBody {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DGM, "t");
+    const SDK_NAME: &'static str = "a:CT_TextBody/dgm:t";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "bodyPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lstStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "p")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DgmTextBody> for BodyProperties {}
+impl ooxml_core::ChildOf<DgmTextBody> for ListStyle {}
+impl ooxml_core::ChildOf<DgmTextBody> for Paragraph {}
+/// Read-only view of [`DgmTextBody`].
+#[derive(Clone, Debug)]
+pub struct DgmTextBodyView<'a>(pub ooxml_core::Lens<'a, DgmTextBody>);
+impl<'a> DgmTextBodyView<'a> {
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<BodyPropertiesView<'a>> {
+        self.0.child::<BodyProperties>().map(BodyPropertiesView)
+    }
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<ListStyleView<'a>> {
+        self.0.child::<ListStyle>().map(ListStyleView)
+    }
+    /// `a:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DgmTextBody`]. Reads go through [`DgmTextBodyViewMut::as_view`].
+#[derive(Debug)]
+pub struct DgmTextBodyViewMut<'a>(pub ooxml_core::LensMut<'a, DgmTextBody>);
+impl<'a> DgmTextBodyViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DgmTextBodyView<'_> {
+        DgmTextBodyView(self.0.as_lens())
+    }
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(&mut self) -> Option<BodyPropertiesViewMut<'_>> {
+        self.0.child_mut::<BodyProperties>().map(BodyPropertiesViewMut)
+    }
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BodyProperties>().map(BodyPropertiesViewMut)
+    }
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<BodyProperties>()
+    }
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<ListStyleViewMut<'_>> {
+        self.0.child_mut::<ListStyle>().map(ListStyleViewMut)
+    }
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ListStyle>().map(ListStyleViewMut)
+    }
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<ListStyle>()
+    }
+    /// First `a:p` child matching `pred`, mutably.
+    pub fn paragraph_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ParagraphViewMut<'_>> {
+        self.0.child_mut_by::<Paragraph>(pred).map(ParagraphViewMut)
+    }
+    /// Inserts a `a:p` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_paragraph_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Paragraph>(before).map(ParagraphViewMut)
+    }
+    /// Appends a `a:p` at the end of its slot.
+    pub fn insert_paragraph(
+        &mut self,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Paragraph>().map(ParagraphViewMut)
+    }
+    /// Removes the first `a:p` child.
+    pub fn remove_paragraph(&mut self) -> bool {
+        self.0.remove::<Paragraph>()
+    }
+}
+/// `a:CT_TextBody/dsp:txBody` — Defines the TextBody Class.
+#[derive(Debug)]
+pub enum DspTextBody {}
+impl ooxml_core::ElementSpec for DspTextBody {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DSP, "txBody");
+    const SDK_NAME: &'static str = "a:CT_TextBody/dsp:txBody";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "bodyPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lstStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "p")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DspTextBody> for BodyProperties {}
+impl ooxml_core::ChildOf<DspTextBody> for ListStyle {}
+impl ooxml_core::ChildOf<DspTextBody> for Paragraph {}
+/// Read-only view of [`DspTextBody`].
+#[derive(Clone, Debug)]
+pub struct DspTextBodyView<'a>(pub ooxml_core::Lens<'a, DspTextBody>);
+impl<'a> DspTextBodyView<'a> {
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<BodyPropertiesView<'a>> {
+        self.0.child::<BodyProperties>().map(BodyPropertiesView)
+    }
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<ListStyleView<'a>> {
+        self.0.child::<ListStyle>().map(ListStyleView)
+    }
+    /// `a:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DspTextBody`]. Reads go through [`DspTextBodyViewMut::as_view`].
+#[derive(Debug)]
+pub struct DspTextBodyViewMut<'a>(pub ooxml_core::LensMut<'a, DspTextBody>);
+impl<'a> DspTextBodyViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DspTextBodyView<'_> {
+        DspTextBodyView(self.0.as_lens())
     }
     /// First `a:bodyPr` child, mutably.
     pub fn body_properties_mut(&mut self) -> Option<BodyPropertiesViewMut<'_>> {
@@ -16135,6 +16557,1479 @@ impl<'a> TableStyleIdViewMut<'a> {
         self.0.set_text(v)
     }
 }
+/// `dgm:CT_DataModelRoot/dgm:dataModel` — Data Model.
+#[derive(Debug)]
+pub enum DgmDataModelRoot {}
+impl ooxml_core::ElementSpec for DgmDataModelRoot {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DGM, "dataModel");
+    const SDK_NAME: &'static str = "dgm:CT_DataModelRoot/dgm:dataModel";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "ptLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "cxnLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "bg")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "whole")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DgmDataModelRoot> for DgmDataModelExtensionList {}
+impl ooxml_core::ChildOf<DgmDataModelRoot> for DgmPointList {}
+/// Read-only view of [`DgmDataModelRoot`].
+#[derive(Clone, Debug)]
+pub struct DgmDataModelRootView<'a>(pub ooxml_core::Lens<'a, DgmDataModelRoot>);
+impl<'a> DgmDataModelRootView<'a> {
+    /// First `dgm:extLst` child.
+    pub fn data_model_extension_list(
+        &self,
+    ) -> Option<DgmDataModelExtensionListView<'a>> {
+        self.0.child::<DgmDataModelExtensionList>().map(DgmDataModelExtensionListView)
+    }
+    /// First `dgm:ptLst` child.
+    pub fn point_list(&self) -> Option<DgmPointListView<'a>> {
+        self.0.child::<DgmPointList>().map(DgmPointListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DgmDataModelRoot`]. Reads go through [`DgmDataModelRootViewMut::as_view`].
+#[derive(Debug)]
+pub struct DgmDataModelRootViewMut<'a>(pub ooxml_core::LensMut<'a, DgmDataModelRoot>);
+impl<'a> DgmDataModelRootViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DgmDataModelRootView<'_> {
+        DgmDataModelRootView(self.0.as_lens())
+    }
+    /// First `dgm:extLst` child, mutably.
+    pub fn data_model_extension_list_mut(
+        &mut self,
+    ) -> Option<DgmDataModelExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<DgmDataModelExtensionList>()
+            .map(DgmDataModelExtensionListViewMut)
+    }
+    /// Existing `dgm:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_data_model_extension_list(
+        &mut self,
+    ) -> Result<DgmDataModelExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<DgmDataModelExtensionList>()
+            .map(DgmDataModelExtensionListViewMut)
+    }
+    /// Removes the first `dgm:extLst` child.
+    pub fn remove_data_model_extension_list(&mut self) -> bool {
+        self.0.remove::<DgmDataModelExtensionList>()
+    }
+    /// First `dgm:ptLst` child, mutably.
+    pub fn point_list_mut(&mut self) -> Option<DgmPointListViewMut<'_>> {
+        self.0.child_mut::<DgmPointList>().map(DgmPointListViewMut)
+    }
+    /// Existing `dgm:ptLst` child, or a new one in schema position.
+    pub fn get_or_insert_point_list(
+        &mut self,
+    ) -> Result<DgmPointListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DgmPointList>().map(DgmPointListViewMut)
+    }
+    /// Removes the first `dgm:ptLst` child.
+    pub fn remove_point_list(&mut self) -> bool {
+        self.0.remove::<DgmPointList>()
+    }
+}
+/// `dgm:CT_ElemPropSet/dgm:prSet` — Property Set.
+#[derive(Debug)]
+pub enum DgmPropertySet {}
+impl DgmPropertySet {
+    /// `presAssocID`
+    pub const ATTR_PRES_ASSOC_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "presAssocID",
+    );
+    /// `presName`
+    pub const ATTR_PRES_NAME: ooxml_core::QName = ooxml_core::QName::new("", "presName");
+    /// `presStyleLbl`
+    pub const ATTR_PRES_STYLE_LBL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "presStyleLbl",
+    );
+    /// `presStyleIdx`
+    pub const ATTR_PRES_STYLE_IDX: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "presStyleIdx",
+    );
+    /// `presStyleCnt`
+    pub const ATTR_PRES_STYLE_CNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "presStyleCnt",
+    );
+    /// `loTypeId`
+    pub const ATTR_LO_TYPE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "loTypeId",
+    );
+    /// `loCatId`
+    pub const ATTR_LO_CAT_ID: ooxml_core::QName = ooxml_core::QName::new("", "loCatId");
+    /// `qsTypeId`
+    pub const ATTR_QS_TYPE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "qsTypeId",
+    );
+    /// `qsCatId`
+    pub const ATTR_QS_CAT_ID: ooxml_core::QName = ooxml_core::QName::new("", "qsCatId");
+    /// `csTypeId`
+    pub const ATTR_CS_TYPE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "csTypeId",
+    );
+    /// `csCatId`
+    pub const ATTR_CS_CAT_ID: ooxml_core::QName = ooxml_core::QName::new("", "csCatId");
+    /// `coherent3DOff`
+    pub const ATTR_COHERENT3_D_OFF: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "coherent3DOff",
+    );
+    /// `phldrT`
+    pub const ATTR_PHLDR_T: ooxml_core::QName = ooxml_core::QName::new("", "phldrT");
+    /// `phldr`
+    pub const ATTR_PHLDR: ooxml_core::QName = ooxml_core::QName::new("", "phldr");
+    /// `custAng`
+    pub const ATTR_CUST_ANG: ooxml_core::QName = ooxml_core::QName::new("", "custAng");
+    /// `custFlipVert`
+    pub const ATTR_CUST_FLIP_VERT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custFlipVert",
+    );
+    /// `custFlipHor`
+    pub const ATTR_CUST_FLIP_HOR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custFlipHor",
+    );
+    /// `custSzX`
+    pub const ATTR_CUST_SZ_X: ooxml_core::QName = ooxml_core::QName::new("", "custSzX");
+    /// `custSzY`
+    pub const ATTR_CUST_SZ_Y: ooxml_core::QName = ooxml_core::QName::new("", "custSzY");
+    /// `custScaleX`
+    pub const ATTR_CUST_SCALE_X: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custScaleX",
+    );
+    /// `custScaleY`
+    pub const ATTR_CUST_SCALE_Y: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custScaleY",
+    );
+    /// `custT`
+    pub const ATTR_CUST_T: ooxml_core::QName = ooxml_core::QName::new("", "custT");
+    /// `custLinFactX`
+    pub const ATTR_CUST_LIN_FACT_X: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custLinFactX",
+    );
+    /// `custLinFactY`
+    pub const ATTR_CUST_LIN_FACT_Y: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custLinFactY",
+    );
+    /// `custLinFactNeighborX`
+    pub const ATTR_CUST_LIN_FACT_NEIGHBOR_X: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custLinFactNeighborX",
+    );
+    /// `custLinFactNeighborY`
+    pub const ATTR_CUST_LIN_FACT_NEIGHBOR_Y: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custLinFactNeighborY",
+    );
+    /// `custRadScaleRad`
+    pub const ATTR_CUST_RAD_SCALE_RAD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custRadScaleRad",
+    );
+    /// `custRadScaleInc`
+    pub const ATTR_CUST_RAD_SCALE_INC: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "custRadScaleInc",
+    );
+}
+impl ooxml_core::ElementSpec for DgmPropertySet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DGM, "prSet");
+    const SDK_NAME: &'static str = "dgm:CT_ElemPropSet/dgm:prSet";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PRES_ASSOC_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PRES_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PRES_STYLE_LBL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PRES_STYLE_IDX,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PRES_STYLE_CNT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_LO_TYPE_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_LO_CAT_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_QS_TYPE_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_QS_CAT_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CS_TYPE_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CS_CAT_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_COHERENT3_D_OFF,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PHLDR_T,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_PHLDR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_ANG,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_FLIP_VERT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_FLIP_HOR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_SZ_X,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_SZ_Y,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_SCALE_X,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_SCALE_Y,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_T,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_LIN_FACT_X,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_LIN_FACT_Y,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_X,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_Y,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_RAD_SCALE_RAD,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPropertySet::ATTR_CUST_RAD_SCALE_INC,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "presLayoutVars")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "style")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`DgmPropertySet`].
+#[derive(Clone, Debug)]
+pub struct DgmPropertySetView<'a>(pub ooxml_core::Lens<'a, DgmPropertySet>);
+impl<'a> DgmPropertySetView<'a> {
+    /// `presAssocID` — Presentation Element Identifier
+    pub fn presentation_element_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_PRES_ASSOC_ID)
+    }
+    /// `presName` — Presentation Name
+    pub fn presentation_name(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_PRES_NAME)
+    }
+    /// `presStyleLbl` — Presentation Style Label
+    pub fn presentation_style_label(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_PRES_STYLE_LBL)
+    }
+    /// `presStyleIdx` — Presentation Style Index
+    pub fn presentation_style_index(
+        &self,
+    ) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_PRES_STYLE_IDX,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `presStyleCnt` — Presentation Style Count
+    pub fn presentation_style_count(
+        &self,
+    ) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_PRES_STYLE_CNT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `loTypeId` — Current Diagram Type
+    pub fn layout_type_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_LO_TYPE_ID)
+    }
+    /// `loCatId` — Current Diagram Category
+    pub fn layout_category_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_LO_CAT_ID)
+    }
+    /// `qsTypeId` — Current Style Type
+    pub fn quick_style_type_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_QS_TYPE_ID)
+    }
+    /// `qsCatId` — Current Style Category
+    pub fn quick_style_category_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_QS_CAT_ID)
+    }
+    /// `csTypeId` — Color Transform Type Identifier
+    pub fn color_type(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_CS_TYPE_ID)
+    }
+    /// `csCatId` — Color Transform Category
+    pub fn color_category_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_CS_CAT_ID)
+    }
+    /// `coherent3DOff` — Coherent 3D Behavior
+    pub fn coherent3_d(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_COHERENT3_D_OFF,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `phldrT` — Placeholder Text
+    pub fn placeholder_text(&self) -> Option<&'a str> {
+        self.0.attr(DgmPropertySet::ATTR_PHLDR_T)
+    }
+    /// `phldr` — Placeholder
+    pub fn placeholder(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DgmPropertySet::ATTR_PHLDR, ooxml_core::value::parse_bool)
+    }
+    /// `custAng` — Custom Rotation
+    pub fn rotation(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DgmPropertySet::ATTR_CUST_ANG, ooxml_core::value::parse_i32)
+    }
+    /// `custFlipVert` — Custom Vertical Flip
+    pub fn vertical_flip(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_FLIP_VERT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `custFlipHor` — Custom Horizontal Flip
+    pub fn horizontal_flip(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_FLIP_HOR,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `custSzX` — Fixed Width Override
+    pub fn fixed_width_override(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DgmPropertySet::ATTR_CUST_SZ_X, ooxml_core::value::parse_i32)
+    }
+    /// `custSzY` — Fixed Height Override
+    pub fn fixed_height_override(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DgmPropertySet::ATTR_CUST_SZ_Y, ooxml_core::value::parse_i32)
+    }
+    /// `custScaleX` — Width Scale
+    pub fn width_scale(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(DgmPropertySet::ATTR_CUST_SCALE_X, ooxml_core::value::parse_i32)
+    }
+    /// `custScaleY` — Height Scale
+    pub fn height_scale(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(DgmPropertySet::ATTR_CUST_SCALE_Y, ooxml_core::value::parse_i32)
+    }
+    /// `custT` — Text Changed
+    pub fn text_changed(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DgmPropertySet::ATTR_CUST_T, ooxml_core::value::parse_bool)
+    }
+    /// `custLinFactX` — Custom Factor Width
+    pub fn factor_width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_LIN_FACT_X,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `custLinFactY` — Custom Factor Height
+    pub fn factor_height(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_LIN_FACT_Y,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `custLinFactNeighborX` — Neighbor Offset Width
+    pub fn neighbor_offset_width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_X,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `custLinFactNeighborY` — Neighbor Offset Height
+    pub fn neighbor_offset_height(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_Y,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `custRadScaleRad` — Radius Scale
+    pub fn radius_scale(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_RAD_SCALE_RAD,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `custRadScaleInc` — Include Angle Scale
+    pub fn include_angle_scale(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DgmPropertySet::ATTR_CUST_RAD_SCALE_INC,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DgmPropertySet`]. Reads go through [`DgmPropertySetViewMut::as_view`].
+#[derive(Debug)]
+pub struct DgmPropertySetViewMut<'a>(pub ooxml_core::LensMut<'a, DgmPropertySet>);
+impl<'a> DgmPropertySetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DgmPropertySetView<'_> {
+        DgmPropertySetView(self.0.as_lens())
+    }
+    /// Sets `presAssocID` — Presentation Element Identifier
+    pub fn set_presentation_element_id(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_PRES_ASSOC_ID, v)
+    }
+    /// Removes `presAssocID`.
+    pub fn remove_presentation_element_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PRES_ASSOC_ID)
+    }
+    /// Sets `presName` — Presentation Name
+    pub fn set_presentation_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_PRES_NAME, v)
+    }
+    /// Removes `presName`.
+    pub fn remove_presentation_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PRES_NAME)
+    }
+    /// Sets `presStyleLbl` — Presentation Style Label
+    pub fn set_presentation_style_label(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_PRES_STYLE_LBL, v)
+    }
+    /// Removes `presStyleLbl`.
+    pub fn remove_presentation_style_label(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PRES_STYLE_LBL)
+    }
+    /// Sets `presStyleIdx` — Presentation Style Index
+    pub fn set_presentation_style_index(
+        &mut self,
+        v: i32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_PRES_STYLE_IDX, s),
+        )
+    }
+    /// Removes `presStyleIdx`.
+    pub fn remove_presentation_style_index(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PRES_STYLE_IDX)
+    }
+    /// Sets `presStyleCnt` — Presentation Style Count
+    pub fn set_presentation_style_count(
+        &mut self,
+        v: i32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_PRES_STYLE_CNT, s),
+        )
+    }
+    /// Removes `presStyleCnt`.
+    pub fn remove_presentation_style_count(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PRES_STYLE_CNT)
+    }
+    /// Sets `loTypeId` — Current Diagram Type
+    pub fn set_layout_type_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_LO_TYPE_ID, v)
+    }
+    /// Removes `loTypeId`.
+    pub fn remove_layout_type_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_LO_TYPE_ID)
+    }
+    /// Sets `loCatId` — Current Diagram Category
+    pub fn set_layout_category_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_LO_CAT_ID, v)
+    }
+    /// Removes `loCatId`.
+    pub fn remove_layout_category_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_LO_CAT_ID)
+    }
+    /// Sets `qsTypeId` — Current Style Type
+    pub fn set_quick_style_type_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_QS_TYPE_ID, v)
+    }
+    /// Removes `qsTypeId`.
+    pub fn remove_quick_style_type_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_QS_TYPE_ID)
+    }
+    /// Sets `qsCatId` — Current Style Category
+    pub fn set_quick_style_category_id(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_QS_CAT_ID, v)
+    }
+    /// Removes `qsCatId`.
+    pub fn remove_quick_style_category_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_QS_CAT_ID)
+    }
+    /// Sets `csTypeId` — Color Transform Type Identifier
+    pub fn set_color_type(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_CS_TYPE_ID, v)
+    }
+    /// Removes `csTypeId`.
+    pub fn remove_color_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CS_TYPE_ID)
+    }
+    /// Sets `csCatId` — Color Transform Category
+    pub fn set_color_category_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_CS_CAT_ID, v)
+    }
+    /// Removes `csCatId`.
+    pub fn remove_color_category_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CS_CAT_ID)
+    }
+    /// Sets `coherent3DOff` — Coherent 3D Behavior
+    pub fn set_coherent3_d(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DgmPropertySet::ATTR_COHERENT3_D_OFF,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `coherent3DOff`.
+    pub fn remove_coherent3_d(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_COHERENT3_D_OFF)
+    }
+    /// Sets `phldrT` — Placeholder Text
+    pub fn set_placeholder_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_PHLDR_T, v)
+    }
+    /// Removes `phldrT`.
+    pub fn remove_placeholder_text(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PHLDR_T)
+    }
+    /// Sets `phldr` — Placeholder
+    pub fn set_placeholder(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_PHLDR, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `phldr`.
+    pub fn remove_placeholder(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_PHLDR)
+    }
+    /// Sets `custAng` — Custom Rotation
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_ANG, s),
+        )
+    }
+    /// Removes `custAng`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_ANG)
+    }
+    /// Sets `custFlipVert` — Custom Vertical Flip
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DgmPropertySet::ATTR_CUST_FLIP_VERT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `custFlipVert`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_FLIP_VERT)
+    }
+    /// Sets `custFlipHor` — Custom Horizontal Flip
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DgmPropertySet::ATTR_CUST_FLIP_HOR,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `custFlipHor`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_FLIP_HOR)
+    }
+    /// Sets `custSzX` — Fixed Width Override
+    pub fn set_fixed_width_override(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_SZ_X, s),
+        )
+    }
+    /// Removes `custSzX`.
+    pub fn remove_fixed_width_override(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_SZ_X)
+    }
+    /// Sets `custSzY` — Fixed Height Override
+    pub fn set_fixed_height_override(
+        &mut self,
+        v: i32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_SZ_Y, s),
+        )
+    }
+    /// Removes `custSzY`.
+    pub fn remove_fixed_height_override(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_SZ_Y)
+    }
+    /// Sets `custScaleX` — Width Scale
+    pub fn set_width_scale(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_SCALE_X, s),
+        )
+    }
+    /// Removes `custScaleX`.
+    pub fn remove_width_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_SCALE_X)
+    }
+    /// Sets `custScaleY` — Height Scale
+    pub fn set_height_scale(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_SCALE_Y, s),
+        )
+    }
+    /// Removes `custScaleY`.
+    pub fn remove_height_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_SCALE_Y)
+    }
+    /// Sets `custT` — Text Changed
+    pub fn set_text_changed(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPropertySet::ATTR_CUST_T, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `custT`.
+    pub fn remove_text_changed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_T)
+    }
+    /// Sets `custLinFactX` — Custom Factor Width
+    pub fn set_factor_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_X, s),
+        )
+    }
+    /// Removes `custLinFactX`.
+    pub fn remove_factor_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_X)
+    }
+    /// Sets `custLinFactY` — Custom Factor Height
+    pub fn set_factor_height(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_Y, s),
+        )
+    }
+    /// Removes `custLinFactY`.
+    pub fn remove_factor_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_Y)
+    }
+    /// Sets `custLinFactNeighborX` — Neighbor Offset Width
+    pub fn set_neighbor_offset_width(
+        &mut self,
+        v: i32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_X, s),
+        )
+    }
+    /// Removes `custLinFactNeighborX`.
+    pub fn remove_neighbor_offset_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_X)
+    }
+    /// Sets `custLinFactNeighborY` — Neighbor Offset Height
+    pub fn set_neighbor_offset_height(
+        &mut self,
+        v: i32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_Y, s),
+        )
+    }
+    /// Removes `custLinFactNeighborY`.
+    pub fn remove_neighbor_offset_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_LIN_FACT_NEIGHBOR_Y)
+    }
+    /// Sets `custRadScaleRad` — Radius Scale
+    pub fn set_radius_scale(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_RAD_SCALE_RAD, s),
+        )
+    }
+    /// Removes `custRadScaleRad`.
+    pub fn remove_radius_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_RAD_SCALE_RAD)
+    }
+    /// Sets `custRadScaleInc` — Include Angle Scale
+    pub fn set_include_angle_scale(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DgmPropertySet::ATTR_CUST_RAD_SCALE_INC, s),
+        )
+    }
+    /// Removes `custRadScaleInc`.
+    pub fn remove_include_angle_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPropertySet::ATTR_CUST_RAD_SCALE_INC)
+    }
+}
+/// `dgm:CT_Pt/dgm:pt` — Point.
+#[derive(Debug)]
+pub enum DgmPoint {}
+impl DgmPoint {
+    /// `modelId`
+    pub const ATTR_MODEL_ID: ooxml_core::QName = ooxml_core::QName::new("", "modelId");
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `cxnId`
+    pub const ATTR_CXN_ID: ooxml_core::QName = ooxml_core::QName::new("", "cxnId");
+}
+impl ooxml_core::ElementSpec for DgmPoint {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DGM, "pt");
+    const SDK_NAME: &'static str = "dgm:CT_Pt/dgm:pt";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DgmPoint::ATTR_MODEL_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPoint::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <PointValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("node"),
+        },
+        ooxml_core::AttrSpec {
+            name: DgmPoint::ATTR_CXN_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "prSet")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "spPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "t")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DgmPoint> for DgmTextBody {}
+impl ooxml_core::ChildOf<DgmPoint> for DgmPropertySet {}
+/// Read-only view of [`DgmPoint`].
+#[derive(Clone, Debug)]
+pub struct DgmPointView<'a>(pub ooxml_core::Lens<'a, DgmPoint>);
+impl<'a> DgmPointView<'a> {
+    /// `modelId` — Model Identifier
+    pub fn model_id(&self) -> Option<&'a str> {
+        self.0.attr(DgmPoint::ATTR_MODEL_ID)
+    }
+    /// `type` — Point Type (default `node`)
+    pub fn type_(&self) -> ooxml_core::EnumValue<'a, PointValues> {
+        self.0.attr_enum_or(DgmPoint::ATTR_TYPE, "node")
+    }
+    /// `cxnId` — Connection Identifier (default `0`)
+    pub fn connection_id(&self) -> &'a str {
+        self.0.attr(DgmPoint::ATTR_CXN_ID).unwrap_or("0")
+    }
+    /// First `dgm:t` child.
+    pub fn text_body(&self) -> Option<DgmTextBodyView<'a>> {
+        self.0.child::<DgmTextBody>().map(DgmTextBodyView)
+    }
+    /// First `dgm:prSet` child.
+    pub fn property_set(&self) -> Option<DgmPropertySetView<'a>> {
+        self.0.child::<DgmPropertySet>().map(DgmPropertySetView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DgmPoint`]. Reads go through [`DgmPointViewMut::as_view`].
+#[derive(Debug)]
+pub struct DgmPointViewMut<'a>(pub ooxml_core::LensMut<'a, DgmPoint>);
+impl<'a> DgmPointViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DgmPointView<'_> {
+        DgmPointView(self.0.as_lens())
+    }
+    /// Sets `modelId` — Model Identifier
+    pub fn set_model_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPoint::ATTR_MODEL_ID, v)
+    }
+    /// Removes `modelId`.
+    pub fn remove_model_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPoint::ATTR_MODEL_ID)
+    }
+    /// Sets `type` — Point Type (default `node`)
+    pub fn set_type(&mut self, v: PointValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPoint::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPoint::ATTR_TYPE)
+    }
+    /// Sets `cxnId` — Connection Identifier (default `0`)
+    pub fn set_connection_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DgmPoint::ATTR_CXN_ID, v)
+    }
+    /// Removes `cxnId`.
+    pub fn remove_connection_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DgmPoint::ATTR_CXN_ID)
+    }
+    /// First `dgm:t` child, mutably.
+    pub fn text_body_mut(&mut self) -> Option<DgmTextBodyViewMut<'_>> {
+        self.0.child_mut::<DgmTextBody>().map(DgmTextBodyViewMut)
+    }
+    /// Existing `dgm:t` child, or a new one in schema position.
+    pub fn get_or_insert_text_body(
+        &mut self,
+    ) -> Result<DgmTextBodyViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DgmTextBody>().map(DgmTextBodyViewMut)
+    }
+    /// Removes the first `dgm:t` child.
+    pub fn remove_text_body(&mut self) -> bool {
+        self.0.remove::<DgmTextBody>()
+    }
+    /// First `dgm:prSet` child, mutably.
+    pub fn property_set_mut(&mut self) -> Option<DgmPropertySetViewMut<'_>> {
+        self.0.child_mut::<DgmPropertySet>().map(DgmPropertySetViewMut)
+    }
+    /// Existing `dgm:prSet` child, or a new one in schema position.
+    pub fn get_or_insert_property_set(
+        &mut self,
+    ) -> Result<DgmPropertySetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DgmPropertySet>().map(DgmPropertySetViewMut)
+    }
+    /// Removes the first `dgm:prSet` child.
+    pub fn remove_property_set(&mut self) -> bool {
+        self.0.remove::<DgmPropertySet>()
+    }
+}
+/// `dgm:CT_PtList/dgm:ptLst` — Point List.
+#[derive(Debug)]
+pub enum DgmPointList {}
+impl ooxml_core::ElementSpec for DgmPointList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DGM, "ptLst");
+    const SDK_NAME: &'static str = "dgm:CT_PtList/dgm:ptLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DGM, "pt")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DgmPointList> for DgmPoint {}
+/// Read-only view of [`DgmPointList`].
+#[derive(Clone, Debug)]
+pub struct DgmPointListView<'a>(pub ooxml_core::Lens<'a, DgmPointList>);
+impl<'a> DgmPointListView<'a> {
+    /// `dgm:pt` children in document order.
+    pub fn point_iter(&self) -> impl Iterator<Item = DgmPointView<'a>> {
+        self.0.children::<DgmPoint>().map(DgmPointView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DgmPointList`]. Reads go through [`DgmPointListViewMut::as_view`].
+#[derive(Debug)]
+pub struct DgmPointListViewMut<'a>(pub ooxml_core::LensMut<'a, DgmPointList>);
+impl<'a> DgmPointListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DgmPointListView<'_> {
+        DgmPointListView(self.0.as_lens())
+    }
+    /// First `dgm:pt` child matching `pred`, mutably.
+    pub fn point_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DgmPointViewMut<'_>> {
+        self.0.child_mut_by::<DgmPoint>(pred).map(DgmPointViewMut)
+    }
+    /// Inserts a `dgm:pt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_point_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DgmPointViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DgmPoint>(before).map(DgmPointViewMut)
+    }
+    /// Appends a `dgm:pt` at the end of its slot.
+    pub fn insert_point(&mut self) -> Result<DgmPointViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DgmPoint>().map(DgmPointViewMut)
+    }
+    /// Removes the first `dgm:pt` child.
+    pub fn remove_point(&mut self) -> bool {
+        self.0.remove::<DgmPoint>()
+    }
+}
+/// `dsp:CT_Drawing/dsp:drawing` — Defines the Drawing Class.
+#[derive(Debug)]
+pub enum DspDrawing {}
+impl ooxml_core::ElementSpec for DspDrawing {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DSP, "drawing");
+    const SDK_NAME: &'static str = "dsp:CT_Drawing/dsp:drawing";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "spTree")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DspDrawing> for DspShapeTree {}
+/// Read-only view of [`DspDrawing`].
+#[derive(Clone, Debug)]
+pub struct DspDrawingView<'a>(pub ooxml_core::Lens<'a, DspDrawing>);
+impl<'a> DspDrawingView<'a> {
+    /// First `dsp:spTree` child.
+    pub fn shape_tree(&self) -> Option<DspShapeTreeView<'a>> {
+        self.0.child::<DspShapeTree>().map(DspShapeTreeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DspDrawing`]. Reads go through [`DspDrawingViewMut::as_view`].
+#[derive(Debug)]
+pub struct DspDrawingViewMut<'a>(pub ooxml_core::LensMut<'a, DspDrawing>);
+impl<'a> DspDrawingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DspDrawingView<'_> {
+        DspDrawingView(self.0.as_lens())
+    }
+    /// First `dsp:spTree` child, mutably.
+    pub fn shape_tree_mut(&mut self) -> Option<DspShapeTreeViewMut<'_>> {
+        self.0.child_mut::<DspShapeTree>().map(DspShapeTreeViewMut)
+    }
+    /// Existing `dsp:spTree` child, or a new one in schema position.
+    pub fn get_or_insert_shape_tree(
+        &mut self,
+    ) -> Result<DspShapeTreeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DspShapeTree>().map(DspShapeTreeViewMut)
+    }
+    /// Removes the first `dsp:spTree` child.
+    pub fn remove_shape_tree(&mut self) -> bool {
+        self.0.remove::<DspShapeTree>()
+    }
+}
+/// `dsp:CT_GroupShape/dsp:grpSp` — Defines the GroupShape Class.
+#[derive(Debug)]
+pub enum DspGroupShape {}
+impl ooxml_core::ElementSpec for DspGroupShape {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DSP, "grpSp");
+    const SDK_NAME: &'static str = "dsp:CT_GroupShape/dsp:grpSp";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "nvGrpSpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "grpSpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_DSP, "sp"),
+                    ooxml_core::QName::new(NS_DSP, "grpSp"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DspGroupShape> for DspGroupShape {}
+impl ooxml_core::ChildOf<DspGroupShape> for DspShape {}
+/// Read-only view of [`DspGroupShape`].
+#[derive(Clone, Debug)]
+pub struct DspGroupShapeView<'a>(pub ooxml_core::Lens<'a, DspGroupShape>);
+impl<'a> DspGroupShapeView<'a> {
+    /// `dsp:grpSp` children in document order.
+    pub fn group_shape_iter(&self) -> impl Iterator<Item = DspGroupShapeView<'a>> {
+        self.0.children::<DspGroupShape>().map(DspGroupShapeView)
+    }
+    /// `dsp:sp` children in document order.
+    pub fn shape_iter(&self) -> impl Iterator<Item = DspShapeView<'a>> {
+        self.0.children::<DspShape>().map(DspShapeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DspGroupShape`]. Reads go through [`DspGroupShapeViewMut::as_view`].
+#[derive(Debug)]
+pub struct DspGroupShapeViewMut<'a>(pub ooxml_core::LensMut<'a, DspGroupShape>);
+impl<'a> DspGroupShapeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DspGroupShapeView<'_> {
+        DspGroupShapeView(self.0.as_lens())
+    }
+    /// First `dsp:grpSp` child matching `pred`, mutably.
+    pub fn group_shape_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DspGroupShapeViewMut<'_>> {
+        self.0.child_mut_by::<DspGroupShape>(pred).map(DspGroupShapeViewMut)
+    }
+    /// Inserts a `dsp:grpSp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_group_shape_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DspGroupShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DspGroupShape>(before).map(DspGroupShapeViewMut)
+    }
+    /// Appends a `dsp:grpSp` at the end of its slot.
+    pub fn insert_group_shape(
+        &mut self,
+    ) -> Result<DspGroupShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DspGroupShape>().map(DspGroupShapeViewMut)
+    }
+    /// Removes the first `dsp:grpSp` child.
+    pub fn remove_group_shape(&mut self) -> bool {
+        self.0.remove::<DspGroupShape>()
+    }
+    /// First `dsp:sp` child matching `pred`, mutably.
+    pub fn shape_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DspShapeViewMut<'_>> {
+        self.0.child_mut_by::<DspShape>(pred).map(DspShapeViewMut)
+    }
+    /// Inserts a `dsp:sp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shape_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DspShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DspShape>(before).map(DspShapeViewMut)
+    }
+    /// Appends a `dsp:sp` at the end of its slot.
+    pub fn insert_shape(&mut self) -> Result<DspShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DspShape>().map(DspShapeViewMut)
+    }
+    /// Removes the first `dsp:sp` child.
+    pub fn remove_shape(&mut self) -> bool {
+        self.0.remove::<DspShape>()
+    }
+}
+/// `dsp:CT_GroupShape/dsp:spTree` — Defines the ShapeTree Class.
+#[derive(Debug)]
+pub enum DspShapeTree {}
+impl ooxml_core::ElementSpec for DspShapeTree {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DSP, "spTree");
+    const SDK_NAME: &'static str = "dsp:CT_GroupShape/dsp:spTree";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "nvGrpSpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "grpSpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_DSP, "sp"),
+                    ooxml_core::QName::new(NS_DSP, "grpSp"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DspShapeTree> for DspGroupShape {}
+impl ooxml_core::ChildOf<DspShapeTree> for DspShape {}
+/// Read-only view of [`DspShapeTree`].
+#[derive(Clone, Debug)]
+pub struct DspShapeTreeView<'a>(pub ooxml_core::Lens<'a, DspShapeTree>);
+impl<'a> DspShapeTreeView<'a> {
+    /// `dsp:grpSp` children in document order.
+    pub fn group_shape_iter(&self) -> impl Iterator<Item = DspGroupShapeView<'a>> {
+        self.0.children::<DspGroupShape>().map(DspGroupShapeView)
+    }
+    /// `dsp:sp` children in document order.
+    pub fn shape_iter(&self) -> impl Iterator<Item = DspShapeView<'a>> {
+        self.0.children::<DspShape>().map(DspShapeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DspShapeTree`]. Reads go through [`DspShapeTreeViewMut::as_view`].
+#[derive(Debug)]
+pub struct DspShapeTreeViewMut<'a>(pub ooxml_core::LensMut<'a, DspShapeTree>);
+impl<'a> DspShapeTreeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DspShapeTreeView<'_> {
+        DspShapeTreeView(self.0.as_lens())
+    }
+    /// First `dsp:grpSp` child matching `pred`, mutably.
+    pub fn group_shape_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DspGroupShapeViewMut<'_>> {
+        self.0.child_mut_by::<DspGroupShape>(pred).map(DspGroupShapeViewMut)
+    }
+    /// Inserts a `dsp:grpSp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_group_shape_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DspGroupShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DspGroupShape>(before).map(DspGroupShapeViewMut)
+    }
+    /// Appends a `dsp:grpSp` at the end of its slot.
+    pub fn insert_group_shape(
+        &mut self,
+    ) -> Result<DspGroupShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DspGroupShape>().map(DspGroupShapeViewMut)
+    }
+    /// Removes the first `dsp:grpSp` child.
+    pub fn remove_group_shape(&mut self) -> bool {
+        self.0.remove::<DspGroupShape>()
+    }
+    /// First `dsp:sp` child matching `pred`, mutably.
+    pub fn shape_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DspShapeViewMut<'_>> {
+        self.0.child_mut_by::<DspShape>(pred).map(DspShapeViewMut)
+    }
+    /// Inserts a `dsp:sp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shape_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DspShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DspShape>(before).map(DspShapeViewMut)
+    }
+    /// Appends a `dsp:sp` at the end of its slot.
+    pub fn insert_shape(&mut self) -> Result<DspShapeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DspShape>().map(DspShapeViewMut)
+    }
+    /// Removes the first `dsp:sp` child.
+    pub fn remove_shape(&mut self) -> bool {
+        self.0.remove::<DspShape>()
+    }
+}
+/// `dsp:CT_Shape/dsp:sp` — Defines the Shape Class.
+#[derive(Debug)]
+pub enum DspShape {}
+impl DspShape {
+    /// `modelId`
+    pub const ATTR_MODEL_ID: ooxml_core::QName = ooxml_core::QName::new("", "modelId");
+}
+impl ooxml_core::ElementSpec for DspShape {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_DSP, "sp");
+    const SDK_NAME: &'static str = "dsp:CT_Shape/dsp:sp";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DspShape::ATTR_MODEL_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "nvSpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "spPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "style")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "txBody")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "txXfrm")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_DSP, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DspShape> for DspTextBody {}
+/// Read-only view of [`DspShape`].
+#[derive(Clone, Debug)]
+pub struct DspShapeView<'a>(pub ooxml_core::Lens<'a, DspShape>);
+impl<'a> DspShapeView<'a> {
+    /// `modelId` — modelId
+    pub fn model_id(&self) -> Option<&'a str> {
+        self.0.attr(DspShape::ATTR_MODEL_ID)
+    }
+    /// First `dsp:txBody` child.
+    pub fn text_body(&self) -> Option<DspTextBodyView<'a>> {
+        self.0.child::<DspTextBody>().map(DspTextBodyView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DspShape`]. Reads go through [`DspShapeViewMut::as_view`].
+#[derive(Debug)]
+pub struct DspShapeViewMut<'a>(pub ooxml_core::LensMut<'a, DspShape>);
+impl<'a> DspShapeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DspShapeView<'_> {
+        DspShapeView(self.0.as_lens())
+    }
+    /// Sets `modelId` — modelId
+    pub fn set_model_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DspShape::ATTR_MODEL_ID, v)
+    }
+    /// Removes `modelId`.
+    pub fn remove_model_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DspShape::ATTR_MODEL_ID)
+    }
+    /// First `dsp:txBody` child, mutably.
+    pub fn text_body_mut(&mut self) -> Option<DspTextBodyViewMut<'_>> {
+        self.0.child_mut::<DspTextBody>().map(DspTextBodyViewMut)
+    }
+    /// Existing `dsp:txBody` child, or a new one in schema position.
+    pub fn get_or_insert_text_body(
+        &mut self,
+    ) -> Result<DspTextBodyViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DspTextBody>().map(DspTextBodyViewMut)
+    }
+    /// Removes the first `dsp:txBody` child.
+    pub fn remove_text_body(&mut self) -> bool {
+        self.0.remove::<DspTextBody>()
+    }
+}
 /// `xsd:string/a:t` — Defines the Text Class.
 #[derive(Debug)]
 pub enum Text {}
@@ -16298,6 +18193,12 @@ const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light1Color>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light2Color>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<CustomGeometry>();
+const _: () = ooxml_core::schema::assert_spec::<DataModelExtension>();
+const _: () = ooxml_core::schema::assert_spec::<DgmDataModelExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<
+    DgmDataModelExtensionList,
+    DataModelExtension,
+>();
 const _: () = ooxml_core::schema::assert_spec::<MasterColorMapping>();
 const _: () = ooxml_core::schema::assert_spec::<MajorFont>();
 const _: () = ooxml_core::schema::assert_child::<MajorFont, ExtensionList>();
@@ -16333,6 +18234,8 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, RowIdIdentifier>()
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Theme>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, DgmDataModelRoot>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, DspDrawing>();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::CreationId>();
 #[cfg(all(feature = "dml", feature = "pml"))]
@@ -16491,6 +18394,14 @@ const _: () = ooxml_core::schema::assert_spec::<TextBody>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, BodyProperties>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, ListStyle>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, Paragraph>();
+const _: () = ooxml_core::schema::assert_spec::<DgmTextBody>();
+const _: () = ooxml_core::schema::assert_child::<DgmTextBody, BodyProperties>();
+const _: () = ooxml_core::schema::assert_child::<DgmTextBody, ListStyle>();
+const _: () = ooxml_core::schema::assert_child::<DgmTextBody, Paragraph>();
+const _: () = ooxml_core::schema::assert_spec::<DspTextBody>();
+const _: () = ooxml_core::schema::assert_child::<DspTextBody, BodyProperties>();
+const _: () = ooxml_core::schema::assert_child::<DspTextBody, ListStyle>();
+const _: () = ooxml_core::schema::assert_child::<DspTextBody, Paragraph>();
 const _: () = ooxml_core::schema::assert_spec::<BodyProperties>();
 const _: () = ooxml_core::schema::assert_child::<BodyProperties, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<BodyProperties, NoAutoFit>();
@@ -17259,4 +19170,26 @@ const _: () = ooxml_core::schema::assert_spec::<Transform2D>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Offset>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Extents>();
 const _: () = ooxml_core::schema::assert_spec::<TableStyleId>();
+const _: () = ooxml_core::schema::assert_spec::<DgmDataModelRoot>();
+const _: () = ooxml_core::schema::assert_child::<
+    DgmDataModelRoot,
+    DgmDataModelExtensionList,
+>();
+const _: () = ooxml_core::schema::assert_child::<DgmDataModelRoot, DgmPointList>();
+const _: () = ooxml_core::schema::assert_spec::<DgmPropertySet>();
+const _: () = ooxml_core::schema::assert_spec::<DgmPoint>();
+const _: () = ooxml_core::schema::assert_child::<DgmPoint, DgmTextBody>();
+const _: () = ooxml_core::schema::assert_child::<DgmPoint, DgmPropertySet>();
+const _: () = ooxml_core::schema::assert_spec::<DgmPointList>();
+const _: () = ooxml_core::schema::assert_child::<DgmPointList, DgmPoint>();
+const _: () = ooxml_core::schema::assert_spec::<DspDrawing>();
+const _: () = ooxml_core::schema::assert_child::<DspDrawing, DspShapeTree>();
+const _: () = ooxml_core::schema::assert_spec::<DspGroupShape>();
+const _: () = ooxml_core::schema::assert_child::<DspGroupShape, DspGroupShape>();
+const _: () = ooxml_core::schema::assert_child::<DspGroupShape, DspShape>();
+const _: () = ooxml_core::schema::assert_spec::<DspShapeTree>();
+const _: () = ooxml_core::schema::assert_child::<DspShapeTree, DspGroupShape>();
+const _: () = ooxml_core::schema::assert_child::<DspShapeTree, DspShape>();
+const _: () = ooxml_core::schema::assert_spec::<DspShape>();
+const _: () = ooxml_core::schema::assert_child::<DspShape, DspTextBody>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
