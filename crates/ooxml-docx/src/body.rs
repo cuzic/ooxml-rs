@@ -132,6 +132,8 @@ pub(crate) struct RunInfo {
 pub(crate) struct ParaInfo {
     pub frame: u32,
     pub runs: Vec<RunInfo>,
+    /// A complex field was already open at the start of this paragraph.
+    pub starts_in_field: bool,
     /// Index in [`BodyIndex::notes`] of the note or comment holding the
     /// paragraph (notes and comments parts only).
     pub note: Option<u32>,
@@ -300,7 +302,7 @@ fn walk(top: &RawNode, top_index: Option<usize>, top_mode: Mode) -> BodyIndex {
             note = Some(id);
         }
         if mode == Mode::Block && is::<Paragraph>(child) {
-            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new(), note });
+            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new(), starts_in_field: depth > 0, note });
         }
         if child_mode == Mode::Run {
             let before = depth;

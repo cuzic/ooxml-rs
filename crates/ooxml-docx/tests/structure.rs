@@ -136,7 +136,10 @@ fn section_breaks() {
     // a section ended by a later paragraph: that paragraph's sectPr is S
     let body = r#"<w:p/><w:p><w:pPr><w:sectPr><w:pgSz w:w="1"/></w:sectPr></w:pPr></w:p><w:sectPr><w:pgSz w:w="2"/></w:sectPr>"#;
     let mut doc = open(body);
+    let generations = [doc.generation(p(0)), doc.generation(p(1))];
     doc.insert_section_break(p(0), SectionBreak::OddPage).unwrap();
+    assert_ne!(doc.generation(p(0)), generations[0]);
+    assert_ne!(doc.generation(p(1)), generations[1]);
     assert_eq!(
         body_of(&doc),
         r#"<w:p><w:pPr><w:sectPr><w:pgSz w:w="1"/></w:sectPr></w:pPr></w:p><w:p><w:pPr><w:sectPr><w:type w:val="oddPage"/><w:pgSz w:w="1"/></w:sectPr></w:pPr></w:p><w:sectPr><w:pgSz w:w="2"/></w:sectPr>"#
@@ -156,6 +159,129 @@ fn append_moves_the_last_section_with_its_references() {
     let re = Document::from_bytes(doc.to_bytes().unwrap()).unwrap();
     assert_eq!(texts(&re), ["one", "last", "NEW"]);
     assert_eq!(re.stories().nth(1).unwrap().sections().len(), 1, "the footer is still used by the (only) section");
+}
+
+#[test]
+fn insert_after_a2_keeps_the_landscape_section() {
+    let section = r#"<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>"#;
+    let num = r#"<w:numPr><w:ilvl w:val="0"/><w:numId w:val="3"/></w:numPr>"#;
+    let body = format!(r#"<w:p/><w:p><w:pPr>{num}{section}</w:pPr><w:r><w:t>last</w:t></w:r></w:p>"#);
+    let style = r#"<w:pStyle w:val="Quote"/>"#;
+    let styles = story_xml("styles", r#"<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/></w:style>"#);
+    for (spec, properties) in [
+        (ParagraphSpec::Plain, ""),
+        (ParagraphSpec::LikeNeighbour, num),
+        (ParagraphSpec::Style("Quote".into()), style),
+    ] {
+        let mut doc = Document::from_bytes(package(&document_xml(&body), &[("styles", "styles.xml", &styles)])).unwrap();
+        let generation = doc.generation(p(1));
+        assert_eq!(doc.insert_paragraph(Place::After(p(1)), "new", &spec).unwrap(), p(2));
+        assert_ne!(doc.generation(p(1)), generation);
+        assert_eq!(
+            body_of(&doc),
+            format!(r#"<w:p/><w:p><w:pPr>{num}</w:pPr><w:r><w:t>last</w:t></w:r></w:p><w:p><w:pPr>{properties}{section}</w:pPr><w:r><w:t>new</w:t></w:r></w:p>"#)
+        );
+    }
+    for wrapped in [
+        format!("<w:sdt><w:sdtContent><w:p><w:pPr>{section}</w:pPr></w:p></w:sdtContent></w:sdt>"),
+        format!("<w:tbl><w:tr><w:tc><w:p><w:pPr>{section}</w:pPr></w:p></w:tc></w:tr></w:tbl>"),
+    ] {
+        let mut doc = open(&wrapped);
+        assert_matches!(
+            refused(&mut doc, |d| d.insert_paragraph(Place::After(p(0)), "new", &ParagraphSpec::Plain)),
+            Error::SectionBreakAtEnd
+        );
+    }
+}
+
+#[test]
+fn empty_paragraph_inside_a_complex_field_refuses_structure_edits() {
+    let body = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>HYPERLINK "https://example.com/"</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>first</w:t></w:r></w:p><w:p/><w:p><w:r><w:t>last</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><w:sectPr/>"#;
+    let mut doc = open(body);
+    for place in [Place::Before(p(1)), Place::After(p(1))] {
+        assert_matches!(
+            refused(&mut doc, |d| d.insert_paragraph(place, "x", &ParagraphSpec::Plain)),
+            Error::InsideField
+        );
+    }
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_hyperlink(RunPosition::EndOf(p(1)), "x", &HyperlinkTarget::External("https://example.com/".into()))),
+        Error::InsideField
+    );
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_section_break(p(1), SectionBreak::NextPage)),
+        Error::InsideField
+    );
+}
+
+#[test]
+fn section_break_refuses_table_section_properties() {
+    let mut doc = open(r#"<w:p/><w:tbl><w:tr><w:tc><w:p><w:pPr><w:sectPr><w:pgSz w:w="1"/></w:sectPr></w:pPr></w:p></w:tc></w:tr></w:tbl><w:p/><w:sectPr><w:pgSz w:w="2"/></w:sectPr>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_section_break(p(0), SectionBreak::NextPage)),
+        Error::UnsupportedContext { ancestor: "a section break inside a table" }
+    );
+}
+
+#[test]
+fn section_break_refuses_when_relationship_prefix_is_out_of_scope() {
+    let xml = format!(r#"<w:document xmlns:w="{W_NS}"><w:body><w:p/><w:p/><w:sectPr><w:headerReference xmlns:r="{R_NS}" w:type="default" r:id="rIdX0"/></w:sectPr></w:body></w:document>"#);
+    let header = story_xml("hdr", "<w:p/>");
+    let mut doc = Document::from_bytes(package(&xml, &[("header", "header1.xml", &header)])).unwrap();
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_section_break(p(0), SectionBreak::NextPage)),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == R_NS
+    );
+}
+
+#[test]
+fn append_refuses_unknown_section_relationship() {
+    let mut doc = open(r#"<w:p><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rId9"/></w:sectPr></w:pPr></w:p>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.append_paragraph("x")),
+        Error::RelIdReferenced { id } if id == "rId9"
+    );
+}
+
+#[test]
+fn section_break_refuses_last_paragraph_of_final_section() {
+    let mut doc = open(r#"<w:p/><w:sectPr><w:pgSz w:w="1"/></w:sectPr>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_section_break(p(0), SectionBreak::NextPage)),
+        Error::AlreadySectionEnd
+    );
+}
+
+#[test]
+fn insertions_refuse_separator_notes() {
+    for (note, ancestor) in [
+        ("footnote", "w:footnote (separator)"),
+        ("endnote", "w:endnote (separator)"),
+    ] {
+        for kind in ["separator", "continuationSeparator", "continuationNotice"] {
+            let notes = story_xml(&format!("{note}s"), &format!(r#"<w:{note} w:type="{kind}" w:id="-1"><w:p/></w:{note}>"#));
+            let part = format!("{note}s.xml");
+            let mut doc = Document::from_bytes(package(&document_xml("<w:p/>"), &[(&format!("{note}s"), &part, &notes)])).unwrap();
+            let at = ParaRef::new(doc.stories().nth(1).unwrap().index(), 0);
+            assert_matches!(
+                refused(&mut doc, |d| d.insert_paragraph(Place::Before(at), "x", &ParagraphSpec::Plain)),
+                Error::UnsupportedContext { ancestor: a } if a == ancestor
+            );
+            assert_matches!(
+                refused(&mut doc, |d| d.insert_hyperlink(RunPosition::EndOf(at), "x", &HyperlinkTarget::External("https://example.com/".into()))),
+                Error::UnsupportedContext { ancestor: a } if a == ancestor
+            );
+        }
+    }
+}
+
+#[test]
+fn append_reports_the_tracked_paragraph_properties() {
+    let mut doc = open(r#"<w:p><w:pPr><w:sectPr/><w:pPrChange w:id="1" w:author="a"><w:pPr/></w:pPrChange></w:pPr></w:p>"#);
+    assert_matches!(
+        refused(&mut doc, |d| d.append_paragraph("x")),
+        Error::TrackedPropertyChange { element: "w:pPrChange" }
+    );
 }
 
 #[test]
