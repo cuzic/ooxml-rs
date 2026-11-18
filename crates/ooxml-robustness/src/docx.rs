@@ -3,13 +3,14 @@
 
 use std::collections::BTreeMap;
 
-use ooxml_core::{ElementSpan, RawNode, XmlDocument};
+use ooxml_core::{ElementSpan, Error as CoreError, QName, RawNode, XmlDocument};
 use ooxml_docx::{Document, Error, Operation};
 
 use crate::fixtures::{DOCX, decode};
 use crate::input::Input;
 use crate::zipcmp::assert_l1_except;
 
+const R_ID: QName = QName::new("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
 const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 /// `\r\n` and `\r` are written as `w:br`, which reads back as `\n`.
@@ -107,14 +108,16 @@ fn predict_set(doc: &Document, p: usize, r: usize, text: &str) -> Result<(), Str
     invalid_char(text).map_or(Ok(()), |ch| Err(format!("{:?}", Error::InvalidXmlChar { ch })))
 }
 
-/// The outcome `append_paragraph(text)` must have (ADR-0004 §6 and
-/// ADR-0007 §6.1): append gate, text characters, a body, no field left open at the end of the
-/// body flow (recounted here from the runs' own `w:fldChar` children), and
-/// not A2 (no body-level `w:sectPr` while the last paragraph carries
-/// `w:pPr/w:sectPr`). `Ok` may still turn into a lens refusal of the
-/// insertion itself (`mc:AlternateContent` in the body), checked by the
-/// caller.
-fn predict_append(doc: &Document, parsed: &XmlDocument, text: &str) -> Result<(), String> {
+fn paragraph_properties(p: &RawNode) -> Option<&RawNode> {
+    p.elements().find(|e| is_w(e, "pPr"))
+}
+
+fn section_properties(ppr: &RawNode) -> Option<&RawNode> {
+    ppr.elements().find(|e| is_w(e, "sectPr"))
+}
+
+/// Predicts the append gates and whether Phase2 must move the A2 section.
+fn predict_append<'a>(doc: &'a Document, parsed: &XmlDocument, text: &str) -> Result<Option<&'a RawNode>, String> {
     doc.write_gate_for(Operation::Append).map_err(|e| format!("{e:?}"))?;
     if let Some(ch) = invalid_char(text) {
         return Err(format!("{:?}", Error::InvalidXmlChar { ch }));
@@ -137,14 +140,59 @@ fn predict_append(doc: &Document, parsed: &XmlDocument, text: &str) -> Result<()
     if depth > 0 {
         return Err(format!("{:?}", Error::InsideField));
     }
-    let body_sect = body.elements().any(|e| is_w(e, "sectPr"));
-    let last_has_sect = doc
-        .paragraph(doc.paragraph_count().wrapping_sub(1))
-        .is_some_and(|p| p.raw().elements().filter(|e| is_w(e, "pPr")).any(|ppr| ppr.elements().any(|e| is_w(e, "sectPr"))));
-    if !body_sect && last_has_sect {
+    if body.elements().any(|e| is_w(e, "sectPr")) {
+        return Ok(None);
+    }
+    let Some(last) = doc.paragraph(doc.paragraph_count().wrapping_sub(1)).map(|p| p.raw()) else { return Ok(None) };
+    let Some(ppr) = paragraph_properties(last) else { return Ok(None) };
+    let Some(section) = section_properties(ppr) else { return Ok(None) };
+    if !body.elements().any(|e| is_w(e, "p") && e.span() == last.span()) {
         return Err(format!("{:?}", Error::SectionBreakAtEnd));
     }
-    Ok(())
+    for (node, local, element) in [(ppr, "pPrChange", "w:pPrChange"), (section, "sectPrChange", "w:sectPrChange")] {
+        if node.elements().any(|e| is_w(e, local)) {
+            return Err(format!("{:?}", Error::TrackedPropertyChange { element }));
+        }
+    }
+    let rels = doc.package().relationships(doc.main_part_name()).map_err(|e| format!("{:?}", Error::Core(e)))?;
+    for reference in section.elements().filter(|e| is_w(e, "headerReference") || is_w(e, "footerReference")) {
+        let id = reference.attr(R_ID).unwrap_or_default();
+        if rels.by_id(id).is_none() {
+            return Err(format!("{:?}", Error::RelIdReferenced { id: id.into() }));
+        }
+    }
+    Ok(Some(section))
+}
+
+// The move may reserialize prefixes, and reference children are written
+// again in schema order. Compare property names and values independently.
+fn retains_section_properties(old: &RawNode, new: &RawNode) -> bool {
+    old.name().ns() == new.name().ns() && old.name().local() == new.name().local()
+        && old.attrs().iter().filter(|a| !a.name().is_namespace_declaration()).all(|a| {
+            new.attrs().iter().any(|b| {
+                a.name().ns() == b.name().ns() && a.name().local() == b.name().local() && a.value() == b.value()
+            })
+        })
+        && old.elements().count() == new.elements().count()
+        && old.elements().all(|a| new.elements().any(|b| retains_section_properties(a, b)))
+}
+
+/// An A2 append only removes the old section and inserts the new paragraph.
+fn check_section_move(before: &[u8], after: &[u8], section: &RawNode, anchor: ElementSpan) {
+    let parsed = XmlDocument::parse(after).expect("A2 append produced valid XML");
+    let body = parsed.root().elements().find(|e| is_w(e, "body")).expect("A2 append retained w:body");
+    let [previous, added] = body.elements().filter(|e| is_w(e, "p")).collect::<Vec<_>>()
+        .last_chunk::<2>().copied().expect("A2 append has two body paragraphs");
+    assert!(paragraph_properties(previous).and_then(section_properties).is_none(), "old paragraph still has w:sectPr");
+    let moved = paragraph_properties(added).and_then(section_properties).expect("new paragraph has w:sectPr");
+    assert!(retains_section_properties(section, moved), "moved section changed properties");
+    let old = section.span().expect("original section span");
+    let new = added.span().expect("appended paragraph span");
+    assert!(new.start >= anchor.end() - (old.end() - old.start), "A2 append inserted before its anchor");
+    assert!(
+        before[..old.start].iter().chain(&before[old.end()..]).eq(after[..new.start].iter().chain(&after[new.end()..])),
+        "A2 append changed bytes outside the old section and the new paragraph"
+    );
 }
 
 /// After a successful `set_run_text`, the run kept its attributes and its
@@ -182,7 +230,7 @@ pub fn check_docx_input(data: &[u8]) {
 ///   changes `document.xml` only inside the run's original span (T2);
 /// - a successful `append_paragraph` returns the last paragraph index,
 ///   reads back, and only inserts bytes (inside `w:body`'s span when the
-///   body was self-closing);
+///   body was self-closing), or moves the A2 section to the new paragraph;
 /// - after the edits only the main part differs (Layer 1), the output
 ///   reopens and every edit reads back again.
 pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
@@ -227,6 +275,7 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
         };
         let mut kept: Option<RawNode> = None;
         let mut body_has_ac = false;
+        let mut moves_section = false;
         let (predicted, result) = match kind {
             0..=2 => {
                 let predicted = predict_set(&doc, p, r, &text);
@@ -253,13 +302,19 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
                     .find(|e| is_w(e, "body"))
                     .is_some_and(|b| b.elements().any(|e| e.name().ns() == ooxml_core::name::MC_NS && e.name().local() == "AlternateContent"));
                 let predicted = predict_append(&doc, &parsed, &text);
+                let section = predicted.as_ref().ok().and_then(|e| *e).cloned();
+                moves_section = section.is_some();
+                let anchor = doc.paragraph(count.wrapping_sub(1)).and_then(|p| p.raw().span());
                 let spans = body_spans(&parsed);
-                (predicted, doc.append_paragraph(&text).map(|i| {
+                (predicted.map(|_| ()), doc.append_paragraph(&text).map(|i| {
                     assert_eq!(i, count, "append_paragraph returns the new last index");
                     assert_eq!(doc.paragraph_count(), count + 1);
                     assert_eq!(doc.paragraph(i).map(|x| x.text()), Some(normalize(&text)), "appended paragraph reads back");
                     let after = main_bytes(&doc);
                     match spans {
+                        _ if let Some(section) = &section => {
+                            check_section_move(&before_main, &after, section, anchor.expect("A2 anchor span"));
+                        }
                         Some((b, _)) if b.is_self_closing() => assert_local(&before_main, &after, b.start, b.end(), "append_paragraph"),
                         Some((b, sect)) => {
                             assert_insertion(&before_main, &after, "append_paragraph");
@@ -283,12 +338,15 @@ pub fn check_docx(zip: &[u8], mut ops: Input<'_>) {
             }
         };
         // Refusal oracle (review M1): the outcome is the predicted one. An
-        // insertion the lens itself refuses is accepted only when the body
-        // has an `mc:AlternateContent` child (A1).
+        // insertion the lens itself refuses is accepted for A1. An A2
+        // move can additionally fail the lens's detach or destination checks.
         let actual = result.as_ref().map(|_| ()).map_err(|e| format!("{e:?}"));
         let lens_refusal = matches!(&result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+        let move_refusal = moves_section && matches!(&result, Err(Error::Core(
+            CoreError::NotDetachable { .. } | CoreError::NamespaceNotInScope(_) | CoreError::TooDeep { .. }
+        )));
         assert!(
-            actual == predicted || (predicted.is_ok() && lens_refusal && kind == 3 && body_has_ac),
+            actual == predicted || (predicted.is_ok() && lens_refusal && kind == 3 && body_has_ac) || move_refusal,
             "docx edit kind {kind} ({p}, {r}, {text:?}): predicted {predicted:?}, got {actual:?}"
         );
         match result {
