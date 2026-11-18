@@ -86,7 +86,7 @@ fn e4_reordered_sheets_empty_sheet_data() {
     {
         let mut ws = wb.worksheet().unwrap();
         ws.write_number(0, 0, 1.0).unwrap();
-        ws.write_string(2, 2, "x").unwrap();
+        ws.write_string_inline(2, 2, "x").unwrap();
     }
     let out = wb.to_bytes().unwrap();
     assert_l1_except(&input, &out, &["xl/worksheets/sheet1.xml"]);
@@ -309,7 +309,7 @@ fn e15_from_scratch() {
     {
         let mut ws = wb.add_worksheet().unwrap();
         assert_eq!(ws.name(), "Sheet1");
-        ws.write_string(0, 0, "a").unwrap();
+        ws.write_string_inline(0, 0, "a").unwrap();
         ws.write_number(1, 1, 2.0).unwrap();
     }
     assert_matches!(wb.add_worksheet(), Err(Error::SheetAdditionUnsupported));
@@ -379,13 +379,13 @@ fn repeated_edits_and_escapes() {
     let mut wb = Workbook::from_bytes(input.clone()).unwrap();
     {
         let mut ws = wb.worksheet().unwrap();
-        ws.write_string(1, 1, "first").unwrap();
+        ws.write_string_inline(1, 1, "first").unwrap();
         ws.write_number(1, 1, 3.0).unwrap();
-        ws.write_string(1, 1, "a\u{1}b _x0041_ c\r\nd").unwrap();
-        ws.write_string(0, 0, "\ttabbed").unwrap();
+        ws.write_string_inline(1, 1, "a\u{1}b _x0041_ c\r\nd").unwrap();
+        ws.write_string_inline(0, 0, "\ttabbed").unwrap();
         assert_matches!(ws.write_number(0, 0, f64::NAN), Err(Error::InvalidNumber(_)));
-        assert_matches!(ws.write_string(0, 0, &"x".repeat(32_768)), Err(Error::StringTooLong(32_768)));
-        ws.write_string(2, 0, &"\u{1F61C}".repeat(16_383)).unwrap();
+        assert_matches!(ws.write_string_inline(0, 0, &"x".repeat(32_768)), Err(Error::StringTooLong(32_768)));
+        ws.write_string_inline(2, 0, &"\u{1F61C}".repeat(16_383)).unwrap();
     }
     let out = wb.to_bytes().unwrap();
     let xml = sheet_xml(&out);

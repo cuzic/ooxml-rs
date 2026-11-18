@@ -376,6 +376,23 @@ fn rule_4_keeps_one_run_when_every_touched_run_empties() {
     assert_eq!(items.len(), 1, "{items:?}");
 }
 
+/// Review #48 r2-m2: when every run empties, the one that stays is the
+/// first (start) run, with its own format (the format of the next typing).
+#[test]
+fn rule_4_keeps_the_first_run_with_its_format() {
+    for (first, second, kept_bold) in [(" b=\"1\"", "", true), ("", " b=\"1\"", false)] {
+        let runs = format!("{}{}", r(first, "", "ab"), r(second, "", "ab"));
+        let (mut p, rep) = replaced(&runs, "ab", "", &opts(0));
+        assert_eq!(rep.replaced.len(), 2);
+        let s = p.slide(0).unwrap();
+        let sh = s.shapes().into_iter().find(|x| x.name() == Some("Rectangle 3")).unwrap();
+        let runs = sh.text_body().unwrap().paragraphs()[0].runs();
+        assert_eq!(runs.len(), 1);
+        let bold = runs[0].raw().elements().next().and_then(|rpr| rpr.attr(ooxml_core::QName::new("", "b"))) == Some("1");
+        assert_eq!(bold, kept_bold, "the first run stays");
+    }
+}
+
 #[test]
 fn unsupported_paragraph_content_is_refused() {
     // SYNTHETIC: an a14:m (math) item between two runs

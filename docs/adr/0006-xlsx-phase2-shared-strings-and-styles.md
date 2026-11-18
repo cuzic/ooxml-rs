@@ -11,6 +11,11 @@
   throwaway Rust prototype `spikes/xlsx-phase2/proto/` on branch `spike/xlsx-phase2-proto`
   (draft PR, not for merge as code)
 - Review: [round 1](0006-opus-review-round1.md), [round 2](0006-opus-review-round2.md)
+- **Post-acceptance note (2026-11-16, owner decision):** Q1–Q6 are decided as their proposed
+  defaults: exact-form reuse (Q1), an empty `sharedStrings.xml` in the template (Q2), named
+  style + overrides deferred to Phase4 (Q3), the preserving setters in Phase2 (Q4),
+  `x14ac:knownFonts` left untouched (Q5), and no phonetic runs on new strings (Q6). XL items
+  10(c) and 10(e) can still reopen Q5 and Q2.
 
 ## Revision history
 

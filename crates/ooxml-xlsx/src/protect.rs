@@ -23,7 +23,7 @@ pub const MAX_SPIN_COUNT: u32 = 10_000_000;
 /// unlocked cells is allowed, everything else is not. Sheet protection is an
 /// Excel UI setting; it does not stop edits through this crate.
 #[derive(Clone)]
-pub struct Protection {
+pub struct SheetProtection {
     password: Option<String>,
     salt: Option<[u8; 16]>,
     spin_count: u32,
@@ -31,9 +31,9 @@ pub struct Protection {
 }
 
 /// The password is redacted (PR #58 round 1 m4).
-impl std::fmt::Debug for Protection {
+impl std::fmt::Debug for SheetProtection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Protection")
+        f.debug_struct("SheetProtection")
             .field("password", &self.password.as_ref().map(|_| "<redacted>"))
             .field("salt", &self.salt)
             .field("spin_count", &self.spin_count)
@@ -101,14 +101,14 @@ impl Default for Allow {
     }
 }
 
-impl Default for Protection {
+impl Default for SheetProtection {
     fn default() -> Self {
-        Protection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, allow: Allow::default() }
+        SheetProtection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, allow: Allow::default() }
     }
 }
 
-impl Protection {
-    /// Protection without a password, with Excel's default permissions.
+impl SheetProtection {
+    /// SheetProtection without a password, with Excel's default permissions.
     pub fn new() -> Self {
         Self::default()
     }

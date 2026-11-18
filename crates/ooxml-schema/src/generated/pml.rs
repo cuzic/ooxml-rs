@@ -2,12 +2,108 @@
 //! `pml` feature group: generated schema markers, views and enums (ADR-0002 §3).
 /// `a`: `http://schemas.openxmlformats.org/drawingml/2006/main`
 pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+/// `oac`: `http://schemas.microsoft.com/office/drawing/2013/main/command`
+pub const NS_OAC: &str = "http://schemas.microsoft.com/office/drawing/2013/main/command";
 /// `p`: `http://schemas.openxmlformats.org/presentationml/2006/main`
 pub const NS_P: &str = "http://schemas.openxmlformats.org/presentationml/2006/main";
 /// `p14`: `http://schemas.microsoft.com/office/powerpoint/2010/main`
 pub const NS_P14: &str = "http://schemas.microsoft.com/office/powerpoint/2010/main";
+/// `p15`: `http://schemas.microsoft.com/office/powerpoint/2012/main`
+pub const NS_P15: &str = "http://schemas.microsoft.com/office/powerpoint/2012/main";
+/// `p188`: `http://schemas.microsoft.com/office/powerpoint/2018/8/main`
+pub const NS_P188: &str = "http://schemas.microsoft.com/office/powerpoint/2018/8/main";
+/// `pc`: `http://schemas.microsoft.com/office/powerpoint/2013/main/command`
+pub const NS_PC: &str = "http://schemas.microsoft.com/office/powerpoint/2013/main/command";
 /// `r`: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+/// `p188:ST_CommentStatus` — CommentStatus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CommentStatus {
+    /// `active`
+    Active,
+    /// `resolved`
+    Resolved,
+    /// `closed`
+    Closed,
+}
+impl ooxml_core::EnumType for CommentStatus {
+    const VALUES: &'static [&'static str] = &["active", "resolved", "closed"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Active),
+            1 => Some(Self::Resolved),
+            2 => Some(Self::Closed),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_ColorSchemeIndex` — Theme Color Reference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ColorSchemeIndexValues {
+    /// `dk1`
+    Dark1,
+    /// `lt1`
+    Light1,
+    /// `dk2`
+    Dark2,
+    /// `lt2`
+    Light2,
+    /// `accent1`
+    Accent1,
+    /// `accent2`
+    Accent2,
+    /// `accent3`
+    Accent3,
+    /// `accent4`
+    Accent4,
+    /// `accent5`
+    Accent5,
+    /// `accent6`
+    Accent6,
+    /// `hlink`
+    Hyperlink,
+    /// `folHlink`
+    FollowedHyperlink,
+}
+impl ooxml_core::EnumType for ColorSchemeIndexValues {
+    const VALUES: &'static [&'static str] = &[
+        "dk1",
+        "lt1",
+        "dk2",
+        "lt2",
+        "accent1",
+        "accent2",
+        "accent3",
+        "accent4",
+        "accent5",
+        "accent6",
+        "hlink",
+        "folHlink",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Dark1),
+            1 => Some(Self::Light1),
+            2 => Some(Self::Dark2),
+            3 => Some(Self::Light2),
+            4 => Some(Self::Accent1),
+            5 => Some(Self::Accent2),
+            6 => Some(Self::Accent3),
+            7 => Some(Self::Accent4),
+            8 => Some(Self::Accent5),
+            9 => Some(Self::Accent6),
+            10 => Some(Self::Hyperlink),
+            11 => Some(Self::FollowedHyperlink),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_BlackWhiteMode` — Black and White Mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlackWhiteModeValues {
@@ -68,6 +164,245 @@ impl ooxml_core::EnumType for BlackWhiteModeValues {
         self as usize
     }
 }
+/// `p:ST_TransitionSpeed` — Transition Speed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TransitionSpeedValues {
+    /// `slow`
+    Slow,
+    /// `med`
+    Medium,
+    /// `fast`
+    Fast,
+}
+impl ooxml_core::EnumType for TransitionSpeedValues {
+    const VALUES: &'static [&'static str] = &["slow", "med", "fast"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Slow),
+            1 => Some(Self::Medium),
+            2 => Some(Self::Fast),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLTimeNodePresetClassType` — Time Node Preset Class Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimeNodePresetClassValues {
+    /// `entr`
+    Entrance,
+    /// `exit`
+    Exit,
+    /// `emph`
+    Emphasis,
+    /// `path`
+    Path,
+    /// `verb`
+    Verb,
+    /// `mediacall`
+    MediaCall,
+}
+impl ooxml_core::EnumType for TimeNodePresetClassValues {
+    const VALUES: &'static [&'static str] = &[
+        "entr",
+        "exit",
+        "emph",
+        "path",
+        "verb",
+        "mediacall",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Entrance),
+            1 => Some(Self::Exit),
+            2 => Some(Self::Emphasis),
+            3 => Some(Self::Path),
+            4 => Some(Self::Verb),
+            5 => Some(Self::MediaCall),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLTimeNodeRestartType` — Time Node Restart Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimeNodeRestartValues {
+    /// `always`
+    Always,
+    /// `whenNotActive`
+    WhenNotActive,
+    /// `never`
+    Never,
+}
+impl ooxml_core::EnumType for TimeNodeRestartValues {
+    const VALUES: &'static [&'static str] = &["always", "whenNotActive", "never"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Always),
+            1 => Some(Self::WhenNotActive),
+            2 => Some(Self::Never),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLTimeNodeFillType` — Time Node Fill Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimeNodeFillValues {
+    /// `remove`
+    Remove,
+    /// `freeze`
+    Freeze,
+    /// `hold`
+    Hold,
+    /// `transition`
+    Transition,
+}
+impl ooxml_core::EnumType for TimeNodeFillValues {
+    const VALUES: &'static [&'static str] = &["remove", "freeze", "hold", "transition"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Remove),
+            1 => Some(Self::Freeze),
+            2 => Some(Self::Hold),
+            3 => Some(Self::Transition),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLTimeNodeType` — Time Node Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimeNodeValues {
+    /// `clickEffect`
+    ClickEffect,
+    /// `withEffect`
+    WithEffect,
+    /// `afterEffect`
+    AfterEffect,
+    /// `mainSeq`
+    MainSequence,
+    /// `interactiveSeq`
+    InteractiveSequence,
+    /// `clickPar`
+    ClickParagraph,
+    /// `withGroup`
+    WithGroup,
+    /// `afterGroup`
+    AfterGroup,
+    /// `tmRoot`
+    TmingRoot,
+}
+impl ooxml_core::EnumType for TimeNodeValues {
+    const VALUES: &'static [&'static str] = &[
+        "clickEffect",
+        "withEffect",
+        "afterEffect",
+        "mainSeq",
+        "interactiveSeq",
+        "clickPar",
+        "withGroup",
+        "afterGroup",
+        "tmRoot",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::ClickEffect),
+            1 => Some(Self::WithEffect),
+            2 => Some(Self::AfterEffect),
+            3 => Some(Self::MainSequence),
+            4 => Some(Self::InteractiveSequence),
+            5 => Some(Self::ClickParagraph),
+            6 => Some(Self::WithGroup),
+            7 => Some(Self::AfterGroup),
+            8 => Some(Self::TmingRoot),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLParaBuildType` — Paragraph Build Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ParagraphBuildValues {
+    /// `allAtOnce`
+    AllAtOnce,
+    /// `p`
+    Paragraph,
+    /// `cust`
+    Custom,
+    /// `whole`
+    Whole,
+}
+impl ooxml_core::EnumType for ParagraphBuildValues {
+    const VALUES: &'static [&'static str] = &["allAtOnce", "p", "cust", "whole"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::AllAtOnce),
+            1 => Some(Self::Paragraph),
+            2 => Some(Self::Custom),
+            3 => Some(Self::Whole),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLTimeNodeMasterRelation` — Time Node Master Relation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimeNodeMasterRelationValues {
+    /// `sameClick`
+    SameClick,
+    /// `nextClick`
+    NextClick,
+}
+impl ooxml_core::EnumType for TimeNodeMasterRelationValues {
+    const VALUES: &'static [&'static str] = &["sameClick", "nextClick"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::SameClick),
+            1 => Some(Self::NextClick),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_TLTimeNodeSyncType` — Time Node Sync Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimeNodeSyncValues {
+    /// `none`
+    None,
+    /// `canSlip`
+    CanSlip,
+    /// `locked`
+    Locked,
+}
+impl ooxml_core::EnumType for TimeNodeSyncValues {
+    const VALUES: &'static [&'static str] = &["none", "canSlip", "locked"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::CanSlip),
+            2 => Some(Self::Locked),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `p:ST_Direction` — Direction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DirectionValues {
@@ -82,6 +417,86 @@ impl ooxml_core::EnumType for DirectionValues {
         match i {
             0 => Some(Self::Horizontal),
             1 => Some(Self::Vertical),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `p:ST_SlideSizeType` — Slide Size Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SlideSizeValues {
+    /// `screen4x3`
+    Screen4x3,
+    /// `letter`
+    Letter,
+    /// `A4`
+    A4,
+    /// `35mm`
+    Film35mm,
+    /// `overhead`
+    Overhead,
+    /// `banner`
+    Banner,
+    /// `custom`
+    Custom,
+    /// `ledger`
+    Ledger,
+    /// `A3`
+    A3,
+    /// `B4ISO`
+    B4ISO,
+    /// `B5ISO`
+    B5ISO,
+    /// `B4JIS`
+    B4JIS,
+    /// `B5JIS`
+    B5JIS,
+    /// `hagakiCard`
+    HagakiCard,
+    /// `screen16x9`
+    Screen16x9,
+    /// `screen16x10`
+    Screen16x10,
+}
+impl ooxml_core::EnumType for SlideSizeValues {
+    const VALUES: &'static [&'static str] = &[
+        "screen4x3",
+        "letter",
+        "A4",
+        "35mm",
+        "overhead",
+        "banner",
+        "custom",
+        "ledger",
+        "A3",
+        "B4ISO",
+        "B5ISO",
+        "B4JIS",
+        "B5JIS",
+        "hagakiCard",
+        "screen16x9",
+        "screen16x10",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Screen4x3),
+            1 => Some(Self::Letter),
+            2 => Some(Self::A4),
+            3 => Some(Self::Film35mm),
+            4 => Some(Self::Overhead),
+            5 => Some(Self::Banner),
+            6 => Some(Self::Custom),
+            7 => Some(Self::Ledger),
+            8 => Some(Self::A3),
+            9 => Some(Self::B4ISO),
+            10 => Some(Self::B5ISO),
+            11 => Some(Self::B4JIS),
+            12 => Some(Self::B5JIS),
+            13 => Some(Self::HagakiCard),
+            14 => Some(Self::Screen16x9),
+            15 => Some(Self::Screen16x10),
             _ => None,
         }
     }
@@ -193,6 +608,166 @@ impl ooxml_core::EnumType for PlaceholderSizeValues {
         self as usize
     }
 }
+/// `p:ST_SlideLayoutType` — Slide Layout Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SlideLayoutValues {
+    /// `title`
+    Title,
+    /// `tx`
+    Text,
+    /// `twoColTx`
+    TwoColumnText,
+    /// `tbl`
+    Table,
+    /// `txAndChart`
+    TextAndChart,
+    /// `chartAndTx`
+    ChartAndText,
+    /// `dgm`
+    Diagram,
+    /// `chart`
+    Chart,
+    /// `txAndClipArt`
+    TextAndClipArt,
+    /// `clipArtAndTx`
+    ClipArtAndText,
+    /// `titleOnly`
+    TitleOnly,
+    /// `blank`
+    Blank,
+    /// `txAndObj`
+    TextAndObject,
+    /// `objAndTx`
+    ObjectAndText,
+    /// `objOnly`
+    ObjectOnly,
+    /// `obj`
+    Object,
+    /// `txAndMedia`
+    TextAndMedia,
+    /// `mediaAndTx`
+    MidiaAndText,
+    /// `objOverTx`
+    ObjectOverText,
+    /// `txOverObj`
+    TextOverObject,
+    /// `txAndTwoObj`
+    TextAndTwoObjects,
+    /// `twoObjAndTx`
+    TwoObjectsAndText,
+    /// `twoObjOverTx`
+    TwoObjectsOverText,
+    /// `fourObj`
+    FourObjects,
+    /// `vertTx`
+    VerticalText,
+    /// `clipArtAndVertTx`
+    ClipArtAndVerticalText,
+    /// `vertTitleAndTx`
+    VerticalTitleAndText,
+    /// `vertTitleAndTxOverChart`
+    VerticalTitleAndTextOverChart,
+    /// `twoObj`
+    TwoObjects,
+    /// `objAndTwoObj`
+    ObjectAndTwoObjects,
+    /// `twoObjAndObj`
+    TwoObjectsAndObject,
+    /// `cust`
+    Custom,
+    /// `secHead`
+    SectionHeader,
+    /// `twoTxTwoObj`
+    TwoTextAndTwoObjects,
+    /// `objTx`
+    ObjectText,
+    /// `picTx`
+    PictureText,
+}
+impl ooxml_core::EnumType for SlideLayoutValues {
+    const VALUES: &'static [&'static str] = &[
+        "title",
+        "tx",
+        "twoColTx",
+        "tbl",
+        "txAndChart",
+        "chartAndTx",
+        "dgm",
+        "chart",
+        "txAndClipArt",
+        "clipArtAndTx",
+        "titleOnly",
+        "blank",
+        "txAndObj",
+        "objAndTx",
+        "objOnly",
+        "obj",
+        "txAndMedia",
+        "mediaAndTx",
+        "objOverTx",
+        "txOverObj",
+        "txAndTwoObj",
+        "twoObjAndTx",
+        "twoObjOverTx",
+        "fourObj",
+        "vertTx",
+        "clipArtAndVertTx",
+        "vertTitleAndTx",
+        "vertTitleAndTxOverChart",
+        "twoObj",
+        "objAndTwoObj",
+        "twoObjAndObj",
+        "cust",
+        "secHead",
+        "twoTxTwoObj",
+        "objTx",
+        "picTx",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Title),
+            1 => Some(Self::Text),
+            2 => Some(Self::TwoColumnText),
+            3 => Some(Self::Table),
+            4 => Some(Self::TextAndChart),
+            5 => Some(Self::ChartAndText),
+            6 => Some(Self::Diagram),
+            7 => Some(Self::Chart),
+            8 => Some(Self::TextAndClipArt),
+            9 => Some(Self::ClipArtAndText),
+            10 => Some(Self::TitleOnly),
+            11 => Some(Self::Blank),
+            12 => Some(Self::TextAndObject),
+            13 => Some(Self::ObjectAndText),
+            14 => Some(Self::ObjectOnly),
+            15 => Some(Self::Object),
+            16 => Some(Self::TextAndMedia),
+            17 => Some(Self::MidiaAndText),
+            18 => Some(Self::ObjectOverText),
+            19 => Some(Self::TextOverObject),
+            20 => Some(Self::TextAndTwoObjects),
+            21 => Some(Self::TwoObjectsAndText),
+            22 => Some(Self::TwoObjectsOverText),
+            23 => Some(Self::FourObjects),
+            24 => Some(Self::VerticalText),
+            25 => Some(Self::ClipArtAndVerticalText),
+            26 => Some(Self::VerticalTitleAndText),
+            27 => Some(Self::VerticalTitleAndTextOverChart),
+            28 => Some(Self::TwoObjects),
+            29 => Some(Self::ObjectAndTwoObjects),
+            30 => Some(Self::TwoObjectsAndObject),
+            31 => Some(Self::Custom),
+            32 => Some(Self::SectionHeader),
+            33 => Some(Self::TwoTextAndTwoObjects),
+            34 => Some(Self::ObjectText),
+            35 => Some(Self::PictureText),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `p:ST_ConformanceClass` — ConformanceClassValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConformanceClassValues {
@@ -212,6 +787,352 @@ impl ooxml_core::EnumType for ConformanceClassValues {
     }
     fn index(self) -> usize {
         self as usize
+    }
+}
+/// `a:CT_ColorMapping/p:clrMap` — Color Scheme Map.
+#[derive(Debug)]
+pub enum ColorMap {}
+impl ColorMap {
+    /// `bg1`
+    pub const ATTR_BG1: ooxml_core::QName = ooxml_core::QName::new("", "bg1");
+    /// `tx1`
+    pub const ATTR_TX1: ooxml_core::QName = ooxml_core::QName::new("", "tx1");
+    /// `bg2`
+    pub const ATTR_BG2: ooxml_core::QName = ooxml_core::QName::new("", "bg2");
+    /// `tx2`
+    pub const ATTR_TX2: ooxml_core::QName = ooxml_core::QName::new("", "tx2");
+    /// `accent1`
+    pub const ATTR_ACCENT1: ooxml_core::QName = ooxml_core::QName::new("", "accent1");
+    /// `accent2`
+    pub const ATTR_ACCENT2: ooxml_core::QName = ooxml_core::QName::new("", "accent2");
+    /// `accent3`
+    pub const ATTR_ACCENT3: ooxml_core::QName = ooxml_core::QName::new("", "accent3");
+    /// `accent4`
+    pub const ATTR_ACCENT4: ooxml_core::QName = ooxml_core::QName::new("", "accent4");
+    /// `accent5`
+    pub const ATTR_ACCENT5: ooxml_core::QName = ooxml_core::QName::new("", "accent5");
+    /// `accent6`
+    pub const ATTR_ACCENT6: ooxml_core::QName = ooxml_core::QName::new("", "accent6");
+    /// `hlink`
+    pub const ATTR_HLINK: ooxml_core::QName = ooxml_core::QName::new("", "hlink");
+    /// `folHlink`
+    pub const ATTR_FOL_HLINK: ooxml_core::QName = ooxml_core::QName::new("", "folHlink");
+}
+impl ooxml_core::ElementSpec for ColorMap {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "clrMap");
+    const SDK_NAME: &'static str = "a:CT_ColorMapping/p:clrMap";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_BG1,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_TX1,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_BG2,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_TX2,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_ACCENT1,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_ACCENT2,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_ACCENT3,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_ACCENT4,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_ACCENT5,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_ACCENT6,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_HLINK,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ColorMap::ATTR_FOL_HLINK,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`ColorMap`].
+#[derive(Clone, Debug)]
+pub struct ColorMapView<'a>(pub ooxml_core::Lens<'a, ColorMap>);
+impl<'a> ColorMapView<'a> {
+    /// `bg1` — Background 1
+    pub fn background1(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_BG1)
+    }
+    /// `tx1` — Text 1
+    pub fn text1(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_TX1)
+    }
+    /// `bg2` — Background 2
+    pub fn background2(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_BG2)
+    }
+    /// `tx2` — Text 2
+    pub fn text2(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_TX2)
+    }
+    /// `accent1` — Accent 1
+    pub fn accent1(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_ACCENT1)
+    }
+    /// `accent2` — Accent 2
+    pub fn accent2(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_ACCENT2)
+    }
+    /// `accent3` — Accent 3
+    pub fn accent3(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_ACCENT3)
+    }
+    /// `accent4` — Accent 4
+    pub fn accent4(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_ACCENT4)
+    }
+    /// `accent5` — Accent 5
+    pub fn accent5(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_ACCENT5)
+    }
+    /// `accent6` — Accent 6
+    pub fn accent6(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_ACCENT6)
+    }
+    /// `hlink` — Hyperlink
+    pub fn hyperlink(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_HLINK)
+    }
+    /// `folHlink` — Followed Hyperlink
+    pub fn followed_hyperlink(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(ColorMap::ATTR_FOL_HLINK)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_ColorMappingOverride/p:clrMapOvr` — Color Scheme Map Override.
+#[derive(Debug)]
+pub enum ColorMapOverride {}
+impl ooxml_core::ElementSpec for ColorMapOverride {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "clrMapOvr");
+    const SDK_NAME: &'static str = "a:CT_ColorMappingOverride/p:clrMapOvr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "masterClrMapping"),
+                    ooxml_core::QName::new(NS_A, "overrideClrMapping"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ColorMapOverride> for super::dml::OverrideColorMapping {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ColorMapOverride> for super::dml::MasterColorMapping {}
+/// Read-only view of [`ColorMapOverride`].
+#[derive(Clone, Debug)]
+pub struct ColorMapOverrideView<'a>(pub ooxml_core::Lens<'a, ColorMapOverride>);
+impl<'a> ColorMapOverrideView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:overrideClrMapping` child.
+    pub fn override_color_mapping(
+        &self,
+    ) -> Option<super::dml::OverrideColorMappingView<'a>> {
+        self.0
+            .child::<super::dml::OverrideColorMapping>()
+            .map(super::dml::OverrideColorMappingView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:masterClrMapping` child.
+    pub fn master_color_mapping(
+        &self,
+    ) -> Option<super::dml::MasterColorMappingView<'a>> {
+        self.0
+            .child::<super::dml::MasterColorMapping>()
+            .map(super::dml::MasterColorMappingView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_GroupShapeProperties/p:grpSpPr` — Group Shape Properties.
+#[derive(Debug)]
+pub enum GroupShapeProperties {}
+impl GroupShapeProperties {
+    /// `bwMode`
+    pub const ATTR_BW_MODE: ooxml_core::QName = ooxml_core::QName::new("", "bwMode");
+}
+impl ooxml_core::ElementSpec for GroupShapeProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "grpSpPr");
+    const SDK_NAME: &'static str = "a:CT_GroupShapeProperties/p:grpSpPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GroupShapeProperties::ATTR_BW_MODE,
+            ty: ooxml_core::SimpleType::Enum(
+                <BlackWhiteModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "xfrm")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "effectLst"),
+                    ooxml_core::QName::new(NS_A, "effectDag"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "scene3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::TransformGroup {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::NoFill {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::SolidFill {}
+/// Read-only view of [`GroupShapeProperties`].
+#[derive(Clone, Debug)]
+pub struct GroupShapePropertiesView<'a>(pub ooxml_core::Lens<'a, GroupShapeProperties>);
+impl<'a> GroupShapePropertiesView<'a> {
+    /// `bwMode` — Black and White Mode
+    pub fn black_white_mode(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, BlackWhiteModeValues>> {
+        self.0.attr_enum(GroupShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:xfrm` child.
+    pub fn transform_group(&self) -> Option<super::dml::TransformGroupView<'a>> {
+        self.0.child::<super::dml::TransformGroup>().map(super::dml::TransformGroupView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<super::dml::NoFillView<'a>> {
+        self.0.child::<super::dml::NoFill>().map(super::dml::NoFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<super::dml::SolidFillView<'a>> {
+        self.0.child::<super::dml::SolidFill>().map(super::dml::SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `a:CT_NonVisualDrawingProps/p:cNvPr` — Non-Visual Drawing Properties.
@@ -282,6 +1203,10 @@ impl ooxml_core::ElementSpec for NonVisualDrawingProperties {
         ],
     );
 }
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualDrawingProperties> for super::dml::HyperlinkOnClick {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualDrawingProperties> for super::dml::HyperlinkOnHover {}
 /// Read-only view of [`NonVisualDrawingProperties`].
 #[derive(Clone, Debug)]
 pub struct NonVisualDrawingPropertiesView<'a>(
@@ -316,6 +1241,353 @@ impl<'a> NonVisualDrawingPropertiesView<'a> {
     /// `title` — Title (default ``)
     pub fn title(&self) -> &'a str {
         self.0.attr(NonVisualDrawingProperties::ATTR_TITLE).unwrap_or("")
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkClick` child.
+    pub fn hyperlink_on_click(&self) -> Option<super::dml::HyperlinkOnClickView<'a>> {
+        self.0
+            .child::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkHover` child.
+    pub fn hyperlink_on_hover(&self) -> Option<super::dml::HyperlinkOnHoverView<'a>> {
+        self.0
+            .child::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Point2D/p188:pos` — Defines the Point2DType Class.
+#[derive(Debug)]
+pub enum Point2DType {}
+impl Point2DType {
+    /// `x`
+    pub const ATTR_X: ooxml_core::QName = ooxml_core::QName::new("", "x");
+    /// `y`
+    pub const ATTR_Y: ooxml_core::QName = ooxml_core::QName::new("", "y");
+}
+impl ooxml_core::ElementSpec for Point2DType {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "pos");
+    const SDK_NAME: &'static str = "a:CT_Point2D/p188:pos";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Point2DType::ATTR_X,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Point2DType::ATTR_Y,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Point2DType`].
+#[derive(Clone, Debug)]
+pub struct Point2DTypeView<'a>(pub ooxml_core::Lens<'a, Point2DType>);
+impl<'a> Point2DTypeView<'a> {
+    /// `x` — X-Axis Coordinate
+    pub fn x(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Point2DType::ATTR_X, ooxml_core::value::parse_i64)
+    }
+    /// `y` — Y-Axis Coordinate
+    pub fn y(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Point2DType::ATTR_Y, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Point2D/p:pos` — Defines the Position Class.
+#[derive(Debug)]
+pub enum Position {}
+impl Position {
+    /// `x`
+    pub const ATTR_X: ooxml_core::QName = ooxml_core::QName::new("", "x");
+    /// `y`
+    pub const ATTR_Y: ooxml_core::QName = ooxml_core::QName::new("", "y");
+}
+impl ooxml_core::ElementSpec for Position {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "pos");
+    const SDK_NAME: &'static str = "a:CT_Point2D/p:pos";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Position::ATTR_X,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Position::ATTR_Y,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Position`].
+#[derive(Clone, Debug)]
+pub struct PositionView<'a>(pub ooxml_core::Lens<'a, Position>);
+impl<'a> PositionView<'a> {
+    /// `x` — X-Axis Coordinate
+    pub fn x(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Position::ATTR_X, ooxml_core::value::parse_i64)
+    }
+    /// `y` — Y-Axis Coordinate
+    pub fn y(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Position::ATTR_Y, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_ShapeProperties/p:spPr` — Defines the ShapeProperties Class.
+#[derive(Debug)]
+pub enum ShapeProperties {}
+impl ShapeProperties {
+    /// `bwMode`
+    pub const ATTR_BW_MODE: ooxml_core::QName = ooxml_core::QName::new("", "bwMode");
+}
+impl ooxml_core::ElementSpec for ShapeProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "spPr");
+    const SDK_NAME: &'static str = "a:CT_ShapeProperties/p:spPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ShapeProperties::ATTR_BW_MODE,
+            ty: ooxml_core::SimpleType::Enum(
+                <BlackWhiteModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "xfrm")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "custGeom"),
+                    ooxml_core::QName::new(NS_A, "prstGeom"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ln")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "effectLst"),
+                    ooxml_core::QName::new(NS_A, "effectDag"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "scene3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "sp3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::CustomGeometry {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::NoFill {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::PresetGeometry {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::SolidFill {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::Transform2D {}
+/// Read-only view of [`ShapeProperties`].
+#[derive(Clone, Debug)]
+pub struct ShapePropertiesView<'a>(pub ooxml_core::Lens<'a, ShapeProperties>);
+impl<'a> ShapePropertiesView<'a> {
+    /// `bwMode` — Black and White Mode
+    pub fn black_white_mode(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, BlackWhiteModeValues>> {
+        self.0.attr_enum(ShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:custGeom` child.
+    pub fn custom_geometry(&self) -> Option<super::dml::CustomGeometryView<'a>> {
+        self.0.child::<super::dml::CustomGeometry>().map(super::dml::CustomGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<super::dml::NoFillView<'a>> {
+        self.0.child::<super::dml::NoFill>().map(super::dml::NoFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:prstGeom` child.
+    pub fn preset_geometry(&self) -> Option<super::dml::PresetGeometryView<'a>> {
+        self.0.child::<super::dml::PresetGeometry>().map(super::dml::PresetGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<super::dml::SolidFillView<'a>> {
+        self.0.child::<super::dml::SolidFill>().map(super::dml::SolidFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:xfrm` child.
+    pub fn transform2_d(&self) -> Option<super::dml::Transform2DView<'a>> {
+        self.0.child::<super::dml::Transform2D>().map(super::dml::Transform2DView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_ShapeStyle/p:style` — Shape Style.
+#[derive(Debug)]
+pub enum ShapeStyle {}
+impl ooxml_core::ElementSpec for ShapeStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "style");
+    const SDK_NAME: &'static str = "a:CT_ShapeStyle/p:style";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnRef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "fillRef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "effectRef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "fontRef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeStyle> for super::dml::FontReference {}
+/// Read-only view of [`ShapeStyle`].
+#[derive(Clone, Debug)]
+pub struct ShapeStyleView<'a>(pub ooxml_core::Lens<'a, ShapeStyle>);
+impl<'a> ShapeStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:fontRef` child.
+    pub fn font_reference(&self) -> Option<super::dml::FontReferenceView<'a>> {
+        self.0.child::<super::dml::FontReference>().map(super::dml::FontReferenceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBody/p188:txBody` — Defines the TextBodyType Class.
+#[derive(Debug)]
+pub enum TextBodyType {}
+impl ooxml_core::ElementSpec for TextBodyType {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "txBody");
+    const SDK_NAME: &'static str = "a:CT_TextBody/p188:txBody";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "bodyPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lstStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "p")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBodyType> for super::dml::BodyProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBodyType> for super::dml::ListStyle {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBodyType> for super::dml::Paragraph {}
+/// Read-only view of [`TextBodyType`].
+#[derive(Clone, Debug)]
+pub struct TextBodyTypeView<'a>(pub ooxml_core::Lens<'a, TextBodyType>);
+impl<'a> TextBodyTypeView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<super::dml::BodyPropertiesView<'a>> {
+        self.0.child::<super::dml::BodyProperties>().map(super::dml::BodyPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<super::dml::ListStyleView<'a>> {
+        self.0.child::<super::dml::ListStyle>().map(super::dml::ListStyleView)
+    }
+    #[cfg(feature = "dml")]
+    /// `a:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = super::dml::ParagraphView<'a>> {
+        self.0.children::<super::dml::Paragraph>().map(super::dml::ParagraphView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -353,11 +1625,25 @@ impl ooxml_core::ElementSpec for TextBody {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBody> for super::dml::BodyProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TextBody> for super::dml::ListStyle {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<TextBody> for super::dml::Paragraph {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
 impl<'a> TextBodyView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<super::dml::BodyPropertiesView<'a>> {
+        self.0.child::<super::dml::BodyProperties>().map(super::dml::BodyPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<super::dml::ListStyleView<'a>> {
+        self.0.child::<super::dml::ListStyle>().map(super::dml::ListStyleView)
+    }
     #[cfg(feature = "dml")]
     /// `a:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = super::dml::ParagraphView<'a>> {
@@ -407,6 +1693,1738 @@ impl<'a> TextBodyViewMut<'a> {
     /// Removes the first `a:p` child.
     pub fn remove_paragraph(&mut self) -> bool {
         self.0.remove::<super::dml::Paragraph>()
+    }
+}
+/// `a:CT_TextListStyle/p:bodyStyle` — Slide Master Body Text Style.
+#[derive(Debug)]
+pub enum BodyStyle {}
+impl ooxml_core::ElementSpec for BodyStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "bodyStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/p:bodyStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::DefaultParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level1ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level2ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level3ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level4ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level5ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level6ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level7ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level8ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<BodyStyle> for super::dml::Level9ParagraphProperties {}
+/// Read-only view of [`BodyStyle`].
+#[derive(Clone, Debug)]
+pub struct BodyStyleView<'a>(pub ooxml_core::Lens<'a, BodyStyle>);
+impl<'a> BodyStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:defPPr` child.
+    pub fn default_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::DefaultParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::DefaultParagraphProperties>()
+            .map(super::dml::DefaultParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl1pPr` child.
+    pub fn level1_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level1ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level1ParagraphProperties>()
+            .map(super::dml::Level1ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl2pPr` child.
+    pub fn level2_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level2ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level2ParagraphProperties>()
+            .map(super::dml::Level2ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl3pPr` child.
+    pub fn level3_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level3ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level3ParagraphProperties>()
+            .map(super::dml::Level3ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl4pPr` child.
+    pub fn level4_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level4ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level4ParagraphProperties>()
+            .map(super::dml::Level4ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl5pPr` child.
+    pub fn level5_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level5ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level5ParagraphProperties>()
+            .map(super::dml::Level5ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl6pPr` child.
+    pub fn level6_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level6ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level6ParagraphProperties>()
+            .map(super::dml::Level6ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl7pPr` child.
+    pub fn level7_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level7ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level7ParagraphProperties>()
+            .map(super::dml::Level7ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl8pPr` child.
+    pub fn level8_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level8ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level8ParagraphProperties>()
+            .map(super::dml::Level8ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl9pPr` child.
+    pub fn level9_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level9ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level9ParagraphProperties>()
+            .map(super::dml::Level9ParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextListStyle/p:defaultTextStyle` — Defines the DefaultTextStyle Class.
+#[derive(Debug)]
+pub enum DefaultTextStyle {}
+impl ooxml_core::ElementSpec for DefaultTextStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "defaultTextStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/p:defaultTextStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::DefaultParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level1ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level2ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level3ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level4ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level5ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level6ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level7ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level8ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<DefaultTextStyle> for super::dml::Level9ParagraphProperties {}
+/// Read-only view of [`DefaultTextStyle`].
+#[derive(Clone, Debug)]
+pub struct DefaultTextStyleView<'a>(pub ooxml_core::Lens<'a, DefaultTextStyle>);
+impl<'a> DefaultTextStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:defPPr` child.
+    pub fn default_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::DefaultParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::DefaultParagraphProperties>()
+            .map(super::dml::DefaultParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl1pPr` child.
+    pub fn level1_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level1ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level1ParagraphProperties>()
+            .map(super::dml::Level1ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl2pPr` child.
+    pub fn level2_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level2ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level2ParagraphProperties>()
+            .map(super::dml::Level2ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl3pPr` child.
+    pub fn level3_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level3ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level3ParagraphProperties>()
+            .map(super::dml::Level3ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl4pPr` child.
+    pub fn level4_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level4ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level4ParagraphProperties>()
+            .map(super::dml::Level4ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl5pPr` child.
+    pub fn level5_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level5ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level5ParagraphProperties>()
+            .map(super::dml::Level5ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl6pPr` child.
+    pub fn level6_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level6ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level6ParagraphProperties>()
+            .map(super::dml::Level6ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl7pPr` child.
+    pub fn level7_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level7ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level7ParagraphProperties>()
+            .map(super::dml::Level7ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl8pPr` child.
+    pub fn level8_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level8ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level8ParagraphProperties>()
+            .map(super::dml::Level8ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl9pPr` child.
+    pub fn level9_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level9ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level9ParagraphProperties>()
+            .map(super::dml::Level9ParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextListStyle/p:notesStyle` — Defines the NotesStyle Class.
+#[derive(Debug)]
+pub enum NotesStyle {}
+impl ooxml_core::ElementSpec for NotesStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "notesStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/p:notesStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::DefaultParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level1ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level2ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level3ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level4ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level5ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level6ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level7ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level8ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<NotesStyle> for super::dml::Level9ParagraphProperties {}
+/// Read-only view of [`NotesStyle`].
+#[derive(Clone, Debug)]
+pub struct NotesStyleView<'a>(pub ooxml_core::Lens<'a, NotesStyle>);
+impl<'a> NotesStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:defPPr` child.
+    pub fn default_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::DefaultParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::DefaultParagraphProperties>()
+            .map(super::dml::DefaultParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl1pPr` child.
+    pub fn level1_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level1ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level1ParagraphProperties>()
+            .map(super::dml::Level1ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl2pPr` child.
+    pub fn level2_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level2ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level2ParagraphProperties>()
+            .map(super::dml::Level2ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl3pPr` child.
+    pub fn level3_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level3ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level3ParagraphProperties>()
+            .map(super::dml::Level3ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl4pPr` child.
+    pub fn level4_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level4ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level4ParagraphProperties>()
+            .map(super::dml::Level4ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl5pPr` child.
+    pub fn level5_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level5ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level5ParagraphProperties>()
+            .map(super::dml::Level5ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl6pPr` child.
+    pub fn level6_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level6ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level6ParagraphProperties>()
+            .map(super::dml::Level6ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl7pPr` child.
+    pub fn level7_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level7ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level7ParagraphProperties>()
+            .map(super::dml::Level7ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl8pPr` child.
+    pub fn level8_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level8ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level8ParagraphProperties>()
+            .map(super::dml::Level8ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl9pPr` child.
+    pub fn level9_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level9ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level9ParagraphProperties>()
+            .map(super::dml::Level9ParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextListStyle/p:otherStyle` — Slide Master Other Text Style.
+#[derive(Debug)]
+pub enum OtherStyle {}
+impl ooxml_core::ElementSpec for OtherStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "otherStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/p:otherStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::DefaultParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level1ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level2ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level3ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level4ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level5ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level6ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level7ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level8ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<OtherStyle> for super::dml::Level9ParagraphProperties {}
+/// Read-only view of [`OtherStyle`].
+#[derive(Clone, Debug)]
+pub struct OtherStyleView<'a>(pub ooxml_core::Lens<'a, OtherStyle>);
+impl<'a> OtherStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:defPPr` child.
+    pub fn default_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::DefaultParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::DefaultParagraphProperties>()
+            .map(super::dml::DefaultParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl1pPr` child.
+    pub fn level1_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level1ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level1ParagraphProperties>()
+            .map(super::dml::Level1ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl2pPr` child.
+    pub fn level2_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level2ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level2ParagraphProperties>()
+            .map(super::dml::Level2ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl3pPr` child.
+    pub fn level3_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level3ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level3ParagraphProperties>()
+            .map(super::dml::Level3ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl4pPr` child.
+    pub fn level4_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level4ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level4ParagraphProperties>()
+            .map(super::dml::Level4ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl5pPr` child.
+    pub fn level5_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level5ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level5ParagraphProperties>()
+            .map(super::dml::Level5ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl6pPr` child.
+    pub fn level6_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level6ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level6ParagraphProperties>()
+            .map(super::dml::Level6ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl7pPr` child.
+    pub fn level7_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level7ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level7ParagraphProperties>()
+            .map(super::dml::Level7ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl8pPr` child.
+    pub fn level8_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level8ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level8ParagraphProperties>()
+            .map(super::dml::Level8ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl9pPr` child.
+    pub fn level9_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level9ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level9ParagraphProperties>()
+            .map(super::dml::Level9ParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextListStyle/p:titleStyle` — Slide Master Title Text Style.
+#[derive(Debug)]
+pub enum TitleStyle {}
+impl ooxml_core::ElementSpec for TitleStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "titleStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/p:titleStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::DefaultParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level1ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level2ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level3ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level4ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level5ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level6ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level7ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level8ParagraphProperties {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<TitleStyle> for super::dml::Level9ParagraphProperties {}
+/// Read-only view of [`TitleStyle`].
+#[derive(Clone, Debug)]
+pub struct TitleStyleView<'a>(pub ooxml_core::Lens<'a, TitleStyle>);
+impl<'a> TitleStyleView<'a> {
+    #[cfg(feature = "dml")]
+    /// First `a:defPPr` child.
+    pub fn default_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::DefaultParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::DefaultParagraphProperties>()
+            .map(super::dml::DefaultParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl1pPr` child.
+    pub fn level1_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level1ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level1ParagraphProperties>()
+            .map(super::dml::Level1ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl2pPr` child.
+    pub fn level2_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level2ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level2ParagraphProperties>()
+            .map(super::dml::Level2ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl3pPr` child.
+    pub fn level3_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level3ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level3ParagraphProperties>()
+            .map(super::dml::Level3ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl4pPr` child.
+    pub fn level4_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level4ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level4ParagraphProperties>()
+            .map(super::dml::Level4ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl5pPr` child.
+    pub fn level5_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level5ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level5ParagraphProperties>()
+            .map(super::dml::Level5ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl6pPr` child.
+    pub fn level6_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level6ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level6ParagraphProperties>()
+            .map(super::dml::Level6ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl7pPr` child.
+    pub fn level7_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level7ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level7ParagraphProperties>()
+            .map(super::dml::Level7ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl8pPr` child.
+    pub fn level8_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level8ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level8ParagraphProperties>()
+            .map(super::dml::Level8ParagraphPropertiesView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lvl9pPr` child.
+    pub fn level9_paragraph_properties(
+        &self,
+    ) -> Option<super::dml::Level9ParagraphPropertiesView<'a>> {
+        self.0
+            .child::<super::dml::Level9ParagraphProperties>()
+            .map(super::dml::Level9ParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Transform2D/p:xfrm` — 2D Transform for Graphic Frame.
+#[derive(Debug)]
+pub enum Transform {}
+impl Transform {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `flipH`
+    pub const ATTR_FLIP_H: ooxml_core::QName = ooxml_core::QName::new("", "flipH");
+    /// `flipV`
+    pub const ATTR_FLIP_V: ooxml_core::QName = ooxml_core::QName::new("", "flipV");
+}
+impl ooxml_core::ElementSpec for Transform {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "xfrm");
+    const SDK_NAME: &'static str = "a:CT_Transform2D/p:xfrm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Transform::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform::ATTR_FLIP_H,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform::ATTR_FLIP_V,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "off")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<Transform> for super::dml::Offset {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<Transform> for super::dml::Extents {}
+/// Read-only view of [`Transform`].
+#[derive(Clone, Debug)]
+pub struct TransformView<'a>(pub ooxml_core::Lens<'a, Transform>);
+impl<'a> TransformView<'a> {
+    /// `rot` — Rotation (default `0`)
+    pub fn rotation(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Transform::ATTR_ROT, "0", ooxml_core::value::parse_i32)
+    }
+    /// `flipH` — Horizontal Flip (default `false`)
+    pub fn horizontal_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform::ATTR_FLIP_H,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `flipV` — Vertical Flip (default `false`)
+    pub fn vertical_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform::ATTR_FLIP_V,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:off` child.
+    pub fn offset(&self) -> Option<super::dml::OffsetView<'a>> {
+        self.0.child::<super::dml::Offset>().map(super::dml::OffsetView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ext` child.
+    pub fn extents(&self) -> Option<super::dml::ExtentsView<'a>> {
+        self.0.child::<super::dml::Extents>().map(super::dml::ExtentsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p14:CT_Section/p14:section` — Defines the Section Class.
+#[derive(Debug)]
+pub enum Section {}
+impl Section {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+}
+impl ooxml_core::ElementSpec for Section {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P14, "section");
+    const SDK_NAME: &'static str = "p14:CT_Section/p14:section";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Section::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Section::ATTR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P14, "sldIdLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P14, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Section> for SectionSlideIdList {}
+/// Read-only view of [`Section`].
+#[derive(Clone, Debug)]
+pub struct SectionView<'a>(pub ooxml_core::Lens<'a, Section>);
+impl<'a> SectionView<'a> {
+    /// `name` — name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(Section::ATTR_NAME)
+    }
+    /// `id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Section::ATTR_ID)
+    }
+    /// First `p14:sldIdLst` child.
+    pub fn section_slide_id_list(&self) -> Option<SectionSlideIdListView<'a>> {
+        self.0.child::<SectionSlideIdList>().map(SectionSlideIdListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p14:CT_SectionList/p14:sectionLst` — Defines the SectionList Class.
+#[derive(Debug)]
+pub enum SectionList {}
+impl ooxml_core::ElementSpec for SectionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P14, "sectionLst");
+    const SDK_NAME: &'static str = "p14:CT_SectionList/p14:sectionLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P14, "section")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SectionList> for Section {}
+/// Read-only view of [`SectionList`].
+#[derive(Clone, Debug)]
+pub struct SectionListView<'a>(pub ooxml_core::Lens<'a, SectionList>);
+impl<'a> SectionListView<'a> {
+    /// `p14:section` children in document order.
+    pub fn section_iter(&self) -> impl Iterator<Item = SectionView<'a>> {
+        self.0.children::<Section>().map(SectionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p14:CT_SectionSlideIdList/p14:sldIdLst` — Defines the SectionSlideIdList Class.
+#[derive(Debug)]
+pub enum SectionSlideIdList {}
+impl ooxml_core::ElementSpec for SectionSlideIdList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P14, "sldIdLst");
+    const SDK_NAME: &'static str = "p14:CT_SectionSlideIdList/p14:sldIdLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P14, "sldId")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SectionSlideIdList> for SectionSlideIdListEntry {}
+/// Read-only view of [`SectionSlideIdList`].
+#[derive(Clone, Debug)]
+pub struct SectionSlideIdListView<'a>(pub ooxml_core::Lens<'a, SectionSlideIdList>);
+impl<'a> SectionSlideIdListView<'a> {
+    /// `p14:sldId` children in document order.
+    pub fn section_slide_id_list_entry_iter(
+        &self,
+    ) -> impl Iterator<Item = SectionSlideIdListEntryView<'a>> {
+        self.0.children::<SectionSlideIdListEntry>().map(SectionSlideIdListEntryView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p14:CT_SectionSlideIdListEntry/p14:sldId` — Defines the SectionSlideIdListEntry Class.
+#[derive(Debug)]
+pub enum SectionSlideIdListEntry {}
+impl SectionSlideIdListEntry {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+}
+impl ooxml_core::ElementSpec for SectionSlideIdListEntry {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P14, "sldId");
+    const SDK_NAME: &'static str = "p14:CT_SectionSlideIdListEntry/p14:sldId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SectionSlideIdListEntry::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SectionSlideIdListEntry`].
+#[derive(Clone, Debug)]
+pub struct SectionSlideIdListEntryView<'a>(
+    pub ooxml_core::Lens<'a, SectionSlideIdListEntry>,
+);
+impl<'a> SectionSlideIdListEntryView<'a> {
+    /// `id` — id
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(SectionSlideIdListEntry::ATTR_ID, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p188:CT_Author/p188:author` — Defines the Author Class.
+#[derive(Debug)]
+pub enum Author {}
+impl Author {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `initials`
+    pub const ATTR_INITIALS: ooxml_core::QName = ooxml_core::QName::new("", "initials");
+    /// `userId`
+    pub const ATTR_USER_ID: ooxml_core::QName = ooxml_core::QName::new("", "userId");
+    /// `providerId`
+    pub const ATTR_PROVIDER_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "providerId",
+    );
+}
+impl ooxml_core::ElementSpec for Author {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "author");
+    const SDK_NAME: &'static str = "p188:CT_Author/p188:author";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Author::ATTR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Author::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Author::ATTR_INITIALS,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Author::ATTR_USER_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Author::ATTR_PROVIDER_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P188, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`Author`].
+#[derive(Clone, Debug)]
+pub struct AuthorView<'a>(pub ooxml_core::Lens<'a, Author>);
+impl<'a> AuthorView<'a> {
+    /// `id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Author::ATTR_ID)
+    }
+    /// `name` — name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(Author::ATTR_NAME)
+    }
+    /// `initials` — initials
+    pub fn initials(&self) -> Option<&'a str> {
+        self.0.attr(Author::ATTR_INITIALS)
+    }
+    /// `userId` — userId
+    pub fn user_id(&self) -> Option<&'a str> {
+        self.0.attr(Author::ATTR_USER_ID)
+    }
+    /// `providerId` — providerId
+    pub fn provider_id(&self) -> Option<&'a str> {
+        self.0.attr(Author::ATTR_PROVIDER_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p188:CT_AuthorList/p188:authorLst` — Defines the AuthorList Class.
+#[derive(Debug)]
+pub enum AuthorList {}
+impl ooxml_core::ElementSpec for AuthorList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "authorLst");
+    const SDK_NAME: &'static str = "p188:CT_AuthorList/p188:authorLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P188, "author")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<AuthorList> for Author {}
+/// Read-only view of [`AuthorList`].
+#[derive(Clone, Debug)]
+pub struct AuthorListView<'a>(pub ooxml_core::Lens<'a, AuthorList>);
+impl<'a> AuthorListView<'a> {
+    /// `p188:author` children in document order.
+    pub fn author_iter(&self) -> impl Iterator<Item = AuthorView<'a>> {
+        self.0.children::<Author>().map(AuthorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p188:CT_Comment/p188:cm` — Defines the Comment Class.
+///
+/// Content model unsupported for insertion (exclusive choice of repeating alternatives).
+#[derive(Debug)]
+pub enum P188Comment {}
+impl P188Comment {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `authorId`
+    pub const ATTR_AUTHOR_ID: ooxml_core::QName = ooxml_core::QName::new("", "authorId");
+    /// `status`
+    pub const ATTR_STATUS: ooxml_core::QName = ooxml_core::QName::new("", "status");
+    /// `created`
+    pub const ATTR_CREATED: ooxml_core::QName = ooxml_core::QName::new("", "created");
+    /// `tags`
+    pub const ATTR_TAGS: ooxml_core::QName = ooxml_core::QName::new("", "tags");
+    /// `likes`
+    pub const ATTR_LIKES: ooxml_core::QName = ooxml_core::QName::new("", "likes");
+    /// `startDate`
+    pub const ATTR_START_DATE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "startDate",
+    );
+    /// `dueDate`
+    pub const ATTR_DUE_DATE: ooxml_core::QName = ooxml_core::QName::new("", "dueDate");
+    /// `assignedTo`
+    pub const ATTR_ASSIGNED_TO: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "assignedTo",
+    );
+    /// `complete`
+    pub const ATTR_COMPLETE: ooxml_core::QName = ooxml_core::QName::new("", "complete");
+    /// `priority`
+    pub const ATTR_PRIORITY: ooxml_core::QName = ooxml_core::QName::new("", "priority");
+    /// `title`
+    pub const ATTR_TITLE: ooxml_core::QName = ooxml_core::QName::new("", "title");
+}
+impl ooxml_core::ElementSpec for P188Comment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "cm");
+    const SDK_NAME: &'static str = "p188:CT_Comment/p188:cm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_AUTHOR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_STATUS,
+            ty: ooxml_core::SimpleType::Enum(
+                <CommentStatus as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_CREATED,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_TAGS,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_LIKES,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_START_DATE,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_DUE_DATE,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_ASSIGNED_TO,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_COMPLETE,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_PRIORITY,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: P188Comment::ATTR_TITLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Unsupported(
+        &[
+            ooxml_core::QName::new(NS_OAC, "deMkLst"),
+            ooxml_core::QName::new(NS_OAC, "gridColMkLst"),
+            ooxml_core::QName::new(NS_OAC, "tcMkLst"),
+            ooxml_core::QName::new(NS_OAC, "trMkLst"),
+            ooxml_core::QName::new(NS_OAC, "txBodyMkLst"),
+            ooxml_core::QName::new(NS_OAC, "txMkLst"),
+            ooxml_core::QName::new(NS_P188, "extLst"),
+            ooxml_core::QName::new(NS_P188, "pos"),
+            ooxml_core::QName::new(NS_P188, "replyLst"),
+            ooxml_core::QName::new(NS_P188, "txBody"),
+            ooxml_core::QName::new(NS_P188, "unknownAnchor"),
+            ooxml_core::QName::new(NS_PC, "sldLayoutMkLst"),
+            ooxml_core::QName::new(NS_PC, "sldMasterMkLst"),
+            ooxml_core::QName::new(NS_PC, "sldMkLst"),
+        ],
+    );
+}
+impl ooxml_core::ChildOf<P188Comment> for Point2DType {}
+impl ooxml_core::ChildOf<P188Comment> for TextBodyType {}
+impl ooxml_core::ChildOf<P188Comment> for CommentReplyList {}
+/// Read-only view of [`P188Comment`].
+#[derive(Clone, Debug)]
+pub struct P188CommentView<'a>(pub ooxml_core::Lens<'a, P188Comment>);
+impl<'a> P188CommentView<'a> {
+    /// `id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_ID)
+    }
+    /// `authorId` — authorId
+    pub fn author_id(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_AUTHOR_ID)
+    }
+    /// `status` — status
+    pub fn status(&self) -> Option<ooxml_core::EnumValue<'a, CommentStatus>> {
+        self.0.attr_enum(P188Comment::ATTR_STATUS)
+    }
+    /// `created` — created
+    pub fn created(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_CREATED)
+    }
+    /// `tags` — tags
+    pub fn tags(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_TAGS)
+    }
+    /// `likes` — likes
+    pub fn likes(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_LIKES)
+    }
+    /// `startDate` — startDate
+    pub fn start_date(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_START_DATE)
+    }
+    /// `dueDate` — dueDate
+    pub fn due_date(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_DUE_DATE)
+    }
+    /// `assignedTo` — assignedTo
+    pub fn assigned_to(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_ASSIGNED_TO)
+    }
+    /// `complete` — complete
+    pub fn complete(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(P188Comment::ATTR_COMPLETE, ooxml_core::value::parse_i32)
+    }
+    /// `priority` — priority
+    pub fn priority(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(P188Comment::ATTR_PRIORITY, ooxml_core::value::parse_u32)
+    }
+    /// `title` — title
+    pub fn title(&self) -> Option<&'a str> {
+        self.0.attr(P188Comment::ATTR_TITLE)
+    }
+    /// `p188:pos` children in document order.
+    pub fn point2_d_type_iter(&self) -> impl Iterator<Item = Point2DTypeView<'a>> {
+        self.0.children::<Point2DType>().map(Point2DTypeView)
+    }
+    /// `p188:txBody` children in document order.
+    pub fn text_body_type_iter(&self) -> impl Iterator<Item = TextBodyTypeView<'a>> {
+        self.0.children::<TextBodyType>().map(TextBodyTypeView)
+    }
+    /// `p188:replyLst` children in document order.
+    pub fn comment_reply_list_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentReplyListView<'a>> {
+        self.0.children::<CommentReplyList>().map(CommentReplyListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p188:CT_CommentList/p188:cmLst` — Defines the CommentList Class.
+#[derive(Debug)]
+pub enum P188CommentList {}
+impl ooxml_core::ElementSpec for P188CommentList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "cmLst");
+    const SDK_NAME: &'static str = "p188:CT_CommentList/p188:cmLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P188, "cm")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<P188CommentList> for P188Comment {}
+/// Read-only view of [`P188CommentList`].
+#[derive(Clone, Debug)]
+pub struct P188CommentListView<'a>(pub ooxml_core::Lens<'a, P188CommentList>);
+impl<'a> P188CommentListView<'a> {
+    /// `p188:cm` children in document order.
+    pub fn comment_iter(&self) -> impl Iterator<Item = P188CommentView<'a>> {
+        self.0.children::<P188Comment>().map(P188CommentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p188:CT_CommentReply/p188:reply` — Defines the CommentReply Class.
+#[derive(Debug)]
+pub enum CommentReply {}
+impl CommentReply {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `authorId`
+    pub const ATTR_AUTHOR_ID: ooxml_core::QName = ooxml_core::QName::new("", "authorId");
+    /// `status`
+    pub const ATTR_STATUS: ooxml_core::QName = ooxml_core::QName::new("", "status");
+    /// `created`
+    pub const ATTR_CREATED: ooxml_core::QName = ooxml_core::QName::new("", "created");
+    /// `tags`
+    pub const ATTR_TAGS: ooxml_core::QName = ooxml_core::QName::new("", "tags");
+    /// `likes`
+    pub const ATTR_LIKES: ooxml_core::QName = ooxml_core::QName::new("", "likes");
+}
+impl ooxml_core::ElementSpec for CommentReply {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "reply");
+    const SDK_NAME: &'static str = "p188:CT_CommentReply/p188:reply";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentReply::ATTR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentReply::ATTR_AUTHOR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentReply::ATTR_STATUS,
+            ty: ooxml_core::SimpleType::Enum(
+                <CommentStatus as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentReply::ATTR_CREATED,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentReply::ATTR_TAGS,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentReply::ATTR_LIKES,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P188, "txBody")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P188, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentReply> for TextBodyType {}
+/// Read-only view of [`CommentReply`].
+#[derive(Clone, Debug)]
+pub struct CommentReplyView<'a>(pub ooxml_core::Lens<'a, CommentReply>);
+impl<'a> CommentReplyView<'a> {
+    /// `id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(CommentReply::ATTR_ID)
+    }
+    /// `authorId` — authorId
+    pub fn author_id(&self) -> Option<&'a str> {
+        self.0.attr(CommentReply::ATTR_AUTHOR_ID)
+    }
+    /// `status` — status
+    pub fn status(&self) -> Option<ooxml_core::EnumValue<'a, CommentStatus>> {
+        self.0.attr_enum(CommentReply::ATTR_STATUS)
+    }
+    /// `created` — created
+    pub fn created(&self) -> Option<&'a str> {
+        self.0.attr(CommentReply::ATTR_CREATED)
+    }
+    /// `tags` — tags
+    pub fn tags(&self) -> Option<&'a str> {
+        self.0.attr(CommentReply::ATTR_TAGS)
+    }
+    /// `likes` — likes
+    pub fn likes(&self) -> Option<&'a str> {
+        self.0.attr(CommentReply::ATTR_LIKES)
+    }
+    /// First `p188:txBody` child.
+    pub fn text_body_type(&self) -> Option<TextBodyTypeView<'a>> {
+        self.0.child::<TextBodyType>().map(TextBodyTypeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p188:CT_CommentReplyList/p188:replyLst` — Defines the CommentReplyList Class.
+#[derive(Debug)]
+pub enum CommentReplyList {}
+impl ooxml_core::ElementSpec for CommentReplyList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "replyLst");
+    const SDK_NAME: &'static str = "p188:CT_CommentReplyList/p188:replyLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P188, "reply")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentReplyList> for CommentReply {}
+/// Read-only view of [`CommentReplyList`].
+#[derive(Clone, Debug)]
+pub struct CommentReplyListView<'a>(pub ooxml_core::Lens<'a, CommentReplyList>);
+impl<'a> CommentReplyListView<'a> {
+    /// `p188:reply` children in document order.
+    pub fn comment_reply_iter(&self) -> impl Iterator<Item = CommentReplyView<'a>> {
+        self.0.children::<CommentReply>().map(CommentReplyView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `p:CT_ApplicationNonVisualDrawingProps/p:nvPr` — Application Non-Visual Drawing Properties.
@@ -499,6 +3517,277 @@ impl<'a> ApplicationNonVisualDrawingPropertiesView<'a> {
     /// First `p:ph` child.
     pub fn placeholder_shape(&self) -> Option<PlaceholderShapeView<'a>> {
         self.0.child::<PlaceholderShape>().map(PlaceholderShapeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_BuildList/p:bldLst` — Build List.
+#[derive(Debug)]
+pub enum BuildList {}
+impl ooxml_core::ElementSpec for BuildList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "bldLst");
+    const SDK_NAME: &'static str = "p:CT_BuildList/p:bldLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P, "bldP"),
+                    ooxml_core::QName::new(NS_P, "bldDgm"),
+                    ooxml_core::QName::new(NS_P, "bldOleChart"),
+                    ooxml_core::QName::new(NS_P, "bldGraphic"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BuildList> for BuildParagraph {}
+/// Read-only view of [`BuildList`].
+#[derive(Clone, Debug)]
+pub struct BuildListView<'a>(pub ooxml_core::Lens<'a, BuildList>);
+impl<'a> BuildListView<'a> {
+    /// `p:bldP` children in document order.
+    pub fn build_paragraph_iter(&self) -> impl Iterator<Item = BuildParagraphView<'a>> {
+        self.0.children::<BuildParagraph>().map(BuildParagraphView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_Comment/p:cm` — Comment.
+#[derive(Debug)]
+pub enum PComment {}
+impl PComment {
+    /// `authorId`
+    pub const ATTR_AUTHOR_ID: ooxml_core::QName = ooxml_core::QName::new("", "authorId");
+    /// `dt`
+    pub const ATTR_DT: ooxml_core::QName = ooxml_core::QName::new("", "dt");
+    /// `idx`
+    pub const ATTR_IDX: ooxml_core::QName = ooxml_core::QName::new("", "idx");
+}
+impl ooxml_core::ElementSpec for PComment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "cm");
+    const SDK_NAME: &'static str = "p:CT_Comment/p:cm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PComment::ATTR_AUTHOR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PComment::ATTR_DT,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PComment::ATTR_IDX,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "pos")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "text")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PComment> for Position {}
+impl ooxml_core::ChildOf<PComment> for Text {}
+/// Read-only view of [`PComment`].
+#[derive(Clone, Debug)]
+pub struct PCommentView<'a>(pub ooxml_core::Lens<'a, PComment>);
+impl<'a> PCommentView<'a> {
+    /// `authorId` — authorId
+    pub fn author_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PComment::ATTR_AUTHOR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `dt` — dt
+    pub fn date_time(&self) -> Option<&'a str> {
+        self.0.attr(PComment::ATTR_DT)
+    }
+    /// `idx` — idx
+    pub fn index(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PComment::ATTR_IDX, ooxml_core::value::parse_u32)
+    }
+    /// First `p:pos` child.
+    pub fn position(&self) -> Option<PositionView<'a>> {
+        self.0.child::<Position>().map(PositionView)
+    }
+    /// First `p:text` child.
+    pub fn text(&self) -> Option<TextView<'a>> {
+        self.0.child::<Text>().map(TextView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_CommentAuthor/p:cmAuthor` — Comment Author.
+#[derive(Debug)]
+pub enum CommentAuthor {}
+impl CommentAuthor {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `initials`
+    pub const ATTR_INITIALS: ooxml_core::QName = ooxml_core::QName::new("", "initials");
+    /// `lastIdx`
+    pub const ATTR_LAST_IDX: ooxml_core::QName = ooxml_core::QName::new("", "lastIdx");
+    /// `clrIdx`
+    pub const ATTR_CLR_IDX: ooxml_core::QName = ooxml_core::QName::new("", "clrIdx");
+}
+impl ooxml_core::ElementSpec for CommentAuthor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "cmAuthor");
+    const SDK_NAME: &'static str = "p:CT_CommentAuthor/p:cmAuthor";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentAuthor::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentAuthor::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentAuthor::ATTR_INITIALS,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentAuthor::ATTR_LAST_IDX,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentAuthor::ATTR_CLR_IDX,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`CommentAuthor`].
+#[derive(Clone, Debug)]
+pub struct CommentAuthorView<'a>(pub ooxml_core::Lens<'a, CommentAuthor>);
+impl<'a> CommentAuthorView<'a> {
+    /// `id` — id
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommentAuthor::ATTR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `name` — name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(CommentAuthor::ATTR_NAME)
+    }
+    /// `initials` — initials
+    pub fn initials(&self) -> Option<&'a str> {
+        self.0.attr(CommentAuthor::ATTR_INITIALS)
+    }
+    /// `lastIdx` — lastIdx
+    pub fn last_index(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommentAuthor::ATTR_LAST_IDX, ooxml_core::value::parse_u32)
+    }
+    /// `clrIdx` — clrIdx
+    pub fn color_index(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommentAuthor::ATTR_CLR_IDX, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_CommentAuthorList/p:cmAuthorLst` — List of Comment Authors.
+#[derive(Debug)]
+pub enum CommentAuthorList {}
+impl ooxml_core::ElementSpec for CommentAuthorList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "cmAuthorLst");
+    const SDK_NAME: &'static str = "p:CT_CommentAuthorList/p:cmAuthorLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cmAuthor")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentAuthorList> for CommentAuthor {}
+/// Read-only view of [`CommentAuthorList`].
+#[derive(Clone, Debug)]
+pub struct CommentAuthorListView<'a>(pub ooxml_core::Lens<'a, CommentAuthorList>);
+impl<'a> CommentAuthorListView<'a> {
+    /// `p:cmAuthor` children in document order.
+    pub fn comment_author_iter(&self) -> impl Iterator<Item = CommentAuthorView<'a>> {
+        self.0.children::<CommentAuthor>().map(CommentAuthorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_CommentList/p:cmLst` — Comment List.
+#[derive(Debug)]
+pub enum PCommentList {}
+impl ooxml_core::ElementSpec for PCommentList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "cmLst");
+    const SDK_NAME: &'static str = "p:CT_CommentList/p:cmLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cm")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PCommentList> for PComment {}
+/// Read-only view of [`PCommentList`].
+#[derive(Clone, Debug)]
+pub struct PCommentListView<'a>(pub ooxml_core::Lens<'a, PCommentList>);
+impl<'a> PCommentListView<'a> {
+    /// `p:cm` children in document order.
+    pub fn comment_iter(&self) -> impl Iterator<Item = PCommentView<'a>> {
+        self.0.children::<PComment>().map(PCommentView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -611,11 +3900,21 @@ impl ooxml_core::ElementSpec for ConnectionShape {
         ],
     );
 }
+impl ooxml_core::ChildOf<ConnectionShape> for ShapeProperties {}
+impl ooxml_core::ChildOf<ConnectionShape> for ShapeStyle {}
 impl ooxml_core::ChildOf<ConnectionShape> for NonVisualConnectionShapeProperties {}
 /// Read-only view of [`ConnectionShape`].
 #[derive(Clone, Debug)]
 pub struct ConnectionShapeView<'a>(pub ooxml_core::Lens<'a, ConnectionShape>);
 impl<'a> ConnectionShapeView<'a> {
+    /// First `p:spPr` child.
+    pub fn shape_properties(&self) -> Option<ShapePropertiesView<'a>> {
+        self.0.child::<ShapeProperties>().map(ShapePropertiesView)
+    }
+    /// First `p:style` child.
+    pub fn shape_style(&self) -> Option<ShapeStyleView<'a>> {
+        self.0.child::<ShapeStyle>().map(ShapeStyleView)
+    }
     /// First `p:nvCxnSpPr` child.
     pub fn non_visual_connection_shape_properties(
         &self,
@@ -795,6 +4094,7 @@ impl ooxml_core::ElementSpec for GraphicFrame {
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GraphicFrame> for super::dml::Graphic {}
+impl ooxml_core::ChildOf<GraphicFrame> for Transform {}
 impl ooxml_core::ChildOf<GraphicFrame> for NonVisualGraphicFrameProperties {}
 /// Read-only view of [`GraphicFrame`].
 #[derive(Clone, Debug)]
@@ -804,6 +4104,10 @@ impl<'a> GraphicFrameView<'a> {
     /// First `a:graphic` child.
     pub fn graphic(&self) -> Option<super::dml::GraphicView<'a>> {
         self.0.child::<super::dml::Graphic>().map(super::dml::GraphicView)
+    }
+    /// First `p:xfrm` child.
+    pub fn transform(&self) -> Option<TransformView<'a>> {
+        self.0.child::<Transform>().map(TransformView)
     }
     /// First `p:nvGraphicFramePr` child.
     pub fn non_visual_graphic_frame_properties(
@@ -920,6 +4224,7 @@ impl ooxml_core::ElementSpec for GroupShape {
         ],
     );
 }
+impl ooxml_core::ChildOf<GroupShape> for GroupShapeProperties {}
 impl ooxml_core::ChildOf<GroupShape> for ConnectionShape {}
 impl ooxml_core::ChildOf<GroupShape> for ContentPart {}
 impl ooxml_core::ChildOf<GroupShape> for GraphicFrame {}
@@ -931,6 +4236,10 @@ impl ooxml_core::ChildOf<GroupShape> for Shape {}
 #[derive(Clone, Debug)]
 pub struct GroupShapeView<'a>(pub ooxml_core::Lens<'a, GroupShape>);
 impl<'a> GroupShapeView<'a> {
+    /// First `p:grpSpPr` child.
+    pub fn group_shape_properties(&self) -> Option<GroupShapePropertiesView<'a>> {
+        self.0.child::<GroupShapeProperties>().map(GroupShapePropertiesView)
+    }
     /// `p:cxnSp` children in document order.
     pub fn connection_shape_iter(
         &self,
@@ -1013,6 +4322,7 @@ impl ooxml_core::ElementSpec for ShapeTree {
         ],
     );
 }
+impl ooxml_core::ChildOf<ShapeTree> for GroupShapeProperties {}
 impl ooxml_core::ChildOf<ShapeTree> for ConnectionShape {}
 impl ooxml_core::ChildOf<ShapeTree> for ContentPart {}
 impl ooxml_core::ChildOf<ShapeTree> for GraphicFrame {}
@@ -1024,6 +4334,10 @@ impl ooxml_core::ChildOf<ShapeTree> for Shape {}
 #[derive(Clone, Debug)]
 pub struct ShapeTreeView<'a>(pub ooxml_core::Lens<'a, ShapeTree>);
 impl<'a> ShapeTreeView<'a> {
+    /// First `p:grpSpPr` child.
+    pub fn group_shape_properties(&self) -> Option<GroupShapePropertiesView<'a>> {
+        self.0.child::<GroupShapeProperties>().map(GroupShapePropertiesView)
+    }
     /// `p:cxnSp` children in document order.
     pub fn connection_shape_iter(
         &self,
@@ -1121,6 +4435,250 @@ impl<'a> NonVisualGroupShapePropertiesView<'a> {
         self.0.raw()
     }
 }
+/// `p:CT_IndexRange/p:charRg` — Character Range.
+#[derive(Debug)]
+pub enum CharRange {}
+impl CharRange {
+    /// `st`
+    pub const ATTR_ST: ooxml_core::QName = ooxml_core::QName::new("", "st");
+    /// `end`
+    pub const ATTR_END: ooxml_core::QName = ooxml_core::QName::new("", "end");
+}
+impl ooxml_core::ElementSpec for CharRange {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "charRg");
+    const SDK_NAME: &'static str = "p:CT_IndexRange/p:charRg";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CharRange::ATTR_ST,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CharRange::ATTR_END,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CharRange`].
+#[derive(Clone, Debug)]
+pub struct CharRangeView<'a>(pub ooxml_core::Lens<'a, CharRange>);
+impl<'a> CharRangeView<'a> {
+    /// `st` — Start
+    pub fn start(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CharRange::ATTR_ST, ooxml_core::value::parse_u32)
+    }
+    /// `end` — End
+    pub fn end(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CharRange::ATTR_END, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_IndexRange/p:pRg` — Paragraph Text Range.
+#[derive(Debug)]
+pub enum ParagraphIndexRange {}
+impl ParagraphIndexRange {
+    /// `st`
+    pub const ATTR_ST: ooxml_core::QName = ooxml_core::QName::new("", "st");
+    /// `end`
+    pub const ATTR_END: ooxml_core::QName = ooxml_core::QName::new("", "end");
+}
+impl ooxml_core::ElementSpec for ParagraphIndexRange {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "pRg");
+    const SDK_NAME: &'static str = "p:CT_IndexRange/p:pRg";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ParagraphIndexRange::ATTR_ST,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ParagraphIndexRange::ATTR_END,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ParagraphIndexRange`].
+#[derive(Clone, Debug)]
+pub struct ParagraphIndexRangeView<'a>(pub ooxml_core::Lens<'a, ParagraphIndexRange>);
+impl<'a> ParagraphIndexRangeView<'a> {
+    /// `st` — Start
+    pub fn start(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ParagraphIndexRange::ATTR_ST, ooxml_core::value::parse_u32)
+    }
+    /// `end` — End
+    pub fn end(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ParagraphIndexRange::ATTR_END, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_NotesMaster/p:notesMaster` — Notes Master.
+#[derive(Debug)]
+pub enum NotesMaster {}
+impl ooxml_core::ElementSpec for NotesMaster {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "notesMaster");
+    const SDK_NAME: &'static str = "p:CT_NotesMaster/p:notesMaster";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cSld")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "clrMap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "hf")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "notesStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<NotesMaster> for ColorMap {}
+impl ooxml_core::ChildOf<NotesMaster> for NotesStyle {}
+impl ooxml_core::ChildOf<NotesMaster> for CommonSlideData {}
+/// Read-only view of [`NotesMaster`].
+#[derive(Clone, Debug)]
+pub struct NotesMasterView<'a>(pub ooxml_core::Lens<'a, NotesMaster>);
+impl<'a> NotesMasterView<'a> {
+    /// First `p:clrMap` child.
+    pub fn color_map(&self) -> Option<ColorMapView<'a>> {
+        self.0.child::<ColorMap>().map(ColorMapView)
+    }
+    /// First `p:notesStyle` child.
+    pub fn notes_style(&self) -> Option<NotesStyleView<'a>> {
+        self.0.child::<NotesStyle>().map(NotesStyleView)
+    }
+    /// First `p:cSld` child.
+    pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
+        self.0.child::<CommonSlideData>().map(CommonSlideDataView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_NotesSlide/p:notes` — Notes Slide.
+#[derive(Debug)]
+pub enum NotesSlide {}
+impl NotesSlide {
+    /// `showMasterSp`
+    pub const ATTR_SHOW_MASTER_SP: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showMasterSp",
+    );
+    /// `showMasterPhAnim`
+    pub const ATTR_SHOW_MASTER_PH_ANIM: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showMasterPhAnim",
+    );
+}
+impl ooxml_core::ElementSpec for NotesSlide {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "notes");
+    const SDK_NAME: &'static str = "p:CT_NotesSlide/p:notes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NotesSlide::ATTR_SHOW_MASTER_SP,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: NotesSlide::ATTR_SHOW_MASTER_PH_ANIM,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cSld")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "clrMapOvr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<NotesSlide> for ColorMapOverride {}
+impl ooxml_core::ChildOf<NotesSlide> for CommonSlideData {}
+/// Read-only view of [`NotesSlide`].
+#[derive(Clone, Debug)]
+pub struct NotesSlideView<'a>(pub ooxml_core::Lens<'a, NotesSlide>);
+impl<'a> NotesSlideView<'a> {
+    /// `showMasterSp` — Show Master Shapes (default `true`)
+    pub fn show_master_shapes(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                NotesSlide::ATTR_SHOW_MASTER_SP,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showMasterPhAnim` — Show Master Placeholder Animations (default `true`)
+    pub fn show_master_placeholder_animations(
+        &self,
+    ) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                NotesSlide::ATTR_SHOW_MASTER_PH_ANIM,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `p:clrMapOvr` child.
+    pub fn color_map_override(&self) -> Option<ColorMapOverrideView<'a>> {
+        self.0.child::<ColorMapOverride>().map(ColorMapOverrideView)
+    }
+    /// First `p:cSld` child.
+    pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
+        self.0.child::<CommonSlideData>().map(CommonSlideDataView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `p:CT_Picture/p:pic` — Defines the Picture Class.
 #[derive(Debug)]
 pub enum Picture {}
@@ -1163,11 +4721,21 @@ impl ooxml_core::ElementSpec for Picture {
         ],
     );
 }
+impl ooxml_core::ChildOf<Picture> for ShapeProperties {}
+impl ooxml_core::ChildOf<Picture> for ShapeStyle {}
 impl ooxml_core::ChildOf<Picture> for NonVisualPictureProperties {}
 /// Read-only view of [`Picture`].
 #[derive(Clone, Debug)]
 pub struct PictureView<'a>(pub ooxml_core::Lens<'a, Picture>);
 impl<'a> PictureView<'a> {
+    /// First `p:spPr` child.
+    pub fn shape_properties(&self) -> Option<ShapePropertiesView<'a>> {
+        self.0.child::<ShapeProperties>().map(ShapePropertiesView)
+    }
+    /// First `p:style` child.
+    pub fn shape_style(&self) -> Option<ShapeStyleView<'a>> {
+        self.0.child::<ShapeStyle>().map(ShapeStyleView)
+    }
     /// First `p:nvPicPr` child.
     pub fn non_visual_picture_properties(
         &self,
@@ -1409,8 +4977,8 @@ impl ooxml_core::ElementSpec for Presentation {
     const ATTRS: &'static [ooxml_core::AttrSpec] = &[
         ooxml_core::AttrSpec {
             name: Presentation::ATTR_SERVER_ZOOM,
-            ty: ooxml_core::SimpleType::Int32,
-            default: None,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: Some("50%"),
         },
         ooxml_core::AttrSpec {
             name: Presentation::ATTR_FIRST_SLIDE_NUM,
@@ -1559,14 +5127,24 @@ impl ooxml_core::ElementSpec for Presentation {
         ],
     );
 }
+impl ooxml_core::ChildOf<Presentation> for DefaultTextStyle {}
+impl ooxml_core::ChildOf<Presentation> for PresentationExtensionList {}
 impl ooxml_core::ChildOf<Presentation> for SlideIdList {}
+impl ooxml_core::ChildOf<Presentation> for SlideSize {}
 /// Read-only view of [`Presentation`].
 #[derive(Clone, Debug)]
 pub struct PresentationView<'a>(pub ooxml_core::Lens<'a, Presentation>);
 impl<'a> PresentationView<'a> {
-    /// `serverZoom` — serverZoom
-    pub fn server_zoom(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
-        self.0.attr_parsed(Presentation::ATTR_SERVER_ZOOM, ooxml_core::value::parse_i32)
+    /// `serverZoom` — serverZoom (default `50%`)
+    pub fn server_zoom(
+        &self,
+    ) -> Result<ooxml_core::value::DmlPercent, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Presentation::ATTR_SERVER_ZOOM,
+                "50%",
+                ooxml_core::value::parse_dml_percent,
+            )
     }
     /// `firstSlideNum` — firstSlideNum (default `1`)
     pub fn first_slide_num(&self) -> Result<i32, ooxml_core::AttrError> {
@@ -1666,9 +5244,112 @@ impl<'a> PresentationView<'a> {
     ) -> Option<ooxml_core::EnumValue<'a, ConformanceClassValues>> {
         self.0.attr_enum(Presentation::ATTR_CONFORMANCE)
     }
+    /// First `p:defaultTextStyle` child.
+    pub fn default_text_style(&self) -> Option<DefaultTextStyleView<'a>> {
+        self.0.child::<DefaultTextStyle>().map(DefaultTextStyleView)
+    }
+    /// First `p:extLst` child.
+    pub fn presentation_extension_list(
+        &self,
+    ) -> Option<PresentationExtensionListView<'a>> {
+        self.0.child::<PresentationExtensionList>().map(PresentationExtensionListView)
+    }
     /// First `p:sldIdLst` child.
     pub fn slide_id_list(&self) -> Option<SlideIdListView<'a>> {
         self.0.child::<SlideIdList>().map(SlideIdListView)
+    }
+    /// First `p:sldSz` child.
+    pub fn slide_size(&self) -> Option<SlideSizeView<'a>> {
+        self.0.child::<SlideSize>().map(SlideSizeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_PresentationExtension/p:ext` — Defines the PresentationExtension Class.
+#[derive(Debug)]
+pub enum PresentationExtension {}
+impl PresentationExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for PresentationExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "ext");
+    const SDK_NAME: &'static str = "p:CT_PresentationExtension/p:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PresentationExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P14, "sectionPr"),
+                    ooxml_core::QName::new(NS_P14, "sectionLst"),
+                    ooxml_core::QName::new(NS_P15, "sldGuideLst"),
+                    ooxml_core::QName::new(NS_P15, "notesGuideLst"),
+                ],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PresentationExtension> for SectionList {}
+/// Read-only view of [`PresentationExtension`].
+#[derive(Clone, Debug)]
+pub struct PresentationExtensionView<'a>(
+    pub ooxml_core::Lens<'a, PresentationExtension>,
+);
+impl<'a> PresentationExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(PresentationExtension::ATTR_URI)
+    }
+    /// First `p14:sectionLst` child.
+    pub fn section_list(&self) -> Option<SectionListView<'a>> {
+        self.0.child::<SectionList>().map(SectionListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_PresentationExtensionList/p:extLst` — Defines the PresentationExtensionList Class.
+#[derive(Debug)]
+pub enum PresentationExtensionList {}
+impl ooxml_core::ElementSpec for PresentationExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "extLst");
+    const SDK_NAME: &'static str = "p:CT_PresentationExtensionList/p:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PresentationExtensionList> for PresentationExtension {}
+/// Read-only view of [`PresentationExtensionList`].
+#[derive(Clone, Debug)]
+pub struct PresentationExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, PresentationExtensionList>,
+);
+impl<'a> PresentationExtensionListView<'a> {
+    /// `p:ext` children in document order.
+    pub fn presentation_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = PresentationExtensionView<'a>> {
+        self.0.children::<PresentationExtension>().map(PresentationExtensionView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1730,6 +5411,8 @@ impl ooxml_core::ElementSpec for Shape {
         ],
     );
 }
+impl ooxml_core::ChildOf<Shape> for ShapeProperties {}
+impl ooxml_core::ChildOf<Shape> for ShapeStyle {}
 impl ooxml_core::ChildOf<Shape> for TextBody {}
 impl ooxml_core::ChildOf<Shape> for NonVisualShapeProperties {}
 /// Read-only view of [`Shape`].
@@ -1744,6 +5427,14 @@ impl<'a> ShapeView<'a> {
                 "false",
                 ooxml_core::value::parse_bool,
             )
+    }
+    /// First `p:spPr` child.
+    pub fn shape_properties(&self) -> Option<ShapePropertiesView<'a>> {
+        self.0.child::<ShapeProperties>().map(ShapePropertiesView)
+    }
+    /// First `p:style` child.
+    pub fn shape_style(&self) -> Option<ShapeStyleView<'a>> {
+        self.0.child::<ShapeStyle>().map(ShapeStyleView)
     }
     /// First `p:txBody` child.
     pub fn text_body(&self) -> Option<TextBodyView<'a>> {
@@ -1890,7 +5581,10 @@ impl ooxml_core::ElementSpec for Slide {
         ],
     );
 }
+impl ooxml_core::ChildOf<Slide> for ColorMapOverride {}
 impl ooxml_core::ChildOf<Slide> for CommonSlideData {}
+impl ooxml_core::ChildOf<Slide> for Timing {}
+impl ooxml_core::ChildOf<Slide> for Transition {}
 /// Read-only view of [`Slide`].
 #[derive(Clone, Debug)]
 pub struct SlideView<'a>(pub ooxml_core::Lens<'a, Slide>);
@@ -1919,9 +5613,21 @@ impl<'a> SlideView<'a> {
     pub fn show(&self) -> Result<bool, ooxml_core::AttrError> {
         self.0.attr_parsed_or(Slide::ATTR_SHOW, "true", ooxml_core::value::parse_bool)
     }
+    /// First `p:clrMapOvr` child.
+    pub fn color_map_override(&self) -> Option<ColorMapOverrideView<'a>> {
+        self.0.child::<ColorMapOverride>().map(ColorMapOverrideView)
+    }
     /// First `p:cSld` child.
     pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
         self.0.child::<CommonSlideData>().map(CommonSlideDataView)
+    }
+    /// First `p:timing` child.
+    pub fn timing(&self) -> Option<TimingView<'a>> {
+        self.0.child::<Timing>().map(TimingView)
+    }
+    /// First `p:transition` child.
+    pub fn transition(&self) -> Option<TransitionView<'a>> {
+        self.0.child::<Transition>().map(TransitionView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2012,18 +5718,1682 @@ impl<'a> SlideIdView<'a> {
         self.0.raw()
     }
 }
+/// `p:CT_SlideLayout/p:sldLayout` — Slide Layout.
+#[derive(Debug)]
+pub enum SlideLayout {}
+impl SlideLayout {
+    /// `showMasterSp`
+    pub const ATTR_SHOW_MASTER_SP: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showMasterSp",
+    );
+    /// `showMasterPhAnim`
+    pub const ATTR_SHOW_MASTER_PH_ANIM: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showMasterPhAnim",
+    );
+    /// `matchingName`
+    pub const ATTR_MATCHING_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "matchingName",
+    );
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `preserve`
+    pub const ATTR_PRESERVE: ooxml_core::QName = ooxml_core::QName::new("", "preserve");
+    /// `userDrawn`
+    pub const ATTR_USER_DRAWN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "userDrawn",
+    );
+}
+impl ooxml_core::ElementSpec for SlideLayout {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "sldLayout");
+    const SDK_NAME: &'static str = "p:CT_SlideLayout/p:sldLayout";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SlideLayout::ATTR_SHOW_MASTER_SP,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SlideLayout::ATTR_SHOW_MASTER_PH_ANIM,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SlideLayout::ATTR_MATCHING_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: SlideLayout::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SlideLayoutValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("cust"),
+        },
+        ooxml_core::AttrSpec {
+            name: SlideLayout::ATTR_PRESERVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SlideLayout::ATTR_USER_DRAWN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cSld")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "clrMapOvr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "transition")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "timing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "hf")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SlideLayout> for ColorMapOverride {}
+impl ooxml_core::ChildOf<SlideLayout> for CommonSlideData {}
+impl ooxml_core::ChildOf<SlideLayout> for Timing {}
+impl ooxml_core::ChildOf<SlideLayout> for Transition {}
+/// Read-only view of [`SlideLayout`].
+#[derive(Clone, Debug)]
+pub struct SlideLayoutView<'a>(pub ooxml_core::Lens<'a, SlideLayout>);
+impl<'a> SlideLayoutView<'a> {
+    /// `showMasterSp` — Show Master Shapes (default `true`)
+    pub fn show_master_shapes(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SlideLayout::ATTR_SHOW_MASTER_SP,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showMasterPhAnim` — Show Master Placeholder Animations (default `true`)
+    pub fn show_master_placeholder_animations(
+        &self,
+    ) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SlideLayout::ATTR_SHOW_MASTER_PH_ANIM,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `matchingName` — matchingName (default ``)
+    pub fn matching_name(&self) -> &'a str {
+        self.0.attr(SlideLayout::ATTR_MATCHING_NAME).unwrap_or("")
+    }
+    /// `type` — type (default `cust`)
+    pub fn type_(&self) -> ooxml_core::EnumValue<'a, SlideLayoutValues> {
+        self.0.attr_enum_or(SlideLayout::ATTR_TYPE, "cust")
+    }
+    /// `preserve` — preserve (default `false`)
+    pub fn preserve(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SlideLayout::ATTR_PRESERVE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `userDrawn` — userDrawn (default `false`)
+    pub fn user_drawn(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SlideLayout::ATTR_USER_DRAWN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `p:clrMapOvr` child.
+    pub fn color_map_override(&self) -> Option<ColorMapOverrideView<'a>> {
+        self.0.child::<ColorMapOverride>().map(ColorMapOverrideView)
+    }
+    /// First `p:cSld` child.
+    pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
+        self.0.child::<CommonSlideData>().map(CommonSlideDataView)
+    }
+    /// First `p:timing` child.
+    pub fn timing(&self) -> Option<TimingView<'a>> {
+        self.0.child::<Timing>().map(TimingView)
+    }
+    /// First `p:transition` child.
+    pub fn transition(&self) -> Option<TransitionView<'a>> {
+        self.0.child::<Transition>().map(TransitionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_SlideMaster/p:sldMaster` — Slide Master.
+#[derive(Debug)]
+pub enum SlideMaster {}
+impl SlideMaster {
+    /// `preserve`
+    pub const ATTR_PRESERVE: ooxml_core::QName = ooxml_core::QName::new("", "preserve");
+}
+impl ooxml_core::ElementSpec for SlideMaster {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "sldMaster");
+    const SDK_NAME: &'static str = "p:CT_SlideMaster/p:sldMaster";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SlideMaster::ATTR_PRESERVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "cSld")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "clrMap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "sldLayoutIdLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "transition")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "timing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "hf")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "txStyles")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SlideMaster> for ColorMap {}
+impl ooxml_core::ChildOf<SlideMaster> for CommonSlideData {}
+impl ooxml_core::ChildOf<SlideMaster> for TextStyles {}
+impl ooxml_core::ChildOf<SlideMaster> for Timing {}
+impl ooxml_core::ChildOf<SlideMaster> for Transition {}
+/// Read-only view of [`SlideMaster`].
+#[derive(Clone, Debug)]
+pub struct SlideMasterView<'a>(pub ooxml_core::Lens<'a, SlideMaster>);
+impl<'a> SlideMasterView<'a> {
+    /// `preserve` — preserve (default `false`)
+    pub fn preserve(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SlideMaster::ATTR_PRESERVE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `p:clrMap` child.
+    pub fn color_map(&self) -> Option<ColorMapView<'a>> {
+        self.0.child::<ColorMap>().map(ColorMapView)
+    }
+    /// First `p:cSld` child.
+    pub fn common_slide_data(&self) -> Option<CommonSlideDataView<'a>> {
+        self.0.child::<CommonSlideData>().map(CommonSlideDataView)
+    }
+    /// First `p:txStyles` child.
+    pub fn text_styles(&self) -> Option<TextStylesView<'a>> {
+        self.0.child::<TextStyles>().map(TextStylesView)
+    }
+    /// First `p:timing` child.
+    pub fn timing(&self) -> Option<TimingView<'a>> {
+        self.0.child::<Timing>().map(TimingView)
+    }
+    /// First `p:transition` child.
+    pub fn transition(&self) -> Option<TransitionView<'a>> {
+        self.0.child::<Transition>().map(TransitionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_SlideMasterTextStyles/p:txStyles` — Defines the TextStyles Class.
+#[derive(Debug)]
+pub enum TextStyles {}
+impl ooxml_core::ElementSpec for TextStyles {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "txStyles");
+    const SDK_NAME: &'static str = "p:CT_SlideMasterTextStyles/p:txStyles";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "titleStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "bodyStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "otherStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TextStyles> for BodyStyle {}
+impl ooxml_core::ChildOf<TextStyles> for OtherStyle {}
+impl ooxml_core::ChildOf<TextStyles> for TitleStyle {}
+/// Read-only view of [`TextStyles`].
+#[derive(Clone, Debug)]
+pub struct TextStylesView<'a>(pub ooxml_core::Lens<'a, TextStyles>);
+impl<'a> TextStylesView<'a> {
+    /// First `p:bodyStyle` child.
+    pub fn body_style(&self) -> Option<BodyStyleView<'a>> {
+        self.0.child::<BodyStyle>().map(BodyStyleView)
+    }
+    /// First `p:otherStyle` child.
+    pub fn other_style(&self) -> Option<OtherStyleView<'a>> {
+        self.0.child::<OtherStyle>().map(OtherStyleView)
+    }
+    /// First `p:titleStyle` child.
+    pub fn title_style(&self) -> Option<TitleStyleView<'a>> {
+        self.0.child::<TitleStyle>().map(TitleStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_SlideSize/p:sldSz` — Defines the SlideSize Class.
+#[derive(Debug)]
+pub enum SlideSize {}
+impl SlideSize {
+    /// `cx`
+    pub const ATTR_CX: ooxml_core::QName = ooxml_core::QName::new("", "cx");
+    /// `cy`
+    pub const ATTR_CY: ooxml_core::QName = ooxml_core::QName::new("", "cy");
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+}
+impl ooxml_core::ElementSpec for SlideSize {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "sldSz");
+    const SDK_NAME: &'static str = "p:CT_SlideSize/p:sldSz";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SlideSize::ATTR_CX,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SlideSize::ATTR_CY,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SlideSize::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SlideSizeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("custom"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SlideSize`].
+#[derive(Clone, Debug)]
+pub struct SlideSizeView<'a>(pub ooxml_core::Lens<'a, SlideSize>);
+impl<'a> SlideSizeView<'a> {
+    /// `cx` — Extent Length
+    pub fn cx(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(SlideSize::ATTR_CX, ooxml_core::value::parse_i32)
+    }
+    /// `cy` — Extent Width
+    pub fn cy(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(SlideSize::ATTR_CY, ooxml_core::value::parse_i32)
+    }
+    /// `type` — Type of Size (default `custom`)
+    pub fn type_(&self) -> ooxml_core::EnumValue<'a, SlideSizeValues> {
+        self.0.attr_enum_or(SlideSize::ATTR_TYPE, "custom")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_SlideTiming/p:timing` — Slide Timing Information for a Slide.
+#[derive(Debug)]
+pub enum Timing {}
+impl ooxml_core::ElementSpec for Timing {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "timing");
+    const SDK_NAME: &'static str = "p:CT_SlideTiming/p:timing";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "tnLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "bldLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Timing> for BuildList {}
+/// Read-only view of [`Timing`].
+#[derive(Clone, Debug)]
+pub struct TimingView<'a>(pub ooxml_core::Lens<'a, Timing>);
+impl<'a> TimingView<'a> {
+    /// First `p:bldLst` child.
+    pub fn build_list(&self) -> Option<BuildListView<'a>> {
+        self.0.child::<BuildList>().map(BuildListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_SlideTransition/p:transition` — Slide Transition.
+#[derive(Debug)]
+pub enum Transition {}
+impl Transition {
+    /// `spd`
+    pub const ATTR_SPD: ooxml_core::QName = ooxml_core::QName::new("", "spd");
+    /// `p14:dur`
+    pub const ATTR_P14_DUR: ooxml_core::QName = ooxml_core::QName::new(NS_P14, "dur");
+    /// `advClick`
+    pub const ATTR_ADV_CLICK: ooxml_core::QName = ooxml_core::QName::new("", "advClick");
+    /// `advTm`
+    pub const ATTR_ADV_TM: ooxml_core::QName = ooxml_core::QName::new("", "advTm");
+}
+impl ooxml_core::ElementSpec for Transition {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "transition");
+    const SDK_NAME: &'static str = "p:CT_SlideTransition/p:transition";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Transition::ATTR_SPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <TransitionSpeedValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("fast"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transition::ATTR_P14_DUR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Transition::ATTR_ADV_CLICK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transition::ATTR_ADV_TM,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P, "blinds"),
+                    ooxml_core::QName::new(NS_P, "checker"),
+                    ooxml_core::QName::new(NS_P, "circle"),
+                    ooxml_core::QName::new(NS_P, "dissolve"),
+                    ooxml_core::QName::new(NS_P, "comb"),
+                    ooxml_core::QName::new(NS_P, "cover"),
+                    ooxml_core::QName::new(NS_P, "cut"),
+                    ooxml_core::QName::new(NS_P, "diamond"),
+                    ooxml_core::QName::new(NS_P, "fade"),
+                    ooxml_core::QName::new(NS_P, "newsflash"),
+                    ooxml_core::QName::new(NS_P, "plus"),
+                    ooxml_core::QName::new(NS_P, "pull"),
+                    ooxml_core::QName::new(NS_P, "push"),
+                    ooxml_core::QName::new(NS_P, "random"),
+                    ooxml_core::QName::new(NS_P, "randomBar"),
+                    ooxml_core::QName::new(NS_P, "split"),
+                    ooxml_core::QName::new(NS_P, "strips"),
+                    ooxml_core::QName::new(NS_P, "wedge"),
+                    ooxml_core::QName::new(NS_P, "wheel"),
+                    ooxml_core::QName::new(NS_P, "wipe"),
+                    ooxml_core::QName::new(NS_P, "zoom"),
+                    ooxml_core::QName::new(NS_P14, "flash"),
+                    ooxml_core::QName::new(NS_P14, "vortex"),
+                    ooxml_core::QName::new(NS_P14, "switch"),
+                    ooxml_core::QName::new(NS_P14, "flip"),
+                    ooxml_core::QName::new(NS_P14, "ripple"),
+                    ooxml_core::QName::new(NS_P14, "glitter"),
+                    ooxml_core::QName::new(NS_P14, "honeycomb"),
+                    ooxml_core::QName::new(NS_P14, "prism"),
+                    ooxml_core::QName::new(NS_P14, "doors"),
+                    ooxml_core::QName::new(NS_P14, "window"),
+                    ooxml_core::QName::new(NS_P14, "shred"),
+                    ooxml_core::QName::new(NS_P14, "ferris"),
+                    ooxml_core::QName::new(NS_P14, "flythrough"),
+                    ooxml_core::QName::new(NS_P14, "warp"),
+                    ooxml_core::QName::new(NS_P14, "gallery"),
+                    ooxml_core::QName::new(NS_P14, "conveyor"),
+                    ooxml_core::QName::new(NS_P14, "pan"),
+                    ooxml_core::QName::new(NS_P14, "reveal"),
+                    ooxml_core::QName::new(NS_P14, "wheelReverse"),
+                    ooxml_core::QName::new(NS_P15, "prstTrans"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "sndAc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Transition> for SoundAction {}
+/// Read-only view of [`Transition`].
+#[derive(Clone, Debug)]
+pub struct TransitionView<'a>(pub ooxml_core::Lens<'a, Transition>);
+impl<'a> TransitionView<'a> {
+    /// `spd` — spd (default `fast`)
+    pub fn speed(&self) -> ooxml_core::EnumValue<'a, TransitionSpeedValues> {
+        self.0.attr_enum_or(Transition::ATTR_SPD, "fast")
+    }
+    /// `p14:dur` — dur
+    pub fn duration(&self) -> Option<&'a str> {
+        self.0.attr(Transition::ATTR_P14_DUR)
+    }
+    /// `advClick` — Specifies whether a mouse click will advance the slide. (default `true`)
+    pub fn advance_on_click(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transition::ATTR_ADV_CLICK,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `advTm` — advTm
+    pub fn advance_after_time(&self) -> Option<&'a str> {
+        self.0.attr(Transition::ATTR_ADV_TM)
+    }
+    /// First `p:sndAc` child.
+    pub fn sound_action(&self) -> Option<SoundActionView<'a>> {
+        self.0.child::<SoundAction>().map(SoundActionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_TLBuildParagraph/p:bldP` — Build Paragraph.
+#[derive(Debug)]
+pub enum BuildParagraph {}
+impl BuildParagraph {
+    /// `spid`
+    pub const ATTR_SPID: ooxml_core::QName = ooxml_core::QName::new("", "spid");
+    /// `grpId`
+    pub const ATTR_GRP_ID: ooxml_core::QName = ooxml_core::QName::new("", "grpId");
+    /// `uiExpand`
+    pub const ATTR_UI_EXPAND: ooxml_core::QName = ooxml_core::QName::new("", "uiExpand");
+    /// `build`
+    pub const ATTR_BUILD: ooxml_core::QName = ooxml_core::QName::new("", "build");
+    /// `bldLvl`
+    pub const ATTR_BLD_LVL: ooxml_core::QName = ooxml_core::QName::new("", "bldLvl");
+    /// `animBg`
+    pub const ATTR_ANIM_BG: ooxml_core::QName = ooxml_core::QName::new("", "animBg");
+    /// `autoUpdateAnimBg`
+    pub const ATTR_AUTO_UPDATE_ANIM_BG: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoUpdateAnimBg",
+    );
+    /// `rev`
+    pub const ATTR_REV: ooxml_core::QName = ooxml_core::QName::new("", "rev");
+    /// `advAuto`
+    pub const ATTR_ADV_AUTO: ooxml_core::QName = ooxml_core::QName::new("", "advAuto");
+}
+impl ooxml_core::ElementSpec for BuildParagraph {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "bldP");
+    const SDK_NAME: &'static str = "p:CT_TLBuildParagraph/p:bldP";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_SPID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_GRP_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_UI_EXPAND,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_BUILD,
+            ty: ooxml_core::SimpleType::Enum(
+                <ParagraphBuildValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("whole"),
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_BLD_LVL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_ANIM_BG,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_AUTO_UPDATE_ANIM_BG,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_REV,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: BuildParagraph::ATTR_ADV_AUTO,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("indefinite"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "tmplLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`BuildParagraph`].
+#[derive(Clone, Debug)]
+pub struct BuildParagraphView<'a>(pub ooxml_core::Lens<'a, BuildParagraph>);
+impl<'a> BuildParagraphView<'a> {
+    /// `spid` — Shape ID
+    pub fn shape_id(&self) -> Option<&'a str> {
+        self.0.attr(BuildParagraph::ATTR_SPID)
+    }
+    /// `grpId` — Group ID
+    pub fn group_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BuildParagraph::ATTR_GRP_ID, ooxml_core::value::parse_u32)
+    }
+    /// `uiExpand` — Expand UI (default `false`)
+    pub fn ui_expand(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BuildParagraph::ATTR_UI_EXPAND,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `build` — Build Types (default `whole`)
+    pub fn build(&self) -> ooxml_core::EnumValue<'a, ParagraphBuildValues> {
+        self.0.attr_enum_or(BuildParagraph::ATTR_BUILD, "whole")
+    }
+    /// `bldLvl` — Build Level (default `1`)
+    pub fn build_level(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BuildParagraph::ATTR_BLD_LVL,
+                "1",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `animBg` — Animate Background (default `false`)
+    pub fn animate_background(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BuildParagraph::ATTR_ANIM_BG,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `autoUpdateAnimBg` — Auto Update Animation Background (default `true`)
+    pub fn auto_animate_background(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BuildParagraph::ATTR_AUTO_UPDATE_ANIM_BG,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `rev` — Reverse (default `false`)
+    pub fn reverse(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BuildParagraph::ATTR_REV,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `advAuto` — Auto Advance Time (default `indefinite`)
+    pub fn auto_advance(&self) -> &'a str {
+        self.0.attr(BuildParagraph::ATTR_ADV_AUTO).unwrap_or("indefinite")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_TLCommonTimeNodeData/p:cTn` — Parallel TimeNode.
+#[derive(Debug)]
+pub enum CommonTimeNode {}
+impl CommonTimeNode {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `presetID`
+    pub const ATTR_PRESET_ID: ooxml_core::QName = ooxml_core::QName::new("", "presetID");
+    /// `presetClass`
+    pub const ATTR_PRESET_CLASS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "presetClass",
+    );
+    /// `presetSubtype`
+    pub const ATTR_PRESET_SUBTYPE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "presetSubtype",
+    );
+    /// `dur`
+    pub const ATTR_DUR: ooxml_core::QName = ooxml_core::QName::new("", "dur");
+    /// `repeatCount`
+    pub const ATTR_REPEAT_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "repeatCount",
+    );
+    /// `repeatDur`
+    pub const ATTR_REPEAT_DUR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "repeatDur",
+    );
+    /// `spd`
+    pub const ATTR_SPD: ooxml_core::QName = ooxml_core::QName::new("", "spd");
+    /// `accel`
+    pub const ATTR_ACCEL: ooxml_core::QName = ooxml_core::QName::new("", "accel");
+    /// `decel`
+    pub const ATTR_DECEL: ooxml_core::QName = ooxml_core::QName::new("", "decel");
+    /// `autoRev`
+    pub const ATTR_AUTO_REV: ooxml_core::QName = ooxml_core::QName::new("", "autoRev");
+    /// `restart`
+    pub const ATTR_RESTART: ooxml_core::QName = ooxml_core::QName::new("", "restart");
+    /// `fill`
+    pub const ATTR_FILL: ooxml_core::QName = ooxml_core::QName::new("", "fill");
+    /// `syncBehavior`
+    pub const ATTR_SYNC_BEHAVIOR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncBehavior",
+    );
+    /// `tmFilter`
+    pub const ATTR_TM_FILTER: ooxml_core::QName = ooxml_core::QName::new("", "tmFilter");
+    /// `evtFilter`
+    pub const ATTR_EVT_FILTER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "evtFilter",
+    );
+    /// `display`
+    pub const ATTR_DISPLAY: ooxml_core::QName = ooxml_core::QName::new("", "display");
+    /// `masterRel`
+    pub const ATTR_MASTER_REL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "masterRel",
+    );
+    /// `bldLvl`
+    pub const ATTR_BLD_LVL: ooxml_core::QName = ooxml_core::QName::new("", "bldLvl");
+    /// `grpId`
+    pub const ATTR_GRP_ID: ooxml_core::QName = ooxml_core::QName::new("", "grpId");
+    /// `afterEffect`
+    pub const ATTR_AFTER_EFFECT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "afterEffect",
+    );
+    /// `nodeType`
+    pub const ATTR_NODE_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "nodeType");
+    /// `nodePh`
+    pub const ATTR_NODE_PH: ooxml_core::QName = ooxml_core::QName::new("", "nodePh");
+    /// `p14:presetBounceEnd`
+    pub const ATTR_P14_PRESET_BOUNCE_END: ooxml_core::QName = ooxml_core::QName::new(
+        NS_P14,
+        "presetBounceEnd",
+    );
+}
+impl ooxml_core::ElementSpec for CommonTimeNode {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "cTn");
+    const SDK_NAME: &'static str = "p:CT_TLCommonTimeNodeData/p:cTn";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_PRESET_ID,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_PRESET_CLASS,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimeNodePresetClassValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_PRESET_SUBTYPE,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_DUR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_REPEAT_COUNT,
+            ty: ooxml_core::SimpleType::String,
+            default: Some("1000"),
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_REPEAT_DUR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_SPD,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_ACCEL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_DECEL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_AUTO_REV,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_RESTART,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimeNodeRestartValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_FILL,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimeNodeFillValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_SYNC_BEHAVIOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimeNodeSyncValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_TM_FILTER,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_EVT_FILTER,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_DISPLAY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_MASTER_REL,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimeNodeMasterRelationValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_BLD_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_GRP_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_AFTER_EFFECT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_NODE_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimeNodeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_NODE_PH,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommonTimeNode::ATTR_P14_PRESET_BOUNCE_END,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "stCondLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "endCondLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "endSync")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "iterate")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "childTnLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "subTnLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`CommonTimeNode`].
+#[derive(Clone, Debug)]
+pub struct CommonTimeNodeView<'a>(pub ooxml_core::Lens<'a, CommonTimeNode>);
+impl<'a> CommonTimeNodeView<'a> {
+    /// `id` — id
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `presetID` — presetID
+    pub fn preset_id(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_PRESET_ID, ooxml_core::value::parse_i32)
+    }
+    /// `presetClass` — presetClass
+    pub fn preset_class(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TimeNodePresetClassValues>> {
+        self.0.attr_enum(CommonTimeNode::ATTR_PRESET_CLASS)
+    }
+    /// `presetSubtype` — presetSubtype
+    pub fn preset_subtype(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CommonTimeNode::ATTR_PRESET_SUBTYPE,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `dur` — dur
+    pub fn duration(&self) -> Option<&'a str> {
+        self.0.attr(CommonTimeNode::ATTR_DUR)
+    }
+    /// `repeatCount` — repeatCount (default `1000`)
+    pub fn repeat_count(&self) -> &'a str {
+        self.0.attr(CommonTimeNode::ATTR_REPEAT_COUNT).unwrap_or("1000")
+    }
+    /// `repeatDur` — repeatDur
+    pub fn repeat_duration(&self) -> Option<&'a str> {
+        self.0.attr(CommonTimeNode::ATTR_REPEAT_DUR)
+    }
+    /// `spd` — spd
+    pub fn speed(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_SPD, ooxml_core::value::parse_i32)
+    }
+    /// `accel` — accel
+    pub fn acceleration(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_ACCEL, ooxml_core::value::parse_i32)
+    }
+    /// `decel` — decel
+    pub fn deceleration(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_DECEL, ooxml_core::value::parse_i32)
+    }
+    /// `autoRev` — autoRev (default `false`)
+    pub fn auto_reverse(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CommonTimeNode::ATTR_AUTO_REV,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `restart` — restart
+    pub fn restart(&self) -> Option<ooxml_core::EnumValue<'a, TimeNodeRestartValues>> {
+        self.0.attr_enum(CommonTimeNode::ATTR_RESTART)
+    }
+    /// `fill` — fill
+    pub fn fill(&self) -> Option<ooxml_core::EnumValue<'a, TimeNodeFillValues>> {
+        self.0.attr_enum(CommonTimeNode::ATTR_FILL)
+    }
+    /// `syncBehavior` — syncBehavior
+    pub fn sync_behavior(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TimeNodeSyncValues>> {
+        self.0.attr_enum(CommonTimeNode::ATTR_SYNC_BEHAVIOR)
+    }
+    /// `tmFilter` — tmFilter
+    pub fn time_filter(&self) -> Option<&'a str> {
+        self.0.attr(CommonTimeNode::ATTR_TM_FILTER)
+    }
+    /// `evtFilter` — evtFilter
+    pub fn event_filter(&self) -> Option<&'a str> {
+        self.0.attr(CommonTimeNode::ATTR_EVT_FILTER)
+    }
+    /// `display` — display
+    pub fn display(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_DISPLAY, ooxml_core::value::parse_bool)
+    }
+    /// `masterRel` — masterRel
+    pub fn master_relation(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TimeNodeMasterRelationValues>> {
+        self.0.attr_enum(CommonTimeNode::ATTR_MASTER_REL)
+    }
+    /// `bldLvl` — bldLvl
+    pub fn build_level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_BLD_LVL, ooxml_core::value::parse_i32)
+    }
+    /// `grpId` — grpId
+    pub fn group_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_GRP_ID, ooxml_core::value::parse_u32)
+    }
+    /// `afterEffect` — afterEffect
+    pub fn after_effect(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CommonTimeNode::ATTR_AFTER_EFFECT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `nodeType` — nodeType
+    pub fn node_type(&self) -> Option<ooxml_core::EnumValue<'a, TimeNodeValues>> {
+        self.0.attr_enum(CommonTimeNode::ATTR_NODE_TYPE)
+    }
+    /// `nodePh` — nodePh
+    pub fn node_placeholder(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommonTimeNode::ATTR_NODE_PH, ooxml_core::value::parse_bool)
+    }
+    /// `p14:presetBounceEnd` — presetBounceEnd
+    pub fn preset_bounce_end(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CommonTimeNode::ATTR_P14_PRESET_BOUNCE_END,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_TLShapeTargetElement/p:spTgt` — Shape Target.
+#[derive(Debug)]
+pub enum ShapeTarget {}
+impl ShapeTarget {
+    /// `spid`
+    pub const ATTR_SPID: ooxml_core::QName = ooxml_core::QName::new("", "spid");
+}
+impl ooxml_core::ElementSpec for ShapeTarget {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "spTgt");
+    const SDK_NAME: &'static str = "p:CT_TLShapeTargetElement/p:spTgt";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ShapeTarget::ATTR_SPID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P, "bg"),
+                    ooxml_core::QName::new(NS_P, "subSp"),
+                    ooxml_core::QName::new(NS_P, "oleChartEl"),
+                    ooxml_core::QName::new(NS_P, "txEl"),
+                    ooxml_core::QName::new(NS_P, "graphicEl"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ShapeTarget> for TextElement {}
+/// Read-only view of [`ShapeTarget`].
+#[derive(Clone, Debug)]
+pub struct ShapeTargetView<'a>(pub ooxml_core::Lens<'a, ShapeTarget>);
+impl<'a> ShapeTargetView<'a> {
+    /// `spid` — Shape ID
+    pub fn shape_id(&self) -> Option<&'a str> {
+        self.0.attr(ShapeTarget::ATTR_SPID)
+    }
+    /// First `p:txEl` child.
+    pub fn text_element(&self) -> Option<TextElementView<'a>> {
+        self.0.child::<TextElement>().map(TextElementView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_TLTextTargetElement/p:txEl` — Text Element.
+#[derive(Debug)]
+pub enum TextElement {}
+impl ooxml_core::ElementSpec for TextElement {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "txEl");
+    const SDK_NAME: &'static str = "p:CT_TLTextTargetElement/p:txEl";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P, "charRg"),
+                    ooxml_core::QName::new(NS_P, "pRg"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TextElement> for CharRange {}
+impl ooxml_core::ChildOf<TextElement> for ParagraphIndexRange {}
+/// Read-only view of [`TextElement`].
+#[derive(Clone, Debug)]
+pub struct TextElementView<'a>(pub ooxml_core::Lens<'a, TextElement>);
+impl<'a> TextElementView<'a> {
+    /// First `p:charRg` child.
+    pub fn char_range(&self) -> Option<CharRangeView<'a>> {
+        self.0.child::<CharRange>().map(CharRangeView)
+    }
+    /// First `p:pRg` child.
+    pub fn paragraph_index_range(&self) -> Option<ParagraphIndexRangeView<'a>> {
+        self.0.child::<ParagraphIndexRange>().map(ParagraphIndexRangeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `p:CT_TransitionSoundAction/p:sndAc` — Defines the SoundAction Class.
+#[derive(Debug)]
+pub enum SoundAction {}
+impl ooxml_core::ElementSpec for SoundAction {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "sndAc");
+    const SDK_NAME: &'static str = "p:CT_TransitionSoundAction/p:sndAc";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_P, "stSnd"),
+                    ooxml_core::QName::new(NS_P, "endSnd"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`SoundAction`].
+#[derive(Clone, Debug)]
+pub struct SoundActionView<'a>(pub ooxml_core::Lens<'a, SoundAction>);
+impl<'a> SoundActionView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `xsd:string/p:text` — Defines the Text Class.
+#[derive(Debug)]
+pub enum Text {}
+impl ooxml_core::ElementSpec for Text {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "text");
+    const SDK_NAME: &'static str = "xsd:string/p:text";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`Text`].
+#[derive(Clone, Debug)]
+pub struct TextView<'a>(pub ooxml_core::Lens<'a, Text>);
+impl<'a> TextView<'a> {
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+const _: () = ooxml_core::schema::assert_spec::<ColorMap>();
+const _: () = ooxml_core::schema::assert_spec::<ColorMapOverride>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ColorMapOverride,
+    super::dml::OverrideColorMapping,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ColorMapOverride,
+    super::dml::MasterColorMapping,
+>();
+const _: () = ooxml_core::schema::assert_spec::<GroupShapeProperties>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GroupShapeProperties,
+    super::dml::TransformGroup,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GroupShapeProperties,
+    super::dml::NoFill,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GroupShapeProperties,
+    super::dml::SolidFill,
+>();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualDrawingProperties>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualDrawingProperties,
+    super::dml::HyperlinkOnClick,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualDrawingProperties,
+    super::dml::HyperlinkOnHover,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Point2DType>();
+const _: () = ooxml_core::schema::assert_spec::<Position>();
+const _: () = ooxml_core::schema::assert_spec::<ShapeProperties>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::CustomGeometry,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<ShapeProperties, super::dml::NoFill>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::PresetGeometry,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::SolidFill,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::Transform2D,
+>();
+const _: () = ooxml_core::schema::assert_spec::<ShapeStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeStyle,
+    super::dml::FontReference,
+>();
+const _: () = ooxml_core::schema::assert_spec::<TextBodyType>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TextBodyType,
+    super::dml::BodyProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBodyType, super::dml::ListStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBodyType, super::dml::Paragraph>();
 const _: () = ooxml_core::schema::assert_spec::<TextBody>();
 #[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::BodyProperties>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::ListStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<TextBody, super::dml::Paragraph>();
+const _: () = ooxml_core::schema::assert_spec::<BodyStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::DefaultParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level1ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level2ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level3ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level4ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level5ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level6ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level7ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level8ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    BodyStyle,
+    super::dml::Level9ParagraphProperties,
+>();
+const _: () = ooxml_core::schema::assert_spec::<DefaultTextStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::DefaultParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level1ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level2ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level3ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level4ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level5ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level6ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level7ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level8ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultTextStyle,
+    super::dml::Level9ParagraphProperties,
+>();
+const _: () = ooxml_core::schema::assert_spec::<NotesStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::DefaultParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level1ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level2ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level3ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level4ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level5ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level6ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level7ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level8ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NotesStyle,
+    super::dml::Level9ParagraphProperties,
+>();
+const _: () = ooxml_core::schema::assert_spec::<OtherStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::DefaultParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level1ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level2ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level3ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level4ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level5ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level6ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level7ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level8ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    OtherStyle,
+    super::dml::Level9ParagraphProperties,
+>();
+const _: () = ooxml_core::schema::assert_spec::<TitleStyle>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::DefaultParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level1ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level2ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level3ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level4ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level5ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level6ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level7ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level8ParagraphProperties,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    TitleStyle,
+    super::dml::Level9ParagraphProperties,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Transform>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Offset>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Extents>();
+const _: () = ooxml_core::schema::assert_spec::<Section>();
+const _: () = ooxml_core::schema::assert_child::<Section, SectionSlideIdList>();
+const _: () = ooxml_core::schema::assert_spec::<SectionList>();
+const _: () = ooxml_core::schema::assert_child::<SectionList, Section>();
+const _: () = ooxml_core::schema::assert_spec::<SectionSlideIdList>();
+const _: () = ooxml_core::schema::assert_child::<
+    SectionSlideIdList,
+    SectionSlideIdListEntry,
+>();
+const _: () = ooxml_core::schema::assert_spec::<SectionSlideIdListEntry>();
+const _: () = ooxml_core::schema::assert_spec::<Author>();
+const _: () = ooxml_core::schema::assert_spec::<AuthorList>();
+const _: () = ooxml_core::schema::assert_child::<AuthorList, Author>();
+const _: () = ooxml_core::schema::assert_spec::<P188Comment>();
+const _: () = ooxml_core::schema::assert_child::<P188Comment, Point2DType>();
+const _: () = ooxml_core::schema::assert_child::<P188Comment, TextBodyType>();
+const _: () = ooxml_core::schema::assert_child::<P188Comment, CommentReplyList>();
+const _: () = ooxml_core::schema::assert_spec::<P188CommentList>();
+const _: () = ooxml_core::schema::assert_child::<P188CommentList, P188Comment>();
+const _: () = ooxml_core::schema::assert_spec::<CommentReply>();
+const _: () = ooxml_core::schema::assert_child::<CommentReply, TextBodyType>();
+const _: () = ooxml_core::schema::assert_spec::<CommentReplyList>();
+const _: () = ooxml_core::schema::assert_child::<CommentReplyList, CommentReply>();
 const _: () = ooxml_core::schema::assert_spec::<ApplicationNonVisualDrawingProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     ApplicationNonVisualDrawingProperties,
     PlaceholderShape,
 >();
+const _: () = ooxml_core::schema::assert_spec::<BuildList>();
+const _: () = ooxml_core::schema::assert_child::<BuildList, BuildParagraph>();
+const _: () = ooxml_core::schema::assert_spec::<PComment>();
+const _: () = ooxml_core::schema::assert_child::<PComment, Position>();
+const _: () = ooxml_core::schema::assert_child::<PComment, Text>();
+const _: () = ooxml_core::schema::assert_spec::<CommentAuthor>();
+const _: () = ooxml_core::schema::assert_spec::<CommentAuthorList>();
+const _: () = ooxml_core::schema::assert_child::<CommentAuthorList, CommentAuthor>();
+const _: () = ooxml_core::schema::assert_spec::<PCommentList>();
+const _: () = ooxml_core::schema::assert_child::<PCommentList, PComment>();
 const _: () = ooxml_core::schema::assert_spec::<CommonSlideData>();
 const _: () = ooxml_core::schema::assert_child::<CommonSlideData, ShapeTree>();
 const _: () = ooxml_core::schema::assert_spec::<ConnectionShape>();
+const _: () = ooxml_core::schema::assert_child::<ConnectionShape, ShapeProperties>();
+const _: () = ooxml_core::schema::assert_child::<ConnectionShape, ShapeStyle>();
 const _: () = ooxml_core::schema::assert_child::<
     ConnectionShape,
     NonVisualConnectionShapeProperties,
@@ -2041,6 +7411,7 @@ const _: () = ooxml_core::schema::assert_spec::<ContentPart>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicFrame>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicFrame, super::dml::Graphic>();
+const _: () = ooxml_core::schema::assert_child::<GraphicFrame, Transform>();
 const _: () = ooxml_core::schema::assert_child::<
     GraphicFrame,
     NonVisualGraphicFrameProperties,
@@ -2055,6 +7426,7 @@ const _: () = ooxml_core::schema::assert_child::<
     ApplicationNonVisualDrawingProperties,
 >();
 const _: () = ooxml_core::schema::assert_spec::<GroupShape>();
+const _: () = ooxml_core::schema::assert_child::<GroupShape, GroupShapeProperties>();
 const _: () = ooxml_core::schema::assert_child::<GroupShape, ConnectionShape>();
 const _: () = ooxml_core::schema::assert_child::<GroupShape, ContentPart>();
 const _: () = ooxml_core::schema::assert_child::<GroupShape, GraphicFrame>();
@@ -2066,6 +7438,7 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<GroupShape, Picture>();
 const _: () = ooxml_core::schema::assert_child::<GroupShape, Shape>();
 const _: () = ooxml_core::schema::assert_spec::<ShapeTree>();
+const _: () = ooxml_core::schema::assert_child::<ShapeTree, GroupShapeProperties>();
 const _: () = ooxml_core::schema::assert_child::<ShapeTree, ConnectionShape>();
 const _: () = ooxml_core::schema::assert_child::<ShapeTree, ContentPart>();
 const _: () = ooxml_core::schema::assert_child::<ShapeTree, GraphicFrame>();
@@ -2085,7 +7458,18 @@ const _: () = ooxml_core::schema::assert_child::<
     NonVisualGroupShapeProperties,
     ApplicationNonVisualDrawingProperties,
 >();
+const _: () = ooxml_core::schema::assert_spec::<CharRange>();
+const _: () = ooxml_core::schema::assert_spec::<ParagraphIndexRange>();
+const _: () = ooxml_core::schema::assert_spec::<NotesMaster>();
+const _: () = ooxml_core::schema::assert_child::<NotesMaster, ColorMap>();
+const _: () = ooxml_core::schema::assert_child::<NotesMaster, NotesStyle>();
+const _: () = ooxml_core::schema::assert_child::<NotesMaster, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_spec::<NotesSlide>();
+const _: () = ooxml_core::schema::assert_child::<NotesSlide, ColorMapOverride>();
+const _: () = ooxml_core::schema::assert_child::<NotesSlide, CommonSlideData>();
 const _: () = ooxml_core::schema::assert_spec::<Picture>();
+const _: () = ooxml_core::schema::assert_child::<Picture, ShapeProperties>();
+const _: () = ooxml_core::schema::assert_child::<Picture, ShapeStyle>();
 const _: () = ooxml_core::schema::assert_child::<Picture, NonVisualPictureProperties>();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualPictureProperties>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -2098,8 +7482,23 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 const _: () = ooxml_core::schema::assert_spec::<PlaceholderShape>();
 const _: () = ooxml_core::schema::assert_spec::<Presentation>();
+const _: () = ooxml_core::schema::assert_child::<Presentation, DefaultTextStyle>();
+const _: () = ooxml_core::schema::assert_child::<
+    Presentation,
+    PresentationExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_child::<Presentation, SlideIdList>();
+const _: () = ooxml_core::schema::assert_child::<Presentation, SlideSize>();
+const _: () = ooxml_core::schema::assert_spec::<PresentationExtension>();
+const _: () = ooxml_core::schema::assert_child::<PresentationExtension, SectionList>();
+const _: () = ooxml_core::schema::assert_spec::<PresentationExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<
+    PresentationExtensionList,
+    PresentationExtension,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Shape>();
+const _: () = ooxml_core::schema::assert_child::<Shape, ShapeProperties>();
+const _: () = ooxml_core::schema::assert_child::<Shape, ShapeStyle>();
 const _: () = ooxml_core::schema::assert_child::<Shape, TextBody>();
 const _: () = ooxml_core::schema::assert_child::<Shape, NonVisualShapeProperties>();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualShapeProperties>();
@@ -2112,7 +7511,39 @@ const _: () = ooxml_core::schema::assert_child::<
     ApplicationNonVisualDrawingProperties,
 >();
 const _: () = ooxml_core::schema::assert_spec::<Slide>();
+const _: () = ooxml_core::schema::assert_child::<Slide, ColorMapOverride>();
 const _: () = ooxml_core::schema::assert_child::<Slide, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_child::<Slide, Timing>();
+const _: () = ooxml_core::schema::assert_child::<Slide, Transition>();
 const _: () = ooxml_core::schema::assert_spec::<SlideIdList>();
 const _: () = ooxml_core::schema::assert_child::<SlideIdList, SlideId>();
 const _: () = ooxml_core::schema::assert_spec::<SlideId>();
+const _: () = ooxml_core::schema::assert_spec::<SlideLayout>();
+const _: () = ooxml_core::schema::assert_child::<SlideLayout, ColorMapOverride>();
+const _: () = ooxml_core::schema::assert_child::<SlideLayout, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_child::<SlideLayout, Timing>();
+const _: () = ooxml_core::schema::assert_child::<SlideLayout, Transition>();
+const _: () = ooxml_core::schema::assert_spec::<SlideMaster>();
+const _: () = ooxml_core::schema::assert_child::<SlideMaster, ColorMap>();
+const _: () = ooxml_core::schema::assert_child::<SlideMaster, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_child::<SlideMaster, TextStyles>();
+const _: () = ooxml_core::schema::assert_child::<SlideMaster, Timing>();
+const _: () = ooxml_core::schema::assert_child::<SlideMaster, Transition>();
+const _: () = ooxml_core::schema::assert_spec::<TextStyles>();
+const _: () = ooxml_core::schema::assert_child::<TextStyles, BodyStyle>();
+const _: () = ooxml_core::schema::assert_child::<TextStyles, OtherStyle>();
+const _: () = ooxml_core::schema::assert_child::<TextStyles, TitleStyle>();
+const _: () = ooxml_core::schema::assert_spec::<SlideSize>();
+const _: () = ooxml_core::schema::assert_spec::<Timing>();
+const _: () = ooxml_core::schema::assert_child::<Timing, BuildList>();
+const _: () = ooxml_core::schema::assert_spec::<Transition>();
+const _: () = ooxml_core::schema::assert_child::<Transition, SoundAction>();
+const _: () = ooxml_core::schema::assert_spec::<BuildParagraph>();
+const _: () = ooxml_core::schema::assert_spec::<CommonTimeNode>();
+const _: () = ooxml_core::schema::assert_spec::<ShapeTarget>();
+const _: () = ooxml_core::schema::assert_child::<ShapeTarget, TextElement>();
+const _: () = ooxml_core::schema::assert_spec::<TextElement>();
+const _: () = ooxml_core::schema::assert_child::<TextElement, CharRange>();
+const _: () = ooxml_core::schema::assert_child::<TextElement, ParagraphIndexRange>();
+const _: () = ooxml_core::schema::assert_spec::<SoundAction>();
+const _: () = ooxml_core::schema::assert_spec::<Text>();

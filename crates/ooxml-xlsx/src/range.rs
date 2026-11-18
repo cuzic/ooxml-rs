@@ -13,7 +13,7 @@ use crate::census::FKind;
 use crate::edit::CellOp;
 use crate::error::{Error, Result};
 use crate::formula::precedents::{NameDef, Scope, fold};
-use crate::protect::{MANAGED, Protection};
+use crate::protect::{MANAGED, SheetProtection};
 use crate::reference::{CellIndex, CellRange};
 use crate::workbook::Workbook;
 use crate::worksheet::Worksheet;
@@ -398,7 +398,7 @@ impl Workbook {
 
     // ---- protection (ADR-0014 §11) ----
 
-    pub(crate) fn protect_sheet(&mut self, sheet: usize, p: &Protection) -> Result<()> {
+    pub(crate) fn protect_sheet(&mut self, sheet: usize, p: &SheetProtection) -> Result<()> {
         self.check_poisoned()?;
         let attrs = p.attributes()?;
         let part = self.sheet_part(sheet);
@@ -512,7 +512,7 @@ impl Worksheet<'_> {
     /// stays next to a SHA-512 hash); unknown attributes are kept. Sheet
     /// protection is an Excel UI setting: it does not stop edits through
     /// this crate. Errors: [`Error::InvalidSpinCount`], [`Error::Random`].
-    pub fn protect_sheet(&mut self, protection: &Protection) -> Result<()> {
+    pub fn protect_sheet(&mut self, protection: &SheetProtection) -> Result<()> {
         self.wb.protect_sheet(self.sheet, protection)
     }
 

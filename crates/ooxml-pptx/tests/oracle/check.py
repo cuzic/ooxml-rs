@@ -8,7 +8,9 @@
 Find/replace cases (ADR-0008 §7 O5, review #48 M1) carry deck-wide
 `replace_all` calls: `edit` finds every match itself on python-pptx's
 paragraphs, checks that ooxml-pptx's accepted matches are exactly its own
-matches minus the refused ones (refusals are tested in Rust), and applies
+matches minus the refused ones, decides the paragraph-local refusals
+(rules 1, 5, 6) itself and compares them with ooxml-pptx's, kind included
+(review #48 r2-m1; body-level locks are taken from ooxml-pptx), and applies
 the ADR-0008 §4 rules 2–5 to the lxml tree independently; then (a)–(c).
 
 `edit` (review R2-3) does not mirror the Rust oracle's model arithmetic:
@@ -282,17 +284,69 @@ def paragraphs_of(prs, site):
     return out
 
 
+PROOFING = {'lang', 'altLang', 'err', 'dirty', 'smtClean', 'smtId', 'noProof', 'bmk'}
+# refusals decided outside the paragraph (ADR-0005 §6 locks): taken from
+# ooxml-pptx, but each must be one of python's own matches
+BODY_REFUSALS = {'AnimatedCharacters', 'CommentAnchoredText', 'InsideAlternateContent', 'MergedCell', 'UnsupportedContent'}
+
+
+def canon(el, top=True):
+    """Rule 6's format of an a:rPr: attributes sorted (top-level proofing
+    attributes dropped), child elements in order, whitespace-only text and
+    comments ignored; a missing a:rPr equals an empty one."""
+    if el is None:
+        return ''
+
+    def name(k):
+        return k if k.startswith('{') else '{}' + k
+    attrs = sorted(f'{name(k)}={v!r}' for k, v in el.attrib.items() if not (top and not k.startswith('{') and k in PROOFING))
+    body = ' '.join(attrs)
+    texts = [el.text] + [c.tail for c in el]
+    for c in el:
+        if isinstance(c.tag, str):
+            body += canon(c, False)
+    body += ''.join(repr(t) for t in texts if t and t.strip())
+    return body if top else f'<{name(el.tag)} {body}>'
+
+
+def own_refusal(items, s, e, segments, refuse_mixed):
+    """Rules 1, 5 and 6 (ADR-0008 §4) for a match [s, e) of a paragraph,
+    decided from the lxml tree alone (review #48 r2-m1)."""
+    spans, off = [], 0
+    for it in items:
+        n = len(item_text(it))
+        spans.append((off, off + n))
+        off += n
+    cov = [i for i, (a, b) in enumerate(spans) if a < e and b > s]
+    if any(items[i].tag == A + 'fld' for i in cov):
+        return 'FieldInMatch'
+    if any(items[i].tag == A + 'br' for i in cov):
+        return 'BreakInMatch'
+    rprs = [canon(items[i].find(A + 'rPr')) for i in cov]
+    if refuse_mixed and any(a != b for a, b in zip(rprs, rprs[1:])):
+        return 'MixedFormatInMatch'
+    start_rpr = items[cov[0]].find(A + 'rPr')
+    linked = start_rpr is not None and any(c.tag in LINKS for c in start_rpr)
+    if len(segments) > 1 and linked and e < spans[cov[0]][1]:
+        return 'LinkSplitByBreak'
+    return None
+
+
 def apply_replace(prs, r, site):
-    """Returns a list of mismatches between ooxml-pptx's accepted matches
-    and python's (own matches minus refused); applies the accepted ones."""
+    """Finds every match itself, decides the paragraph-local refusals
+    (rules 1, 5, 6) itself and compares them, kind included, with
+    ooxml-pptx's; body-level locks are taken from ooxml-pptx. Then applies
+    the accepted matches by rules 2–5 and returns the mismatches."""
     key = lambda d: (d['slide'], d['shape_id'], tuple(d['cell']) if d['cell'] else None,  # noqa: E731
                      d['paragraph'], d['start'], d['end'])
-    refused = {key(d) for d in r['refused']}
+    refused = {key(d): d['error'].split(' ')[0].split('{')[0].split('(')[0] for d in r['refused']}
     rust = {key(d) for d in r['replaced']}
-    pattern, segments = r['pattern'], r['replacement'].split('\v')
-    ours = set()
+    pattern, replacement = r['pattern'], r['replacement']
+    segments = replacement.split('\v')
+    ours, seen, problems = set(), set(), []
     for si, sid, cell, k, p in paragraphs_of(prs, site):
-        text = ''.join(item_text(c) for c in p if c.tag in CONTENT)
+        items = [c for c in p if c.tag in CONTENT]
+        text = ''.join(item_text(c) for c in items)
         found, i = [], 0
         while True:
             j = text.find(pattern, i)
@@ -304,7 +358,14 @@ def apply_replace(prs, r, site):
         accepted = []
         for s, e in found:
             kk = (si, sid, tuple(cell) if cell else None, k, b(s), b(e))
-            if kk not in refused:
+            seen.add(kk)
+            theirs = refused.get(kk)
+            if theirs in BODY_REFUSALS:
+                continue
+            mine = own_refusal(items, s, e, segments, r['refuse_mixed'])
+            if mine != theirs:
+                problems.append(f'refusal differs at {kk}: python {mine}, ooxml {theirs}')
+            if mine is None:
                 accepted.append((s, e))
                 ours.add(kk)
         touched = set()
@@ -312,9 +373,15 @@ def apply_replace(prs, r, site):
             replace_one(p, s, e, segments, touched)
         if accepted:
             finish_paragraph(p, touched)
-    problems = []
+        if found and len(accepted) == len(found):
+            # ADR-0008 §7 O5 as worded: the paragraph text is str.replace's
+            after = ''.join(item_text(c) for c in p if c.tag in CONTENT)
+            if after != text.replace(pattern, replacement):
+                problems.append(f'paragraph text at {(si, sid, cell, k)} is not str.replace: {after!r}')
     if ours != rust:
         problems.append(f'accepted matches differ: only python {sorted(ours - rust)[:3]}, only ooxml {sorted(rust - ours)[:3]}')
+    if set(refused) - seen:
+        problems.append(f'refused matches python does not find: {sorted(set(refused) - seen)[:3]}')
     return problems
 
 

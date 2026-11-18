@@ -6,6 +6,1396 @@ pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
 /// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
 pub const NS_CS: &str = "http://schemas.microsoft.com/office/drawing/2012/chartStyle";
+/// `r`: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
+pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+/// `thm15`: `http://schemas.microsoft.com/office/thememl/2012/main`
+pub const NS_THM15: &str = "http://schemas.microsoft.com/office/thememl/2012/main";
+/// `a:ST_FontCollectionIndex` — Font Collection Index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FontCollectionIndexValues {
+    /// `major`
+    Major,
+    /// `minor`
+    Minor,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for FontCollectionIndexValues {
+    const VALUES: &'static [&'static str] = &["major", "minor", "none"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Major),
+            1 => Some(Self::Minor),
+            2 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_ColorSchemeIndex` — Theme Color Reference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ColorSchemeIndexValues {
+    /// `dk1`
+    Dark1,
+    /// `lt1`
+    Light1,
+    /// `dk2`
+    Dark2,
+    /// `lt2`
+    Light2,
+    /// `accent1`
+    Accent1,
+    /// `accent2`
+    Accent2,
+    /// `accent3`
+    Accent3,
+    /// `accent4`
+    Accent4,
+    /// `accent5`
+    Accent5,
+    /// `accent6`
+    Accent6,
+    /// `hlink`
+    Hyperlink,
+    /// `folHlink`
+    FollowedHyperlink,
+}
+impl ooxml_core::EnumType for ColorSchemeIndexValues {
+    const VALUES: &'static [&'static str] = &[
+        "dk1",
+        "lt1",
+        "dk2",
+        "lt2",
+        "accent1",
+        "accent2",
+        "accent3",
+        "accent4",
+        "accent5",
+        "accent6",
+        "hlink",
+        "folHlink",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Dark1),
+            1 => Some(Self::Light1),
+            2 => Some(Self::Dark2),
+            3 => Some(Self::Light2),
+            4 => Some(Self::Accent1),
+            5 => Some(Self::Accent2),
+            6 => Some(Self::Accent3),
+            7 => Some(Self::Accent4),
+            8 => Some(Self::Accent5),
+            9 => Some(Self::Accent6),
+            10 => Some(Self::Hyperlink),
+            11 => Some(Self::FollowedHyperlink),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_SystemColorVal` — System Color Value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SystemColorValues {
+    /// `scrollBar`
+    ScrollBar,
+    /// `background`
+    Background,
+    /// `activeCaption`
+    ActiveCaption,
+    /// `inactiveCaption`
+    InactiveCaption,
+    /// `menu`
+    Menu,
+    /// `window`
+    Window,
+    /// `windowFrame`
+    WindowFrame,
+    /// `menuText`
+    MenuText,
+    /// `windowText`
+    WindowText,
+    /// `captionText`
+    CaptionText,
+    /// `activeBorder`
+    ActiveBorder,
+    /// `inactiveBorder`
+    InactiveBorder,
+    /// `appWorkspace`
+    ApplicationWorkspace,
+    /// `highlight`
+    Highlight,
+    /// `highlightText`
+    HighlightText,
+    /// `btnFace`
+    ButtonFace,
+    /// `btnShadow`
+    ButtonShadow,
+    /// `grayText`
+    GrayText,
+    /// `btnText`
+    ButtonText,
+    /// `inactiveCaptionText`
+    InactiveCaptionText,
+    /// `btnHighlight`
+    ButtonHighlight,
+    /// `3dDkShadow`
+    ThreeDDarkShadow,
+    /// `3dLight`
+    ThreeDLight,
+    /// `infoText`
+    InfoText,
+    /// `infoBk`
+    InfoBack,
+    /// `hotLight`
+    HotLight,
+    /// `gradientActiveCaption`
+    GradientActiveCaption,
+    /// `gradientInactiveCaption`
+    GradientInactiveCaption,
+    /// `menuHighlight`
+    MenuHighlight,
+    /// `menuBar`
+    MenuBar,
+}
+impl ooxml_core::EnumType for SystemColorValues {
+    const VALUES: &'static [&'static str] = &[
+        "scrollBar",
+        "background",
+        "activeCaption",
+        "inactiveCaption",
+        "menu",
+        "window",
+        "windowFrame",
+        "menuText",
+        "windowText",
+        "captionText",
+        "activeBorder",
+        "inactiveBorder",
+        "appWorkspace",
+        "highlight",
+        "highlightText",
+        "btnFace",
+        "btnShadow",
+        "grayText",
+        "btnText",
+        "inactiveCaptionText",
+        "btnHighlight",
+        "3dDkShadow",
+        "3dLight",
+        "infoText",
+        "infoBk",
+        "hotLight",
+        "gradientActiveCaption",
+        "gradientInactiveCaption",
+        "menuHighlight",
+        "menuBar",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::ScrollBar),
+            1 => Some(Self::Background),
+            2 => Some(Self::ActiveCaption),
+            3 => Some(Self::InactiveCaption),
+            4 => Some(Self::Menu),
+            5 => Some(Self::Window),
+            6 => Some(Self::WindowFrame),
+            7 => Some(Self::MenuText),
+            8 => Some(Self::WindowText),
+            9 => Some(Self::CaptionText),
+            10 => Some(Self::ActiveBorder),
+            11 => Some(Self::InactiveBorder),
+            12 => Some(Self::ApplicationWorkspace),
+            13 => Some(Self::Highlight),
+            14 => Some(Self::HighlightText),
+            15 => Some(Self::ButtonFace),
+            16 => Some(Self::ButtonShadow),
+            17 => Some(Self::GrayText),
+            18 => Some(Self::ButtonText),
+            19 => Some(Self::InactiveCaptionText),
+            20 => Some(Self::ButtonHighlight),
+            21 => Some(Self::ThreeDDarkShadow),
+            22 => Some(Self::ThreeDLight),
+            23 => Some(Self::InfoText),
+            24 => Some(Self::InfoBack),
+            25 => Some(Self::HotLight),
+            26 => Some(Self::GradientActiveCaption),
+            27 => Some(Self::GradientInactiveCaption),
+            28 => Some(Self::MenuHighlight),
+            29 => Some(Self::MenuBar),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_SchemeColorVal` — Scheme Color.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SchemeColorValues {
+    /// `bg1`
+    Background1,
+    /// `tx1`
+    Text1,
+    /// `bg2`
+    Background2,
+    /// `tx2`
+    Text2,
+    /// `accent1`
+    Accent1,
+    /// `accent2`
+    Accent2,
+    /// `accent3`
+    Accent3,
+    /// `accent4`
+    Accent4,
+    /// `accent5`
+    Accent5,
+    /// `accent6`
+    Accent6,
+    /// `hlink`
+    Hyperlink,
+    /// `folHlink`
+    FollowedHyperlink,
+    /// `phClr`
+    PhColor,
+    /// `dk1`
+    Dark1,
+    /// `lt1`
+    Light1,
+    /// `dk2`
+    Dark2,
+    /// `lt2`
+    Light2,
+}
+impl ooxml_core::EnumType for SchemeColorValues {
+    const VALUES: &'static [&'static str] = &[
+        "bg1",
+        "tx1",
+        "bg2",
+        "tx2",
+        "accent1",
+        "accent2",
+        "accent3",
+        "accent4",
+        "accent5",
+        "accent6",
+        "hlink",
+        "folHlink",
+        "phClr",
+        "dk1",
+        "lt1",
+        "dk2",
+        "lt2",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Background1),
+            1 => Some(Self::Text1),
+            2 => Some(Self::Background2),
+            3 => Some(Self::Text2),
+            4 => Some(Self::Accent1),
+            5 => Some(Self::Accent2),
+            6 => Some(Self::Accent3),
+            7 => Some(Self::Accent4),
+            8 => Some(Self::Accent5),
+            9 => Some(Self::Accent6),
+            10 => Some(Self::Hyperlink),
+            11 => Some(Self::FollowedHyperlink),
+            12 => Some(Self::PhColor),
+            13 => Some(Self::Dark1),
+            14 => Some(Self::Light1),
+            15 => Some(Self::Dark2),
+            16 => Some(Self::Light2),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_ShapeType` — Preset Shape Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ShapeTypeValues {
+    /// `line`
+    Line,
+    /// `lineInv`
+    LineInverse,
+    /// `triangle`
+    Triangle,
+    /// `rtTriangle`
+    RightTriangle,
+    /// `rect`
+    Rectangle,
+    /// `diamond`
+    Diamond,
+    /// `parallelogram`
+    Parallelogram,
+    /// `trapezoid`
+    Trapezoid,
+    /// `nonIsoscelesTrapezoid`
+    NonIsoscelesTrapezoid,
+    /// `pentagon`
+    Pentagon,
+    /// `hexagon`
+    Hexagon,
+    /// `heptagon`
+    Heptagon,
+    /// `octagon`
+    Octagon,
+    /// `decagon`
+    Decagon,
+    /// `dodecagon`
+    Dodecagon,
+    /// `star4`
+    Star4,
+    /// `star5`
+    Star5,
+    /// `star6`
+    Star6,
+    /// `star7`
+    Star7,
+    /// `star8`
+    Star8,
+    /// `star10`
+    Star10,
+    /// `star12`
+    Star12,
+    /// `star16`
+    Star16,
+    /// `star24`
+    Star24,
+    /// `star32`
+    Star32,
+    /// `roundRect`
+    RoundRectangle,
+    /// `round1Rect`
+    Round1Rectangle,
+    /// `round2SameRect`
+    Round2SameRectangle,
+    /// `round2DiagRect`
+    Round2DiagonalRectangle,
+    /// `snipRoundRect`
+    SnipRoundRectangle,
+    /// `snip1Rect`
+    Snip1Rectangle,
+    /// `snip2SameRect`
+    Snip2SameRectangle,
+    /// `snip2DiagRect`
+    Snip2DiagonalRectangle,
+    /// `plaque`
+    Plaque,
+    /// `ellipse`
+    Ellipse,
+    /// `teardrop`
+    Teardrop,
+    /// `homePlate`
+    HomePlate,
+    /// `chevron`
+    Chevron,
+    /// `pieWedge`
+    PieWedge,
+    /// `pie`
+    Pie,
+    /// `blockArc`
+    BlockArc,
+    /// `donut`
+    Donut,
+    /// `noSmoking`
+    NoSmoking,
+    /// `rightArrow`
+    RightArrow,
+    /// `leftArrow`
+    LeftArrow,
+    /// `upArrow`
+    UpArrow,
+    /// `downArrow`
+    DownArrow,
+    /// `stripedRightArrow`
+    StripedRightArrow,
+    /// `notchedRightArrow`
+    NotchedRightArrow,
+    /// `bentUpArrow`
+    BentUpArrow,
+    /// `leftRightArrow`
+    LeftRightArrow,
+    /// `upDownArrow`
+    UpDownArrow,
+    /// `leftUpArrow`
+    LeftUpArrow,
+    /// `leftRightUpArrow`
+    LeftRightUpArrow,
+    /// `quadArrow`
+    QuadArrow,
+    /// `leftArrowCallout`
+    LeftArrowCallout,
+    /// `rightArrowCallout`
+    RightArrowCallout,
+    /// `upArrowCallout`
+    UpArrowCallout,
+    /// `downArrowCallout`
+    DownArrowCallout,
+    /// `leftRightArrowCallout`
+    LeftRightArrowCallout,
+    /// `upDownArrowCallout`
+    UpDownArrowCallout,
+    /// `quadArrowCallout`
+    QuadArrowCallout,
+    /// `bentArrow`
+    BentArrow,
+    /// `uturnArrow`
+    UTurnArrow,
+    /// `circularArrow`
+    CircularArrow,
+    /// `leftCircularArrow`
+    LeftCircularArrow,
+    /// `leftRightCircularArrow`
+    LeftRightCircularArrow,
+    /// `curvedRightArrow`
+    CurvedRightArrow,
+    /// `curvedLeftArrow`
+    CurvedLeftArrow,
+    /// `curvedUpArrow`
+    CurvedUpArrow,
+    /// `curvedDownArrow`
+    CurvedDownArrow,
+    /// `swooshArrow`
+    SwooshArrow,
+    /// `cube`
+    Cube,
+    /// `can`
+    Can,
+    /// `lightningBolt`
+    LightningBolt,
+    /// `heart`
+    Heart,
+    /// `sun`
+    Sun,
+    /// `moon`
+    Moon,
+    /// `smileyFace`
+    SmileyFace,
+    /// `irregularSeal1`
+    IrregularSeal1,
+    /// `irregularSeal2`
+    IrregularSeal2,
+    /// `foldedCorner`
+    FoldedCorner,
+    /// `bevel`
+    Bevel,
+    /// `frame`
+    Frame,
+    /// `halfFrame`
+    HalfFrame,
+    /// `corner`
+    Corner,
+    /// `diagStripe`
+    DiagonalStripe,
+    /// `chord`
+    Chord,
+    /// `arc`
+    Arc,
+    /// `leftBracket`
+    LeftBracket,
+    /// `rightBracket`
+    RightBracket,
+    /// `leftBrace`
+    LeftBrace,
+    /// `rightBrace`
+    RightBrace,
+    /// `bracketPair`
+    BracketPair,
+    /// `bracePair`
+    BracePair,
+    /// `straightConnector1`
+    StraightConnector1,
+    /// `bentConnector2`
+    BentConnector2,
+    /// `bentConnector3`
+    BentConnector3,
+    /// `bentConnector4`
+    BentConnector4,
+    /// `bentConnector5`
+    BentConnector5,
+    /// `curvedConnector2`
+    CurvedConnector2,
+    /// `curvedConnector3`
+    CurvedConnector3,
+    /// `curvedConnector4`
+    CurvedConnector4,
+    /// `curvedConnector5`
+    CurvedConnector5,
+    /// `callout1`
+    Callout1,
+    /// `callout2`
+    Callout2,
+    /// `callout3`
+    Callout3,
+    /// `accentCallout1`
+    AccentCallout1,
+    /// `accentCallout2`
+    AccentCallout2,
+    /// `accentCallout3`
+    AccentCallout3,
+    /// `borderCallout1`
+    BorderCallout1,
+    /// `borderCallout2`
+    BorderCallout2,
+    /// `borderCallout3`
+    BorderCallout3,
+    /// `accentBorderCallout1`
+    AccentBorderCallout1,
+    /// `accentBorderCallout2`
+    AccentBorderCallout2,
+    /// `accentBorderCallout3`
+    AccentBorderCallout3,
+    /// `wedgeRectCallout`
+    WedgeRectangleCallout,
+    /// `wedgeRoundRectCallout`
+    WedgeRoundRectangleCallout,
+    /// `wedgeEllipseCallout`
+    WedgeEllipseCallout,
+    /// `cloudCallout`
+    CloudCallout,
+    /// `cloud`
+    Cloud,
+    /// `ribbon`
+    Ribbon,
+    /// `ribbon2`
+    Ribbon2,
+    /// `ellipseRibbon`
+    EllipseRibbon,
+    /// `ellipseRibbon2`
+    EllipseRibbon2,
+    /// `leftRightRibbon`
+    LeftRightRibbon,
+    /// `verticalScroll`
+    VerticalScroll,
+    /// `horizontalScroll`
+    HorizontalScroll,
+    /// `wave`
+    Wave,
+    /// `doubleWave`
+    DoubleWave,
+    /// `plus`
+    Plus,
+    /// `flowChartProcess`
+    FlowChartProcess,
+    /// `flowChartDecision`
+    FlowChartDecision,
+    /// `flowChartInputOutput`
+    FlowChartInputOutput,
+    /// `flowChartPredefinedProcess`
+    FlowChartPredefinedProcess,
+    /// `flowChartInternalStorage`
+    FlowChartInternalStorage,
+    /// `flowChartDocument`
+    FlowChartDocument,
+    /// `flowChartMultidocument`
+    FlowChartMultidocument,
+    /// `flowChartTerminator`
+    FlowChartTerminator,
+    /// `flowChartPreparation`
+    FlowChartPreparation,
+    /// `flowChartManualInput`
+    FlowChartManualInput,
+    /// `flowChartManualOperation`
+    FlowChartManualOperation,
+    /// `flowChartConnector`
+    FlowChartConnector,
+    /// `flowChartPunchedCard`
+    FlowChartPunchedCard,
+    /// `flowChartPunchedTape`
+    FlowChartPunchedTape,
+    /// `flowChartSummingJunction`
+    FlowChartSummingJunction,
+    /// `flowChartOr`
+    FlowChartOr,
+    /// `flowChartCollate`
+    FlowChartCollate,
+    /// `flowChartSort`
+    FlowChartSort,
+    /// `flowChartExtract`
+    FlowChartExtract,
+    /// `flowChartMerge`
+    FlowChartMerge,
+    /// `flowChartOfflineStorage`
+    FlowChartOfflineStorage,
+    /// `flowChartOnlineStorage`
+    FlowChartOnlineStorage,
+    /// `flowChartMagneticTape`
+    FlowChartMagneticTape,
+    /// `flowChartMagneticDisk`
+    FlowChartMagneticDisk,
+    /// `flowChartMagneticDrum`
+    FlowChartMagneticDrum,
+    /// `flowChartDisplay`
+    FlowChartDisplay,
+    /// `flowChartDelay`
+    FlowChartDelay,
+    /// `flowChartAlternateProcess`
+    FlowChartAlternateProcess,
+    /// `flowChartOffpageConnector`
+    FlowChartOffpageConnector,
+    /// `actionButtonBlank`
+    ActionButtonBlank,
+    /// `actionButtonHome`
+    ActionButtonHome,
+    /// `actionButtonHelp`
+    ActionButtonHelp,
+    /// `actionButtonInformation`
+    ActionButtonInformation,
+    /// `actionButtonForwardNext`
+    ActionButtonForwardNext,
+    /// `actionButtonBackPrevious`
+    ActionButtonBackPrevious,
+    /// `actionButtonEnd`
+    ActionButtonEnd,
+    /// `actionButtonBeginning`
+    ActionButtonBeginning,
+    /// `actionButtonReturn`
+    ActionButtonReturn,
+    /// `actionButtonDocument`
+    ActionButtonDocument,
+    /// `actionButtonSound`
+    ActionButtonSound,
+    /// `actionButtonMovie`
+    ActionButtonMovie,
+    /// `gear6`
+    Gear6,
+    /// `gear9`
+    Gear9,
+    /// `funnel`
+    Funnel,
+    /// `mathPlus`
+    MathPlus,
+    /// `mathMinus`
+    MathMinus,
+    /// `mathMultiply`
+    MathMultiply,
+    /// `mathDivide`
+    MathDivide,
+    /// `mathEqual`
+    MathEqual,
+    /// `mathNotEqual`
+    MathNotEqual,
+    /// `cornerTabs`
+    CornerTabs,
+    /// `squareTabs`
+    SquareTabs,
+    /// `plaqueTabs`
+    PlaqueTabs,
+    /// `chartX`
+    ChartX,
+    /// `chartStar`
+    ChartStar,
+    /// `chartPlus`
+    ChartPlus,
+}
+impl ooxml_core::EnumType for ShapeTypeValues {
+    const VALUES: &'static [&'static str] = &[
+        "line",
+        "lineInv",
+        "triangle",
+        "rtTriangle",
+        "rect",
+        "diamond",
+        "parallelogram",
+        "trapezoid",
+        "nonIsoscelesTrapezoid",
+        "pentagon",
+        "hexagon",
+        "heptagon",
+        "octagon",
+        "decagon",
+        "dodecagon",
+        "star4",
+        "star5",
+        "star6",
+        "star7",
+        "star8",
+        "star10",
+        "star12",
+        "star16",
+        "star24",
+        "star32",
+        "roundRect",
+        "round1Rect",
+        "round2SameRect",
+        "round2DiagRect",
+        "snipRoundRect",
+        "snip1Rect",
+        "snip2SameRect",
+        "snip2DiagRect",
+        "plaque",
+        "ellipse",
+        "teardrop",
+        "homePlate",
+        "chevron",
+        "pieWedge",
+        "pie",
+        "blockArc",
+        "donut",
+        "noSmoking",
+        "rightArrow",
+        "leftArrow",
+        "upArrow",
+        "downArrow",
+        "stripedRightArrow",
+        "notchedRightArrow",
+        "bentUpArrow",
+        "leftRightArrow",
+        "upDownArrow",
+        "leftUpArrow",
+        "leftRightUpArrow",
+        "quadArrow",
+        "leftArrowCallout",
+        "rightArrowCallout",
+        "upArrowCallout",
+        "downArrowCallout",
+        "leftRightArrowCallout",
+        "upDownArrowCallout",
+        "quadArrowCallout",
+        "bentArrow",
+        "uturnArrow",
+        "circularArrow",
+        "leftCircularArrow",
+        "leftRightCircularArrow",
+        "curvedRightArrow",
+        "curvedLeftArrow",
+        "curvedUpArrow",
+        "curvedDownArrow",
+        "swooshArrow",
+        "cube",
+        "can",
+        "lightningBolt",
+        "heart",
+        "sun",
+        "moon",
+        "smileyFace",
+        "irregularSeal1",
+        "irregularSeal2",
+        "foldedCorner",
+        "bevel",
+        "frame",
+        "halfFrame",
+        "corner",
+        "diagStripe",
+        "chord",
+        "arc",
+        "leftBracket",
+        "rightBracket",
+        "leftBrace",
+        "rightBrace",
+        "bracketPair",
+        "bracePair",
+        "straightConnector1",
+        "bentConnector2",
+        "bentConnector3",
+        "bentConnector4",
+        "bentConnector5",
+        "curvedConnector2",
+        "curvedConnector3",
+        "curvedConnector4",
+        "curvedConnector5",
+        "callout1",
+        "callout2",
+        "callout3",
+        "accentCallout1",
+        "accentCallout2",
+        "accentCallout3",
+        "borderCallout1",
+        "borderCallout2",
+        "borderCallout3",
+        "accentBorderCallout1",
+        "accentBorderCallout2",
+        "accentBorderCallout3",
+        "wedgeRectCallout",
+        "wedgeRoundRectCallout",
+        "wedgeEllipseCallout",
+        "cloudCallout",
+        "cloud",
+        "ribbon",
+        "ribbon2",
+        "ellipseRibbon",
+        "ellipseRibbon2",
+        "leftRightRibbon",
+        "verticalScroll",
+        "horizontalScroll",
+        "wave",
+        "doubleWave",
+        "plus",
+        "flowChartProcess",
+        "flowChartDecision",
+        "flowChartInputOutput",
+        "flowChartPredefinedProcess",
+        "flowChartInternalStorage",
+        "flowChartDocument",
+        "flowChartMultidocument",
+        "flowChartTerminator",
+        "flowChartPreparation",
+        "flowChartManualInput",
+        "flowChartManualOperation",
+        "flowChartConnector",
+        "flowChartPunchedCard",
+        "flowChartPunchedTape",
+        "flowChartSummingJunction",
+        "flowChartOr",
+        "flowChartCollate",
+        "flowChartSort",
+        "flowChartExtract",
+        "flowChartMerge",
+        "flowChartOfflineStorage",
+        "flowChartOnlineStorage",
+        "flowChartMagneticTape",
+        "flowChartMagneticDisk",
+        "flowChartMagneticDrum",
+        "flowChartDisplay",
+        "flowChartDelay",
+        "flowChartAlternateProcess",
+        "flowChartOffpageConnector",
+        "actionButtonBlank",
+        "actionButtonHome",
+        "actionButtonHelp",
+        "actionButtonInformation",
+        "actionButtonForwardNext",
+        "actionButtonBackPrevious",
+        "actionButtonEnd",
+        "actionButtonBeginning",
+        "actionButtonReturn",
+        "actionButtonDocument",
+        "actionButtonSound",
+        "actionButtonMovie",
+        "gear6",
+        "gear9",
+        "funnel",
+        "mathPlus",
+        "mathMinus",
+        "mathMultiply",
+        "mathDivide",
+        "mathEqual",
+        "mathNotEqual",
+        "cornerTabs",
+        "squareTabs",
+        "plaqueTabs",
+        "chartX",
+        "chartStar",
+        "chartPlus",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Line),
+            1 => Some(Self::LineInverse),
+            2 => Some(Self::Triangle),
+            3 => Some(Self::RightTriangle),
+            4 => Some(Self::Rectangle),
+            5 => Some(Self::Diamond),
+            6 => Some(Self::Parallelogram),
+            7 => Some(Self::Trapezoid),
+            8 => Some(Self::NonIsoscelesTrapezoid),
+            9 => Some(Self::Pentagon),
+            10 => Some(Self::Hexagon),
+            11 => Some(Self::Heptagon),
+            12 => Some(Self::Octagon),
+            13 => Some(Self::Decagon),
+            14 => Some(Self::Dodecagon),
+            15 => Some(Self::Star4),
+            16 => Some(Self::Star5),
+            17 => Some(Self::Star6),
+            18 => Some(Self::Star7),
+            19 => Some(Self::Star8),
+            20 => Some(Self::Star10),
+            21 => Some(Self::Star12),
+            22 => Some(Self::Star16),
+            23 => Some(Self::Star24),
+            24 => Some(Self::Star32),
+            25 => Some(Self::RoundRectangle),
+            26 => Some(Self::Round1Rectangle),
+            27 => Some(Self::Round2SameRectangle),
+            28 => Some(Self::Round2DiagonalRectangle),
+            29 => Some(Self::SnipRoundRectangle),
+            30 => Some(Self::Snip1Rectangle),
+            31 => Some(Self::Snip2SameRectangle),
+            32 => Some(Self::Snip2DiagonalRectangle),
+            33 => Some(Self::Plaque),
+            34 => Some(Self::Ellipse),
+            35 => Some(Self::Teardrop),
+            36 => Some(Self::HomePlate),
+            37 => Some(Self::Chevron),
+            38 => Some(Self::PieWedge),
+            39 => Some(Self::Pie),
+            40 => Some(Self::BlockArc),
+            41 => Some(Self::Donut),
+            42 => Some(Self::NoSmoking),
+            43 => Some(Self::RightArrow),
+            44 => Some(Self::LeftArrow),
+            45 => Some(Self::UpArrow),
+            46 => Some(Self::DownArrow),
+            47 => Some(Self::StripedRightArrow),
+            48 => Some(Self::NotchedRightArrow),
+            49 => Some(Self::BentUpArrow),
+            50 => Some(Self::LeftRightArrow),
+            51 => Some(Self::UpDownArrow),
+            52 => Some(Self::LeftUpArrow),
+            53 => Some(Self::LeftRightUpArrow),
+            54 => Some(Self::QuadArrow),
+            55 => Some(Self::LeftArrowCallout),
+            56 => Some(Self::RightArrowCallout),
+            57 => Some(Self::UpArrowCallout),
+            58 => Some(Self::DownArrowCallout),
+            59 => Some(Self::LeftRightArrowCallout),
+            60 => Some(Self::UpDownArrowCallout),
+            61 => Some(Self::QuadArrowCallout),
+            62 => Some(Self::BentArrow),
+            63 => Some(Self::UTurnArrow),
+            64 => Some(Self::CircularArrow),
+            65 => Some(Self::LeftCircularArrow),
+            66 => Some(Self::LeftRightCircularArrow),
+            67 => Some(Self::CurvedRightArrow),
+            68 => Some(Self::CurvedLeftArrow),
+            69 => Some(Self::CurvedUpArrow),
+            70 => Some(Self::CurvedDownArrow),
+            71 => Some(Self::SwooshArrow),
+            72 => Some(Self::Cube),
+            73 => Some(Self::Can),
+            74 => Some(Self::LightningBolt),
+            75 => Some(Self::Heart),
+            76 => Some(Self::Sun),
+            77 => Some(Self::Moon),
+            78 => Some(Self::SmileyFace),
+            79 => Some(Self::IrregularSeal1),
+            80 => Some(Self::IrregularSeal2),
+            81 => Some(Self::FoldedCorner),
+            82 => Some(Self::Bevel),
+            83 => Some(Self::Frame),
+            84 => Some(Self::HalfFrame),
+            85 => Some(Self::Corner),
+            86 => Some(Self::DiagonalStripe),
+            87 => Some(Self::Chord),
+            88 => Some(Self::Arc),
+            89 => Some(Self::LeftBracket),
+            90 => Some(Self::RightBracket),
+            91 => Some(Self::LeftBrace),
+            92 => Some(Self::RightBrace),
+            93 => Some(Self::BracketPair),
+            94 => Some(Self::BracePair),
+            95 => Some(Self::StraightConnector1),
+            96 => Some(Self::BentConnector2),
+            97 => Some(Self::BentConnector3),
+            98 => Some(Self::BentConnector4),
+            99 => Some(Self::BentConnector5),
+            100 => Some(Self::CurvedConnector2),
+            101 => Some(Self::CurvedConnector3),
+            102 => Some(Self::CurvedConnector4),
+            103 => Some(Self::CurvedConnector5),
+            104 => Some(Self::Callout1),
+            105 => Some(Self::Callout2),
+            106 => Some(Self::Callout3),
+            107 => Some(Self::AccentCallout1),
+            108 => Some(Self::AccentCallout2),
+            109 => Some(Self::AccentCallout3),
+            110 => Some(Self::BorderCallout1),
+            111 => Some(Self::BorderCallout2),
+            112 => Some(Self::BorderCallout3),
+            113 => Some(Self::AccentBorderCallout1),
+            114 => Some(Self::AccentBorderCallout2),
+            115 => Some(Self::AccentBorderCallout3),
+            116 => Some(Self::WedgeRectangleCallout),
+            117 => Some(Self::WedgeRoundRectangleCallout),
+            118 => Some(Self::WedgeEllipseCallout),
+            119 => Some(Self::CloudCallout),
+            120 => Some(Self::Cloud),
+            121 => Some(Self::Ribbon),
+            122 => Some(Self::Ribbon2),
+            123 => Some(Self::EllipseRibbon),
+            124 => Some(Self::EllipseRibbon2),
+            125 => Some(Self::LeftRightRibbon),
+            126 => Some(Self::VerticalScroll),
+            127 => Some(Self::HorizontalScroll),
+            128 => Some(Self::Wave),
+            129 => Some(Self::DoubleWave),
+            130 => Some(Self::Plus),
+            131 => Some(Self::FlowChartProcess),
+            132 => Some(Self::FlowChartDecision),
+            133 => Some(Self::FlowChartInputOutput),
+            134 => Some(Self::FlowChartPredefinedProcess),
+            135 => Some(Self::FlowChartInternalStorage),
+            136 => Some(Self::FlowChartDocument),
+            137 => Some(Self::FlowChartMultidocument),
+            138 => Some(Self::FlowChartTerminator),
+            139 => Some(Self::FlowChartPreparation),
+            140 => Some(Self::FlowChartManualInput),
+            141 => Some(Self::FlowChartManualOperation),
+            142 => Some(Self::FlowChartConnector),
+            143 => Some(Self::FlowChartPunchedCard),
+            144 => Some(Self::FlowChartPunchedTape),
+            145 => Some(Self::FlowChartSummingJunction),
+            146 => Some(Self::FlowChartOr),
+            147 => Some(Self::FlowChartCollate),
+            148 => Some(Self::FlowChartSort),
+            149 => Some(Self::FlowChartExtract),
+            150 => Some(Self::FlowChartMerge),
+            151 => Some(Self::FlowChartOfflineStorage),
+            152 => Some(Self::FlowChartOnlineStorage),
+            153 => Some(Self::FlowChartMagneticTape),
+            154 => Some(Self::FlowChartMagneticDisk),
+            155 => Some(Self::FlowChartMagneticDrum),
+            156 => Some(Self::FlowChartDisplay),
+            157 => Some(Self::FlowChartDelay),
+            158 => Some(Self::FlowChartAlternateProcess),
+            159 => Some(Self::FlowChartOffpageConnector),
+            160 => Some(Self::ActionButtonBlank),
+            161 => Some(Self::ActionButtonHome),
+            162 => Some(Self::ActionButtonHelp),
+            163 => Some(Self::ActionButtonInformation),
+            164 => Some(Self::ActionButtonForwardNext),
+            165 => Some(Self::ActionButtonBackPrevious),
+            166 => Some(Self::ActionButtonEnd),
+            167 => Some(Self::ActionButtonBeginning),
+            168 => Some(Self::ActionButtonReturn),
+            169 => Some(Self::ActionButtonDocument),
+            170 => Some(Self::ActionButtonSound),
+            171 => Some(Self::ActionButtonMovie),
+            172 => Some(Self::Gear6),
+            173 => Some(Self::Gear9),
+            174 => Some(Self::Funnel),
+            175 => Some(Self::MathPlus),
+            176 => Some(Self::MathMinus),
+            177 => Some(Self::MathMultiply),
+            178 => Some(Self::MathDivide),
+            179 => Some(Self::MathEqual),
+            180 => Some(Self::MathNotEqual),
+            181 => Some(Self::CornerTabs),
+            182 => Some(Self::SquareTabs),
+            183 => Some(Self::PlaqueTabs),
+            184 => Some(Self::ChartX),
+            185 => Some(Self::ChartStar),
+            186 => Some(Self::ChartPlus),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextVertOverflowType` — Text Vertical Overflow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextVerticalOverflowValues {
+    /// `overflow`
+    Overflow,
+    /// `ellipsis`
+    Ellipsis,
+    /// `clip`
+    Clip,
+}
+impl ooxml_core::EnumType for TextVerticalOverflowValues {
+    const VALUES: &'static [&'static str] = &["overflow", "ellipsis", "clip"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Overflow),
+            1 => Some(Self::Ellipsis),
+            2 => Some(Self::Clip),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextHorzOverflowType` — Text Horizontal Overflow Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextHorizontalOverflowValues {
+    /// `overflow`
+    Overflow,
+    /// `clip`
+    Clip,
+}
+impl ooxml_core::EnumType for TextHorizontalOverflowValues {
+    const VALUES: &'static [&'static str] = &["overflow", "clip"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Overflow),
+            1 => Some(Self::Clip),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextVerticalType` — Vertical Text Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextVerticalValues {
+    /// `horz`
+    Horizontal,
+    /// `vert`
+    Vertical,
+    /// `vert270`
+    Vertical270,
+    /// `wordArtVert`
+    WordArtVertical,
+    /// `eaVert`
+    EastAsianVetical,
+    /// `mongolianVert`
+    MongolianVertical,
+    /// `wordArtVertRtl`
+    WordArtLeftToRight,
+}
+impl ooxml_core::EnumType for TextVerticalValues {
+    const VALUES: &'static [&'static str] = &[
+        "horz",
+        "vert",
+        "vert270",
+        "wordArtVert",
+        "eaVert",
+        "mongolianVert",
+        "wordArtVertRtl",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Horizontal),
+            1 => Some(Self::Vertical),
+            2 => Some(Self::Vertical270),
+            3 => Some(Self::WordArtVertical),
+            4 => Some(Self::EastAsianVetical),
+            5 => Some(Self::MongolianVertical),
+            6 => Some(Self::WordArtLeftToRight),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextWrappingType` — Text Wrapping Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextWrappingValues {
+    /// `none`
+    None,
+    /// `square`
+    Square,
+}
+impl ooxml_core::EnumType for TextWrappingValues {
+    const VALUES: &'static [&'static str] = &["none", "square"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::Square),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextAnchoringType` — Text Anchoring Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextAnchoringTypeValues {
+    /// `t`
+    Top,
+    /// `ctr`
+    Center,
+    /// `b`
+    Bottom,
+}
+impl ooxml_core::EnumType for TextAnchoringTypeValues {
+    const VALUES: &'static [&'static str] = &["t", "ctr", "b"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Top),
+            1 => Some(Self::Center),
+            2 => Some(Self::Bottom),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextAutonumberScheme` — Text Auto-number Schemes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextAutoNumberSchemeValues {
+    /// `alphaLcParenBoth`
+    AlphaLowerCharacterParenBoth,
+    /// `alphaUcParenBoth`
+    AlphaUpperCharacterParenBoth,
+    /// `alphaLcParenR`
+    AlphaLowerCharacterParenR,
+    /// `alphaUcParenR`
+    AlphaUpperCharacterParenR,
+    /// `alphaLcPeriod`
+    AlphaLowerCharacterPeriod,
+    /// `alphaUcPeriod`
+    AlphaUpperCharacterPeriod,
+    /// `arabicParenBoth`
+    ArabicParenBoth,
+    /// `arabicParenR`
+    ArabicParenR,
+    /// `arabicPeriod`
+    ArabicPeriod,
+    /// `arabicPlain`
+    ArabicPlain,
+    /// `romanLcParenBoth`
+    RomanLowerCharacterParenBoth,
+    /// `romanUcParenBoth`
+    RomanUpperCharacterParenBoth,
+    /// `romanLcParenR`
+    RomanLowerCharacterParenR,
+    /// `romanUcParenR`
+    RomanUpperCharacterParenR,
+    /// `romanLcPeriod`
+    RomanLowerCharacterPeriod,
+    /// `romanUcPeriod`
+    RomanUpperCharacterPeriod,
+    /// `circleNumDbPlain`
+    CircleNumberDoubleBytePlain,
+    /// `circleNumWdBlackPlain`
+    CircleNumberWingdingsBlackPlain,
+    /// `circleNumWdWhitePlain`
+    CircleNumberWingdingsWhitePlain,
+    /// `arabicDbPeriod`
+    ArabicDoubleBytePeriod,
+    /// `arabicDbPlain`
+    ArabicDoubleBytePlain,
+    /// `ea1ChsPeriod`
+    EastAsianSimplifiedChinesePeriod,
+    /// `ea1ChsPlain`
+    EastAsianSimplifiedChinesePlain,
+    /// `ea1ChtPeriod`
+    EastAsianTraditionalChinesePeriod,
+    /// `ea1ChtPlain`
+    EastAsianTraditionalChinesePlain,
+    /// `ea1JpnChsDbPeriod`
+    EastAsianJapaneseDoubleBytePeriod,
+    /// `ea1JpnKorPlain`
+    EastAsianJapaneseKoreanPlain,
+    /// `ea1JpnKorPeriod`
+    EastAsianJapaneseKoreanPeriod,
+    /// `arabic1Minus`
+    Arabic1Minus,
+    /// `arabic2Minus`
+    Arabic2Minus,
+    /// `hebrew2Minus`
+    Hebrew2Minus,
+    /// `thaiAlphaPeriod`
+    ThaiAlphaPeriod,
+    /// `thaiAlphaParenR`
+    ThaiAlphaParenthesisRight,
+    /// `thaiAlphaParenBoth`
+    ThaiAlphaParenthesisBoth,
+    /// `thaiNumPeriod`
+    ThaiNumberPeriod,
+    /// `thaiNumParenR`
+    ThaiNumberParenthesisRight,
+    /// `thaiNumParenBoth`
+    ThaiNumberParenthesisBoth,
+    /// `hindiAlphaPeriod`
+    HindiAlphaPeriod,
+    /// `hindiNumPeriod`
+    HindiNumPeriod,
+    /// `hindiNumParenR`
+    HindiNumberParenthesisRight,
+    /// `hindiAlpha1Period`
+    HindiAlpha1Period,
+}
+impl ooxml_core::EnumType for TextAutoNumberSchemeValues {
+    const VALUES: &'static [&'static str] = &[
+        "alphaLcParenBoth",
+        "alphaUcParenBoth",
+        "alphaLcParenR",
+        "alphaUcParenR",
+        "alphaLcPeriod",
+        "alphaUcPeriod",
+        "arabicParenBoth",
+        "arabicParenR",
+        "arabicPeriod",
+        "arabicPlain",
+        "romanLcParenBoth",
+        "romanUcParenBoth",
+        "romanLcParenR",
+        "romanUcParenR",
+        "romanLcPeriod",
+        "romanUcPeriod",
+        "circleNumDbPlain",
+        "circleNumWdBlackPlain",
+        "circleNumWdWhitePlain",
+        "arabicDbPeriod",
+        "arabicDbPlain",
+        "ea1ChsPeriod",
+        "ea1ChsPlain",
+        "ea1ChtPeriod",
+        "ea1ChtPlain",
+        "ea1JpnChsDbPeriod",
+        "ea1JpnKorPlain",
+        "ea1JpnKorPeriod",
+        "arabic1Minus",
+        "arabic2Minus",
+        "hebrew2Minus",
+        "thaiAlphaPeriod",
+        "thaiAlphaParenR",
+        "thaiAlphaParenBoth",
+        "thaiNumPeriod",
+        "thaiNumParenR",
+        "thaiNumParenBoth",
+        "hindiAlphaPeriod",
+        "hindiNumPeriod",
+        "hindiNumParenR",
+        "hindiAlpha1Period",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::AlphaLowerCharacterParenBoth),
+            1 => Some(Self::AlphaUpperCharacterParenBoth),
+            2 => Some(Self::AlphaLowerCharacterParenR),
+            3 => Some(Self::AlphaUpperCharacterParenR),
+            4 => Some(Self::AlphaLowerCharacterPeriod),
+            5 => Some(Self::AlphaUpperCharacterPeriod),
+            6 => Some(Self::ArabicParenBoth),
+            7 => Some(Self::ArabicParenR),
+            8 => Some(Self::ArabicPeriod),
+            9 => Some(Self::ArabicPlain),
+            10 => Some(Self::RomanLowerCharacterParenBoth),
+            11 => Some(Self::RomanUpperCharacterParenBoth),
+            12 => Some(Self::RomanLowerCharacterParenR),
+            13 => Some(Self::RomanUpperCharacterParenR),
+            14 => Some(Self::RomanLowerCharacterPeriod),
+            15 => Some(Self::RomanUpperCharacterPeriod),
+            16 => Some(Self::CircleNumberDoubleBytePlain),
+            17 => Some(Self::CircleNumberWingdingsBlackPlain),
+            18 => Some(Self::CircleNumberWingdingsWhitePlain),
+            19 => Some(Self::ArabicDoubleBytePeriod),
+            20 => Some(Self::ArabicDoubleBytePlain),
+            21 => Some(Self::EastAsianSimplifiedChinesePeriod),
+            22 => Some(Self::EastAsianSimplifiedChinesePlain),
+            23 => Some(Self::EastAsianTraditionalChinesePeriod),
+            24 => Some(Self::EastAsianTraditionalChinesePlain),
+            25 => Some(Self::EastAsianJapaneseDoubleBytePeriod),
+            26 => Some(Self::EastAsianJapaneseKoreanPlain),
+            27 => Some(Self::EastAsianJapaneseKoreanPeriod),
+            28 => Some(Self::Arabic1Minus),
+            29 => Some(Self::Arabic2Minus),
+            30 => Some(Self::Hebrew2Minus),
+            31 => Some(Self::ThaiAlphaPeriod),
+            32 => Some(Self::ThaiAlphaParenthesisRight),
+            33 => Some(Self::ThaiAlphaParenthesisBoth),
+            34 => Some(Self::ThaiNumberPeriod),
+            35 => Some(Self::ThaiNumberParenthesisRight),
+            36 => Some(Self::ThaiNumberParenthesisBoth),
+            37 => Some(Self::HindiAlphaPeriod),
+            38 => Some(Self::HindiNumPeriod),
+            39 => Some(Self::HindiNumberParenthesisRight),
+            40 => Some(Self::HindiAlpha1Period),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_TextUnderlineType` — Text Underline Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextUnderlineValues {
@@ -216,6 +1606,2330 @@ impl ooxml_core::EnumType for TextFontAlignmentValues {
         self as usize
     }
 }
+/// `a:ST_PresetColorVal` — Preset Color Value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PresetColorValues {
+    /// `aliceBlue`
+    AliceBlue,
+    /// `antiqueWhite`
+    AntiqueWhite,
+    /// `aqua`
+    Aqua,
+    /// `aquamarine`
+    Aquamarine,
+    /// `azure`
+    Azure,
+    /// `beige`
+    Beige,
+    /// `bisque`
+    Bisque,
+    /// `black`
+    Black,
+    /// `blanchedAlmond`
+    BlanchedAlmond,
+    /// `blue`
+    Blue,
+    /// `blueViolet`
+    BlueViolet,
+    /// `brown`
+    Brown,
+    /// `burlyWood`
+    BurlyWood,
+    /// `cadetBlue`
+    CadetBlue,
+    /// `chartreuse`
+    Chartreuse,
+    /// `chocolate`
+    Chocolate,
+    /// `coral`
+    Coral,
+    /// `cornflowerBlue`
+    CornflowerBlue,
+    /// `cornsilk`
+    Cornsilk,
+    /// `crimson`
+    Crimson,
+    /// `cyan`
+    Cyan,
+    /// `dkBlue`
+    DarkBlue,
+    /// `dkCyan`
+    DarkCyan,
+    /// `dkGoldenrod`
+    DarkGoldenrod,
+    /// `dkGray`
+    DarkGray,
+    /// `dkGreen`
+    DarkGreen,
+    /// `dkKhaki`
+    DarkKhaki,
+    /// `dkMagenta`
+    DarkMagenta,
+    /// `dkOliveGreen`
+    DarkOliveGreen,
+    /// `dkOrange`
+    DarkOrange,
+    /// `dkOrchid`
+    DarkOrchid,
+    /// `dkRed`
+    DarkRed,
+    /// `dkSalmon`
+    DarkSalmon,
+    /// `dkSeaGreen`
+    DarkSeaGreen,
+    /// `dkSlateBlue`
+    DarkSlateBlue,
+    /// `dkSlateGray`
+    DarkSlateGray,
+    /// `dkTurquoise`
+    DarkTurquoise,
+    /// `dkViolet`
+    DarkViolet,
+    /// `deepPink`
+    DeepPink,
+    /// `deepSkyBlue`
+    DeepSkyBlue,
+    /// `dimGray`
+    DimGray,
+    /// `dodgerBlue`
+    DodgerBlue,
+    /// `firebrick`
+    Firebrick,
+    /// `floralWhite`
+    FloralWhite,
+    /// `forestGreen`
+    ForestGreen,
+    /// `fuchsia`
+    Fuchsia,
+    /// `gainsboro`
+    Gainsboro,
+    /// `ghostWhite`
+    GhostWhite,
+    /// `gold`
+    Gold,
+    /// `goldenrod`
+    Goldenrod,
+    /// `gray`
+    Gray,
+    /// `green`
+    Green,
+    /// `greenYellow`
+    GreenYellow,
+    /// `honeydew`
+    Honeydew,
+    /// `hotPink`
+    HotPink,
+    /// `indianRed`
+    IndianRed,
+    /// `indigo`
+    Indigo,
+    /// `ivory`
+    Ivory,
+    /// `khaki`
+    Khaki,
+    /// `lavender`
+    Lavender,
+    /// `lavenderBlush`
+    LavenderBlush,
+    /// `lawnGreen`
+    LawnGreen,
+    /// `lemonChiffon`
+    LemonChiffon,
+    /// `ltBlue`
+    LightBlue,
+    /// `ltCoral`
+    LightCoral,
+    /// `ltCyan`
+    LightCyan,
+    /// `ltGoldenrodYellow`
+    LightGoldenrodYellow,
+    /// `ltGray`
+    LightGray,
+    /// `ltGreen`
+    LightGreen,
+    /// `ltPink`
+    LightPink,
+    /// `ltSalmon`
+    LightSalmon,
+    /// `ltSeaGreen`
+    LightSeaGreen,
+    /// `ltSkyBlue`
+    LightSkyBlue,
+    /// `ltSlateGray`
+    LightSlateGray,
+    /// `ltSteelBlue`
+    LightSteelBlue,
+    /// `ltYellow`
+    LightYellow,
+    /// `lime`
+    Lime,
+    /// `limeGreen`
+    LimeGreen,
+    /// `linen`
+    Linen,
+    /// `magenta`
+    Magenta,
+    /// `maroon`
+    Maroon,
+    /// `medAquamarine`
+    MedAquamarine,
+    /// `medBlue`
+    MediumBlue,
+    /// `medOrchid`
+    MediumOrchid,
+    /// `medPurple`
+    MediumPurple,
+    /// `medSeaGreen`
+    MediumSeaGreen,
+    /// `medSlateBlue`
+    MediumSlateBlue,
+    /// `medSpringGreen`
+    MediumSpringGreen,
+    /// `medTurquoise`
+    MediumTurquoise,
+    /// `medVioletRed`
+    MediumVioletRed,
+    /// `midnightBlue`
+    MidnightBlue,
+    /// `mintCream`
+    MintCream,
+    /// `mistyRose`
+    MistyRose,
+    /// `moccasin`
+    Moccasin,
+    /// `navajoWhite`
+    NavajoWhite,
+    /// `navy`
+    Navy,
+    /// `oldLace`
+    OldLace,
+    /// `olive`
+    Olive,
+    /// `oliveDrab`
+    OliveDrab,
+    /// `orange`
+    Orange,
+    /// `orangeRed`
+    OrangeRed,
+    /// `orchid`
+    Orchid,
+    /// `paleGoldenrod`
+    PaleGoldenrod,
+    /// `paleGreen`
+    PaleGreen,
+    /// `paleTurquoise`
+    PaleTurquoise,
+    /// `paleVioletRed`
+    PaleVioletRed,
+    /// `papayaWhip`
+    PapayaWhip,
+    /// `peachPuff`
+    PeachPuff,
+    /// `peru`
+    Peru,
+    /// `pink`
+    Pink,
+    /// `plum`
+    Plum,
+    /// `powderBlue`
+    PowderBlue,
+    /// `purple`
+    Purple,
+    /// `red`
+    Red,
+    /// `rosyBrown`
+    RosyBrown,
+    /// `royalBlue`
+    RoyalBlue,
+    /// `saddleBrown`
+    SaddleBrown,
+    /// `salmon`
+    Salmon,
+    /// `sandyBrown`
+    SandyBrown,
+    /// `seaGreen`
+    SeaGreen,
+    /// `seaShell`
+    SeaShell,
+    /// `sienna`
+    Sienna,
+    /// `silver`
+    Silver,
+    /// `skyBlue`
+    SkyBlue,
+    /// `slateBlue`
+    SlateBlue,
+    /// `slateGray`
+    SlateGray,
+    /// `snow`
+    Snow,
+    /// `springGreen`
+    SpringGreen,
+    /// `steelBlue`
+    SteelBlue,
+    /// `tan`
+    Tan,
+    /// `teal`
+    Teal,
+    /// `thistle`
+    Thistle,
+    /// `tomato`
+    Tomato,
+    /// `turquoise`
+    Turquoise,
+    /// `violet`
+    Violet,
+    /// `wheat`
+    Wheat,
+    /// `white`
+    White,
+    /// `whiteSmoke`
+    WhiteSmoke,
+    /// `yellow`
+    Yellow,
+    /// `yellowGreen`
+    YellowGreen,
+    /// `darkBlue`
+    DarkBlue2010,
+    /// `darkCyan`
+    DarkCyan2010,
+    /// `darkGoldenrod`
+    DarkGoldenrod2010,
+    /// `darkGray`
+    DarkGray2010,
+    /// `darkGrey`
+    DarkGrey2010,
+    /// `darkGreen`
+    DarkGreen2010,
+    /// `darkKhaki`
+    DarkKhaki2010,
+    /// `darkMagenta`
+    DarkMagenta2010,
+    /// `darkOliveGreen`
+    DarkOliveGreen2010,
+    /// `darkOrange`
+    DarkOrange2010,
+    /// `darkOrchid`
+    DarkOrchid2010,
+    /// `darkRed`
+    DarkRed2010,
+    /// `darkSalmon`
+    DarkSalmon2010,
+    /// `darkSeaGreen`
+    DarkSeaGreen2010,
+    /// `darkSlateBlue`
+    DarkSlateBlue2010,
+    /// `darkSlateGray`
+    DarkSlateGray2010,
+    /// `darkSlateGrey`
+    DarkSlateGrey2010,
+    /// `darkTurquoise`
+    DarkTurquoise2010,
+    /// `darkViolet`
+    DarkViolet2010,
+    /// `lightBlue`
+    LightBlue2010,
+    /// `lightCoral`
+    LightCoral2010,
+    /// `lightCyan`
+    LightCyan2010,
+    /// `lightGoldenrodYellow`
+    LightGoldenrodYellow2010,
+    /// `lightGray`
+    LightGray2010,
+    /// `lightGrey`
+    LightGrey2010,
+    /// `lightGreen`
+    LightGreen2010,
+    /// `lightPink`
+    LightPink2010,
+    /// `lightSalmon`
+    LightSalmon2010,
+    /// `lightSeaGreen`
+    LightSeaGreen2010,
+    /// `lightSkyBlue`
+    LightSkyBlue2010,
+    /// `lightSlateGray`
+    LightSlateGray2010,
+    /// `lightSlateGrey`
+    LightSlateGrey2010,
+    /// `lightSteelBlue`
+    LightSteelBlue2010,
+    /// `lightYellow`
+    LightYellow2010,
+    /// `mediumAquamarine`
+    MediumAquamarine2010,
+    /// `mediumBlue`
+    MediumBlue2010,
+    /// `mediumOrchid`
+    MediumOrchid2010,
+    /// `mediumPurple`
+    MediumPurple2010,
+    /// `mediumSeaGreen`
+    MediumSeaGreen2010,
+    /// `mediumSlateBlue`
+    MediumSlateBlue2010,
+    /// `mediumSpringGreen`
+    MediumSpringGreen2010,
+    /// `mediumTurquoise`
+    MediumTurquoise2010,
+    /// `mediumVioletRed`
+    MediumVioletRed2010,
+    /// `dkGrey`
+    DarkGrey,
+    /// `dimGrey`
+    DimGrey,
+    /// `dkSlateGrey`
+    DarkSlateGrey,
+    /// `grey`
+    Grey,
+    /// `ltGrey`
+    LightGrey,
+    /// `ltSlateGrey`
+    LightSlateGrey,
+    /// `slateGrey`
+    SlateGrey,
+}
+impl ooxml_core::EnumType for PresetColorValues {
+    const VALUES: &'static [&'static str] = &[
+        "aliceBlue",
+        "antiqueWhite",
+        "aqua",
+        "aquamarine",
+        "azure",
+        "beige",
+        "bisque",
+        "black",
+        "blanchedAlmond",
+        "blue",
+        "blueViolet",
+        "brown",
+        "burlyWood",
+        "cadetBlue",
+        "chartreuse",
+        "chocolate",
+        "coral",
+        "cornflowerBlue",
+        "cornsilk",
+        "crimson",
+        "cyan",
+        "dkBlue",
+        "dkCyan",
+        "dkGoldenrod",
+        "dkGray",
+        "dkGreen",
+        "dkKhaki",
+        "dkMagenta",
+        "dkOliveGreen",
+        "dkOrange",
+        "dkOrchid",
+        "dkRed",
+        "dkSalmon",
+        "dkSeaGreen",
+        "dkSlateBlue",
+        "dkSlateGray",
+        "dkTurquoise",
+        "dkViolet",
+        "deepPink",
+        "deepSkyBlue",
+        "dimGray",
+        "dodgerBlue",
+        "firebrick",
+        "floralWhite",
+        "forestGreen",
+        "fuchsia",
+        "gainsboro",
+        "ghostWhite",
+        "gold",
+        "goldenrod",
+        "gray",
+        "green",
+        "greenYellow",
+        "honeydew",
+        "hotPink",
+        "indianRed",
+        "indigo",
+        "ivory",
+        "khaki",
+        "lavender",
+        "lavenderBlush",
+        "lawnGreen",
+        "lemonChiffon",
+        "ltBlue",
+        "ltCoral",
+        "ltCyan",
+        "ltGoldenrodYellow",
+        "ltGray",
+        "ltGreen",
+        "ltPink",
+        "ltSalmon",
+        "ltSeaGreen",
+        "ltSkyBlue",
+        "ltSlateGray",
+        "ltSteelBlue",
+        "ltYellow",
+        "lime",
+        "limeGreen",
+        "linen",
+        "magenta",
+        "maroon",
+        "medAquamarine",
+        "medBlue",
+        "medOrchid",
+        "medPurple",
+        "medSeaGreen",
+        "medSlateBlue",
+        "medSpringGreen",
+        "medTurquoise",
+        "medVioletRed",
+        "midnightBlue",
+        "mintCream",
+        "mistyRose",
+        "moccasin",
+        "navajoWhite",
+        "navy",
+        "oldLace",
+        "olive",
+        "oliveDrab",
+        "orange",
+        "orangeRed",
+        "orchid",
+        "paleGoldenrod",
+        "paleGreen",
+        "paleTurquoise",
+        "paleVioletRed",
+        "papayaWhip",
+        "peachPuff",
+        "peru",
+        "pink",
+        "plum",
+        "powderBlue",
+        "purple",
+        "red",
+        "rosyBrown",
+        "royalBlue",
+        "saddleBrown",
+        "salmon",
+        "sandyBrown",
+        "seaGreen",
+        "seaShell",
+        "sienna",
+        "silver",
+        "skyBlue",
+        "slateBlue",
+        "slateGray",
+        "snow",
+        "springGreen",
+        "steelBlue",
+        "tan",
+        "teal",
+        "thistle",
+        "tomato",
+        "turquoise",
+        "violet",
+        "wheat",
+        "white",
+        "whiteSmoke",
+        "yellow",
+        "yellowGreen",
+        "darkBlue",
+        "darkCyan",
+        "darkGoldenrod",
+        "darkGray",
+        "darkGrey",
+        "darkGreen",
+        "darkKhaki",
+        "darkMagenta",
+        "darkOliveGreen",
+        "darkOrange",
+        "darkOrchid",
+        "darkRed",
+        "darkSalmon",
+        "darkSeaGreen",
+        "darkSlateBlue",
+        "darkSlateGray",
+        "darkSlateGrey",
+        "darkTurquoise",
+        "darkViolet",
+        "lightBlue",
+        "lightCoral",
+        "lightCyan",
+        "lightGoldenrodYellow",
+        "lightGray",
+        "lightGrey",
+        "lightGreen",
+        "lightPink",
+        "lightSalmon",
+        "lightSeaGreen",
+        "lightSkyBlue",
+        "lightSlateGray",
+        "lightSlateGrey",
+        "lightSteelBlue",
+        "lightYellow",
+        "mediumAquamarine",
+        "mediumBlue",
+        "mediumOrchid",
+        "mediumPurple",
+        "mediumSeaGreen",
+        "mediumSlateBlue",
+        "mediumSpringGreen",
+        "mediumTurquoise",
+        "mediumVioletRed",
+        "dkGrey",
+        "dimGrey",
+        "dkSlateGrey",
+        "grey",
+        "ltGrey",
+        "ltSlateGrey",
+        "slateGrey",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::AliceBlue),
+            1 => Some(Self::AntiqueWhite),
+            2 => Some(Self::Aqua),
+            3 => Some(Self::Aquamarine),
+            4 => Some(Self::Azure),
+            5 => Some(Self::Beige),
+            6 => Some(Self::Bisque),
+            7 => Some(Self::Black),
+            8 => Some(Self::BlanchedAlmond),
+            9 => Some(Self::Blue),
+            10 => Some(Self::BlueViolet),
+            11 => Some(Self::Brown),
+            12 => Some(Self::BurlyWood),
+            13 => Some(Self::CadetBlue),
+            14 => Some(Self::Chartreuse),
+            15 => Some(Self::Chocolate),
+            16 => Some(Self::Coral),
+            17 => Some(Self::CornflowerBlue),
+            18 => Some(Self::Cornsilk),
+            19 => Some(Self::Crimson),
+            20 => Some(Self::Cyan),
+            21 => Some(Self::DarkBlue),
+            22 => Some(Self::DarkCyan),
+            23 => Some(Self::DarkGoldenrod),
+            24 => Some(Self::DarkGray),
+            25 => Some(Self::DarkGreen),
+            26 => Some(Self::DarkKhaki),
+            27 => Some(Self::DarkMagenta),
+            28 => Some(Self::DarkOliveGreen),
+            29 => Some(Self::DarkOrange),
+            30 => Some(Self::DarkOrchid),
+            31 => Some(Self::DarkRed),
+            32 => Some(Self::DarkSalmon),
+            33 => Some(Self::DarkSeaGreen),
+            34 => Some(Self::DarkSlateBlue),
+            35 => Some(Self::DarkSlateGray),
+            36 => Some(Self::DarkTurquoise),
+            37 => Some(Self::DarkViolet),
+            38 => Some(Self::DeepPink),
+            39 => Some(Self::DeepSkyBlue),
+            40 => Some(Self::DimGray),
+            41 => Some(Self::DodgerBlue),
+            42 => Some(Self::Firebrick),
+            43 => Some(Self::FloralWhite),
+            44 => Some(Self::ForestGreen),
+            45 => Some(Self::Fuchsia),
+            46 => Some(Self::Gainsboro),
+            47 => Some(Self::GhostWhite),
+            48 => Some(Self::Gold),
+            49 => Some(Self::Goldenrod),
+            50 => Some(Self::Gray),
+            51 => Some(Self::Green),
+            52 => Some(Self::GreenYellow),
+            53 => Some(Self::Honeydew),
+            54 => Some(Self::HotPink),
+            55 => Some(Self::IndianRed),
+            56 => Some(Self::Indigo),
+            57 => Some(Self::Ivory),
+            58 => Some(Self::Khaki),
+            59 => Some(Self::Lavender),
+            60 => Some(Self::LavenderBlush),
+            61 => Some(Self::LawnGreen),
+            62 => Some(Self::LemonChiffon),
+            63 => Some(Self::LightBlue),
+            64 => Some(Self::LightCoral),
+            65 => Some(Self::LightCyan),
+            66 => Some(Self::LightGoldenrodYellow),
+            67 => Some(Self::LightGray),
+            68 => Some(Self::LightGreen),
+            69 => Some(Self::LightPink),
+            70 => Some(Self::LightSalmon),
+            71 => Some(Self::LightSeaGreen),
+            72 => Some(Self::LightSkyBlue),
+            73 => Some(Self::LightSlateGray),
+            74 => Some(Self::LightSteelBlue),
+            75 => Some(Self::LightYellow),
+            76 => Some(Self::Lime),
+            77 => Some(Self::LimeGreen),
+            78 => Some(Self::Linen),
+            79 => Some(Self::Magenta),
+            80 => Some(Self::Maroon),
+            81 => Some(Self::MedAquamarine),
+            82 => Some(Self::MediumBlue),
+            83 => Some(Self::MediumOrchid),
+            84 => Some(Self::MediumPurple),
+            85 => Some(Self::MediumSeaGreen),
+            86 => Some(Self::MediumSlateBlue),
+            87 => Some(Self::MediumSpringGreen),
+            88 => Some(Self::MediumTurquoise),
+            89 => Some(Self::MediumVioletRed),
+            90 => Some(Self::MidnightBlue),
+            91 => Some(Self::MintCream),
+            92 => Some(Self::MistyRose),
+            93 => Some(Self::Moccasin),
+            94 => Some(Self::NavajoWhite),
+            95 => Some(Self::Navy),
+            96 => Some(Self::OldLace),
+            97 => Some(Self::Olive),
+            98 => Some(Self::OliveDrab),
+            99 => Some(Self::Orange),
+            100 => Some(Self::OrangeRed),
+            101 => Some(Self::Orchid),
+            102 => Some(Self::PaleGoldenrod),
+            103 => Some(Self::PaleGreen),
+            104 => Some(Self::PaleTurquoise),
+            105 => Some(Self::PaleVioletRed),
+            106 => Some(Self::PapayaWhip),
+            107 => Some(Self::PeachPuff),
+            108 => Some(Self::Peru),
+            109 => Some(Self::Pink),
+            110 => Some(Self::Plum),
+            111 => Some(Self::PowderBlue),
+            112 => Some(Self::Purple),
+            113 => Some(Self::Red),
+            114 => Some(Self::RosyBrown),
+            115 => Some(Self::RoyalBlue),
+            116 => Some(Self::SaddleBrown),
+            117 => Some(Self::Salmon),
+            118 => Some(Self::SandyBrown),
+            119 => Some(Self::SeaGreen),
+            120 => Some(Self::SeaShell),
+            121 => Some(Self::Sienna),
+            122 => Some(Self::Silver),
+            123 => Some(Self::SkyBlue),
+            124 => Some(Self::SlateBlue),
+            125 => Some(Self::SlateGray),
+            126 => Some(Self::Snow),
+            127 => Some(Self::SpringGreen),
+            128 => Some(Self::SteelBlue),
+            129 => Some(Self::Tan),
+            130 => Some(Self::Teal),
+            131 => Some(Self::Thistle),
+            132 => Some(Self::Tomato),
+            133 => Some(Self::Turquoise),
+            134 => Some(Self::Violet),
+            135 => Some(Self::Wheat),
+            136 => Some(Self::White),
+            137 => Some(Self::WhiteSmoke),
+            138 => Some(Self::Yellow),
+            139 => Some(Self::YellowGreen),
+            140 => Some(Self::DarkBlue2010),
+            141 => Some(Self::DarkCyan2010),
+            142 => Some(Self::DarkGoldenrod2010),
+            143 => Some(Self::DarkGray2010),
+            144 => Some(Self::DarkGrey2010),
+            145 => Some(Self::DarkGreen2010),
+            146 => Some(Self::DarkKhaki2010),
+            147 => Some(Self::DarkMagenta2010),
+            148 => Some(Self::DarkOliveGreen2010),
+            149 => Some(Self::DarkOrange2010),
+            150 => Some(Self::DarkOrchid2010),
+            151 => Some(Self::DarkRed2010),
+            152 => Some(Self::DarkSalmon2010),
+            153 => Some(Self::DarkSeaGreen2010),
+            154 => Some(Self::DarkSlateBlue2010),
+            155 => Some(Self::DarkSlateGray2010),
+            156 => Some(Self::DarkSlateGrey2010),
+            157 => Some(Self::DarkTurquoise2010),
+            158 => Some(Self::DarkViolet2010),
+            159 => Some(Self::LightBlue2010),
+            160 => Some(Self::LightCoral2010),
+            161 => Some(Self::LightCyan2010),
+            162 => Some(Self::LightGoldenrodYellow2010),
+            163 => Some(Self::LightGray2010),
+            164 => Some(Self::LightGrey2010),
+            165 => Some(Self::LightGreen2010),
+            166 => Some(Self::LightPink2010),
+            167 => Some(Self::LightSalmon2010),
+            168 => Some(Self::LightSeaGreen2010),
+            169 => Some(Self::LightSkyBlue2010),
+            170 => Some(Self::LightSlateGray2010),
+            171 => Some(Self::LightSlateGrey2010),
+            172 => Some(Self::LightSteelBlue2010),
+            173 => Some(Self::LightYellow2010),
+            174 => Some(Self::MediumAquamarine2010),
+            175 => Some(Self::MediumBlue2010),
+            176 => Some(Self::MediumOrchid2010),
+            177 => Some(Self::MediumPurple2010),
+            178 => Some(Self::MediumSeaGreen2010),
+            179 => Some(Self::MediumSlateBlue2010),
+            180 => Some(Self::MediumSpringGreen2010),
+            181 => Some(Self::MediumTurquoise2010),
+            182 => Some(Self::MediumVioletRed2010),
+            183 => Some(Self::DarkGrey),
+            184 => Some(Self::DimGrey),
+            185 => Some(Self::DarkSlateGrey),
+            186 => Some(Self::Grey),
+            187 => Some(Self::LightGrey),
+            188 => Some(Self::LightSlateGrey),
+            189 => Some(Self::SlateGrey),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:CT_BaseStyles/a:themeElements` — Defines the ThemeElements Class.
+#[derive(Debug)]
+pub enum ThemeElements {}
+impl ooxml_core::ElementSpec for ThemeElements {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "themeElements");
+    const SDK_NAME: &'static str = "a:CT_BaseStyles/a:themeElements";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "clrScheme")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "fontScheme")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "fmtScheme")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ThemeElements> for ColorScheme {}
+impl ooxml_core::ChildOf<ThemeElements> for FontScheme {}
+/// Read-only view of [`ThemeElements`].
+#[derive(Clone, Debug)]
+pub struct ThemeElementsView<'a>(pub ooxml_core::Lens<'a, ThemeElements>);
+impl<'a> ThemeElementsView<'a> {
+    /// First `a:clrScheme` child.
+    pub fn color_scheme(&self) -> Option<ColorSchemeView<'a>> {
+        self.0.child::<ColorScheme>().map(ColorSchemeView)
+    }
+    /// First `a:fontScheme` child.
+    pub fn font_scheme(&self) -> Option<FontSchemeView<'a>> {
+        self.0.child::<FontScheme>().map(FontSchemeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color/a:buClr` — Color Specified.
+#[derive(Debug)]
+pub enum BulletColor {}
+impl ooxml_core::ElementSpec for BulletColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buClr");
+    const SDK_NAME: &'static str = "a:CT_Color/a:buClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BulletColor> for HslColor {}
+impl ooxml_core::ChildOf<BulletColor> for PresetColor {}
+impl ooxml_core::ChildOf<BulletColor> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<BulletColor> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<BulletColor> for SchemeColor {}
+impl ooxml_core::ChildOf<BulletColor> for SystemColor {}
+/// Read-only view of [`BulletColor`].
+#[derive(Clone, Debug)]
+pub struct BulletColorView<'a>(pub ooxml_core::Lens<'a, BulletColor>);
+impl<'a> BulletColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:accent1` — Accent 1.
+#[derive(Debug)]
+pub enum Accent1Color {}
+impl ooxml_core::ElementSpec for Accent1Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "accent1");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:accent1";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Accent1Color> for HslColor {}
+impl ooxml_core::ChildOf<Accent1Color> for PresetColor {}
+impl ooxml_core::ChildOf<Accent1Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Accent1Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Accent1Color> for SystemColor {}
+/// Read-only view of [`Accent1Color`].
+#[derive(Clone, Debug)]
+pub struct Accent1ColorView<'a>(pub ooxml_core::Lens<'a, Accent1Color>);
+impl<'a> Accent1ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:accent2` — Accent 2.
+#[derive(Debug)]
+pub enum Accent2Color {}
+impl ooxml_core::ElementSpec for Accent2Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "accent2");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:accent2";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Accent2Color> for HslColor {}
+impl ooxml_core::ChildOf<Accent2Color> for PresetColor {}
+impl ooxml_core::ChildOf<Accent2Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Accent2Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Accent2Color> for SystemColor {}
+/// Read-only view of [`Accent2Color`].
+#[derive(Clone, Debug)]
+pub struct Accent2ColorView<'a>(pub ooxml_core::Lens<'a, Accent2Color>);
+impl<'a> Accent2ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:accent3` — Accent 3.
+#[derive(Debug)]
+pub enum Accent3Color {}
+impl ooxml_core::ElementSpec for Accent3Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "accent3");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:accent3";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Accent3Color> for HslColor {}
+impl ooxml_core::ChildOf<Accent3Color> for PresetColor {}
+impl ooxml_core::ChildOf<Accent3Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Accent3Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Accent3Color> for SystemColor {}
+/// Read-only view of [`Accent3Color`].
+#[derive(Clone, Debug)]
+pub struct Accent3ColorView<'a>(pub ooxml_core::Lens<'a, Accent3Color>);
+impl<'a> Accent3ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:accent4` — Accent 4.
+#[derive(Debug)]
+pub enum Accent4Color {}
+impl ooxml_core::ElementSpec for Accent4Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "accent4");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:accent4";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Accent4Color> for HslColor {}
+impl ooxml_core::ChildOf<Accent4Color> for PresetColor {}
+impl ooxml_core::ChildOf<Accent4Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Accent4Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Accent4Color> for SystemColor {}
+/// Read-only view of [`Accent4Color`].
+#[derive(Clone, Debug)]
+pub struct Accent4ColorView<'a>(pub ooxml_core::Lens<'a, Accent4Color>);
+impl<'a> Accent4ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:accent5` — Accent 5.
+#[derive(Debug)]
+pub enum Accent5Color {}
+impl ooxml_core::ElementSpec for Accent5Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "accent5");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:accent5";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Accent5Color> for HslColor {}
+impl ooxml_core::ChildOf<Accent5Color> for PresetColor {}
+impl ooxml_core::ChildOf<Accent5Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Accent5Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Accent5Color> for SystemColor {}
+/// Read-only view of [`Accent5Color`].
+#[derive(Clone, Debug)]
+pub struct Accent5ColorView<'a>(pub ooxml_core::Lens<'a, Accent5Color>);
+impl<'a> Accent5ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:accent6` — Accent 6.
+#[derive(Debug)]
+pub enum Accent6Color {}
+impl ooxml_core::ElementSpec for Accent6Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "accent6");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:accent6";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Accent6Color> for HslColor {}
+impl ooxml_core::ChildOf<Accent6Color> for PresetColor {}
+impl ooxml_core::ChildOf<Accent6Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Accent6Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Accent6Color> for SystemColor {}
+/// Read-only view of [`Accent6Color`].
+#[derive(Clone, Debug)]
+pub struct Accent6ColorView<'a>(pub ooxml_core::Lens<'a, Accent6Color>);
+impl<'a> Accent6ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:dk1` — Dark 1.
+#[derive(Debug)]
+pub enum Dark1Color {}
+impl ooxml_core::ElementSpec for Dark1Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "dk1");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:dk1";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Dark1Color> for HslColor {}
+impl ooxml_core::ChildOf<Dark1Color> for PresetColor {}
+impl ooxml_core::ChildOf<Dark1Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Dark1Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Dark1Color> for SystemColor {}
+/// Read-only view of [`Dark1Color`].
+#[derive(Clone, Debug)]
+pub struct Dark1ColorView<'a>(pub ooxml_core::Lens<'a, Dark1Color>);
+impl<'a> Dark1ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:dk2` — Dark 2.
+#[derive(Debug)]
+pub enum Dark2Color {}
+impl ooxml_core::ElementSpec for Dark2Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "dk2");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:dk2";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Dark2Color> for HslColor {}
+impl ooxml_core::ChildOf<Dark2Color> for PresetColor {}
+impl ooxml_core::ChildOf<Dark2Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Dark2Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Dark2Color> for SystemColor {}
+/// Read-only view of [`Dark2Color`].
+#[derive(Clone, Debug)]
+pub struct Dark2ColorView<'a>(pub ooxml_core::Lens<'a, Dark2Color>);
+impl<'a> Dark2ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:folHlink` — Followed Hyperlink.
+#[derive(Debug)]
+pub enum FollowedHyperlinkColor {}
+impl ooxml_core::ElementSpec for FollowedHyperlinkColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "folHlink");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:folHlink";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FollowedHyperlinkColor> for HslColor {}
+impl ooxml_core::ChildOf<FollowedHyperlinkColor> for PresetColor {}
+impl ooxml_core::ChildOf<FollowedHyperlinkColor> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<FollowedHyperlinkColor> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<FollowedHyperlinkColor> for SystemColor {}
+/// Read-only view of [`FollowedHyperlinkColor`].
+#[derive(Clone, Debug)]
+pub struct FollowedHyperlinkColorView<'a>(
+    pub ooxml_core::Lens<'a, FollowedHyperlinkColor>,
+);
+impl<'a> FollowedHyperlinkColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:hlink` — Hyperlink.
+#[derive(Debug)]
+pub enum Hyperlink {}
+impl ooxml_core::ElementSpec for Hyperlink {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hlink");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:hlink";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Hyperlink> for HslColor {}
+impl ooxml_core::ChildOf<Hyperlink> for PresetColor {}
+impl ooxml_core::ChildOf<Hyperlink> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Hyperlink> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Hyperlink> for SystemColor {}
+/// Read-only view of [`Hyperlink`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkView<'a>(pub ooxml_core::Lens<'a, Hyperlink>);
+impl<'a> HyperlinkView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:lt1` — Light 1.
+#[derive(Debug)]
+pub enum Light1Color {}
+impl ooxml_core::ElementSpec for Light1Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lt1");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:lt1";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Light1Color> for HslColor {}
+impl ooxml_core::ChildOf<Light1Color> for PresetColor {}
+impl ooxml_core::ChildOf<Light1Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Light1Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Light1Color> for SystemColor {}
+/// Read-only view of [`Light1Color`].
+#[derive(Clone, Debug)]
+pub struct Light1ColorView<'a>(pub ooxml_core::Lens<'a, Light1Color>);
+impl<'a> Light1ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Color2/a:lt2` — Light 2.
+#[derive(Debug)]
+pub enum Light2Color {}
+impl ooxml_core::ElementSpec for Light2Color {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lt2");
+    const SDK_NAME: &'static str = "a:CT_Color2/a:lt2";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Light2Color> for HslColor {}
+impl ooxml_core::ChildOf<Light2Color> for PresetColor {}
+impl ooxml_core::ChildOf<Light2Color> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Light2Color> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Light2Color> for SystemColor {}
+/// Read-only view of [`Light2Color`].
+#[derive(Clone, Debug)]
+pub struct Light2ColorView<'a>(pub ooxml_core::Lens<'a, Light2Color>);
+impl<'a> Light2ColorView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_ColorMapping/a:overrideClrMapping` — Override Color Mapping.
+#[derive(Debug)]
+pub enum OverrideColorMapping {}
+impl OverrideColorMapping {
+    /// `bg1`
+    pub const ATTR_BG1: ooxml_core::QName = ooxml_core::QName::new("", "bg1");
+    /// `tx1`
+    pub const ATTR_TX1: ooxml_core::QName = ooxml_core::QName::new("", "tx1");
+    /// `bg2`
+    pub const ATTR_BG2: ooxml_core::QName = ooxml_core::QName::new("", "bg2");
+    /// `tx2`
+    pub const ATTR_TX2: ooxml_core::QName = ooxml_core::QName::new("", "tx2");
+    /// `accent1`
+    pub const ATTR_ACCENT1: ooxml_core::QName = ooxml_core::QName::new("", "accent1");
+    /// `accent2`
+    pub const ATTR_ACCENT2: ooxml_core::QName = ooxml_core::QName::new("", "accent2");
+    /// `accent3`
+    pub const ATTR_ACCENT3: ooxml_core::QName = ooxml_core::QName::new("", "accent3");
+    /// `accent4`
+    pub const ATTR_ACCENT4: ooxml_core::QName = ooxml_core::QName::new("", "accent4");
+    /// `accent5`
+    pub const ATTR_ACCENT5: ooxml_core::QName = ooxml_core::QName::new("", "accent5");
+    /// `accent6`
+    pub const ATTR_ACCENT6: ooxml_core::QName = ooxml_core::QName::new("", "accent6");
+    /// `hlink`
+    pub const ATTR_HLINK: ooxml_core::QName = ooxml_core::QName::new("", "hlink");
+    /// `folHlink`
+    pub const ATTR_FOL_HLINK: ooxml_core::QName = ooxml_core::QName::new("", "folHlink");
+}
+impl ooxml_core::ElementSpec for OverrideColorMapping {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "overrideClrMapping");
+    const SDK_NAME: &'static str = "a:CT_ColorMapping/a:overrideClrMapping";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_BG1,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_TX1,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_BG2,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_TX2,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_ACCENT1,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_ACCENT2,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_ACCENT3,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_ACCENT4,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_ACCENT5,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_ACCENT6,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_HLINK,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: OverrideColorMapping::ATTR_FOL_HLINK,
+            ty: ooxml_core::SimpleType::Enum(
+                <ColorSchemeIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`OverrideColorMapping`].
+#[derive(Clone, Debug)]
+pub struct OverrideColorMappingView<'a>(pub ooxml_core::Lens<'a, OverrideColorMapping>);
+impl<'a> OverrideColorMappingView<'a> {
+    /// `bg1` — Background 1
+    pub fn background1(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_BG1)
+    }
+    /// `tx1` — Text 1
+    pub fn text1(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_TX1)
+    }
+    /// `bg2` — Background 2
+    pub fn background2(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_BG2)
+    }
+    /// `tx2` — Text 2
+    pub fn text2(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_TX2)
+    }
+    /// `accent1` — Accent 1
+    pub fn accent1(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_ACCENT1)
+    }
+    /// `accent2` — Accent 2
+    pub fn accent2(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_ACCENT2)
+    }
+    /// `accent3` — Accent 3
+    pub fn accent3(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_ACCENT3)
+    }
+    /// `accent4` — Accent 4
+    pub fn accent4(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_ACCENT4)
+    }
+    /// `accent5` — Accent 5
+    pub fn accent5(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_ACCENT5)
+    }
+    /// `accent6` — Accent 6
+    pub fn accent6(&self) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_ACCENT6)
+    }
+    /// `hlink` — Hyperlink
+    pub fn hyperlink(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_HLINK)
+    }
+    /// `folHlink` — Followed Hyperlink
+    pub fn followed_hyperlink(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ColorSchemeIndexValues>> {
+        self.0.attr_enum(OverrideColorMapping::ATTR_FOL_HLINK)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_ColorScheme/a:clrScheme` — Defines the ColorScheme Class.
+#[derive(Debug)]
+pub enum ColorScheme {}
+impl ColorScheme {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+}
+impl ooxml_core::ElementSpec for ColorScheme {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "clrScheme");
+    const SDK_NAME: &'static str = "a:CT_ColorScheme/a:clrScheme";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ColorScheme::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "dk1")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lt1")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "dk2")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lt2")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "accent1")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "accent2")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "accent3")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "accent4")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "accent5")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "accent6")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlink")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "folHlink")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ColorScheme> for Accent1Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Accent2Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Accent3Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Accent4Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Accent5Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Accent6Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Dark1Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Dark2Color {}
+impl ooxml_core::ChildOf<ColorScheme> for FollowedHyperlinkColor {}
+impl ooxml_core::ChildOf<ColorScheme> for Hyperlink {}
+impl ooxml_core::ChildOf<ColorScheme> for Light1Color {}
+impl ooxml_core::ChildOf<ColorScheme> for Light2Color {}
+/// Read-only view of [`ColorScheme`].
+#[derive(Clone, Debug)]
+pub struct ColorSchemeView<'a>(pub ooxml_core::Lens<'a, ColorScheme>);
+impl<'a> ColorSchemeView<'a> {
+    /// `name` — Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(ColorScheme::ATTR_NAME)
+    }
+    /// First `a:accent1` child.
+    pub fn accent1_color(&self) -> Option<Accent1ColorView<'a>> {
+        self.0.child::<Accent1Color>().map(Accent1ColorView)
+    }
+    /// First `a:accent2` child.
+    pub fn accent2_color(&self) -> Option<Accent2ColorView<'a>> {
+        self.0.child::<Accent2Color>().map(Accent2ColorView)
+    }
+    /// First `a:accent3` child.
+    pub fn accent3_color(&self) -> Option<Accent3ColorView<'a>> {
+        self.0.child::<Accent3Color>().map(Accent3ColorView)
+    }
+    /// First `a:accent4` child.
+    pub fn accent4_color(&self) -> Option<Accent4ColorView<'a>> {
+        self.0.child::<Accent4Color>().map(Accent4ColorView)
+    }
+    /// First `a:accent5` child.
+    pub fn accent5_color(&self) -> Option<Accent5ColorView<'a>> {
+        self.0.child::<Accent5Color>().map(Accent5ColorView)
+    }
+    /// First `a:accent6` child.
+    pub fn accent6_color(&self) -> Option<Accent6ColorView<'a>> {
+        self.0.child::<Accent6Color>().map(Accent6ColorView)
+    }
+    /// First `a:dk1` child.
+    pub fn dark1_color(&self) -> Option<Dark1ColorView<'a>> {
+        self.0.child::<Dark1Color>().map(Dark1ColorView)
+    }
+    /// First `a:dk2` child.
+    pub fn dark2_color(&self) -> Option<Dark2ColorView<'a>> {
+        self.0.child::<Dark2Color>().map(Dark2ColorView)
+    }
+    /// First `a:folHlink` child.
+    pub fn followed_hyperlink_color(&self) -> Option<FollowedHyperlinkColorView<'a>> {
+        self.0.child::<FollowedHyperlinkColor>().map(FollowedHyperlinkColorView)
+    }
+    /// First `a:hlink` child.
+    pub fn hyperlink(&self) -> Option<HyperlinkView<'a>> {
+        self.0.child::<Hyperlink>().map(HyperlinkView)
+    }
+    /// First `a:lt1` child.
+    pub fn light1_color(&self) -> Option<Light1ColorView<'a>> {
+        self.0.child::<Light1Color>().map(Light1ColorView)
+    }
+    /// First `a:lt2` child.
+    pub fn light2_color(&self) -> Option<Light2ColorView<'a>> {
+        self.0.child::<Light2Color>().map(Light2ColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_CustomGeometry2D/a:custGeom` — Custom geometry.
+#[derive(Debug)]
+pub enum CustomGeometry {}
+impl ooxml_core::ElementSpec for CustomGeometry {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "custGeom");
+    const SDK_NAME: &'static str = "a:CT_CustomGeometry2D/a:custGeom";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "avLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "gdLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ahLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "cxnLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "rect")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "pathLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`CustomGeometry`].
+#[derive(Clone, Debug)]
+pub struct CustomGeometryView<'a>(pub ooxml_core::Lens<'a, CustomGeometry>);
+impl<'a> CustomGeometryView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_EmptyElement/a:masterClrMapping` — Master Color Mapping.
+#[derive(Debug)]
+pub enum MasterColorMapping {}
+impl ooxml_core::ElementSpec for MasterColorMapping {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "masterClrMapping");
+    const SDK_NAME: &'static str = "a:CT_EmptyElement/a:masterClrMapping";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`MasterColorMapping`].
+#[derive(Clone, Debug)]
+pub struct MasterColorMappingView<'a>(pub ooxml_core::Lens<'a, MasterColorMapping>);
+impl<'a> MasterColorMappingView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_FontCollection/a:majorFont` — Major Font.
+#[derive(Debug)]
+pub enum MajorFont {}
+impl ooxml_core::ElementSpec for MajorFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "majorFont");
+    const SDK_NAME: &'static str = "a:CT_FontCollection/a:majorFont";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "latin")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ea")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "cs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "font")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<MajorFont> for SupplementalFont {}
+impl ooxml_core::ChildOf<MajorFont> for ComplexScriptFont {}
+impl ooxml_core::ChildOf<MajorFont> for EastAsianFont {}
+impl ooxml_core::ChildOf<MajorFont> for LatinFont {}
+/// Read-only view of [`MajorFont`].
+#[derive(Clone, Debug)]
+pub struct MajorFontView<'a>(pub ooxml_core::Lens<'a, MajorFont>);
+impl<'a> MajorFontView<'a> {
+    /// `a:font` children in document order.
+    pub fn supplemental_font_iter(
+        &self,
+    ) -> impl Iterator<Item = SupplementalFontView<'a>> {
+        self.0.children::<SupplementalFont>().map(SupplementalFontView)
+    }
+    /// First `a:cs` child.
+    pub fn complex_script_font(&self) -> Option<ComplexScriptFontView<'a>> {
+        self.0.child::<ComplexScriptFont>().map(ComplexScriptFontView)
+    }
+    /// First `a:ea` child.
+    pub fn east_asian_font(&self) -> Option<EastAsianFontView<'a>> {
+        self.0.child::<EastAsianFont>().map(EastAsianFontView)
+    }
+    /// First `a:latin` child.
+    pub fn latin_font(&self) -> Option<LatinFontView<'a>> {
+        self.0.child::<LatinFont>().map(LatinFontView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_FontCollection/a:minorFont` — Minor fonts.
+#[derive(Debug)]
+pub enum MinorFont {}
+impl ooxml_core::ElementSpec for MinorFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "minorFont");
+    const SDK_NAME: &'static str = "a:CT_FontCollection/a:minorFont";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "latin")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ea")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "cs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "font")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<MinorFont> for SupplementalFont {}
+impl ooxml_core::ChildOf<MinorFont> for ComplexScriptFont {}
+impl ooxml_core::ChildOf<MinorFont> for EastAsianFont {}
+impl ooxml_core::ChildOf<MinorFont> for LatinFont {}
+/// Read-only view of [`MinorFont`].
+#[derive(Clone, Debug)]
+pub struct MinorFontView<'a>(pub ooxml_core::Lens<'a, MinorFont>);
+impl<'a> MinorFontView<'a> {
+    /// `a:font` children in document order.
+    pub fn supplemental_font_iter(
+        &self,
+    ) -> impl Iterator<Item = SupplementalFontView<'a>> {
+        self.0.children::<SupplementalFont>().map(SupplementalFontView)
+    }
+    /// First `a:cs` child.
+    pub fn complex_script_font(&self) -> Option<ComplexScriptFontView<'a>> {
+        self.0.child::<ComplexScriptFont>().map(ComplexScriptFontView)
+    }
+    /// First `a:ea` child.
+    pub fn east_asian_font(&self) -> Option<EastAsianFontView<'a>> {
+        self.0.child::<EastAsianFont>().map(EastAsianFontView)
+    }
+    /// First `a:latin` child.
+    pub fn latin_font(&self) -> Option<LatinFontView<'a>> {
+        self.0.child::<LatinFont>().map(LatinFontView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_FontReference/a:fontRef` — Defines the FontReference Class.
+#[derive(Debug)]
+pub enum FontReference {}
+impl FontReference {
+    /// `idx`
+    pub const ATTR_IDX: ooxml_core::QName = ooxml_core::QName::new("", "idx");
+}
+impl ooxml_core::ElementSpec for FontReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "fontRef");
+    const SDK_NAME: &'static str = "a:CT_FontReference/a:fontRef";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontReference::ATTR_IDX,
+            ty: ooxml_core::SimpleType::Enum(
+                <FontCollectionIndexValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FontReference> for HslColor {}
+impl ooxml_core::ChildOf<FontReference> for PresetColor {}
+impl ooxml_core::ChildOf<FontReference> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<FontReference> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<FontReference> for SchemeColor {}
+impl ooxml_core::ChildOf<FontReference> for SystemColor {}
+/// Read-only view of [`FontReference`].
+#[derive(Clone, Debug)]
+pub struct FontReferenceView<'a>(pub ooxml_core::Lens<'a, FontReference>);
+impl<'a> FontReferenceView<'a> {
+    /// `idx` — Identifier
+    pub fn index(&self) -> Option<ooxml_core::EnumValue<'a, FontCollectionIndexValues>> {
+        self.0.attr_enum(FontReference::ATTR_IDX)
+    }
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_FontScheme/a:fontScheme` — Font Scheme.
+#[derive(Debug)]
+pub enum FontScheme {}
+impl FontScheme {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+}
+impl ooxml_core::ElementSpec for FontScheme {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "fontScheme");
+    const SDK_NAME: &'static str = "a:CT_FontScheme/a:fontScheme";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontScheme::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "majorFont")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "minorFont")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FontScheme> for MajorFont {}
+impl ooxml_core::ChildOf<FontScheme> for MinorFont {}
+/// Read-only view of [`FontScheme`].
+#[derive(Clone, Debug)]
+pub struct FontSchemeView<'a>(pub ooxml_core::Lens<'a, FontScheme>);
+impl<'a> FontSchemeView<'a> {
+    /// `name` — Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(FontScheme::ATTR_NAME)
+    }
+    /// First `a:majorFont` child.
+    pub fn major_font(&self) -> Option<MajorFontView<'a>> {
+        self.0.child::<MajorFont>().map(MajorFontView)
+    }
+    /// First `a:minorFont` child.
+    pub fn minor_font(&self) -> Option<MinorFontView<'a>> {
+        self.0.child::<MinorFont>().map(MinorFontView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `a:CT_GraphicalObject/a:graphic` — Graphic Object.
 #[derive(Debug)]
 pub enum Graphic {}
@@ -277,13 +3991,32 @@ impl ooxml_core::ElementSpec for GraphicData {
     );
 }
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
+impl ooxml_core::ChildOf<GraphicData> for Theme {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
 #[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::SectionList {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::AuthorList {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::P188CommentList {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::CommentAuthorList {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::PCommentList {}
+#[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::ContentPart {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::NotesMaster {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::NotesSlide {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Presentation {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::Slide {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::SlideLayout {}
+#[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::SlideMaster {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Comments {}
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -310,9 +4043,52 @@ impl<'a> GraphicDataView<'a> {
     pub fn graphic_iter(&self) -> impl Iterator<Item = GraphicView<'a>> {
         self.0.children::<Graphic>().map(GraphicView)
     }
+    /// `a:theme` children in document order.
+    pub fn theme_iter(&self) -> impl Iterator<Item = ThemeView<'a>> {
+        self.0.children::<Theme>().map(ThemeView)
+    }
     /// `a:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p14:sectionLst` children in document order.
+    pub fn section_list_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::SectionListView<'a>> {
+        self.0.children::<super::pml::SectionList>().map(super::pml::SectionListView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p188:authorLst` children in document order.
+    pub fn author_list_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::AuthorListView<'a>> {
+        self.0.children::<super::pml::AuthorList>().map(super::pml::AuthorListView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p188:cmLst` children in document order.
+    pub fn comment_list_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::P188CommentListView<'a>> {
+        self.0
+            .children::<super::pml::P188CommentList>()
+            .map(super::pml::P188CommentListView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:cmAuthorLst` children in document order.
+    pub fn comment_author_list_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::CommentAuthorListView<'a>> {
+        self.0
+            .children::<super::pml::CommentAuthorList>()
+            .map(super::pml::CommentAuthorListView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:cmLst` children in document order.
+    pub fn comment_list_iter_child(
+        &self,
+    ) -> impl Iterator<Item = super::pml::PCommentListView<'a>> {
+        self.0.children::<super::pml::PCommentList>().map(super::pml::PCommentListView)
     }
     #[cfg(feature = "pml")]
     /// `p:contentPart` children in document order.
@@ -320,6 +4096,20 @@ impl<'a> GraphicDataView<'a> {
         &self,
     ) -> impl Iterator<Item = super::pml::ContentPartView<'a>> {
         self.0.children::<super::pml::ContentPart>().map(super::pml::ContentPartView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:notesMaster` children in document order.
+    pub fn notes_master_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::NotesMasterView<'a>> {
+        self.0.children::<super::pml::NotesMaster>().map(super::pml::NotesMasterView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:notes` children in document order.
+    pub fn notes_slide_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::NotesSlideView<'a>> {
+        self.0.children::<super::pml::NotesSlide>().map(super::pml::NotesSlideView)
     }
     #[cfg(feature = "pml")]
     /// `p:presentation` children in document order.
@@ -332,6 +4122,20 @@ impl<'a> GraphicDataView<'a> {
     /// `p:sld` children in document order.
     pub fn slide_iter(&self) -> impl Iterator<Item = super::pml::SlideView<'a>> {
         self.0.children::<super::pml::Slide>().map(super::pml::SlideView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:sldLayout` children in document order.
+    pub fn slide_layout_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::SlideLayoutView<'a>> {
+        self.0.children::<super::pml::SlideLayout>().map(super::pml::SlideLayoutView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p:sldMaster` children in document order.
+    pub fn slide_master_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::SlideMasterView<'a>> {
+        self.0.children::<super::pml::SlideMaster>().map(super::pml::SlideMasterView)
     }
     #[cfg(feature = "wml")]
     /// `w:comments` children in document order.
@@ -367,6 +4171,1035 @@ impl<'a> GraphicDataView<'a> {
     /// `w:settings` children in document order.
     pub fn settings_iter(&self) -> impl Iterator<Item = super::wml::SettingsView<'a>> {
         self.0.children::<super::wml::Settings>().map(super::wml::SettingsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_GroupTransform2D/a:xfrm` — 2D Transform for Grouped Objects.
+#[derive(Debug)]
+pub enum TransformGroup {}
+impl TransformGroup {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `flipH`
+    pub const ATTR_FLIP_H: ooxml_core::QName = ooxml_core::QName::new("", "flipH");
+    /// `flipV`
+    pub const ATTR_FLIP_V: ooxml_core::QName = ooxml_core::QName::new("", "flipV");
+}
+impl ooxml_core::ElementSpec for TransformGroup {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "xfrm");
+    const SDK_NAME: &'static str = "a:CT_GroupTransform2D/a:xfrm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TransformGroup::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: TransformGroup::ATTR_FLIP_H,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TransformGroup::ATTR_FLIP_V,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "off")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "chOff")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "chExt")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TransformGroup> for ChildOffset {}
+impl ooxml_core::ChildOf<TransformGroup> for Offset {}
+impl ooxml_core::ChildOf<TransformGroup> for ChildExtents {}
+impl ooxml_core::ChildOf<TransformGroup> for Extents {}
+/// Read-only view of [`TransformGroup`].
+#[derive(Clone, Debug)]
+pub struct TransformGroupView<'a>(pub ooxml_core::Lens<'a, TransformGroup>);
+impl<'a> TransformGroupView<'a> {
+    /// `rot` — Rotation (default `0`)
+    pub fn rotation(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(TransformGroup::ATTR_ROT, "0", ooxml_core::value::parse_i32)
+    }
+    /// `flipH` — Horizontal Flip (default `false`)
+    pub fn horizontal_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TransformGroup::ATTR_FLIP_H,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `flipV` — Vertical Flip (default `false`)
+    pub fn vertical_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TransformGroup::ATTR_FLIP_V,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:chOff` child.
+    pub fn child_offset(&self) -> Option<ChildOffsetView<'a>> {
+        self.0.child::<ChildOffset>().map(ChildOffsetView)
+    }
+    /// First `a:off` child.
+    pub fn offset(&self) -> Option<OffsetView<'a>> {
+        self.0.child::<Offset>().map(OffsetView)
+    }
+    /// First `a:chExt` child.
+    pub fn child_extents(&self) -> Option<ChildExtentsView<'a>> {
+        self.0.child::<ChildExtents>().map(ChildExtentsView)
+    }
+    /// First `a:ext` child.
+    pub fn extents(&self) -> Option<ExtentsView<'a>> {
+        self.0.child::<Extents>().map(ExtentsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_HslColor/a:hslClr` — Hue, Saturation, Luminance Color Model.
+#[derive(Debug)]
+pub enum HslColor {}
+impl HslColor {
+    /// `hue`
+    pub const ATTR_HUE: ooxml_core::QName = ooxml_core::QName::new("", "hue");
+    /// `sat`
+    pub const ATTR_SAT: ooxml_core::QName = ooxml_core::QName::new("", "sat");
+    /// `lum`
+    pub const ATTR_LUM: ooxml_core::QName = ooxml_core::QName::new("", "lum");
+}
+impl ooxml_core::ElementSpec for HslColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hslClr");
+    const SDK_NAME: &'static str = "a:CT_HslColor/a:hslClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HslColor::ATTR_HUE,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: HslColor::ATTR_SAT,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: HslColor::ATTR_LUM,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`HslColor`].
+#[derive(Clone, Debug)]
+pub struct HslColorView<'a>(pub ooxml_core::Lens<'a, HslColor>);
+impl<'a> HslColorView<'a> {
+    /// `hue` — Hue
+    pub fn hue_value(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(HslColor::ATTR_HUE, ooxml_core::value::parse_i32)
+    }
+    /// `sat` — Saturation
+    pub fn sat_value(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0.attr_parsed(HslColor::ATTR_SAT, ooxml_core::value::parse_dml_percent)
+    }
+    /// `lum` — Luminance
+    pub fn lum_value(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0.attr_parsed(HslColor::ATTR_LUM, ooxml_core::value::parse_dml_percent)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Hyperlink/a:hlinkClick` — Defines the HyperlinkOnClick Class.
+#[derive(Debug)]
+pub enum HyperlinkOnClick {}
+impl HyperlinkOnClick {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `invalidUrl`
+    pub const ATTR_INVALID_URL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "invalidUrl",
+    );
+    /// `action`
+    pub const ATTR_ACTION: ooxml_core::QName = ooxml_core::QName::new("", "action");
+    /// `tgtFrame`
+    pub const ATTR_TGT_FRAME: ooxml_core::QName = ooxml_core::QName::new("", "tgtFrame");
+    /// `tooltip`
+    pub const ATTR_TOOLTIP: ooxml_core::QName = ooxml_core::QName::new("", "tooltip");
+    /// `history`
+    pub const ATTR_HISTORY: ooxml_core::QName = ooxml_core::QName::new("", "history");
+    /// `highlightClick`
+    pub const ATTR_HIGHLIGHT_CLICK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "highlightClick",
+    );
+    /// `endSnd`
+    pub const ATTR_END_SND: ooxml_core::QName = ooxml_core::QName::new("", "endSnd");
+}
+impl ooxml_core::ElementSpec for HyperlinkOnClick {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hlinkClick");
+    const SDK_NAME: &'static str = "a:CT_Hyperlink/a:hlinkClick";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_INVALID_URL,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_ACTION,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_TGT_FRAME,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_TOOLTIP,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_HISTORY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_HIGHLIGHT_CLICK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnClick::ATTR_END_SND,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "snd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`HyperlinkOnClick`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkOnClickView<'a>(pub ooxml_core::Lens<'a, HyperlinkOnClick>);
+impl<'a> HyperlinkOnClickView<'a> {
+    /// `r:id` — relationship identifier to find target URI
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(HyperlinkOnClick::ATTR_R_ID)
+    }
+    /// `invalidUrl` — In case the url is invalid so we can't create a relationship, we'll save it here, r:id will point to a NULL one (default ``)
+    pub fn invalid_url(&self) -> &'a str {
+        self.0.attr(HyperlinkOnClick::ATTR_INVALID_URL).unwrap_or("")
+    }
+    /// `action` — Action to take, it may still need r:id to specify an action target (default ``)
+    pub fn action(&self) -> &'a str {
+        self.0.attr(HyperlinkOnClick::ATTR_ACTION).unwrap_or("")
+    }
+    /// `tgtFrame` — target frame for navigating to the URI (default ``)
+    pub fn target_frame(&self) -> &'a str {
+        self.0.attr(HyperlinkOnClick::ATTR_TGT_FRAME).unwrap_or("")
+    }
+    /// `tooltip` — tooltip for display (default ``)
+    pub fn tooltip(&self) -> &'a str {
+        self.0.attr(HyperlinkOnClick::ATTR_TOOLTIP).unwrap_or("")
+    }
+    /// `history` — whether to add this URI to the history when navigating to it (default `true`)
+    pub fn history(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnClick::ATTR_HISTORY,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `highlightClick` — Whether to highlight it when click on a shape (default `false`)
+    pub fn highlight_click(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnClick::ATTR_HIGHLIGHT_CLICK,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `endSnd` — Whether to stop previous sound when click on it (default `false`)
+    pub fn end_sound(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnClick::ATTR_END_SND,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Hyperlink/a:hlinkHover` — Defines the HyperlinkOnHover Class.
+#[derive(Debug)]
+pub enum HyperlinkOnHover {}
+impl HyperlinkOnHover {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `invalidUrl`
+    pub const ATTR_INVALID_URL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "invalidUrl",
+    );
+    /// `action`
+    pub const ATTR_ACTION: ooxml_core::QName = ooxml_core::QName::new("", "action");
+    /// `tgtFrame`
+    pub const ATTR_TGT_FRAME: ooxml_core::QName = ooxml_core::QName::new("", "tgtFrame");
+    /// `tooltip`
+    pub const ATTR_TOOLTIP: ooxml_core::QName = ooxml_core::QName::new("", "tooltip");
+    /// `history`
+    pub const ATTR_HISTORY: ooxml_core::QName = ooxml_core::QName::new("", "history");
+    /// `highlightClick`
+    pub const ATTR_HIGHLIGHT_CLICK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "highlightClick",
+    );
+    /// `endSnd`
+    pub const ATTR_END_SND: ooxml_core::QName = ooxml_core::QName::new("", "endSnd");
+}
+impl ooxml_core::ElementSpec for HyperlinkOnHover {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hlinkHover");
+    const SDK_NAME: &'static str = "a:CT_Hyperlink/a:hlinkHover";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_INVALID_URL,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_ACTION,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_TGT_FRAME,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_TOOLTIP,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_HISTORY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_HIGHLIGHT_CLICK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnHover::ATTR_END_SND,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "snd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`HyperlinkOnHover`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkOnHoverView<'a>(pub ooxml_core::Lens<'a, HyperlinkOnHover>);
+impl<'a> HyperlinkOnHoverView<'a> {
+    /// `r:id` — relationship identifier to find target URI
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(HyperlinkOnHover::ATTR_R_ID)
+    }
+    /// `invalidUrl` — In case the url is invalid so we can't create a relationship, we'll save it here, r:id will point to a NULL one (default ``)
+    pub fn invalid_url(&self) -> &'a str {
+        self.0.attr(HyperlinkOnHover::ATTR_INVALID_URL).unwrap_or("")
+    }
+    /// `action` — Action to take, it may still need r:id to specify an action target (default ``)
+    pub fn action(&self) -> &'a str {
+        self.0.attr(HyperlinkOnHover::ATTR_ACTION).unwrap_or("")
+    }
+    /// `tgtFrame` — target frame for navigating to the URI (default ``)
+    pub fn target_frame(&self) -> &'a str {
+        self.0.attr(HyperlinkOnHover::ATTR_TGT_FRAME).unwrap_or("")
+    }
+    /// `tooltip` — tooltip for display (default ``)
+    pub fn tooltip(&self) -> &'a str {
+        self.0.attr(HyperlinkOnHover::ATTR_TOOLTIP).unwrap_or("")
+    }
+    /// `history` — whether to add this URI to the history when navigating to it (default `true`)
+    pub fn history(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnHover::ATTR_HISTORY,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `highlightClick` — Whether to highlight it when click on a shape (default `false`)
+    pub fn highlight_click(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnHover::ATTR_HIGHLIGHT_CLICK,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `endSnd` — Whether to stop previous sound when click on it (default `false`)
+    pub fn end_sound(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnHover::ATTR_END_SND,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Hyperlink/a:hlinkMouseOver` — Defines the HyperlinkOnMouseOver Class.
+#[derive(Debug)]
+pub enum HyperlinkOnMouseOver {}
+impl HyperlinkOnMouseOver {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `invalidUrl`
+    pub const ATTR_INVALID_URL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "invalidUrl",
+    );
+    /// `action`
+    pub const ATTR_ACTION: ooxml_core::QName = ooxml_core::QName::new("", "action");
+    /// `tgtFrame`
+    pub const ATTR_TGT_FRAME: ooxml_core::QName = ooxml_core::QName::new("", "tgtFrame");
+    /// `tooltip`
+    pub const ATTR_TOOLTIP: ooxml_core::QName = ooxml_core::QName::new("", "tooltip");
+    /// `history`
+    pub const ATTR_HISTORY: ooxml_core::QName = ooxml_core::QName::new("", "history");
+    /// `highlightClick`
+    pub const ATTR_HIGHLIGHT_CLICK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "highlightClick",
+    );
+    /// `endSnd`
+    pub const ATTR_END_SND: ooxml_core::QName = ooxml_core::QName::new("", "endSnd");
+}
+impl ooxml_core::ElementSpec for HyperlinkOnMouseOver {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hlinkMouseOver");
+    const SDK_NAME: &'static str = "a:CT_Hyperlink/a:hlinkMouseOver";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_INVALID_URL,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_ACTION,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_TGT_FRAME,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_TOOLTIP,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_HISTORY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_HIGHLIGHT_CLICK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: HyperlinkOnMouseOver::ATTR_END_SND,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "snd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`HyperlinkOnMouseOver`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkOnMouseOverView<'a>(pub ooxml_core::Lens<'a, HyperlinkOnMouseOver>);
+impl<'a> HyperlinkOnMouseOverView<'a> {
+    /// `r:id` — relationship identifier to find target URI
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(HyperlinkOnMouseOver::ATTR_R_ID)
+    }
+    /// `invalidUrl` — In case the url is invalid so we can't create a relationship, we'll save it here, r:id will point to a NULL one (default ``)
+    pub fn invalid_url(&self) -> &'a str {
+        self.0.attr(HyperlinkOnMouseOver::ATTR_INVALID_URL).unwrap_or("")
+    }
+    /// `action` — Action to take, it may still need r:id to specify an action target (default ``)
+    pub fn action(&self) -> &'a str {
+        self.0.attr(HyperlinkOnMouseOver::ATTR_ACTION).unwrap_or("")
+    }
+    /// `tgtFrame` — target frame for navigating to the URI (default ``)
+    pub fn target_frame(&self) -> &'a str {
+        self.0.attr(HyperlinkOnMouseOver::ATTR_TGT_FRAME).unwrap_or("")
+    }
+    /// `tooltip` — tooltip for display (default ``)
+    pub fn tooltip(&self) -> &'a str {
+        self.0.attr(HyperlinkOnMouseOver::ATTR_TOOLTIP).unwrap_or("")
+    }
+    /// `history` — whether to add this URI to the history when navigating to it (default `true`)
+    pub fn history(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnMouseOver::ATTR_HISTORY,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `highlightClick` — Whether to highlight it when click on a shape (default `false`)
+    pub fn highlight_click(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnMouseOver::ATTR_HIGHLIGHT_CLICK,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `endSnd` — Whether to stop previous sound when click on it (default `false`)
+    pub fn end_sound(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HyperlinkOnMouseOver::ATTR_END_SND,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_NoFillProperties/a:noFill` — Defines the NoFill Class.
+#[derive(Debug)]
+pub enum NoFill {}
+impl ooxml_core::ElementSpec for NoFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "noFill");
+    const SDK_NAME: &'static str = "a:CT_NoFillProperties/a:noFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NoFill`].
+#[derive(Clone, Debug)]
+pub struct NoFillView<'a>(pub ooxml_core::Lens<'a, NoFill>);
+impl<'a> NoFillView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_OfficeStyleSheet/a:theme` — Theme.
+#[derive(Debug)]
+pub enum Theme {}
+impl Theme {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `thm15:id`
+    pub const ATTR_THM15_ID: ooxml_core::QName = ooxml_core::QName::new(NS_THM15, "id");
+}
+impl ooxml_core::ElementSpec for Theme {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "theme");
+    const SDK_NAME: &'static str = "a:CT_OfficeStyleSheet/a:theme";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Theme::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+        ooxml_core::AttrSpec {
+            name: Theme::ATTR_THM15_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "themeElements")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "objectDefaults")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extraClrSchemeLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "custClrLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Theme> for ThemeElements {}
+/// Read-only view of [`Theme`].
+#[derive(Clone, Debug)]
+pub struct ThemeView<'a>(pub ooxml_core::Lens<'a, Theme>);
+impl<'a> ThemeView<'a> {
+    /// `name` — name (default ``)
+    pub fn name(&self) -> &'a str {
+        self.0.attr(Theme::ATTR_NAME).unwrap_or("")
+    }
+    /// `thm15:id` — id
+    pub fn theme_id(&self) -> Option<&'a str> {
+        self.0.attr(Theme::ATTR_THM15_ID)
+    }
+    /// First `a:themeElements` child.
+    pub fn theme_elements(&self) -> Option<ThemeElementsView<'a>> {
+        self.0.child::<ThemeElements>().map(ThemeElementsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Point2D/a:chOff` — Child Offset.
+#[derive(Debug)]
+pub enum ChildOffset {}
+impl ChildOffset {
+    /// `x`
+    pub const ATTR_X: ooxml_core::QName = ooxml_core::QName::new("", "x");
+    /// `y`
+    pub const ATTR_Y: ooxml_core::QName = ooxml_core::QName::new("", "y");
+}
+impl ooxml_core::ElementSpec for ChildOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "chOff");
+    const SDK_NAME: &'static str = "a:CT_Point2D/a:chOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ChildOffset::ATTR_X,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ChildOffset::ATTR_Y,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ChildOffset`].
+#[derive(Clone, Debug)]
+pub struct ChildOffsetView<'a>(pub ooxml_core::Lens<'a, ChildOffset>);
+impl<'a> ChildOffsetView<'a> {
+    /// `x` — X-Axis Coordinate
+    pub fn x(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ChildOffset::ATTR_X, ooxml_core::value::parse_i64)
+    }
+    /// `y` — Y-Axis Coordinate
+    pub fn y(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ChildOffset::ATTR_Y, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Point2D/a:off` — Offset.
+#[derive(Debug)]
+pub enum Offset {}
+impl Offset {
+    /// `x`
+    pub const ATTR_X: ooxml_core::QName = ooxml_core::QName::new("", "x");
+    /// `y`
+    pub const ATTR_Y: ooxml_core::QName = ooxml_core::QName::new("", "y");
+}
+impl ooxml_core::ElementSpec for Offset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "off");
+    const SDK_NAME: &'static str = "a:CT_Point2D/a:off";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Offset::ATTR_X,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Offset::ATTR_Y,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Offset`].
+#[derive(Clone, Debug)]
+pub struct OffsetView<'a>(pub ooxml_core::Lens<'a, Offset>);
+impl<'a> OffsetView<'a> {
+    /// `x` — X-Axis Coordinate
+    pub fn x(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Offset::ATTR_X, ooxml_core::value::parse_i64)
+    }
+    /// `y` — Y-Axis Coordinate
+    pub fn y(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Offset::ATTR_Y, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_PositiveSize2D/a:chExt` — Child Extents.
+#[derive(Debug)]
+pub enum ChildExtents {}
+impl ChildExtents {
+    /// `cx`
+    pub const ATTR_CX: ooxml_core::QName = ooxml_core::QName::new("", "cx");
+    /// `cy`
+    pub const ATTR_CY: ooxml_core::QName = ooxml_core::QName::new("", "cy");
+}
+impl ooxml_core::ElementSpec for ChildExtents {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "chExt");
+    const SDK_NAME: &'static str = "a:CT_PositiveSize2D/a:chExt";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ChildExtents::ATTR_CX,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ChildExtents::ATTR_CY,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ChildExtents`].
+#[derive(Clone, Debug)]
+pub struct ChildExtentsView<'a>(pub ooxml_core::Lens<'a, ChildExtents>);
+impl<'a> ChildExtentsView<'a> {
+    /// `cx` — Extent Length
+    pub fn cx(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ChildExtents::ATTR_CX, ooxml_core::value::parse_i64)
+    }
+    /// `cy` — Extent Width
+    pub fn cy(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ChildExtents::ATTR_CY, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_PositiveSize2D/a:ext` — Extents.
+#[derive(Debug)]
+pub enum Extents {}
+impl Extents {
+    /// `cx`
+    pub const ATTR_CX: ooxml_core::QName = ooxml_core::QName::new("", "cx");
+    /// `cy`
+    pub const ATTR_CY: ooxml_core::QName = ooxml_core::QName::new("", "cy");
+}
+impl ooxml_core::ElementSpec for Extents {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ext");
+    const SDK_NAME: &'static str = "a:CT_PositiveSize2D/a:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extents::ATTR_CX,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Extents::ATTR_CY,
+            ty: ooxml_core::SimpleType::Int64,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Extents`].
+#[derive(Clone, Debug)]
+pub struct ExtentsView<'a>(pub ooxml_core::Lens<'a, Extents>);
+impl<'a> ExtentsView<'a> {
+    /// `cx` — Extent Length
+    pub fn cx(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extents::ATTR_CX, ooxml_core::value::parse_i64)
+    }
+    /// `cy` — Extent Width
+    pub fn cy(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Extents::ATTR_CY, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_PresetColor/a:prstClr` — Preset Color.
+#[derive(Debug)]
+pub enum PresetColor {}
+impl PresetColor {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for PresetColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "prstClr");
+    const SDK_NAME: &'static str = "a:CT_PresetColor/a:prstClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PresetColor::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <PresetColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`PresetColor`].
+#[derive(Clone, Debug)]
+pub struct PresetColorView<'a>(pub ooxml_core::Lens<'a, PresetColor>);
+impl<'a> PresetColorView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, PresetColorValues>> {
+        self.0.attr_enum(PresetColor::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_PresetGeometry2D/a:prstGeom` — Preset geometry.
+#[derive(Debug)]
+pub enum PresetGeometry {}
+impl PresetGeometry {
+    /// `prst`
+    pub const ATTR_PRST: ooxml_core::QName = ooxml_core::QName::new("", "prst");
+}
+impl ooxml_core::ElementSpec for PresetGeometry {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "prstGeom");
+    const SDK_NAME: &'static str = "a:CT_PresetGeometry2D/a:prstGeom";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PresetGeometry::ATTR_PRST,
+            ty: ooxml_core::SimpleType::Enum(
+                <ShapeTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "avLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`PresetGeometry`].
+#[derive(Clone, Debug)]
+pub struct PresetGeometryView<'a>(pub ooxml_core::Lens<'a, PresetGeometry>);
+impl<'a> PresetGeometryView<'a> {
+    /// `prst` — Preset Shape
+    pub fn preset(&self) -> Option<ooxml_core::EnumValue<'a, ShapeTypeValues>> {
+        self.0.attr_enum(PresetGeometry::ATTR_PRST)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -435,6 +5268,470 @@ impl<'a> RunViewMut<'a> {
     /// Removes the first `a:t` child.
     pub fn remove_text(&mut self) -> bool {
         self.0.remove::<Text>()
+    }
+}
+/// `a:CT_SRgbColor/a:srgbClr` — RGB Color Model - Hex Variant.
+#[derive(Debug)]
+pub enum RgbColorModelHex {}
+impl RgbColorModelHex {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+    /// `a14:legacySpreadsheetColorIndex`
+    pub const ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX: ooxml_core::QName = ooxml_core::QName::new(
+        NS_A14,
+        "legacySpreadsheetColorIndex",
+    );
+}
+impl ooxml_core::ElementSpec for RgbColorModelHex {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "srgbClr");
+    const SDK_NAME: &'static str = "a:CT_SRgbColor/a:srgbClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RgbColorModelHex::ATTR_VAL,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`RgbColorModelHex`].
+#[derive(Clone, Debug)]
+pub struct RgbColorModelHexView<'a>(pub ooxml_core::Lens<'a, RgbColorModelHex>);
+impl<'a> RgbColorModelHexView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(RgbColorModelHex::ATTR_VAL)
+    }
+    /// `a14:legacySpreadsheetColorIndex` — legacySpreadsheetColorIndex
+    pub fn legacy_spreadsheet_color_index(
+        &self,
+    ) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_ScRgbColor/a:scrgbClr` — RGB Color Model - Percentage Variant.
+#[derive(Debug)]
+pub enum RgbColorModelPercentage {}
+impl RgbColorModelPercentage {
+    /// `r`
+    pub const ATTR_R: ooxml_core::QName = ooxml_core::QName::new("", "r");
+    /// `g`
+    pub const ATTR_G: ooxml_core::QName = ooxml_core::QName::new("", "g");
+    /// `b`
+    pub const ATTR_B: ooxml_core::QName = ooxml_core::QName::new("", "b");
+}
+impl ooxml_core::ElementSpec for RgbColorModelPercentage {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "scrgbClr");
+    const SDK_NAME: &'static str = "a:CT_ScRgbColor/a:scrgbClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RgbColorModelPercentage::ATTR_R,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RgbColorModelPercentage::ATTR_G,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: RgbColorModelPercentage::ATTR_B,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`RgbColorModelPercentage`].
+#[derive(Clone, Debug)]
+pub struct RgbColorModelPercentageView<'a>(
+    pub ooxml_core::Lens<'a, RgbColorModelPercentage>,
+);
+impl<'a> RgbColorModelPercentageView<'a> {
+    /// `r` — Red
+    pub fn red_portion(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                RgbColorModelPercentage::ATTR_R,
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// `g` — Green
+    pub fn green_portion(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                RgbColorModelPercentage::ATTR_G,
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// `b` — Blue
+    pub fn blue_portion(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                RgbColorModelPercentage::ATTR_B,
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_SchemeColor/a:schemeClr` — Scheme Color.
+#[derive(Debug)]
+pub enum SchemeColor {}
+impl SchemeColor {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for SchemeColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "schemeClr");
+    const SDK_NAME: &'static str = "a:CT_SchemeColor/a:schemeClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SchemeColor::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <SchemeColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`SchemeColor`].
+#[derive(Clone, Debug)]
+pub struct SchemeColorView<'a>(pub ooxml_core::Lens<'a, SchemeColor>);
+impl<'a> SchemeColorView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, SchemeColorValues>> {
+        self.0.attr_enum(SchemeColor::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_SolidColorFillProperties/a:solidFill` — Defines the SolidFill Class.
+#[derive(Debug)]
+pub enum SolidFill {}
+impl ooxml_core::ElementSpec for SolidFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "solidFill");
+    const SDK_NAME: &'static str = "a:CT_SolidColorFillProperties/a:solidFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SolidFill> for HslColor {}
+impl ooxml_core::ChildOf<SolidFill> for PresetColor {}
+impl ooxml_core::ChildOf<SolidFill> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<SolidFill> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<SolidFill> for SchemeColor {}
+impl ooxml_core::ChildOf<SolidFill> for SystemColor {}
+/// Read-only view of [`SolidFill`].
+#[derive(Clone, Debug)]
+pub struct SolidFillView<'a>(pub ooxml_core::Lens<'a, SolidFill>);
+impl<'a> SolidFillView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_SupplementalFont/a:font` — Font.
+#[derive(Debug)]
+pub enum SupplementalFont {}
+impl SupplementalFont {
+    /// `script`
+    pub const ATTR_SCRIPT: ooxml_core::QName = ooxml_core::QName::new("", "script");
+    /// `typeface`
+    pub const ATTR_TYPEFACE: ooxml_core::QName = ooxml_core::QName::new("", "typeface");
+}
+impl ooxml_core::ElementSpec for SupplementalFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "font");
+    const SDK_NAME: &'static str = "a:CT_SupplementalFont/a:font";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SupplementalFont::ATTR_SCRIPT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SupplementalFont::ATTR_TYPEFACE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SupplementalFont`].
+#[derive(Clone, Debug)]
+pub struct SupplementalFontView<'a>(pub ooxml_core::Lens<'a, SupplementalFont>);
+impl<'a> SupplementalFontView<'a> {
+    /// `script` — Script
+    pub fn script(&self) -> Option<&'a str> {
+        self.0.attr(SupplementalFont::ATTR_SCRIPT)
+    }
+    /// `typeface` — Typeface
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.0.attr(SupplementalFont::ATTR_TYPEFACE)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_SystemColor/a:sysClr` — System Color.
+#[derive(Debug)]
+pub enum SystemColor {}
+impl SystemColor {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+    /// `lastClr`
+    pub const ATTR_LAST_CLR: ooxml_core::QName = ooxml_core::QName::new("", "lastClr");
+}
+impl ooxml_core::ElementSpec for SystemColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "sysClr");
+    const SDK_NAME: &'static str = "a:CT_SystemColor/a:sysClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SystemColor::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <SystemColorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SystemColor::ATTR_LAST_CLR,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "tint"),
+                    ooxml_core::QName::new(NS_A, "shade"),
+                    ooxml_core::QName::new(NS_A, "comp"),
+                    ooxml_core::QName::new(NS_A, "inv"),
+                    ooxml_core::QName::new(NS_A, "gray"),
+                    ooxml_core::QName::new(NS_A, "alpha"),
+                    ooxml_core::QName::new(NS_A, "alphaOff"),
+                    ooxml_core::QName::new(NS_A, "alphaMod"),
+                    ooxml_core::QName::new(NS_A, "hue"),
+                    ooxml_core::QName::new(NS_A, "hueOff"),
+                    ooxml_core::QName::new(NS_A, "hueMod"),
+                    ooxml_core::QName::new(NS_A, "sat"),
+                    ooxml_core::QName::new(NS_A, "satOff"),
+                    ooxml_core::QName::new(NS_A, "satMod"),
+                    ooxml_core::QName::new(NS_A, "lum"),
+                    ooxml_core::QName::new(NS_A, "lumOff"),
+                    ooxml_core::QName::new(NS_A, "lumMod"),
+                    ooxml_core::QName::new(NS_A, "red"),
+                    ooxml_core::QName::new(NS_A, "redOff"),
+                    ooxml_core::QName::new(NS_A, "redMod"),
+                    ooxml_core::QName::new(NS_A, "green"),
+                    ooxml_core::QName::new(NS_A, "greenOff"),
+                    ooxml_core::QName::new(NS_A, "greenMod"),
+                    ooxml_core::QName::new(NS_A, "blue"),
+                    ooxml_core::QName::new(NS_A, "blueOff"),
+                    ooxml_core::QName::new(NS_A, "blueMod"),
+                    ooxml_core::QName::new(NS_A, "gamma"),
+                    ooxml_core::QName::new(NS_A, "invGamma"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+/// Read-only view of [`SystemColor`].
+#[derive(Clone, Debug)]
+pub struct SystemColorView<'a>(pub ooxml_core::Lens<'a, SystemColor>);
+impl<'a> SystemColorView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, SystemColorValues>> {
+        self.0.attr_enum(SystemColor::ATTR_VAL)
+    }
+    /// `lastClr` — Last Color
+    pub fn last_color(&self) -> Option<&'a str> {
+        self.0.attr(SystemColor::ATTR_LAST_CLR)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `a:CT_Table/a:tbl` — Table.
@@ -636,6 +5933,85 @@ impl<'a> TableRowView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_TextAutonumberBullet/a:buAutoNum` — Auto-Numbered Bullet.
+#[derive(Debug)]
+pub enum AutoNumberedBullet {}
+impl AutoNumberedBullet {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `startAt`
+    pub const ATTR_START_AT: ooxml_core::QName = ooxml_core::QName::new("", "startAt");
+}
+impl ooxml_core::ElementSpec for AutoNumberedBullet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buAutoNum");
+    const SDK_NAME: &'static str = "a:CT_TextAutonumberBullet/a:buAutoNum";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AutoNumberedBullet::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAutoNumberSchemeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: AutoNumberedBullet::ATTR_START_AT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`AutoNumberedBullet`].
+#[derive(Clone, Debug)]
+pub struct AutoNumberedBulletView<'a>(pub ooxml_core::Lens<'a, AutoNumberedBullet>);
+impl<'a> AutoNumberedBulletView<'a> {
+    /// `type` — Bullet Autonumbering Type
+    pub fn type_(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAutoNumberSchemeValues>> {
+        self.0.attr_enum(AutoNumberedBullet::ATTR_TYPE)
+    }
+    /// `startAt` — Start Numbering At (default `1`)
+    pub fn start_at(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                AutoNumberedBullet::ATTR_START_AT,
+                "1",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBlipBullet/a:buBlip` — Picture Bullet.
+#[derive(Debug)]
+pub enum PictureBullet {}
+impl ooxml_core::ElementSpec for PictureBullet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buBlip");
+    const SDK_NAME: &'static str = "a:CT_TextBlipBullet/a:buBlip";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "blip")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`PictureBullet`].
+#[derive(Clone, Debug)]
+pub struct PictureBulletView<'a>(pub ooxml_core::Lens<'a, PictureBullet>);
+impl<'a> PictureBulletView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `a:CT_TextBody/a:txBody` — Shape Text Body.
 #[derive(Debug)]
 pub enum TextBody {}
@@ -666,11 +6042,21 @@ impl ooxml_core::ElementSpec for TextBody {
         ],
     );
 }
+impl ooxml_core::ChildOf<TextBody> for BodyProperties {}
+impl ooxml_core::ChildOf<TextBody> for ListStyle {}
 impl ooxml_core::ChildOf<TextBody> for Paragraph {}
 /// Read-only view of [`TextBody`].
 #[derive(Clone, Debug)]
 pub struct TextBodyView<'a>(pub ooxml_core::Lens<'a, TextBody>);
 impl<'a> TextBodyView<'a> {
+    /// First `a:bodyPr` child.
+    pub fn body_properties(&self) -> Option<BodyPropertiesView<'a>> {
+        self.0.child::<BodyProperties>().map(BodyPropertiesView)
+    }
+    /// First `a:lstStyle` child.
+    pub fn list_style(&self) -> Option<ListStyleView<'a>> {
+        self.0.child::<ListStyle>().map(ListStyleView)
+    }
     /// `a:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -711,6 +6097,919 @@ impl<'a> TextBodyViewMut<'a> {
     /// Removes the first `a:p` child.
     pub fn remove_paragraph(&mut self) -> bool {
         self.0.remove::<Paragraph>()
+    }
+}
+/// `a:CT_TextBodyProperties/a:bodyPr` — Defines the BodyProperties Class.
+#[derive(Debug)]
+pub enum BodyProperties {}
+impl BodyProperties {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `spcFirstLastPara`
+    pub const ATTR_SPC_FIRST_LAST_PARA: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "spcFirstLastPara",
+    );
+    /// `vertOverflow`
+    pub const ATTR_VERT_OVERFLOW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "vertOverflow",
+    );
+    /// `horzOverflow`
+    pub const ATTR_HORZ_OVERFLOW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "horzOverflow",
+    );
+    /// `vert`
+    pub const ATTR_VERT: ooxml_core::QName = ooxml_core::QName::new("", "vert");
+    /// `wrap`
+    pub const ATTR_WRAP: ooxml_core::QName = ooxml_core::QName::new("", "wrap");
+    /// `lIns`
+    pub const ATTR_L_INS: ooxml_core::QName = ooxml_core::QName::new("", "lIns");
+    /// `tIns`
+    pub const ATTR_T_INS: ooxml_core::QName = ooxml_core::QName::new("", "tIns");
+    /// `rIns`
+    pub const ATTR_R_INS: ooxml_core::QName = ooxml_core::QName::new("", "rIns");
+    /// `bIns`
+    pub const ATTR_B_INS: ooxml_core::QName = ooxml_core::QName::new("", "bIns");
+    /// `numCol`
+    pub const ATTR_NUM_COL: ooxml_core::QName = ooxml_core::QName::new("", "numCol");
+    /// `spcCol`
+    pub const ATTR_SPC_COL: ooxml_core::QName = ooxml_core::QName::new("", "spcCol");
+    /// `rtlCol`
+    pub const ATTR_RTL_COL: ooxml_core::QName = ooxml_core::QName::new("", "rtlCol");
+    /// `fromWordArt`
+    pub const ATTR_FROM_WORD_ART: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fromWordArt",
+    );
+    /// `anchor`
+    pub const ATTR_ANCHOR: ooxml_core::QName = ooxml_core::QName::new("", "anchor");
+    /// `anchorCtr`
+    pub const ATTR_ANCHOR_CTR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "anchorCtr",
+    );
+    /// `forceAA`
+    pub const ATTR_FORCE_AA: ooxml_core::QName = ooxml_core::QName::new("", "forceAA");
+    /// `upright`
+    pub const ATTR_UPRIGHT: ooxml_core::QName = ooxml_core::QName::new("", "upright");
+    /// `compatLnSpc`
+    pub const ATTR_COMPAT_LN_SPC: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "compatLnSpc",
+    );
+}
+impl ooxml_core::ElementSpec for BodyProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "bodyPr");
+    const SDK_NAME: &'static str = "a:CT_TextBodyProperties/a:bodyPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_SPC_FIRST_LAST_PARA,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_VERT_OVERFLOW,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextVerticalOverflowValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_HORZ_OVERFLOW,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextHorizontalOverflowValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_VERT,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextVerticalValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_WRAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextWrappingValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_L_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_T_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_R_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_B_INS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_NUM_COL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_SPC_COL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_RTL_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_FROM_WORD_ART,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_ANCHOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAnchoringTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_ANCHOR_CTR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_FORCE_AA,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_UPRIGHT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: BodyProperties::ATTR_COMPAT_LN_SPC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "prstTxWarp")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noAutofit"),
+                    ooxml_core::QName::new(NS_A, "normAutofit"),
+                    ooxml_core::QName::new(NS_A, "spAutoFit"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "scene3d")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "sp3d"),
+                    ooxml_core::QName::new(NS_A, "flatTx"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BodyProperties> for NoAutoFit {}
+impl ooxml_core::ChildOf<BodyProperties> for NormalAutoFit {}
+impl ooxml_core::ChildOf<BodyProperties> for ShapeAutoFit {}
+/// Read-only view of [`BodyProperties`].
+#[derive(Clone, Debug)]
+pub struct BodyPropertiesView<'a>(pub ooxml_core::Lens<'a, BodyProperties>);
+impl<'a> BodyPropertiesView<'a> {
+    /// `rot` — Rotation
+    pub fn rotation(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_ROT, ooxml_core::value::parse_i32)
+    }
+    /// `spcFirstLastPara` — Paragraph Spacing
+    pub fn use_paragraph_spacing(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BodyProperties::ATTR_SPC_FIRST_LAST_PARA,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `vertOverflow` — Text Vertical Overflow
+    pub fn vertical_overflow(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextVerticalOverflowValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_VERT_OVERFLOW)
+    }
+    /// `horzOverflow` — Text Horizontal Overflow
+    pub fn horizontal_overflow(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextHorizontalOverflowValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_HORZ_OVERFLOW)
+    }
+    /// `vert` — Vertical Text
+    pub fn vertical(&self) -> Option<ooxml_core::EnumValue<'a, TextVerticalValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_VERT)
+    }
+    /// `wrap` — Text Wrapping Type
+    pub fn wrap(&self) -> Option<ooxml_core::EnumValue<'a, TextWrappingValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_WRAP)
+    }
+    /// `lIns` — Left Inset
+    pub fn left_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_L_INS, ooxml_core::value::parse_i32)
+    }
+    /// `tIns` — Top Inset
+    pub fn top_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_T_INS, ooxml_core::value::parse_i32)
+    }
+    /// `rIns` — Right Inset
+    pub fn right_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_R_INS, ooxml_core::value::parse_i32)
+    }
+    /// `bIns` — Bottom Inset
+    pub fn bottom_inset(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_B_INS, ooxml_core::value::parse_i32)
+    }
+    /// `numCol` — Number of Columns
+    pub fn column_count(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_NUM_COL, ooxml_core::value::parse_i32)
+    }
+    /// `spcCol` — Space Between Columns
+    pub fn column_spacing(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_SPC_COL, ooxml_core::value::parse_i32)
+    }
+    /// `rtlCol` — Columns Right-To-Left
+    pub fn right_to_left_columns(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_RTL_COL, ooxml_core::value::parse_bool)
+    }
+    /// `fromWordArt` — From WordArt
+    pub fn from_word_art(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BodyProperties::ATTR_FROM_WORD_ART,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `anchor` — Anchor
+    pub fn anchor(&self) -> Option<ooxml_core::EnumValue<'a, TextAnchoringTypeValues>> {
+        self.0.attr_enum(BodyProperties::ATTR_ANCHOR)
+    }
+    /// `anchorCtr` — Anchor Center
+    pub fn anchor_center(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(BodyProperties::ATTR_ANCHOR_CTR, ooxml_core::value::parse_bool)
+    }
+    /// `forceAA` — Force Anti-Alias
+    pub fn force_anti_alias(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BodyProperties::ATTR_FORCE_AA, ooxml_core::value::parse_bool)
+    }
+    /// `upright` — Text Upright (default `false`)
+    pub fn up_right(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BodyProperties::ATTR_UPRIGHT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `compatLnSpc` — Compatible Line Spacing
+    pub fn compatible_line_spacing(
+        &self,
+    ) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BodyProperties::ATTR_COMPAT_LN_SPC,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:noAutofit` child.
+    pub fn no_auto_fit(&self) -> Option<NoAutoFitView<'a>> {
+        self.0.child::<NoAutoFit>().map(NoAutoFitView)
+    }
+    /// First `a:normAutofit` child.
+    pub fn normal_auto_fit(&self) -> Option<NormalAutoFitView<'a>> {
+        self.0.child::<NormalAutoFit>().map(NormalAutoFitView)
+    }
+    /// First `a:spAutoFit` child.
+    pub fn shape_auto_fit(&self) -> Option<ShapeAutoFitView<'a>> {
+        self.0.child::<ShapeAutoFit>().map(ShapeAutoFitView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBulletColorFollowText/a:buClrTx` — Follow Text.
+#[derive(Debug)]
+pub enum BulletColorText {}
+impl ooxml_core::ElementSpec for BulletColorText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buClrTx");
+    const SDK_NAME: &'static str = "a:CT_TextBulletColorFollowText/a:buClrTx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BulletColorText`].
+#[derive(Clone, Debug)]
+pub struct BulletColorTextView<'a>(pub ooxml_core::Lens<'a, BulletColorText>);
+impl<'a> BulletColorTextView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBulletSizeFollowText/a:buSzTx` — Bullet Size Follows Text.
+#[derive(Debug)]
+pub enum BulletSizeText {}
+impl ooxml_core::ElementSpec for BulletSizeText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buSzTx");
+    const SDK_NAME: &'static str = "a:CT_TextBulletSizeFollowText/a:buSzTx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BulletSizeText`].
+#[derive(Clone, Debug)]
+pub struct BulletSizeTextView<'a>(pub ooxml_core::Lens<'a, BulletSizeText>);
+impl<'a> BulletSizeTextView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBulletSizePercent/a:buSzPct` — Bullet Size Percentage.
+#[derive(Debug)]
+pub enum BulletSizePercentage {}
+impl BulletSizePercentage {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for BulletSizePercentage {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buSzPct");
+    const SDK_NAME: &'static str = "a:CT_TextBulletSizePercent/a:buSzPct";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BulletSizePercentage::ATTR_VAL,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BulletSizePercentage`].
+#[derive(Clone, Debug)]
+pub struct BulletSizePercentageView<'a>(pub ooxml_core::Lens<'a, BulletSizePercentage>);
+impl<'a> BulletSizePercentageView<'a> {
+    /// `val` — Value
+    pub fn val(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                BulletSizePercentage::ATTR_VAL,
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBulletSizePoint/a:buSzPts` — Bullet Size Points.
+#[derive(Debug)]
+pub enum BulletSizePoints {}
+impl BulletSizePoints {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for BulletSizePoints {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buSzPts");
+    const SDK_NAME: &'static str = "a:CT_TextBulletSizePoint/a:buSzPts";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BulletSizePoints::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BulletSizePoints`].
+#[derive(Clone, Debug)]
+pub struct BulletSizePointsView<'a>(pub ooxml_core::Lens<'a, BulletSizePoints>);
+impl<'a> BulletSizePointsView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BulletSizePoints::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextBulletTypefaceFollowText/a:buFontTx` — Follow text.
+#[derive(Debug)]
+pub enum BulletFontText {}
+impl ooxml_core::ElementSpec for BulletFontText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buFontTx");
+    const SDK_NAME: &'static str = "a:CT_TextBulletTypefaceFollowText/a:buFontTx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BulletFontText`].
+#[derive(Clone, Debug)]
+pub struct BulletFontTextView<'a>(pub ooxml_core::Lens<'a, BulletFontText>);
+impl<'a> BulletFontTextView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextCharBullet/a:buChar` — Character Bullet.
+#[derive(Debug)]
+pub enum CharacterBullet {}
+impl CharacterBullet {
+    /// `char`
+    pub const ATTR_CHAR: ooxml_core::QName = ooxml_core::QName::new("", "char");
+}
+impl ooxml_core::ElementSpec for CharacterBullet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buChar");
+    const SDK_NAME: &'static str = "a:CT_TextCharBullet/a:buChar";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CharacterBullet::ATTR_CHAR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CharacterBullet`].
+#[derive(Clone, Debug)]
+pub struct CharacterBulletView<'a>(pub ooxml_core::Lens<'a, CharacterBullet>);
+impl<'a> CharacterBulletView<'a> {
+    /// `char` — Bullet Character
+    pub fn char(&self) -> Option<&'a str> {
+        self.0.attr(CharacterBullet::ATTR_CHAR)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextCharacterProperties/a:defRPr` — Default Text Run Properties.
+#[derive(Debug)]
+pub enum DefaultRunProperties {}
+impl DefaultRunProperties {
+    /// `kumimoji`
+    pub const ATTR_KUMIMOJI: ooxml_core::QName = ooxml_core::QName::new("", "kumimoji");
+    /// `lang`
+    pub const ATTR_LANG: ooxml_core::QName = ooxml_core::QName::new("", "lang");
+    /// `altLang`
+    pub const ATTR_ALT_LANG: ooxml_core::QName = ooxml_core::QName::new("", "altLang");
+    /// `sz`
+    pub const ATTR_SZ: ooxml_core::QName = ooxml_core::QName::new("", "sz");
+    /// `b`
+    pub const ATTR_B: ooxml_core::QName = ooxml_core::QName::new("", "b");
+    /// `i`
+    pub const ATTR_I: ooxml_core::QName = ooxml_core::QName::new("", "i");
+    /// `u`
+    pub const ATTR_U: ooxml_core::QName = ooxml_core::QName::new("", "u");
+    /// `strike`
+    pub const ATTR_STRIKE: ooxml_core::QName = ooxml_core::QName::new("", "strike");
+    /// `kern`
+    pub const ATTR_KERN: ooxml_core::QName = ooxml_core::QName::new("", "kern");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `spc`
+    pub const ATTR_SPC: ooxml_core::QName = ooxml_core::QName::new("", "spc");
+    /// `normalizeH`
+    pub const ATTR_NORMALIZE_H: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "normalizeH",
+    );
+    /// `baseline`
+    pub const ATTR_BASELINE: ooxml_core::QName = ooxml_core::QName::new("", "baseline");
+    /// `noProof`
+    pub const ATTR_NO_PROOF: ooxml_core::QName = ooxml_core::QName::new("", "noProof");
+    /// `dirty`
+    pub const ATTR_DIRTY: ooxml_core::QName = ooxml_core::QName::new("", "dirty");
+    /// `err`
+    pub const ATTR_ERR: ooxml_core::QName = ooxml_core::QName::new("", "err");
+    /// `smtClean`
+    pub const ATTR_SMT_CLEAN: ooxml_core::QName = ooxml_core::QName::new("", "smtClean");
+    /// `smtId`
+    pub const ATTR_SMT_ID: ooxml_core::QName = ooxml_core::QName::new("", "smtId");
+    /// `bmk`
+    pub const ATTR_BMK: ooxml_core::QName = ooxml_core::QName::new("", "bmk");
+}
+impl ooxml_core::ElementSpec for DefaultRunProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "defRPr");
+    const SDK_NAME: &'static str = "a:CT_TextCharacterProperties/a:defRPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_KUMIMOJI,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_LANG,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_ALT_LANG,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_B,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_I,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_U,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextUnderlineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_STRIKE,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextStrikeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_KERN,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextCapsValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_SPC,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_NORMALIZE_H,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_BASELINE,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_NO_PROOF,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_DIRTY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_ERR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_SMT_CLEAN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_SMT_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultRunProperties::ATTR_BMK,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ln")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "effectLst"),
+                    ooxml_core::QName::new(NS_A, "effectDag"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "highlight")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "uLnTx"),
+                    ooxml_core::QName::new(NS_A, "uLn"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "uFillTx"),
+                    ooxml_core::QName::new(NS_A, "uFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "latin")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ea")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "cs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "sym")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlinkClick")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "hlinkMouseOver")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "rtl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DefaultRunProperties> for HyperlinkOnClick {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for NoFill {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for SolidFill {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for ComplexScriptFont {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for EastAsianFont {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for LatinFont {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for SymbolFont {}
+/// Read-only view of [`DefaultRunProperties`].
+#[derive(Clone, Debug)]
+pub struct DefaultRunPropertiesView<'a>(pub ooxml_core::Lens<'a, DefaultRunProperties>);
+impl<'a> DefaultRunPropertiesView<'a> {
+    /// `kumimoji` — kumimoji
+    pub fn kumimoji(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultRunProperties::ATTR_KUMIMOJI,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `lang` — lang
+    pub fn language(&self) -> Option<&'a str> {
+        self.0.attr(DefaultRunProperties::ATTR_LANG)
+    }
+    /// `altLang` — altLang
+    pub fn alternative_language(&self) -> Option<&'a str> {
+        self.0.attr(DefaultRunProperties::ATTR_ALT_LANG)
+    }
+    /// `sz` — sz
+    pub fn font_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DefaultRunProperties::ATTR_SZ, ooxml_core::value::parse_i32)
+    }
+    /// `b` — b
+    pub fn bold(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DefaultRunProperties::ATTR_B, ooxml_core::value::parse_bool)
+    }
+    /// `i` — i
+    pub fn italic(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DefaultRunProperties::ATTR_I, ooxml_core::value::parse_bool)
+    }
+    /// `u` — u
+    pub fn underline(&self) -> Option<ooxml_core::EnumValue<'a, TextUnderlineValues>> {
+        self.0.attr_enum(DefaultRunProperties::ATTR_U)
+    }
+    /// `strike` — strike
+    pub fn strike(&self) -> Option<ooxml_core::EnumValue<'a, TextStrikeValues>> {
+        self.0.attr_enum(DefaultRunProperties::ATTR_STRIKE)
+    }
+    /// `kern` — kern
+    pub fn kerning(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DefaultRunProperties::ATTR_KERN, ooxml_core::value::parse_i32)
+    }
+    /// `cap` — cap (default `none`)
+    pub fn capital(&self) -> ooxml_core::EnumValue<'a, TextCapsValues> {
+        self.0.attr_enum_or(DefaultRunProperties::ATTR_CAP, "none")
+    }
+    /// `spc` — spc
+    pub fn spacing(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DefaultRunProperties::ATTR_SPC, ooxml_core::value::parse_i32)
+    }
+    /// `normalizeH` — normalizeH
+    pub fn normalize_height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultRunProperties::ATTR_NORMALIZE_H,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `baseline` — baseline
+    pub fn baseline(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultRunProperties::ATTR_BASELINE,
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// `noProof` — noProof
+    pub fn no_proof(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultRunProperties::ATTR_NO_PROOF,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `dirty` — dirty (default `true`)
+    pub fn dirty(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefaultRunProperties::ATTR_DIRTY,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `err` — err (default `false`)
+    pub fn spelling_error(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefaultRunProperties::ATTR_ERR,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `smtClean` — smtClean (default `true`)
+    pub fn smart_tag_clean(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefaultRunProperties::ATTR_SMT_CLEAN,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `smtId` — smtId (default `0`)
+    pub fn smart_tag_id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DefaultRunProperties::ATTR_SMT_ID,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `bmk` — bmk
+    pub fn bookmark(&self) -> Option<&'a str> {
+        self.0.attr(DefaultRunProperties::ATTR_BMK)
+    }
+    /// First `a:hlinkClick` child.
+    pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
+        self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
+    }
+    /// First `a:hlinkMouseOver` child.
+    pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
+        self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// First `a:cs` child.
+    pub fn complex_script_font(&self) -> Option<ComplexScriptFontView<'a>> {
+        self.0.child::<ComplexScriptFont>().map(ComplexScriptFontView)
+    }
+    /// First `a:ea` child.
+    pub fn east_asian_font(&self) -> Option<EastAsianFontView<'a>> {
+        self.0.child::<EastAsianFont>().map(EastAsianFontView)
+    }
+    /// First `a:latin` child.
+    pub fn latin_font(&self) -> Option<LatinFontView<'a>> {
+        self.0.child::<LatinFont>().map(LatinFontView)
+    }
+    /// First `a:sym` child.
+    pub fn symbol_font(&self) -> Option<SymbolFontView<'a>> {
+        self.0.child::<SymbolFont>().map(SymbolFontView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `a:CT_TextCharacterProperties/a:endParaRPr` — End Paragraph Run Properties.
@@ -831,7 +7130,7 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         },
         ooxml_core::AttrSpec {
             name: EndParagraphRunProperties::ATTR_BASELINE,
-            ty: ooxml_core::SimpleType::Int32,
+            ty: ooxml_core::SimpleType::DmlPercent,
             default: None,
         },
         ooxml_core::AttrSpec {
@@ -970,6 +7269,14 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for HyperlinkOnClick {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for NoFill {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for SolidFill {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for ComplexScriptFont {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for EastAsianFont {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for LatinFont {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for SymbolFont {}
 impl ooxml_core::schema::__private::Sealed for EndParagraphRunProperties {}
 impl ooxml_core::Detachable for EndParagraphRunProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -1089,11 +7396,13 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
             )
     }
     /// `baseline` — baseline
-    pub fn baseline(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+    pub fn baseline(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
         self.0
             .attr_parsed(
                 EndParagraphRunProperties::ATTR_BASELINE,
-                ooxml_core::value::parse_i32,
+                ooxml_core::value::parse_dml_percent,
             )
     }
     /// `noProof` — noProof
@@ -1143,6 +7452,38 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     /// `bmk` — bmk
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(EndParagraphRunProperties::ATTR_BMK)
+    }
+    /// First `a:hlinkClick` child.
+    pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
+        self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
+    }
+    /// First `a:hlinkMouseOver` child.
+    pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
+        self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// First `a:cs` child.
+    pub fn complex_script_font(&self) -> Option<ComplexScriptFontView<'a>> {
+        self.0.child::<ComplexScriptFont>().map(ComplexScriptFontView)
+    }
+    /// First `a:ea` child.
+    pub fn east_asian_font(&self) -> Option<EastAsianFontView<'a>> {
+        self.0.child::<EastAsianFont>().map(EastAsianFontView)
+    }
+    /// First `a:latin` child.
+    pub fn latin_font(&self) -> Option<LatinFontView<'a>> {
+        self.0.child::<LatinFont>().map(LatinFontView)
+    }
+    /// First `a:sym` child.
+    pub fn symbol_font(&self) -> Option<SymbolFontView<'a>> {
+        self.0.child::<SymbolFont>().map(SymbolFontView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1267,7 +7608,7 @@ impl ooxml_core::ElementSpec for RunProperties {
         },
         ooxml_core::AttrSpec {
             name: RunProperties::ATTR_BASELINE,
-            ty: ooxml_core::SimpleType::Int32,
+            ty: ooxml_core::SimpleType::DmlPercent,
             default: None,
         },
         ooxml_core::AttrSpec {
@@ -1406,6 +7747,14 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<RunProperties> for HyperlinkOnClick {}
+impl ooxml_core::ChildOf<RunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<RunProperties> for NoFill {}
+impl ooxml_core::ChildOf<RunProperties> for SolidFill {}
+impl ooxml_core::ChildOf<RunProperties> for ComplexScriptFont {}
+impl ooxml_core::ChildOf<RunProperties> for EastAsianFont {}
+impl ooxml_core::ChildOf<RunProperties> for LatinFont {}
+impl ooxml_core::ChildOf<RunProperties> for SymbolFont {}
 impl ooxml_core::schema::__private::Sealed for RunProperties {}
 impl ooxml_core::Detachable for RunProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -1496,8 +7845,14 @@ impl<'a> RunPropertiesView<'a> {
             .attr_parsed(RunProperties::ATTR_NORMALIZE_H, ooxml_core::value::parse_bool)
     }
     /// `baseline` — baseline
-    pub fn baseline(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
-        self.0.attr_parsed(RunProperties::ATTR_BASELINE, ooxml_core::value::parse_i32)
+    pub fn baseline(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                RunProperties::ATTR_BASELINE,
+                ooxml_core::value::parse_dml_percent,
+            )
     }
     /// `noProof` — noProof
     pub fn no_proof(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
@@ -1542,6 +7897,38 @@ impl<'a> RunPropertiesView<'a> {
     /// `bmk` — bmk
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(RunProperties::ATTR_BMK)
+    }
+    /// First `a:hlinkClick` child.
+    pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
+        self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
+    }
+    /// First `a:hlinkMouseOver` child.
+    pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
+        self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// First `a:cs` child.
+    pub fn complex_script_font(&self) -> Option<ComplexScriptFontView<'a>> {
+        self.0.child::<ComplexScriptFont>().map(ComplexScriptFontView)
+    }
+    /// First `a:ea` child.
+    pub fn east_asian_font(&self) -> Option<EastAsianFontView<'a>> {
+        self.0.child::<EastAsianFont>().map(EastAsianFontView)
+    }
+    /// First `a:latin` child.
+    pub fn latin_font(&self) -> Option<LatinFontView<'a>> {
+        self.0.child::<LatinFont>().map(LatinFontView)
+    }
+    /// First `a:sym` child.
+    pub fn symbol_font(&self) -> Option<SymbolFontView<'a>> {
+        self.0.child::<SymbolFont>().map(SymbolFontView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1627,6 +8014,381 @@ impl<'a> FieldView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_TextFont/a:buFont` — Specified.
+#[derive(Debug)]
+pub enum BulletFont {}
+impl BulletFont {
+    /// `typeface`
+    pub const ATTR_TYPEFACE: ooxml_core::QName = ooxml_core::QName::new("", "typeface");
+    /// `panose`
+    pub const ATTR_PANOSE: ooxml_core::QName = ooxml_core::QName::new("", "panose");
+    /// `pitchFamily`
+    pub const ATTR_PITCH_FAMILY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pitchFamily",
+    );
+    /// `charset`
+    pub const ATTR_CHARSET: ooxml_core::QName = ooxml_core::QName::new("", "charset");
+}
+impl ooxml_core::ElementSpec for BulletFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buFont");
+    const SDK_NAME: &'static str = "a:CT_TextFont/a:buFont";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BulletFont::ATTR_TYPEFACE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BulletFont::ATTR_PANOSE,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BulletFont::ATTR_PITCH_FAMILY,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: BulletFont::ATTR_CHARSET,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BulletFont`].
+#[derive(Clone, Debug)]
+pub struct BulletFontView<'a>(pub ooxml_core::Lens<'a, BulletFont>);
+impl<'a> BulletFontView<'a> {
+    /// `typeface` — Text Typeface
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.0.attr(BulletFont::ATTR_TYPEFACE)
+    }
+    /// `panose` — Panose Setting
+    pub fn panose(&self) -> Option<&'a str> {
+        self.0.attr(BulletFont::ATTR_PANOSE)
+    }
+    /// `pitchFamily` — Similar Font Family (default `0`)
+    pub fn pitch_family(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                BulletFont::ATTR_PITCH_FAMILY,
+                "0",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// `charset` — Similar Character Set (default `1`)
+    pub fn character_set(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(BulletFont::ATTR_CHARSET, "1", ooxml_core::value::parse_i8)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextFont/a:cs` — Complex Script Font.
+#[derive(Debug)]
+pub enum ComplexScriptFont {}
+impl ComplexScriptFont {
+    /// `typeface`
+    pub const ATTR_TYPEFACE: ooxml_core::QName = ooxml_core::QName::new("", "typeface");
+    /// `panose`
+    pub const ATTR_PANOSE: ooxml_core::QName = ooxml_core::QName::new("", "panose");
+    /// `pitchFamily`
+    pub const ATTR_PITCH_FAMILY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pitchFamily",
+    );
+    /// `charset`
+    pub const ATTR_CHARSET: ooxml_core::QName = ooxml_core::QName::new("", "charset");
+}
+impl ooxml_core::ElementSpec for ComplexScriptFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "cs");
+    const SDK_NAME: &'static str = "a:CT_TextFont/a:cs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ComplexScriptFont::ATTR_TYPEFACE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ComplexScriptFont::ATTR_PANOSE,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ComplexScriptFont::ATTR_PITCH_FAMILY,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: ComplexScriptFont::ATTR_CHARSET,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ComplexScriptFont`].
+#[derive(Clone, Debug)]
+pub struct ComplexScriptFontView<'a>(pub ooxml_core::Lens<'a, ComplexScriptFont>);
+impl<'a> ComplexScriptFontView<'a> {
+    /// `typeface` — Text Typeface
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.0.attr(ComplexScriptFont::ATTR_TYPEFACE)
+    }
+    /// `panose` — Panose Setting
+    pub fn panose(&self) -> Option<&'a str> {
+        self.0.attr(ComplexScriptFont::ATTR_PANOSE)
+    }
+    /// `pitchFamily` — Similar Font Family (default `0`)
+    pub fn pitch_family(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ComplexScriptFont::ATTR_PITCH_FAMILY,
+                "0",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// `charset` — Similar Character Set (default `1`)
+    pub fn character_set(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ComplexScriptFont::ATTR_CHARSET,
+                "1",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextFont/a:ea` — East Asian Font.
+#[derive(Debug)]
+pub enum EastAsianFont {}
+impl EastAsianFont {
+    /// `typeface`
+    pub const ATTR_TYPEFACE: ooxml_core::QName = ooxml_core::QName::new("", "typeface");
+    /// `panose`
+    pub const ATTR_PANOSE: ooxml_core::QName = ooxml_core::QName::new("", "panose");
+    /// `pitchFamily`
+    pub const ATTR_PITCH_FAMILY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pitchFamily",
+    );
+    /// `charset`
+    pub const ATTR_CHARSET: ooxml_core::QName = ooxml_core::QName::new("", "charset");
+}
+impl ooxml_core::ElementSpec for EastAsianFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ea");
+    const SDK_NAME: &'static str = "a:CT_TextFont/a:ea";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: EastAsianFont::ATTR_TYPEFACE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: EastAsianFont::ATTR_PANOSE,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: EastAsianFont::ATTR_PITCH_FAMILY,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: EastAsianFont::ATTR_CHARSET,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`EastAsianFont`].
+#[derive(Clone, Debug)]
+pub struct EastAsianFontView<'a>(pub ooxml_core::Lens<'a, EastAsianFont>);
+impl<'a> EastAsianFontView<'a> {
+    /// `typeface` — Text Typeface
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.0.attr(EastAsianFont::ATTR_TYPEFACE)
+    }
+    /// `panose` — Panose Setting
+    pub fn panose(&self) -> Option<&'a str> {
+        self.0.attr(EastAsianFont::ATTR_PANOSE)
+    }
+    /// `pitchFamily` — Similar Font Family (default `0`)
+    pub fn pitch_family(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                EastAsianFont::ATTR_PITCH_FAMILY,
+                "0",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// `charset` — Similar Character Set (default `1`)
+    pub fn character_set(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                EastAsianFont::ATTR_CHARSET,
+                "1",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextFont/a:latin` — Latin Font.
+#[derive(Debug)]
+pub enum LatinFont {}
+impl LatinFont {
+    /// `typeface`
+    pub const ATTR_TYPEFACE: ooxml_core::QName = ooxml_core::QName::new("", "typeface");
+    /// `panose`
+    pub const ATTR_PANOSE: ooxml_core::QName = ooxml_core::QName::new("", "panose");
+    /// `pitchFamily`
+    pub const ATTR_PITCH_FAMILY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pitchFamily",
+    );
+    /// `charset`
+    pub const ATTR_CHARSET: ooxml_core::QName = ooxml_core::QName::new("", "charset");
+}
+impl ooxml_core::ElementSpec for LatinFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "latin");
+    const SDK_NAME: &'static str = "a:CT_TextFont/a:latin";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LatinFont::ATTR_TYPEFACE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LatinFont::ATTR_PANOSE,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LatinFont::ATTR_PITCH_FAMILY,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: LatinFont::ATTR_CHARSET,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LatinFont`].
+#[derive(Clone, Debug)]
+pub struct LatinFontView<'a>(pub ooxml_core::Lens<'a, LatinFont>);
+impl<'a> LatinFontView<'a> {
+    /// `typeface` — Text Typeface
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.0.attr(LatinFont::ATTR_TYPEFACE)
+    }
+    /// `panose` — Panose Setting
+    pub fn panose(&self) -> Option<&'a str> {
+        self.0.attr(LatinFont::ATTR_PANOSE)
+    }
+    /// `pitchFamily` — Similar Font Family (default `0`)
+    pub fn pitch_family(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                LatinFont::ATTR_PITCH_FAMILY,
+                "0",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// `charset` — Similar Character Set (default `1`)
+    pub fn character_set(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(LatinFont::ATTR_CHARSET, "1", ooxml_core::value::parse_i8)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextFont/a:sym` — Defines the SymbolFont Class.
+#[derive(Debug)]
+pub enum SymbolFont {}
+impl SymbolFont {
+    /// `typeface`
+    pub const ATTR_TYPEFACE: ooxml_core::QName = ooxml_core::QName::new("", "typeface");
+    /// `panose`
+    pub const ATTR_PANOSE: ooxml_core::QName = ooxml_core::QName::new("", "panose");
+    /// `pitchFamily`
+    pub const ATTR_PITCH_FAMILY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pitchFamily",
+    );
+    /// `charset`
+    pub const ATTR_CHARSET: ooxml_core::QName = ooxml_core::QName::new("", "charset");
+}
+impl ooxml_core::ElementSpec for SymbolFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "sym");
+    const SDK_NAME: &'static str = "a:CT_TextFont/a:sym";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SymbolFont::ATTR_TYPEFACE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SymbolFont::ATTR_PANOSE,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SymbolFont::ATTR_PITCH_FAMILY,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SymbolFont::ATTR_CHARSET,
+            ty: ooxml_core::SimpleType::Int8,
+            default: Some("1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SymbolFont`].
+#[derive(Clone, Debug)]
+pub struct SymbolFontView<'a>(pub ooxml_core::Lens<'a, SymbolFont>);
+impl<'a> SymbolFontView<'a> {
+    /// `typeface` — Text Typeface
+    pub fn typeface(&self) -> Option<&'a str> {
+        self.0.attr(SymbolFont::ATTR_TYPEFACE)
+    }
+    /// `panose` — Panose Setting
+    pub fn panose(&self) -> Option<&'a str> {
+        self.0.attr(SymbolFont::ATTR_PANOSE)
+    }
+    /// `pitchFamily` — Similar Font Family (default `0`)
+    pub fn pitch_family(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SymbolFont::ATTR_PITCH_FAMILY,
+                "0",
+                ooxml_core::value::parse_i8,
+            )
+    }
+    /// `charset` — Similar Character Set (default `1`)
+    pub fn character_set(&self) -> Result<i8, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(SymbolFont::ATTR_CHARSET, "1", ooxml_core::value::parse_i8)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `a:CT_TextLineBreak/a:br` — Text Line Break.
 #[derive(Debug)]
 pub enum Break {}
@@ -1666,6 +8428,262 @@ impl<'a> BreakViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> BreakView<'_> {
         BreakView(self.0.as_lens())
+    }
+}
+/// `a:CT_TextListStyle/a:lstStyle` — Defines the ListStyle Class.
+#[derive(Debug)]
+pub enum ListStyle {}
+impl ooxml_core::ElementSpec for ListStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lstStyle");
+    const SDK_NAME: &'static str = "a:CT_TextListStyle/a:lstStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defPPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl1pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl2pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl3pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl4pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl5pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl6pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl7pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl8pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lvl9pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ListStyle> for DefaultParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level1ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level2ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level3ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level4ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level5ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level6ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level7ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level8ParagraphProperties {}
+impl ooxml_core::ChildOf<ListStyle> for Level9ParagraphProperties {}
+/// Read-only view of [`ListStyle`].
+#[derive(Clone, Debug)]
+pub struct ListStyleView<'a>(pub ooxml_core::Lens<'a, ListStyle>);
+impl<'a> ListStyleView<'a> {
+    /// First `a:defPPr` child.
+    pub fn default_paragraph_properties(
+        &self,
+    ) -> Option<DefaultParagraphPropertiesView<'a>> {
+        self.0.child::<DefaultParagraphProperties>().map(DefaultParagraphPropertiesView)
+    }
+    /// First `a:lvl1pPr` child.
+    pub fn level1_paragraph_properties(
+        &self,
+    ) -> Option<Level1ParagraphPropertiesView<'a>> {
+        self.0.child::<Level1ParagraphProperties>().map(Level1ParagraphPropertiesView)
+    }
+    /// First `a:lvl2pPr` child.
+    pub fn level2_paragraph_properties(
+        &self,
+    ) -> Option<Level2ParagraphPropertiesView<'a>> {
+        self.0.child::<Level2ParagraphProperties>().map(Level2ParagraphPropertiesView)
+    }
+    /// First `a:lvl3pPr` child.
+    pub fn level3_paragraph_properties(
+        &self,
+    ) -> Option<Level3ParagraphPropertiesView<'a>> {
+        self.0.child::<Level3ParagraphProperties>().map(Level3ParagraphPropertiesView)
+    }
+    /// First `a:lvl4pPr` child.
+    pub fn level4_paragraph_properties(
+        &self,
+    ) -> Option<Level4ParagraphPropertiesView<'a>> {
+        self.0.child::<Level4ParagraphProperties>().map(Level4ParagraphPropertiesView)
+    }
+    /// First `a:lvl5pPr` child.
+    pub fn level5_paragraph_properties(
+        &self,
+    ) -> Option<Level5ParagraphPropertiesView<'a>> {
+        self.0.child::<Level5ParagraphProperties>().map(Level5ParagraphPropertiesView)
+    }
+    /// First `a:lvl6pPr` child.
+    pub fn level6_paragraph_properties(
+        &self,
+    ) -> Option<Level6ParagraphPropertiesView<'a>> {
+        self.0.child::<Level6ParagraphProperties>().map(Level6ParagraphPropertiesView)
+    }
+    /// First `a:lvl7pPr` child.
+    pub fn level7_paragraph_properties(
+        &self,
+    ) -> Option<Level7ParagraphPropertiesView<'a>> {
+        self.0.child::<Level7ParagraphProperties>().map(Level7ParagraphPropertiesView)
+    }
+    /// First `a:lvl8pPr` child.
+    pub fn level8_paragraph_properties(
+        &self,
+    ) -> Option<Level8ParagraphPropertiesView<'a>> {
+        self.0.child::<Level8ParagraphProperties>().map(Level8ParagraphPropertiesView)
+    }
+    /// First `a:lvl9pPr` child.
+    pub fn level9_paragraph_properties(
+        &self,
+    ) -> Option<Level9ParagraphPropertiesView<'a>> {
+        self.0.child::<Level9ParagraphProperties>().map(Level9ParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextNoAutofit/a:noAutofit` — No AutoFit.
+#[derive(Debug)]
+pub enum NoAutoFit {}
+impl ooxml_core::ElementSpec for NoAutoFit {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "noAutofit");
+    const SDK_NAME: &'static str = "a:CT_TextNoAutofit/a:noAutofit";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NoAutoFit`].
+#[derive(Clone, Debug)]
+pub struct NoAutoFitView<'a>(pub ooxml_core::Lens<'a, NoAutoFit>);
+impl<'a> NoAutoFitView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextNoBullet/a:buNone` — No Bullet.
+#[derive(Debug)]
+pub enum NoBullet {}
+impl ooxml_core::ElementSpec for NoBullet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "buNone");
+    const SDK_NAME: &'static str = "a:CT_TextNoBullet/a:buNone";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NoBullet`].
+#[derive(Clone, Debug)]
+pub struct NoBulletView<'a>(pub ooxml_core::Lens<'a, NoBullet>);
+impl<'a> NoBulletView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextNormalAutofit/a:normAutofit` — Normal AutoFit.
+#[derive(Debug)]
+pub enum NormalAutoFit {}
+impl NormalAutoFit {
+    /// `fontScale`
+    pub const ATTR_FONT_SCALE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fontScale",
+    );
+    /// `lnSpcReduction`
+    pub const ATTR_LN_SPC_REDUCTION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "lnSpcReduction",
+    );
+}
+impl ooxml_core::ElementSpec for NormalAutoFit {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "normAutofit");
+    const SDK_NAME: &'static str = "a:CT_TextNormalAutofit/a:normAutofit";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NormalAutoFit::ATTR_FONT_SCALE,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: Some("100%"),
+        },
+        ooxml_core::AttrSpec {
+            name: NormalAutoFit::ATTR_LN_SPC_REDUCTION,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: Some("0%"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NormalAutoFit`].
+#[derive(Clone, Debug)]
+pub struct NormalAutoFitView<'a>(pub ooxml_core::Lens<'a, NormalAutoFit>);
+impl<'a> NormalAutoFitView<'a> {
+    /// `fontScale` — Font Scale (default `100%`)
+    pub fn font_scale(
+        &self,
+    ) -> Result<ooxml_core::value::DmlPercent, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                NormalAutoFit::ATTR_FONT_SCALE,
+                "100%",
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// `lnSpcReduction` — Line Space Reduction (default `0%`)
+    pub fn line_space_reduction(
+        &self,
+    ) -> Result<ooxml_core::value::DmlPercent, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                NormalAutoFit::ATTR_LN_SPC_REDUCTION,
+                "0%",
+                ooxml_core::value::parse_dml_percent,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `a:CT_TextParagraph/a:p` — Text Paragraphs.
@@ -1790,6 +8808,3506 @@ impl<'a> ParagraphViewMut<'a> {
     /// Removes the first `a:br` child.
     pub fn remove_break(&mut self) -> bool {
         self.0.remove::<Break>()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:defPPr` — Default Paragraph Style.
+#[derive(Debug)]
+pub enum DefaultParagraphProperties {}
+impl DefaultParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for DefaultParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "defPPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:defPPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DefaultParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`DefaultParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct DefaultParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, DefaultParagraphProperties>,
+);
+impl<'a> DefaultParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(DefaultParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(DefaultParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                DefaultParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl1pPr` — List Level 1 Text Style.
+#[derive(Debug)]
+pub enum Level1ParagraphProperties {}
+impl Level1ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level1ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl1pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl1pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level1ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level1ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level1ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level1ParagraphProperties>,
+);
+impl<'a> Level1ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level1ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level1ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level1ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl2pPr` — List Level 2 Text Style.
+#[derive(Debug)]
+pub enum Level2ParagraphProperties {}
+impl Level2ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level2ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl2pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl2pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level2ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level2ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level2ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level2ParagraphProperties>,
+);
+impl<'a> Level2ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level2ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level2ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level2ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl3pPr` — List Level 3 Text Style.
+#[derive(Debug)]
+pub enum Level3ParagraphProperties {}
+impl Level3ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level3ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl3pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl3pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level3ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level3ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level3ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level3ParagraphProperties>,
+);
+impl<'a> Level3ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level3ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level3ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level3ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl4pPr` — List Level 4 Text Style.
+#[derive(Debug)]
+pub enum Level4ParagraphProperties {}
+impl Level4ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level4ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl4pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl4pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level4ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level4ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level4ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level4ParagraphProperties>,
+);
+impl<'a> Level4ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level4ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level4ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level4ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl5pPr` — List Level 5 Text Style.
+#[derive(Debug)]
+pub enum Level5ParagraphProperties {}
+impl Level5ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level5ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl5pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl5pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level5ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level5ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level5ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level5ParagraphProperties>,
+);
+impl<'a> Level5ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level5ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level5ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level5ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl6pPr` — List Level 6 Text Style.
+#[derive(Debug)]
+pub enum Level6ParagraphProperties {}
+impl Level6ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level6ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl6pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl6pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level6ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level6ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level6ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level6ParagraphProperties>,
+);
+impl<'a> Level6ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level6ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level6ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level6ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl7pPr` — List Level 7 Text Style.
+#[derive(Debug)]
+pub enum Level7ParagraphProperties {}
+impl Level7ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level7ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl7pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl7pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level7ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level7ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level7ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level7ParagraphProperties>,
+);
+impl<'a> Level7ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level7ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level7ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level7ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl8pPr` — List Level 8 Text Style.
+#[derive(Debug)]
+pub enum Level8ParagraphProperties {}
+impl Level8ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level8ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl8pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl8pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level8ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level8ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level8ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level8ParagraphProperties>,
+);
+impl<'a> Level8ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level8ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level8ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level8ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextParagraphProperties/a:lvl9pPr` — List Level 9 Text Style.
+#[derive(Debug)]
+pub enum Level9ParagraphProperties {}
+impl Level9ParagraphProperties {
+    /// `marL`
+    pub const ATTR_MAR_L: ooxml_core::QName = ooxml_core::QName::new("", "marL");
+    /// `marR`
+    pub const ATTR_MAR_R: ooxml_core::QName = ooxml_core::QName::new("", "marR");
+    /// `lvl`
+    pub const ATTR_LVL: ooxml_core::QName = ooxml_core::QName::new("", "lvl");
+    /// `indent`
+    pub const ATTR_INDENT: ooxml_core::QName = ooxml_core::QName::new("", "indent");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+    /// `defTabSz`
+    pub const ATTR_DEF_TAB_SZ: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defTabSz",
+    );
+    /// `rtl`
+    pub const ATTR_RTL: ooxml_core::QName = ooxml_core::QName::new("", "rtl");
+    /// `eaLnBrk`
+    pub const ATTR_EA_LN_BRK: ooxml_core::QName = ooxml_core::QName::new("", "eaLnBrk");
+    /// `fontAlgn`
+    pub const ATTR_FONT_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "fontAlgn");
+    /// `latinLnBrk`
+    pub const ATTR_LATIN_LN_BRK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "latinLnBrk",
+    );
+    /// `hangingPunct`
+    pub const ATTR_HANGING_PUNCT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hangingPunct",
+    );
+}
+impl ooxml_core::ElementSpec for Level9ParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lvl9pPr");
+    const SDK_NAME: &'static str = "a:CT_TextParagraphProperties/a:lvl9pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_MAR_L,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_MAR_R,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_LVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_INDENT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextAlignmentTypeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_DEF_TAB_SZ,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_RTL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_EA_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_FONT_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextFontAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_LATIN_LN_BRK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level9ParagraphProperties::ATTR_HANGING_PUNCT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lnSpc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcBef")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "spcAft")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buClrTx"),
+                    ooxml_core::QName::new(NS_A, "buClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buSzTx"),
+                    ooxml_core::QName::new(NS_A, "buSzPct"),
+                    ooxml_core::QName::new(NS_A, "buSzPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buFontTx"),
+                    ooxml_core::QName::new(NS_A, "buFont"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "buNone"),
+                    ooxml_core::QName::new(NS_A, "buAutoNum"),
+                    ooxml_core::QName::new(NS_A, "buChar"),
+                    ooxml_core::QName::new(NS_A, "buBlip"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tabLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "defRPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for SpaceBefore {}
+/// Read-only view of [`Level9ParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct Level9ParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, Level9ParagraphProperties>,
+);
+impl<'a> Level9ParagraphPropertiesView<'a> {
+    /// `marL` — Left Margin
+    pub fn left_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_MAR_L,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `marR` — Right Margin
+    pub fn right_margin(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_MAR_R,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `lvl` — Level
+    pub fn level(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_LVL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `indent` — Indent
+    pub fn indent(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_INDENT,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `algn` — Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextAlignmentTypeValues>> {
+        self.0.attr_enum(Level9ParagraphProperties::ATTR_ALGN)
+    }
+    /// `defTabSz` — Default Tab Size
+    pub fn default_tab_size(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_DEF_TAB_SZ,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `rtl` — Right To Left
+    pub fn right_to_left(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_RTL,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `eaLnBrk` — East Asian Line Break
+    pub fn east_asian_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fontAlgn` — Font Alignment
+    pub fn font_alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextFontAlignmentValues>> {
+        self.0.attr_enum(Level9ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// `latinLnBrk` — Latin Line Break
+    pub fn latin_line_break(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `hangingPunct` — Hanging Punctuation
+    pub fn height(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                Level9ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `a:CT_TextParagraphProperties/a:pPr` — Text Paragraph Properties.
@@ -1972,6 +12490,21 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletColor {}
+impl ooxml_core::ChildOf<ParagraphProperties> for AutoNumberedBullet {}
+impl ooxml_core::ChildOf<ParagraphProperties> for PictureBullet {}
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletColorText {}
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletSizeText {}
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletSizePercentage {}
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletSizePoints {}
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletFontText {}
+impl ooxml_core::ChildOf<ParagraphProperties> for CharacterBullet {}
+impl ooxml_core::ChildOf<ParagraphProperties> for DefaultRunProperties {}
+impl ooxml_core::ChildOf<ParagraphProperties> for BulletFont {}
+impl ooxml_core::ChildOf<ParagraphProperties> for NoBullet {}
+impl ooxml_core::ChildOf<ParagraphProperties> for LineSpacing {}
+impl ooxml_core::ChildOf<ParagraphProperties> for SpaceAfter {}
+impl ooxml_core::ChildOf<ParagraphProperties> for SpaceBefore {}
 impl ooxml_core::schema::__private::Sealed for ParagraphProperties {}
 impl ooxml_core::Detachable for ParagraphProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -2076,6 +12609,360 @@ impl<'a> ParagraphPropertiesView<'a> {
                 ooxml_core::value::parse_bool,
             )
     }
+    /// First `a:buClr` child.
+    pub fn bullet_color(&self) -> Option<BulletColorView<'a>> {
+        self.0.child::<BulletColor>().map(BulletColorView)
+    }
+    /// First `a:buAutoNum` child.
+    pub fn auto_numbered_bullet(&self) -> Option<AutoNumberedBulletView<'a>> {
+        self.0.child::<AutoNumberedBullet>().map(AutoNumberedBulletView)
+    }
+    /// First `a:buBlip` child.
+    pub fn picture_bullet(&self) -> Option<PictureBulletView<'a>> {
+        self.0.child::<PictureBullet>().map(PictureBulletView)
+    }
+    /// First `a:buClrTx` child.
+    pub fn bullet_color_text(&self) -> Option<BulletColorTextView<'a>> {
+        self.0.child::<BulletColorText>().map(BulletColorTextView)
+    }
+    /// First `a:buSzTx` child.
+    pub fn bullet_size_text(&self) -> Option<BulletSizeTextView<'a>> {
+        self.0.child::<BulletSizeText>().map(BulletSizeTextView)
+    }
+    /// First `a:buSzPct` child.
+    pub fn bullet_size_percentage(&self) -> Option<BulletSizePercentageView<'a>> {
+        self.0.child::<BulletSizePercentage>().map(BulletSizePercentageView)
+    }
+    /// First `a:buSzPts` child.
+    pub fn bullet_size_points(&self) -> Option<BulletSizePointsView<'a>> {
+        self.0.child::<BulletSizePoints>().map(BulletSizePointsView)
+    }
+    /// First `a:buFontTx` child.
+    pub fn bullet_font_text(&self) -> Option<BulletFontTextView<'a>> {
+        self.0.child::<BulletFontText>().map(BulletFontTextView)
+    }
+    /// First `a:buChar` child.
+    pub fn character_bullet(&self) -> Option<CharacterBulletView<'a>> {
+        self.0.child::<CharacterBullet>().map(CharacterBulletView)
+    }
+    /// First `a:defRPr` child.
+    pub fn default_run_properties(&self) -> Option<DefaultRunPropertiesView<'a>> {
+        self.0.child::<DefaultRunProperties>().map(DefaultRunPropertiesView)
+    }
+    /// First `a:buFont` child.
+    pub fn bullet_font(&self) -> Option<BulletFontView<'a>> {
+        self.0.child::<BulletFont>().map(BulletFontView)
+    }
+    /// First `a:buNone` child.
+    pub fn no_bullet(&self) -> Option<NoBulletView<'a>> {
+        self.0.child::<NoBullet>().map(NoBulletView)
+    }
+    /// First `a:lnSpc` child.
+    pub fn line_spacing(&self) -> Option<LineSpacingView<'a>> {
+        self.0.child::<LineSpacing>().map(LineSpacingView)
+    }
+    /// First `a:spcAft` child.
+    pub fn space_after(&self) -> Option<SpaceAfterView<'a>> {
+        self.0.child::<SpaceAfter>().map(SpaceAfterView)
+    }
+    /// First `a:spcBef` child.
+    pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
+        self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextShapeAutofit/a:spAutoFit` — Shape AutoFit.
+#[derive(Debug)]
+pub enum ShapeAutoFit {}
+impl ooxml_core::ElementSpec for ShapeAutoFit {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "spAutoFit");
+    const SDK_NAME: &'static str = "a:CT_TextShapeAutofit/a:spAutoFit";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ShapeAutoFit`].
+#[derive(Clone, Debug)]
+pub struct ShapeAutoFitView<'a>(pub ooxml_core::Lens<'a, ShapeAutoFit>);
+impl<'a> ShapeAutoFitView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextSpacing/a:lnSpc` — Line Spacing.
+#[derive(Debug)]
+pub enum LineSpacing {}
+impl ooxml_core::ElementSpec for LineSpacing {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lnSpc");
+    const SDK_NAME: &'static str = "a:CT_TextSpacing/a:lnSpc";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "spcPct"),
+                    ooxml_core::QName::new(NS_A, "spcPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<LineSpacing> for SpacingPercent {}
+impl ooxml_core::ChildOf<LineSpacing> for SpacingPoints {}
+/// Read-only view of [`LineSpacing`].
+#[derive(Clone, Debug)]
+pub struct LineSpacingView<'a>(pub ooxml_core::Lens<'a, LineSpacing>);
+impl<'a> LineSpacingView<'a> {
+    /// First `a:spcPct` child.
+    pub fn spacing_percent(&self) -> Option<SpacingPercentView<'a>> {
+        self.0.child::<SpacingPercent>().map(SpacingPercentView)
+    }
+    /// First `a:spcPts` child.
+    pub fn spacing_points(&self) -> Option<SpacingPointsView<'a>> {
+        self.0.child::<SpacingPoints>().map(SpacingPointsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextSpacing/a:spcAft` — Space After.
+#[derive(Debug)]
+pub enum SpaceAfter {}
+impl ooxml_core::ElementSpec for SpaceAfter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "spcAft");
+    const SDK_NAME: &'static str = "a:CT_TextSpacing/a:spcAft";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "spcPct"),
+                    ooxml_core::QName::new(NS_A, "spcPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SpaceAfter> for SpacingPercent {}
+impl ooxml_core::ChildOf<SpaceAfter> for SpacingPoints {}
+/// Read-only view of [`SpaceAfter`].
+#[derive(Clone, Debug)]
+pub struct SpaceAfterView<'a>(pub ooxml_core::Lens<'a, SpaceAfter>);
+impl<'a> SpaceAfterView<'a> {
+    /// First `a:spcPct` child.
+    pub fn spacing_percent(&self) -> Option<SpacingPercentView<'a>> {
+        self.0.child::<SpacingPercent>().map(SpacingPercentView)
+    }
+    /// First `a:spcPts` child.
+    pub fn spacing_points(&self) -> Option<SpacingPointsView<'a>> {
+        self.0.child::<SpacingPoints>().map(SpacingPointsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextSpacing/a:spcBef` — Space Before.
+#[derive(Debug)]
+pub enum SpaceBefore {}
+impl ooxml_core::ElementSpec for SpaceBefore {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "spcBef");
+    const SDK_NAME: &'static str = "a:CT_TextSpacing/a:spcBef";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "spcPct"),
+                    ooxml_core::QName::new(NS_A, "spcPts"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SpaceBefore> for SpacingPercent {}
+impl ooxml_core::ChildOf<SpaceBefore> for SpacingPoints {}
+/// Read-only view of [`SpaceBefore`].
+#[derive(Clone, Debug)]
+pub struct SpaceBeforeView<'a>(pub ooxml_core::Lens<'a, SpaceBefore>);
+impl<'a> SpaceBeforeView<'a> {
+    /// First `a:spcPct` child.
+    pub fn spacing_percent(&self) -> Option<SpacingPercentView<'a>> {
+        self.0.child::<SpacingPercent>().map(SpacingPercentView)
+    }
+    /// First `a:spcPts` child.
+    pub fn spacing_points(&self) -> Option<SpacingPointsView<'a>> {
+        self.0.child::<SpacingPoints>().map(SpacingPointsView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextSpacingPercent/a:spcPct` — Spacing Percent.
+#[derive(Debug)]
+pub enum SpacingPercent {}
+impl SpacingPercent {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for SpacingPercent {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "spcPct");
+    const SDK_NAME: &'static str = "a:CT_TextSpacingPercent/a:spcPct";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SpacingPercent::ATTR_VAL,
+            ty: ooxml_core::SimpleType::DmlPercent,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SpacingPercent`].
+#[derive(Clone, Debug)]
+pub struct SpacingPercentView<'a>(pub ooxml_core::Lens<'a, SpacingPercent>);
+impl<'a> SpacingPercentView<'a> {
+    /// `val` — Value
+    pub fn val(
+        &self,
+    ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(SpacingPercent::ATTR_VAL, ooxml_core::value::parse_dml_percent)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_TextSpacingPoint/a:spcPts` — Spacing Points.
+#[derive(Debug)]
+pub enum SpacingPoints {}
+impl SpacingPoints {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for SpacingPoints {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "spcPts");
+    const SDK_NAME: &'static str = "a:CT_TextSpacingPoint/a:spcPts";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SpacingPoints::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SpacingPoints`].
+#[derive(Clone, Debug)]
+pub struct SpacingPointsView<'a>(pub ooxml_core::Lens<'a, SpacingPoints>);
+impl<'a> SpacingPointsView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(SpacingPoints::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `a:CT_Transform2D/a:xfrm` — Defines the Transform2D Class.
+#[derive(Debug)]
+pub enum Transform2D {}
+impl Transform2D {
+    /// `rot`
+    pub const ATTR_ROT: ooxml_core::QName = ooxml_core::QName::new("", "rot");
+    /// `flipH`
+    pub const ATTR_FLIP_H: ooxml_core::QName = ooxml_core::QName::new("", "flipH");
+    /// `flipV`
+    pub const ATTR_FLIP_V: ooxml_core::QName = ooxml_core::QName::new("", "flipV");
+}
+impl ooxml_core::ElementSpec for Transform2D {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "xfrm");
+    const SDK_NAME: &'static str = "a:CT_Transform2D/a:xfrm";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Transform2D::ATTR_ROT,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform2D::ATTR_FLIP_H,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Transform2D::ATTR_FLIP_V,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "off")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Transform2D> for Offset {}
+impl ooxml_core::ChildOf<Transform2D> for Extents {}
+/// Read-only view of [`Transform2D`].
+#[derive(Clone, Debug)]
+pub struct Transform2DView<'a>(pub ooxml_core::Lens<'a, Transform2D>);
+impl<'a> Transform2DView<'a> {
+    /// `rot` — Rotation (default `0`)
+    pub fn rotation(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Transform2D::ATTR_ROT, "0", ooxml_core::value::parse_i32)
+    }
+    /// `flipH` — Horizontal Flip (default `false`)
+    pub fn horizontal_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform2D::ATTR_FLIP_H,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `flipV` — Vertical Flip (default `false`)
+    pub fn vertical_flip(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Transform2D::ATTR_FLIP_V,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:off` child.
+    pub fn offset(&self) -> Option<OffsetView<'a>> {
+        self.0.child::<Offset>().map(OffsetView)
+    }
+    /// First `a:ext` child.
+    pub fn extents(&self) -> Option<ExtentsView<'a>> {
+        self.0.child::<Extents>().map(ExtentsView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -2118,13 +13005,182 @@ impl<'a> TextViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<ThemeElements>();
+const _: () = ooxml_core::schema::assert_child::<ThemeElements, ColorScheme>();
+const _: () = ooxml_core::schema::assert_child::<ThemeElements, FontScheme>();
+const _: () = ooxml_core::schema::assert_spec::<BulletColor>();
+const _: () = ooxml_core::schema::assert_child::<BulletColor, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<BulletColor, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<BulletColor, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<BulletColor, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<BulletColor, SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<BulletColor, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Accent1Color>();
+const _: () = ooxml_core::schema::assert_child::<Accent1Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent1Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent1Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    Accent1Color,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<Accent1Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Accent2Color>();
+const _: () = ooxml_core::schema::assert_child::<Accent2Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent2Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent2Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    Accent2Color,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<Accent2Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Accent3Color>();
+const _: () = ooxml_core::schema::assert_child::<Accent3Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent3Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent3Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    Accent3Color,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<Accent3Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Accent4Color>();
+const _: () = ooxml_core::schema::assert_child::<Accent4Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent4Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent4Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    Accent4Color,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<Accent4Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Accent5Color>();
+const _: () = ooxml_core::schema::assert_child::<Accent5Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent5Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent5Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    Accent5Color,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<Accent5Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Accent6Color>();
+const _: () = ooxml_core::schema::assert_child::<Accent6Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent6Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Accent6Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    Accent6Color,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<Accent6Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Dark1Color>();
+const _: () = ooxml_core::schema::assert_child::<Dark1Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Dark1Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Dark1Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<Dark1Color, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<Dark1Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Dark2Color>();
+const _: () = ooxml_core::schema::assert_child::<Dark2Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Dark2Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Dark2Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<Dark2Color, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<Dark2Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<FollowedHyperlinkColor>();
+const _: () = ooxml_core::schema::assert_child::<FollowedHyperlinkColor, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<FollowedHyperlinkColor, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<
+    FollowedHyperlinkColor,
+    RgbColorModelHex,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    FollowedHyperlinkColor,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<FollowedHyperlinkColor, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Light1Color>();
+const _: () = ooxml_core::schema::assert_child::<Light1Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Light1Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Light1Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<Light1Color, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<Light1Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Light2Color>();
+const _: () = ooxml_core::schema::assert_child::<Light2Color, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Light2Color, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Light2Color, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<Light2Color, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<Light2Color, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<OverrideColorMapping>();
+const _: () = ooxml_core::schema::assert_spec::<ColorScheme>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Accent1Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Accent2Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Accent3Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Accent4Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Accent5Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Accent6Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Dark1Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Dark2Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, FollowedHyperlinkColor>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light1Color>();
+const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light2Color>();
+const _: () = ooxml_core::schema::assert_spec::<CustomGeometry>();
+const _: () = ooxml_core::schema::assert_spec::<MasterColorMapping>();
+const _: () = ooxml_core::schema::assert_spec::<MajorFont>();
+const _: () = ooxml_core::schema::assert_child::<MajorFont, SupplementalFont>();
+const _: () = ooxml_core::schema::assert_child::<MajorFont, ComplexScriptFont>();
+const _: () = ooxml_core::schema::assert_child::<MajorFont, EastAsianFont>();
+const _: () = ooxml_core::schema::assert_child::<MajorFont, LatinFont>();
+const _: () = ooxml_core::schema::assert_spec::<MinorFont>();
+const _: () = ooxml_core::schema::assert_child::<MinorFont, SupplementalFont>();
+const _: () = ooxml_core::schema::assert_child::<MinorFont, ComplexScriptFont>();
+const _: () = ooxml_core::schema::assert_child::<MinorFont, EastAsianFont>();
+const _: () = ooxml_core::schema::assert_child::<MinorFont, LatinFont>();
+const _: () = ooxml_core::schema::assert_spec::<FontReference>();
+const _: () = ooxml_core::schema::assert_child::<FontReference, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<FontReference, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<FontReference, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    FontReference,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<FontReference, SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<FontReference, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
+const _: () = ooxml_core::schema::assert_child::<FontScheme, MajorFont>();
+const _: () = ooxml_core::schema::assert_child::<FontScheme, MinorFont>();
 const _: () = ooxml_core::schema::assert_spec::<Graphic>();
 const _: () = ooxml_core::schema::assert_child::<Graphic, GraphicData>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicData>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, Theme>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
 #[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::SectionList>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::AuthorList>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::pml::P188CommentList,
+>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::pml::CommentAuthorList,
+>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::pml::PCommentList,
+>();
+#[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::ContentPart>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::NotesMaster>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::NotesSlide>();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<
     GraphicData,
@@ -2132,6 +13188,10 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Slide>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::SlideLayout>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::SlideMaster>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Comments>();
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -2146,30 +13206,767 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Footer
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Header>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
+const _: () = ooxml_core::schema::assert_spec::<TransformGroup>();
+const _: () = ooxml_core::schema::assert_child::<TransformGroup, ChildOffset>();
+const _: () = ooxml_core::schema::assert_child::<TransformGroup, Offset>();
+const _: () = ooxml_core::schema::assert_child::<TransformGroup, ChildExtents>();
+const _: () = ooxml_core::schema::assert_child::<TransformGroup, Extents>();
+const _: () = ooxml_core::schema::assert_spec::<HslColor>();
+const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnClick>();
+const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnHover>();
+const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnMouseOver>();
+const _: () = ooxml_core::schema::assert_spec::<NoFill>();
+const _: () = ooxml_core::schema::assert_spec::<Theme>();
+const _: () = ooxml_core::schema::assert_child::<Theme, ThemeElements>();
+const _: () = ooxml_core::schema::assert_spec::<ChildOffset>();
+const _: () = ooxml_core::schema::assert_spec::<Offset>();
+const _: () = ooxml_core::schema::assert_spec::<ChildExtents>();
+const _: () = ooxml_core::schema::assert_spec::<Extents>();
+const _: () = ooxml_core::schema::assert_spec::<PresetColor>();
+const _: () = ooxml_core::schema::assert_spec::<PresetGeometry>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
+const _: () = ooxml_core::schema::assert_spec::<RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_spec::<RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_spec::<SchemeColor>();
+const _: () = ooxml_core::schema::assert_spec::<SolidFill>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<SolidFill, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<SupplementalFont>();
+const _: () = ooxml_core::schema::assert_spec::<SystemColor>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableRow>();
 const _: () = ooxml_core::schema::assert_spec::<TableCell>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TextBody>();
 const _: () = ooxml_core::schema::assert_spec::<TableRow>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableCell>();
+const _: () = ooxml_core::schema::assert_spec::<AutoNumberedBullet>();
+const _: () = ooxml_core::schema::assert_spec::<PictureBullet>();
 const _: () = ooxml_core::schema::assert_spec::<TextBody>();
+const _: () = ooxml_core::schema::assert_child::<TextBody, BodyProperties>();
+const _: () = ooxml_core::schema::assert_child::<TextBody, ListStyle>();
 const _: () = ooxml_core::schema::assert_child::<TextBody, Paragraph>();
+const _: () = ooxml_core::schema::assert_spec::<BodyProperties>();
+const _: () = ooxml_core::schema::assert_child::<BodyProperties, NoAutoFit>();
+const _: () = ooxml_core::schema::assert_child::<BodyProperties, NormalAutoFit>();
+const _: () = ooxml_core::schema::assert_child::<BodyProperties, ShapeAutoFit>();
+const _: () = ooxml_core::schema::assert_spec::<BulletColorText>();
+const _: () = ooxml_core::schema::assert_spec::<BulletSizeText>();
+const _: () = ooxml_core::schema::assert_spec::<BulletSizePercentage>();
+const _: () = ooxml_core::schema::assert_spec::<BulletSizePoints>();
+const _: () = ooxml_core::schema::assert_spec::<BulletFontText>();
+const _: () = ooxml_core::schema::assert_spec::<CharacterBullet>();
+const _: () = ooxml_core::schema::assert_spec::<DefaultRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultRunProperties,
+    HyperlinkOnClick,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultRunProperties,
+    HyperlinkOnMouseOver,
+>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultRunProperties,
+    ComplexScriptFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, EastAsianFont>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, LatinFont>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, SymbolFont>();
 const _: () = ooxml_core::schema::assert_spec::<EndParagraphRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    HyperlinkOnClick,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    HyperlinkOnMouseOver,
+>();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    ComplexScriptFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    EastAsianFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, LatinFont>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    SymbolFont,
+>();
 const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, HyperlinkOnClick>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, HyperlinkOnMouseOver>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, ComplexScriptFont>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, EastAsianFont>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, LatinFont>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, SymbolFont>();
 const _: () = ooxml_core::schema::assert_spec::<Field>();
 const _: () = ooxml_core::schema::assert_child::<Field, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Field, ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<Field, Text>();
+const _: () = ooxml_core::schema::assert_spec::<BulletFont>();
+const _: () = ooxml_core::schema::assert_spec::<ComplexScriptFont>();
+const _: () = ooxml_core::schema::assert_spec::<EastAsianFont>();
+const _: () = ooxml_core::schema::assert_spec::<LatinFont>();
+const _: () = ooxml_core::schema::assert_spec::<SymbolFont>();
 const _: () = ooxml_core::schema::assert_spec::<Break>();
 const _: () = ooxml_core::schema::assert_child::<Break, RunProperties>();
+const _: () = ooxml_core::schema::assert_spec::<ListStyle>();
+const _: () = ooxml_core::schema::assert_child::<
+    ListStyle,
+    DefaultParagraphProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level1ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level2ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level3ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level4ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level5ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level6ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level7ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level8ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ListStyle, Level9ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_spec::<NoAutoFit>();
+const _: () = ooxml_core::schema::assert_spec::<NoBullet>();
+const _: () = ooxml_core::schema::assert_spec::<NormalAutoFit>();
 const _: () = ooxml_core::schema::assert_spec::<Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Run>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, EndParagraphRunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Field>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Break>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_spec::<DefaultParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<DefaultParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level1ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level1ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level2ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level2ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level3ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level3ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level4ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level4ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level5ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level5ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level6ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level6ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level7ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level7ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level8ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level8ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Level9ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletColor,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    PictureBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletColorText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletSizeText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletFontText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    CharacterBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    BulletFont,
+>();
+const _: () = ooxml_core::schema::assert_child::<Level9ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    LineSpacing,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    SpaceAfter,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    SpaceBefore,
+>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, BulletColor>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    AutoNumberedBullet,
+>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, PictureBullet>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, BulletColorText>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, BulletSizeText>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    BulletSizePercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    BulletSizePoints,
+>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, BulletFontText>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, CharacterBullet>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    DefaultRunProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, BulletFont>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, NoBullet>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, LineSpacing>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, SpaceAfter>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, SpaceBefore>();
+const _: () = ooxml_core::schema::assert_spec::<ShapeAutoFit>();
+const _: () = ooxml_core::schema::assert_spec::<LineSpacing>();
+const _: () = ooxml_core::schema::assert_child::<LineSpacing, SpacingPercent>();
+const _: () = ooxml_core::schema::assert_child::<LineSpacing, SpacingPoints>();
+const _: () = ooxml_core::schema::assert_spec::<SpaceAfter>();
+const _: () = ooxml_core::schema::assert_child::<SpaceAfter, SpacingPercent>();
+const _: () = ooxml_core::schema::assert_child::<SpaceAfter, SpacingPoints>();
+const _: () = ooxml_core::schema::assert_spec::<SpaceBefore>();
+const _: () = ooxml_core::schema::assert_child::<SpaceBefore, SpacingPercent>();
+const _: () = ooxml_core::schema::assert_child::<SpaceBefore, SpacingPoints>();
+const _: () = ooxml_core::schema::assert_spec::<SpacingPercent>();
+const _: () = ooxml_core::schema::assert_spec::<SpacingPoints>();
+const _: () = ooxml_core::schema::assert_spec::<Transform2D>();
+const _: () = ooxml_core::schema::assert_child::<Transform2D, Offset>();
+const _: () = ooxml_core::schema::assert_child::<Transform2D, Extents>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();

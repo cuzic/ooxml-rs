@@ -169,6 +169,19 @@ impl Presentation {
         Ok(SlideMut { doc, info, refs })
     }
 
+    /// Parses the whole deck once — every slide's layout, master and theme,
+    /// the comment parts — and returns a read view (ADR-0008 §1.1, §5).
+    /// Never marks anything dirty.
+    pub fn deck(&mut self) -> Result<crate::Deck<'_>> {
+        let main = self.pkg.main_document_part().ok_or_else(|| Error::NotAPresentation("no officeDocument relationship".into()))?;
+        let entries: Vec<(u32, Option<String>)> = self.slides.iter().map(|e| (e.slide_id, e.part.clone())).collect();
+        let (slides, rels) = crate::deck::load(&mut self.pkg, &main, &entries)?;
+        let pkg = &self.pkg;
+        let pres_part = pkg.part_names().find(|n| *n == main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
+        let pres = pkg.parsed_part(&main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
+        Ok(crate::Deck { pkg, pres_part, pres, slides, rels })
+    }
+
     fn scope_indices(&self, scope: Scope) -> Result<Vec<usize>> {
         match scope {
             Scope::Slides => Ok((0..self.slides.len()).collect()),
@@ -316,8 +329,13 @@ impl Presentation {
             }
         }
         if let Some(e) = failure {
+            // restore every slide even if one restore fails (review #48 r2
+            // nit); the first error of all is returned
             for (part, doc) in backups {
-                *self.pkg.xml_part_mut(&part)? = doc;
+                match self.pkg.xml_part_mut(&part) {
+                    Ok(d) => *d = doc,
+                    Err(_) => core::hint::cold_path(),
+                }
             }
             return Err(e);
         }

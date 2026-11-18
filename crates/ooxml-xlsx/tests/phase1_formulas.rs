@@ -237,7 +237,7 @@ fn dimension_grows_when_the_existing_cell_is_outside_it() {
     let wb_in = with_part(&input, "xl/worksheets/sheet1.xml", sheet);
     for f in [
         (|c: ooxml_xlsx::CellMut<'_, '_>| c.set_number(3.0)) as fn(ooxml_xlsx::CellMut<'_, '_>) -> ooxml_xlsx::Result<()>,
-        |c| c.set_string("x"),
+        |c| c.set_string_inline("x"),
         |c| c.set_formula("A1+1"),
     ] {
         let (wb, r) = edit(&wb_in, "Sheet1", "D5", f);
@@ -260,10 +260,10 @@ fn cell_children_keep_their_relative_order() {
     let cases: [(&str, Write, &str); 6] = [
         (r#"<c r="C1"><!--a--><v>1</v><?pi x?><u:x/><!--b--></c>"#, |c| c.set_number(5.0), r#"<c r="C1"><!--a--><v>5</v><?pi x?><u:x/><!--b--></c>"#),
         (r#"<c r="C1"><!--a--><v>1</v><!--m--><v>2</v><!--b--></c>"#, |c| c.set_number(5.0), r#"<c r="C1"><!--a--><v>5</v><!--m--><!--b--></c>"#),
-        (r#"<c r="C1" t="inlineStr"><!--a--><is><t>x</t></is><!--b--></c>"#, |c| c.set_string("y"), r#"<c r="C1" t="inlineStr"><!--a--><is><t>y</t></is><!--b--></c>"#),
+        (r#"<c r="C1" t="inlineStr"><!--a--><is><t>x</t></is><!--b--></c>"#, |c| c.set_string_inline("y"), r#"<c r="C1" t="inlineStr"><!--a--><is><t>y</t></is><!--b--></c>"#),
         (r#"<c r="C1"><!--a--><f t="shared" si="3" ref="C1:C2">A1</f><v>1</v><!--b--></c>"#, |c| c.set_formula("A1*2"), r#"<c r="C1"><!--a--><f>A1*2</f><!--b--></c>"#),
         (r#"<c r="C1"><!--a--><f>A1</f><!--m--><v>1</v><!--b--></c>"#, |c| c.set_number(5.0), r#"<c r="C1"><!--a--><!--m--><v>5</v><!--b--></c>"#),
-        (r#"<c r="C1"><!--a--><v>1</v><!--b--><u:x/></c>"#, |c| c.set_string("s"), r#"<c r="C1" t="inlineStr"><!--a--><!--b--><u:x/><is><t>s</t></is></c>"#),
+        (r#"<c r="C1"><!--a--><v>1</v><!--b--><u:x/></c>"#, |c| c.set_string_inline("s"), r#"<c r="C1" t="inlineStr"><!--a--><!--b--><u:x/><is><t>s</t></is></c>"#),
     ];
     for (cell, f, want) in cases {
         let sheet = format!(r#"<worksheet {ns}><sheetData><row r="1"><c r="A1"><v>1</v></c>{cell}</row></sheetData></worksheet>"#);
