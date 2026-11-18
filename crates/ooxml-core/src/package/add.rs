@@ -1162,9 +1162,10 @@ impl RegistryPlan {
     /// Rewrites the `Target` of an existing relationship of `source`
     /// (`None` = the package), or of one the plan added; `TargetMode`,
     /// `Id` and `Type` stay. For an internal relationship `target` is
-    /// written as given: a fragment-only target (`#Sheet2!A1`) as it is,
-    /// anything else must resolve to a part in the plan's view. For an
-    /// external one it must be a URI. The one in-place change of a
+    /// written as a non-empty location (`#Sheet2!A1`) or a canonical
+    /// relative path to a part in the plan's view. An external target must
+    /// be a URI. URI targets accept at most one fragment delimiter. This
+    /// is the one in-place change of a
     /// relationship besides removal (ADR-0009 rev 2, R2-M1: hyperlinks that
     /// follow a renamed sheet).
     ///
@@ -1177,9 +1178,8 @@ impl RegistryPlan {
             let external = attr(plan.rel_node(&at), "TargetMode") == Some("External");
             // a fragment-only target is a location (`#'My Sheet'!A1`), not a URI
             let fragment = !external && target.starts_with('#');
-            // an empty fragment, or a second `#` after a part target, is not a
-            // URI reference (review round 3, n12); a fragment-only location
-            // may hold `#` itself (sheet names can)
+            // Require a non-empty location or a single URI fragment delimiter
+            // (review round 3, n12). Sheet names in locations may contain `#`.
             let ok = if fragment {
                 target.len() > 1 && valid_attr_text(target) && !target.chars().any(char::is_control)
             } else {
