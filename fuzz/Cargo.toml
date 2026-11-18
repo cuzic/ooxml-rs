@@ -1,0 +1,62 @@
+[package]
+name = "ooxml-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Not a member of the repository workspace: cargo-fuzz needs nightly and
+# sanitizer flags, the workspace builds on stable 1.99.
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+ooxml-robustness = { path = "../crates/ooxml-robustness" }
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "package_roundtrip"
+path = "fuzz_targets/package_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "xml_t1"
+path = "fuzz_targets/xml_t1.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "xml_t1b"
+path = "fuzz_targets/xml_t1b.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lens_ops"
+path = "fuzz_targets/lens_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "xlsx_edit"
+path = "fuzz_targets/xlsx_edit.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pptx_edit"
+path = "fuzz_targets/pptx_edit.rs"
+test = false
+doc = false
+bench = false

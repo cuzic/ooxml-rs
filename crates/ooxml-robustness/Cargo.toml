@@ -1,0 +1,16 @@
+[package]
+name = "ooxml-robustness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Dev-only robustness harness for ooxml-rs: the invariant checks shared by the cargo-fuzz targets (fuzz/), the fuzz-finding regression tests and the stable smoke test"
+publish = false
+
+[dependencies]
+ooxml-core = { workspace = true }
+ooxml-xlsx = { path = "../ooxml-xlsx" }
+ooxml-pptx = { path = "../ooxml-pptx" }
+zip = { workspace = true }
