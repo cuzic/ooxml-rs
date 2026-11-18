@@ -13,9 +13,9 @@
 mod common;
 
 use common::p1::{book, with_part};
-use common::p4::{Allowed, Kind, Part, Val, check, sheet, workbook};
+use common::p4::{Allowed, Kind, Part, Val, check, sheet, sheet_rels, workbook};
 use common::{part, read, rebuild};
-use ooxml_xlsx::{SheetProtection, Workbook};
+use ooxml_xlsx::{SheetProtection, Workbook, WorkbookProtection};
 
 const MERGE: &[Allowed] = &[sheet("mergeCells", Kind::Container), sheet("mergeCells/mergeCell", Kind::Create)];
 const MERGE_CLEARING: &[Allowed] = &[
@@ -57,6 +57,102 @@ const PROTECT_SHEET: &[Allowed] = &[
 ];
 const UNPROTECT_SHEET: &[Allowed] = &[sheet("sheetProtection", Kind::Remove)];
 
+// ---- part 2 ----
+
+const SET_HYPERLINK: &[Allowed] = &[
+    sheet("hyperlinks", Kind::Create),
+    sheet("hyperlinks/hyperlink", Kind::Create),
+    sheet_rels("Relationship", Kind::Create),
+    // with `opts.text`: the anchor cell's string write, composed with ADR-0003 §7
+    sheet("sheetData", Kind::Cells),
+    sheet("dimension", Kind::EditAttrs(&["ref"])),
+    Allowed { part: Part::OtherSheetCells, path: "sheetData", kind: Kind::Cells, only: &[] },
+    workbook("calcPr", Kind::Create),
+    workbook("calcPr", Kind::EditAttrs(&["fullCalcOnLoad"])),
+    Allowed { part: Part::CalcChainRemoval, path: "", kind: Kind::Subtree, only: &[] },
+];
+const REMOVE_HYPERLINK: &[Allowed] = &[sheet("hyperlinks", Kind::Remove), sheet("hyperlinks/hyperlink", Kind::Remove)];
+const ADD_VALIDATION: &[Allowed] = &[
+    sheet("dataValidations", Kind::Create),
+    sheet("dataValidations", Kind::EditAttrs(&["count"])),
+    sheet("dataValidations/dataValidation", Kind::Create),
+];
+const URI_DV: &[(&str, Val)] = &[("uri", Val::Is("{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}"))];
+const URI_CF: &[(&str, Val)] = &[("uri", Val::Is("{78C0D931-6437-407d-A8EE-F0AAD7539E65}"))];
+const REMOVE_VALIDATION: &[Allowed] = &[
+    sheet("dataValidations", Kind::Remove),
+    sheet("dataValidations", Kind::EditAttrs(&["count"])),
+    sheet("dataValidations/dataValidation", Kind::Remove),
+    sheet("extLst/ext", Kind::Remove).only(URI_DV),
+    sheet("extLst/ext/dataValidations", Kind::EditAttrs(&["count"])),
+    sheet("extLst/ext/dataValidations/dataValidation", Kind::Remove),
+];
+const ADD_CF: &[Allowed] = &[sheet("conditionalFormatting", Kind::Create)];
+const ADD_CF_FIRST: &[Allowed] = &[
+    sheet("conditionalFormatting", Kind::Create),
+    sheet("conditionalFormatting/cfRule", Kind::EditAttrs(&["priority"])),
+    sheet("extLst/ext/conditionalFormattings/conditionalFormatting/cfRule", Kind::EditAttrs(&["priority"])),
+];
+const REMOVE_CF: &[Allowed] = &[
+    sheet("conditionalFormatting", Kind::Remove),
+    sheet("conditionalFormatting/cfRule", Kind::Remove),
+    sheet("extLst/ext", Kind::Remove).only(URI_CF),
+    sheet("extLst/ext/conditionalFormattings", Kind::Remove),
+    sheet("extLst/ext/conditionalFormattings/conditionalFormatting", Kind::Remove),
+    sheet("extLst/ext/conditionalFormattings/conditionalFormatting/cfRule", Kind::Remove),
+];
+const VIEW0: &[(&str, Val)] = &[("workbookViewId", Val::Is("0"))];
+const PANES: &[Allowed] = &[
+    sheet("sheetViews", Kind::Create),
+    sheet("sheetViews/sheetView", Kind::Create).only(VIEW0),
+    sheet("sheetViews/sheetView/pane", Kind::Subtree),
+    sheet("sheetViews/sheetView/selection", Kind::Subtree),
+];
+const VIEW_ATTRS: &[Allowed] = &[
+    sheet("sheetViews", Kind::Create),
+    sheet("sheetViews/sheetView", Kind::Create).only(VIEW0),
+    sheet("sheetViews/sheetView", Kind::EditAttrs(&["zoomScale", "showGridLines", "rightToLeft"])).only(VIEW0),
+];
+const COLUMNS: &[Allowed] = &[
+    sheet("cols", Kind::Create),
+    sheet("cols/col", Kind::Create),
+    sheet("cols/col", Kind::EditAttrs(&["min", "max", "width", "customWidth", "hidden", "outlineLevel"])),
+    sheet("sheetFormatPr", Kind::Create),
+    sheet("sheetFormatPr", Kind::EditAttrs(&["outlineLevelCol"])),
+];
+const ROWS_SETTERS: &[Allowed] = &[
+    sheet("sheetData/row", Kind::Create),
+    sheet("sheetData/row", Kind::EditAttrs(&["ht", "customHeight", "hidden", "outlineLevel"])),
+    sheet("sheetFormatPr", Kind::Create),
+    sheet("sheetFormatPr", Kind::EditAttrs(&["outlineLevelRow"])),
+];
+const PAGE_SETUP: &[Allowed] = &[
+    sheet("pageSetup", Kind::Create),
+    sheet("pageSetup", Kind::EditAttrs(&["paperSize", "scale", "fitToWidth", "fitToHeight", "orientation"])),
+    sheet("sheetPr", Kind::Create),
+    sheet("sheetPr/pageSetUpPr", Kind::Create),
+    sheet("sheetPr/pageSetUpPr", Kind::EditAttrs(&["fitToPage"])),
+];
+const PRINT_PARTS: &[Allowed] = &[sheet("pageMargins", Kind::Subtree), sheet("printOptions", Kind::Subtree), sheet("headerFooter", Kind::Subtree)];
+const BREAKS: &[Allowed] = &[
+    sheet("rowBreaks", Kind::Create),
+    sheet("rowBreaks", Kind::EditAttrs(&["count", "manualBreakCount"])),
+    sheet("rowBreaks/brk", Kind::Create),
+    sheet("colBreaks", Kind::Create),
+    sheet("colBreaks", Kind::EditAttrs(&["count", "manualBreakCount"])),
+    sheet("colBreaks/brk", Kind::Create),
+];
+const PROTECT_WORKBOOK: &[Allowed] = &[
+    workbook("workbookProtection", Kind::Create),
+    workbook(
+        "workbookProtection",
+        Kind::EditAttrs(&[
+            "workbookPassword", "workbookPasswordCharacterSet", "workbookAlgorithmName", "workbookHashValue", "workbookSaltValue",
+            "workbookSpinCount", "lockStructure", "lockWindows",
+        ]),
+    ),
+];
+
 /// The implemented rows, keyed by the ADR table's first-column text.
 const ROWS: &[(&str, &[Allowed])] = &[
     ("`merge`", MERGE),
@@ -65,26 +161,26 @@ const ROWS: &[(&str, &[Allowed])] = &[
     ("`set_autofilter`", SET_AUTOFILTER),
     ("`remove_autofilter`", REMOVE_AUTOFILTER),
     ("`protect_sheet`/`unprotect_sheet`", PROTECT_SHEET),
+    ("`set_hyperlink`", SET_HYPERLINK),
+    ("`remove_hyperlink`", REMOVE_HYPERLINK),
+    ("`add_validation`", ADD_VALIDATION),
+    ("`remove_validation`", REMOVE_VALIDATION),
+    ("`add_conditional_format`", ADD_CF),
+    ("`add_conditional_format_first`", ADD_CF_FIRST),
+    ("`remove_conditional_format`", REMOVE_CF),
+    ("`freeze_panes`/`split_panes`/`unfreeze`", PANES),
+    ("`set_zoom`/`set_show_gridlines`/`set_right_to_left`", VIEW_ATTRS),
+    ("column setters", COLUMNS),
+    ("row setters", ROWS_SETTERS),
+    // implemented as `set_page_setup(&PageSetup)` (ADR-0014 §10 note)
+    ("`page_setup_mut`", PAGE_SETUP),
+    ("`set_margins`/`set_print_options`/`set_header_footer`", PRINT_PARTS),
+    ("`add_row_break`/`add_col_break`", BREAKS),
+    ("`protect_workbook`", PROTECT_WORKBOOK),
 ];
 
-/// ADR rows for Phase4 part 2 (not implemented yet).
-const PART2: &[&str] = &[
-    "`set_hyperlink`",
-    "`remove_hyperlink`",
-    "`add_validation`",
-    "`remove_validation`",
-    "`add_conditional_format`",
-    "`add_conditional_format_first`",
-    "`remove_conditional_format`",
-    "`freeze_panes`/`split_panes`/`unfreeze`",
-    "`set_zoom`/`set_show_gridlines`/`set_right_to_left`",
-    "column setters",
-    "row setters",
-    "`page_setup_mut`",
-    "`set_margins`/`set_print_options`/`set_header_footer`",
-    "`add_row_break`/`add_col_break`",
-    "`protect_workbook`",
-];
+/// ADR rows not implemented yet (none since Phase4 part 2).
+const PART2: &[&str] = &[];
 
 fn rows(call: &str) -> &'static [Allowed] {
     ROWS.iter().find(|(c, _)| *c == call).map(|(_, r)| *r).unwrap_or_else(|| panic!("no row {call}"))
@@ -179,7 +275,95 @@ fn cases() -> Vec<Case> {
     let b = book(&[("S", "")], "", "");
     let b = with_part(&b, "xl/worksheets/sheet1.xml", &format!(r#"<worksheet xmlns="{SML}"><sheetData/><sheetProtection password="EBF6" sheet="1" objects="1" scenarios="1" futureFlag="x"/></worksheet>"#));
     out.push(run("legacy", "`protect_sheet`/`unprotect_sheet`", b, 0, |ws| ws.protect_sheet(&p).unwrap()));
+    part2_cases(&mut out);
     out
+}
+
+/// A one-sheet book whose worksheet is `<worksheet>{xml}</worksheet>` (the
+/// `r` namespace declared on the root).
+fn sheet_xml_book(xml: &str) -> Vec<u8> {
+    let b = book(&[("S", "")], "", r#"<calcPr calcId="191029"/>"#);
+    with_part(&b, "xl/worksheets/sheet1.xml", &format!(r#"<worksheet xmlns="{SML}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">{xml}</worksheet>"#))
+}
+
+const X14_DV: &str = r#"<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="2" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list" allowBlank="1"><x14:formula1><xm:f>Other!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>D1:D9</xm:sqref></x14:dataValidation><x14:dataValidation type="list"><x14:formula1><xm:f>Other!$B$1:$B$3</xm:f></x14:formula1><xm:sqref>E1</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst>"#;
+
+fn part2_cases(out: &mut Vec<Case>) {
+    use ooxml_xlsx::{CfOperator, Cfvo, HeaderFooter, Link, LinkOptions, Margins, Orientation, PageSetup, PrintOptions, Rule, RuleKind, Validation};
+    // hyperlinks: from scratch (the sheet .rels appears) with the cell text
+    // composed; on Excel's 61605 (a relationship appended next to its own)
+    let b = sheet_xml_book(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="3"><c r="C3"><f>A1*2</f><v>2</v></c></row></sheetData>"#);
+    let mut c = run("text", "`set_hyperlink`", b, 0, |ws| {
+        ws.set_hyperlink("A1", &Link::Url("https://example.com/".into()), &LinkOptions { text: Some("go".into()), tooltip: Some("t".into()), ..LinkOptions::default() }).unwrap()
+    });
+    c.cells = vec!["A1".into(), "C3".into()];
+    out.push(c);
+    out.push(run("61605", "`set_hyperlink`", read("poi/61605.xlsx"), 0, |ws| {
+        ws.set_hyperlink("Z1", &Link::Url("https://example.org/x".into()), &LinkOptions::default()).unwrap();
+        ws.set_hyperlink("Z2", &Link::Location("A1".into()), &LinkOptions::default()).unwrap();
+    }));
+    out.push(run("61605", "`remove_hyperlink`", read("poi/61605.xlsx"), 0, |ws| {
+        let r = ws.hyperlinks().unwrap()[0].range.clone();
+        ws.remove_hyperlink(&r).unwrap();
+    }));
+    // validations
+    out.push(run("template", "`add_validation`", template(), 0, |ws| ws.add_validation("A1:A9", &Validation::list(&["a", "b"])).unwrap()));
+    let dv = sheet_xml_book(&format!(r#"<sheetData/><dataValidations count="2"><dataValidation type="whole" sqref="B1"><formula1>1</formula1></dataValidation><dataValidation type="list" sqref="C1"><formula1>"x"</formula1></dataValidation></dataValidations>{X14_DV}"#));
+    out.push(run("existing", "`add_validation`", dv.clone(), 0, |ws| ws.add_validation("F1", &Validation::custom("F1>0")).unwrap()));
+    out.push(run("2007", "`remove_validation`", dv.clone(), 0, |ws| ws.remove_validation("C1").unwrap()));
+    out.push(run("x14", "`remove_validation`", dv.clone(), 0, |ws| ws.remove_validation("E1").unwrap()));
+    out.push(run("x14-last", "`remove_validation`", dv, 0, |ws| {
+        ws.remove_validation("E1").unwrap();
+        ws.remove_validation("D1:D9").unwrap();
+        ws.remove_validation("B1").unwrap();
+        ws.remove_validation("C1").unwrap();
+    }));
+    // conditional formatting on Excel's NewStyleConditionalFormattings (x14 links and priorities)
+    let ncf = || read("poi/NewStyleConditionalFormattings.xlsx");
+    out.push(run("template", "`add_conditional_format`", template(), 0, |ws| ws.add_conditional_format("A1:B9", &Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Max, "FF638EC6".into()))).unwrap()));
+    out.push(run("ncf", "`add_conditional_format`", ncf(), 0, |ws| ws.add_conditional_format("A2:A9", &Rule::new(RuleKind::CellIs(CfOperator::GreaterThan, "5".into(), None)).with_dxf(1)).unwrap()));
+    out.push(run("ncf", "`add_conditional_format_first`", ncf(), 0, |ws| ws.add_conditional_format_first("A2:A9", &Rule::new(RuleKind::Expression("$A2>5".into())).with_dxf(0)).unwrap()));
+    out.push(run("linked", "`remove_conditional_format`", ncf(), 0, |ws| assert!(!ws.remove_conditional_format("E2:E17", None).unwrap().broken_x14_link)));
+    out.push(run("one-of-two", "`remove_conditional_format`", ncf(), 0, |ws| assert_eq!(ws.remove_conditional_format("T2:T17", Some(2)).unwrap().removed, 1)));
+    // views, columns, rows on Excel's 57362 (sheetViews, cols present) and the template
+    out.push(run("57362", "`freeze_panes`/`split_panes`/`unfreeze`", read("poi/57362.xlsx"), 0, |ws| ws.freeze_panes(2, 1).unwrap()));
+    out.push(run("template", "`freeze_panes`/`split_panes`/`unfreeze`", template(), 0, |ws| ws.split_panes(1500, 900).unwrap()));
+    out.push(run("57362", "`set_zoom`/`set_show_gridlines`/`set_right_to_left`", read("poi/57362.xlsx"), 0, |ws| {
+        ws.set_zoom(85).unwrap();
+        ws.set_show_gridlines(false).unwrap();
+    }));
+    out.push(run("57362", "column setters", read("poi/57362.xlsx"), 0, |ws| {
+        ws.set_column_width(0, 1, 20.0).unwrap();
+        ws.set_column_outline(4, 6, 2).unwrap();
+    }));
+    out.push(run("template", "column setters", template(), 0, |ws| ws.set_column_hidden(2, 2, true).unwrap()));
+    out.push(run("57362", "row setters", read("poi/57362.xlsx"), 0, |ws| {
+        ws.set_row_height(0, 30.0).unwrap();
+        ws.set_row_hidden(500, true).unwrap();
+        ws.set_row_outline(3, 1).unwrap();
+    }));
+    // page setup on Excel files that have pageSetup/headerFooter
+    out.push(run("57523", "`page_setup_mut`", read("poi/57523.xlsx"), 0, |ws| {
+        ws.set_page_setup(&PageSetup { orientation: Some(Orientation::Landscape), fit_to_width: Some(1), fit_to_page: Some(true), ..PageSetup::default() }).unwrap()
+    }));
+    out.push(run("62272", "`set_margins`/`set_print_options`/`set_header_footer`", read("poi/62272.xlsx"), 0, |ws| {
+        ws.set_margins(&Margins { left: 1.0, ..Margins::default() }).unwrap();
+        ws.set_print_options(&PrintOptions { gridlines: true, ..PrintOptions::default() }).unwrap();
+        ws.set_header_footer(&HeaderFooter { odd_footer: Some("&CPage &P".into()), ..HeaderFooter::default() }).unwrap();
+    }));
+    out.push(run("template", "`add_row_break`/`add_col_break`", template(), 0, |ws| {
+        ws.add_row_break(9).unwrap();
+        ws.add_col_break(3).unwrap();
+    }));
+    let brk = sheet_xml_book(r#"<sheetData/><rowBreaks count="1" manualBreakCount="1"><brk id="20" max="16383" man="1"/></rowBreaks>"#);
+    out.push(run("existing", "`add_row_break`/`add_col_break`", brk, 0, |ws| assert!(ws.add_row_break(10).unwrap())));
+    // workbook protection: Workbook-level, over Excel's own (62272)
+    for (name, input) in [("template", template()), ("62272", read("poi/62272.xlsx"))] {
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        let sheet_part = wb.worksheet().unwrap().part_name().to_owned();
+        wb.protect_workbook(&WorkbookProtection::new().password("pwd").with_salt([5; 16]).with_spin_count(100).lock_windows(true)).unwrap();
+        out.push(Case { name, call: "`protect_workbook`", input, output: wb.to_bytes().unwrap(), sheet_part, cells: Vec::new() });
+    }
 }
 
 #[test]
@@ -231,6 +415,29 @@ fn a_disallowed_change_inside_an_allowed_path_fails_the_oracle() {
         (find("`merge`", "61605"), "xl/worksheets/sheet1.xml", "<mergeCell ref=\"", "<mergeCell ref=\"Z"),
         (find("`unmerge`", "61605"), "xl/worksheets/sheet1.xml", "<mergeCell ref=\"", "<mergeCell ref=\"Z"),
         (find("`protect_sheet`/`unprotect_sheet`", "legacy"), "xl/worksheets/sheet1.xml", r#" futureFlag="x""#, ""),
+        // part 2
+        (find("`set_hyperlink`", "61605"), "xl/worksheets/sheet1.xml", r#"<hyperlink ref="B5""#, r#"<hyperlink ref="B6""#),
+        (find("`set_hyperlink`", "61605"), "xl/worksheets/_rels/sheet1.xml.rels", "http://belinvestles.by/GIS.html", "http://x/"),
+        (find("`remove_hyperlink`", "61605"), "xl/worksheets/_rels/sheet1.xml.rels", "http://belinvestles.by/GIS.html", "http://x/"),
+        (find("`remove_validation`", "x14"), "xl/worksheets/sheet1.xml", "Other!$A$1:$A$3", "Other!$A$1:$A$4"),
+        (find("`remove_validation`", "2007"), "xl/worksheets/sheet1.xml", r#"type="whole" sqref="B1""#, r#"type="decimal" sqref="B1""#),
+        (find("`add_validation`", "existing"), "xl/worksheets/sheet1.xml", r#"type="whole" sqref="B1""#, r#"type="whole" sqref="B2""#),
+        (find("`add_conditional_format_first`", "ncf"), "xl/worksheets/sheet1.xml", r#"dxfId="2""#, r#"dxfId="1""#),
+        (find("`add_conditional_format_first`", "ncf"), "xl/worksheets/sheet1.xml", r#"type="iconSet" priority="7""#, r#"type="dataBar" priority="7""#),
+        (find("`add_conditional_format`", "ncf"), "xl/worksheets/sheet1.xml", r#"priority="23""#, r#"priority="25""#),
+        (find("`remove_conditional_format`", "one-of-two"), "xl/worksheets/sheet1.xml", r#"<conditionalFormatting sqref="T2:T17">"#, r#"<conditionalFormatting sqref="T2:T18">"#),
+        (find("`remove_conditional_format`", "linked"), "xl/worksheets/sheet1.xml", "{23404A22", "{23404A23"),
+        (find("`freeze_panes`/`split_panes`/`unfreeze`", "57362"), "xl/worksheets/sheet1.xml", r#"<sheetView tabSelected="1""#, r#"<sheetView zoomScale="50" tabSelected="1""#),
+        (find("`set_zoom`/`set_show_gridlines`/`set_right_to_left`", "57362"), "xl/worksheets/sheet1.xml", r#"tabSelected="1""#, r#"tabSelected="0""#),
+        // (`col` elements may be split and created, so a changed `col` reads as
+        // a new one; `columns_are_split_edited_and_created` pins their bytes)
+        (find("column setters", "57362"), "xl/worksheets/sheet1.xml", "<cols>", r#"<cols data-x="1">"#),
+        (find("column setters", "57362"), "xl/worksheets/sheet1.xml", "<sheetFormatPr ", r#"<sheetFormatPr baseColWidth="3" "#),
+        (find("row setters", "57362"), "xl/worksheets/sheet1.xml", " spans=\"", " spans=\"9"),
+        (find("`page_setup_mut`", "57523"), "xl/worksheets/sheet1.xml", r#"verticalDpi="0""#, r#"verticalDpi="1""#),
+        (find("`set_margins`/`set_print_options`/`set_header_footer`", "62272"), "xl/worksheets/sheet1.xml", "<pageSetup ", r#"<pageSetup scale="50" "#),
+        (find("`add_row_break`/`add_col_break`", "existing"), "xl/worksheets/sheet1.xml", r#"<brk id="20""#, r#"<brk id="21""#),
+        (find("`protect_workbook`", "62272"), "xl/workbook.xml", r#"backupFile="false""#, r#"backupFile="true""#),
     ];
     for (c, p, from, to) in mutants {
         let xml = String::from_utf8(part(&c.output, p)).unwrap();
@@ -274,7 +481,7 @@ fn cleared_cells(input: &[u8], output: &[u8], range: &str) -> Result<Vec<String>
     Ok(out)
 }
 
-/// Corpus sweep (ignored;/// Corpus sweep (ignored; `OOXML_XLSX_CORPUS=<dir>` of POI `test-data/
+/// Corpus sweep (ignored; `OOXML_XLSX_CORPUS=<dir>` of POI `test-data/
 /// spreadsheet` at 47dcff76). On the first worksheet of every readable
 /// package, each call is either refused with every byte unchanged, or its
 /// output reopens and passes the byte-exact oracle for its row.
@@ -282,12 +489,13 @@ fn cleared_cells(input: &[u8], output: &[u8], range: &str) -> Result<Vec<String>
 #[ignore = "needs a local corpus: OOXML_XLSX_CORPUS=<dir>"]
 fn corpus_sweep() {
     use std::collections::BTreeMap;
+    use ooxml_xlsx::{Cfvo, HeaderFooter, Link, LinkOptions, Margins, Orientation, PageSetup, PrintOptions, Rule, RuleKind, Validation};
     let dir = std::env::var("OOXML_XLSX_CORPUS").expect("OOXML_XLSX_CORPUS");
     let mut files: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).filter(|p| p.extension().is_some_and(|x| x == "xlsx" || x == "xlsm")).collect();
     files.sort();
     // `None`: the call does not apply to this sheet
     type Op = fn(&mut ooxml_xlsx::Worksheet<'_>) -> Option<ooxml_xlsx::Result<String>>;
-    let ops: [(&str, &str, Op); 8] = [
+    let ops: [(&str, &str, Op); 25] = [
         ("merge", "`merge`", |ws| Some(ws.merge("XFA1048570:XFB1048571").map(|()| String::new()))),
         ("set_autofilter", "`set_autofilter`", |ws| Some(ws.set_autofilter("XFA1048570:XFB1048571").map(|()| String::new()))),
         ("protect_sheet", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&SheetProtection::new().password("p").with_salt([3; 16]).with_spin_count(10)).map(|()| String::new()))),
@@ -309,6 +517,32 @@ fn corpus_sweep() {
             let r = used_2x2(ws)?;
             Some(ws.merge_clearing(&r).map(|()| r))
         }),
+        // part 2: far ranges, and the sheet's existing features
+        ("set_hyperlink(url)", "`set_hyperlink`", |ws| Some(ws.set_hyperlink("XFA1048570", &Link::Url("https://example.com/a b".into()), &LinkOptions::default()).map(|()| String::new()))),
+        ("set_hyperlink(location)", "`set_hyperlink`", |ws| Some(ws.set_hyperlink("XFA1048571:XFB1048572", &Link::Location("A1".into()), &LinkOptions { tooltip: Some("t".into()), ..LinkOptions::default() }).map(|()| String::new()))),
+        ("remove_hyperlink", "`remove_hyperlink`", |ws| {
+            let r = ws.hyperlinks().ok()?.first()?.range.clone();
+            Some(ws.remove_hyperlink(&r).map(|()| String::new()))
+        }),
+        ("add_validation", "`add_validation`", |ws| Some(ws.add_validation("XFA1048570:XFB1048571", &Validation::list(&["a", "b"])).map(|()| String::new()))),
+        ("add_conditional_format", "`add_conditional_format`", |ws| Some(ws.add_conditional_format("XFA1048570:XFB1048571", &Rule::new(RuleKind::DataBar(Cfvo::Min, Cfvo::Max, "FF638EC6".into()))).map(|()| String::new()))),
+        ("add_conditional_format_first", "`add_conditional_format_first`", |ws| Some(ws.add_conditional_format_first("XFA1048570", &Rule::new(RuleKind::Expression("XFA1048570>0".into()))).map(|()| String::new()))),
+        ("freeze_panes", "`freeze_panes`/`split_panes`/`unfreeze`", |ws| Some(ws.freeze_panes(1, 1).map(|()| String::new()))),
+        ("unfreeze", "`freeze_panes`/`split_panes`/`unfreeze`", |ws| match ws.unfreeze() {
+            Ok(false) => None,
+            r => Some(r.map(|_| String::new())),
+        }),
+        ("set_zoom", "`set_zoom`/`set_show_gridlines`/`set_right_to_left`", |ws| Some(ws.set_zoom(90).and_then(|()| ws.set_show_gridlines(false)).map(|()| String::new()))),
+        ("set_column_width", "column setters", |ws| Some(ws.set_column_width(0, 2, 17.5).map(|()| String::new()))),
+        ("set_column_outline(far)", "column setters", |ws| Some(ws.set_column_outline(16000, 16001, 1).map(|()| String::new()))),
+        ("set_row_height", "row setters", |ws| Some(ws.set_row_height(0, 22.5).map(|()| String::new()))),
+        ("set_row_hidden(far)", "row setters", |ws| Some(ws.set_row_hidden(1_048_000, true).map(|()| String::new()))),
+        ("set_page_setup", "`page_setup_mut`", |ws| Some(ws.set_page_setup(&PageSetup { orientation: Some(Orientation::Landscape), fit_to_page: Some(true), fit_to_width: Some(1), ..PageSetup::default() }).map(|()| String::new()))),
+        ("set_margins+print+hf", "`set_margins`/`set_print_options`/`set_header_footer`", |ws| {
+            Some(ws.set_margins(&Margins::default()).and_then(|()| ws.set_print_options(&PrintOptions { gridlines: true, ..PrintOptions::default() })).and_then(|()| ws.set_header_footer(&HeaderFooter { odd_footer: Some("&CPage &P of &N".into()), ..HeaderFooter::default() })).map(|()| String::new()))
+        }),
+        ("add_breaks", "`add_row_break`/`add_col_break`", |ws| Some(ws.add_row_break(1_048_000).and_then(|_| ws.add_col_break(16000)).map(|_| String::new()))),
+        ("protect_sheet(legacy)", "`protect_sheet`/`unprotect_sheet`", |ws| Some(ws.protect_sheet(&SheetProtection::new().password("password").legacy_hash()).map(|()| String::new()))),
     ];
     let (mut ok, mut opened) = (0, 0);
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
@@ -338,6 +572,27 @@ fn corpus_sweep() {
                     let kind = format!("{e:?}").split(['(', ' ', '{']).next().unwrap().to_owned();
                     *refused.entry(format!("{name}: {kind}")).or_default() += 1;
                 }
+            }
+        }
+    }
+    // protect_workbook: a workbook-level call
+    for f in &files {
+        let input = std::fs::read(f).unwrap();
+        let Ok(mut wb) = Workbook::from_bytes(input.clone()) else { continue };
+        let Ok(ws) = wb.worksheet() else { continue };
+        let sheet_part = ws.part_name().to_owned();
+        *applied.entry("protect_workbook").or_default() += 1;
+        match wb.protect_workbook(&WorkbookProtection::new().password("p").with_salt([4; 16]).with_spin_count(10).lock_windows(true)) {
+            Ok(()) => {
+                let out = wb.to_bytes().unwrap();
+                Workbook::from_bytes(out.clone()).unwrap_or_else(|e| panic!("{f:?} protect_workbook: reopen: {e}"));
+                check(&input, &out, &sheet_part, PROTECT_WORKBOOK, &[]).unwrap_or_else(|e| panic!("{f:?} protect_workbook: {e}"));
+                ok += 1;
+            }
+            Err(e) => {
+                common::assert_unchanged(&wb, &input);
+                let kind = format!("{e:?}").split(['(', ' ', '{']).next().unwrap().to_owned();
+                *refused.entry(format!("protect_workbook: {kind}")).or_default() += 1;
             }
         }
     }

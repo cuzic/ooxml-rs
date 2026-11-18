@@ -895,7 +895,8 @@ mod tests {
 
     #[test]
     fn mixed_cell_ops_accumulate_styles_like_single_writes() {
-        let mut batch = Workbook::new().unwrap();
+        let input = Workbook::new().unwrap().to_bytes().unwrap();
+        let mut batch = Workbook::from_bytes(input.clone()).unwrap();
         let sheet = sheet(&batch, "Sheet1");
         let writes = || {
             let at = |cell| CellIndex::parse(cell).unwrap();
@@ -917,7 +918,7 @@ mod tests {
 
         let plan = batch.plan_writes(writes()).unwrap();
         batch.apply_writes(plan).unwrap();
-        let mut single = Workbook::new().unwrap();
+        let mut single = Workbook::from_bytes(input).unwrap();
         for (sheet, at, op, extra) in writes() {
             single.edit_cell_ext(sheet, at, op, extra).unwrap();
         }

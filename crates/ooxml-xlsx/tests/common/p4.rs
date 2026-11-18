@@ -26,6 +26,9 @@ pub enum Part {
     CalcChainRemoval,
     /// Other worksheets: only the listed cells may change (Phase1 strips).
     OtherSheetCells,
+    /// The edited worksheet's `.rels` part (paths from `Relationships`);
+    /// the part may appear when a row allows creating in it.
+    SheetRels,
 }
 
 /// What may change at a path.
@@ -76,6 +79,10 @@ pub const fn sheet(path: &'static str, kind: Kind) -> Allowed {
     Allowed { part: Part::Sheet, path, kind, only: &[] }
 }
 
+pub const fn sheet_rels(path: &'static str, kind: Kind) -> Allowed {
+    Allowed { part: Part::SheetRels, path, kind, only: &[] }
+}
+
 pub const fn workbook(path: &'static str, kind: Kind) -> Allowed {
     Allowed { part: Part::Workbook, path, kind, only: &[] }
 }
@@ -116,7 +123,7 @@ fn local_sheet_id(bytes: &[u8], sheet_part: &str) -> Option<String> {
     let rels = String::from_utf8(part(bytes, "xl/_rels/workbook.xml.rels")).ok()?;
     let rels = XmlDocument::parse(rels.as_bytes()).ok()?;
     let target = sheet_part.strip_prefix("xl/")?;
-    let id = rels.root().elements().find(|r| r.attr(ooxml_core::QName::new("", "Target")).is_some_and(|t| t.trim_start_matches('/').trim_start_matches("xl/") == target))?.attr(ooxml_core::QName::new("", "Id"))?.to_owned();
+    let id = rels.root().elements().find(|r| r.attr(ooxml_core::QName::new("", "Target")).is_some_and(|t| t.trim_start_matches('/').trim_start_matches("xl/").eq_ignore_ascii_case(target)))?.attr(ooxml_core::QName::new("", "Id"))?.to_owned();
     let wb = String::from_utf8(part(bytes, "xl/workbook.xml")).ok()?;
     let wb = XmlDocument::parse(wb.as_bytes()).ok()?;
     let r_id = ooxml_core::QName::new("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
@@ -242,8 +249,11 @@ fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String], this_she
             }
         }
     }
-    // Create / Remove: compare the elements' texts (after attribute
-    // normalization of the same path) as multisets
+    // Create / Remove: compare the elements' texts as multisets. An
+    // element's key is its text with every allowed attribute change inside
+    // it normalized away, and with the descendants that deeper rows judge
+    // (Create, Remove, Subtree) cut out: a block that loses one rule, or
+    // whose rules are renumbered, still matches.
     for r in rows {
         let want_subset = match r.kind {
             Kind::Create => true,
@@ -253,7 +263,6 @@ fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String], this_she
         let norm_text = |doc: &XmlDocument, src: &str| -> BTreeMap<String, usize> {
             let mut m = BTreeMap::new();
             for n in selected(doc.root(), r, this_sheet) {
-                let t = &src[whole(n)];
                 let tag = &src[open_tag(n)];
                 // the rows narrowed like this one that also cover `n`
                 let peers: Vec<&Allowed> = rows.iter().filter(|x| x.path == r.path && selected(doc.root(), x, this_sheet).iter().any(|m| std::ptr::eq(*m, n))).collect();
@@ -265,7 +274,7 @@ fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String], this_she
                 let key = if content_free {
                     strip_attrs(tag, &attrs) // the content may change
                 } else {
-                    t.replacen(tag, &strip_attrs(tag, &attrs), 1)
+                    subtree_key(doc, src, n, r.path, rows, this_sheet)
                 };
                 *m.entry(key).or_insert(0) += 1;
             }
@@ -279,7 +288,101 @@ fn judge(input: &str, output: &str, rows: &[Allowed], cells: &[String], this_she
             }
         }
     }
-    Ok((residue(input, &mut cuts.0, &norms.0), residue(output, &mut cuts.1, &norms.1)))
+    Ok((expand_empty(&residue(input, &mut cuts.0, &norms.0)), expand_empty(&residue(output, &mut cuts.1, &norms.1))))
+}
+
+/// Residue normal form: `<x a="1"/>` written as `<x a="1"></x>` (an element
+/// whose last child was created or removed may differ only in this form),
+/// and indentation between tags (whitespace-only runs with a line break)
+/// dropped, since writers that keep a pretty-printed part indented add it
+/// on either side of a new element.
+fn expand_empty(src: &str) -> String {
+    let dropped = drop_indentation(src);
+    let src: &str = &dropped;
+    let mut out = String::with_capacity(src.len());
+    let mut rest = src;
+    while let Some(end) = rest.find("/>") {
+        let head = &rest[..end];
+        match head.rfind('<') {
+            Some(lt) if !head[lt..].starts_with("<?") && !head[lt..].starts_with("<!") => {
+                let name = head[lt + 1..].split([' ', '\t', '\r', '\n']).next().unwrap_or_default();
+                out.push_str(head.trim_end());
+                out.push_str("></");
+                out.push_str(name);
+                out.push('>');
+            }
+            _ => {
+                out.push_str(head);
+                out.push_str("/>");
+            }
+        }
+        rest = &rest[end + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn drop_indentation(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut rest = src;
+    while let Some(gt) = rest.find('>') {
+        out.push_str(&rest[..=gt]);
+        rest = &rest[gt + 1..];
+        let ws = rest.len() - rest.trim_start_matches([' ', '\t', '\r', '\n']).len();
+        if ws > 0 && rest[ws..].starts_with('<') && rest[..ws].contains('\n') {
+            rest = &rest[ws..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The key of element `n` (at `path`) for the Create/Remove multisets.
+fn subtree_key(doc: &XmlDocument, src: &str, n: &RawNode, path: &str, rows: &[Allowed], this_sheet: Option<&str>) -> String {
+    let outer = whole(n);
+    let inside = |m: &RawNode| {
+        let w = whole(m);
+        outer.start <= w.start && w.end <= outer.end
+    };
+    // attribute normalizations, merged per start tag
+    let mut attrs: BTreeMap<usize, (Range<usize>, Vec<&'static str>)> = BTreeMap::new();
+    let mut cut: Vec<Range<usize>> = Vec::new();
+    let deeper = format!("{path}/");
+    for x in rows {
+        for m in selected(doc.root(), x, this_sheet).into_iter().filter(|m| inside(m)) {
+            match x.kind {
+                Kind::EditAttrs(a) => attrs.entry(open_tag(m).start).or_insert_with(|| (open_tag(m), Vec::new())).1.extend_from_slice(a),
+                Kind::Create | Kind::Remove | Kind::Subtree if x.path.starts_with(&deeper) => cut.push(whole(m)),
+                _ => {}
+            }
+        }
+    }
+    let mut edits: Vec<(Range<usize>, String)> = attrs.into_values().map(|(r, a)| {
+        let t = strip_attrs(&src[r.clone()], &a);
+        (r, t)
+    }).collect();
+    edits.retain(|(r, _)| !cut.iter().any(|c| c.start <= r.start && r.end <= c.end));
+    edits.extend(cut.into_iter().map(|r| (r, String::new())));
+    edits.sort_by_key(|(r, _)| (r.start, std::cmp::Reverse(r.end)));
+    let mut out = String::new();
+    let mut pos = outer.start;
+    for (r, t) in edits {
+        if r.start < pos {
+            continue; // inside a cut already applied
+        }
+        out.push_str(&src[pos..r.start]);
+        out.push_str(&t);
+        pos = r.end;
+    }
+    out.push_str(&src[pos..outer.end]);
+    // `<x a="1"/>` and `<x a="1"></x>` are the same element
+    if close_tag(n).is_none()
+        && let Some(open) = out.strip_suffix("/>")
+    {
+        let name = src[outer.start + 1..].split([' ', '\t', '\r', '\n', '/', '>']).next().unwrap_or_default();
+        out = format!("{}></{name}>", open.trim_end());
+    }
+    out
 }
 
 /// Checks `output` against `input` under `rows`. `sheet_part` is the edited
@@ -295,13 +398,33 @@ pub fn check(input: &[u8], output: &[u8], sheet_part: &str, rows: &[Allowed], ce
             return Err(format!("part {n} disappeared"));
         }
     }
+    let rels_part = match sheet_part.rsplit_once('/') {
+        Some((dir, file)) => format!("{dir}/_rels/{file}.rels"),
+        None => format!("_rels/{sheet_part}.rels"),
+    };
+    let rels_may_appear = rows.iter().any(|r| r.part == Part::SheetRels && matches!(r.kind, Kind::Create));
     for n in &names_out {
-        if !names_in.contains(n) {
+        if !names_in.contains(n) && !(rels_may_appear && n.eq_ignore_ascii_case(&rels_part)) {
             return Err(format!("part {n} appeared"));
         }
     }
     for n in &names_out {
-        let (a, b) = (part(input, n), part(output, n));
+        let b = part(output, n);
+        let a = if names_in.contains(n) {
+            part(input, n)
+        } else {
+            // a new .rels part: judged against its root with no children
+            let text = String::from_utf8_lossy(&b).into_owned();
+            let doc = XmlDocument::parse(text.as_bytes()).map_err(|e| e.to_string())?;
+            let root = doc.root();
+            let end = open_tag(root).end;
+            let open = &text[..end];
+            if open.ends_with("/>") {
+                open.as_bytes().to_vec()
+            } else {
+                format!("{open}</{}>", text[open_tag(root).start + 1..].split([' ', '>', '/']).next().unwrap_or_default()).into_bytes()
+            }
+        };
         if a == b {
             continue;
         }
@@ -309,18 +432,31 @@ pub fn check(input: &[u8], output: &[u8], sheet_part: &str, rows: &[Allowed], ce
             .iter()
             .copied()
             .filter(|r| match r.part {
-                Part::Sheet => n == sheet_part,
+                // OPC part names compare case-insensitively (123233_charts.xlsx
+                // names `Sheet1.xml`; the zip entry is `sheet1.xml`)
+                Part::Sheet => n.eq_ignore_ascii_case(sheet_part),
+                Part::SheetRels => n.eq_ignore_ascii_case(&rels_part),
                 Part::Workbook => n == wb_part,
-                Part::OtherSheetCells => n.starts_with("xl/worksheets/") && n != sheet_part && r.path == "sheetData",
+                Part::OtherSheetCells => n.starts_with("xl/worksheets/") && !n.contains("/_rels/") && !n.eq_ignore_ascii_case(sheet_part) && r.path == "sheetData",
                 Part::CalcChainRemoval => false,
             })
             .collect();
+        // a created sheet .rels part may be registered by core's content-type
+        // rules (a `Default` for `rels`, or an `Override` for the part)
+        let rels_created = rels_may_appear && !names_in.iter().any(|x| x.eq_ignore_ascii_case(&rels_part));
         let calc_side_effect = calc_removal && (n == "[Content_Types].xml" || n == "xl/_rels/workbook.xml.rels");
-        if calc_side_effect {
-            // the calcChain entries may go; nothing else
-            let strip = |s: &str| s.split('<').filter(|t| !t.contains("calcChain")).collect::<Vec<_>>().join("<");
-            if strip(&String::from_utf8_lossy(&a)) != strip(&String::from_utf8_lossy(&b)) {
-                return Err(format!("{n}: more than the calcChain entry changed"));
+        let ct_side_effect = rels_created && n == "[Content_Types].xml";
+        if calc_side_effect || ct_side_effect {
+            let rels_name = format!("/{rels_part}").to_ascii_lowercase();
+            let strip = |s: &str| {
+                s.split('<')
+                    .filter(|t| !(calc_side_effect && t.contains("calcChain")))
+                    .filter(|t| !(ct_side_effect && (t.contains(r#"Extension="rels""#) || t.to_ascii_lowercase().contains(&format!(r#"partname="{rels_name}""#)))))
+                    .collect::<Vec<_>>()
+                    .join("<")
+            };
+            if strip(&drop_indentation(&String::from_utf8_lossy(&a))) != strip(&drop_indentation(&String::from_utf8_lossy(&b))) {
+                return Err(format!("{n}: more than the calcChain or sheet .rels entries changed"));
             }
             continue;
         }

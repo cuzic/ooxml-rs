@@ -28,6 +28,7 @@ pub struct SheetProtection {
     salt: Option<[u8; 16]>,
     spin_count: u32,
     allow: Allow,
+    legacy: bool,
 }
 
 /// The password is redacted (PR #58 round 1 m4).
@@ -103,12 +104,12 @@ impl Default for Allow {
 
 impl Default for SheetProtection {
     fn default() -> Self {
-        SheetProtection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, allow: Allow::default() }
+        SheetProtection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, allow: Allow::default(), legacy: false }
     }
 }
 
 impl SheetProtection {
-    /// SheetProtection without a password, with Excel's default permissions.
+    /// Sheet protection without a password, with Excel's default permissions.
     pub fn new() -> Self {
         Self::default()
     }
@@ -142,28 +143,30 @@ impl SheetProtection {
         self
     }
 
+    /// Writes the password as the **legacy** 16-bit hash (`password`,
+    /// `%04X`) instead of SHA-512, for consumers that do not read the SHA
+    /// form (ADR-0014 §11). It is weak: anyone can find a matching
+    /// password. It uses POI's byte rule (the low byte of each UTF-16 unit,
+    /// else its high byte), so non-ASCII passwords may not match what other
+    /// tools compute.
+    pub fn legacy_hash(mut self) -> Self {
+        self.legacy = true;
+        self
+    }
+
     /// The attributes of `sheetProtection` this protection writes, in schema
     /// order, plus the names it manages (to remove when not written). Errors:
     /// [`Error::InvalidSpinCount`], [`Error::Random`].
     pub(crate) fn attributes(&self) -> Result<Vec<(&'static str, String)>> {
         let mut out: Vec<(&'static str, String)> = Vec::new();
         if let Some(pw) = &self.password {
-            if self.spin_count > MAX_SPIN_COUNT {
-                return Err(Error::InvalidSpinCount(self.spin_count));
-            }
-            let salt = match self.salt {
-                Some(s) => s,
-                None => {
-                    let mut s = [0u8; 16];
-                    getrandom::fill(&mut s).map_err(|e| Error::Random(e.to_string()))?;
-                    s
+            if self.legacy {
+                out.push(("password", format!("{:04X}", legacy_hash(pw))));
+            } else {
+                for (name, value) in sha_attributes(pw, self.salt, self.spin_count)? {
+                    out.push((name, value));
                 }
-            };
-            let hash = password_hash(pw, &salt, self.spin_count);
-            out.push(("algorithmName", "SHA-512".into()));
-            out.push(("hashValue", base64(&hash)));
-            out.push(("saltValue", base64(&salt)));
-            out.push(("spinCount", self.spin_count.to_string()));
+            }
         }
         out.push(("sheet", "1".into()));
         // `1` = the action is protected (forbidden); written only when it
@@ -225,6 +228,143 @@ pub(crate) const MANAGED: &[&str] = &[
     "autoFilter",
     "pivotTables",
     "selectUnlockedCells",
+];
+
+/// `algorithmName`, `hashValue`, `saltValue`, `spinCount` (sheet names;
+/// the workbook prefixes them with `workbook`).
+fn sha_attributes(pw: &str, salt: Option<[u8; 16]>, spin_count: u32) -> Result<[(&'static str, String); 4]> {
+    if spin_count > MAX_SPIN_COUNT {
+        return Err(Error::InvalidSpinCount(spin_count));
+    }
+    let salt = match salt {
+        Some(s) => s,
+        None => {
+            let mut s = [0u8; 16];
+            getrandom::fill(&mut s).map_err(|e| Error::Random(e.to_string()))?;
+            s
+        }
+    };
+    let hash = password_hash(pw, &salt, spin_count);
+    Ok([
+        ("algorithmName", "SHA-512".into()),
+        ("hashValue", base64(&hash)),
+        ("saltValue", base64(&salt)),
+        ("spinCount", spin_count.to_string()),
+    ])
+}
+
+/// The legacy 16-bit password hash (POI `CryptoFunctions.createXorVerifier1`
+/// at 47dcff76, including Java's sign extension of the password bytes).
+pub(crate) fn legacy_hash(password: &str) -> u16 {
+    let units: Vec<u16> = password.encode_utf16().collect();
+    if units.is_empty() {
+        return 0;
+    }
+    let bytes: Vec<u8> = units.iter().map(|&c| if c & 0xFF != 0 { (c & 0xFF) as u8 } else { (c >> 8) as u8 }).collect();
+    let rot = |v: u16| u16::from(v & 0x4000 != 0) | ((v << 1) & 0x7FFF);
+    let mut v: u16 = 0;
+    for &b in bytes.iter().rev() {
+        v = rot(v);
+        v ^= i16::from(b as i8) as u16;
+    }
+    v = rot(v);
+    v ^= bytes.len() as u16;
+    v ^ 0xCE4B
+}
+
+/// What `Workbook::protect_workbook` writes (`workbookProtection`, ADR-0014
+/// §11): the structure lock (default on), the windows lock, and an optional
+/// password (SHA-512 by default, or the legacy hash).
+#[derive(Clone, Debug)]
+pub struct WorkbookProtection {
+    password: Option<String>,
+    salt: Option<[u8; 16]>,
+    spin_count: u32,
+    lock_structure: bool,
+    lock_windows: bool,
+    legacy: bool,
+}
+
+impl Default for WorkbookProtection {
+    fn default() -> Self {
+        WorkbookProtection { password: None, salt: None, spin_count: DEFAULT_SPIN_COUNT, lock_structure: true, lock_windows: false, legacy: false }
+    }
+}
+
+impl WorkbookProtection {
+    /// Locks the structure (sheets cannot be added, moved, renamed …).
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// See [`SheetProtection::password`].
+    pub fn password(mut self, password: &str) -> Self {
+        self.password = Some(password.to_owned());
+        self
+    }
+    /// See [`SheetProtection::with_salt`].
+    pub fn with_salt(mut self, salt: [u8; 16]) -> Self {
+        self.salt = Some(salt);
+        self
+    }
+    /// See [`SheetProtection::with_spin_count`].
+    pub fn with_spin_count(mut self, spin_count: u32) -> Self {
+        self.spin_count = spin_count;
+        self
+    }
+    /// Whether the structure is locked (default `true`).
+    pub fn lock_structure(mut self, on: bool) -> Self {
+        self.lock_structure = on;
+        self
+    }
+    /// Whether the window layout is locked (default `false`).
+    pub fn lock_windows(mut self, on: bool) -> Self {
+        self.lock_windows = on;
+        self
+    }
+    /// See [`SheetProtection::legacy_hash`] (`workbookPassword`).
+    pub fn legacy_hash(mut self) -> Self {
+        self.legacy = true;
+        self
+    }
+
+    pub(crate) fn attributes(&self) -> Result<Vec<(&'static str, String)>> {
+        let mut out = Vec::new();
+        if let Some(pw) = &self.password {
+            if self.legacy {
+                out.push(("workbookPassword", format!("{:04X}", legacy_hash(pw))));
+            } else {
+                for (name, value) in sha_attributes(pw, self.salt, self.spin_count)? {
+                    let name = match name {
+                        "algorithmName" => "workbookAlgorithmName",
+                        "hashValue" => "workbookHashValue",
+                        "saltValue" => "workbookSaltValue",
+                        _ => "workbookSpinCount",
+                    };
+                    out.push((name, value));
+                }
+            }
+        }
+        if self.lock_structure {
+            out.push(("lockStructure", "1".into()));
+        }
+        if self.lock_windows {
+            out.push(("lockWindows", "1".into()));
+        }
+        Ok(out)
+    }
+}
+
+/// Every attribute `protect_workbook` manages; `revisions*` and
+/// `lockRevision` are kept.
+pub(crate) const MANAGED_WORKBOOK: &[&str] = &[
+    "workbookPassword",
+    "workbookPasswordCharacterSet",
+    "workbookAlgorithmName",
+    "workbookHashValue",
+    "workbookSaltValue",
+    "workbookSpinCount",
+    "lockStructure",
+    "lockWindows",
 ];
 
 /// ECMA-376's iterated SHA-512 password hash.
@@ -376,6 +516,14 @@ mod tests {
         for (pw, salt_hex, spin, expected) in HASHLIB_VECTORS {
             let salt: Vec<u8> = (0..salt_hex.len()).step_by(2).map(|i| u8::from_str_radix(&salt_hex[i..i + 2], 16).unwrap()).collect();
             assert_eq!(base64(&password_hash(pw, &salt, *spin)), *expected, "{pw:?} {spin}");
+        }
+    }
+
+    /// POI `createXorVerifier1`'s rule; "password" → 83AF is Excel's well-known value.
+    #[test]
+    fn legacy_hash_vectors() {
+        for (pw, want) in [("password", 0x83AF), ("pwd", 0xCC54), ("test", 0xCBEB), ("Ä", 0xB1C3), ("日本", 0xB132), ("", 0)] {
+            assert_eq!(legacy_hash(pw), want, "{pw:?}");
         }
     }
 

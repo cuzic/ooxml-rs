@@ -60,9 +60,15 @@ mod error;
 mod escape;
 mod formula;
 mod graph;
+mod condfmt;
+mod hyperlink;
 mod index;
+mod layout;
 mod protect;
 mod range;
+mod rangefmla;
+mod validation;
+mod x14;
 mod reference;
 mod sheet_ops;
 mod registry;
@@ -79,9 +85,13 @@ pub use registry::dates::ExcelDateTime;
 pub use registry::read::FormatRead;
 pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
+pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
+pub use condfmt::{CfOperator, CfRemoval, Cfvo, IconSetValues, Rule, RuleKind};
+pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
+pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
 pub use formula::future::add_future_prefixes;
 pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
-pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection};
+pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, WorkbookProtection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it
 /// by one row and column either succeed or fail cleanly? Never panics.

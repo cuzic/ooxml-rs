@@ -13,7 +13,7 @@ use crate::census::FKind;
 use crate::edit::CellOp;
 use crate::error::{Error, Result};
 use crate::formula::precedents::{NameDef, Scope, fold};
-use crate::protect::{MANAGED, SheetProtection};
+use crate::protect::{MANAGED, MANAGED_WORKBOOK, SheetProtection, WorkbookProtection};
 use crate::reference::{CellIndex, CellRange};
 use crate::workbook::Workbook;
 use crate::worksheet::Worksheet;
@@ -436,6 +436,52 @@ impl Workbook {
         self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             doc.lens_mut::<sml::Worksheet>()?.remove::<sml::SheetProtection>();
+            Ok(())
+        })?;
+        Ok(true)
+    }
+}
+
+impl Workbook {
+    /// Protects the workbook (`workbookProtection` in `workbook.xml`,
+    /// ADR-0014 §11): every hash and lock attribute is replaced (no legacy
+    /// `workbookPassword` stays next to a SHA hash); `revisions*` and
+    /// `lockRevision` are kept. Errors: [`Error::InvalidSpinCount`],
+    /// [`Error::Random`], [`Error::Poisoned`].
+    pub fn protect_workbook(&mut self, protection: &WorkbookProtection) -> Result<()> {
+        self.check_editable()?;
+        let attrs = protection.attributes()?;
+        let part = self.workbook_part.clone();
+        {
+            let doc = self.pkg.xml_part_mut(&part)?;
+            let mut wb = doc.lens_mut::<sml::Workbook>()?;
+            if wb.child_mut::<sml::WorkbookProtection>().is_none() {
+                wb.check_insert_by::<sml::WorkbookProtection>(|_, _| false)?;
+            }
+        }
+        self.poisoning(|wb| {
+            let doc = wb.pkg.xml_part_mut(&part)?;
+            let mut w = doc.lens_mut::<sml::Workbook>()?;
+            let mut p = w.get_or_insert::<sml::WorkbookProtection>()?;
+            for name in MANAGED_WORKBOOK {
+                p.remove_attr(QName::new("", name))?;
+            }
+            for (name, value) in &attrs {
+                p.set_attr(QName::new("", name), value)?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Removes `workbookProtection`; `Ok(false)` if there is none.
+    pub fn unprotect_workbook(&mut self) -> Result<bool> {
+        self.check_editable()?;
+        let part = self.workbook_part.clone();
+        if self.pkg.xml_part(&part)?.lens::<sml::Workbook>()?.child::<sml::WorkbookProtection>().is_none() {
+            return Ok(false);
+        }
+        self.poisoning(|wb| {
+            wb.pkg.xml_part_mut(&part)?.lens_mut::<sml::Workbook>()?.remove::<sml::WorkbookProtection>();
             Ok(())
         })?;
         Ok(true)
