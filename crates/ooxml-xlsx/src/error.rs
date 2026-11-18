@@ -42,9 +42,10 @@ pub enum Error {
         reason: String,
     },
 
-    /// The cell is inside a merged range (any cell, the top-left one
-    /// included).
-    #[error("cell {cell} is inside the merged range {range}")]
+    /// A value or formula write to a **non-anchor** cell of a merged range
+    /// (ADR-0014 §3: the top-left cell, the anchor, is writable; a value in
+    /// any other cell would be hidden by the merge).
+    #[error("cell {cell} is a non-anchor cell of the merged range {range}")]
     MergedCell {
         /// The cell, A1 style.
         cell: String,
@@ -241,6 +242,177 @@ pub enum Error {
         /// `_xlfn.ANCHORARRAY(…)` or `_xlfn.SINGLE(…)`.
         file_form: &'static str,
     },
+
+    /// A format or style write needs `styles.xml` and the workbook has none
+    /// (ADR-0006 §5.1; creating the part is out of scope).
+    #[error("the workbook has no styles part")]
+    NoStylesPart,
+
+    /// The styles part's root is not a SpreadsheetML `styleSheet`.
+    #[error("unsupported styles part: {0}")]
+    UnsupportedStylesPart(String),
+
+    /// A style table would exceed Excel's limit (ADR-0006 §5.10).
+    #[error("the {table} table is full (Excel limit {limit})")]
+    StyleTableFull {
+        /// The table (`cellXfs+cellStyleXfs`, `fonts`, `fills`, `borders`,
+        /// `custom numFmts`).
+        table: String,
+        /// The limit.
+        limit: u32,
+    },
+
+    /// No custom number format id is left (`numFmtId` would exceed 65,535).
+    #[error("no free custom numFmtId (ids are 16-bit)")]
+    NumFmtIdExhausted,
+
+    /// A built-in number format id the workbook redefines in `numFmts`;
+    /// its meaning in this file is not the built-in one.
+    #[error("built-in number format {id} is redefined by this workbook")]
+    BuiltinNumFormatRedefined {
+        /// The id.
+        id: u32,
+    },
+
+    /// A [`crate::Format`] value outside its schema enumeration or range
+    /// (fill pattern, border style, alignment, font scheme, …).
+    #[error("invalid format value: {0}")]
+    InvalidFormat(String),
+
+    /// A number format code XML cannot carry.
+    #[error("invalid number format code {0:?}")]
+    InvalidNumFormat(String),
+
+    /// `set_style_index` beyond `cellXfs`.
+    #[error("style index {index} is out of range (cellXfs has {count} entries)")]
+    StyleIndexOutOfRange {
+        /// The index.
+        index: u32,
+        /// Entries in `cellXfs`.
+        count: u32,
+    },
+
+    /// No named cell style with that name.
+    #[error("no cell style named {0:?}")]
+    NoSuchStyle(String),
+
+    /// An existing reference (a cell `s`, an `xf`'s `fontId`, …) points at
+    /// or past the end of a table; appending would give it a meaning
+    /// (ADR-0006 §2).
+    #[error("an existing reference to {table}[{index}] is out of range; appending would give it a meaning")]
+    DanglingReference {
+        /// The table.
+        table: String,
+        /// The largest out-of-range index.
+        index: u32,
+    },
+
+    /// Serial 60 in the 1900 date system: Excel's nonexistent 1900-02-29.
+    #[error("serial 60 is Excel's nonexistent 1900-02-29")]
+    NonexistentDate,
+
+    /// Several cell styles have that name (compared case-insensitively).
+    #[error("several cell styles are named {0:?}")]
+    AmbiguousStyleName(String),
+
+    /// The requested change cannot be expressed without losing content the
+    /// registry does not model (extension attributes or children).
+    #[error("cannot express the style change: {0}")]
+    NotExpressible(String),
+
+    /// The date does not exist in the workbook's date system or is outside
+    /// its range (1900 system: 1899-12-31 to 9999-12-31, never the false
+    /// 1900-02-29; 1904 system: from 1904-01-01).
+    #[error("date out of range for the workbook's date system")]
+    DateOutOfRange,
+
+    // ---- Phase4 (ADR-0014 §13) ----
+    /// A merge needs at least two cells.
+    #[error("{0} is a single cell; a merge needs at least two")]
+    MergeSingleCell(String),
+
+    /// The range overlaps an existing merged range.
+    #[error("{range} overlaps the merged range {existing}")]
+    MergeOverlap {
+        /// The requested range.
+        range: String,
+        /// The existing merged range.
+        existing: String,
+    },
+
+    /// `merge` would hide values or formulas in non-anchor cells; use
+    /// `merge_clearing` to clear them explicitly.
+    #[error("merging {range} would hide the contents of {cells:?}")]
+    MergeWouldHideValues {
+        /// The requested range.
+        range: String,
+        /// The non-anchor cells that hold a value or a formula.
+        cells: Vec<String>,
+    },
+
+    /// No merged range equals the given range.
+    #[error("no merged range {0}")]
+    NoSuchMerge(String),
+
+    /// The range overlaps a table (a table carries its own autofilter, and
+    /// cannot contain merged cells).
+    #[error("{range} overlaps table {table:?}")]
+    TableOverlap {
+        /// The requested range.
+        range: String,
+        /// The table's name.
+        table: String,
+    },
+
+    /// The range overlaps a PivotTable's location.
+    #[error("{range} overlaps the PivotTable at {location}")]
+    PivotOverlap {
+        /// The requested range.
+        range: String,
+        /// The PivotTable's `location/@ref`, or its part name when the
+        /// location cannot be read (treated as overlapping).
+        location: String,
+    },
+
+    /// The sheet has a query table whose output range cannot be located,
+    /// so a merge or filter on it is refused.
+    #[error("the sheet has a query table ({0}); its output range may overlap")]
+    QueryTableOverlap(String),
+
+    /// The sheet's `autoFilter` has filter criteria or a sort state; moving
+    /// its range would retarget them.
+    #[error("the sheet's autoFilter has filter criteria or a sort state")]
+    AutoFilterExists,
+
+    /// The sheet's `autoFilter` filters rows (a `filterColumn`); removing it
+    /// would leave rows hidden that no filter explains.
+    #[error("the sheet's autoFilter is active (filterColumn); it is not removed")]
+    FilterActive,
+
+    /// More than one built-in name of this kind and scope.
+    #[error("{name} is defined more than once for this sheet")]
+    DuplicateBuiltInName {
+        /// The name.
+        name: String,
+    },
+
+    /// A formula uses the defined name that the edit would change.
+    #[error("defined name {name} is used by a formula ({cell})")]
+    NameInUse {
+        /// The name.
+        name: String,
+        /// One formula cell that uses it (`Sheet!A1`), or `defined name X`.
+        cell: String,
+    },
+
+    /// A protection spin count above 10,000,000 (POI's and Excel's limit).
+    #[error("spin count {0} exceeds 10,000,000")]
+    InvalidSpinCount(u32),
+
+    /// The operating system's random number generator failed (salt for a
+    /// password hash).
+    #[error("could not obtain random bytes for the salt: {0}")]
+    Random(String),
 }
 
 /// `Result` with [`Error`].

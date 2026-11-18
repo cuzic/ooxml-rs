@@ -20,9 +20,11 @@ use crate::core_props;
 
 pub(crate) const REL_WORKSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 const REL_CHARTSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
-const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
+pub(crate) const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
 const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
+const REL_PIVOT_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable";
+const REL_QUERY_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/queryTable";
 const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 const CT_MACROSHEETS: &[&str] = &["application/vnd.ms-excel.macrosheet+xml", "application/vnd.ms-excel.intlmacrosheet+xml"];
@@ -43,14 +45,25 @@ pub(crate) const TEMPLATE: &[u8] = include_bytes!("../template/blank.xlsx");
 pub(crate) struct TableHeader {
     pub(crate) name: String,
     pub(crate) rows: Option<CellRange>,
+    /// The whole table (`table/@ref`), for Phase4's overlap refusals.
+    pub(crate) range: CellRange,
 }
 
 /// What a worksheet's guards need besides its tree, loaded when the sheet is
 /// first opened for editing.
 #[derive(Debug)]
 pub(crate) struct SheetContext {
+    /// The sheet's merged ranges; Phase4's `merge`/`unmerge` keep it up to
+    /// date in the same apply step as the sheet edit (ADR-0014 §3).
     pub(crate) merges: Vec<CellRange>,
     pub(crate) tables: Vec<TableHeader>,
+    /// The sheet's PivotTable parts; their `location/@ref` is read only
+    /// when a merge needs it (ADR-0014 §3), so a damaged pivot part never
+    /// stops a workbook from opening.
+    pub(crate) pivots: Vec<String>,
+    /// The target of a sheet-level query-table relationship, if any (its
+    /// output range is not located, so overlapping features are refused).
+    pub(crate) query_table: Option<String>,
 }
 
 /// What happens to the cached values of dependents (ADR-0003 §3.3).
@@ -89,6 +102,8 @@ pub enum ApplyStep {
     Strip,
     /// Before the shared-formula hand-off.
     HandOff,
+    /// Before installing registry additions (`styles.xml`, `sharedStrings.xml`).
+    Registries,
     /// Before writing the (first) target cell.
     Target,
     /// Before writing the second cell of a multi-cell plan (the first one
@@ -104,6 +119,8 @@ pub enum ApplyStep {
     StaleRegistryPlan,
     /// Before updating the formula index.
     Index,
+    /// Before a Phase4 range-feature edit (merge, autofilter, protection).
+    RangeFeature,
 }
 
 pub(crate) type ApplyStepHook = ApplyStep;
@@ -151,6 +168,12 @@ pub struct Workbook {
     pub(crate) calc_chain: Option<String>,
     pub(crate) policy: CalcPolicy,
     pub(crate) poisoned: Option<String>,
+    /// Phase2 registries (ADR-0006), activated by the first write that
+    /// needs them.
+    pub(crate) registries: crate::registry::Registries,
+    /// `style_sensitive()`'s answer, computed once and dropped whenever a
+    /// formula is written or removed (PR #50 review M5).
+    pub(crate) style_sensitive: Option<bool>,
     from_template: bool,
     template_sheet_taken: bool,
     #[cfg(feature = "fault-injection")]
@@ -232,6 +255,8 @@ impl Workbook {
             calc_chain,
             policy: CalcPolicy::default(),
             poisoned: None,
+            registries: Default::default(),
+            style_sensitive: None,
             from_template: false,
             template_sheet_taken: false,
             #[cfg(feature = "fault-injection")]
@@ -263,7 +288,9 @@ impl Workbook {
             .filter_map(|t| t.id().map(str::to_owned))
             .collect();
         let tables = load_tables(&mut self.pkg, &part, &sheet_rels, &table_parts)?;
-        self.contexts.insert(sheet, SheetContext { merges, tables });
+        let pivots = sheet_rels.by_type(REL_PIVOT_TABLE).filter_map(|rel| sheet_rels.resolve(rel)).filter(|p| self.pkg.contains(p)).collect();
+        let query_table = sheet_rels.by_type(REL_QUERY_TABLE).next().map(|r| r.target.clone());
+        self.contexts.insert(sheet, SheetContext { merges, tables, pivots, query_table });
         self.ensure_index(sheet)?;
         Ok(())
     }
@@ -367,8 +394,10 @@ impl Workbook {
 
     /// `Some(error)` if every edit of this workbook is refused: a sheet part
     /// could not be scanned for formulas, a sheet with formulas lacks `r`
-    /// attributes, the workbook has cell metadata Phase1 does not model, or
-    /// an earlier edit failed while applying ([`Error::Poisoned`]).
+    /// attributes, a cell's `r` names another row than its `row/@r`
+    /// ([`Error::InvalidReference`]), the workbook has cell metadata Phase1
+    /// does not model, or an earlier edit failed while applying
+    /// ([`Error::Poisoned`]).
     pub fn edit_refusal(&self) -> Option<Error> {
         if let Some(p) = &self.poisoned {
             return Some(Error::Poisoned(p.clone()));
@@ -426,6 +455,10 @@ impl Workbook {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.check_poisoned()?;
         Ok(self.pkg.to_bytes()?)
+    }
+
+    pub(crate) fn check_editable(&self) -> Result<()> {
+        self.edit_refusal().map_or(Ok(()), Err)
     }
 
     pub(crate) fn check_poisoned(&self) -> Result<()> {
@@ -613,7 +646,7 @@ fn load_tables(pkg: &mut Package, sheet_part: &str, rels: &Relationships, ids: &
             r.last.row = (range.first.row + n - 1).min(range.last.row);
             r
         });
-        out.push(TableHeader { name, rows });
+        out.push(TableHeader { name, rows, range });
     }
     Ok(out)
 }

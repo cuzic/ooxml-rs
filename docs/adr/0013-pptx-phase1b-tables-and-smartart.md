@@ -73,6 +73,74 @@
   | P3 empty runs ignored on the data side only | ignored on **both** sides (431/431 unchanged); indices count non-empty runs; text put into an empty run goes after the preceding non-empty cache run | §4 |
   | P4 nits | (a) a 1-D vertical merge copies `vMerge` only; (b) `r:id` sits on `a:hlinkClick`/`a:hlinkMouseOver` under `a:rPr`, refusal scope stated; (c) `InvalidNamespaceDeclaration` in §5 | §2, §4, §5 |
 
+- **Post-acceptance note (PR #57):** The table write colour type is `TableColor` to avoid a name collision with the resolver’s `Color`.
+- **Post-acceptance note (2026-11-16, implementation of §2–§3 tables on
+  `impl/pptx-phase1b-tables` — no change to the decisions):**
+  - The codegen addition P1 asked for is the ADR-0002 note "children of a
+    wildcard-only parent" (`add_child` with `before = "##any"`), so new
+    rows and columns of id-bearing tables get `a16:rowId`/`colId`
+    through `insert_with_ns` (#45); `RowIdNotSupported` is not needed.
+  - Merge attributes are written from the merge geometry in the edge
+    form for every merge an operation touches (inserting inside it,
+    deleting through it, creating it); this equals copying them from the
+    cell below/right (N1) and also converts a touched flag-only merge.
+    Untouched merges keep their bytes.
+  - Every operation runs its checks on the slide tree and its edits on a
+    clone that replaces the tree only when every edit succeeded, so a
+    refusal — this crate's or the core's — leaves the slide unchanged.
+  - Review #57 round 1: `set_style` writes the matched id's own spelling
+    (the definition's, or the built-in list's uppercase `ST_Guid` form);
+    a table whose `a:tblPr` holds an inline `a:tableStyle` (the other
+    branch of the schema choice; 0 in the corpus) is refused with
+    `TableStyleInline` for both `Some` and `None`; `merge` needs an
+    origin `a:txBody` only when text moves (one is created then); a
+    comment anchor outside the table kinds locks only the shape ids it
+    names (an anchor with no id at all still locks every table);
+    duplicate `a16:rowId`/`colId` values make a table not well-formed.
+  - Property test: 3,000 random tables (38,257 row/column inserts and
+    deletes, 3,817 expected refusals) against an independent logical
+    model: 0 mismatches (`tests/table_model.rs`).
+
+- **Post-acceptance note (2026-11-16, implementation of §4 SmartArt text
+  on `impl/pptx-phase1b-smartart` — no change to the decisions):**
+  - API: `Presentation::smart_art_mut(slide, frame_id)` →
+    `SmartArtMut::{nodes, set_text, set_paragraph_text, set_run_text,
+    cache_report, drop_drawing_cache}`. Edits are the Phase 0/0.1 text
+    setters, applied to the data node's `dgm:t` and, through a
+    range-limited variant of `TextBodyMut::set_text`, to the node's slice
+    of each cache shape; the data and drawing parts are edited on clones
+    and installed with one `RegistryPlan` (`stage_part` + `apply`).
+  - Sources of a shape are ordered by `destOrd`, then `srcOrd`.
+  - The hyperlink refusal covers the run written and the run whose
+    format a new run would copy, in the data and in the cache.
+  - `drop_drawing_cache` refuses on any unreadable relationships part
+    (P2's safe rule) before `incoming_relationships`, and removes, with
+    the drawing, every part only the drawing references.
+  - Codegen: the `dgm:`/`dsp:` text elements join `dml.toml`; their SDK
+    class names collide with `a:txBody`'s `TextBody`, so the generator now
+    keeps the plain name for the group's own namespace (`a:` in `dml`)
+    and prefixes the others (`DgmTextBody`, `DspTextBody`).
+  - API differences from §4 (review #63 m6): there is no read-side
+    `ShapeRef::smart_art()` tree (`doc` point, `parOf` children by
+    `srcOrd`) and no `SmartArtMut::node_mut(model_id)` text-body handle.
+    `SmartArtMut::nodes()` lists the text nodes in **document order**,
+    and the edits are three node-level setters, so every edit is checked
+    and mirrored as one transaction. A tree view and finer setters can be
+    added later without changing the rules.
+  - Review #63 round 1: after the edits, every node whose slices paired
+    before must still pair on the edited copies, else the edit is
+    refused (`SmartArtCacheInconsistent`) — this closes the blind spot of
+    P3's "copy the preceding run's format" (an empty data run with a
+    format of its own) and refuses a node shown twice in one shape. The
+    hyperlink check uses the data run actually written, also when it is
+    empty. `dgm:relIds@r:dm` must be a `diagramData` relationship and
+    `dsp:dataModelExt@relId` a `diagramDrawing` one to a `dsp:drawing`
+    part (else `NotSmartArt` / `SmartArtCacheUnresolved`).
+  - Corpus (633 decks): 103 SmartArts, 600 nodes, 408 shown in a cache,
+    396 consistent, **431 paired runs** — the review's 431/431 with
+    empty runs ignored on both sides; 587 node edits succeed and leave the
+    cache consistent, every refusal leaves the package unchanged.
+
 ## Context
 
 Phase 0 reads tables (`TableRef`/`CellRef`: grid, spans, merges) and edits
@@ -295,11 +363,13 @@ allowlist moves `a:tcPr`, `a:tblPr`, `a:tableStyleId`, `a:lnL/R/T/B`,
 
 - margins `marL/marR/marT/marB` (EMU), `anchor` (`t/ctr/b`), `anchorCtr`,
   `vert`, `horzOverflow`;
-- fill: `solidFill` with `srgbClr` or `schemeClr`, or `noFill` (replaces
+- fill: `CellFill::Solid(TableColor::Rgb(..))` writes `srgbClr`,
+  `CellFill::Solid(TableColor::Scheme(..))` writes `schemeClr`, and
+  `CellFill::None` writes `noFill` (replaces
   any existing fill child of `a:tcPr`, which is the one fill choice of the
   schema);
 - **borders by edge** (review M4): `set_border(row, col, Edge::Left |
-  Right | Top | Bottom, Line)` with `Line` = width (EMU) and solid colour,
+  Right | Top | Bottom, Line)` with `Line` = width (EMU) and solid `TableColor`,
   or `noFill`. An inner edge is shared: the call writes both cells' lines
   (`lnR` of the left cell and `lnL` of the right one; `lnB`/`lnT`) to the
   same value, as PowerPoint does (0 different shared edges in

@@ -63,6 +63,84 @@ fn a_batch_equals_the_same_writes_in_sequence() {
     }
 }
 
+#[test]
+fn a_batch_hands_off_both_shared_formula_masters() {
+    let input = synthetic("o1_shared.xlsx");
+    let writes = vec![("D2", CellWrite::Number(1.0)), ("B2", CellWrite::Number(2.0))];
+    let (wb, result) = batch(&input, "Sheet2", &writes);
+    result.unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert_eq!(out, sequential(&input, "Sheet2", &writes));
+    let xml = xml_of(&out, "Sheet2");
+    assert_eq!(xml.split("<f t=\"shared\"").skip(1).filter(|f| f.split('>').next().unwrap().contains("ref=")).count(), 2, "{xml}");
+}
+
+#[test]
+fn batch_uses_the_shared_string_registry_and_allows_the_merge_anchor() {
+    let input = Workbook::new().unwrap().to_bytes().unwrap();
+    let input = with_part(&input, "xl/worksheets/sheet1.xml",
+        r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/><mergeCells count="1"><mergeCell ref="A1:B1"/></mergeCells></worksheet>"#);
+    let writes = vec![("A1", CellWrite::String("same")), ("C1", CellWrite::String("same")), ("D1", CellWrite::String("other"))];
+    let (wb, result) = batch(&input, "Sheet1", &writes);
+    result.unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert_eq!(out, sequential(&input, "Sheet1", &writes));
+    let sst = String::from_utf8(part(&out, "xl/sharedStrings.xml")).unwrap();
+    assert!(sst.contains(r#"count="3" uniqueCount="2"><si><t>same</t></si><si><t>other</t></si>"#), "{sst}");
+    let xml = xml_of(&out, "Sheet1");
+    assert!(xml.contains(r#"<c r="A1" t="s"><v>0</v></c><c r="C1" t="s"><v>0</v></c><c r="D1" t="s"><v>1</v></c>"#), "{xml}");
+
+    let (wb, result) = batch(&input, "Sheet1", &vec![("A1", CellWrite::String("same")), ("B1", CellWrite::Number(1.0))]);
+    assert_matches!(result, Err(Error::MergedCell { .. }));
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn batch_refusals_for_workbook_gate_and_sst_leave_identical_bytes() {
+    let input = Workbook::new().unwrap().to_bytes().unwrap();
+    let writes = vec![("C1", CellWrite::Number(1.0)), ("D1", CellWrite::String("new"))];
+    let malformed_row = with_part(&input, "xl/worksheets/sheet1.xml",
+        r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A2"><v>1</v></c></row></sheetData></worksheet>"#);
+    let (wb, result) = batch(&malformed_row, "Sheet1", &writes);
+    assert_matches!(result, Err(Error::InvalidReference(ref message)) if message.contains("A2 in row 1"));
+    assert_eq!(wb.to_bytes().unwrap(), malformed_row);
+
+    let unstable_sst = with_part(&input, "xl/sharedStrings.xml",
+        r#"<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:AlternateContent><mc:Choice Requires="x14"><si><t>ambiguous</t></si></mc:Choice></mc:AlternateContent></sst>"#);
+    let (wb, result) = batch(&unstable_sst, "Sheet1", &writes);
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), unstable_sst);
+}
+
+#[test]
+fn batch_calc_on_load_excludes_formulas_written_by_the_batch() {
+    let input = synthetic("o1_shared.xlsx");
+    let mut writes = vec![("A1", CellWrite::RemoveFormula), ("D3", CellWrite::Formula(r#"INDIRECT("A1")"#)), ("C5", CellWrite::String("s")), ("F9", CellWrite::String("s"))];
+    let (wb, result) = batch(&input, "Sheet2", &writes);
+    result.unwrap();
+    let out = wb.to_bytes().unwrap();
+    let full_calc = |bytes: &[u8]| String::from_utf8(part(bytes, "xl/workbook.xml")).unwrap().contains("fullCalcOnLoad=\"1\"");
+    assert!(!full_calc(&out));
+    assert!(full_calc(&sequential(&input, "Sheet2", &writes)));
+    writes.reverse();
+    assert_eq!(out, sequential(&input, "Sheet2", &writes));
+}
+
+#[test]
+fn batch_iterative_guard_excludes_formulas_written_by_the_batch() {
+    let input = synthetic("o1_iterate.xlsx");
+    let writes = vec![("J20", CellWrite::Formula(r#"INDIRECT("A1")"#)), ("K20", CellWrite::Number(1.0))];
+    let (wb, result) = batch(&input, "Sheet1", &writes);
+    result.unwrap();
+    let mut single = Workbook::from_bytes(input.clone()).unwrap();
+    let mut ws = single.worksheet_by_name("Sheet1").unwrap();
+    ws.write_formula(19, 9, r#"INDIRECT("A1")"#).unwrap();
+    assert_matches!(ws.write_number(19, 10, 1.0), Err(Error::IterativeCalculation));
+    let mut reversed = writes;
+    reversed.reverse();
+    assert_eq!(wb.to_bytes().unwrap(), sequential(&input, "Sheet1", &reversed));
+}
+
 /// Two writes into the same new row create one row with both cells.
 #[test]
 fn writes_into_one_new_row_share_it() {
@@ -134,10 +212,16 @@ fn set_formula_takes_the_file_form_of_future_functions() {
         assert_matches!(e, Err(Error::MissingFunctionPrefix { ref name, prefix: "_xlfn." }) if name == "XLOOKUP");
         let e = ws.cell_mut(5, 0).unwrap().set_formula("_xlfn.SORT(A1:A3)");
         assert_matches!(e, Err(Error::MissingFunctionPrefix { ref name, prefix: "_xlfn._xlws." }) if name == "SORT");
+        for (name, typed) in [("FILTER", "_xlws.FILTER(A1:A3,B1:B3)"), ("SORT", "_XLWS.SORT(A1:A3)")] {
+            assert_matches!(ws.cell_mut(5, 0).unwrap().set_formula(typed),
+                Err(Error::MissingFunctionPrefix { name: actual, prefix: "_xlfn._xlws." }) if actual == name);
+            let expected = format!("_xlfn._xlws.{}", typed.split_once('.').unwrap().1);
+            assert_eq!(ooxml_xlsx::add_future_prefixes(typed).unwrap(), expected);
+        }
         assert_matches!(ws.cell_mut(5, 0).unwrap().set_formula("SUM(A1#)"), Err(Error::DynamicArrayOperator { operator: '#', .. }));
         assert_matches!(ws.cell_mut(5, 0).unwrap().set_formula("@A1:A3"), Err(Error::DynamicArrayOperator { operator: '@', .. }));
     }
-    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+    assert_eq!(wb.to_bytes().unwrap(), input);
     let typed = "IFS(A1>1,TEXTJOIN(\",\",TRUE,A1:A3),TRUE,\"XLOOKUP(\")";
     let file = ooxml_xlsx::add_future_prefixes(typed).unwrap();
     assert_eq!(file, "_xlfn.IFS(A1>1,_xlfn.TEXTJOIN(\",\",TRUE,A1:A3),TRUE,\"XLOOKUP(\")");
@@ -157,7 +241,7 @@ fn a_partly_applied_batch_poisons_the_workbook() {
     use ooxml_xlsx::ApplyStep;
     let input = synthetic("o1_shared.xlsx");
     let writes = [(at("D2"), CellWrite::Number(1.0)), (at("A9"), CellWrite::Formula("A2+1")), (at("B9"), CellWrite::Number(3.0))];
-    for step in [ApplyStep::RemoveCalcChain, ApplyStep::CalcPr, ApplyStep::Strip, ApplyStep::HandOff, ApplyStep::Target, ApplyStep::LaterTarget, ApplyStep::Index] {
+    for step in [ApplyStep::RemoveCalcChain, ApplyStep::CalcPr, ApplyStep::Strip, ApplyStep::HandOff, ApplyStep::Registries, ApplyStep::Target, ApplyStep::LaterTarget, ApplyStep::Index] {
         let mut wb = Workbook::from_bytes(input.clone()).unwrap();
         wb.inject_apply_failure(step);
         let r = wb.worksheet_by_name("Sheet2").unwrap().write_cells(&writes);

@@ -32,7 +32,8 @@
     out-of-bounds translation; its oracle no longer relies on calamine alone (§4.2).
   - **Minor findings:** m1–m9 are folded in where they apply, each marked inline.
   - The guard table follows the Phase0 owner decisions and coordinator defaults: the first
-    visible worksheet, and refusal of every cell of a merged range.
+    visible worksheet, and refusal of every cell of a merged range (relaxed by ADR-0014 §3 for
+    the anchor: see the guard table).
 - **Revision 3** (after `0003-opus-review-round2.md`; implemented in the same milestone,
   `xlsx-phase1`):
   - **R2-M1 (four soundness holes):**
@@ -463,20 +464,22 @@ ADR-0017 §2.1 needs the cell writes of one operation (a table's header, totals 
 dynamic-array anchor) validated together, before anything changes, and its `calcPr` change and
 calcChain removal inside the operation's registry transaction (PR #38's `RegistryPlan`).
 
-1. **`CellWritePlan`** (crate-internal; `Workbook::plan_writes(&[(sheet, cell, op)])`) runs
+1. **`CellWritePlan`** (crate-internal; `Workbook::plan_writes(Vec<(usize, CellIndex, CellOp, Extra)>)`) runs
    §3.1's step 1 for **all** cells: every guard of §5 for each cell, the union of their
    dependents (§3.2) and the guards on it, the strip positions, the shared-formula hand-offs,
    the `calcPr` change on a clone of `workbook.xml` (cloned from the part's current state) and
    the calcChain removal check. Any refusal is an ordinary `Err`; nothing changed.
-2. **Accumulated census.** Cell *k* is planned against the census as cells 1..*k*−1 leave it:
+2. **Dependents and guards.** The plan computes the union of dependents from the graph before
+   the batch:
    - a cell appears at most once (`Err(DuplicateCellWrite)`);
    - at most one cell of each shared-formula group is written (`Err(SharedFormulaMaster)`;
-     write them in separate calls), so a hand-off never depends on another write of the plan;
-   - dependents come from the graph before any of the writes. That is a superset of what the
-     later writes need: a formula written earlier in the plan has no cached value, and its own
-     dependents are already in the union. Cells the plan writes are never stripped.
+     write them in separate calls), so a hand-off is independent of other writes;
+   - the dependent-cache strips and the dependent-cell tests for `fullCalcOnLoad` and
+     `IterativeCalculation` exclude cells whose values or formulas the plan replaces.
+     A new formula has no cache. Its downstream dependents are reached by seeding the
+     formula cell itself. The formula census is updated during apply.
 3. **Apply, in place** (`apply_writes`): §3.1's order — calcChain, `workbook.xml`, strips,
-   hand-offs, then the cells in the given order, then the census and graph. Strips and hand-offs
+   hand-offs, Phase2 registry changes, then the cells in the given order, then the census and graph. Strips and hand-offs
    use positions planned on the tree before any write. Each cell is **located again** on the
    current tree (the row index is updated after every write), so two writes into the same new
    row create one row. Locating again cannot fail: the plan checked every cell's insertion, and
@@ -487,22 +490,27 @@ calcChain removal inside the operation's registry transaction (PR #38's `Registr
    **after** `plan_writes` (whose Layer 2 checks use `xml_part_mut`, which makes an earlier plan
    stale). A refusal while folding is an ordinary `Err`. Then the workbook is poisoned and
    `Package::apply` runs; its only error, `StalePlan`, is returned before anything changes, so the
-   poison is cleared and it is an ordinary `Err` (ADR-0017 r2-m5). Then steps (iii)–(vi) of item 3
+   poison is cleared and it is an ordinary `Err` (ADR-0017 r2-m5). Then the remaining in-place steps of item 3
    run in place.
 5. **Fault injection** (feature `fault-injection`): before `Package::apply`, before each in-place
    step, and before the **second** cell of a plan (`ApplyStep::LaterTarget`: a partly applied
    plan), as an `Err` and as a panic; each poisons the workbook. A stale registry plan is injected
    too and must not poison.
 6. **Public API:** one entry, `Worksheet::write_cells(&[(CellIndex, CellWrite)])`, all or
-   nothing. `CellWrite` is `Number`, `String` (inline, as `set_string`), `Formula` or
-   `RemoveFormula`. The single-cell setters are the one-cell case and their output is unchanged.
-   Phase2's shared strings join the plan when ADR-0006's implementation (#50) is merged: the
-   `sst` checks (slot, exact-form reuse, the same string appended twice in one plan) become part
-   of step 1.
+   nothing. `CellWrite` is `Number`, `String`, `Formula` or `RemoveFormula`.
+   `String` follows `set_string`: it uses the shared-string table when present and falls back
+   to an inline string otherwise. Planning checks the registry slot, reuses canonical entries
+   from the table and from earlier writes in the plan, and totals the changes in shared-string
+   references from target writes and cache strips.
 
-Oracles: a batch gives the same bytes as the same writes made one by one (the union of strips,
-one `fullCalcOnLoad`, one calcChain removal); the registry path gives the same bytes as the
-in-place path; every refusal leaves L1; O1, O2 and O3 are unchanged.
+Oracles: the batch uses the same cell-write rules and registry allocation order as the
+single-cell setters. Calculation effects can depend on the order of individual calls.
+For example, after replacing a formula with `INDIRECT("A1")`, a later individual write can
+see that formula as a dependent and set `fullCalcOnLoad`. In an iterative workbook, writing
+that formula before a value can make the value write fail with `IterativeCalculation`.
+The batch excludes its own formula writes from these dependent-cell checks. The registry
+transaction gives the same bytes as the in-place apply. Every planning refusal leaves the
+original bytes intact. O1, O2 and O3 are unchanged.
 
 #### 3.2 Dependents
 
@@ -702,8 +710,9 @@ on acceptance this text replaces it.
   Excel would show `#NAME?` until the formula is re-entered. This changes Phase1's contract for
   such texts, which were accepted before.
 - The table is a fixed copy of rust_xlsxwriter 0.102's `future_functions` (161 names):
-  `_xlfn.`, and `_xlfn._xlws.` for `FILTER`, `SORT` and `PY`. `_xlfn.FILTER` without `_xlws.` is
-  refused too.
+  `_xlfn.`, and `_xlfn._xlws.` for `FILTER`, `SORT` and `PY`. Both `_xlfn.FILTER` and
+  `_xlws.FILTER` have incomplete prefixes and are refused. The opt-in helper adds the missing
+  prefix. The prefix check covers only functions listed in the fixed table.
 - The spill (`A1#`) and implicit-intersection (`@`) operators are refused
   (`Err(DynamicArrayOperator)`); their file forms are `_xlfn.ANCHORARRAY(…)` and
   `_xlfn.SINGLE(…)` (ADR-0017 review m7).
@@ -724,7 +733,7 @@ on acceptance this text replaces it.
 | An edit would make a macro-sheet or dialog-sheet formula a dependent | `Err(MacroSheetDependent)`: XLM caches are not modelled |
 | Iterative calculation and a non-empty dependent set | `Err(IterativeCalculation)` (§3.3) |
 | `set_formula` text that does not lex | `Err(InvalidFormula)` |
-| Write into any cell of a merged range (top-left included), missing `r`, Strict, encrypted | unchanged from Phase0 |
+| A value or formula write to a **non-anchor** cell of a merged range (ADR-0014 §3: the anchor is writable; style-only writes are allowed on every cell of the range), missing `r`, Strict, encrypted | unchanged from Phase0, except the anchor relaxation |
 | A translation of §4.2 fails | `Err(SharedFormulaMaster)` |
 | A previous apply failed | `Err(Poisoned)` for every edit and save (§3.1) |
 

@@ -55,6 +55,16 @@ pub(crate) enum Refusal {
     Operator { operator: char, file_form: &'static str },
 }
 
+// The lexer uppercases function names. Prefix matching is case-insensitive.
+fn split_prefix(name: &str) -> (&'static str, &str) {
+    for (upper, canonical) in [("_XLFN._XLWS.", "_xlfn._xlws."), ("_XLFN.", "_xlfn."), ("_XLWS.", "_xlws.")] {
+        if let Some(bare) = name.strip_prefix(upper) {
+            return (canonical, bare);
+        }
+    }
+    ("", name)
+}
+
 /// Checks the file form of a formula. A text that does not lex is left to
 /// the caller's own lexing (this returns `Ok`).
 pub(crate) fn check(text: &str) -> Result<(), Refusal> {
@@ -62,14 +72,7 @@ pub(crate) fn check(text: &str) -> Result<(), Refusal> {
     for t in &toks {
         match &t.kind {
             TokKind::Func(name) => {
-                // the lexer upper-cases names; the prefix parts are case-insensitive
-                let (have, bare) = if let Some(b) = name.strip_prefix("_XLFN._XLWS.") {
-                    ("_xlfn._xlws.", b)
-                } else if let Some(b) = name.strip_prefix("_XLFN.") {
-                    ("_xlfn.", b)
-                } else {
-                    ("", name.as_str())
-                };
+                let (have, bare) = split_prefix(name);
                 if let Some(need) = prefix_of(bare)
                     && have != need
                 {
@@ -99,20 +102,13 @@ pub fn add_future_prefixes(text: &str) -> Result<String, String> {
     let mut last = 0;
     for t in &toks {
         let TokKind::Func(name) = &t.kind else { continue };
-        let (have, skip) = if name.starts_with("_XLFN._XLWS.") {
-            ("_xlfn._xlws.", "_xlfn._xlws.".len())
-        } else if name.starts_with("_XLFN.") {
-            ("_xlfn.", "_xlfn.".len())
-        } else {
-            ("", 0)
-        };
-        let bare = &name[skip..];
+        let (have, bare) = split_prefix(name);
         if let Some(need) = prefix_of(bare)
             && have != need
         {
             out.push_str(&text[last..t.start]);
             out.push_str(need);
-            last = t.start + skip;
+            last = t.start + have.len();
         }
     }
     out.push_str(&text[last..]);

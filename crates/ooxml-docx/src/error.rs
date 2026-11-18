@@ -139,6 +139,92 @@ pub enum Error {
     #[error("no such story")]
     NoSuchStory,
 
+    /// A property element to write occurs twice in one `w:rPr`/`w:pPr`
+    /// (or `w:updateFields` twice in `w:settings`): which copy wins is not
+    /// specified, so nothing is written (ADR-0007 §4, fail closed).
+    #[error("{name} occurs more than once in its parent")]
+    DuplicateProperty {
+        /// The element, e.g. `w:sz`.
+        name: String,
+    },
+
+    /// A value outside what Phase1 writes (an empty font name, …).
+    #[error("invalid {what}: {value:?}")]
+    InvalidValue {
+        /// What was invalid.
+        what: &'static str,
+        /// The value.
+        value: String,
+    },
+
+    /// The run's `w:rPr` (or the paragraph's `w:pPr`, or its mark's `w:rPr`)
+    /// records a tracked property change; a direct write would overwrite
+    /// the state rejecting the change must restore (ADR-0007 §4 targets).
+    #[error("the target carries a tracked property change ({element})")]
+    TrackedPropertyChange {
+        /// `w:rPrChange` or `w:pPrChange`.
+        element: &'static str,
+    },
+
+    /// The paragraph's style chain (`w:basedOn`) loops or is deeper than 32
+    /// levels (ADR-0007 §4, fail closed).
+    #[error("the style chain is cyclic or deeper than 32 levels")]
+    StyleChainTooDeep,
+
+    /// No `w:style` with this exact `w:styleId` (or no styles part).
+    /// `latent_only`: Word knows a built-in style by that name
+    /// (`w:latentStyles/w:lsdException`), but the document does not define
+    /// it; creating one is Phase2 (ADR-0007 §5).
+    #[error("no style with id {id:?}{}", if *latent_only { " (latent only)" } else { "" })]
+    UnknownStyle {
+        /// The id asked for.
+        id: String,
+        /// A latent-style entry has that name.
+        latent_only: bool,
+    },
+
+    /// The style exists with another `w:type`.
+    #[error("style {id:?} is a {found} style, not a {expected} style")]
+    StyleTypeMismatch {
+        /// The id.
+        id: String,
+        /// `paragraph` or `character`.
+        expected: &'static str,
+        /// The type found, as written (an absent type is `paragraph`).
+        found: String,
+        /// The linked style (`w:link`), if any: the usual fix when a
+        /// paragraph style id is given as a run style.
+        linked: Option<String>,
+    },
+
+    /// Two `w:style` elements have this id, exactly or ignoring case.
+    #[error("style id {id:?} is defined more than once")]
+    AmbiguousStyle {
+        /// The id.
+        id: String,
+    },
+
+    /// The main part has more than one styles relationship: which one Word
+    /// reads is not specified, so the style setters refuse (fail closed).
+    #[error("the document has more than one styles part")]
+    AmbiguousStylesPart,
+
+    /// `enable_update_fields_on_open` on a package without a settings part
+    /// (creating one is Phase2).
+    #[error("the document has no settings part")]
+    NoSettingsPart,
+
+    /// The main part has more than one settings relationship.
+    #[error("the document has more than one settings part")]
+    AmbiguousSettings,
+
+    /// `w:settings` has two `w:updateFields` elements.
+    #[error("w:settings has {name} more than once")]
+    DuplicateSetting {
+        /// The element.
+        name: &'static str,
+    },
+
     /// No paragraph with that index.
     #[error("no paragraph {0}")]
     NoSuchParagraph(usize),

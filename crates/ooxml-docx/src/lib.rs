@@ -40,6 +40,10 @@
 //! / [`Document::replace_at`] / [`Document::replace_matches`] with
 //! child-local edits and typed refusals ([`RefusalReason`]), and the
 //! per-operation `StaleFieldRisk` gate ([`Document::write_gate_for`]).
+//! Part 2: direct formatting ([`Document::format_run`],
+//! [`Document::format_paragraph`]), existing styles by id
+//! ([`Document::set_paragraph_style`], [`Document::style_ids_by_name`]) and
+//! the `updateFields` opt-in ([`Document::enable_update_fields_on_open`]).
 //!
 //! ```no_run
 //! use ooxml_docx::{Document, ReplaceOptions};
@@ -57,14 +61,21 @@ mod body;
 mod document;
 mod error;
 pub mod fields;
+mod format;
 mod names;
 mod replace;
 mod story;
+mod styles;
 mod text;
 
 pub use document::{Document, Paragraph, Run};
 pub use error::{Error, Result};
 pub use fields::Operation;
+pub use format::{
+    Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,
+    Underline, VertAlign,
+};
+pub use styles::{StyleInfo, StyleKind};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
     Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,
