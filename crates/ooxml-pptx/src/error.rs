@@ -287,6 +287,25 @@ pub enum Error {
         /// Which link.
         missing: crate::ChainLink,
     },
+
+
+    // ---- Phase 1b (ADR-0013 §4/§5): SmartArt ----
+    /// The graphic frame is not a SmartArt, or its data part is missing.
+    #[error("the shape is not a SmartArt with a data model")]
+    NotSmartArt,
+    /// No `node`/`asst` point with this `modelId`.
+    #[error("no SmartArt node {0:?}")]
+    SmartArtNodeNotFound(String),
+    /// The drawing cache does not pair with the data model (ADR-0013 §4
+    /// invariants).
+    #[error("the SmartArt drawing cache does not match its data: {0}")]
+    SmartArtCacheInconsistent(String),
+    /// `dsp:dataModelExt@relId` does not resolve from the slide.
+    #[error("the SmartArt drawing cache reference does not resolve")]
+    SmartArtCacheUnresolved,
+    /// The drawing part is referenced from somewhere else as well.
+    #[error("the SmartArt drawing cache is shared")]
+    SmartArtCacheShared,
 }
 
 impl Error {

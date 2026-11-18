@@ -62,4 +62,4 @@ pub use read::{
 pub use replace::{
     FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
-pub use write::{CellFill, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, TableColor, TableFlag, TableMut, TextBodyMut};
+pub use write::{CacheReport, CellFill, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, SmartArtMut, SmartArtNode, TableColor, TableFlag, TableMut, TextBodyMut};

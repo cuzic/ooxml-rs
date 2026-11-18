@@ -850,6 +850,62 @@ fn p2_japanese_default_font() -> Built {
     Ok((Some(input), wb.to_bytes()?))
 }
 
+fn rich_runs() -> (Font, Font) {
+    (Font { bold: true, ..Font::default() }, Font { italic: true, color: Some(Color::rgb(0xC00000)), ..Font::default() })
+}
+
+/// Part 2: rich strings into the shared-string table.
+fn p2_rich_shared() -> Built {
+    let (bold, red) = rich_runs();
+    let mut wb = Workbook::new()?;
+    {
+        let mut ws = wb.add_worksheet()?;
+        ws.cell_mut(0, 0)?.set_rich_string(&[(&Font::default(), "plain, "), (&bold, "bold"), (&red, " and red italic")])?;
+        ws.cell_mut(1, 0)?.set_rich_string(&[(&bold, "same "), (&red, "runs")])?;
+        ws.cell_mut(2, 0)?.set_rich_string(&[(&bold, "same "), (&red, "runs")])?;
+        let sup = Font { vert_align: Some(ooxml_xlsx::VertAlign::Superscript), ..Font::default() };
+        ws.cell_mut(3, 0)?.set_rich_string(&[(&Font::default(), "E = mc"), (&sup, "2")])?;
+    }
+    Ok((None, wb.to_bytes()?))
+}
+
+/// Part 2: inline rich strings in a workbook without a shared-string table.
+fn p2_rich_inline() -> Built {
+    let (bold, red) = rich_runs();
+    let input = fixture("fixtures/xlsx/poi/52348.xlsx")?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    if wb.shared_strings_available()? {
+        return Err("52348.xlsx unexpectedly has a shared-string table".into());
+    }
+    wb.worksheet()?.cell_mut(39, 0)?.set_rich_string(&[(&bold, "inline "), (&red, "rich")])?;
+    Ok((Some(input), wb.to_bytes()?))
+}
+
+/// Part 2: a dxf, made visible by a conditional format that already refers
+/// to `dxfId="0"` (the template has an empty `dxfs`).
+fn p2_dxf() -> Built {
+    let base = template()?;
+    let sheet = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>3</v></c></row></sheetData><conditionalFormatting sqref="A1:A3"><cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan"><formula>1</formula></cfRule></conditionalFormatting></worksheet>"#;
+    let s = part_text(&base, "xl/styles.xml")?;
+    // the reference to dxf 0 is dangling until the dxf exists: give the
+    // input one placeholder so the append is not refused, then add ours
+    let s = s.replacen(r#"<dxfs count="0"/>"#, r#"<dxfs count="1"><dxf><font><i/></font></dxf></dxfs>"#, 1);
+    let input = with_part(&with_part(&base, "xl/worksheets/sheet1.xml", sheet)?, "xl/styles.xml", &s)?;
+    let mut wb = Workbook::from_bytes(input.clone())?;
+    let green = ooxml_xlsx::DxfFormat::new().set_font_color(Color::rgb(0x006100)).set_background_color(Color::rgb(0xC6EFCE));
+    let i = wb.add_differential_format(&green)?;
+    // point a second rule at the new dxf (a hand-made sheet edit; the API
+    // for conditional formats is Phase4)
+    let out = wb.to_bytes()?;
+    let sheet2 = sheet.replace(
+        "</conditionalFormatting></worksheet>",
+        &format!(r#"</conditionalFormatting><conditionalFormatting sqref="B1:B3"><cfRule type="expression" dxfId="{i}" priority="2"><formula>TRUE</formula></cfRule></conditionalFormatting></worksheet>"#),
+    );
+    let out = with_part(&out, "xl/worksheets/sheet1.xml", &sheet2.replace(r#"<c r="A1"><v>1</v></c>"#, r#"<c r="A1"><v>1</v></c><c r="B1"><v>9</v></c>"#))?;
+    Ok((Some(input), out))
+}
+
 const P2_CASES: &[P2Case] = &[
     P2Case {
         out: "22-p2-format-matrix.xlsx",
@@ -955,5 +1011,26 @@ const P2_CASES: &[P2Case] = &[
         edits: "**XL (f), Japanese.** B1 = 1234.5678 with only a number format; B2 with `with_default_font_of(..).set_bold()`",
         look_for: "B1 is 游ゴシック 11 like A1 and shows 1,234.568; B2 is **游ゴシック 11 bold** (not Calibri). No repair dialog.",
         build: p2_japanese_default_font,
+    },
+    P2Case {
+        out: "36-p2-rich-strings-shared.xlsx",
+        input: "(embedded template)",
+        edits: "Part 2: A1 `plain, ` + **bold** + red italic; A2 and A3 the same rich string (one shared item); A4 `E = mc²` with a superscript run",
+        look_for: "Each run shows its own formatting in the cell and in the formula bar; A2 and A3 look identical; A4's 2 is superscript. No repair dialog.",
+        build: p2_rich_shared,
+    },
+    P2Case {
+        out: "37-p2-rich-strings-inline.xlsx",
+        input: "`fixtures/xlsx/poi/52348.xlsx` (no shared-string table)",
+        edits: "Part 2: A40 an inline rich string (`is/r`): **inline** + red italic rich",
+        look_for: "A40 shows both runs formatted. No repair dialog.",
+        build: p2_rich_inline,
+    },
+    P2Case {
+        out: "38-p2-dxf.xlsx",
+        input: "template with a conditional format on A1:A3 (> 1) using dxf 0 (italic)",
+        edits: "Part 2: `add_differential_format(green text on light green)` appends dxf 1; a second rule (hand-written, Phase4 API) shows it on B1",
+        look_for: "A2 and A3 italic (the existing dxf, unchanged); B1 dark green on light green. Home > Conditional Formatting > Manage Rules shows both rules. No repair dialog.",
+        build: p2_dxf,
     },
 ];

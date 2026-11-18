@@ -41,6 +41,9 @@ pub(crate) enum CellOp {
     Bool(bool),
     /// `t="e"` with this error value (`#N/A`, …).
     Error(&'static str),
+    /// `t="inlineStr"` with rich runs (`is/r`), for a workbook without a
+    /// shared-string table (ADR-0006 §4.6).
+    InlineRich(Vec<crate::registry::strings::RichRun>),
     /// Only the cell's `s` changes (Phase2).
     StyleOnly,
 }

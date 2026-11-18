@@ -10,6 +10,7 @@
 
 pub(crate) mod dates;
 pub mod format;
+pub mod read;
 pub(crate) mod strings;
 pub(crate) mod styles;
 

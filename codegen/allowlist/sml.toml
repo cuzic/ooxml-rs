@@ -76,6 +76,14 @@ names = [
     "x:CT_Xf/x:xf",
     "x:CT_CellAlignment/x:alignment",
     "x:CT_CellProtection/x:protection",
+    # Phase2 part 2 (ADR-0006 §4.2, §5.8): rich strings (si/r/rPr, is/r) and dxfs.
+    "x:CT_RElt/x:r",
+    "x:CT_RPrElt/x:rPr",
+    "x:CT_FontName/x:rFont",
+    "x:CT_IntProperty/x:family",
+    "x:CT_IntProperty/x:charset",
+    "x:CT_Dxfs/x:dxfs",
+    "x:CT_Dxf/x:dxf",
 
     # Phase4 part 1 (ADR-0014 §3, §7, §11): merged cells, autofilter and its
     # _xlnm._FilterDatabase name, sheet protection, sheetPr/@filterMode.
@@ -89,7 +97,6 @@ names = [
 # first sheet, shared/rich strings, merged ranges, table header rows.
 [read]
 names = [
-    "x:CT_RElt/x:r",
     # Phase4 part 1 (ADR-0014 §7): an autofilter with criteria or a sort is
     # refused, so these are only detected.
     "x:CT_FilterColumn/x:filterColumn",

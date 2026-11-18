@@ -12,9 +12,10 @@
 
 use std::collections::HashMap;
 
-use ooxml_core::{ElementSpec, LensMut, QName};
+use ooxml_core::{ChildOf, ElementSpec, LensMut, QName};
 use ooxml_schema::sml;
 
+use super::format::{Font, Underline};
 use super::{Table, census_sheet_parts, current_document, render, scan_sheet};
 use crate::error::{Error, Result};
 use crate::workbook::Workbook;
@@ -32,19 +33,112 @@ pub(crate) struct SharedStrings {
     has_unique: bool,
 }
 
+/// One run of a rich string: its font (`None` = no `rPr`) and its text,
+/// already `_xHHHH_`-escaped.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct RichRun {
+    pub(crate) font: Option<Font>,
+    pub(crate) escaped: String,
+}
+
+/// The content of a new `si` (ADR-0006 §4.2): plain text or runs. The two
+/// never collide: their canonical bytes differ (`si/t` against `si/r`).
+#[derive(Clone, Debug)]
+pub(crate) enum SiContent {
+    Plain(String),
+    Rich(Vec<RichRun>),
+}
+
 /// What one string write does to the registry.
 #[derive(Clone, Debug)]
 pub(crate) struct StringPlan {
     pub(crate) index: u32,
     /// The canonical bytes, when a new `si` is appended.
     append: Option<String>,
-    escaped: String,
+    content: SiContent,
     decoded: String,
 }
 
-fn build_si(parent: &mut LensMut<'_, sml::SharedStringTable>, escaped: &str) -> Result<()> {
+fn build_si(parent: &mut LensMut<'_, sml::SharedStringTable>, content: &SiContent) -> Result<()> {
     let mut si = parent.insert::<sml::SharedStringItem>()?;
-    si.insert::<sml::Text>()?.set_text(escaped)?;
+    match content {
+        SiContent::Plain(escaped) => {
+            si.insert::<sml::Text>()?.set_text(escaped)?;
+        }
+        SiContent::Rich(runs) => {
+            for r in runs {
+                build_run(&mut si, r)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Appends one `r` (with `rPr` when the run has a font, then `t`) under
+/// `si` or `is`.
+pub(crate) fn build_run<P>(parent: &mut LensMut<'_, P>, run: &RichRun) -> Result<()>
+where
+    P: ElementSpec,
+    sml::Run: ChildOf<P>,
+{
+    let mut r = parent.insert::<sml::Run>()?;
+    if let Some(f) = &run.font {
+        build_rpr(&mut r, f)?;
+    }
+    r.insert::<sml::Text>()?.set_text(&run.escaped)?;
+    Ok(())
+}
+
+/// The run properties of a font (`CT_RPrElt`), in Excel's and
+/// rust_xlsxwriter's order: `b`, `i`, `strike`, `condense`, `extend`, `u`,
+/// `vertAlign`, `sz`, `color`, `rFont`, `family`, `charset`, `scheme`.
+fn build_rpr(r: &mut LensMut<'_, sml::Run>, f: &Font) -> Result<()> {
+    let mut p = r.insert::<sml::RunProperties>()?;
+    let val = QName::new("", "val");
+    if f.bold {
+        p.insert::<sml::Bold>()?;
+    }
+    if f.italic {
+        p.insert::<sml::Italic>()?;
+    }
+    if f.strike {
+        p.insert::<sml::Strike>()?;
+    }
+    if f.condense {
+        p.insert::<sml::Condense>()?;
+    }
+    if f.extend {
+        p.insert::<sml::Extend>()?;
+    }
+    if let Some(u) = f.underline {
+        let mut e = p.insert::<sml::Underline>()?;
+        match u {
+            Underline::Single => {}
+            Underline::Double => e.set_attr(val, "double")?,
+            Underline::SingleAccounting => e.set_attr(val, "singleAccounting")?,
+            Underline::DoubleAccounting => e.set_attr(val, "doubleAccounting")?,
+        }
+    }
+    if let Some(v) = f.vert_align {
+        p.insert::<sml::VerticalTextAlignment>()?.set_attr(val, v.as_str())?;
+    }
+    p.insert::<sml::FontSize>()?.set_attr(val, &f.size.to_string())?;
+    if let Some(c) = &f.color {
+        let mut e = p.insert::<sml::Color>()?;
+        for (k, v) in c.attrs() {
+            e.set_attr(QName::new("", k), &v)?;
+        }
+    }
+    p.insert::<sml::RunFont>()?.set_attr(val, &f.name)?;
+    if let Some(fam) = f.family {
+        p.insert::<sml::FontFamily>()?.set_attr(val, &fam.to_string())?;
+    }
+    if let Some(cs) = f.charset {
+        p.insert::<sml::RunPropertyCharSet>()?.set_attr(val, &cs.to_string())?;
+    }
+    if let Some(sc) = &f.scheme {
+        p.insert::<sml::FontScheme>()?.set_attr(val, sc)?;
+    }
     Ok(())
 }
 
@@ -87,11 +181,17 @@ impl SharedStrings {
 
     /// Plans one plain string (already `_xHHHH_`-escaped).
     pub(crate) fn plan(&self, escaped: &str, decoded: &str) -> Result<StringPlan> {
-        let key = render::<sml::SharedStringTable>(self.prefix.as_deref(), |p| build_si(p, escaped))?;
+        self.plan_content(SiContent::Plain(escaped.into()), decoded)
+    }
+
+    /// Plans one string, plain or rich. An existing `si` is reused only if
+    /// its bytes are exactly the canonical form of `content` (§4.3).
+    pub(crate) fn plan_content(&self, content: SiContent, decoded: &str) -> Result<StringPlan> {
+        let key = render::<sml::SharedStringTable>(self.prefix.as_deref(), |p| build_si(p, &content))?;
         if let Some(&i) = self.reuse.get(&key) {
-            return Ok(StringPlan { index: i, append: None, escaped: escaped.into(), decoded: decoded.into() });
+            return Ok(StringPlan { index: i, append: None, content, decoded: decoded.into() });
         }
-        Ok(StringPlan { index: self.entries, append: Some(key), escaped: escaped.into(), decoded: decoded.into() })
+        Ok(StringPlan { index: self.entries, append: Some(key), content, decoded: decoded.into() })
     }
 
     /// Applies a plan and a change in the number of `t="s"` cells. Called
@@ -104,7 +204,7 @@ impl SharedStrings {
             if let Some(p) = plan
                 && let Some(key) = &p.append
             {
-                build_si(&mut sst, &p.escaped)?;
+                build_si(&mut sst, &p.content)?;
                 reg.reuse.insert(key.clone(), reg.entries);
                 reg.entries += 1;
                 if let Some(cache) = wb.shared_strings.as_mut() {
