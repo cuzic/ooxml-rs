@@ -456,3 +456,26 @@ fn per_operation_stale_field_risk() {
         assert!(doc.write_gate_for(op).is_err());
     }
 }
+
+/// Review of PR #52, n3 (mutants Q17, Q20, Q23) and m2.
+#[test]
+fn review_52_n3_and_m2() {
+    // Q17: an even header without settings/evenAndOddHeaders is not displayed
+    let body = r#"<w:p/><w:sectPr><w:headerReference w:type="even" r:id="rIdX0"/></w:sectPr>"#;
+    let doc = Document::from_bytes(package(&document_xml(body), &[("header", "header1.xml", &story_xml("hdr", "<w:p/>"))])).unwrap();
+    let uses: Vec<(HeaderFooterType, bool)> = doc.stories().nth(1).unwrap().sections().iter().map(|u| (u.kind, u.displayed)).collect();
+    assert_eq!(uses, [(HeaderFooterType::Even, false)]);
+    // Q20: an empty rFonts against none is an Identical difference (not invisible under Identical)
+    let doc = open(r#"<w:p><w:r><w:rPr><w:rFonts/></w:rPr><w:t>{{x</w:t></w:r><w:r><w:t>}}</w:t></w:r></w:p>"#);
+    assert_eq!(kinds(&doc, "{{x}}", &default().formatting(RunFormatting::Identical)), ["MixedFormatting"]);
+    // Q23: stray text directly in the paragraph is a boundary
+    assert_matches!(refused(r#"<w:p><w:r><w:t>{{</w:t></w:r>stray<w:r><w:t>x}}</w:t></w:r></w:p>"#, "{{x}}"), RefusalReason::MatchCrossesBoundary { boundary } if boundary == "text");
+    // m2: a hand-made Match with an empty range is refused
+    let mut doc = open(r#"<w:p><w:r><w:t>abcde</w:t></w:r></w:p>"#);
+    let mut m = doc.find("c", &default()).unwrap().remove(0);
+    m.range = 2..2;
+    m.text = String::new();
+    let before = doc.to_bytes().unwrap();
+    assert_matches!(doc.replace_at(&m, "XY", &default()), Err(Error::EmptyNeedle));
+    assert_eq!(doc.to_bytes().unwrap(), before);
+}

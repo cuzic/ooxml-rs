@@ -1,0 +1,9 @@
+[
+  {
+    "fixture": "poi/layouts.pptx",
+    "slide_id": 262,
+    "shape_id": 2,
+    "reason": "orphan placeholder (no layout placeholder with its idx or type): ADR-0008 §1.2 step 4 resolves it from the master by family, as POI does; python-pptx returns None",
+    "expected": [457200, 274638, 8229600, 1143000]
+  }
+]

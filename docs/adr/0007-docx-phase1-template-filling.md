@@ -1315,6 +1315,10 @@ clarifying; the decisions above are unchanged.
   deleted run) is a boundary at its position; it refuses a match only when strictly inside.
 - **Edge `w:lastRenderedPageBreak`.** "Strictly inside" is by text position: a page-break
   marker after the `{{` of `{{x}}`, at the end of `r₀`, lies inside the match and is removed.
+  That includes one in a run without text between `r₀` and `rₖ` (review of PR #52, n1); such
+  a run lies inside T2/T7's locality range, from `r₀`'s start to `rₖ`'s end.
+- **Empty ranges.** `replace_matches` refuses a `Match` with an empty range (`EmptyNeedle`),
+  so a hand-made `Match` cannot insert text (review of PR #52, m2).
 - **UnpreservedWhitespace** is checked for every affected `w:t` whose kept text reaches its
   original edge (kept or recreated), per match.
 - **Corpus cross-check** (throwaway, as ADR-0004 §7): gate and per-run settability outputs are
