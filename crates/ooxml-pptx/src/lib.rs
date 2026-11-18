@@ -27,6 +27,7 @@
 //! [ADR-0005]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0005-pptx-phase0.md
 //! [ADR-0008]: https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0008-pptx-phase1-deck-reading.md
 
+mod builtin_styles;
 mod deck;
 mod deckread;
 mod error;
@@ -57,4 +58,4 @@ pub use read::{
 pub use replace::{
     FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
-pub use write::{ParagraphMut, RunMut, ShapeMut, SlideMut, TextBodyMut};
+pub use write::{CellFill, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, TableColor, TableFlag, TableMut, TextBodyMut};
