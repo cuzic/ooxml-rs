@@ -343,7 +343,7 @@ impl Styles {
             let scan = super::scan_sheet(&wb.pkg.read_part(&p)?)?;
             sheet_max_s = sheet_max_s.max(scan.max_s);
         }
-        let doc = wb.pkg.xml_part(&part)?;
+        let doc = super::current_document(wb.pkg.xml_part(&part)?)?;
         let root = doc.root();
         if !root.is(sml::Stylesheet::QNAME) {
             return Err(Error::UnsupportedStylesPart(format!("{part}: root is {{{}}}{}", root.name().ns(), root.name().local())));
@@ -393,7 +393,7 @@ impl Styles {
                     st.count_attr.insert(w);
                 }
             }
-            st.tables.insert(w, Table::read(doc, node, entry(w)));
+            st.tables.insert(w, Table::read(&doc, node, entry(w)));
         }
         // fills 0 and 1 are reserved; 0 is a reuse target only as canonical `none`
         let none_key = render::<sml::Fills>(st.prefix(Which::Fills).as_deref(), |p| build_fill(p, &Fill::NoFill))?;
@@ -435,7 +435,7 @@ impl Styles {
         };
         st.xfs = Arc::new(xfs("cellXfs"));
         st.csx_infos = Arc::new(xfs("cellStyleXfs"));
-        st.csx = Table::read(doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
+        st.csx = Table::read(&doc, table_node(root, "cellStyleXfs"), sml::CellFormat::QNAME);
         if st.csx.count > 0 {
             st.default = if st.csx.stable { st.csx_infos.first().cloned().flatten() } else { None };
             st.default_unreadable = st.default.is_none();

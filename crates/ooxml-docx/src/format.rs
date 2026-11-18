@@ -658,6 +658,11 @@ pub(crate) fn slot_index<E: ElementSpec>(parent: &RawNode, q: QName) -> usize {
 /// at `path` (from `root`), declarations on `extra` (a new child) included?
 /// `set_attr` needs one for a new `w:` attribute (review n4).
 pub(crate) fn wml_prefix_in_scope(root: &RawNode, path: &[usize]) -> bool {
+    prefix_in_scope(root, path, NS_W)
+}
+
+/// Is `uri` bound to a non-empty prefix in scope at the element at `path`?
+pub(crate) fn prefix_in_scope(root: &RawNode, path: &[usize], uri: &str) -> bool {
     let mut decls: Vec<(Option<String>, String)> = Vec::new();
     let mut node = root;
     let push = |n: &RawNode, decls: &mut Vec<(Option<String>, String)>| {
@@ -671,7 +676,7 @@ pub(crate) fn wml_prefix_in_scope(root: &RawNode, path: &[usize]) -> bool {
         push(node, &mut decls);
     }
     let effective = |p: &str| decls.iter().rev().find(|(q, _)| q.as_deref() == Some(p)).map(|(_, u)| u.as_str());
-    decls.iter().any(|(p, u)| u == NS_W && p.as_deref().is_some_and(|p| !p.is_empty() && effective(p) == Some(NS_W)))
+    decls.iter().any(|(p, u)| u == uri && p.as_deref().is_some_and(|p| !p.is_empty() && effective(p) == Some(uri)))
 }
 
 macro_rules! dispatch {

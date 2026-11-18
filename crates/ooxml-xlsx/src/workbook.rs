@@ -119,6 +119,14 @@ pub enum ApplyStep {
     StaleRegistryPlan,
     /// Before updating the formula index.
     Index,
+    /// A structural operation (ADR-0009): before the registry plan is
+    /// applied.
+    StructuralApply,
+    /// A structural operation: after apply, before the indexes are rebuilt.
+    StructuralRebuild,
+    /// A structural operation: inside the rebuild, after the package was
+    /// re-read.
+    StructuralReindex,
     /// Before a Phase4 range-feature edit (merge, autofilter, protection).
     RangeFeature,
 }
@@ -176,6 +184,8 @@ pub struct Workbook {
     pub(crate) style_sensitive: Option<bool>,
     from_template: bool,
     template_sheet_taken: bool,
+    /// `sheetId`s of sheets deleted in this session (never reused).
+    pub(crate) removed_sheet_ids: Vec<u32>,
     #[cfg(feature = "fault-injection")]
     /// The step to fail at, and whether to panic instead of returning `Err`.
     pub(crate) fault: Option<(ApplyStep, bool)>,
@@ -211,59 +221,63 @@ impl Workbook {
 
     /// Wraps an opened package.
     pub fn from_package(mut pkg: Package) -> Result<Self> {
-        let workbook_part = pkg.main_document_part().ok_or(Error::NoWorkbook)?;
-        let wb_rels = pkg.relationships(&workbook_part)?;
-        let (sheets, names, calc) = read_workbook(&mut pkg, &workbook_part, &wb_rels)?;
-        let first_visible = sheets
-            .iter()
-            .position(|s| s.visible && s.kind == SheetKind::Worksheet)
-            .ok_or(Error::NoVisibleWorksheet)?;
-        let calc_chain = wb_rels
-            .by_type(REL_CALC_CHAIN)
-            .next()
-            .and_then(|r| wb_rels.resolve(r))
-            .filter(|p| pkg.contains(p));
-        let census = formula_census(&pkg, &wb_rels, &sheets)?;
-        let shared_strings = load_shared_strings(&mut pkg, &wb_rels)?;
-        let env = Env {
-            sheets_lc: sheets.iter().map(|s| fold(&s.name)).collect(),
-            names: names
-                .into_iter()
-                .map(|(name, local, text)| {
-                    let scope = match local {
-                        None => Scope::Global,
-                        Some(i) if (i as usize) < sheets.len() => Scope::Local(i as usize),
-                        Some(_) => Scope::Invalid,
-                    };
-                    NameDef::new(&name, scope, &text)
-                })
-                .collect(),
-            bx_any: census.bx_any,
-        };
+        let l = Loaded::load(&mut pkg)?;
         let mut wb = Self {
             pkg,
-            workbook_part,
-            sheets,
-            first_visible,
-            shared_strings,
+            workbook_part: l.workbook_part,
+            sheets: l.sheets,
+            first_visible: l.first_visible,
+            shared_strings: l.shared_strings,
             contexts: HashMap::new(),
             indexes: HashMap::new(),
-            census,
-            env,
+            census: l.census,
+            env: l.env,
             graph: None,
-            calc,
-            calc_chain,
+            calc: l.calc,
+            calc_chain: l.calc_chain,
             policy: CalcPolicy::default(),
             poisoned: None,
             registries: Default::default(),
             style_sensitive: None,
             from_template: false,
             template_sheet_taken: false,
+            removed_sheet_ids: Vec::new(),
             #[cfg(feature = "fault-injection")]
             fault: None,
         };
-        wb.load_context(first_visible)?;
+        wb.load_context(wb.first_visible)?;
         Ok(wb)
+    }
+
+    /// Re-reads every index (sheet list, census, names, calculation state,
+    /// shared strings) from the package, as `open` does (ADR-0009 §2, review
+    /// R2-M2: rebuilt, never hand re-indexed). Used after a structural
+    /// operation's plan is applied. A failure poisons the workbook: the
+    /// package and the indexes may then disagree, so nothing more may be
+    /// edited or saved (ADR-0003 §3.1).
+    pub(crate) fn rebuild(&mut self) -> Result<()> {
+        let r = Loaded::load(&mut self.pkg).and_then(|l| {
+            self.fault_point(ApplyStep::StructuralReindex)?;
+            self.workbook_part = l.workbook_part;
+            self.sheets = l.sheets;
+            self.first_visible = l.first_visible;
+            self.shared_strings = l.shared_strings;
+            self.census = l.census;
+            self.env = l.env;
+            self.calc = l.calc;
+            self.calc_chain = l.calc_chain;
+            self.contexts.clear();
+            self.indexes.clear();
+            self.graph = None;
+            self.registries = Default::default();
+            self.style_sensitive = None;
+            self.load_context(self.first_visible)
+        });
+        if let Err(e) = &r {
+            self.poisoned = Some(format!("re-indexing after a structural edit failed: {e}"));
+            return Err(Error::Poisoned(self.poisoned.clone().unwrap_or_default()));
+        }
+        Ok(())
     }
 
     /// Parses a worksheet (once) and loads its merges and table headers.
@@ -468,6 +482,36 @@ impl Workbook {
         }
     }
 
+    /// Test hook (not API): a fingerprint of every index the workbook keeps
+    /// (sheet list, formula census, defined names, calculation state), for
+    /// the ADR-0009 oracle "rebuilt state == state of the reopened output".
+    #[doc(hidden)]
+    pub fn __index_fingerprint(&self) -> String {
+        use std::fmt::Write as _;
+        let mut out = String::new();
+        let _ = writeln!(out, "workbook {} first_visible {} calc_chain {:?}", self.workbook_part, self.first_visible, self.calc_chain);
+        let _ = writeln!(out, "calc manual={} iterate={} full={}", self.calc.manual, self.calc.iterate, self.calc.full_calc_on_load);
+        for s in &self.sheets {
+            let _ = writeln!(out, "sheet {:?} {:?} {:?} visible={}", s.name, s.part, s.kind, s.visible);
+        }
+        let mut cells: Vec<String> = self
+            .census
+            .alive()
+            .map(|(_, c)| format!("{} {} {:?} {:?} {:?} cache={} {:?}", c.sheet, c.at, c.kind, c.range, c.dynamic, c.has_cache, c.text))
+            .collect();
+        cells.sort();
+        for c in cells {
+            let _ = writeln!(out, "f {c}");
+        }
+        let mut names: Vec<String> = self.env.names.iter().map(|n| format!("{} {:?} {:?}", n.name_lc, n.scope, n.expr.is_some())).collect();
+        names.sort();
+        for n in names {
+            let _ = writeln!(out, "name {n}");
+        }
+        let _ = writeln!(out, "block {:?} shared_strings {:?}", self.census.block.is_some(), self.shared_strings.as_ref().map(Vec::len));
+        out
+    }
+
     /// Test hook: make the next edit fail just before `step` of its apply
     /// phase (ADR-0003 §7.3). Only with the `fault-injection` feature.
     #[cfg(feature = "fault-injection")]
@@ -483,6 +527,53 @@ impl Workbook {
     #[doc(hidden)]
     pub fn inject_apply_panic(&mut self, step: ApplyStep) {
         self.fault = Some((step, true));
+    }
+}
+
+/// Everything [`Workbook`] derives from its package.
+struct Loaded {
+    workbook_part: String,
+    sheets: Vec<SheetEntry>,
+    first_visible: usize,
+    shared_strings: Option<Vec<String>>,
+    census: Census,
+    env: Env,
+    calc: CalcState,
+    calc_chain: Option<String>,
+}
+
+impl Loaded {
+    fn load(pkg: &mut Package) -> Result<Loaded> {
+        let workbook_part = pkg.main_document_part().ok_or(Error::NoWorkbook)?;
+        let wb_rels = pkg.relationships(&workbook_part)?;
+        let (sheets, names, calc) = read_workbook(pkg, &workbook_part, &wb_rels)?;
+        let first_visible = sheets
+            .iter()
+            .position(|s| s.visible && s.kind == SheetKind::Worksheet)
+            .ok_or(Error::NoVisibleWorksheet)?;
+        let calc_chain = wb_rels
+            .by_type(REL_CALC_CHAIN)
+            .next()
+            .and_then(|r| wb_rels.resolve(r))
+            .filter(|p| pkg.contains(p));
+        let census = formula_census(pkg, &wb_rels, &sheets)?;
+        let shared_strings = load_shared_strings(pkg, &wb_rels)?;
+        let env = Env {
+            sheets_lc: sheets.iter().map(|s| fold(&s.name)).collect(),
+            names: names
+                .into_iter()
+                .map(|(name, local, text)| {
+                    let scope = match local {
+                        None => Scope::Global,
+                        Some(i) if (i as usize) < sheets.len() => Scope::Local(i as usize),
+                        Some(_) => Scope::Invalid,
+                    };
+                    NameDef::new(&name, scope, &text)
+                })
+                .collect(),
+            bx_any: census.bx_any,
+        };
+        Ok(Loaded { workbook_part, sheets, first_visible, shared_strings, census, env, calc, calc_chain })
     }
 }
 
@@ -517,7 +608,8 @@ fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships) -
                 return Err(Error::Malformed(format!("{workbook_part}: <sheet> without name or r:id")));
             };
             let visible = matches!(s.state(), EnumValue::Known(SheetStateValues::Visible));
-            raw.push((name.to_owned(), id.to_owned(), visible));
+            // ST_Xstring: the name as Excel shows it (PR #53 review R2-m4)
+            raw.push((crate::escape::decode(name).into_owned(), id.to_owned(), visible));
         }
         if let Some(dn) = wb.defined_names() {
             for d in dn.defined_name_iter() {

@@ -87,6 +87,9 @@ pub struct Document {
     /// Per story, per paragraph: the edit generation (ADR-0007 §7).
     pub(crate) generations: Vec<Vec<u64>>,
     pub(crate) id: DocumentId,
+    /// Source of [`Self::generation`] values: every write gives its
+    /// paragraphs a value never used before in this `Document`.
+    gen_counter: u64,
     gates: Vec<Gate>,
     /// Parts named by the main part's settings relationships (ADR-0007 §6.3).
     pub(crate) settings_parts: Vec<String>,
@@ -253,6 +256,7 @@ impl Document {
             stories,
             generations,
             id: DocumentId::fresh(),
+            gen_counter: 0,
             gates,
             update_fields,
             write_protection,
@@ -408,8 +412,9 @@ impl Document {
         self.paragraph_at(ParaRef::new(StoryIndex::MAIN, index))
     }
 
-    /// The edit generation of a paragraph (ADR-0007 §7): incremented by
-    /// every write that changes it. Refused calls and writes that leave the
+    /// The edit generation of a paragraph (ADR-0007 §7): changed (to a value
+    /// never used before) by every write that changes it, and, since
+    /// Phase2, by an insert that moves it. Refused calls and writes that leave the
     /// output byte-identical do not change it. 0 for an unknown paragraph.
     pub fn generation(&self, p: ParaRef) -> u64 {
         self.generations.get(p.story.0).and_then(|g| g.get(p.index)).copied().unwrap_or(0)
@@ -431,9 +436,33 @@ impl Document {
     }
 
     pub(crate) fn bump(&mut self, p: ParaRef) {
+        self.gen_counter += 1;
+        let next = self.gen_counter;
         if let Some(g) = self.generations.get_mut(p.story.0).and_then(|g| g.get_mut(p.index)) {
-            *g += 1;
+            *g = next;
         }
+    }
+
+    /// A paragraph was inserted at `at` (Phase2, ADR-0011 §9.1): later
+    /// paragraphs move up by one and get fresh generations, so a `Match`
+    /// found before the insert is stale for every moved paragraph.
+    pub(crate) fn paragraph_inserted(&mut self, at: ParaRef) {
+        self.reindex_counted(at.story);
+        let g = &mut self.generations[at.story.0];
+        g.insert(at.index.min(g.len()), 0);
+        for i in at.index..self.generations[at.story.0].len() {
+            self.bump(ParaRef::new(at.story, i));
+        }
+    }
+
+    /// Re-walks a story whose paragraph count changed.
+    pub(crate) fn reindex_counted(&mut self, story: StoryIndex) {
+        let root = self.story_root_node(story);
+        let kind = self.stories[story.0].id.kind;
+        self.stories[story.0].index = match kind {
+            StoryKind::Main => body::index(root),
+            k => body::index_root(root, story_root(k).1),
+        };
     }
 
     /// Replaces the content of run `run` of paragraph `paragraph` of the
@@ -513,9 +542,13 @@ impl Document {
     /// ([`Operation::Append`]), [`Error::InvalidXmlChar`],
     /// [`Error::NoBody`], [`Error::InsideField`] (the body ends inside an
     /// unterminated field), A1 `Core(UnresolvedSibling)` (the body has an
-    /// `mc:AlternateContent` child), A2 [`Error::SectionBreakAtEnd`] (no
-    /// body-level `w:sectPr`, and the body ends with a paragraph carrying
-    /// `w:pPr/w:sectPr`).
+    /// `mc:AlternateContent` child), A2 [`Error::SectionBreakAtEnd`] only
+    /// when the body ends with a paragraph carrying `w:pPr/w:sectPr` inside a
+    /// table or content control. Since Phase2 (ADR-0011 §6), when that
+    /// paragraph is a body child, its `w:sectPr` moves to the new paragraph
+    /// (copied with its header/footer references written again, then
+    /// removed), so the new paragraph stays in the last section; the move's
+    /// refusals are those of [`Self::insert_section_break`].
     pub fn append_paragraph(&mut self, text: &str) -> Result<usize> {
         self.write_gate_for(Operation::Append)?;
         let pieces = map_text(text)?;
@@ -525,7 +558,9 @@ impl Document {
             return Err(Error::InsideField);
         }
         if ends_with_section_break(self.story_root_node(StoryIndex::MAIN), index) {
-            return Err(Error::SectionBreakAtEnd);
+            // Phase2 lifts A2 (ADR-0011 §6): the last section's sectPr moves to
+            // the new paragraph, when the last paragraph is a body child.
+            return self.append_moving_section(&pieces, &crate::ParagraphSpec::Plain, None);
         }
         let xml = self.pkg.xml_part_mut(&self.main)?;
         let mut body = xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(b).ok_or(Error::NoBody)?;
@@ -607,7 +642,7 @@ fn section_uses(
 /// with default page settings (review round 2 m2; round 3 m8: blocks
 /// without paragraphs after it, such as an empty `w:sdt` or a table without
 /// rows, do not change this).
-fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
+pub(crate) fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
     let Some(body) = index.body.and_then(|b| root.children()[b].as_element()) else { return false };
     if body.elements().any(is::<SectionProperties>) {
         return false;
@@ -694,7 +729,7 @@ fn run_below<'a>(p: LensMut<'a, P>, rest: &[usize]) -> Option<LensMut<'a, R>> {
 /// Replaces the run's content (everything but `w:rPr` and whitespace-only
 /// text) with `pieces`. Fast path: one `w:t` replaced by one `w:t` keeps
 /// the element and its open tag.
-fn write_pieces(run: &mut LensMut<'_, R>, pieces: &[Piece]) -> Result<()> {
+pub(crate) fn write_pieces(run: &mut LensMut<'_, R>, pieces: &[Piece]) -> Result<()> {
     let content: Vec<usize> = run.node().indexed_elements().filter(|(_, c)| !is::<wml::RunProperties>(c)).map(|(i, _)| i).collect();
     if let ([i], [Piece::Text(s)]) = (&content[..], pieces)
         && run.node().children()[*i].as_element().is_some_and(is::<Text>)
