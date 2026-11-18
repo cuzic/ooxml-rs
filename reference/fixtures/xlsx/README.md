@@ -5,8 +5,8 @@ the shapes that the hand-made `reference/round_trip_corpus/fixture_minimal.xlsx`
 "Scope boundary", R2-M1). Each one was chosen for a specific purpose. The Phase0 acceptance tests
 that use them are specified in `docs/roadmap/xlsx.md` §7.
 
-- 25 files, 290,781 bytes in total, plus 3 Phase2 files (23,498 bytes).
-- `poi/`: 23 files from Apache POI, Apache License 2.0. `poi/LICENSE` and `poi/NOTICE` are POI's
+- 29 files, 381,534 bytes in total, plus 3 Phase2 files (23,498 bytes).
+- `poi/`: 27 files from Apache POI, Apache License 2.0. `poi/LICENSE` and `poi/NOTICE` are POI's
   `legal/LICENSE` and `legal/NOTICE` at the same commit.
 - `poi-phase2/`: 3 more files from Apache POI (same commit, same licence: `poi/LICENSE`,
   `poi/NOTICE`) for the Phase2 registry tests (ADR-0006). They are in their own directory so
@@ -87,6 +87,15 @@ produced by `spikes/xlsx/phase0_facts.py` and `spikes/xlsx/survey.py`.
 | `poi-phase2/47889.xlsx` | not recorded | **Self-closing, empty `<styleSheet/>`** (no tables at all): every table is inserted and gets its reserved leading entries first (ADR-0006 §5.4). No `sharedStrings.xml`. |
 | `poi-phase2/64420.xlsm` | Microsoft Excel | A **macro sheet holding a `t="s"` cell**: `sst/@count` must count macro sheets too (review n1). `fonts/@x14ac:knownFonts="1"`. |
 | `poi-phase2/64450.xlsx` | not recorded | **`fills[1]` is `lightGray`**, byte-identical to a canonical `lightGray` fill: a reserved position is not a reuse target (review n4). Pivot table and cache, chart. |
+
+### Range features (Phase4, ADR-0014)
+
+| File | Producer | Exercises |
+|---|---|---|
+| `poi/bug66827.xlsx` | Excel 12.0000 | A sheet-local **`_xlnm._FilterDatabase` left behind** without an `autoFilter`, and a sheet-level **`sortState`** (ADR-0014 §7: the name is reused, the sort state kept). |
+| `poi/57523.xlsx` | Excel 14.0300 | Two leftover `_FilterDatabase` names (one per sheet, `localSheetId` 0 and 1) and a sheet name that needs quoting (`'Attribute Master'`); sheet-level `sortState` on both sheets. |
+| `poi/absolute-anchor-over-empty-sheet.xlsx` | Excel 16.0300 | A sheet-local **and a workbook-scope** `_FilterDatabase`, both `#REF!` (the workbook-scope one is never touched). |
+| `poi/workbookProtection-sheet_password-2013.xlsx` | Excel 15.0300 | **SHA-512 sheet protection** (`algorithmName`, `hashValue`, `saltValue`, `spinCount="100000"`); the password is `pwd` (POI `TestXSSFSheet.java` L1357–1358). Hash vector of ADR-0014 §11. |
 
 ## Coverage against ADR-0001's "not covered" list
 
