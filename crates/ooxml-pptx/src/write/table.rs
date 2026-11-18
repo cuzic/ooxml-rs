@@ -274,9 +274,9 @@ pub enum Edge {
     Bottom,
 }
 
-/// A colour for fills and lines.
+/// A colour to write to a table cell fill or border.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Color {
+pub enum TableColor {
     /// `a:srgbClr`.
     Rgb([u8; 3]),
     /// `a:schemeClr` (`tx1`, `bg1`, `accent1`, …).
@@ -291,7 +291,7 @@ pub enum Line {
         /// Width (EMU).
         width: i64,
         /// Colour.
-        color: Color,
+        color: TableColor,
     },
     /// No line (`a:noFill`).
     None,
@@ -301,7 +301,7 @@ pub enum Line {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellFill {
     /// `a:solidFill`.
-    Solid(Color),
+    Solid(TableColor),
     /// `a:noFill`.
     None,
 }
@@ -341,9 +341,9 @@ const SCHEME: [&str; 17] = [
     "lt1", "dk2", "lt2",
 ];
 
-fn check_color(c: &Color) -> Result<()> {
+fn check_color(c: &TableColor) -> Result<()> {
     match c {
-        Color::Scheme(s) if !SCHEME.contains(&s.as_str()) => Err(Error::ValueOutOfRange { what: "schemeClr@val" }),
+        TableColor::Scheme(s) if !SCHEME.contains(&s.as_str()) => Err(Error::ValueOutOfRange { what: "schemeClr@val" }),
         _ => Ok(()),
     }
 }
@@ -1206,10 +1206,10 @@ where
     }
 }
 
-fn write_color(f: &mut LensMut<'_, SolidFill>, c: &Color) -> Result<()> {
+fn write_color(f: &mut LensMut<'_, SolidFill>, c: &TableColor) -> Result<()> {
     match c {
-        Color::Rgb([r, g, b]) => f.insert::<RgbColorModelHex>()?.set_attr(QName::new("", "val"), &format!("{r:02X}{g:02X}{b:02X}"))?,
-        Color::Scheme(s) => f.insert::<SchemeColor>()?.set_attr(QName::new("", "val"), s)?,
+        TableColor::Rgb([r, g, b]) => f.insert::<RgbColorModelHex>()?.set_attr(QName::new("", "val"), &format!("{r:02X}{g:02X}{b:02X}"))?,
+        TableColor::Scheme(s) => f.insert::<SchemeColor>()?.set_attr(QName::new("", "val"), s)?,
     }
     Ok(())
 }

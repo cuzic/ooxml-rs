@@ -18,7 +18,7 @@ use crate::refs::SlideRefs;
 use crate::text;
 
 mod table;
-pub use table::{CellFill, Color, Edge, Line, Side, TableFlag, TableMut};
+pub use table::{CellFill, Edge, Line, Side, TableColor, TableFlag, TableMut};
 pub(crate) use table::TableSession;
 
 pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {

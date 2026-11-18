@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use ooxml_core::Package;
-use ooxml_pptx::{CellFill, Color, Edge, Line, Presentation, ShapeKind, TextItem};
+use ooxml_pptx::{CellFill, Edge, Line, Presentation, ShapeKind, TableColor, TextItem};
 
 type R<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -571,9 +571,9 @@ fn main() -> R {
             }
             let mut t = sh.table_mut()?;
             t.merge(3, 1, 4, 2)?;
-            t.set_border(3, 1, Edge::Left, &Line::Solid { width: 38100, color: Color::Rgb([0xC0, 0, 0]) })?;
-            t.set_border(3, 1, Edge::Bottom, &Line::Solid { width: 38100, color: Color::Scheme("accent2".into()) })?;
-            t.set_fill(3, 1, &CellFill::Solid(Color::Rgb([0xFF, 0xF2, 0xCC])))?;
+            t.set_border(3, 1, Edge::Left, &Line::Solid { width: 38100, color: TableColor::Rgb([0xC0, 0, 0]) })?;
+            t.set_border(3, 1, Edge::Bottom, &Line::Solid { width: 38100, color: TableColor::Scheme("accent2".into()) })?;
+            t.set_fill(3, 1, &CellFill::Solid(TableColor::Rgb([0xFF, 0xF2, 0xCC])))?;
         }
         items.push(Item {
             file: save(&out, "24-table-merge-borders-fill", &p)?,

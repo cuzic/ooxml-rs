@@ -47,7 +47,7 @@ pub use deckread::{
 };
 pub use error::{Error, Result};
 pub use resolve::{
-    Autofit, BodyProps, Bullet, ClrMap, Color as ResolvedColor, Family, Fill, Font, Lookup, MapSource, MatchKind, Outline, ParaProps, PlaceholderMatch,
+    Autofit, BodyProps, Bullet, ClrMap, Color, Family, Fill, Font, Lookup, MapSource, MatchKind, Outline, ParaProps, PlaceholderMatch,
     Reason, Rect, Resolved, Role, RunItem, RunProps, Source, Spacing, TextStyleKind, WinnerAttr, Xfrm, script_for_lang,
 };
 pub use presentation::Presentation;
@@ -58,4 +58,4 @@ pub use read::{
 pub use replace::{
     FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
-pub use write::{CellFill, Color, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, TableFlag, TableMut, TextBodyMut};
+pub use write::{CellFill, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, TableColor, TableFlag, TableMut, TextBodyMut};

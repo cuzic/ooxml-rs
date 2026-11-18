@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use ooxml_pptx::{Color, Edge, Line, Presentation, ShapeKind};
+use ooxml_pptx::{Edge, Line, Presentation, ShapeKind, TableColor};
 use serde_json::{Value, json};
 
 const FIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx");
@@ -63,7 +63,7 @@ fn main() {
                             "insert_column" => t.insert_column(n("at")),
                             "delete_column" => t.delete_column(n("at")),
                             "merge" => t.merge(n("r1"), n("c1"), n("r2"), n("c2")),
-                            _ => t.set_border(0, 0, Edge::Bottom, &Line::Solid { width: 12700, color: Color::Rgb([0xC0, 0, 0]) }),
+                            _ => t.set_border(0, 0, Edge::Bottom, &Line::Solid { width: 12700, color: TableColor::Rgb([0xC0, 0, 0]) }),
                         }
                     };
                     if r.is_err() {

@@ -6,7 +6,7 @@
 use std::assert_matches;
 use std::io::{Cursor, Read, Write};
 
-use ooxml_pptx::{CellFill, Color, Edge, Error, Line, Presentation, Side, TableFlag, TableMut};
+use ooxml_pptx::{CellFill, Edge, Error, Line, Presentation, Side, TableColor, TableFlag, TableMut};
 
 const FIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx");
 const TT2: &str = "poi/table_test2.pptx";
@@ -359,7 +359,7 @@ fn comments_inside_the_table_lock_structure_only() {
 #[test]
 fn borders_write_both_sides_of_a_shared_edge() {
     let src = fixture(TT2);
-    let line = Line::Solid { width: 12700, color: Color::Rgb([0x11, 0x22, 0x33]) };
+    let line = Line::Solid { width: 12700, color: TableColor::Rgb([0x11, 0x22, 0x33]) };
     // (3, 2): a plain cell; its left edge pairs with (3, 1)'s right edge
     let (r, out) = edit(&src, |t| t.set_border(3, 2, Edge::Left, &line));
     r.unwrap();
@@ -380,10 +380,10 @@ fn borders_write_both_sides_of_a_shared_edge() {
         assert!(!g[rr][0].1.contains("<a:lnR>"), "row {rr} is outside the range");
     }
     // out of range values are refused before any change
-    let (r, out) = edit(&src, |t| t.set_border(0, 0, Edge::Top, &Line::Solid { width: -1, color: Color::Rgb([0, 0, 0]) }));
+    let (r, out) = edit(&src, |t| t.set_border(0, 0, Edge::Top, &Line::Solid { width: -1, color: TableColor::Rgb([0, 0, 0]) }));
     assert_matches!(r, Err(Error::ValueOutOfRange { .. }));
     assert_eq!(out, unchanged(&src));
-    let (r, _) = edit(&src, |t| t.set_border(0, 0, Edge::Top, &Line::Solid { width: 1, color: Color::Scheme("nope".into()) }));
+    let (r, _) = edit(&src, |t| t.set_border(0, 0, Edge::Top, &Line::Solid { width: 1, color: TableColor::Scheme("nope".into()) }));
     assert_matches!(r, Err(Error::ValueOutOfRange { .. }));
 }
 
@@ -391,7 +391,7 @@ fn borders_write_both_sides_of_a_shared_edge() {
 fn fills_margins_anchor_flags() {
     let src = fixture(TT2);
     let (r, out) = edit(&src, |t| {
-        t.set_fill(0, 0, &CellFill::Solid(Color::Scheme("accent1".into())))?;
+        t.set_fill(0, 0, &CellFill::Solid(TableColor::Scheme("accent1".into())))?;
         t.set_fill(0, 0, &CellFill::None)?;
         t.set_margin(0, 0, Side::Left, Some(91440))?;
         t.set_anchor(0, 0, Some("ctr"))?;

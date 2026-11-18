@@ -29,6 +29,7 @@ if let Some(title) = pres.slide(0)?.placeholders().first().map(|p| p.id()).trans
 | `add_run`, `add_paragraph` | explicitly unformatted (inherit the list/placeholder style) |
 | `add_break`, `remove_run`, `remove_paragraph`, `remove_field` | as named |
 | `Presentation::find`, `Presentation::replace_all` | cross-run find/replace on the slides ([ADR-0008](../../docs/adr/0008-pptx-phase1-deck-reading.md) §4, Accepted): the run where a match starts keeps its format, covered runs are removed or trimmed, `\v` in the replacement → `a:br` + a run copying the start run's format; a match over a field, an animated/comment-anchored text, an AC shape or a merged cell is refused; all matches are checked before the first change (`OnRefusal::Skip`/`Abort`) |
+| `TableMut::set_fill`, `TableMut::set_border` | set a table cell fill or border using `TableColor::Rgb` or `TableColor::Scheme` for solid colours |
 
 Refused with a typed `Error`, before anything changes: edits that would
 shift animated or comment-anchored text, remove a field implicitly, touch

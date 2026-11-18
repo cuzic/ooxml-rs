@@ -73,6 +73,7 @@
   | P3 empty runs ignored on the data side only | ignored on **both** sides (431/431 unchanged); indices count non-empty runs; text put into an empty run goes after the preceding non-empty cache run | §4 |
   | P4 nits | (a) a 1-D vertical merge copies `vMerge` only; (b) `r:id` sits on `a:hlinkClick`/`a:hlinkMouseOver` under `a:rPr`, refusal scope stated; (c) `InvalidNamespaceDeclaration` in §5 | §2, §4, §5 |
 
+- **Post-acceptance note (PR #57):** The table write colour type is `TableColor` to avoid a name collision with the resolver’s `Color`.
 - **Post-acceptance note (2026-11-16, implementation of §2–§3 tables on
   `impl/pptx-phase1b-tables` — no change to the decisions):**
   - The codegen addition P1 asked for is the ADR-0002 note "children of a
@@ -322,11 +323,13 @@ allowlist moves `a:tcPr`, `a:tblPr`, `a:tableStyleId`, `a:lnL/R/T/B`,
 
 - margins `marL/marR/marT/marB` (EMU), `anchor` (`t/ctr/b`), `anchorCtr`,
   `vert`, `horzOverflow`;
-- fill: `solidFill` with `srgbClr` or `schemeClr`, or `noFill` (replaces
+- fill: `CellFill::Solid(TableColor::Rgb(..))` writes `srgbClr`,
+  `CellFill::Solid(TableColor::Scheme(..))` writes `schemeClr`, and
+  `CellFill::None` writes `noFill` (replaces
   any existing fill child of `a:tcPr`, which is the one fill choice of the
   schema);
 - **borders by edge** (review M4): `set_border(row, col, Edge::Left |
-  Right | Top | Bottom, Line)` with `Line` = width (EMU) and solid colour,
+  Right | Top | Bottom, Line)` with `Line` = width (EMU) and solid `TableColor`,
   or `noFill`. An inner edge is shared: the call writes both cells' lines
   (`lnR` of the left cell and `lnL` of the right one; `lnB`/`lnT`) to the
   same value, as PowerPoint does (0 different shared edges in
