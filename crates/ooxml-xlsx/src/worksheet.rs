@@ -222,7 +222,7 @@ pub(crate) struct TargetPlan {
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
         CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) => Some(t.as_str()),
-        CellOp::RemoveFormula | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -253,7 +253,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
         CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) => Some(sml::InlineString::QNAME),
         CellOp::Formula(_) => Some(sml::CellFormula::QNAME),
-        CellOp::RemoveFormula | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
         None => check_insertable::<sml::Worksheet>(ws.raw().elements(), sml::SheetData::QNAME)?,
@@ -310,7 +310,7 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
             let mut kids = is.elements();
             matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
         }),
-        CellOp::RemoveFormula | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly => None,
     }
 }
 
@@ -406,7 +406,7 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                 }
                 f.set_text(text)?;
             }
-            CellOp::RemoveFormula => {
+            CellOp::RemoveFormula | CellOp::Clear => {
                 c.remove_data_type()?;
             }
             CellOp::Shared(index) => {

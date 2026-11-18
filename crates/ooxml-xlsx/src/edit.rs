@@ -31,6 +31,10 @@ pub(crate) enum CellOp {
     /// Formula text, without `=`.
     Formula(String),
     RemoveFormula,
+    /// Removes the value and formula (`v`, `is`, `f`, `t`) of an existing
+    /// cell, keeping its style: `merge_clearing` (ADR-0014 §3). Unlike
+    /// `RemoveFormula`, it also applies to a cell without a formula.
+    Clear,
     /// `t="s"` with this shared-string index (Phase2).
     Shared(u32),
     /// `t="b"`.
@@ -179,10 +183,17 @@ impl Workbook {
 
     /// [`Self::edit_cell`] with Phase2 registry work.
     pub(crate) fn edit_cell_ext(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra) -> Result<()> {
-        self.check_poisoned()?;
-        if let Some(b) = &self.census.block {
-            return Err(b.to_error());
-        }
+        self.edit_cell_mode(sheet, at, op, extra, false)
+    }
+
+    /// Runs every check of [`Self::edit_cell`] without applying anything
+    /// (parsing and index building aside, which change no bytes).
+    pub(crate) fn check_edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_mode(sheet, at, op, Extra::default(), true)
+    }
+
+    fn edit_cell_mode(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra, dry_run: bool) -> Result<()> {
+        self.check_editable()?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
         let cell = at.to_string();
         let style_only = matches!(op, CellOp::StyleOnly);
@@ -192,7 +203,9 @@ impl Workbook {
 
         // ---- guards on the cell ----
         let ctx = self.contexts.get(&sheet).expect("context loaded with the worksheet");
-        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at)) {
+        // Phase4 (ADR-0014 §3): the anchor of a merged range is writable, as
+        // in Excel; a value in any other cell would be hidden.
+        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
             return Err(Error::MergedCell { cell, range: m.to_string() });
         }
         if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
@@ -281,6 +294,10 @@ impl Workbook {
 
         // ---- registries (ADR-0006) ----
         let reg = self.plan_registries(&part, at, &mut target_plan, &op, extra, strip.shared_refs)?;
+
+        if dry_run {
+            return Ok(());
+        }
 
         if formulas_change {
             self.style_sensitive = None;
@@ -615,7 +632,7 @@ impl Workbook {
     }
 
     #[cfg(feature = "fault-injection")]
-    fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, step: crate::workbook::ApplyStepHook) -> Result<()> {
         if let Some((at, panic)) = self.fault
             && at == step
         {
@@ -628,7 +645,7 @@ impl Workbook {
 
     #[cfg(not(feature = "fault-injection"))]
     #[inline(always)]
-    fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
+    pub(crate) fn fault_point(&mut self, _: crate::workbook::ApplyStepHook) -> Result<()> {
         Ok(())
     }
 }

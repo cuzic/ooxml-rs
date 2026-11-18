@@ -47,16 +47,24 @@ fn r4_r5_missing_reference() {
     }
 }
 
-/// P0-R6 (+ coordinator default): every cell of a merged range is refused,
-/// the top-left one included.
+/// P0-R6, relaxed by ADR-0014 §3: a value write to a non-anchor cell of a
+/// merged range is refused; the anchor (top-left) is writable, as in Excel.
 #[test]
 fn r6_merged() {
     let input = read("poi/61605.xlsx");
+    let merges = merged(&input);
     for cell in ["B1", "C1", "E1", "B9"] {
-        let (wb, r) = apply(&input, a1(cell), &W::Num(1.0));
-        assert_matches!(r, Err(Error::MergedCell { ref range, .. }) if range.starts_with('B'), "{cell}");
-        assert_unchanged(&wb, &input);
+        let at = a1(cell);
+        let anchor = merges.iter().any(|m| m.first == at);
+        let (wb, r) = apply(&input, at, &W::Num(1.0));
+        if anchor {
+            r.unwrap_or_else(|e| panic!("{cell}: the anchor is writable: {e}"));
+        } else {
+            assert_matches!(r, Err(Error::MergedCell { ref range, .. }) if range.starts_with('B'), "{cell}");
+            assert_unchanged(&wb, &input);
+        }
     }
+    assert!(["B1", "B9"].iter().any(|c| merges.iter().any(|m| m.first == a1(c))), "the test covers an anchor");
 }
 
 /// P0-R7: `cell_mut` without a setter changes nothing at all.
