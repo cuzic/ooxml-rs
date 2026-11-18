@@ -662,7 +662,16 @@ pub enum Operation {
     /// Style references (ADR-0007 §5). Gated by the document-wide W2: no
     /// column of its own (revision 2, review M4).
     Style,
+    /// Structural edits (ADR-0011 §10): new paragraphs, section breaks,
+    /// table rows and columns. They change paragraph counts, numbering,
+    /// outline and pagination, so only [`STRUCTURE_ALLOWED`] is added.
+    Structure,
 }
+
+/// Codes a structural edit cannot make stale, beyond [`SAFE`] (ADR-0011
+/// §10, conservative: `NOTEREF` is not listed, since a section break can
+/// renumber notes).
+pub const STRUCTURE_ALLOWED: &[&str] = &["TC", "XE"];
 
 /// Codes a text edit or an append cannot make stale, beyond [`SAFE`]
 /// (ADR-0007 §6.1): they depend on the number and order of fields or
@@ -693,6 +702,7 @@ pub fn allowed_for(op: Operation, key: &str) -> bool {
         Operation::Text | Operation::Append => TEXT_ALLOWED.contains(&key),
         Operation::Format => TEXT_ALLOWED.contains(&key) || FORMAT_ALLOWED.contains(&key),
         Operation::Style => false,
+        Operation::Structure => STRUCTURE_ALLOWED.contains(&key),
     }
 }
 
