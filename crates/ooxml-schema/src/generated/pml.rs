@@ -3025,6 +3025,10 @@ impl ooxml_core::ElementSpec for Properties {
         ],
     );
 }
+#[cfg(all(feature = "pml", feature = "props"))]
+impl ooxml_core::ChildOf<Properties> for super::props::TitlesOfParts {}
+#[cfg(all(feature = "pml", feature = "props"))]
+impl ooxml_core::ChildOf<Properties> for super::props::HeadingPairs {}
 impl ooxml_core::ChildOf<Properties> for HiddenSlides {}
 impl ooxml_core::ChildOf<Properties> for Notes {}
 impl ooxml_core::ChildOf<Properties> for Slides {}
@@ -3032,6 +3036,18 @@ impl ooxml_core::ChildOf<Properties> for Slides {}
 #[derive(Clone, Debug)]
 pub struct PropertiesView<'a>(pub ooxml_core::Lens<'a, Properties>);
 impl<'a> PropertiesView<'a> {
+    #[cfg(feature = "props")]
+    /// First `ap:TitlesOfParts` child.
+    pub fn titles_of_parts(&self) -> Option<super::props::TitlesOfPartsView<'a>> {
+        self.0
+            .child::<super::props::TitlesOfParts>()
+            .map(super::props::TitlesOfPartsView)
+    }
+    #[cfg(feature = "props")]
+    /// First `ap:HeadingPairs` child.
+    pub fn heading_pairs(&self) -> Option<super::props::HeadingPairsView<'a>> {
+        self.0.child::<super::props::HeadingPairs>().map(super::props::HeadingPairsView)
+    }
     /// First `ap:HiddenSlides` child.
     pub fn hidden_slides(&self) -> Option<HiddenSlidesView<'a>> {
         self.0.child::<HiddenSlides>().map(HiddenSlidesView)
@@ -3056,6 +3072,52 @@ impl<'a> PropertiesViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> PropertiesView<'_> {
         PropertiesView(self.0.as_lens())
+    }
+    #[cfg(feature = "props")]
+    /// First `ap:TitlesOfParts` child, mutably.
+    pub fn titles_of_parts_mut(
+        &mut self,
+    ) -> Option<super::props::TitlesOfPartsViewMut<'_>> {
+        self.0
+            .child_mut::<super::props::TitlesOfParts>()
+            .map(super::props::TitlesOfPartsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Existing `ap:TitlesOfParts` child, or a new one in schema position.
+    pub fn get_or_insert_titles_of_parts(
+        &mut self,
+    ) -> Result<super::props::TitlesOfPartsViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::props::TitlesOfParts>()
+            .map(super::props::TitlesOfPartsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Removes the first `ap:TitlesOfParts` child.
+    pub fn remove_titles_of_parts(&mut self) -> bool {
+        self.0.remove::<super::props::TitlesOfParts>()
+    }
+    #[cfg(feature = "props")]
+    /// First `ap:HeadingPairs` child, mutably.
+    pub fn heading_pairs_mut(
+        &mut self,
+    ) -> Option<super::props::HeadingPairsViewMut<'_>> {
+        self.0
+            .child_mut::<super::props::HeadingPairs>()
+            .map(super::props::HeadingPairsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Existing `ap:HeadingPairs` child, or a new one in schema position.
+    pub fn get_or_insert_heading_pairs(
+        &mut self,
+    ) -> Result<super::props::HeadingPairsViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::props::HeadingPairs>()
+            .map(super::props::HeadingPairsViewMut)
+    }
+    #[cfg(feature = "props")]
+    /// Removes the first `ap:HeadingPairs` child.
+    pub fn remove_heading_pairs(&mut self) -> bool {
+        self.0.remove::<super::props::HeadingPairs>()
     }
     /// First `ap:HiddenSlides` child, mutably.
     pub fn hidden_slides_mut(&mut self) -> Option<HiddenSlidesViewMut<'_>> {
@@ -9164,6 +9226,16 @@ const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Offset>(
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<Transform, super::dml::Extents>();
 const _: () = ooxml_core::schema::assert_spec::<Properties>();
+#[cfg(all(feature = "pml", feature = "props"))]
+const _: () = ooxml_core::schema::assert_child::<
+    Properties,
+    super::props::TitlesOfParts,
+>();
+#[cfg(all(feature = "pml", feature = "props"))]
+const _: () = ooxml_core::schema::assert_child::<
+    Properties,
+    super::props::HeadingPairs,
+>();
 const _: () = ooxml_core::schema::assert_child::<Properties, HiddenSlides>();
 const _: () = ooxml_core::schema::assert_child::<Properties, Notes>();
 const _: () = ooxml_core::schema::assert_child::<Properties, Slides>();

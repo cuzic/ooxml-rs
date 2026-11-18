@@ -10,6 +10,7 @@
 //! (census, sheet list, names) is rebuilt from the package; a failed rebuild
 //! poisons the workbook (ADR-0009 §2).
 
+mod app_xml;
 mod names;
 mod scan;
 
@@ -26,6 +27,7 @@ use crate::formula::lexer::{Prefix, TokKind, lex};
 use crate::formula::precedents::{Rect, fold};
 use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, REL_WORKSHEET, Workbook};
+use app_xml::Listed;
 use names::{PrefixEdit, Unrewritable, rewrite_formula, rewrite_location, validate_sheet_name};
 use scan::{C15_NS, CHART_NS, PartKind, scan_part};
 
@@ -464,6 +466,37 @@ impl Workbook {
         })
     }
 
+    /// The sheets as `docProps/app.xml` lists them (kind, `veryHidden`).
+    fn listed(&mut self) -> Result<Vec<Listed>> {
+        let doc = self.pkg.xml_part(&self.workbook_part)?;
+        let kids = sheet_children(doc)?;
+        let sheets = doc.root().elements().find(|e| e.is(sml::Sheets::QNAME)).expect("checked");
+        Ok(kids
+            .iter()
+            .zip(&self.sheets)
+            .map(|(&k, s)| {
+                let e = sheets.children()[k].as_element().expect("element");
+                let vh = e.attr(ooxml_core::QName::new("", "state")).is_some_and(|v| v.trim() == "veryHidden");
+                Listed { name: s.name.clone(), kind: s.kind, very_hidden: vh }
+            })
+            .collect())
+    }
+
+    /// Stages the `docProps/app.xml` update (ADR-0009 §11) when its shape is
+    /// recognized and no structure would have to be invented; otherwise
+    /// app.xml stays as it is.
+    fn stage_app_xml(&mut self, change: &mut Change, before: &[Listed], after: &[Listed], edit: Option<&PrefixEdit<'_>>, deleted: Option<&str>) -> Result<()> {
+        let rels = self.pkg.package_relationships().clone();
+        let Some(part) = rels.by_type(app_xml::REL_EXTENDED).next().and_then(|r| rels.resolve(r)).filter(|p| self.pkg.contains(p)) else {
+            return Ok(());
+        };
+        let Ok(doc) = self.pkg.xml_part(&part) else { return Ok(()) };
+        if let Some(new) = app_xml::update(doc, before, after, edit, deleted)? {
+            change.docs.insert(part, new);
+        }
+        Ok(())
+    }
+
     // ------------------------------------------------------------ add
 
     /// Adds an empty worksheet named `name` at `position` (0-based in
@@ -473,9 +506,8 @@ impl Workbook {
     /// formulas with 3-D references, `SHEET`/`SHEETS` and every
     /// `Everything` formula lose their cached values.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn add_sheet(&mut self, name: &str, position: usize) -> Result<()> {
         self.structural_guard()?;
         self.check_new_name(name, None)?;
@@ -524,6 +556,10 @@ impl Workbook {
             s.set_sheet_id(sheet_id)?;
             s.0.set_attr(ooxml_core::QName::new(R_NS, "id"), &rid)?;
         }
+        let before = self.listed()?;
+        let mut after = before.clone();
+        after.insert(position, Listed { name: name.to_owned(), kind: SheetKind::Worksheet, very_hidden: false });
+        self.stage_app_xml(&mut change, &before, &after, None, None)?;
         self.finish(plan, change).map(drop)
     }
 
@@ -601,9 +637,8 @@ impl Workbook {
     /// ([`Error::ReversesThreeDReference`]). `firstSheet` (the first tab
     /// shown in the tab strip) stays, clamped to the active tab.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn move_sheet(&mut self, from: usize, to: usize) -> Result<()> {
         self.structural_guard()?;
         let n = self.sheets.len();
@@ -643,6 +678,9 @@ impl Workbook {
             // (clamped to the active tab), as POI's setSheetOrder does
             Self::remap_views_with(doc, &|i| newpos.get(i as usize).copied().unwrap_or(i), &|f| f, &visible)?;
         }
+        let before = self.listed()?;
+        let after: Vec<Listed> = perm.iter().map(|&o| before[o].clone()).collect();
+        self.stage_app_xml(&mut change, &before, &after, None, None)?;
         self.commit(change, |_, _| Ok(())).map(drop)
     }
 
@@ -684,9 +722,8 @@ impl Workbook {
     /// the active tab to the next visible sheet; a hidden sheet is never
     /// `tabSelected`.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn set_sheet_state(&mut self, sheet: &str, state: SheetState) -> Result<()> {
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
@@ -716,6 +753,10 @@ impl Workbook {
         if state != SheetState::Visible {
             self.select_tab(&mut change, active.map(|a| a as usize), &[])?;
         }
+        let before = self.listed()?;
+        let mut after = before.clone();
+        after[i].very_hidden = state == SheetState::VeryHidden;
+        self.stage_app_xml(&mut change, &before, &after, None, None)?;
         self.commit(change, |_, _| Ok(())).map(drop)
     }
 
@@ -761,9 +802,8 @@ impl Workbook {
     /// reference, as does a consolidation `rangeSet`/`dataRef` naming the
     /// sheet. Returns what was rewritten.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn rename_sheet(&mut self, sheet: &str, new_name: &str) -> Result<Vec<RewrittenLocation>> {
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
@@ -805,6 +845,10 @@ impl Workbook {
                 location: format!("relationship {id} (a control character cannot be written into a Target)"),
             });
         }
+        let listed_before = self.listed()?;
+        let mut listed_after = listed_before.clone();
+        listed_after[i].name = new_name.to_owned();
+        self.stage_app_xml(&mut change, &listed_before, &listed_after, Some(&edit), None)?;
         for (src, id, before, after) in &targets {
             change.rewritten.push(RewrittenLocation {
                 part: ooxml_core::opc::rels_part_name(src.as_deref()),
@@ -1110,9 +1154,8 @@ impl Workbook {
     /// cascade table, and references this version cannot rewrite. Names
     /// local to the sheet go with it and are not reported as rewritten.
     ///
-    /// `docProps/app.xml` is not updated by this version (ADR-0009
-    /// implementation note: §11 follows in a later change); it stays
-    /// byte-identical and may list stale sheet titles.
+    /// `docProps/app.xml` is kept consistent when its shape is recognized
+    /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn delete_sheet(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
         self.delete(sheet, false)
     }
@@ -1201,6 +1244,10 @@ impl Workbook {
         // the active sheet after the delete, as an old position
         let active_old = active.map(|a| if a as usize >= d { a as usize + 1 } else { a as usize });
         self.select_tab(&mut change, active_old, &[d])?;
+        let before = self.listed()?;
+        let mut after = before.clone();
+        after.remove(d);
+        self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
         let calc_chain = self.calc_chain.clone();
         let set_refs: Vec<String> = set.clone();
         let out = self.commit(change, move |plan, pkg| {
