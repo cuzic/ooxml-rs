@@ -1326,6 +1326,54 @@ clarifying; the decisions above are unchanged.
   on every boundary needle and placeholder of every story, save and reopen: no panic, no
   reopen failure, no text mismatch.
 
+### Part 2 (§4, §5, §6.3)
+
+- **Types.** `RunFormat` and `ParagraphFormat` are plain structs, built with struct update
+  syntax. `HalfPoints::new` refuses values outside 1..=3276. Indents are signed twips. An empty
+  font name is `InvalidValue`.
+- **New errors.** `TrackedPropertyChange { element }` is used for a target whose `w:rPr`,
+  `w:pPr` or mark `w:rPr` holds `w:rPrChange`/`w:pPrChange`. A tracked paragraph mark
+  (`ins`/`del`/`move*` in the mark `w:rPr`) is `InsideRevision`. Also new: `DuplicateProperty`,
+  `InvalidValue`, `StyleChainTooDeep`, `UnknownStyle`, `StyleTypeMismatch`, `AmbiguousStyle`,
+  `NoSettingsPart`, `AmbiguousSettings` and `DuplicateSetting`.
+- **Clear on attribute-level elements.** Clearing on `w:rFonts`, `w:spacing` or `w:ind` removes
+  the setter's attributes **and the attributes that supersede them**: theme fonts, `*Chars`,
+  `*Lines`, `*Autospacing`, `start`/`end`, and any earlier `0` cancellation (review of PR #59,
+  m2). Clear therefore really returns to the inherited value. An element left with no attribute
+  and no child is removed, and so is a `w:rPr` or `w:pPr` that a removal-only write leaves
+  empty (n1).
+- **Line spacing.** `Set(LineSpacing::Auto(n))` does not add `lineRule="auto"` to an element that
+  has no `lineRule`, because `auto` is the default (n2).
+- **Style chain.** A `pStyle` naming an undefined style falls back to the default paragraph
+  style, as Word applies it (m1). The walk does not consult numbering levels
+  (`lvl/pPr/w:ind`) or table styles' `pPr`. That is a known limit (m4); the corpora have 0
+  superseding attributes in either place.
+- **Two styles relationships** make the style setters refuse with `AmbiguousStylesPart`
+  (n3, fail closed, like `AmbiguousSettings`).
+- **Checks before planning (M1, M2).** Style setters validate the target first, even for a
+  no-op write. References out of range are `NoSuchParagraph`/`NoSuchRun`, never a panic. Font
+  names are checked for XML 1.0 characters at plan time, so a refused multi-run call writes
+  nothing.
+- **Inherited cancellation** uses the resolved value of the attribute: the most specific style
+  level that sets it, then `docDefaults`. A non-zero `*Chars`/`*Lines`, or `*Autospacing` that
+  is not off, is written as `0` on the direct element. Otherwise the direct attribute is
+  removed.
+- **The n4 check** applies only to attributes that are new on their element; `set_attr` reuses
+  an existing attribute's prefix. A new on/off element for `true` writes no attribute, so it
+  works in a part that binds WML only as the default namespace.
+- **Re-indexing.** Inserting a `w:pPr` or `w:rPr` shifts the child indices on the paths of later
+  runs, so the story is re-walked after such writes. `ParaRef` and `RunRef` are unchanged.
+- **The styles part** is parsed at open and kept clean. A styles part that does not parse does
+  not fail the open; the style operations report the error.
+- **The `updateFields` opt-in** is per `Document` (`update_fields_opted_in()`). A reopened
+  document is gated again even though `w:updateFields` is on (§6.3, "explicit even when
+  already on").
+- **Corpus cross-check (throwaway).**
+  - Gate and per-run outputs are byte-identical to `main` for all 821 files.
+  - Every file then went through the opt-in, one `RunFormat` on every run, one
+    `ParagraphFormat` on every paragraph and a style on the first five paragraphs. Saving and
+    reopening found no panic, no reopen failure and no text change (counts in the PR).
+
 ## Sources
 
 - Spike and every number: `spikes/docx-phase1/README.md` (scripts `replace_sim.py`,
