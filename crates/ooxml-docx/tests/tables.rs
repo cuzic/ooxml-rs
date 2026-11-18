@@ -330,3 +330,67 @@ fn merge_keeps_preferred_width_when_grid_width_is_unknown() {
     doc.merge_cells(t0(), 0..1, 0..2).unwrap();
     assert!(body_of(&doc).contains(r#"<w:tcW w:w="1234" w:type="dxa"/><w:gridSpan w:val="2"/>"#));
 }
+
+#[test]
+fn column_edits_and_merges_refuse_row_revisions() {
+    for name in ["ins", "del", "trPrChange"] {
+        let revision = if name == "trPrChange" {
+            r#"<w:trPrChange w:id="1" w:author="a"><w:trPr/></w:trPrChange>"#.to_owned()
+        } else {
+            format!(r#"<w:{name} w:id="1" w:author="a"/>"#)
+        };
+        let cells = cell("").repeat(2);
+        let plain = format!("<w:tr>{cells}</w:tr>");
+        let tracked = format!("<w:tr><w:trPr>{revision}</w:trPr>{cells}</w:tr>");
+        let mut doc = open(&table(&[1000, 1000], &[plain, tracked]));
+        for err in [
+            refused(&mut doc, |d| d.insert_column(t0(), 1, 500)),
+            refused(&mut doc, |d| d.delete_column(t0(), 1)),
+            refused(&mut doc, |d| d.merge_cells(t0(), 0..1, 0..2)),
+        ] {
+            assert_matches!(err, Error::RevisionInRange { element } if element == format!("w:{name}"));
+        }
+    }
+}
+
+#[test]
+fn structural_edits_refuse_revisions_in_retained_cells() {
+    for (name, revision) in [
+        ("tcPrChange", r#"<w:tcPrChange w:id="1" w:author="a"><w:tcPr/></w:tcPrChange>"#),
+        ("cellIns", r#"<w:cellIns w:id="1" w:author="a"/>"#),
+        ("cellDel", r#"<w:cellDel w:id="1" w:author="a"/>"#),
+        ("cellMerge", r#"<w:cellMerge w:id="1" w:author="a" w:vMerge="cont"/>"#),
+    ] {
+        let merged = format!(r#"<w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/>{revision}</w:tcPr><w:p/></w:tc></w:tr>"#);
+        let mut doc = open(&table(&[1000, 1000], &[merged]));
+        let retained = format!("<w:tr><w:tc><w:tcPr>{revision}</w:tcPr><w:p/></w:tc>{}</w:tr>", cell(""));
+        let plain = format!("<w:tr>{}</w:tr>", cell("").repeat(2));
+        let mut vertical = open(&table(&[1000, 1000], &[plain, retained]));
+        for err in [
+            refused(&mut doc, |d| d.insert_column(t0(), 1, 500)),
+            refused(&mut doc, |d| d.delete_column(t0(), 1)),
+            refused(&mut vertical, |d| d.merge_cells(t0(), 0..2, 0..1)),
+        ] {
+            assert_matches!(err, Error::RevisionInRange { element } if element == format!("w:{name}"));
+        }
+    }
+}
+
+#[test]
+fn delete_rows_refuses_revisions_in_repaired_cell() {
+    let restart = r#"<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc></w:tr>"#;
+    let continuation = r#"<w:tr><w:tc><w:tcPr><w:vMerge/><w:cellIns w:id="1" w:author="a"/></w:tcPr><w:p/></w:tc></w:tr>"#;
+    let mut doc = open(&table(&[1000], &[restart.into(), continuation.into()]));
+    assert_matches!(refused(&mut doc, |d| d.delete_rows(t0(), 0..1)), Error::RevisionInRange { element } if element == "w:cellIns");
+}
+
+#[test]
+fn delete_rows_treats_a_different_span_as_a_vertical_merge_boundary() {
+    let continuation = format!("<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>{}</w:tr>", cell(""));
+    let restart = r#"<w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc></w:tr>"#;
+    let plain = format!("<w:tr>{}</w:tr>", cell("").repeat(2));
+    // A differently sized restart cannot be the origin of this continuation.
+    let mut doc = open(&table(&[1000, 1000], &[plain.clone(), restart.into(), continuation.clone()]));
+    doc.delete_rows(t0(), 1..2).unwrap();
+    assert_eq!(body_of(&doc), table(&[1000, 1000], &[plain, continuation]));
+}

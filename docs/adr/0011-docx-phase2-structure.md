@@ -949,6 +949,7 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   column in the original span has a numeric width, the operation adds or subtracts the edited
   column's width from an existing numeric dxa `w:tcW`. When the width cannot be calculated,
   the existing `w:tcW` is preserved. Column edits also preserve non-dxa widths.
+- **Tracked changes (PR #66, round 2).** Column edits and merges refuse row-property revisions anywhere in the table, and a structural edit refuses revisions in any retained cell it rewrites.
 - **Revisions in removed cells.** `delete_column` and `merge_cells` share the removal checks
   of `delete_rows` for revisions, notes, fields and comment anchors. All three use
   `RevisionInRange` for revision elements.

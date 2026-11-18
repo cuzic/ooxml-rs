@@ -182,14 +182,26 @@ fn find_desc<'a>(n: &'a RawNode, pred: &dyn Fn(&RawNode) -> bool) -> Option<&'a 
     None
 }
 
+fn row_revision(tr: &RawNode) -> Option<&RawNode> {
+    tr.elements()
+        .filter(|x| is::<TableRowProperties>(x))
+        .flat_map(RawNode::elements)
+        .find(|x| ["ins", "del", "trPrChange"].iter().any(|l| x.is(w(l))))
+}
+
+fn check_revisions(n: &RawNode) -> Result<()> {
+    if let Some(x) = find_desc(n, &|x| x.name().ns() == NS_W && REVISIONS.contains(&x.name().local())) {
+        return Err(Error::RevisionInRange { element: format!("w:{}", x.name().local()) });
+    }
+    Ok(())
+}
+
 /// Refusals for content a delete or merge would remove (ADR-0011 §7, M6).
 fn check_removable(n: &RawNode) -> Result<()> {
     if find_desc(n, &|x| x.is(w("footnoteReference")) || x.is(w("endnoteReference"))).is_some() {
         return Err(Error::WouldRemoveNote);
     }
-    if let Some(x) = find_desc(n, &|x| x.name().ns() == NS_W && REVISIONS.contains(&x.name().local())) {
-        return Err(Error::RevisionInRange { element: format!("w:{}", x.name().local()) });
-    }
+    check_revisions(n)?;
     if find_desc(n, &|x| x.is(w("fldChar")) || x.is(w("fldSimple"))).is_some() {
         return Err(Error::InsideField);
     }
@@ -301,7 +313,7 @@ impl Document {
         Some(tbl.elements().filter(|e| is::<TableGrid>(e)).flat_map(|g| g.elements().filter(|e| is::<GridColumn>(e))).count())
     }
 
-    fn locate_table(&self, t: TableRef) -> Result<(Vec<usize>, Grid)> {
+    fn locate_table(&self, t: TableRef, check_all_row_revisions: bool) -> Result<(Vec<usize>, Grid)> {
         if t.story.0 >= self.stories.len() {
             return Err(Error::NoSuchStory);
         }
@@ -315,8 +327,14 @@ impl Document {
                 return Err(Error::UnsupportedContext { ancestor: "w:sdt" });
             }
         }
-        // a table inside a revision is refused (ADR-0011 §7)
         let grid = read_grid(n)?;
+        if check_all_row_revisions {
+            for tr in n.elements().filter(|x| is::<TableRow>(x)) {
+                if let Some(revision) = row_revision(tr) {
+                    return Err(Error::RevisionInRange { element: format!("w:{}", revision.name().local()) });
+                }
+            }
+        }
         Ok((path, grid))
     }
 
@@ -360,7 +378,7 @@ impl Document {
     /// failures.
     pub fn insert_rows(&mut self, t: TableRef, at: usize, count: usize, template: RowTemplate) -> Result<()> {
         self.table_gate()?;
-        let (path, grid) = self.locate_table(t)?;
+        let (path, grid) = self.locate_table(t, false)?;
         let n = grid.rows.len();
         if at > n || count == 0 || n == 0 {
             return Err(Error::InvalidValue { what: "row position", value: format!("{at} (+{count}) of {n}") });
@@ -375,16 +393,14 @@ impl Document {
         let tbl = node_at(doc.root(), &path);
         let trow = &grid.rows[ti];
         let tr = tbl.children()[trow.item].as_element().expect("row");
+        if row_revision(tr).is_some() {
+            return Err(Error::TrackedPropertyChange { element: "w:trPr" });
+        }
         let mut tpath = path.clone();
         tpath.push(trow.item);
         let copy_child = |i: usize, base: &[usize]| -> Vec<usize> { base.iter().copied().chain([i]).collect() };
         let trpr = match tr.indexed_elements().find(|(_, e)| is::<TableRowProperties>(e)) {
-            Some((i, e)) => {
-                for l in ["ins", "del", "trPrChange"] {
-                    if e.elements().any(|x| x.is(w(l))) {
-                        return Err(Error::TrackedPropertyChange { element: "w:trPr" });
-                    }
-                }
+            Some((i, _)) => {
                 let p = copy_child(i, &tpath);
                 Some(doc.lens_at::<TableRowProperties>(&p)?.detach_as::<TableRowProperties>(&[w("tblHeader")])?)
             }
@@ -487,7 +503,7 @@ impl Document {
     /// the removed rows, or any comment anchor or reference).
     pub fn delete_rows(&mut self, t: TableRef, range: Range<usize>) -> Result<()> {
         self.table_gate()?;
-        let (path, grid) = self.locate_table(t)?;
+        let (path, grid) = self.locate_table(t, false)?;
         let n = grid.rows.len();
         if range.is_empty() || range.end > n {
             return Err(Error::InvalidValue { what: "row range", value: format!("{range:?} of {n}") });
@@ -519,6 +535,9 @@ impl Document {
                         .and_then(|cell| cell.vmerge)
                 }).find(|&merge| merge != Some(VMerge::Continue));
                 if boundary == Some(Some(VMerge::Restart)) {
+                    let tr = tbl.children()[next.item].as_element().expect("row");
+                    let tc = tr.children()[c.item].as_element().expect("cell");
+                    check_revisions(tc)?;
                     repairs.push((next.item, c.item));
                 }
             }
@@ -548,10 +567,11 @@ impl Document {
     /// width. `w:tblW` is unchanged.
     ///
     /// Errors, before any change: as [`Self::insert_rows`];
-    /// [`Error::UnsupportedContext`] (`w:hMerge`).
+    /// [`Error::UnsupportedContext`] (`w:hMerge`);
+    /// [`Error::RevisionInRange`] (row properties or a widened cell).
     pub fn insert_column(&mut self, t: TableRef, at_grid_col: usize, width: u32) -> Result<()> {
         self.table_gate()?;
-        let (path, grid) = self.locate_table(t)?;
+        let (path, grid) = self.locate_table(t, true)?;
         if grid.hmerge {
             return Err(Error::UnsupportedContext { ancestor: "w:hMerge" });
         }
@@ -577,6 +597,7 @@ impl Document {
                 RowEdit::Before(row.before + 1)
             } else if let Some(c) = row.cells.iter().find(|c| c.start < at_grid_col && at_grid_col < c.start + c.span) {
                 let tc = tr.children()[c.item].as_element().expect("cell");
+                check_revisions(tc)?;
                 let width = span_width(tc, &grid.cols[c.start..c.start + c.span])
                     .and_then(|old| old.checked_add(u64::from(width)));
                 RowEdit::Widen { cell: c.item, span: c.span + 1, width }
@@ -702,7 +723,7 @@ impl Document {
     /// [`Error::TableWouldBeEmpty`] (the last grid column).
     pub fn delete_column(&mut self, t: TableRef, at_grid_col: usize) -> Result<()> {
         self.table_gate()?;
-        let (path, grid) = self.locate_table(t)?;
+        let (path, grid) = self.locate_table(t, true)?;
         if grid.hmerge {
             return Err(Error::UnsupportedContext { ancestor: "w:hMerge" });
         }
@@ -734,6 +755,7 @@ impl Document {
                 let c = row.cell_at(at_grid_col).expect("consistent grid");
                 let tc = tr.children()[c.item].as_element().expect("cell");
                 if c.span > 1 {
+                    check_revisions(tc)?;
                     let width = span_width(tc, &grid.cols[c.start..c.start + c.span])
                         .zip(grid_width(&grid.cols[at_grid_col]))
                         .and_then(|(old, removed)| old.checked_sub(removed));
@@ -809,7 +831,7 @@ impl Document {
     /// [`Error::AnchorWouldBreak`] (comment anchors).
     pub fn merge_cells(&mut self, t: TableRef, rows: Range<usize>, grid_cols: Range<usize>) -> Result<()> {
         self.table_gate()?;
-        let (path, grid) = self.locate_table(t)?;
+        let (path, grid) = self.locate_table(t, true)?;
         if grid.hmerge {
             return Err(Error::UnsupportedContext { ancestor: "w:hMerge" });
         }
@@ -841,6 +863,8 @@ impl Document {
                 let tc = tr.children()[c.item].as_element().expect("cell");
                 if j > 0 {
                     check_removable(tc)?;
+                } else {
+                    check_revisions(tc)?;
                 }
                 if (k, j) != (0, 0) && !cell_is_empty(tc) {
                     return Err(Error::MergeNonEmpty);
