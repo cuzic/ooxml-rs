@@ -14,7 +14,8 @@ description: ooxml-rs の PR または ADR を敵対的にレビューし、docs
 
 ## 手順
 
-1. **独立したコピーで作業する**: `git clone` でスクラッチ領域に複製し、`gh pr checkout NN` する。
+1. **独立したコピーで作業する**: スクラッチ領域に `git clone --reference <メインの checkout> https://github.com/cuzic/ooxml-rs`
+   で複製し（`--reference` で object を再取得しないので速い）、`gh pr checkout NN` する。
    レビューする head の SHA（`git rev-parse HEAD`）を控える。
    作業中の worktree を `cp -a` しない（git のメタデータを共有して他の作業を壊す）。
    他のエージェントのプロセスを `pkill` で止めない。

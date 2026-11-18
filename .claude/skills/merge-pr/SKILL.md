@@ -1,6 +1,6 @@
 ---
 name: merge-pr
-description: レビューが収束した ooxml-rs の PR を安全にマージする（収束した SHA 以降のコミット確認、CI 全緑の確認、積み上げ PR の付け替え、head を固定したマージ）。「マージして」「収束したので入れて」と頼まれたときに使う。
+description: レビューが収束した ooxml-rs の PR を安全にマージする（head の固定、収束した SHA 以降の全コミットと衝突解消の確認、CI 全緑の確認、マージ後の積み上げ PR の付け替え）。「マージして」「収束したので入れて」と頼まれたときに使う。
 ---
 
 # 収束した PR のマージ
@@ -17,42 +17,47 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
 
 ## 手順
 
-1. **収束後のコミットを確認する**。`<sha>` はレビューファイルの対象 SHA:
+1. **マージする head を固定し、収束後のコミットをすべて確認する**。`R` はレビューファイルの対象 SHA:
 
    ```sh
-   git fetch origin && git log --first-parent --oneline <sha>..origin/<branch>
+   PR=NN; R=<reviewed sha>
+   git fetch origin
+   SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid) || exit 1
+   git merge-base --is-ancestor "$R" "$SHA" || { echo "レビューした SHA が head の祖先でない"; exit 1; }
+   git log --no-merges --oneline "$R..$SHA" --not origin/main     # PR 側の全コミット（マージの第 2 親も含む）
+   for m in $(git log --merges --format=%H "$R..$SHA"); do git show --remerge-diff --stat "$m"; done  # 手書きの衝突解消
    ```
 
-   許されるのは、レビューファイルのコミット、指摘 ID を挙げた Minor/nit の修正、main の取り込みだけ。
-   それ以外（新機能、Major 級の変更、説明の無いコミット）があれば、マージせず差分だけの短い再レビューを行う。
+   - 列挙されたコミットとして許されるのは、レビューファイルのコミットと、指摘 ID を挙げた Minor/nit の修正だけ。
+   - マージコミットの `--remerge-diff` は空であること。ただし生成物の再生成だけなら CI の `codegen --check` で可。
+   - それ以外（新機能、Major 級の変更、説明の無いコミット、手書きの衝突解消）があれば、マージせずに
+     `$R..$SHA` の差分だけを短く再レビューする。
 2. **main との関係を確認する**。CONFLICTING、または前回の取り込み以降に main で同じ crate や生成物が
    変わっているなら、Codex に main の取り込みを依頼する（`codex-task`）。取り込み後は手順 1 からやり直す。
-3. **CI 全緑と head を確かめてからマージする**。`gh pr merge` は CI が赤でも通るので、必ずこのゲートを通す:
+3. **CI 全緑を確かめる**。`gh pr merge` は CI が赤でも通るので、必ずこのゲートを通す（`$PR` `$SHA` は手順 1 のもの）:
 
    ```sh
-   PR=NN
-   SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid) || exit 1
    gh pr checks "$PR" --watch --interval 30 >/dev/null 2>&1   # 待つだけ。判定は下で行う
-   n=$(gh pr checks "$PR" --json bucket --jq 'length') || { echo "checks を取得できない/未完了/失敗"; exit 1; }
+   n=$(gh pr checks "$PR" --json bucket --jq 'length') || { echo "checks を取得できない（0 件など）"; exit 1; }
    bad=$(gh pr checks "$PR" --json bucket --jq '[.[] | select(.bucket != "pass")] | length') || exit 1
    [ "$n" -ge 2 ] && [ "$bad" -eq 0 ] || { echo "CI が全緑でない（pass 以外 $bad / 全 $n）"; exit 1; }
    [ "$(gh pr view "$PR" --json mergeable --jq .mergeable)" = MERGEABLE ] || { echo "MERGEABLE でない"; exit 1; }
    ```
 
-   - checks が 0 件（push 直後の "no checks reported"）、取得失敗、`UNKNOWN` はすべて止まる側に倒れる。
+   - checks が 0 件（push 直後の "no checks reported"）、取得失敗、pending、`UNKNOWN` はすべて止まる側に倒れる。
      少し置いてからやり直す。
    - `n -ge 2` は現在の CI のジョブ数（Rust と python-pptx）。ジョブを増減したらここも直す。
-4. **積み上げ PR を先に付け替える**。このブランチを base にしている PR を main に向ける:
+4. **固定した head でマージする**: `gh pr merge "$PR" --merge --match-head-commit "$SHA"`（`--delete-branch` は付けない）。
+   手順 1 の後に head が動いていればマージは拒否されるので、手順 1 からやり直す。
+5. **積み上げ PR を付け替えてから、ブランチを消す**。このブランチを base にしている PR を main に向ける:
 
    ```sh
    for n in $(gh pr list --base <branch> --json number --jq '.[].number'); do gh pr edit "$n" --base main; done
+   git push origin --delete <branch>
    ```
 
    GitHub の自動付け替えに頼らず、明示的に付け替えてからブランチを消す（以前、付け替え前の削除で
-   積み上げ PR が close されたことがある）。
-5. `gh pr merge "$PR" --merge --match-head-commit "$SHA"`。
-   ゲートの後に head が動いていればマージは拒否されるので、手順 1 からやり直す。
-   ブランチ削除は、付け替えが済んでから行う。
+   積み上げ PR が close されたことがある）。マージが拒否されたときは付け替えない。
 6. CI が落ちた原因が PR と無関係（flaky など）なら、マージせずに原因を直す PR を別に作る。
 
 ## 報告

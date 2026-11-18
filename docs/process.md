@@ -50,8 +50,9 @@ The shared rules are in `AGENTS.md`; Claude-specific workflow is in `CLAUDE.md` 
   enough. Mutation runs and corpus sweeps are read from CI or script output rather than rerun
   inside a review.
 - **Review files are committed** to the reviewed PR's branch by the reviewer, so the author can
-  read them, and each names the head SHA it reviewed. Merging checks that commits after that SHA
-  are only finding-ID fixes, review files and merges of main. Paths: `docs/adr/NNNN-opus-review-roundK.md`
+  read them, and each names the head SHA it reviewed. Before merging, every commit after that SHA (including
+  second parents of merges, and conflict resolutions via `git show --remerge-diff`) is checked to be
+  a finding-ID fix, a review file or a clean merge of main; the merge is pinned to that head. Paths: `docs/adr/NNNN-opus-review-roundK.md`
   for ADRs (ADR-0001's predate the numbering: `opus-review-roundK.md`), and `docs/reviews/prNN-roundK.md` or `<area>-impl-roundK.md` for implementation PRs.
 - The project owner decides open questions; reviewers' recommendations are recorded as proposed
   answers until then.

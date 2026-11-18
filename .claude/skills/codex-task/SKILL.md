@@ -32,7 +32,7 @@ Codex は AGENTS.md を読むが、この会話の文脈は知らない。仕様
 
 ### ブランチ
 - 新規: `git worktree add -b <branch> <path> origin/<base>`（積み上げなら base を明記し、PR タイトルに "stacked on #NN"）
-- 既存 PR: `<branch>` に追加コミット（merge で追従、force-push しない）
+- 既存 PR: `<branch>` に追加コミット。始める前に `git pull --no-rebase`（レビューファイルが入っている）。merge で追従し、force-push しない
 
 ### スコープ
 - やること: <箇条書き。指摘 ID ごとに 1 行>

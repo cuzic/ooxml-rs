@@ -58,6 +58,10 @@ cargo xtask codegen --check
 - ブランチは `plan/… impl/… core/… fix/… test/… docs/… chore/… ci/… perf/… spike/…`。
   1 つの作業に 1 つの `git worktree`。共有 checkout でブランチを切り替えない。
 - **merge で追従し、rebase / force-push はしない**。衝突した生成物は再生成する。
+- PR ブランチには Claude のレビューファイルのコミットも入る。既存 PR で作業を始める前と、push が拒否されたときは
+  `git pull --no-rebase` する。
+- main の取り込みで手書きの衝突解消をしたら、そのマージコミットのメッセージに、何をどう解いたかを書く
+  （マージ前に `git show --remerge-diff` で確認される）。
 - Codex は PR を作って更新するが、**マージはしない**。マージは Claude が `.claude/skills/merge-pr` の手順で
   行う（owner が行ってもよい）。レビューを担当した Claude は、レビューファイルのコミットだけを PR ブランチに push する。
 - 積み上げ PR はタイトルに「stacked on #NN」と書く。
