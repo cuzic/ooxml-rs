@@ -14,8 +14,10 @@ pub mod read;
 pub(crate) mod strings;
 pub(crate) mod styles;
 
+use std::borrow::Cow;
+
 use ooxml_core::name::MC_ALTERNATE_CONTENT;
-use ooxml_core::{ElementSpec, LensMut, QName, RawNode, XmlDocument};
+use ooxml_core::{ElementSpec, LensMut, ParseOptions, QName, RawNode, XmlDocument};
 
 use crate::error::{Error, Result};
 
@@ -39,6 +41,16 @@ pub(crate) const LIMITS: &[(&str, u32)] = &[
 
 pub(crate) fn limit(table: &str) -> u32 {
     LIMITS.iter().find(|(t, _)| *t == table).map_or(u32::MAX, |(_, l)| *l)
+}
+
+/// Gives registry activation source spans for the current entry bytes.
+pub(crate) fn current_document(doc: &XmlDocument) -> Result<Cow<'_, XmlDocument>> {
+    if !doc.is_dirty() {
+        return Ok(Cow::Borrowed(doc));
+    }
+    let mut options = ParseOptions::default();
+    options.max_depth = doc.max_depth();
+    Ok(Cow::Owned(XmlDocument::parse_with(doc.serialize().as_bytes(), &options)?))
 }
 
 /// One registry table as found at activation (ADR-0006 §2).
