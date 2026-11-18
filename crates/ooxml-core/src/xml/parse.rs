@@ -2,14 +2,14 @@
 
 use std::collections::BTreeMap;
 use std::ops::Range;
-
-use super::interner::Interner;
 use std::sync::Arc;
 
 use quick_xml::XmlVersion;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
+use super::interner::Interner;
+use super::node::MAX_SPAN_OFFSET;
 use super::{MarkupKind, ParseOptions, RawAttr, RawItem, RawMarkup, RawNode, RawText, SStr, XmlDocument};
 use crate::error::{Error, Result, WellFormedness};
 use crate::name::{XML_NS, XMLNS_NS};
@@ -78,10 +78,8 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
     if bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xFF, 0xFE]) {
         return Err(Error::UnsupportedEncoding("UTF-16 (byte order mark)".into()));
     }
-    check_span_limit(bytes.len())?;
-    let source: Arc<str> = std::str::from_utf8(bytes)
-        .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?
-        .into();
+    let source = std::str::from_utf8(bytes)
+        .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?;
     // Only a BOM at byte 0 is a BOM. quick-xml silently skips one at the
     // start of what it is given without counting it in its positions, so a
     // second one would shift every span by 3 bytes (fuzz finding F-1).
@@ -92,6 +90,8 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
     if let Some(p) = source.find('\0') {
         return Err(not_wf(p, WellFormedness::NullCharacter));
     }
+    check_span_limit(source.len())?;
+    let source = Arc::from(source);
     let root = Parser::new(&source, options.max_depth).run()?;
     Ok(XmlDocument {
         source,
@@ -102,7 +102,7 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
 }
 
 fn check_span_limit(len: usize) -> Result<()> {
-    if u32::try_from(len).is_err() {
+    if len > MAX_SPAN_OFFSET as usize {
         return Err(Error::XmlPartTooLarge { len });
     }
     Ok(())
@@ -403,10 +403,10 @@ impl<'s> Parser<'s> {
     }
 }
 
-#[cfg(all(test, target_pointer_width = "64"))]
+#[cfg(test)]
 #[test]
 fn compact_span_limit_is_checked_before_narrowing() {
-    let limit = u32::MAX as usize;
+    let limit = 2_147_483_647_usize;
     assert!(check_span_limit(limit).is_ok());
     std::assert_matches!(check_span_limit(limit + 1), Err(Error::XmlPartTooLarge { len }) if len == limit + 1);
 }

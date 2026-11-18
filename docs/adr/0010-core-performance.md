@@ -809,3 +809,13 @@ decision.
   redesign point"; ADR-0002 post-acceptance notes (depth limit; detach/insert, PR #18).
 - quick-xml 0.42 (`Reader::from_str`, borrowed events, `check_end_names`), zip 9.6 (deflate
   levels via `SimpleFileOptions::compression_level`).
+
+## Post-acceptance note (PR #75, round 1)
+
+Stage 1 stores the span in 16 B using four `u32` fields. Bit 31 of `open_end`
+stores `own_dirty`, and bit 31 of `close_end` stores `subtree_dirty`. Layer 2
+accepts XML sources up to 2 GiB − 1 byte (2,147,483,647 bytes) inclusive.
+The parser checks UTF-16 BOM, UTF-8, a repeated UTF-8 BOM and NUL before
+reporting `Error::XmlPartTooLarge`. The default package part limit is 1 GiB.
+Stage 1 asserts a 64 B limit for `RawNode` on 64-bit targets, leaving 8 B for
+Stage 2's deferred pointer within the 72 B budget in §2.4.

@@ -3,33 +3,35 @@ use std::{borrow::Cow, ops::Range};
 use super::{ElementSpan, RawAttr, RawItem};
 use crate::name::{QName, XML_SPACE, XName};
 
-const OWN_DIRTY: u64 = 1 << 32;
-const SUBTREE_DIRTY: u64 = 1 << 33;
+const DIRTY_BIT: u32 = 1 << 31;
+pub(super) const MAX_SPAN_OFFSET: u32 = DIRTY_BIT - 1;
 
 // A parsed tag cannot end at offset zero. A missing open end means a
 // created node, and a missing close end means a self-closing tag.
 #[derive(Clone, Copy, Debug, Default)]
 struct CompactSpan {
     start: u32,
-    // The low 32 bits hold open_end, with the dirty flags above it.
-    open_end_and_flags: u64,
+    // The high bit stores own_dirty.
+    open_end: u32,
     close_start: u32,
+    // The high bit stores subtree_dirty.
     close_end: u32,
 }
 
 impl CompactSpan {
     fn expand(self) -> Option<ElementSpan> {
-        let open_end = self.open_end_and_flags as u32;
+        let open_end = self.open_end & MAX_SPAN_OFFSET;
+        let close_end = self.close_end & MAX_SPAN_OFFSET;
         (open_end != 0).then_some(ElementSpan {
             start: self.start as usize,
             open_end: open_end as usize,
-            close: (self.close_end != 0).then_some((self.close_start as usize, self.close_end as usize)),
+            close: (close_end != 0).then_some((self.close_start as usize, close_end as usize)),
         })
     }
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(size_of::<RawNode>() <= 72);
+const _: () = assert!(size_of::<RawNode>() <= 64);
 
 /// An element of the raw tree (ADR-0001 Layer 2, with names as resolved
 /// QName + original prefix per its post-acceptance note).
@@ -50,7 +52,7 @@ impl RawNode {
             children: Vec::new(),
             span: CompactSpan {
                 start: start as u32,
-                open_end_and_flags: open_end as u64,
+                open_end: open_end as u32,
                 close_start: 0,
                 close_end: 0,
             },
@@ -63,11 +65,11 @@ impl RawNode {
     }
 
     pub(crate) fn mark_own_dirty(&mut self) {
-        self.span.open_end_and_flags |= OWN_DIRTY;
+        self.span.open_end |= DIRTY_BIT;
     }
 
     pub(crate) fn mark_subtree_dirty(&mut self) {
-        self.span.open_end_and_flags |= SUBTREE_DIRTY;
+        self.span.close_end |= DIRTY_BIT;
     }
 
     pub(crate) fn child_mut(&mut self, index: usize) -> Option<&mut RawItem> {
@@ -116,7 +118,8 @@ impl RawNode {
             attrs: Box::default(),
             children: Vec::new(),
             span: CompactSpan {
-                open_end_and_flags: OWN_DIRTY | SUBTREE_DIRTY,
+                open_end: DIRTY_BIT,
+                close_end: DIRTY_BIT,
                 ..CompactSpan::default()
             },
         }
@@ -179,11 +182,11 @@ impl RawNode {
     /// This element's own name/attributes changed, or it was created, or it
     /// was self-closing and gained a child.
     pub fn own_dirty(&self) -> bool {
-        self.span.open_end_and_flags & OWN_DIRTY != 0
+        self.span.open_end & DIRTY_BIT != 0
     }
     /// This element or a descendant changed.
     pub fn subtree_dirty(&self) -> bool {
-        self.span.open_end_and_flags & SUBTREE_DIRTY != 0
+        self.span.close_end & DIRTY_BIT != 0
     }
     /// Is `xml:space="preserve"` set on this element itself?
     pub fn xml_space_preserve(&self) -> Option<bool> {
@@ -206,7 +209,8 @@ impl RawNode {
     }
 
     pub(super) fn force_rerender(&mut self) {
-        self.span.open_end_and_flags |= OWN_DIRTY | SUBTREE_DIRTY;
+        self.mark_own_dirty();
+        self.mark_subtree_dirty();
         for c in &mut self.children {
             match c {
                 RawItem::Element(n) => n.force_rerender(),

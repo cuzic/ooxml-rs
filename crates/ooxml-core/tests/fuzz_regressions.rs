@@ -82,7 +82,14 @@ fn compact_parser_matches_frozen_on_generated_xml() {
         input.push_str("</r><!--epilog-->");
         compare_parsers(input.as_bytes(), "generated XML");
     }
-    for input in ["<r><p:n/></r>", "<r>&undeclared;</r>", "<r><x></r>", "<r xmlns:p=''/>"] {
+    for input in [
+        "<r><p:n/></r>",
+        "<r>&undeclared;</r>",
+        "<r><x></r>",
+        "<r xmlns:p=''/>",
+        "<!DOCTYPE r><r/>",
+        "<r/><!DOCTYPE r>",
+    ] {
         compare_parsers(input.as_bytes(), "generated malformed XML");
     }
 }

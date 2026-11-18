@@ -30,7 +30,7 @@ use std::ops::Range;
 
 use crate::error::Result;
 use crate::lens::{Lens, LensMut};
-use crate::name::{XName};
+use crate::name::XName;
 use crate::schema::ElementSpec;
 
 /// Where a parsed element sits in its part's source text (byte offsets).

@@ -223,7 +223,7 @@ pub enum Error {
         len: u64,
     },
     /// A Layer 2 XML source exceeds the largest representable byte offset.
-    #[error("XML part has {len} bytes, exceeding the 32-bit XML span limit")]
+    #[error("XML part has {len} bytes, exceeding the XML span limit of 2 GiB − 1 byte")]
     XmlPartTooLarge {
         /// Length of the XML source in bytes.
         len: usize,
