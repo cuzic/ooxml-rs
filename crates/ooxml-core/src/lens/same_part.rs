@@ -231,15 +231,15 @@ impl<E: ElementSpec> Lens<'_, E> {
             .try_for_each(|c| check_copyable(c, &unique, &opts.extension_uris))?;
 
         let mut root = self.node.clone();
-        let before = root.children.len();
-        root.children.retain(|c| !c.as_element().is_some_and(|e| skip.iter().any(|q| e.is(*q))));
-        if root.children.len() != before {
-            root.subtree_dirty = true; // children change: re-render them
+        let before = root.children().len();
+        root.retain_children(|c| !c.as_element().is_some_and(|e| skip.iter().any(|q| e.is(*q))));
+        if root.children().len() != before {
+            root.mark_subtree_dirty(); // children change: re-render them
         }
         if !self.node.is(C::QNAME) {
             root.name = XName::new(C::QNAME.ns.into(), C::QNAME.local, self.node.name.prefix());
-            root.own_dirty = true; // renamed: re-render its tags
-            root.subtree_dirty = true;
+            root.mark_own_dirty(); // renamed: re-render its tags
+            root.mark_subtree_dirty();
         }
 
         // What the copy needs, and what it meant at the source (the scope of
@@ -281,7 +281,7 @@ fn mc_on_path<'r>(root: &'r RawNode, path: &[usize]) -> Option<&'r XName> {
         return Some(&n.name);
     }
     for &i in path {
-        n = n.children[i].as_element().expect("validated path");
+        n = n.children()[i].as_element().expect("validated path");
         if n.name.ns() == MC_NS {
             return Some(&n.name);
         }
@@ -318,7 +318,7 @@ impl<C: ElementSpec> SamePartDetached<C> {
         let root = doc.root();
         let parent = element_at(root, parent_path, QName::new("", "(parent element at parent_path)"))?;
         if parent_path.len().saturating_add(1).saturating_add(created).saturating_add(self.height) > doc.max_depth() {
-            return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: doc.max_depth(), position: parent.span().map_or(0, |s| s.start) });
         }
         self.check_destination(root, parent_path)
     }
@@ -377,21 +377,21 @@ impl<E: ElementSpec> LensMut<'_, E> {
             _ => return Err(Error::AmbiguousSlot(C::QNAME)),
         };
         if self.path.len() + 1 + d.height > self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
         d.check_destination(self.root, &self.path)?;
         let node = d.root.clone();
         let parent = self.node_mut();
-        if parent.span.is_some_and(|s| s.close.is_none()) && parent.children.is_empty() {
+        if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
             // A self-closing parent gains its first child. The writer already
             // re-renders such a parent from `subtree_dirty`, so the output does
             // not depend on this flag; it is set for the dirty duties
             // `insert_by` and the move document (`own_dirty` = the element's
             // own tags change), which callers may inspect (review n5).
-            parent.own_dirty = true;
+            parent.mark_own_dirty();
         }
-        parent.children.insert(index, RawItem::Element(node));
+        parent.insert_child(index, RawItem::Element(node));
         self.mark_path();
         Ok(self.descend(index))
     }

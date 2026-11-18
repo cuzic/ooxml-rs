@@ -16,15 +16,21 @@
 //! The tree is only mutated through [`LensMut`], which owns
 //! the dirty-flag duties (ADR-0002 §4.2).
 
+mod interner;
+mod node;
 mod parse;
+mod source;
 mod write;
 
-use std::borrow::Cow;
+use std::sync::Arc;
+
+pub use node::RawNode;
+pub(crate) use source::SStr;
 use std::ops::Range;
 
 use crate::error::Result;
 use crate::lens::{Lens, LensMut};
-use crate::name::{QName, XML_SPACE, XName};
+use crate::name::XName;
 use crate::schema::ElementSpec;
 
 /// Where a parsed element sits in its part's source text (byte offsets).
@@ -53,7 +59,7 @@ impl ElementSpan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawAttr {
     pub(crate) name: XName,
-    pub(crate) value: String,
+    pub(crate) value: SStr,
 }
 
 impl RawAttr {
@@ -70,13 +76,29 @@ impl RawAttr {
 /// Character data (text or CDATA).
 #[derive(Clone, Debug)]
 pub struct RawText {
-    pub(crate) value: String,
+    pub(crate) value: SStr,
     /// Original bytes; `None` for text written through the lens (escaped on output).
-    pub(crate) span: Option<Range<usize>>,
+    span: [u32; 2],
     pub(crate) cdata: bool,
 }
 
 impl RawText {
+    // Source ranges are ordered. A reversed range marks text that's written
+    // from its value, even if this item still shares the source allocation.
+    const WRITTEN: [u32; 2] = [1, 0];
+
+    pub(crate) fn written(value: SStr, cdata: bool) -> Self {
+        Self { value, span: Self::WRITTEN, cdata }
+    }
+
+    fn parsed(value: SStr, span: Range<usize>, cdata: bool) -> Self {
+        Self { value, span: [span.start as u32, span.end as u32], cdata }
+    }
+
+    fn forget_span(&mut self) {
+        self.span = Self::WRITTEN;
+    }
+
     /// Decoded text (entity and character references resolved, EOLs normalized).
     pub fn value(&self) -> &str {
         &self.value
@@ -87,7 +109,8 @@ impl RawText {
     }
     /// Original span, if parsed and unchanged.
     pub fn span(&self) -> Option<Range<usize>> {
-        self.span.clone()
+        let [start, end] = self.span;
+        (start <= end).then_some(start as usize..end as usize)
     }
     /// Is this text whitespace only?
     pub fn is_whitespace(&self) -> bool {
@@ -109,7 +132,7 @@ pub enum MarkupKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawMarkup {
     pub(crate) kind: MarkupKind,
-    pub(crate) raw: Box<str>,
+    pub(crate) raw: SStr,
 }
 
 impl RawMarkup {
@@ -150,134 +173,16 @@ impl RawItem {
     }
 }
 
-/// An element of the raw tree (ADR-0001 Layer 2, with names as resolved
-/// QName + original prefix per its post-acceptance note).
-#[derive(Clone, Debug)]
-pub struct RawNode {
-    pub(crate) name: XName,
-    pub(crate) attrs: Vec<RawAttr>,
-    pub(crate) children: Vec<RawItem>,
-    /// `None` for an element created through the lens.
-    pub(crate) span: Option<ElementSpan>,
-    pub(crate) own_dirty: bool,
-    pub(crate) subtree_dirty: bool,
-}
-
-impl RawNode {
-    pub(crate) fn new_created(name: XName) -> Self {
-        Self {
-            name,
-            attrs: Vec::new(),
-            children: Vec::new(),
-            span: None,
-            own_dirty: true,
-            subtree_dirty: true,
-        }
-    }
-
-    /// Element name.
-    pub fn name(&self) -> &XName {
-        &self.name
-    }
-    /// Is this element `q`?
-    pub fn is(&self, q: QName) -> bool {
-        self.name.is(q)
-    }
-    /// All attributes in document order, `xmlns` declarations included.
-    pub fn attrs(&self) -> &[RawAttr] {
-        &self.attrs
-    }
-    /// Value of attribute `q`, if present.
-    pub fn attr(&self, q: QName) -> Option<&str> {
-        self.attrs.iter().find(|a| a.name.is(q)).map(|a| a.value.as_str())
-    }
-    /// Child items (elements, text, markup) in document order.
-    pub fn children(&self) -> &[RawItem] {
-        &self.children
-    }
-    /// Child elements in document order.
-    pub fn elements(&self) -> impl Iterator<Item = &RawNode> {
-        self.children.iter().filter_map(RawItem::as_element)
-    }
-    /// Child elements with their item index (the index used in node paths).
-    pub fn indexed_elements(&self) -> impl Iterator<Item = (usize, &RawNode)> {
-        self.children.iter().enumerate().filter_map(|(i, c)| c.as_element().map(|n| (i, n)))
-    }
-    /// The concatenated text children (no descendants).
-    pub fn text(&self) -> Cow<'_, str> {
-        let mut texts = self.children.iter().filter_map(|c| match c {
-            RawItem::Text(t) => Some(t.value.as_str()),
-            _ => None,
-        });
-        let Some(first) = texts.next() else {
-            return Cow::Borrowed("");
-        };
-        match texts.next() {
-            None => Cow::Borrowed(first),
-            Some(second) => {
-                let mut s = String::from(first);
-                s.push_str(second);
-                texts.for_each(|t| s.push_str(t));
-                Cow::Owned(s)
-            }
-        }
-    }
-    /// Original position in the source; `None` if created through the lens.
-    pub fn span(&self) -> Option<ElementSpan> {
-        self.span
-    }
-    /// This element's own name/attributes changed, or it was created, or it
-    /// was self-closing and gained a child.
-    pub fn own_dirty(&self) -> bool {
-        self.own_dirty
-    }
-    /// This element or a descendant changed.
-    pub fn subtree_dirty(&self) -> bool {
-        self.subtree_dirty
-    }
-    /// Is `xml:space="preserve"` set on this element itself?
-    pub fn xml_space_preserve(&self) -> Option<bool> {
-        self.attr(XML_SPACE).map(|v| v == "preserve")
-    }
-
-    /// Structural equality used by the T1b oracle: same names (namespace,
-    /// local, prefix), same attributes in the same order, same child order,
-    /// same text values and markup. Spans and dirty flags are ignored.
-    pub fn structurally_eq(&self, other: &RawNode) -> bool {
-        self.name == other.name
-            && self.attrs == other.attrs
-            && self.children.len() == other.children.len()
-            && self.children.iter().zip(&other.children).all(|(a, b)| match (a, b) {
-                (RawItem::Element(a), RawItem::Element(b)) => a.structurally_eq(b),
-                (RawItem::Text(a), RawItem::Text(b)) => a.value == b.value && a.cdata == b.cdata,
-                (RawItem::Markup(a), RawItem::Markup(b)) => a == b,
-                _ => false,
-            })
-    }
-
-    fn force_rerender(&mut self) {
-        self.own_dirty = true;
-        self.subtree_dirty = true;
-        for c in &mut self.children {
-            match c {
-                RawItem::Element(n) => n.force_rerender(),
-                RawItem::Text(t) => t.span = None,
-                RawItem::Markup(_) => {}
-            }
-        }
-    }
-}
-
 /// Follows a child-index path from `root`.
 pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> &'a RawNode {
     path.iter().fold(root, |n, &i| {
-        n.children[i].as_element().expect("node path points at an element")
+        n.children()[i].as_element().expect("node path points at an element")
     })
 }
 
 pub(crate) fn node_at_mut<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut RawNode {
     path.iter().fold(root, |n, &i| {
-        n.children[i].as_element_mut().expect("node path points at an element")
+        n.child_mut(i).and_then(RawItem::as_element_mut).expect("node path points at an element")
     })
 }
 
@@ -372,7 +277,7 @@ impl ParseOptions {
 /// A parsed XML part: the original source plus the raw tree.
 #[derive(Debug)]
 pub struct XmlDocument {
-    source: Box<str>,
+    source: Arc<str>,
     root: RawNode,
     /// The depth limit the document was parsed with.
     max_depth: usize,
@@ -433,7 +338,7 @@ impl XmlDocument {
 
     /// True if anything was changed through the lens.
     pub fn is_dirty(&self) -> bool {
-        self.root.subtree_dirty
+        self.root.subtree_dirty()
     }
 
     /// Serializes per the Layer 2 rules (verbatim spans for untouched
@@ -484,12 +389,11 @@ impl XmlDocument {
     /// the root keeps its original tags (ADR-0002 §4.2). Used by
     /// [`Package::remove_part`](crate::Package::remove_part) only.
     pub(crate) fn remove_root_child_with_leading_ws(&mut self, index: usize) {
-        let children = &mut self.root.children;
-        children.remove(index);
-        if index > 0 && matches!(&children[index - 1], RawItem::Text(t) if t.is_whitespace() && !t.cdata) {
-            children.remove(index - 1);
+        self.root.remove_child(index);
+        if index > 0 && matches!(&self.root.children()[index - 1], RawItem::Text(t) if t.is_whitespace() && !t.cdata) {
+            self.root.remove_child(index - 1);
         }
-        self.root.subtree_dirty = true;
+        self.root.mark_subtree_dirty();
     }
 
     /// Marks every node `own_dirty` + `subtree_dirty` and forgets text spans,

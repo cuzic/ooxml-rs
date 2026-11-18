@@ -142,7 +142,7 @@ impl<'n> Usage<'n> {
         // Whitespace-only text between child elements is indentation, not
         // content (review of PR #44, m3b); a leaf's whitespace still counts.
         let has_elements = n.elements().next().is_some();
-        for c in &n.children {
+        for c in n.children() {
             match c {
                 RawItem::Element(e) => self.walk(e, declared, own_space),
                 RawItem::Text(t) if !own_space && !t.value.is_empty() && !(has_elements && t.is_whitespace()) => {
@@ -238,14 +238,14 @@ impl<E: ElementSpec> LensMut<'_, E> {
     ) -> Result<LensMut<'_, C>> {
         let plan = self.plan_move::<C>(from.path(), before)?;
         let parent = super::node_at_mut(self.root, &plan.src_parent);
-        let RawItem::Element(node) = parent.children.remove(plan.src_index) else { unreachable!("validated element") };
+        let RawItem::Element(node) = parent.remove_child(plan.src_index) else { unreachable!("validated element") };
         mark(self.root, &plan.src_parent);
         self.path = plan.dst_parent;
         let dst = super::node_at_mut(self.root, &self.path);
-        if dst.span.is_some_and(|s| s.close.is_none()) && dst.children.is_empty() {
-            dst.own_dirty = true; // self-closing parent gains its first child
+        if dst.span().is_some_and(|s| s.close.is_none()) && dst.children().is_empty() {
+            dst.mark_own_dirty(); // self-closing parent gains its first child
         }
-        dst.children.insert(plan.dst_index, RawItem::Element(node));
+        dst.insert_child(plan.dst_index, RawItem::Element(node));
         self.mark_path();
         Ok(self.descend(plan.dst_index))
     }
@@ -272,7 +272,7 @@ impl<E: ElementSpec> LensMut<'_, E> {
             let mut n: &RawNode = self.root;
             let mut inside = n.name.ns() == MC_NS;
             for &i in path {
-                n = n.children[i].as_element().expect("validated path");
+                n = n.children()[i].as_element().expect("validated path");
                 inside |= n.name.ns() == MC_NS;
             }
             if inside {
@@ -300,7 +300,7 @@ impl<E: ElementSpec> LensMut<'_, E> {
         }
         // depth: the moved element sits at (destination depth + 1)
         if (self.path.len() + 1).saturating_add(subtree_height(node)) > self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span.map_or(0, |s| s.start) });
+            return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         // meaning at the destination
         let usage = Usage::of(node);
@@ -330,9 +330,9 @@ impl<E: ElementSpec> LensMut<'_, E> {
 /// Sets `subtree_dirty` on the element at `path` and every ancestor.
 fn mark(root: &mut RawNode, path: &[usize]) {
     let mut n = root;
-    n.subtree_dirty = true;
+    n.mark_subtree_dirty();
     for &i in path {
-        n = n.children[i].as_element_mut().expect("path points at an element");
-        n.subtree_dirty = true;
+        n = n.child_mut(i).and_then(RawItem::as_element_mut).expect("path points at an element");
+        n.mark_subtree_dirty();
     }
 }

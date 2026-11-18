@@ -78,7 +78,50 @@ fn count(node: &RawNode, acc: &mut (usize, usize, usize)) {
     }
 }
 
+/// Stage 1 comparison, with file I/O and input generation outside the timer.
+fn stage1() {
+    use std::fmt::Write as _;
+
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/fixtures");
+    let mut inputs = Vec::new();
+    for (label, package, entry) in [
+        ("Largest docx document", "docx/poi-bug59058.docx", "word/document.xml"),
+        ("Largest pptx slide", "pptx/libreoffice/slide-sections.pptx", "ppt/slides/slide5.xml"),
+    ] {
+        inputs.push((label, part(&std::fs::read(fixtures.join(package)).unwrap(), entry)));
+    }
+    for (label, cells) in [("10k cells", 10_000), ("100k cells", 100_000), ("1M cells", 1_000_000)] {
+        inputs.push((label, part(&generate_xlsx(cells), "xl/worksheets/sheet1.xml")));
+    }
+    let mut distinct = String::from("<r>");
+    for i in 0..262_144_u32 {
+        // Multiplication by an odd constant is a permutation of u32.
+        write!(distinct, "<n{:08x}/>", i.wrapping_mul(2_654_435_761)).unwrap();
+    }
+    distinct.push_str("</r>");
+    inputs.push(("262,144 distinct names", distinct.into_bytes()));
+
+    println!("| Input | XML | Parse (best of 5) | Drop (best of 5) | Retained heap |");
+    println!("|---|---|---|---|---|");
+    for (label, bytes) in inputs {
+        let parse = best(5, || XmlDocument::parse(&bytes).unwrap());
+        let drop_time = best_drop(5, || XmlDocument::parse(&bytes).unwrap());
+        let before = ALLOC.current();
+        let doc = XmlDocument::parse(&bytes).unwrap();
+        let heap = ALLOC.current() - before;
+        std::hint::black_box(&doc);
+        println!(
+            "| {label} | {} | {} | {} | {} |",
+            fmt_bytes(bytes.len()), fmt_dur(parse), fmt_dur(drop_time), fmt_bytes(heap),
+        );
+    }
+}
+
 fn main() {
+    if std::env::args().any(|arg| arg == "--stage1") {
+        stage1();
+        return;
+    }
     println!("## Type sizes\n");
     println!("| Type | Bytes |\n|---|---|");
     for (name, size) in [

@@ -380,7 +380,7 @@ fn next_relationship_id<'a>(ids: impl Iterator<Item = &'a str>) -> Option<String
 /// An element in `root`'s namespace and prefix, with unqualified attributes.
 fn element(root: &RawNode, local: &str, attrs: &[(&str, &str)]) -> RawNode {
     let mut n = RawNode::new_created(XName::new(Arc::from(root.name().ns()), local, root.name().prefix()));
-    n.attrs = attrs.iter().map(|(k, v)| RawAttr { name: XName::new(Arc::from(""), k, None), value: (*v).to_owned() }).collect();
+    n.attrs = attrs.iter().map(|(k, v)| RawAttr { name: XName::new(Arc::from(""), k, None), value: (*v).into() }).collect();
     n
 }
 
@@ -388,22 +388,22 @@ fn element(root: &RawNode, local: &str, attrs: &[(&str, &str)]) -> RawNode {
 /// text that precedes the current last element (if any). Cannot fail.
 fn append_root_child(doc: &mut XmlDocument, node: RawNode) {
     let root = doc.root_mut();
-    let last_el = root.children.iter().rposition(|c| matches!(c, RawItem::Element(_)));
-    let ws = last_el.and_then(|i| i.checked_sub(1)).and_then(|i| match &root.children[i] {
+    let last_el = root.children().iter().rposition(|c| matches!(c, RawItem::Element(_)));
+    let ws = last_el.and_then(|i| i.checked_sub(1)).and_then(|i| match &root.children()[i] {
         RawItem::Text(t) if t.is_whitespace() && !t.cdata => Some(t.value.clone()),
         _ => None,
     });
-    let at = last_el.map_or(root.children.len(), |i| i + 1);
+    let at = last_el.map_or(root.children().len(), |i| i + 1);
     let mut items = Vec::with_capacity(2);
     if let Some(value) = ws {
-        items.push(RawItem::Text(RawText { value, span: None, cdata: false }));
+        items.push(RawItem::Text(RawText::written(value, false)));
     }
     items.push(RawItem::Element(node));
-    if root.span.is_some_and(|s| s.close.is_none()) && root.children.is_empty() {
-        root.own_dirty = true; // a self-closing root gains its first child
+    if root.span().is_some_and(|s| s.close.is_none()) && root.children().is_empty() {
+        root.mark_own_dirty(); // a self-closing root gains its first child
     }
-    root.children.splice(at..at, items);
-    root.subtree_dirty = true;
+    root.splice_children(at..at, items);
+    root.mark_subtree_dirty();
 }
 
 fn types_q() -> QName {
@@ -1098,7 +1098,7 @@ impl RegistryPlan {
 
     fn rel_node(&self, at: &RelAt) -> &RawNode {
         match *at {
-            RelAt::Existing(pos, i) => match &self.edits[pos].tree.root().children[i] {
+            RelAt::Existing(pos, i) => match &self.edits[pos].tree.root().children()[i] {
                 RawItem::Element(e) => e,
                 _ => unreachable!("located an element"),
             },
@@ -1205,7 +1205,7 @@ impl RegistryPlan {
             };
             let set = |n: &mut RawNode| {
                 if let Some(a) = n.attrs.iter_mut().find(|a| a.name.is(QName::new("", "Target"))) {
-                    a.value = target.to_owned();
+                    a.value = target.into();
                 }
             };
             match at {
@@ -1255,7 +1255,7 @@ impl RegistryPlan {
                     e.is(QName::new(CONTENT_TYPES_NS, "Override")) && attr(e, "PartName").is_some_and(|p| same_part_name(p, &name))
                 }) {
                     if let Some(a) = plan.edits[pos].appends[k].attrs.iter_mut().find(|a| a.name.is(QName::new("", "ContentType"))) {
-                        a.value = content_type.to_owned();
+                        a.value = content_type.into();
                     }
                     for o in plan.overrides.iter_mut().filter(|(p, _)| same_part_name(p, &name)) {
                         o.1 = content_type.to_owned();
@@ -1390,13 +1390,13 @@ impl Package {
             {
                 let root = doc.root_mut();
                 for (i, a, v) in &edit.set_attrs {
-                    if let Some(RawItem::Element(e)) = root.children.get_mut(*i)
+                    if let Some(RawItem::Element(e)) = root.child_mut(*i)
                         && let Some(at) = e.attrs.iter_mut().find(|x| x.name.is(QName::new("", a)))
                     {
-                        at.value.clone_from(v);
-                        e.own_dirty = true;
-                        e.subtree_dirty = true;
-                        root.subtree_dirty = true;
+                        at.value = v.as_str().into();
+                        e.mark_own_dirty();
+                        e.mark_subtree_dirty();
+                        root.mark_subtree_dirty();
                     }
                 }
             }
