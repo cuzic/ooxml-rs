@@ -57,8 +57,8 @@ serialization after each refused write.
 
 `docx_replace` takes needles from the input document at character boundaries.
 It runs up to six edit steps per input, or one when the stored fixture ZIP
-exceeds 512 KiB. Its formatting comparison checks for visible differences
-under the default options. The stable tests also exercise exact refusal
-reasons and byte identity for mixed formatting, fields, hyperlink edges,
-and bookmark boundaries. The `docx_edit` oracle covers A2 moves and refusals
+exceeds 512 KiB. The input selects the search scope and formatting mode. The
+raw XML oracle predicts boundary, marker, formatting and whitespace refusals.
+The stable tests sweep all substrings of the synthetic paragraphs and also
+check that refusing or skipping every match preserves the original bytes. The `docx_edit` oracle covers A2 moves and refusals
 under ADR-0011 §6.
