@@ -996,3 +996,20 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   §17.13.6; numbering §17.9). Section numbers are from memory and marked *(u)* where a rule
   depends on them. ECMA-376 Part 2 (OPC: part-name equivalence, content types,
   relationships).
+
+### Post-acceptance note (PR #62, round 1)
+
+- **M1:** In an ADR-0004 A2 document, inserting after the last body-flow
+  paragraph moves its final `w:sectPr` to the new paragraph, as append
+  does. The requested paragraph style or copied properties still apply.
+  If the final paragraph is in a wrapper or table, the insertion returns
+  `SectionBreakAtEnd`. Inserting after an earlier section-ending paragraph
+  places the new paragraph in the following section.
+- **M2:** A paragraph that starts inside a complex field is an
+  `InsideField` target for paragraph, hyperlink and section-break insertion
+  even when it has no runs.
+- **m1–m3:** Splitting after the last paragraph of a section returns
+  `AlreadySectionEnd`. Paragraph and hyperlink insertion refuse separator,
+  continuation separator and continuation notice notes. A section split
+  invalidates the generation of each paragraph whose section properties it
+  changes.

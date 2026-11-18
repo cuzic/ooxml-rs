@@ -560,7 +560,7 @@ impl Document {
         if ends_with_section_break(self.story_root_node(StoryIndex::MAIN), index) {
             // Phase2 lifts A2 (ADR-0011 §6): the last section's sectPr moves to
             // the new paragraph, when the last paragraph is a body child.
-            return self.append_moving_section(&pieces);
+            return self.append_moving_section(&pieces, &crate::ParagraphSpec::Plain, None);
         }
         let xml = self.pkg.xml_part_mut(&self.main)?;
         let mut body = xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(b).ok_or(Error::NoBody)?;
@@ -642,7 +642,7 @@ fn section_uses(
 /// with default page settings (review round 2 m2; round 3 m8: blocks
 /// without paragraphs after it, such as an empty `w:sdt` or a table without
 /// rows, do not change this).
-fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
+pub(crate) fn ends_with_section_break(root: &RawNode, index: &BodyIndex) -> bool {
     let Some(body) = index.body.and_then(|b| root.children()[b].as_element()) else { return false };
     if body.elements().any(is::<SectionProperties>) {
         return false;

@@ -1458,6 +1458,10 @@ impl ooxml_core::ElementSpec for NonVisualDrawingProperties {
         ],
     );
 }
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualDrawingProperties> for super::dml::HyperlinkOnClick {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualDrawingProperties> for super::dml::HyperlinkOnHover {}
 /// Read-only view of [`NonVisualDrawingProperties`].
 #[derive(Clone, Debug)]
 pub struct NonVisualDrawingPropertiesView<'a>(
@@ -1492,6 +1496,20 @@ impl<'a> NonVisualDrawingPropertiesView<'a> {
     /// `title` — Title (default ``)
     pub fn title(&self) -> &'a str {
         self.0.attr(NonVisualDrawingProperties::ATTR_TITLE).unwrap_or("")
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkClick` child.
+    pub fn hyperlink_on_click(&self) -> Option<super::dml::HyperlinkOnClickView<'a>> {
+        self.0
+            .child::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkHover` child.
+    pub fn hyperlink_on_hover(&self) -> Option<super::dml::HyperlinkOnHoverView<'a>> {
+        self.0
+            .child::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1624,6 +1642,10 @@ impl ooxml_core::ElementSpec for DocProperties {
         ],
     );
 }
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<DocProperties> for super::dml::HyperlinkOnClick {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<DocProperties> for super::dml::HyperlinkOnHover {}
 /// Read-only view of [`DocProperties`].
 #[derive(Clone, Debug)]
 pub struct DocPropertiesView<'a>(pub ooxml_core::Lens<'a, DocProperties>);
@@ -1652,6 +1674,20 @@ impl<'a> DocPropertiesView<'a> {
     /// `title` — Title (default ``)
     pub fn title(&self) -> &'a str {
         self.0.attr(DocProperties::ATTR_TITLE).unwrap_or("")
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkClick` child.
+    pub fn hyperlink_on_click(&self) -> Option<super::dml::HyperlinkOnClickView<'a>> {
+        self.0
+            .child::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkHover` child.
+    pub fn hyperlink_on_hover(&self) -> Option<super::dml::HyperlinkOnHoverView<'a>> {
+        self.0
+            .child::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1734,6 +1770,9 @@ impl ooxml_core::ElementSpec for NonVisualGraphicFrameDrawingProperties {
 #[cfg(all(feature = "wml", feature = "dml"))]
 impl ooxml_core::ChildOf<NonVisualGraphicFrameDrawingProperties>
 for super::dml::GraphicFrameLocks {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualGraphicFrameDrawingProperties>
+for super::dml::ExtensionList {}
 /// Read-only view of [`NonVisualGraphicFrameDrawingProperties`].
 #[derive(Clone, Debug)]
 pub struct NonVisualGraphicFrameDrawingPropertiesView<'a>(
@@ -1746,6 +1785,11 @@ impl<'a> NonVisualGraphicFrameDrawingPropertiesView<'a> {
         self.0
             .child::<super::dml::GraphicFrameLocks>()
             .map(super::dml::GraphicFrameLocksView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<super::dml::ExtensionListView<'a>> {
+        self.0.child::<super::dml::ExtensionList>().map(super::dml::ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -1784,6 +1828,29 @@ impl<'a> NonVisualGraphicFrameDrawingPropertiesViewMut<'a> {
     /// Removes the first `a:graphicFrameLocks` child.
     pub fn remove_graphic_frame_locks(&mut self) -> bool {
         self.0.remove::<super::dml::GraphicFrameLocks>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(
+        &mut self,
+    ) -> Option<super::dml::ExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::ExtensionList>()
+            .map(super::dml::ExtensionListViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<super::dml::ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::ExtensionList>()
+            .map(super::dml::ExtensionListViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<super::dml::ExtensionList>()
     }
 }
 /// `a:CT_NonVisualPictureProperties/pic:cNvPicPr` — Non-Visual Picture Drawing Properties.
@@ -2024,7 +2091,13 @@ impl ooxml_core::ElementSpec for ShapeProperties {
     );
 }
 #[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::CustomGeometry {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::NoFill {}
+#[cfg(all(feature = "wml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::PresetGeometry {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::SolidFill {}
 #[cfg(all(feature = "wml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::Transform2D {}
 /// Read-only view of [`ShapeProperties`].
@@ -2038,9 +2111,24 @@ impl<'a> ShapePropertiesView<'a> {
         self.0.attr_enum(ShapeProperties::ATTR_BW_MODE)
     }
     #[cfg(feature = "dml")]
+    /// First `a:custGeom` child.
+    pub fn custom_geometry(&self) -> Option<super::dml::CustomGeometryView<'a>> {
+        self.0.child::<super::dml::CustomGeometry>().map(super::dml::CustomGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<super::dml::NoFillView<'a>> {
+        self.0.child::<super::dml::NoFill>().map(super::dml::NoFillView)
+    }
+    #[cfg(feature = "dml")]
     /// First `a:prstGeom` child.
     pub fn preset_geometry(&self) -> Option<super::dml::PresetGeometryView<'a>> {
         self.0.child::<super::dml::PresetGeometry>().map(super::dml::PresetGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<super::dml::SolidFillView<'a>> {
+        self.0.child::<super::dml::SolidFill>().map(super::dml::SolidFillView)
     }
     #[cfg(feature = "dml")]
     /// First `a:xfrm` child.
@@ -2072,6 +2160,23 @@ impl<'a> ShapePropertiesViewMut<'a> {
         self.0.remove_attr(ShapeProperties::ATTR_BW_MODE)
     }
     #[cfg(feature = "dml")]
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<super::dml::NoFillViewMut<'_>> {
+        self.0.child_mut::<super::dml::NoFill>().map(super::dml::NoFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<super::dml::NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::NoFill>().map(super::dml::NoFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::NoFill>()
+    }
+    #[cfg(feature = "dml")]
     /// First `a:prstGeom` child, mutably.
     pub fn preset_geometry_mut(
         &mut self,
@@ -2093,6 +2198,23 @@ impl<'a> ShapePropertiesViewMut<'a> {
     /// Removes the first `a:prstGeom` child.
     pub fn remove_preset_geometry(&mut self) -> bool {
         self.0.remove::<super::dml::PresetGeometry>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<super::dml::SolidFillViewMut<'_>> {
+        self.0.child_mut::<super::dml::SolidFill>().map(super::dml::SolidFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<super::dml::SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::SolidFill>().map(super::dml::SolidFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::SolidFill>()
     }
     #[cfg(feature = "dml")]
     /// First `a:xfrm` child, mutably.
@@ -12183,7 +12305,27 @@ const _: () = ooxml_core::schema::assert_child::<BlipFill, super::dml::Blip>();
 #[cfg(all(feature = "wml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<BlipFill, super::dml::Stretch>();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualDrawingProperties>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualDrawingProperties,
+    super::dml::HyperlinkOnClick,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualDrawingProperties,
+    super::dml::HyperlinkOnHover,
+>();
 const _: () = ooxml_core::schema::assert_spec::<DocProperties>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DocProperties,
+    super::dml::HyperlinkOnClick,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    DocProperties,
+    super::dml::HyperlinkOnHover,
+>();
 const _: () = ooxml_core::schema::assert_spec::<
     NonVisualGraphicFrameDrawingProperties,
 >();
@@ -12192,13 +12334,30 @@ const _: () = ooxml_core::schema::assert_child::<
     NonVisualGraphicFrameDrawingProperties,
     super::dml::GraphicFrameLocks,
 >();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualGraphicFrameDrawingProperties,
+    super::dml::ExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualPictureDrawingProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Extent>();
 const _: () = ooxml_core::schema::assert_spec::<ShapeProperties>();
 #[cfg(all(feature = "wml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     ShapeProperties,
+    super::dml::CustomGeometry,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<ShapeProperties, super::dml::NoFill>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
     super::dml::PresetGeometry,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::SolidFill,
 >();
 #[cfg(all(feature = "wml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<

@@ -225,7 +225,7 @@ pub enum Error {
         name: &'static str,
     },
 
-    /// The paragraph already ends a section (`w:pPr/w:sectPr`; ADR-0011 §6).
+    /// The paragraph is already the last paragraph of its section (ADR-0011 §6).
     #[error("the paragraph already ends a section")]
     AlreadySectionEnd,
 

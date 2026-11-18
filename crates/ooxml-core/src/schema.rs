@@ -59,6 +59,9 @@ pub enum SimpleType {
     List,
     /// Enumeration: the known lexical values, in SDK order.
     Enum(&'static [&'static str]),
+    /// A DrawingML percentage: `xsd:int` (thousandths) or `"NN%"`
+    /// ([`crate::value::DmlPercent`]; ADR-0008 §6, set by a `set_type` override).
+    DmlPercent,
 }
 
 /// One attribute of an element.
@@ -499,7 +502,39 @@ pub const fn value_is_valid(ty: SimpleType, value: &str) -> bool {
         SimpleType::Double | SimpleType::Single | SimpleType::Decimal => const_is_double(value),
         SimpleType::DateTime | SimpleType::HexBinary | SimpleType::Base64Binary => true,
         SimpleType::Enum(vals) => one_of(value, vals),
+        SimpleType::DmlPercent => i32::from_str_radix(value, 10).is_ok() || const_is_percent_literal(value),
     }
+}
+
+/// `-?\d+(\.\d+)?%` (the `s:ST_Percentage` pattern).
+pub const fn const_is_percent_literal(value: &str) -> bool {
+    let b = value.as_bytes();
+    let n = b.len();
+    if n < 2 || b[n - 1] != b'%' {
+        return false;
+    }
+    let mut i = if b[0] == b'-' { 1 } else { 0 };
+    let start = i;
+    while i < n - 1 && b[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == start {
+        return false;
+    }
+    if i < n - 1 {
+        if b[i] != b'.' {
+            return false;
+        }
+        i += 1;
+        let frac = i;
+        while i < n - 1 && b[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == frac {
+            return false;
+        }
+    }
+    i == n - 1
 }
 
 /// Every default in `attrs` is valid for its type.
@@ -575,5 +610,14 @@ mod tests {
         const { assert!(defaults_are_valid(A)) };
         assert!(!value_is_valid(SimpleType::UInt32, "-1"));
         assert!(!value_is_valid(SimpleType::Int32, "100%"));
+        for ok in ["100%", "0%", "-12.5%", "50000", "-1"] {
+            assert!(value_is_valid(SimpleType::DmlPercent, ok), "{ok}");
+        }
+        for bad in ["%", "1.%", "a%", "1.5", "50 %", "--1%"] {
+            assert!(!value_is_valid(SimpleType::DmlPercent, bad), "{bad}");
+        }
+        assert_eq!(crate::value::parse_dml_percent("50000"), Some(crate::value::DmlPercent::Thousandths(50000)));
+        assert_eq!(crate::value::parse_dml_percent("-12.5%"), Some(crate::value::DmlPercent::Literal { percent: -12.5 }));
+        assert_eq!(crate::value::parse_dml_percent("1.5"), None);
     }
 }

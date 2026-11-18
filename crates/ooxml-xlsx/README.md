@@ -19,7 +19,7 @@ nothing.
 ## API
 
 ```rust
-use ooxml_xlsx::{CellIndex, CellValue, Workbook};
+use ooxml_xlsx::{CellIndex, CellValue, ExcelDateTime, Format, Workbook};
 
 let mut wb = Workbook::open("book.xlsx")?;      // whole file read into memory
 let mut ws = wb.worksheet()?;                    // "sheet1" (see below)
@@ -27,7 +27,11 @@ if let Some(c) = ws.cell(0, 0)? {                // A1, 0-based; never modifies 
     let v: CellValue = c.value()?;               // Number / String / Bool / Error / Date / Empty
 }
 ws.cell_mut(1, 1)?.set_number(42.0)?;            // B2
-ws.cell_mut(0, 2)?.set_string("  padded ")?;     // C1: t="inlineStr", xml:space="preserve"
+ws.cell_mut(0, 2)?.set_string("  padded ")?;     // C1: t="s" if the file has an sst, else inline
+let f = Format::new().set_bold().set_num_format("0.00%");
+ws.cell_mut(0, 3)?.set_number_with_format(0.25, &f)?;           // D1: new xf (reused if byte-identical)
+ws.cell_mut(0, 4)?.set_datetime(ExcelDateTime::from_ymd(2026, 11, 16).unwrap())?; // E1
+ws.cell_mut(0, 5)?.set_num_format("#,##0")?;     // F1: only the number format changes
 wb.save("book.xlsx")?;                           // temp file + rename: same path is safe
 
 let mut wb = Workbook::open("formulas.xlsx")?;
@@ -54,7 +58,8 @@ wb.save("new.xlsx")?;
 | Row/cell index | Built once per worksheet when it is opened. It is one validating pass with the same rules as before. `mc:AlternateContent` is recorded apart: the target cell's read or write refuses it, but stripping dependents' caches does not, as before. Lookups are binary searches. The target write keeps the index valid: new rows and new cells are placed with ooxml-core's `insert_at` at the indexed position, checked by `check_insert_at` in the plan. Appending a row or cell is O(1). Inserting before existing rows or cells costs time in proportion to the items after it, as the tree's own insertion does. Reads, writes and Phase1 stripping no longer rescan every row. |
 | `cell_mut(row, col)` | A handle; nothing is created or dirtied until a setter runs. |
 | `set_number(f64)` | `<v>` gets the number; a stale `t` and every `<is>` are removed; `s` kept. NaN/∞ refused. |
-| `set_string(&str)` | `t="inlineStr"`, `<is><t>…</t></is>`; `xml:space="preserve"` iff outer whitespace; control characters as `_xHHHH_`, a literal `_xHHHH_` protected as `_x005F_xHHHH_`; at most 32,767 UTF-16 units. Never touches `sharedStrings.xml`. |
+| `set_string(&str)` | `t="s"` through the shared-string registry when the workbook has a `sharedStrings.xml` (Phase2, below); otherwise as `set_string_inline`. |
+| `set_string_inline(&str)` | Phase0's string write: `t="inlineStr"`, `<is><t>…</t></is>`; `xml:space="preserve"` iff outer whitespace; control characters as `_xHHHH_`, a literal `_xHHHH_` protected as `_x005F_xHHHH_`; at most 32,767 UTF-16 units. Never touches `sharedStrings.xml`. |
 | Malformed cells | Every setter removes **every** `<f>`, `<v>` and `<is>` of the cell before writing the new content, so a schema-invalid duplicate (two `v`, two `is`, `v` and `is` together, also around or after an `extLst`) is cleaned up rather than left for another reader to find; the write is `Ok`. One element of the kind the new content needs (the first `v` for a number, the first `f` for a formula, the first `is` holding a single `t` for a string) is reused in place, so comments, processing instructions and unknown children keep their position relative to the value; a new kind goes to its schema slot. |
 | New rows/cells | Inserted in row/column order with `r`; no whitespace added; existing `spans` left as is. |
 | `dimension` | Grown to include the written cell if present; **never inserted** if absent. Accepted `ref` spellings: `A1` or `A1:D2` with column letters in either case, optional `$` before the column and/or row, corners in either order, within 1,048,576 × 16,384. Untouched when the cell is inside it; when grown it is rewritten in canonical form (`A1:F9`). Any other `ref` (surrounding spaces, `Sheet1!A1`, `A0`, a third part, empty) or a missing one refuses the write (`Malformed`). |
@@ -72,6 +77,53 @@ wb.save("new.xlsx")?;
 | `CalcPolicy::KeepStaleCaches` | Opt-in, Excel only: keep stale caches, only set `fullCalcOnLoad`. |
 | Atomicity | Every edit is planned and validated without changing anything (only `workbook.xml` is cloned), then applied in place; a failure while applying (a bug) poisons the workbook (`Err(Poisoned)` for every later edit and save). |
 | Cost | Proportional to the dependent set: 2.0 ms per edit on a 200,000-formula, 9.7 MB sheet; 6.7 ms in the worst case where every formula is a dependent (`examples/phase1_bench.rs`, `WORST=1`). |
+
+## Phase2: shared strings and styles (ADR-0006)
+
+| Item | Behaviour |
+|---|---|
+| Activation | Each registry is built on the first write that needs it; until then `sharedStrings.xml` and `styles.xml` are copied through raw. An active registry only appends nodes and rewrites `count`/`uniqueCount`; no existing entry is moved, re-serialised or parsed into a value. |
+| `set_string` | Reuses an existing `si` only if its bytes are exactly what would be appended (a single `t`, same escaping, no `r`/`rPh`/`phoneticPr`); else appends one. `uniqueCount` = entries; `count` = `t="s"` cells in every worksheet, macro sheet and dialog sheet, recomputed (not adjusted), absent stays absent. Overwritten items stay. No sst: inline (`shared_strings_available()`); the `Workbook::new()` template ships an empty sst (Q2). |
+| `Format` | Optional groups: number format, font (including `charset`, `vert_align`, `condense`, `extend`, so East Asian default fonts are expressible), fill, border, alignment, protection, plus `quote_prefix`. An unset group takes the workbook's Normal style's id (`cellStyleXfs[0]`, else `cellXfs[0]`), so `Format::new()` looks like the workbook's default; `set_bold()` starts from Calibri 11 — use `Format::with_default_font_of(&mut wb)` to keep the workbook's face and size. Values are checked against their schema enumerations and Excel's ranges (`InvalidFormat`: theme colour 0–11, font name ≤ 31 characters, family 0–14, indent ≤ 250, non-empty number format code). Colours are raw (`Rgb`, `Theme { index, tint }`, `Indexed`, `Auto`). |
+| Resolution | Bottom-up: `numFmt`, `font`, `fill`, `border`, then the `xf` from those ids. Each is reused when an entry has exactly the canonical bytes (including entries a previous session appended: repeated runs stop growing the tables), else appended; `fills[0]`/`fills[1]` only as `none`/`gray125`. Empty or missing tables get their reserved entries first (default font, empty border, `xf` 0, `none` + `gray125`); a missing table is inserted in schema order. `xfId="0"` only when `cellStyleXfs` exists. Canonical forms and `apply*` flags follow rust_xlsxwriter 0.102. |
+| Number formats | `NumFormat::Builtin(id)` (0–163 only; from 164 up `InvalidFormat`), `General`, or a code that is exactly a locale-independent built-in code (never 14 or 22, whose display follows the user's locale), uses the built-in id unless the file redefines it (`BuiltinNumFormatRedefined`). `Format::date()` is `NumFormat::DefaultDate`: built-in 14, or `yyyy-mm-dd` when 14 is redefined. A new custom id is above every `numFmtId` in any XML part of the package (styles, dxfs, pivot caches, extLst). Existing custom codes (id ≥ 164, no other attributes) are reused. |
+| Writes with a format | `set_number_with_format`, `set_string_with_format`, `set_formula_with_format`, `set_datetime_with_format` replace `s`; `set_number`/`set_string` keep it. |
+| Style-only writes | `set_format(&Format)`, `set_style_index(n)` (lossless copy of another cell's `style_index()`), `set_named_style(name)` (unique `cellStyle` name, case-insensitive; groups whose `apply*="0"` keep the cell's own id, as Excel applies Good/Bad/Neutral), and the preserving setters `set_num_format`, `set_font`, `set_fill`, `set_border`: they copy the cell's current `xf` and replace one id and its `apply*` flag. A cell that does not exist yet starts from its row's style (`customFormat="1"`), else its column's `style`, else 0. The value is untouched, so the per-cell value guards (merged range, table header, array or spill range) do not apply to them (ADR-0014 revision 3 makes the same choice for merged ranges). If any formula or defined name uses `CELL`, `INFO`, `GET.CELL`, `GET.FORMULA` or a function outside Phase1's allowlist, a style-only write invalidates dependents like a value write. |
+| Values | `set_bool`, `set_error` (`#N/A`, …), `set_datetime(ExcelDateTime)`: serial in the workbook's system (1900 with Excel's false 1900-02-29, or 1904); keeps a date `s`, else derives one with built-in 14 (`yyyy-mm-dd` if 14 is redefined). `Worksheet::is_date(row, col)` (calamine's rule) and `datetime(row, col)` read them back without activating the registry (`false` without a styles part). `ExcelDateTime` values come only from validating constructors. |
+| Limits | Appending past 65,490 `cellXfs`+`cellStyleXfs`, 512 fonts, 256 fills, 256 borders or 200 custom number formats is `StyleTableFull` (mapping inferred, ADR-0006 §5.10). A table already past a limit does not block writes that do not grow it. |
+| Cost | A write that reuses existing entries does not depend on the size of `styles.xml` (1,000 formatted writes: 258 ms with 1 xf, 235 ms with 5,001, debug build). A write that **appends** a new entry clones `styles.xml` for atomicity: O(styles.xml) per new distinct format (about 48 ms at 20,000 `cellXfs`, release). The number of such writes is bounded by the distinct formats (and Excel's table limits); an append log instead of the clone is a noted follow-up (PR #50 review round 2, m2). |
+| Rich strings | `set_rich_string(&[(&Font, &str)])`: with an sst, a new `si` of `r` runs (`rPr` with `rFont`, in Excel's order); an existing item with exactly these bytes is reused, and a rich item never matches a plain one. Without an sst, an inline `is` of runs. As in rust_xlsxwriter, a first run in `Font::default()` has no `rPr`. Empty runs and more than 32,767 UTF-16 units in total are refused. |
+| Reading formats | `Worksheet::format(row, col)` / `Workbook::format_of_style(s)` → `FormatRead::Expressible(Format)` (a projection: every group the `xf` uses, `apply*` ignored; writing it again resolves to the same `xf`) or `NotExpressible { style_index, reasons }` (`xfId ≠ 0`, `pivotButton`, `justifyLastLine`, `relativeIndent`, gradient fills, `outline`/`shadow` fonts, extension content, `mc:AlternateContent`). A read: the registry is not activated. |
+| Differential formats | `Workbook::add_differential_format(&DxfFormat) -> u32`: the `dxfs` registry (Phase4's conditional formats and table styles use the index). Only the overriding parts are written; a solid fill is `bgColor` without `patternType`, as Excel writes a `dxf`. Exact-form reuse, also across sessions; `dxfs` inserted in schema order when absent. A `dxf/numFmt` is self-contained: its id comes from the same package-wide allocator as `numFmts` but is not added there. Every `dxfId`/`…DxfId` in the package counts for the dangling-reference check. |
+| Not yet | Named-style + overrides, named-style creation, column/row styles: Phase4. |
+
+Phase2 refusals (in addition to those below): `NoStylesPart`, `UnsupportedStylesPart` (root not a
+SpreadsheetML `styleSheet`), `StyleTableFull`, `NumFmtIdExhausted`, `BuiltinNumFormatRedefined`,
+`InvalidFormat`, `InvalidNumFormat`, `StyleIndexOutOfRange`, `NoSuchStyle`, `AmbiguousStyleName`,
+`DanglingReference` (an existing `s`/`fontId`/… already points at or past a table's end, so an
+append would give it a meaning), `NotExpressible` (a preserving edit or named style whose `xf`
+has extension content it could not carry over, or an `mc:AlternateContent` entry),
+`DateOutOfRange`, `NonexistentDate` (reading serial 60 in the 1900 system), and
+`Core(UnresolvedSibling)` for a style table or sst with an `mc:AlternateContent` child where an
+index or an append depends on it. Registry additions are planned on a staged clone of
+`styles.xml` and installed in the same apply step as the cell, so every refusal leaves the
+package byte-identical.
+
+## Phase4 part 1: range features (ADR-0014 §3, §7, §11)
+
+Each call checks everything first (an `Err` changes nothing), then edits in place; a failure
+while applying poisons the workbook (ADR-0003 §3.1).
+
+| Call | Behaviour |
+|---|---|
+| `merge(range)` | Adds a `mergeCell` (container + `count`). Refuses a single cell (`MergeSingleCell`), overlap with a merge (`MergeOverlap`), table (`TableOverlap`), PivotTable (`PivotOverlap`), a sheet with any query table, since its output range is not located (`QueryTableOverlap`), array/data-table/spill ranges (`ArrayAnchor`, `ArrayResultCell`), `vm` cells (`RichValueCell`), and **values or formulas in non-anchor cells** (`MergeWouldHideValues { cells }`). |
+| `merge_clearing(range)` | Clears the non-anchor cells first (Phase1 removals: dependents lose caches, `fullCalcOnLoad`, calcChain), all checked before the first; a shared-formula master among them is refused. |
+| `unmerge(range)`, `merged_ranges()` | `NoSuchMerge` unless a merge equals the range; an emptied `mergeCells` is removed. Values the merge hid become visible. |
+| merged anchors | The anchor (top-left cell) accepts value and formula writes; other cells of the range refuse them (`MergedCell`). The guard follows this session's merges. |
+| `set_autofilter(range)` | New `autoFilter`, or a plain one's `ref` (`AutoFilterExists` with criteria or a sort); the sheet-local `_xlnm._FilterDatabase` is reused (text, `hidden="1"`) or created; refuses `TableOverlap`, `DuplicateBuiltInName`, `NameInUse` (a formula or defined name uses it). **Known limit:** when `workbook.xml` has no `definedNames` yet and has any `mc:AlternateContent` child (Excel 2013+ writes `x15ac:absPath` in locally saved files: 61 of 349 corpus workbooks), the new `definedNames` is refused with `Core(UnresolvedSibling)` and nothing changes (ADR-0014 §13). |
+| `remove_autofilter()` | `Ok(false)` without one; `FilterActive` with criteria; clears `sheetPr/@filterMode`; keeps the name and the sheet-level `sortState`. |
+| `protect_sheet(&SheetProtection)` | `sheetProtection` with `sheet="1"` and the `Allow` flags (written inverted, omitted at the schema default); with a password, SHA-512 (`algorithmName`, base64 `hashValue`/`saltValue`, `spinCount` ≤ 10,000,000: `InvalidSpinCount`). The salt comes from the OS random generator unless `with_salt`. Replacing removes every hash and flag attribute first (no legacy `password` next to a SHA hash); unknown attributes stay. |
+| `unprotect_sheet()` | Removes `sheetProtection`; `Ok(false)` without one. Protection is an Excel UI setting and does not stop edits through this crate. |
 
 ## Usage example
 
@@ -123,10 +175,10 @@ before anything is touched; only then is the plan applied, by steps that cannot 
 | `InvalidFormula` | `set_formula` text that does not lex or has characters XML cannot carry. |
 | `NoSuchSheet`, `NotAWorksheet` | `worksheet_by_name`/`by_index` miss, or name a chartsheet/macro/dialog sheet. |
 | `Poisoned` | An earlier edit failed while applying. |
-| `MergedCell` | The cell is in a merged range, top-left cell included. |
+| `MergedCell` | A value or formula write to a non-anchor cell of a merged range (the anchor, the top-left cell, is writable: ADR-0014 §3). |
 | `TableHeaderCell` | The cell is in a table's header row (`headerRowCount` rows from the top of `ref`). |
 | `RichValueCell` | The cell has a `vm` attribute (image in cell, data type), or a dependent has one. |
-| `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. |
+| `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. A `c/@r` naming another row than its `row/@r` **anywhere in any sheet** refuses **every edit** of the workbook (`InvalidReference("<part>: B2 in row 1")`, also from `edit_refusal()`): the formula census keys cells by `c/@r` and the row index by row, so they would disagree about the cell, and a write to it would add a second `c` with the same reference (fuzz finding F-8). Reads keep their behaviour. |
 | `Core(EncryptedPackage)`, `Core(StrictNotSupported)`, `Core(DtdNotAllowed)` | From `ooxml-core` at open. |
 | `Malformed` | `dimension` exists but its `ref` is missing or not a cell range, so it could not be kept up to date; or the census and the tree disagree about a dependent. |
 | `Core(UnresolvedSibling)` | An `mc:AlternateContent` child of `sheetData`, of the row concerned, of the target cell or its `is`, or of a `worksheet` without `sheetData`: what it wraps may be the cell or its value, so reads **and** writes are refused instead of answering "absent"/"empty". Also when a new `sheetData`, row, cell, `f`, `v` or `is` has no schema-order position among its siblings (an AC sibling, ADR-0002 §4.3, or e.g. a row's `extLst` before its cells). |
@@ -157,7 +209,16 @@ before anything is touched; only then is the plan applied, by steps that cannot 
 - `tests/phase1_formulas.rs`, `tests/phase1_fixtures.rs` — formula writes and removals, hand-off,
   calcChain removal, validate-before-mutate, fault injection (`--features fault-injection`), the
   POI formula fixtures, tokenizer sweep.
+- `tests/phase2.rs` — ADR-0006 oracles: per-package sweep over every fixture (L1 elsewhere,
+  T2-append locality on both registry parts, index stability, `count`/`uniqueCount` against an
+  independent count by content type, calamine values and styles, inherited default font, a
+  second session adds nothing); growth bounds; AC tables; refusals byte-identical; `numFmtId`
+  collisions; reserved fills; projection collisions; preserving setters and named styles; dates
+  in both systems; style-only invalidation; poisoning; the from-scratch matrix against
+  rust_xlsxwriter 0.102. `OOXML_XLSX_CORPUS=<dir> cargo test -p ooxml-xlsx --test phase2 --
+  --ignored` runs the same sweep over a local corpus (the POI download of `spikes/xlsx-phase2/`).
 
 Manual Excel check (no Excel in CI): `cargo run -p ooxml-xlsx --example xlsx_manual_check -- <outdir>`
-writes 21 edited files (11 Phase0, 10 Phase1), their originals and `CHECKLIST.md`. `cargo xtask manual-check <outdir>`
-runs the Excel, PowerPoint and Word checks together into one bundle with a zip.
+writes the edited files (Phase0, Phase1 and Phase2 cases), their originals and `CHECKLIST.md`.
+`cargo xtask manual-check <outdir>` runs the Excel, PowerPoint and Word checks together into one
+bundle with a zip.

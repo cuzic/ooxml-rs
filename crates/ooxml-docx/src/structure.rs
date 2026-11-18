@@ -6,7 +6,7 @@
 //! relationships, then `Package::apply`, then the tree edits, which cannot
 //! fail after the dry run.
 
-use ooxml_core::{ChildOf, ElementSpec, LensMut, NsDecl, QName, RawNode, RegistryPlan, Target, XmlDocument};
+use ooxml_core::{ChildOf, Detached, ElementSpec, LensMut, NsDecl, QName, RawNode, RegistryPlan, Target, XmlDocument};
 use ooxml_schema::wml::{
     self, Body, Comment, Comments, Endnote, Endnotes, Footer, FooterReference, Footnote, Footnotes, Header,
     HeaderReference, Hyperlink, LineNumberType, NS_R, NS_W, PageNumberType, Paragraph as P, ParagraphProperties,
@@ -14,7 +14,7 @@ use ooxml_schema::wml::{
 };
 
 use crate::body::Wrapper;
-use crate::document::{Document, node_at, write_pieces};
+use crate::document::{Document, ends_with_section_break, node_at, write_pieces};
 use crate::error::{Error, Result};
 use crate::fields::Operation;
 use crate::names::is;
@@ -223,7 +223,16 @@ impl Document {
     /// property revision), for a neighbour or a paragraph being split.
     pub(crate) fn check_structure_neighbour(&self, at: ParaRef) -> Result<()> {
         let p = self.paragraph_at(at).ok_or(Error::NoSuchParagraph(at.index))?;
-        if p.runs().any(|r| r.in_field()) {
+        if p.in_separator_note() {
+            let ancestor = if self.stories[at.story.0].id.kind == StoryKind::Endnotes {
+                "w:endnote (separator)"
+            } else {
+                "w:footnote (separator)"
+            };
+            return Err(Error::UnsupportedContext { ancestor });
+        }
+        let info = &self.stories[at.story.0].index.paragraphs[at.index];
+        if info.starts_in_field || p.runs().any(|r| r.in_field()) {
             return Err(Error::InsideField);
         }
         if let Some(ppr) = p.raw().elements().find(|e| is::<ParagraphProperties>(e)) {
@@ -254,12 +263,18 @@ impl Document {
     /// cell; ADR-0011 §9.1). `\t` and `\n` in `text` become `w:tab` and
     /// `w:br`; the run has no `w:rPr` (copying the paragraph mark's run
     /// properties needs ADR-0007 §8.2's generator rule, Phase1 part 3).
+    /// Inserting after a section-ending paragraph places the new paragraph
+    /// in the next section. If the final paragraph carries the document's
+    /// final `w:sectPr`, it moves to the new paragraph as in
+    /// [`Self::append_paragraph`], which can refuse with
+    /// [`Error::SectionBreakAtEnd`] when the anchor is inside a wrapper or table.
     /// Returns the new paragraph. Every later paragraph of the story moves
     /// up by one and gets a new [`Self::generation`].
     ///
     /// Errors, before any change: [`Self::write_gate_for`]
     /// ([`Operation::Structure`]); [`Error::UnsupportedContext`] (the
-    /// neighbour is in a block-level content control or custom XML);
+    /// neighbour is in a block-level content control, custom XML or a
+    /// separator note);
     /// [`Error::InsideField`], [`Error::InsideRevision`],
     /// [`Error::TrackedPropertyChange`] (the neighbour); the style checks
     /// of [`Self::set_paragraph_style`] for [`ParagraphSpec::Style`];
@@ -271,11 +286,26 @@ impl Document {
             Place::Before(p) => (p, true),
             Place::After(p) => (p, false),
         };
-        let (parent_path, item) = self.para_location(anchor)?;
+        let move_section = !before && anchor.story == StoryIndex::MAIN && {
+            let index = &self.stories[0].index;
+            index.paragraphs.len().checked_sub(1) == Some(anchor.index)
+                && ends_with_section_break(self.story_root_node(StoryIndex::MAIN), index)
+        };
+        let (parent_path, item) = match self.para_location(anchor) {
+            Err(Error::UnsupportedContext { .. }) if move_section => return Err(Error::SectionBreakAtEnd),
+            result => result?,
+        };
+        // Reject a nested final paragraph before validating the neighbour and insertion spec.
+        if move_section && parent_path.len() != 1 {
+            return Err(Error::SectionBreakAtEnd);
+        }
         self.check_structure_neighbour(anchor)?;
         let pieces = map_text(text)?;
         if let ParagraphSpec::Style(id) = spec {
             self.resolve_style(id, StyleKind::Paragraph)?;
+            if !crate::format::wml_prefix_in_scope(self.story_root_node(anchor.story), &parent_path) {
+                return Err(Error::Core(ooxml_core::Error::NamespaceNotInScope(NS_W.into())));
+            }
         }
         let kind = self.stories[anchor.story.0].id.kind;
         let part = self.stories[anchor.story.0].id.part.clone();
@@ -297,6 +327,14 @@ impl Document {
             }
             _ => None,
         };
+        if move_section {
+            let index = self.append_moving_section(&pieces, spec, copy.as_ref())?;
+            return Ok(ParaRef::new(StoryIndex::MAIN, index));
+        }
+        if let Some(copy) = &copy {
+            let doc = self.pkg.parsed_part(&part).expect("story parts are parsed");
+            copy.check_insert_under(doc, &parent_path, 1)?;
+        }
         // dry run: the new w:p in the container, at its position
         let xml = self.pkg.xml_part_mut(&part)?;
         let mut c = container_at(xml, kind, &parent_path)?.ok_or(Error::NoSuchParagraph(anchor.index))?;
@@ -309,17 +347,7 @@ impl Document {
         on_container!(c, mut l => {
             let pos = if before { target } else { next_slot_sibling(l.node(), target) };
             let mut p = l.insert_at::<P>(pos)?;
-            match spec {
-                ParagraphSpec::Plain => {}
-                ParagraphSpec::LikeNeighbour => {
-                    if let Some(d) = &copy {
-                        p.insert_detached(d)?;
-                    }
-                }
-                ParagraphSpec::Style(id) => {
-                    p.insert::<ParagraphProperties>()?.insert::<ParagraphStyleId>()?.set_attr(w("val"), id)?;
-                }
-            }
+            write_paragraph_properties(&mut p, spec, copy.as_ref())?;
             if !pieces.is_empty() {
                 write_pieces(&mut p.insert::<R>()?, &pieces)?;
             }
@@ -340,7 +368,8 @@ impl Document {
     ///
     /// Errors, before any change: [`Self::write_gate_for`]
     /// ([`Operation::Structure`]); [`Error::UnsupportedContext`] (not a
-    /// paragraph directly in the main story's body); [`Error::AlreadySectionEnd`];
+    /// paragraph directly in the main story's body); [`Error::AlreadySectionEnd`]
+    /// (there is no paragraph left in the second half of the section);
     /// [`Error::NoSectionProperties`] (the section has no `w:sectPr`);
     /// [`Error::TrackedPropertyChange`] (`w:sectPrChange`, or a neighbour
     /// check); `Core(NotDetachable)` (e.g. `w:printerSettings r:id`);
@@ -398,6 +427,18 @@ impl Document {
             return Err(Error::UnsupportedContext { ancestor: "a section break inside a table" });
         }
         let s_path = s_path.ok_or(Error::NoSectionProperties)?;
+        let index = &self.stories[after.story.0].index;
+        if s_path.len() == 2
+            && !index.paragraphs.get(after.index + 1).is_some_and(|p| index.path(p.frame)[1] < s_path[1])
+        {
+            return Err(Error::AlreadySectionEnd);
+        }
+        let later = (s_path.len() == 4).then(|| {
+            index.paragraphs.iter().enumerate().skip(after.index + 1)
+                .find(|(_, p)| index.path(p.frame) == s_path[..2])
+                .map(|(i, _)| ParaRef::new(StoryIndex::MAIN, i))
+                .expect("section-ending body paragraph is indexed")
+        });
         let s_node = node_at(doc.root(), &s_path);
         if s_node.elements().any(|e| e.is(w("sectPrChange"))) {
             return Err(Error::TrackedPropertyChange { element: "w:sectPrChange" });
@@ -468,6 +509,9 @@ impl Document {
         }
         self.reindex(StoryIndex::MAIN);
         self.bump(after);
+        if let Some(later) = later {
+            self.bump(later);
+        }
         Ok(())
     }
 
@@ -624,7 +668,12 @@ impl Document {
     /// `append_paragraph` when the body ends with a paragraph whose `w:pPr`
     /// holds the last section's `w:sectPr` (ADR-0004 A2, lifted by ADR-0011
     /// §6): the new paragraph is appended and the `w:sectPr` moves to it.
-    pub(crate) fn append_moving_section(&mut self, pieces: &[crate::text::Piece]) -> Result<usize> {
+    pub(crate) fn append_moving_section(
+        &mut self,
+        pieces: &[crate::text::Piece],
+        spec: &ParagraphSpec,
+        properties: Option<&Detached<ParagraphProperties>>,
+    ) -> Result<usize> {
         let index = &self.stories[0].index;
         let last = index.paragraphs.last().expect("A2 implies a last paragraph");
         if !index.wrappers(last.frame).is_empty() {
@@ -637,7 +686,10 @@ impl Document {
         let p_node = node_at(doc.root(), &ppath);
         let (ppr_i, ppr) = p_node.indexed_elements().find(|(_, e)| is::<ParagraphProperties>(e)).expect("A2: pPr");
         let (s_i, s_node) = ppr.indexed_elements().find(|(_, e)| is::<SectionProperties>(e)).expect("A2: sectPr");
-        if s_node.elements().any(|e| e.is(w("sectPrChange"))) || ppr.elements().any(|e| e.is(w("pPrChange"))) {
+        if ppr.elements().any(|e| e.is(w("pPrChange"))) {
+            return Err(Error::TrackedPropertyChange { element: "w:pPrChange" });
+        }
+        if s_node.elements().any(|e| e.is(w("sectPrChange"))) {
             return Err(Error::TrackedPropertyChange { element: "w:sectPrChange" });
         }
         let s_path = vec![body_index, item, ppr_i, s_i];
@@ -657,23 +709,42 @@ impl Document {
         if !refs.is_empty() && !crate::format::prefix_in_scope(doc.root(), &[body_index], NS_R) {
             return Err(Error::Core(ooxml_core::Error::NamespaceNotInScope(NS_R.into())));
         }
+        if refs.iter().any(|(_, kind, _)| kind.is_some()) && !crate::format::wml_prefix_in_scope(doc.root(), &[body_index]) {
+            return Err(Error::Core(ooxml_core::Error::NamespaceNotInScope(NS_W.into())));
+        }
         let copy = doc
             .lens_at::<SectionProperties>(&s_path)?
             .detach_as::<SectionProperties>(&[HeaderReference::QNAME, FooterReference::QNAME])?;
+        copy.check_insert_under(doc, &[body_index], 2)?;
+        if let Some(properties) = properties {
+            properties.check_insert_under(doc, &[body_index], 1)?;
+        }
         // dry run: the new paragraph in the body
         let xml = self.pkg.xml_part_mut(&part)?;
         {
             let body = xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(body_index).ok_or(Error::NoBody)?;
             let at = next_slot_sibling(body.node(), item);
             body.check_insert_at::<P>(at)?;
+            if properties.is_some() {
+                let source = body.into_child_at::<P>(item)
+                    .and_then(|p| p.into_child_at::<ParagraphProperties>(ppr_i))
+                    .expect("A2: pPr");
+                // Slot validation runs before the existing sectPr is reported.
+                // The detached copy keeps this order and omits that sectPr.
+                match source.check_insert::<SectionProperties>() {
+                    Err(ooxml_core::Error::AlreadyPresent(q)) if q == SectionProperties::QNAME => {}
+                    result => result?,
+                }
+            }
         }
         // write: the new paragraph with the moved sectPr, then remove the old one
         {
             let mut body = xml.lens_mut::<wml::Document>()?.into_child_at::<Body>(body_index).ok_or(Error::NoBody)?;
             let at = next_slot_sibling(body.node(), item);
             let mut p = body.insert_at::<P>(at)?;
+            write_paragraph_properties(&mut p, spec, properties)?;
             {
-                let mut ppr = p.insert::<ParagraphProperties>()?;
+                let mut ppr = p.get_or_insert::<ParagraphProperties>()?;
                 let mut sect = ppr.insert_detached(&copy)?;
                 write_refs(&mut sect, &refs)?;
             }
@@ -694,6 +765,25 @@ impl Document {
         self.bump(ParaRef::new(StoryIndex::MAIN, n - 1));
         Ok(n)
     }
+}
+
+fn write_paragraph_properties(
+    p: &mut LensMut<'_, P>,
+    spec: &ParagraphSpec,
+    copy: Option<&Detached<ParagraphProperties>>,
+) -> Result<()> {
+    match spec {
+        ParagraphSpec::Plain => {}
+        ParagraphSpec::LikeNeighbour => {
+            if let Some(copy) = copy {
+                p.insert_detached(copy)?;
+            }
+        }
+        ParagraphSpec::Style(id) => {
+            p.insert::<ParagraphProperties>()?.insert::<ParagraphStyleId>()?.set_attr(w("val"), id)?;
+        }
+    }
+    Ok(())
 }
 
 /// Writes header/footer references (type, id) into a new `w:sectPr`.
