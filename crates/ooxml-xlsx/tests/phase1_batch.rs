@@ -141,6 +141,23 @@ fn batch_iterative_guard_excludes_formulas_written_by_the_batch() {
     assert_eq!(wb.to_bytes().unwrap(), sequential(&input, "Sheet1", &reversed));
 }
 
+#[test]
+fn batch_iterative_guard_excludes_existing_formulas_it_replaces() {
+    let input = book(
+        &[("Sheet1", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1</f><v>1</v></c></row>"#)],
+        "",
+        r#"<calcPr iterate="1"/>"#,
+    );
+    let mut writes = vec![("A1", CellWrite::Number(2.0)), ("B1", CellWrite::Formula("1"))];
+    let (wb, result) = batch(&input, "Sheet1", &writes);
+    result.unwrap();
+    let mut single = Workbook::from_bytes(input.clone()).unwrap();
+    assert_matches!(single.worksheet().unwrap().write_number(0, 0, 2.0), Err(Error::IterativeCalculation));
+    assert_eq!(single.to_bytes().unwrap(), input);
+    writes.reverse();
+    assert_eq!(wb.to_bytes().unwrap(), sequential(&input, "Sheet1", &writes));
+}
+
 /// Two writes into the same new row create one row with both cells.
 #[test]
 fn writes_into_one_new_row_share_it() {
