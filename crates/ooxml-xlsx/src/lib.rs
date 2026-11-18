@@ -79,7 +79,8 @@ pub use registry::dates::ExcelDateTime;
 pub use registry::read::FormatRead;
 pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
-pub use worksheet::{CellMut, CellRef, CellValue, Worksheet};
+pub use formula::future::add_future_prefixes;
+pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
 pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it

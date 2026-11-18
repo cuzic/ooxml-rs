@@ -485,8 +485,8 @@ impl Styles {
     }
 
     /// Plans a style request for a cell whose current `s` is `current`.
-    pub(crate) fn plan(&self, wb: &mut Workbook, req: &StyleRequest, current: u32) -> Result<StylePlan> {
-        let mut p = Planner { next: self.clone(), staged: None };
+    pub(crate) fn plan(&self, wb: &mut Workbook, req: &StyleRequest, current: u32, staged: Option<&XmlDocument>) -> Result<StylePlan> {
+        let mut p = Planner { next: self.clone(), staged: staged.cloned() };
         let s = match req {
             StyleRequest::Index(n) => {
                 p.next.table(Which::CellXfs).require_stable()?;

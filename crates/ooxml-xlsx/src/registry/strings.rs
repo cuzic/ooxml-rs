@@ -59,6 +59,12 @@ pub(crate) struct StringPlan {
     decoded: String,
 }
 
+impl StringPlan {
+    pub(crate) fn will_append(&self) -> bool {
+        self.append.is_some()
+    }
+}
+
 fn build_si(parent: &mut LensMut<'_, sml::SharedStringTable>, content: &SiContent) -> Result<()> {
     let mut si = parent.insert::<sml::SharedStringItem>()?;
     match content {
@@ -194,31 +200,45 @@ impl SharedStrings {
         Ok(StringPlan { index: self.entries, append: Some(key), content, decoded: decoded.into() })
     }
 
+    /// Assigns new slots in write order and reuses earlier batch appends.
+    pub(crate) fn reserve(&self, plan: &mut StringPlan, appends: &mut HashMap<String, u32>) {
+        if let Some(key) = &plan.append {
+            if let Some(&index) = appends.get(key) {
+                plan.index = index;
+                plan.append = None;
+            } else {
+                plan.index = self.entries + appends.len() as u32;
+                appends.insert(key.clone(), plan.index);
+            }
+        }
+    }
+
     /// Applies a plan and a change in the number of `t="s"` cells. Called
     /// from the apply phase; a failure poisons the workbook.
-    pub(crate) fn apply(wb: &mut Workbook, plan: Option<&StringPlan>, refs_delta: i64) -> Result<()> {
+    pub(crate) fn apply(wb: &mut Workbook, plans: &[StringPlan], refs_delta: i64, refs_changed: bool) -> Result<()> {
+        if plans.is_empty() && !refs_changed {
+            return Ok(());
+        }
         let Some(mut reg) = wb.registries.strings.take() else { return Ok(()) };
         let result = (|| -> Result<()> {
             let doc = wb.pkg.xml_part_mut(&reg.part)?;
             let mut sst = doc.lens_mut::<sml::SharedStringTable>()?;
-            if let Some(p) = plan
-                && let Some(key) = &p.append
-            {
+            for p in plans {
+                let key = p.append.as_ref().expect("new shared string");
+                debug_assert_eq!(p.index, reg.entries);
                 build_si(&mut sst, &p.content)?;
                 reg.reuse.insert(key.clone(), reg.entries);
                 reg.entries += 1;
                 if let Some(cache) = wb.shared_strings.as_mut() {
                     cache.push(p.decoded.clone());
                 }
-                if reg.has_unique {
-                    sst.set_attr(QName::new("", "uniqueCount"), &reg.entries.to_string())?;
-                }
             }
-            if refs_delta != 0 || plan.is_some_and(|p| p.append.is_some()) {
-                reg.refs += refs_delta;
-                if reg.has_count {
-                    sst.set_attr(QName::new("", "count"), &reg.refs.max(0).to_string())?;
-                }
+            if !plans.is_empty() && reg.has_unique {
+                sst.set_attr(QName::new("", "uniqueCount"), &reg.entries.to_string())?;
+            }
+            reg.refs += refs_delta;
+            if reg.has_count {
+                sst.set_attr(QName::new("", "count"), &reg.refs.max(0).to_string())?;
             }
             Ok(())
         })();
