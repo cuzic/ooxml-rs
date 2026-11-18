@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use ooxml_robustness::fixtures::{PPTX, XLSX, fixture_files, fixtures_dir, unzip, write_seeds};
+use ooxml_robustness::fixtures::{DOCX, PPTX, XLSX, fixture_files, fixtures_dir, unzip, write_seeds};
 use ooxml_robustness::mutate::Rng;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
@@ -142,8 +142,12 @@ fn main() -> std::io::Result<()> {
 
     println!("xlsx_edit: {} inputs", write_seeds(&XLSX, &dir("xlsx_edit")?)?);
     println!("pptx_edit: {} inputs", write_seeds(&PPTX, &dir("pptx_edit")?)?);
+    println!("docx_edit: {} inputs", write_seeds(&DOCX, &dir("docx_edit")?)?);
+    for (i, input) in ooxml_robustness::docx::targeted_inputs().into_iter().enumerate() {
+        std::fs::write(dir("docx_edit")?.join(format!("targeted-{i}")), input)?;
+    }
     if let Some(max) = max {
-        for t in ["package_roundtrip", "xml_t1", "xml_t1b", "lens_ops", "xlsx_edit", "pptx_edit"] {
+        for t in ["package_roundtrip", "xml_t1", "xml_t1b", "lens_ops", "xlsx_edit", "pptx_edit", "docx_edit"] {
             println!("{t}: thinned to {}", thin(&out.join(t), max)?);
         }
     }

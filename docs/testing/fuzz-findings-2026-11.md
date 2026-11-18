@@ -6,9 +6,10 @@
 - ooxml-xlsx: `Workbook::from_bytes`、セルの読み取り、`set_number` / `set_string`、保存と再オープン
 - ooxml-pptx: `Presentation::from_bytes`、全スライドの読み取り、テキスト編集（本文・段落・ラン・表セル）、保存と再オープン
 
-ooxml-docx（#13 で main にマージ）はこの PR の base より後なので、ここでは対象外。`docx_edit` ターゲットは
-この PR に積む別 PR（`test/fuzz-docx`）で追加する。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
-「Err なら無変更」もまだ検査していない。
+ooxml-docx（#13 で main にマージ）は積み上げの PR（`test/fuzz-docx`）で `docx_edit` ターゲットを追加した（下の「ooxml-docx」の節）。
+xlsx Phase1（#20）は main に入っており、`xlsx_edit` の oracle は Phase1 の契約に合わせてある（`phase1_oracle`）。
+数式を書き換える編集のターゲットは、さらに積み上げの PR で追加する。`Package` の書き込み API（`set_part`、#14 の `remove_part`）の
+「Err なら無変更」は、まだ検査していない。
 
 ハーネスは `crates/ooxml-robustness`（publish しない dev 専用 crate）、cargo-fuzz のターゲットは `fuzz/`（ワークスペース外、nightly）。
 各ターゲットの不変条件は `fuzz/README.md` の表にある。crate のソースは変更していない。修正は各 crate の担当者に任せる。
@@ -103,6 +104,73 @@ release・`OOXML_SMOKE_ITERS=30` で 27 秒、どちらも失敗なし。
 - ワークフロー:
   - `cargo metadata --locked` で `fuzz/Cargo.lock` が最新であることを強制する。
   - nightly を `nightly-2026-11-14` にした。所見の実行に使った `5f4effd57 2026-11-13` が入っているチャンネル。
+
+## ooxml-docx（`docx_edit`、PR #36 に積む PR で追加）
+
+対象: ooxml-docx Phase0（ADR-0004）。当初は main @8c54366 に対して実行し、現在は main @4f8e294 にマージして再確認した。`Document::from_bytes`、書き込みゲート（`write_gate` / `write_gates`）、
+全段落・全ランの読み取り（`text`、`context`、`in_field`、`check_settable`）、`set_run_text`、`append_paragraph`、保存と再オープン。
+入力は xlsx / pptx と同じ形（fixture 1 個の part 1 個を payload で置き換え、続くバイトで操作を選ぶ）。fixture は
+`reference/fixtures/docx` の 26 ファイルで、XXE の検査用ファイル（`poi-ExternalEntityInText.docx`）も seed に入れた（DTD は open で拒否される）。
+
+不変条件:
+
+- **結果の予測**（PR #47 round 1 の M1）: 各編集の前に、ooxml-docx の公開 API とハーネス側の判定だけを使って、成功するか、どのエラーになるかを予測する。実際の結果は予測と一致しなければならない。
+  - `set_run_text` の予測は、次の順で決まる。
+    1. 書き込みゲート
+    2. 段落とランの存在
+    3. `check_settable`
+    4. 書けない文字
+  - `append_paragraph` の予測は、次の順で決まる。
+    1. 書き込みゲート
+    2. 書けない文字
+    3. `w:body` の有無
+    4. 本文の終わりで閉じていないフィールド（各ランの `w:fldChar` を数え直して判定する）
+    5. A2
+  - 予測できない結果は、lens が拒否する `mc:AlternateContent` の兄弟（`Core(UnresolvedSibling)`）だけである。
+  - これにより「拒否すべきなのに Ok」と「過剰な拒否」の両方を検出できる。
+- 拒否（Err）なら、パッケージのバイト列は変わらない。
+- 成功した `set_run_text` は読み戻せる（`\r\n` / `\r` は `\n`）。`document.xml` は、そのランの元の span の中だけが変わる（T2）。
+  さらに、ランの属性と `w:rPr` は変わらず、端や連続の空白を含む `w:t` には `xml:space="preserve"` が付く（m1）。
+- 成功した `append_paragraph` は新しい最後の段落の番号を返し、読み戻せる。`document.xml` は 1 か所への挿入だけで変わる
+  （`w:body` が自己終了タグだった場合は `w:body` の span の中）。挿入点は `w:body` の中で、本文直下に `w:sectPr` があればその前でなければならない（m2）。
+- 編集が成功するたびに保存して開き直す。そのため、次の編集の T2 検査は現在のバイト列の span で行い、途中の出力もすべて再オープンを検査する。
+- 最後に、main part 以外は L1 一致で、再オープンした文書でも全編集が読み戻せる。
+
+`set_run_text` の対象は、半分の確率で `check_settable` が通るランから選ぶ（ゲートが掛かっていない fixture 19 個中 12 個に設定可能なランがある）。
+テキストは半分の確率で、書ける文字（英字、空白、タブ、改行、非 ASCII）だけから作る（m3。以前は約 4 割が `InvalidXmlChar` で終わっていた）。
+次の形はランダムな変異ではまず生じないので、`docx::targeted_inputs()` で作り、seed とスモークの両方に入れている。
+- A2（最後の段落がセクション区切りを持つ）
+- 本文の終わりで閉じていないフィールド
+- `xml:space` が欠けた連続空白のラン
+- 自己終了の `w:body`
+
+レビューで生き残った ooxml-docx の変異 8 個（ゲートの削除 ×2、`check_settable` の削除、A2 とフィールド検査の無効化、`xml:space` を付けない、`w:rPr` を消す、no-op 判定の誤り）は、
+いずれもスモーク（`OOXML_SMOKE_ITERS=30`）で検出されるようになった。
+
+**round 1 対応後の再実行**（main マージ後、#40 / #14 / #20 入り）:
+
+| 実行 | 時間 | 回数 | cov | 新規 |
+|---|---|---|---|---|
+| 1 回目（16 並列、seed 394 件。うち合成 7 件） | 15 分 | 13.5 万 | 7,260 | timeout 3 件（下記） |
+| 2 回目（12 並列） | 6 分 | 3.7 万 | 7,283 | 0 |
+
+- **timeout 3 件**: どれも 1.35 MB の fixture（`poi-bug59058.docx`）での、ハーネス側の負荷だった。
+  - 原因: append の予測と位置の検査が main part を毎回 parse し、編集のたびに再オープンしていた。
+  - release では 0.5 秒で終わる。ASan では単独で 5 秒前後、16 並列の負荷下では 10 秒を超えた。
+  - 対策（PR #47 round 2 の m5 の後の値）: parse を 1 回にまとめた。main part が 512 KiB を超える文書では、編集を 1 回にし、読み取り後の 2 回目の保存と L1 比較も飛ばす。
+    これで、この fixture の seed は ASan で 2.8〜3.6 秒になった（以前は負荷のない状態で 6〜12 秒）。
+- **所見**: なし。
+
+**分類そのものの検査（m6）**: 予測は ooxml-docx の分類用の公開 API（`check_settable`、`write_gate`、`in_field`）をそのまま使う。
+そのため、「分類どおりに拒否・許可しているか」は検査できるが、分類そのものの誤りは検査できない。
+このうちフィールドについては、`read_all` で各ランの `w:fldChar` を独立に数え直す。そして `in_field()` が「直前の深さ > 0、直後の深さ > 0、またはそのランが `w:fldChar` を持つ」と一致することを assert する。
+変更履歴の wrapper とゲートの検出（settings.xml）が正しいかどうかは、ooxml-docx の単体テストの範囲とする。
+ファザーが見るのは、分類と結果が一貫しているかどうかである。
+
+**結果: 所見なし。** 7 分（12 並列、53k 回）と 25 分（16 並列、19.4 万回、cov 6,558）回し、stable スモーク（release、`OOXML_SMOKE_ITERS=100`）も通った。
+1 回目に出た timeout 1 件はハーネスの負荷だった。最大の fixture（`poi-bug59058.docx`、document.xml 1.35 MB）で 12 回編集し、
+毎回開き直すと、release で 1.2 秒、ASan では 10 秒を超える。ライブラリ側はどれも速い（open 34 ms、全ランの `check_settable` 0.6 ms、
+`append_paragraph` 0.8 ms、保存 2 ms）。この fixture の扱いの最終的な値は、上の「対策」の項を参照。
 
 ## 所見の詳細
 

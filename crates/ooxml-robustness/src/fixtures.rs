@@ -84,6 +84,8 @@ fn load(sub: &str, exts: &[&str]) -> Vec<Fixture> {
 
 /// The xlsx fixtures (`reference/fixtures/xlsx/**`).
 pub static XLSX: LazyLock<Vec<Fixture>> = LazyLock::new(|| load("xlsx", &["xlsx", "xlsm"]));
+/// The docx fixtures (`reference/fixtures/docx/**`).
+pub static DOCX: LazyLock<Vec<Fixture>> = LazyLock::new(|| load("docx", &["docx", "docm", "dotx", "dotm"]));
 /// The pptx fixtures (`reference/fixtures/pptx/**`).
 pub static PPTX: LazyLock<Vec<Fixture>> = LazyLock::new(|| load("pptx", &["pptx", "pptm", "ppsx", "potx"]));
 

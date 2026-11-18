@@ -7,7 +7,7 @@
 //! so a failure here is a new problem: replay the
 //! printed input with `cargo run -p ooxml-robustness --example replay`.
 
-use ooxml_robustness::fixtures::{Fixture, PPTX, XLSX};
+use ooxml_robustness::fixtures::{DOCX, Fixture, PPTX, XLSX};
 use ooxml_robustness::mutate::{Rng, mutate};
 
 fn iters() -> usize {
@@ -118,5 +118,17 @@ fn pptx_edit() {
     assert!(PPTX.len() > 20, "fixtures not found");
     for input in format_inputs(&PPTX, &mut rng, iters()) {
         guarded("pptx_edit", &input, ooxml_robustness::check_pptx_input);
+    }
+}
+
+#[test]
+fn docx_edit() {
+    let mut rng = Rng::new(0xd0c5);
+    assert!(DOCX.len() > 20, "fixtures not found");
+    for input in ooxml_robustness::docx::targeted_inputs() {
+        guarded("docx_edit", &input, ooxml_robustness::check_docx_input);
+    }
+    for input in format_inputs(&DOCX, &mut rng, iters() * 2) {
+        guarded("docx_edit", &input, ooxml_robustness::check_docx_input);
     }
 }

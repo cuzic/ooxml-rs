@@ -13,6 +13,7 @@
 //! `Err` from the library under test is an accepted outcome unless the
 //! contract says otherwise.
 
+pub mod docx;
 pub mod fixtures;
 pub mod input;
 pub mod lens;
@@ -24,6 +25,7 @@ pub mod xlsx;
 pub mod xml;
 pub mod zipcmp;
 
+pub use docx::{check_docx, check_docx_input};
 pub use lens::check_lens_ops;
 pub use package::check_package;
 pub use pptx::{check_pptx, check_pptx_input};

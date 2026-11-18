@@ -55,6 +55,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "docx_edit"
+path = "fuzz_targets/docx_edit.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "pptx_edit"
 path = "fuzz_targets/pptx_edit.rs"
 test = false
