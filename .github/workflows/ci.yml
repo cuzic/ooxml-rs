@@ -64,3 +64,8 @@ jobs:
         run: |
           cargo run --release -p ooxml-pptx --example resolve_dump -- "$RUNNER_TEMP/pptx-resolve.json"
           python -I crates/ooxml-pptx/tests/oracle/resolve_check.py "$RUNNER_TEMP/pptx-resolve.json" reference/fixtures/pptx
+
+      - name: write SmartArt cases (ADR-0013 §7)
+        run: cargo run --release -p ooxml-pptx --example smartart_cases -- "$RUNNER_TEMP/pptx-smartart"
+      - name: SmartArt data/cache check
+        run: python -I crates/ooxml-pptx/tests/oracle/smartart.py "$RUNNER_TEMP/pptx-smartart" reference/fixtures/pptx

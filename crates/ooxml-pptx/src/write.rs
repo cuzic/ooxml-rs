@@ -21,6 +21,9 @@ mod table;
 pub use table::{CellFill, Edge, Line, Side, TableColor, TableFlag, TableMut};
 pub(crate) use table::TableSession;
 
+mod smartart;
+pub use smartart::{CacheReport, SmartArtMut, SmartArtNode};
+
 pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> Option<&'a RawNode> {
     path.iter().try_fold(root, |n, &i| n.children().get(i).and_then(RawItem::as_element))
 }
@@ -45,6 +48,17 @@ enum Cursor<'d> {
     Tc(LensMut<'d, TableCell>),
     PBody(LensMut<'d, pml::TextBody>),
     ABody(LensMut<'d, dml::TextBody>),
+    // SmartArt data model (ADR-0013 §4): dgm:dataModel / ptLst / pt / t
+    DModel(LensMut<'d, dml::DgmDataModelRoot>),
+    PtLst(LensMut<'d, dml::DgmPointList>),
+    Pt(LensMut<'d, dml::DgmPoint>),
+    DgmBody(LensMut<'d, dml::DgmTextBody>),
+    // SmartArt drawing cache: dsp:drawing / spTree / grpSp* / sp / txBody
+    Drawing(LensMut<'d, dml::DspDrawing>),
+    DspTree(LensMut<'d, dml::DspShapeTree>),
+    DspGrp(LensMut<'d, dml::DspGroupShape>),
+    DspSp(LensMut<'d, dml::DspShape>),
+    DspBody(LensMut<'d, dml::DspTextBody>),
 }
 
 macro_rules! group_step {
@@ -74,15 +88,38 @@ impl<'d> Cursor<'d> {
             Cursor::Tbl(l) => l.into_child_at::<TableRow>(i).map(Cursor::Tr),
             Cursor::Tr(l) => l.into_child_at::<TableCell>(i).map(Cursor::Tc),
             Cursor::Tc(l) => l.into_child_at::<dml::TextBody>(i).map(Cursor::ABody),
-            Cursor::PBody(_) | Cursor::ABody(_) => None,
+            Cursor::DModel(l) => l.into_child_at::<dml::DgmPointList>(i).map(Cursor::PtLst),
+            Cursor::PtLst(l) => l.into_child_at::<dml::DgmPoint>(i).map(Cursor::Pt),
+            Cursor::Pt(l) => l.into_child_at::<dml::DgmTextBody>(i).map(Cursor::DgmBody),
+            Cursor::Drawing(l) => l.into_child_at::<dml::DspShapeTree>(i).map(Cursor::DspTree),
+            Cursor::DspTree(l) => dsp_step(l, i),
+            Cursor::DspGrp(l) => dsp_step(l, i),
+            Cursor::DspSp(l) => l.into_child_at::<dml::DspTextBody>(i).map(Cursor::DspBody),
+            Cursor::PBody(_) | Cursor::ABody(_) | Cursor::DgmBody(_) | Cursor::DspBody(_) => None,
         }
     }
 }
 
-/// A typed lens on a shape's `p:txBody` or a cell's `a:txBody`.
+/// A step below a `dsp:spTree` or `dsp:grpSp`.
+fn dsp_step<'d, P: ElementSpec>(l: LensMut<'d, P>, i: usize) -> Option<Cursor<'d>>
+where
+    dml::DspGroupShape: ChildOf<P>,
+    dml::DspShape: ChildOf<P>,
+{
+    if child_is(l.node(), i, dml::DspGroupShape::QNAME) {
+        l.into_child_at::<dml::DspGroupShape>(i).map(Cursor::DspGrp)
+    } else {
+        l.into_child_at::<dml::DspShape>(i).map(Cursor::DspSp)
+    }
+}
+
+/// A typed lens on a text body: a shape's `p:txBody`, a cell's `a:txBody`,
+/// a SmartArt data node's `dgm:t` or a drawing-cache shape's `dsp:txBody`.
 enum BodyLens<'d> {
     P(LensMut<'d, pml::TextBody>),
     A(LensMut<'d, dml::TextBody>),
+    Dgm(LensMut<'d, dml::DgmTextBody>),
+    Dsp(LensMut<'d, dml::DspTextBody>),
 }
 
 macro_rules! with_body {
@@ -90,18 +127,35 @@ macro_rules! with_body {
         match $b {
             BodyLens::P($l) => $e,
             BodyLens::A($l) => $e,
+            BodyLens::Dgm($l) => $e,
+            BodyLens::Dsp($l) => $e,
         }
     };
 }
 
+/// The cursor at the root of a part this crate edits text in: a slide, a
+/// SmartArt data model or a SmartArt drawing.
+fn root_cursor(doc: &mut XmlDocument) -> Result<Cursor<'_>> {
+    let root = doc.root();
+    if root.is(dml::DgmDataModelRoot::QNAME) {
+        Ok(Cursor::DModel(doc.lens_mut::<dml::DgmDataModelRoot>()?))
+    } else if root.is(dml::DspDrawing::QNAME) {
+        Ok(Cursor::Drawing(doc.lens_mut::<dml::DspDrawing>()?))
+    } else {
+        Ok(Cursor::Sld(doc.lens_mut::<pml::Slide>()?))
+    }
+}
+
 fn body_lens<'d>(doc: &'d mut XmlDocument, path: &[usize]) -> Result<BodyLens<'d>> {
-    let mut cur = Cursor::Sld(doc.lens_mut::<pml::Slide>()?);
+    let mut cur = root_cursor(doc)?;
     for &i in path {
         cur = cur.step(i).ok_or(Error::ShapeNotFound)?;
     }
     match cur {
         Cursor::PBody(l) => Ok(BodyLens::P(l)),
         Cursor::ABody(l) => Ok(BodyLens::A(l)),
+        Cursor::DgmBody(l) => Ok(BodyLens::Dgm(l)),
+        Cursor::DspBody(l) => Ok(BodyLens::Dsp(l)),
         _ => Err(Error::ShapeNotFound),
     }
 }
@@ -120,11 +174,13 @@ where
     l.into_child_at::<Paragraph>(child).ok_or(Error::ShapeNotFound)
 }
 
-fn append_paragraph<'d, B: ElementSpec>(l: &'d mut LensMut<'_, B>) -> Result<LensMut<'d, Paragraph>>
+/// A new `a:p` before the `at`-th existing paragraph (at the end when
+/// `at` is the paragraph count).
+fn insert_paragraph_at<'d, B: ElementSpec>(l: &'d mut LensMut<'_, B>, at: usize) -> Result<LensMut<'d, Paragraph>>
 where
     Paragraph: ChildOf<B>,
 {
-    Ok(l.insert::<Paragraph>()?)
+    Ok(l.insert_by::<Paragraph>(|k, _| k == at)?)
 }
 
 // ---------------------------------------------------------------------------
@@ -728,7 +784,7 @@ impl TextBodyMut<'_> {
         check_depth(self.doc, &self.path, 3)?; // a:p / a:r / a:t
         let mut body = body_lens(self.doc, &self.path)?;
         with_body!(&mut body, l => {
-            let mut p = append_paragraph(l)?;
+            let mut p = insert_paragraph_at(l, count)?;
             fill_new_paragraph(&mut p, None, &RunFmt::default(), &segments)?;
         });
         Ok(ParagraphMut {
@@ -773,9 +829,22 @@ impl TextBodyMut<'_> {
     /// and [`Error::AnimatedParagraphs`] when the number of paragraphs
     /// changes.
     pub fn set_text(&mut self, text: &str) -> Result<()> {
+        let n = body_paragraphs(self.node())?.len();
+        self.set_text_range(0, n, text)
+    }
+
+    /// [`Self::set_text`] restricted to the paragraphs `start..start + len`
+    /// (a SmartArt node's slice of a drawing-cache shape, ADR-0013 §4): the
+    /// other paragraphs are untouched, new paragraphs are inserted after
+    /// the range and copy its last paragraph.
+    pub(crate) fn set_text_range(&mut self, start: usize, len: usize, text: &str) -> Result<()> {
         let lines = text::body_lines(text)?;
         let node = self.node();
-        let paras = body_paragraphs(node)?;
+        let all = body_paragraphs(node)?;
+        if len == 0 || start + len > all.len() {
+            return Err(Error::ParagraphNotFound(start + len));
+        }
+        let paras = &all[start..start + len];
         if lines.len() == paras.len() {
             self.guard.text()?;
         } else {
@@ -788,20 +857,20 @@ impl TextBodyMut<'_> {
             let p = node_at(node, &[child]).expect("found");
             let shape = para_shape(p)?;
             if !shape.fields.is_empty() {
-                return Err(Error::FieldInParagraph { paragraph: k });
+                return Err(Error::FieldInParagraph { paragraph: start + k });
             }
             if let Some(segs) = lines.get(k) {
                 let path = para_path(child);
-                plans.push(plan_paragraph(ParaAt::new(doc, &path), k, segs)?);
+                plans.push(plan_paragraph(ParaAt::new(doc, &path), start + k, segs)?);
             }
         }
         let extra = &lines[paras.len().min(lines.len())..];
-        // New paragraphs copy from the last one (consulted for every new
-        // paragraph, even an empty one, because of `a:endParaRPr`).
+        // New paragraphs copy from the range's last one (consulted for every
+        // new paragraph, even an empty one, because of `a:endParaRPr`).
         let (ppr, run_fmt) = if extra.is_empty() {
             (None, RunFmt::default())
         } else {
-            let path = para_path(*paras.last().expect("body_paragraphs: a:p+"));
+            let path = para_path(*paras.last().expect("len > 0"));
             let needs_run = extra.iter().any(|segs| segs.iter().any(|s| !s.is_empty()));
             new_para_format(ParaAt::new(doc, &path), needs_run)?
         };
@@ -812,13 +881,14 @@ impl TextBodyMut<'_> {
             check_copies(doc, &self.path, 1, ppr.iter().map(|d| d as &dyn CheckInsert).chain(run_fmt.end.iter().map(|d| d as &dyn CheckInsert)))?;
             check_copies(doc, &self.path, 2, run_fmt.rpr.iter().map(|d| d as &dyn CheckInsert))?;
         }
-        // Apply: appends first (the only primitive that could still be
+        // Apply: inserts first (the only primitive that could still be
         // refused by the core, before anything else changed), then rewrite,
-        // then remove surplus paragraphs from the end.
+        // then remove surplus paragraphs from the end. Inserts go after the
+        // range, so the range's child indices stay valid.
         let mut body = body_lens(self.doc, &self.path)?;
         with_body!(&mut body, l => {
-            for segs in extra {
-                let mut p = append_paragraph(l)?;
+            for (j, segs) in extra.iter().enumerate() {
+                let mut p = insert_paragraph_at(l, start + len + j)?;
                 fill_new_paragraph(&mut p, ppr.as_ref(), &run_fmt, segs)?;
             }
         });
@@ -939,6 +1009,46 @@ impl ParagraphMut<'_> {
         check_depth(self.doc, &path, 2)?; // a:r / a:t
         let mut p = self.lens()?;
         append_run(&mut p, text, None)
+    }
+
+    /// Inserts a run with `text` after run `after` (`None`: before every
+    /// run, break and field), with a copy of run `fmt_from`'s `a:rPr`
+    /// (without links) when given. For SmartArt caches (ADR-0013 §4: text
+    /// put into an empty data run goes after the paired cache run of the
+    /// preceding non-empty data run).
+    pub(crate) fn insert_run_after(&mut self, after: Option<usize>, text: &str, fmt_from: Option<usize>) -> Result<()> {
+        text::check_run_text(text)?;
+        self.loc.guard.text()?;
+        let node = self.node()?;
+        let shape = para_shape(node)?;
+        // slot index: the text-run choice (`a:r`/`a:br`/`a:fld`) items before the new run
+        let pos = match after {
+            None => 0,
+            Some(r) => {
+                let &c = shape.runs.get(r).ok_or(Error::RunNotFound(r))?;
+                node.indexed_elements().filter(|(i, e)| *i <= c && (e.is(Run::QNAME) || e.is(Break::QNAME) || e.is(Field::QNAME))).count()
+            }
+        };
+        let mut path = self.loc.body.clone();
+        path.push(self.loc.child(self.doc)?);
+        let fmt = match fmt_from {
+            None => None,
+            Some(r) => {
+                let &c = shape.runs.get(r).ok_or(Error::RunNotFound(r))?;
+                let run = node_at(node, &[c]).expect("run");
+                let src = run.indexed_elements().find(|(_, e)| e.is(RunProperties::QNAME)).map(|(i, _)| [path.as_slice(), &[c, i]].concat());
+                detach::<RunProperties, RunProperties>(self.doc.root(), src, &LINKS, "a:rPr")?
+            }
+        };
+        check_depth(self.doc, &path, 2)?;
+        check_copies(self.doc, &path, 1, fmt.iter().map(|d| d as &dyn CheckInsert))?;
+        let mut p = self.lens()?;
+        let mut r = p.insert_by::<Run>(|k, _| k == pos)?;
+        if let Some(f) = &fmt {
+            r.insert_detached(f)?;
+        }
+        r.insert::<Text>()?.set_text(text)?;
+        Ok(())
     }
 
     /// Appends an `a:br` before `a:endParaRPr`.

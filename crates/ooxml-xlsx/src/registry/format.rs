@@ -551,6 +551,113 @@ impl Format {
     }
 }
 
+/// The font part of a differential format (`dxf/font`). In a `dxf` an
+/// omitted property means "do not override" (ADR-0006 §3, §5.8), so every
+/// property is optional and only the set ones are written.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DxfFont {
+    /// `<b/>`.
+    pub bold: bool,
+    /// `<i/>`.
+    pub italic: bool,
+    /// `<strike/>`.
+    pub strike: bool,
+    /// `<u/>`.
+    pub underline: Option<Underline>,
+    /// `<color/>`.
+    pub color: Option<Color>,
+    /// `<sz/>`.
+    pub size: Option<FontSize>,
+    /// `<name/>`.
+    pub name: Option<String>,
+}
+
+/// A differential format (`dxf`), as conditional formats and table styles
+/// use (ADR-0006 §5.8; the API that applies them is Phase4). Every group is
+/// an override: `None` leaves that part of the cell's look alone. There is
+/// no "inherit" and no default-style id is copied.
+///
+/// A solid fill in a `dxf` takes its colour from `bgColor` (Excel's form,
+/// written without `patternType`), which [`DxfFormat::set_background_color`]
+/// produces.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DxfFormat {
+    /// Number format.
+    pub num_format: Option<NumFormat>,
+    /// Font overrides.
+    pub font: Option<DxfFont>,
+    /// Fill. For a solid fill with only `fg` set, this writes just `fgColor`.
+    /// Set `bg` for the solid colour Excel uses in a differential format.
+    pub fill: Option<Fill>,
+    /// Borders (only the sides that are set are written).
+    pub border: Option<Border>,
+    /// Alignment.
+    pub alignment: Option<Alignment>,
+    /// Protection.
+    pub protection: Option<Protection>,
+}
+
+impl DxfFormat {
+    /// Overrides nothing.
+    pub fn new() -> Self {
+        DxfFormat::default()
+    }
+    fn font_mut(&mut self) -> &mut DxfFont {
+        self.font.get_or_insert_with(DxfFont::default)
+    }
+    /// Bold.
+    pub fn set_bold(mut self) -> Self {
+        self.font_mut().bold = true;
+        self
+    }
+    /// Italic.
+    pub fn set_italic(mut self) -> Self {
+        self.font_mut().italic = true;
+        self
+    }
+    /// Font colour.
+    pub fn set_font_color(mut self, c: Color) -> Self {
+        self.font_mut().color = Some(c);
+        self
+    }
+    /// A solid fill of this colour (`bgColor`, as Excel writes a dxf).
+    pub fn set_background_color(mut self, c: Color) -> Self {
+        self.fill = Some(Fill::Pattern { pattern: "solid".into(), fg: None, bg: Some(c) });
+        self
+    }
+    /// A number format code.
+    pub fn set_num_format(mut self, code: &str) -> Self {
+        self.num_format = Some(NumFormat::Code(code.to_owned()));
+        self
+    }
+    /// The same border on all four sides.
+    pub fn set_border(mut self, style: &str) -> Self {
+        let side = Some(Side { style: style.to_owned(), color: None });
+        self.border = Some(Border { left: side.clone(), right: side.clone(), top: side.clone(), bottom: side, ..Border::default() });
+        self
+    }
+
+    /// The same checks as [`Format`]'s, on the parts a `dxf` has.
+    pub(crate) fn validate(&self) -> crate::Result<()> {
+        let as_format = Format {
+            num_format: self.num_format.clone(),
+            font: None,
+            fill: self.fill.clone(),
+            border: self.border.clone(),
+            alignment: self.alignment.clone(),
+            protection: self.protection,
+            quote_prefix: false,
+        };
+        as_format.validate()?;
+        if let Some(f) = &self.font {
+            // the font checks of `Format::validate`, on a stand-in font
+            let probe = Font { name: f.name.clone().unwrap_or_else(|| "x".into()), color: f.color, ..Font::default() };
+            Format::with_font(probe).validate()?;
+        }
+        Ok(())
+    }
+}
+
 /// Built-in ids whose display depends on the user's locale although their
 /// table code is fixed: a code is never mapped to them (PR #50 review m1),
 /// only an explicit `Builtin` or [`NumFormat::DefaultDate`] uses them.

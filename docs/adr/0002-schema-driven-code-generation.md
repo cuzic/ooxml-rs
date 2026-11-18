@@ -435,6 +435,12 @@
   ids (`a:blip@r:embed`/`r:link`, `a:hlinkClick@r:id` in `a:defRPr`) and
   every `a:extLst` are refused by `detach_as` as before, so a source cell
   holding them makes the new cell `FormatNotCopyable`.
+- **Post-acceptance note (SmartArt generated names):** SmartArt elements
+  in the diagram and diagram drawing namespaces get `Dgm` and `Dsp`
+  prefixes in `dml` (for example, `dgm:t` becomes `DgmTextBody` and
+  `dsp:sp` becomes `DspShape`). Existing generated names on main are
+  preserved, including `dml::TextBody`, `dml::RowIdIdentifier`, and
+  `pml::SectionList`.
 
 Every claim marked *(spike)* was checked by running code in
 `spikes/adr-0002/` on rustc 1.99.1; see its README.
