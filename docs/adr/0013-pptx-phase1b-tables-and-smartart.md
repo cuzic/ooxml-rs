@@ -73,6 +73,34 @@
   | P3 empty runs ignored on the data side only | ignored on **both** sides (431/431 unchanged); indices count non-empty runs; text put into an empty run goes after the preceding non-empty cache run | §4 |
   | P4 nits | (a) a 1-D vertical merge copies `vMerge` only; (b) `r:id` sits on `a:hlinkClick`/`a:hlinkMouseOver` under `a:rPr`, refusal scope stated; (c) `InvalidNamespaceDeclaration` in §5 | §2, §4, §5 |
 
+- **Post-acceptance note (PR #57):** The table write colour type is `TableColor` to avoid a name collision with the resolver’s `Color`.
+- **Post-acceptance note (2026-11-16, implementation of §2–§3 tables on
+  `impl/pptx-phase1b-tables` — no change to the decisions):**
+  - The codegen addition P1 asked for is the ADR-0002 note "children of a
+    wildcard-only parent" (`add_child` with `before = "##any"`), so new
+    rows and columns of id-bearing tables get `a16:rowId`/`colId`
+    through `insert_with_ns` (#45); `RowIdNotSupported` is not needed.
+  - Merge attributes are written from the merge geometry in the edge
+    form for every merge an operation touches (inserting inside it,
+    deleting through it, creating it); this equals copying them from the
+    cell below/right (N1) and also converts a touched flag-only merge.
+    Untouched merges keep their bytes.
+  - Every operation runs its checks on the slide tree and its edits on a
+    clone that replaces the tree only when every edit succeeded, so a
+    refusal — this crate's or the core's — leaves the slide unchanged.
+  - Review #57 round 1: `set_style` writes the matched id's own spelling
+    (the definition's, or the built-in list's uppercase `ST_Guid` form);
+    a table whose `a:tblPr` holds an inline `a:tableStyle` (the other
+    branch of the schema choice; 0 in the corpus) is refused with
+    `TableStyleInline` for both `Some` and `None`; `merge` needs an
+    origin `a:txBody` only when text moves (one is created then); a
+    comment anchor outside the table kinds locks only the shape ids it
+    names (an anchor with no id at all still locks every table);
+    duplicate `a16:rowId`/`colId` values make a table not well-formed.
+  - Property test: 3,000 random tables (38,257 row/column inserts and
+    deletes, 3,817 expected refusals) against an independent logical
+    model: 0 mismatches (`tests/table_model.rs`).
+
 ## Context
 
 Phase 0 reads tables (`TableRef`/`CellRef`: grid, spans, merges) and edits
@@ -295,11 +323,13 @@ allowlist moves `a:tcPr`, `a:tblPr`, `a:tableStyleId`, `a:lnL/R/T/B`,
 
 - margins `marL/marR/marT/marB` (EMU), `anchor` (`t/ctr/b`), `anchorCtr`,
   `vert`, `horzOverflow`;
-- fill: `solidFill` with `srgbClr` or `schemeClr`, or `noFill` (replaces
+- fill: `CellFill::Solid(TableColor::Rgb(..))` writes `srgbClr`,
+  `CellFill::Solid(TableColor::Scheme(..))` writes `schemeClr`, and
+  `CellFill::None` writes `noFill` (replaces
   any existing fill child of `a:tcPr`, which is the one fill choice of the
   schema);
 - **borders by edge** (review M4): `set_border(row, col, Edge::Left |
-  Right | Top | Bottom, Line)` with `Line` = width (EMU) and solid colour,
+  Right | Top | Bottom, Line)` with `Line` = width (EMU) and solid `TableColor`,
   or `noFill`. An inner edge is shared: the call writes both cells' lines
   (`lnR` of the left cell and `lnL` of the right one; `lnB`/`lnT`) to the
   same value, as PowerPoint does (0 different shared edges in

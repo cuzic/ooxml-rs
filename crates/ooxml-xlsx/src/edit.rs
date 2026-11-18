@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use ooxml_core::{ElementSpec, XmlDocument};
+use ooxml_core::{ElementSpec, QName, XmlDocument};
 use ooxml_schema::sml;
 
 use crate::census::{FCell, FKind, SheetKind};
@@ -15,6 +15,8 @@ use crate::formula::precedents::Rect;
 use crate::formula::translate::translate;
 use crate::graph::{Graph, precedents_of};
 use crate::reference::{CellIndex, CellRange};
+use crate::registry::strings::{SharedStrings, StringPlan};
+use crate::registry::styles::{StylePlan, StyleRequest, Styles};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, Workbook};
 use crate::index::{Located, SheetIndex, located_cell, sheet_data};
 use crate::worksheet::{TargetPlan, locate, plan_target, write_cell};
@@ -29,6 +31,35 @@ pub(crate) enum CellOp {
     /// Formula text, without `=`.
     Formula(String),
     RemoveFormula,
+    /// Removes the value and formula (`v`, `is`, `f`, `t`) of an existing
+    /// cell, keeping its style: `merge_clearing` (ADR-0014 §3). Unlike
+    /// `RemoveFormula`, it also applies to a cell without a formula.
+    Clear,
+    /// `t="s"` with this shared-string index (Phase2).
+    Shared(u32),
+    /// `t="b"`.
+    Bool(bool),
+    /// `t="e"` with this error value (`#N/A`, …).
+    Error(&'static str),
+    /// Only the cell's `s` changes (Phase2).
+    StyleOnly,
+}
+
+/// Phase2 parts of an edit (ADR-0006): a shared-string plan made by the
+/// caller and a style request.
+#[derive(Debug, Default)]
+pub(crate) struct Extra {
+    pub(crate) string: Option<StringPlan>,
+    pub(crate) style: Option<StyleRequest>,
+}
+
+/// What the apply phase installs in the registries.
+#[derive(Debug)]
+struct RegistryApply {
+    string: Option<StringPlan>,
+    /// Change in the number of `t="s"` cells (target and stripped cells).
+    refs_delta: i64,
+    styles: Option<StylePlan>,
 }
 
 /// The cells an edit invalidates.
@@ -54,18 +85,22 @@ struct HandOff {
 #[derive(Debug, Default)]
 pub(crate) struct StripPlan {
     pub(crate) sheets: Vec<(String, Vec<(usize, usize)>)>,
+    /// Stripped cells that had `t="s"`.
+    shared_refs: i64,
     fids: Vec<usize>,
     anchors: Vec<usize>,
 }
 
 /// Removes the cached value (`v`, `is`, `t`) of the planned cells of one
 /// sheet tree (ADR-0003 §3.1; also used on Phase3's staged clones).
-pub(crate) fn strip_cells(doc: &mut XmlDocument, positions: &[(usize, usize)]) -> Result<()> {
+pub(crate) fn strip_cells(doc: &mut XmlDocument, positions: &[(usize, usize)]) -> Result<i64> {
+    let mut shared = 0;
     for &(ri, ci) in positions {
         let ws = doc.lens_mut::<sml::Worksheet>()?;
         let sd = ws.into_child_by::<sml::SheetData>(|_| true).ok_or_else(|| Error::Malformed("sheetData".into()))?;
         let row = sd.into_child_at::<sml::Row>(ri).ok_or_else(|| Error::Malformed("planned row".into()))?;
         let cell = row.into_child_at::<sml::Cell>(ci).ok_or_else(|| Error::Malformed("planned cell".into()))?;
+        shared += i64::from(cell.node().attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"));
         let mut c = sml::CellViewMut(cell);
         // every `v` and `is`, duplicates included (schema-invalid, but a
         // reader would see a survivor), as `write_cell` does (review R4-M1)
@@ -73,7 +108,7 @@ pub(crate) fn strip_cells(doc: &mut XmlDocument, positions: &[(usize, usize)]) -
         while c.remove_inline_string() {}
         c.remove_data_type()?;
     }
-    Ok(())
+    Ok(shared)
 }
 
 fn xml_char_ok(c: char) -> bool {
@@ -134,16 +169,87 @@ impl Workbook {
 
     /// Plans, validates and applies one cell edit.
     pub(crate) fn edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_ext(sheet, at, op, Extra::default())
+    }
+
+    /// Activates the shared-string registry if the workbook has a
+    /// shared-string part; `false` if it has none (ADR-0006 §4.6).
+    pub(crate) fn shared_strings_active(&mut self) -> Result<bool> {
         self.check_poisoned()?;
-        if let Some(b) = &self.census.block {
-            return Err(b.to_error());
+        if self.registries.strings.is_none() {
+            self.registries.strings = SharedStrings::activate(self)?;
         }
+        Ok(self.registries.strings.is_some())
+    }
+
+    /// The style registry, activated on first use.
+    pub(crate) fn styles(&mut self) -> Result<&Styles> {
+        self.check_poisoned()?;
+        if self.registries.styles.is_none() {
+            self.registries.styles = Some(Styles::activate(self)?);
+        }
+        Ok(self.registries.styles.as_ref().expect("activated"))
+    }
+
+    /// Does some formula or defined name use a function whose result can
+    /// depend on a cell's format (`CELL`, `INFO`, `GET.CELL`,
+    /// `GET.FORMULA`), or a function that is not on Phase1's allowlist
+    /// (ADR-0006 §7)? Then a style-only write is handled like a value write.
+    pub(crate) fn style_sensitive(&mut self) -> Result<bool> {
+        if let Some(v) = self.style_sensitive {
+            return Ok(v);
+        }
+        let v = self.scan_style_sensitive()?;
+        self.style_sensitive = Some(v);
+        Ok(v)
+    }
+
+    /// One pass over the census's formula texts and the defined names.
+    fn scan_style_sensitive(&mut self) -> Result<bool> {
+        use crate::formula::lexer::{TokKind, lex};
+        let sensitive = |text: &str| match lex(text) {
+            Err(_) => true,
+            Ok(toks) => toks.iter().any(|t| match &t.kind {
+                TokKind::Func(name) => {
+                    matches!(name.as_str(), "CELL" | "INFO" | "GET.CELL" | "GET.FORMULA")
+                        || crate::formula::functions::rule(name).is_none()
+                }
+                TokKind::Opaque => false,
+                _ => false,
+            }),
+        };
+        if self.census.alive().any(|(_, c)| sensitive(&c.text)) {
+            return Ok(true);
+        }
+        let wb = sml::WorkbookView(self.pkg.xml_part(&self.workbook_part)?.lens::<sml::Workbook>()?);
+        Ok(wb.defined_names().is_some_and(|dn| dn.defined_name_iter().any(|d| sensitive(&d.0.text()))))
+    }
+
+    /// [`Self::edit_cell`] with Phase2 registry work.
+    pub(crate) fn edit_cell_ext(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra) -> Result<()> {
+        self.edit_cell_mode(sheet, at, op, extra, false)
+    }
+
+    /// Runs every check of [`Self::edit_cell`] without applying anything
+    /// (parsing and index building aside, which change no bytes).
+    pub(crate) fn check_edit_cell(&mut self, sheet: usize, at: CellIndex, op: CellOp) -> Result<()> {
+        self.edit_cell_mode(sheet, at, op, Extra::default(), true)
+    }
+
+    fn edit_cell_mode(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra, dry_run: bool) -> Result<()> {
+        self.check_editable()?;
         let part = self.sheets[sheet].part.clone().expect("worksheet");
         let cell = at.to_string();
+        let style_only = matches!(op, CellOp::StyleOnly);
+        if style_only {
+            return self.edit_style_only(sheet, &part, at, extra);
+        }
 
         // ---- guards on the cell ----
         let ctx = self.contexts.get(&sheet).expect("context loaded with the worksheet");
-        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at)) {
+        // Phase4 (ADR-0014 §3): the anchor of a merged range is writable, as
+        // in Excel; a value in any other cell would be hidden.
+        if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
             return Err(Error::MergedCell { cell, range: m.to_string() });
         }
         if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
@@ -174,11 +280,13 @@ impl Workbook {
         // ---- the target in Layer 2 ----
         self.ensure_index(sheet)?;
         let index = self.indexes.get(&sheet).expect("built");
-        let target_plan = plan_target(self.pkg.xml_part_mut(&part)?, index, &part, at, &op)?;
+        let mut target_plan = plan_target(self.pkg.xml_part_mut(&part)?, index, &part, at, &op)?;
         let formula_set_changes = match op {
             CellOp::Formula(_) => target.is_none(),
             _ => target.is_some(),
         };
+        // a formula is written or removed: the style-sensitivity answer may change
+        let formulas_change = matches!(op, CellOp::Formula(_)) || target.is_some();
 
         // ---- shared-formula hand-off (§4.2) ----
         let handoff = match target.map(|f| (f, self.census.get(f).expect("alive").clone())) {
@@ -228,12 +336,22 @@ impl Workbook {
             self.pkg.check_remove_part(p, &[REL_CALC_CHAIN])?;
         }
 
+        // ---- registries (ADR-0006) ----
+        let reg = self.plan_registries(&part, at, &mut target_plan, &op, extra, strip.shared_refs)?;
+
+        if dry_run {
+            return Ok(());
+        }
+
+        if formulas_change {
+            self.style_sensitive = None;
+        }
         // ---- apply ----
         // Poisoned *before* apply and cleared only on success: a panic inside
         // apply (a bug) that a caller catches also leaves the workbook
         // poisoned (review R3-m3).
         self.poisoned = Some("an edit was interrupted while being applied".into());
-        let result = self.apply(sheet, &part, at, &target_plan, &op, target, chain, staged, &strip, handoff);
+        let result = self.apply(sheet, &part, at, &target_plan, &op, target, chain, staged, &strip, handoff, reg);
         match result {
             Ok(()) => {
                 self.poisoned = None;
@@ -245,6 +363,101 @@ impl Workbook {
                 Err(Error::Poisoned(msg))
             }
         }
+    }
+
+    /// The style-only path: the cell keeps its value; dependents are
+    /// invalidated only in a style-sensitive workbook (§7).
+    fn edit_style_only(&mut self, sheet: usize, part: &str, at: CellIndex, extra: Extra) -> Result<()> {
+        self.ensure_index(sheet)?;
+        let index = self.indexes.get(&sheet).expect("built");
+        let mut target_plan = plan_target(self.pkg.xml_part_mut(part)?, index, part, at, &CellOp::StyleOnly)?;
+        let (strip, staged) = if self.style_sensitive()? {
+            let deps = self.compute_dependents(sheet, at);
+            let others: Vec<_> = deps.cells.iter().filter(|&&c| c != (sheet, at)).copied().collect();
+            for &fid in &deps.formulas {
+                let c = self.census.get(fid).expect("alive");
+                if (c.sheet, c.at) != (sheet, at) && matches!(self.sheets[c.sheet].kind, SheetKind::MacroSheet | SheetKind::DialogSheet) {
+                    return Err(Error::MacroSheetDependent { sheet: self.sheets[c.sheet].name.clone(), cell: c.at.to_string() });
+                }
+            }
+            if let Some(&(_, c)) = others.iter().find(|k| self.census.vm_cells.contains(k)) {
+                return Err(Error::RichValueCell { cell: c.to_string() });
+            }
+            if self.calc.iterate && !others.is_empty() {
+                return Err(Error::IterativeCalculation);
+            }
+            let strip = match self.policy {
+                CalcPolicy::StripDependentCaches => self.plan_strip(&deps, sheet, at)?,
+                CalcPolicy::KeepStaleCaches => StripPlan::default(),
+            };
+            let staged = if !others.is_empty() && !self.calc.manual && !self.calc.full_calc_on_load {
+                let mut doc: XmlDocument = self.pkg.xml_part(&self.workbook_part)?.clone();
+                {
+                    let mut wb = doc.lens_mut::<sml::Workbook>()?;
+                    let mut calc = wb.get_or_insert::<sml::CalculationProperties>()?;
+                    calc.set_attr(sml::CalculationProperties::ATTR_FULL_CALC_ON_LOAD, "1")?;
+                }
+                Some(doc)
+            } else {
+                None
+            };
+            (strip, staged)
+        } else {
+            (StripPlan::default(), None)
+        };
+        let reg = self.plan_registries(part, at, &mut target_plan, &CellOp::StyleOnly, extra, strip.shared_refs)?;
+        self.poisoned = Some("an edit was interrupted while being applied".into());
+        let result = self.apply(sheet, part, at, &target_plan, &CellOp::StyleOnly, None, None, staged, &strip, None, reg);
+        match result {
+            Ok(()) => {
+                self.poisoned = None;
+                Ok(())
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                self.poisoned = Some(msg.clone());
+                Err(Error::Poisoned(msg))
+            }
+        }
+    }
+
+    /// Plans the registry side of an edit: the style (on a staged clone of
+    /// `styles.xml`), the shared-string append (dry-run checked) and the
+    /// change in `t="s"` cells. Changes nothing.
+    fn plan_registries(&mut self, part: &str, at: CellIndex, target_plan: &mut TargetPlan, op: &CellOp, extra: Extra, stripped_shared: i64) -> Result<RegistryApply> {
+        let (old_t_s, current_s) = {
+            let doc = self.pkg.xml_part(part)?;
+            match located_cell(doc, &target_plan.loc) {
+                Some(c) => (
+                    c.attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"),
+                    c.attr(sml::Cell::ATTR_S).and_then(ooxml_core::value::parse_u32).unwrap_or(0),
+                ),
+                None => (false, missing_cell_style(doc, &target_plan.loc, at)),
+            }
+        };
+        let styles = match &extra.style {
+            Some(req) => {
+                self.styles()?;
+                let st = self.registries.styles.take().expect("activated");
+                let plan = st.plan(self, req, current_s);
+                self.registries.styles = Some(st);
+                let plan = plan?;
+                target_plan.style = Some(plan.s);
+                Some(plan)
+            }
+            None => None,
+        };
+        let mut refs_delta = -stripped_shared;
+        if !matches!(op, CellOp::StyleOnly) {
+            refs_delta += i64::from(matches!(op, CellOp::Shared(_))) - i64::from(old_t_s);
+        }
+        if let Some(sp) = &extra.string {
+            let reg = self.registries.strings.as_ref().ok_or_else(|| Error::Malformed("shared-string plan without a registry".into()))?;
+            let doc = self.pkg.xml_part(&reg.part)?;
+            crate::worksheet::check_insertable::<sml::SharedStringTable>(doc.root().elements(), sml::SharedStringItem::QNAME)?;
+            let _ = sp;
+        }
+        Ok(RegistryApply { string: extra.string, refs_delta, styles })
     }
 
     fn plan_handoff(&mut self, m: &FCell, si: u32, sheet: usize, part: &str) -> Result<Option<HandOff>> {
@@ -316,7 +529,8 @@ impl Workbook {
             let rs = rects.remove(&s).unwrap_or_default();
             self.ensure_index(s)?;
             let doc = self.pkg.xml_part(&part)?;
-            let positions = strip_positions(doc, self.indexes.get(&s).expect("built"), &part, s, &want, &rs)?;
+            let (positions, shared) = strip_positions(doc, self.indexes.get(&s).expect("built"), &part, s, &want, &rs)?;
+            plan.shared_refs += shared;
             if !positions.is_empty() {
                 plan.sheets.push((part, positions));
             }
@@ -337,6 +551,7 @@ impl Workbook {
         staged: Option<XmlDocument>,
         strip: &StripPlan,
         handoff: Option<HandOff>,
+        reg: RegistryApply,
     ) -> Result<()> {
         use crate::workbook::ApplyStepHook as Step;
         // (i) calcChain
@@ -370,7 +585,16 @@ impl Workbook {
             f.set_reference(&h.range.to_string())?;
             f.set_text(&h.text)?;
         }
-        // (v) the target cell
+        // (v) registries
+        self.fault_point(Step::Registries)?;
+        if let Some(p) = reg.styles {
+            if let Some(doc) = p.staged {
+                *self.pkg.xml_part_mut(&p.next.part)? = doc;
+            }
+            self.registries.styles = Some(p.next);
+        }
+        SharedStrings::apply(self, reg.string.as_ref(), reg.refs_delta)?;
+        // (vi) the target cell
         self.fault_point(Step::Target)?;
         let effect = match write_cell(self.pkg.xml_part_mut(part)?, target_plan, at, op) {
             Ok(effect) => effect,
@@ -388,7 +612,7 @@ impl Workbook {
         if let Some(index) = self.indexes.get_mut(&sheet) {
             effect.update(index, at);
         }
-        // (vi) the index
+        // (vii) the index
         self.fault_point(Step::Index)?;
         for &fid in &strip.fids {
             if let Some(Some(c)) = self.census.cells.get_mut(fid) {
@@ -466,8 +690,9 @@ fn strip_positions(
     sheet: usize,
     want: &HashSet<CellIndex>,
     rects: &[Rect],
-) -> Result<Vec<(usize, usize)>> {
+) -> Result<(Vec<(usize, usize)>, i64)> {
     let mut out = Vec::new();
+    let mut shared = 0i64;
     let mut found = HashSet::new();
     let rows = index.rows(part)?;
     let sd = sheet_data(doc);
@@ -502,6 +727,7 @@ fn strip_positions(
             let has = c.attr(sml::Cell::ATTR_T).is_some()
                 || c.elements().any(|e| e.is(sml::CellValue::QNAME) || e.is(sml::InlineString::QNAME));
             if has {
+                shared += i64::from(c.attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"));
                 out.push((e.item, ci));
             }
         }
@@ -509,5 +735,36 @@ fn strip_positions(
     if let Some(c) = want.iter().find(|c| !found.contains(c)) {
         return Err(Error::Malformed(format!("{part}: the formula census and the tree disagree about {c}")));
     }
-    Ok(out)
+    Ok((out, shared))
+}
+
+/// The style a missing cell shows (PR #50 review M4): its row's `s` when
+/// the row has `customFormat="1"`, else the `style` of the `col` range that
+/// covers the column, else 0. A preserving setter, `set_named_style` or
+/// `set_datetime` on a cell that does not exist yet starts from it, so the
+/// new cell keeps the look of its row or column.
+fn missing_cell_style(doc: &XmlDocument, loc: &Located, at: CellIndex) -> u32 {
+    let parse = ooxml_core::value::parse_u32;
+    let on = |v: Option<&str>| matches!(v.map(str::trim), Some("1" | "true"));
+    if let Some(ri) = loc.row
+        && let Some(sd) = sheet_data(doc)
+        && let Some(row) = sd.children().get(ri).and_then(|i| i.as_element())
+        && on(row.attr(QName::new("", "customFormat")))
+    {
+        // `CT_Row/@s` defaults to 0 (PR #50 review round 2, m4)
+        return row.attr(QName::new("", "s")).and_then(parse).unwrap_or(0);
+    }
+    let col = at.col + 1;
+    doc.root()
+        .elements()
+        .filter(|e| e.name().ns() == crate::SML_NS && e.name().local() == "cols")
+        .flat_map(|cols| cols.elements())
+        .filter(|c| c.name().ns() == crate::SML_NS && c.name().local() == "col")
+        .find(|c| {
+            let min = c.attr(QName::new("", "min")).and_then(parse);
+            let max = c.attr(QName::new("", "max")).and_then(parse);
+            matches!((min, max), (Some(a), Some(b)) if a <= col && col <= b)
+        })
+        .and_then(|c| c.attr(QName::new("", "style")).and_then(parse))
+        .unwrap_or(0)
 }

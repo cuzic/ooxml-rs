@@ -359,3 +359,8 @@ build(
         "F1": F("A2*2", 4),
     }, "ws")],
 )
+
+# --- p4_sheet_true (PR #58 round 1 m7): a sheet named TRUE, for the manual
+#     check of the _FilterDatabase text set_autofilter writes (TRUE!$A$1:$B$2,
+#     unquoted: does Excel accept it?).
+build("p4_sheet_true.xlsx", [("TRUE", {"A1": 1, "B1": 2, "A2": 3, "B2": 4}, "ws")], calc_chain=False)
