@@ -709,6 +709,7 @@ fn xsd_defaults() {
     assert_eq!(ooxml_pptx::ParaProps::xsd_default("algn"), None);
     assert_eq!(ooxml_pptx::script_for_lang("ja-JP"), Some("Jpan"));
     assert_eq!(ooxml_pptx::script_for_lang("zh-TW"), Some("Hant"));
+    assert_eq!(ooxml_pptx::script_for_lang("zh-HK"), Some("Hant"));
     assert_eq!(ooxml_pptx::script_for_lang("zh-CN"), Some("Hans"));
     assert_eq!(ooxml_pptx::script_for_lang("en-US"), None);
 }
