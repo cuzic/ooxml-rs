@@ -366,8 +366,10 @@ impl Workbook {
 
     /// `Some(error)` if every edit of this workbook is refused: a sheet part
     /// could not be scanned for formulas, a sheet with formulas lacks `r`
-    /// attributes, the workbook has cell metadata Phase1 does not model, or
-    /// an earlier edit failed while applying ([`Error::Poisoned`]).
+    /// attributes, a cell's `r` names another row than its `row/@r`
+    /// ([`Error::InvalidReference`]), the workbook has cell metadata Phase1
+    /// does not model, or an earlier edit failed while applying
+    /// ([`Error::Poisoned`]).
     pub fn edit_refusal(&self) -> Option<Error> {
         if let Some(p) = &self.poisoned {
             return Some(Error::Poisoned(p.clone()));
