@@ -58,6 +58,9 @@ pub struct Presentation {
     /// allocated or removed while this value lives (ADR-0012 §3, review
     /// m2/N6). Lost when the `Presentation` is dropped.
     pub(crate) slide_id_high_water: u32,
+    /// Table edit state that outlives one `SlideMut` (deleted `a16` ids),
+    /// by slide part (ADR-0013 §2: the session is the `Presentation`).
+    tables: std::collections::BTreeMap<String, crate::write::TableSession>,
 }
 
 impl Presentation {
@@ -78,12 +81,13 @@ impl Presentation {
         }
         let slides = scan_slides(&mut pkg, &main)?;
         let slide_id_high_water = slides.iter().map(|e| e.slide_id).max().unwrap_or(0);
-        Ok(Presentation { pkg, slides, main, slide_id_high_water })
+        Ok(Presentation { pkg, slides, main, slide_id_high_water, tables: Default::default() })
     }
 
     /// Re-reads the slide list after a structural edit.
     pub(crate) fn rescan(&mut self) -> Result<()> {
         self.slides = scan_slides(&mut self.pkg, &self.main)?;
+        self.tables.retain(|part, _| self.pkg.contains(part));
         Ok(())
     }
 
@@ -151,12 +155,44 @@ impl Presentation {
             };
             refs.scan_comments(doc.as_ref());
         }
+        let table_styles = self.table_style_ids();
+        let tables = self.tables.entry(part.clone()).or_default();
         let doc = self.pkg.xml_part_mut(&part)?;
         if !doc.root().is(pml::Slide::QNAME) {
             return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
         }
         refs.scan_timing(doc.root());
-        Ok(SlideMut { doc, info, refs })
+        Ok(SlideMut { doc, info, refs, table_styles, tables })
+    }
+
+    /// `a:tblStyle@styleId`s defined in the presentation's `tableStyles`
+    /// part (found by relationship); empty when absent or unreadable.
+    fn table_style_ids(&self) -> Vec<String> {
+        const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
+        let Some(main) = self.pkg.main_document_part() else { return Vec::new() };
+        let Ok(rels) = self.pkg.relationships(&main) else { return Vec::new() };
+        let Some(part) = rels.by_type(REL).filter_map(|r| rels.resolve(r)).find(|p| self.pkg.contains(p)) else {
+            return Vec::new();
+        };
+        let Some(doc) = self.pkg.read_part(&part).ok().and_then(|b| XmlDocument::parse(&b).ok()) else { return Vec::new() };
+        doc.root()
+            .elements()
+            .filter(|e| e.is(QName::new(crate::names::A_NS, "tblStyle")))
+            .filter_map(|e| e.attr(QName::new("", "styleId")).map(str::to_owned))
+            .collect()
+    }
+
+    /// Parses the whole deck once — every slide's layout, master and theme,
+    /// the comment parts — and returns a read view (ADR-0008 §1.1, §5).
+    /// Never marks anything dirty.
+    pub fn deck(&mut self) -> Result<crate::Deck<'_>> {
+        let main = self.pkg.main_document_part().ok_or_else(|| Error::NotAPresentation("no officeDocument relationship".into()))?;
+        let entries: Vec<(u32, Option<String>)> = self.slides.iter().map(|e| (e.slide_id, e.part.clone())).collect();
+        let (slides, rels) = crate::deck::load(&mut self.pkg, &main, &entries)?;
+        let pkg = &self.pkg;
+        let pres_part = pkg.part_names().find(|n| *n == main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
+        let pres = pkg.parsed_part(&main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
+        Ok(crate::Deck { pkg, pres_part, pres, slides, rels })
     }
 
     fn scope_indices(&self, scope: Scope) -> Result<Vec<usize>> {
@@ -306,8 +342,13 @@ impl Presentation {
             }
         }
         if let Some(e) = failure {
+            // restore every slide even if one restore fails (review #48 r2
+            // nit); the first error of all is returned
             for (part, doc) in backups {
-                *self.pkg.xml_part_mut(&part)? = doc;
+                match self.pkg.xml_part_mut(&part) {
+                    Ok(d) => *d = doc,
+                    Err(_) => core::hint::cold_path(),
+                }
             }
             return Err(e);
         }

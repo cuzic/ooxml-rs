@@ -20,7 +20,7 @@ use crate::core_props;
 
 pub(crate) const REL_WORKSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 const REL_CHARTSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
-const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
+pub(crate) const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
 const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
 const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
@@ -89,6 +89,8 @@ pub enum ApplyStep {
     Strip,
     /// Before the shared-formula hand-off.
     HandOff,
+    /// Before installing registry additions (`styles.xml`, `sharedStrings.xml`).
+    Registries,
     /// Before writing the target cell.
     Target,
     /// Before updating the formula index.
@@ -140,6 +142,12 @@ pub struct Workbook {
     pub(crate) calc_chain: Option<String>,
     pub(crate) policy: CalcPolicy,
     pub(crate) poisoned: Option<String>,
+    /// Phase2 registries (ADR-0006), activated by the first write that
+    /// needs them.
+    pub(crate) registries: crate::registry::Registries,
+    /// `style_sensitive()`'s answer, computed once and dropped whenever a
+    /// formula is written or removed (PR #50 review M5).
+    pub(crate) style_sensitive: Option<bool>,
     from_template: bool,
     template_sheet_taken: bool,
     #[cfg(feature = "fault-injection")]
@@ -221,6 +229,8 @@ impl Workbook {
             calc_chain,
             policy: CalcPolicy::default(),
             poisoned: None,
+            registries: Default::default(),
+            style_sensitive: None,
             from_template: false,
             template_sheet_taken: false,
             #[cfg(feature = "fault-injection")]
@@ -356,8 +366,10 @@ impl Workbook {
 
     /// `Some(error)` if every edit of this workbook is refused: a sheet part
     /// could not be scanned for formulas, a sheet with formulas lacks `r`
-    /// attributes, the workbook has cell metadata Phase1 does not model, or
-    /// an earlier edit failed while applying ([`Error::Poisoned`]).
+    /// attributes, a cell's `r` names another row than its `row/@r`
+    /// ([`Error::InvalidReference`]), the workbook has cell metadata Phase1
+    /// does not model, or an earlier edit failed while applying
+    /// ([`Error::Poisoned`]).
     pub fn edit_refusal(&self) -> Option<Error> {
         if let Some(p) = &self.poisoned {
             return Some(Error::Poisoned(p.clone()));

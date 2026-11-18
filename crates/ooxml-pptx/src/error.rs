@@ -191,6 +191,64 @@ pub enum Error {
     /// The sections' slide lists do not concatenate to `p:sldIdLst`.
     #[error("the section lists do not match the slide list")]
     SectionsInconsistent,
+    // ---- Phase 1b (ADR-0013 §5): tables ----
+    /// The table is not well-formed for structural edits (short rows,
+    /// overlapping or broken merges, partial `a16` ids, …).
+    #[error("the table is not well-formed: {0}")]
+    TableNotWellFormed(String),
+    /// A structural edit on a table a modern comment anchors into.
+    #[error("table {shape_id} is anchored by a modern comment (rows, columns or cells)")]
+    CommentAnchoredTable {
+        /// The graphic frame's id.
+        shape_id: u32,
+    },
+    /// Deleting a row that holds the origin of a vertical merge.
+    #[error("row {row} holds the origin of a merge; unmerge first")]
+    MergeOriginInRow {
+        /// The row.
+        row: usize,
+    },
+    /// Deleting a column that holds the origin of a horizontal merge.
+    #[error("column {col} holds the origin of a merge; unmerge first")]
+    MergeOriginInColumn {
+        /// The column.
+        col: usize,
+    },
+    /// `merge` over a range that already contains a merged cell.
+    #[error("the range contains a merged cell")]
+    RangeContainsMerge,
+    /// `merge` over a range that leaves the grid or is a single cell.
+    #[error("the range is outside the grid or a single cell")]
+    RangeOutsideGrid,
+    /// `unmerge` on a cell that is not a merge origin.
+    #[error("cell ({row}, {col}) is not the origin of a merge")]
+    NotAMergeOrigin {
+        /// Row.
+        row: usize,
+        /// Column.
+        col: usize,
+    },
+    /// Deleting the only row.
+    #[error("cannot delete the only row")]
+    LastRow,
+    /// Deleting the only column.
+    #[error("cannot delete the only column")]
+    LastColumn,
+    /// A table style id neither defined in `ppt/tableStyles.xml` nor
+    /// built in.
+    #[error("table style {0:?} is not defined")]
+    TableStyleNotDefined(String),
+    /// `set_style` on a table whose `a:tblPr` holds an inline
+    /// `a:tableStyle` (the other branch of the schema choice), which is not
+    /// replaced implicitly.
+    #[error("the table has an inline a:tableStyle")]
+    TableStyleInline,
+    /// A value outside its schema range.
+    #[error("value out of range for {what}")]
+    ValueOutOfRange {
+        /// The attribute.
+        what: &'static str,
+    },
     /// A find/replace pattern that is empty or contains `\n`, `\r` or `\v`
     /// (matches never cross paragraphs or line breaks; ADR-0008 §4).
     #[error("the search pattern is empty or contains a line break")]
@@ -211,6 +269,24 @@ pub enum Error {
     /// the link (ADR-0008 §4 rule 5).
     #[error("a line break in the replacement would split a hyperlink run")]
     LinkSplitByBreak,
+    /// `slide_rect` of a shape inside a group with `rot`, `flipH` or
+    /// `flipV`: the rectangle is not axis-aligned in slide space
+    /// (ADR-0008 §1.5).
+    #[error("an enclosing group (id {group_id:?}) is rotated or flipped")]
+    TransformedGroup {
+        /// `cNvPr@id` of that group.
+        group_id: Option<u32>,
+    },
+    /// A link of the slide → layout → master → theme chain is missing or
+    /// does not parse (ADR-0008 §1.1). Only resolver calls that need the
+    /// link fail; Phase 0 reads and writes on that slide keep working.
+    #[error("{from}: the {missing:?} of the chain is missing or unreadable")]
+    BrokenChain {
+        /// The part whose link is broken (the slide).
+        from: String,
+        /// Which link.
+        missing: crate::ChainLink,
+    },
 }
 
 impl Error {
