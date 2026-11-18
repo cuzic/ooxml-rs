@@ -206,6 +206,21 @@ fn styled_a2_insertion_refuses_a_missing_wml_attribute_prefix() {
 }
 
 #[test]
+fn a2_section_move_refuses_a_missing_wml_reference_type_prefix() {
+    let xml = format!(r#"<document xmlns="{W_NS}" xmlns:r="{R_NS}"><body><p><pPr><sectPr><headerReference xmlns:w="{W_NS}" w:type="default" r:id="rIdX0"/></sectPr></pPr></p></body></document>"#);
+    let header = story_xml("hdr", "<w:p/>");
+    let mut doc = Document::from_bytes(package(&xml, &[("header", "header1.xml", &header)])).unwrap();
+    assert_matches!(
+        refused(&mut doc, |d| d.insert_paragraph(Place::After(p(0)), "x", &ParagraphSpec::Plain)),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == W_NS
+    );
+    assert_matches!(
+        refused(&mut doc, |d| d.append_paragraph("x")),
+        Error::Core(CoreError::NamespaceNotInScope(ns)) if ns == W_NS
+    );
+}
+
+#[test]
 fn empty_paragraph_inside_a_complex_field_refuses_structure_edits() {
     let body = r#"<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>HYPERLINK "https://example.com/"</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>first</w:t></w:r></w:p><w:p/><w:p><w:r><w:t>last</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><w:sectPr/>"#;
     let mut doc = open(body);

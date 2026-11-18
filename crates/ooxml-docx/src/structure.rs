@@ -708,6 +708,9 @@ impl Document {
         if !refs.is_empty() && !crate::format::prefix_in_scope(doc.root(), &[body_index], NS_R) {
             return Err(Error::Core(ooxml_core::Error::NamespaceNotInScope(NS_R.into())));
         }
+        if refs.iter().any(|(_, kind, _)| kind.is_some()) && !crate::format::wml_prefix_in_scope(doc.root(), &[body_index]) {
+            return Err(Error::Core(ooxml_core::Error::NamespaceNotInScope(NS_W.into())));
+        }
         let copy = doc
             .lens_at::<SectionProperties>(&s_path)?
             .detach_as::<SectionProperties>(&[HeaderReference::QNAME, FooterReference::QNAME])?;
