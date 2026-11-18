@@ -132,3 +132,16 @@ fn docx_edit() {
         guarded("docx_edit", &input, ooxml_robustness::check_docx_input);
     }
 }
+
+#[test]
+fn xlsx_formula_edit() {
+    let mut rng = Rng::new(0xf0a1);
+    let fx = ooxml_robustness::xlsx_formula::formula_fixtures();
+    assert!(fx.len() > 30, "fixtures not found");
+    for input in format_inputs(fx, &mut rng, iters() * 3) {
+        guarded("xlsx_formula_edit", &input, ooxml_robustness::check_xlsx_formula_input);
+    }
+    let [ok, deps, chains, refused] = ooxml_robustness::xlsx_formula::STATS.each_ref().map(|a| a.load(std::sync::atomic::Ordering::Relaxed));
+    eprintln!("xlsx_formula_edit: {ok} successful edits, {deps} model dependents checked, {chains} calcChain decisions, {refused} refusals");
+    assert!(ok > 0 && deps > 0, "the oracles never fired");
+}
