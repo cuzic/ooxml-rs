@@ -368,13 +368,39 @@ fn a_then(extra: &str, cache_rpr: Option<&str>) -> Vec<u8> {
     }
 }
 
+const EMPTY_RUN: &str = "<a:r><a:t></a:t></a:r>";
 const LINK_RPR: &str = "<a:rPr lang=\"en-US\"><a:hlinkClick xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rId1\"/></a:rPr>";
 
 #[test]
 fn writing_into_an_empty_linked_data_run_is_refused() {
     // review M1: the data run written is checked, also when it is empty
-    let b = a_then(&format!("<a:r>{LINK_RPR}<a:t></a:t></a:r>"), None);
-    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 1, "LINK"));
+    let b = a_then(&format!("{EMPTY_RUN}<a:r>{LINK_RPR}<a:t></a:t></a:r>"), None);
+    // The linked run is a:r index 2, with only one preceding run with text.
+    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 2, "LINK"));
+    assert_matches!(r, Err(Error::FormatNotCopyable("a:rPr")), "{r:?}");
+    assert_eq!(out, unchanged(&b));
+}
+
+#[test]
+fn paragraph_text_refuses_links_in_either_part() {
+    let linked_run = format!("<a:r>{LINK_RPR}<a:t></a:t></a:r>");
+    let data_link = a_then(&linked_run, None);
+    let cache_link = patch(&a_then("", None), DRAWING, |d| {
+        let sp = shape_xml(&d, SHAPE);
+        d.replace(&sp, &sp.replacen("</a:r>", &format!("</a:r>{linked_run}"), 1))
+    });
+    for b in [data_link, cache_link] {
+        let (r, out) = edit(&b, |sa| sa.set_paragraph_text(NODE, 0, "B"));
+        assert_matches!(r, Err(Error::FormatNotCopyable("a:rPr")), "{r:?}");
+        assert_eq!(out, unchanged(&b));
+    }
+}
+
+#[test]
+fn run_text_refuses_a_link_on_the_paired_cache_run() {
+    let cache_rpr = LINK_RPR.replace("lang=\"en-US\"", "lang=\"ru-RU\" sz=\"6500\" kern=\"1200\"");
+    let b = a_then("", Some(&cache_rpr));
+    let (r, out) = edit(&b, |sa| sa.set_run_text(NODE, 0, 0, "B"));
     assert_matches!(r, Err(Error::FormatNotCopyable("a:rPr")), "{r:?}");
     assert_eq!(out, unchanged(&b));
 }

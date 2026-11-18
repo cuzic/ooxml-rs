@@ -662,3 +662,32 @@ fn remove_data_model_ext(data: &mut XmlDocument) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Presentation;
+    use std::assert_matches;
+
+    #[test]
+    fn drop_refuses_when_the_only_incoming_relationship_has_the_wrong_type() {
+        let mut pres = Presentation::open(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../reference/fixtures/pptx/poi/SmartArt.pptx"
+        ))
+        .unwrap();
+        let mut smartart = pres.smart_art_mut(0, 4).unwrap();
+        let drawing = smartart.drawing.clone().unwrap().unwrap();
+        let pkg = &mut smartart.pres.pkg;
+        let slide = Some(smartart.slide_part.as_str());
+        let incoming = pkg.incoming_relationships(&drawing).unwrap();
+        // Change the package after opening the handle to exercise the drop
+        // guard independently of the relationship check in smart_art_mut.
+        pkg.remove_relationship(slide, &incoming[0].id, &[REL_DIAGRAM_DRAWING]).unwrap();
+        pkg.add_relationship(slide, REL_DIAGRAM_DATA, ooxml_core::Target::Part(drawing)).unwrap();
+        let before = smartart.pres.to_bytes().unwrap();
+
+        assert_matches!(smartart.drop_drawing_cache(), Err(Error::SmartArtCacheShared));
+        assert_eq!(smartart.pres.to_bytes().unwrap(), before);
+    }
+}
