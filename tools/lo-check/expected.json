@@ -120,7 +120,9 @@
     "xml": [
       ["word/document.xml", "./w:body/w:p/w:pPr/w:rPr/w:ins[@w:author='Ada Lovelace'][@w:id]", 2],
       ["word/document.xml", "./w:body/w:p/w:ins[@w:author='Ada Lovelace'][@w:id]", 2],
-      ["word/document.xml", "./w:body/w:p/w:pPr/w:sectPr", 1]
+      ["word/document.xml", "./w:body/w:p/w:pPr/w:pStyle[@w:val='Heading1']", 2],
+      ["word/document.xml", "./w:body/w:p/w:pPr/w:sectPr", 1],
+      ["word/styles.xml", "./w:style[@w:styleId='Heading1']/w:next[@w:val='Normal']", 1]
     ]
   },
   "docx/35-tracked-table-rows.docx": {

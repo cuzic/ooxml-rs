@@ -567,10 +567,17 @@ fn tracked_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::e
         check: "In All Markup, verify the author and displayed time. Accept All shows Tracked replacement and bold text on the second line. Reject All restores Original text and removes the new bold formatting.",
     });
 
-    let mut doc = synthetic(concat!(
-        "<w:p><w:pPr><w:pStyle w:val='Heading1'/></w:pPr><w:r><w:t>Heading before edit</w:t></w:r></w:p>",
-        "<w:p><w:pPr><w:sectPr><w:type w:val='continuous'/></w:sectPr></w:pPr><w:r><w:t>Section before edit</w:t></w:r></w:p>",
-    ))?;
+    let mut doc = synthetic_with_styles(
+        concat!(
+            "<w:p><w:pPr><w:pStyle w:val='Heading1'/></w:pPr><w:r><w:t>Heading before edit</w:t></w:r></w:p>",
+            "<w:p><w:pPr><w:sectPr><w:type w:val='continuous'/></w:sectPr></w:pPr><w:r><w:t>Section before edit</w:t></w:r></w:p>",
+        ),
+        Some(concat!(
+            "<w:style w:type='paragraph' w:default='1' w:styleId='Normal'><w:name w:val='Normal'/></w:style>",
+            "<w:style w:type='paragraph' w:styleId='Heading1'><w:name w:val='heading 1'/>",
+            "<w:basedOn w:val='Normal'/><w:next w:val='Normal'/><w:pPr><w:outlineLvl w:val='0'/></w:pPr></w:style>",
+        )),
+    )?;
     {
         let mut tracked = doc.track_changes(author(), Some(date))?;
         tracked.insert_paragraph(Place::After(p(0)), "Tracked after heading", &ParagraphSpec::Plain)?;
