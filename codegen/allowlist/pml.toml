@@ -6,6 +6,9 @@
 # Phase0 write path: paragraphs are inserted into / removed from shape text.
 [write]
 names = [
+    # Phase 3b (ADR-0016 §6): shape properties.
+    "a:CT_ShapeProperties/p:spPr",
+    "a:CT_GroupShapeProperties/p:grpSpPr",
     # Phase 0 text and Phase 3a formatting share this write path.
     "a:CT_TextBody/p:txBody",
     # Phase 2 (ADR-0012 §11): the slide list, sections, creationId,
@@ -56,8 +59,6 @@ names = [
     "a:CT_TextListStyle/p:defaultTextStyle",
     "a:CT_ColorMapping/p:clrMap",
     "a:CT_ColorMappingOverride/p:clrMapOvr",
-    "a:CT_ShapeProperties/p:spPr",
-    "a:CT_GroupShapeProperties/p:grpSpPr",
     "a:CT_ShapeStyle/p:style",
     "p:CT_SlideSize/p:sldSz",
     "p:CT_SlideTransition/p:transition",

@@ -161,7 +161,7 @@ const COLOR_CHOICES: [QName; 6] = [
 ];
 
 impl ColorSpec {
-    pub(super) fn validate(&self) -> Result<()> {
+    pub(in crate::write) fn validate(&self) -> Result<()> {
         if self.color == Color::Scheme(SchemeColor::PhColor) {
             return Err(Error::InvalidSchemeColor);
         }
@@ -170,7 +170,7 @@ impl ColorSpec {
             .try_for_each(|transform| transform.validate())
     }
 
-    pub(super) fn matches(&self, parent: &RawNode) -> bool {
+    pub(in crate::write) fn matches(&self, parent: &RawNode) -> bool {
         let Some(child) = only_choice(Some(parent), &COLOR_CHOICES) else {
             return false;
         };
@@ -205,7 +205,7 @@ impl ColorSpec {
                 .all(|(node, transform)| transform.matches(node))
     }
 
-    pub(super) fn write<E: ElementSpec>(&self, parent: &mut LensMut<'_, E>) -> Result<()>
+    pub(in crate::write) fn write<E: ElementSpec>(&self, parent: &mut LensMut<'_, E>) -> Result<()>
     where
         dml::RgbColorModelHex: ChildOf<E>,
         dml::SchemeColor: ChildOf<E>,

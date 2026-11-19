@@ -475,6 +475,33 @@ impl ooxml_core::EnumType for BlackWhiteModeValues {
         self as usize
     }
 }
+/// `a:ST_TileFlipMode` — Tile Flip Mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TileFlipValues {
+    /// `none`
+    None,
+    /// `x`
+    Horizontal,
+    /// `y`
+    Vertical,
+    /// `xy`
+    HorizontalAndVertical,
+}
+impl ooxml_core::EnumType for TileFlipValues {
+    const VALUES: &'static [&'static str] = &["none", "x", "y", "xy"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::Horizontal),
+            2 => Some(Self::Vertical),
+            3 => Some(Self::HorizontalAndVertical),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_BlipCompression` — Blip Compression Type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlipCompressionValues {
@@ -5253,6 +5280,74 @@ impl<'a> GammaViewMut<'a> {
         GammaView(self.0.as_lens())
     }
 }
+/// `a:CT_GeomGuide/a:gd` — Shape Guide.
+#[derive(Debug)]
+pub enum ShapeGuide {}
+impl ShapeGuide {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `fmla`
+    pub const ATTR_FMLA: ooxml_core::QName = ooxml_core::QName::new("", "fmla");
+}
+impl ooxml_core::ElementSpec for ShapeGuide {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gd");
+    const SDK_NAME: &'static str = "a:CT_GeomGuide/a:gd";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ShapeGuide::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ShapeGuide::ATTR_FMLA,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ShapeGuide`].
+#[derive(Clone, Debug)]
+pub struct ShapeGuideView<'a>(pub ooxml_core::Lens<'a, ShapeGuide>);
+impl<'a> ShapeGuideView<'a> {
+    /// `name` — Shape Guide Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(ShapeGuide::ATTR_NAME)
+    }
+    /// `fmla` — Shape Guide Formula
+    pub fn formula(&self) -> Option<&'a str> {
+        self.0.attr(ShapeGuide::ATTR_FMLA)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ShapeGuide`]. Reads go through [`ShapeGuideViewMut::as_view`].
+#[derive(Debug)]
+pub struct ShapeGuideViewMut<'a>(pub ooxml_core::LensMut<'a, ShapeGuide>);
+impl<'a> ShapeGuideViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ShapeGuideView<'_> {
+        ShapeGuideView(self.0.as_lens())
+    }
+    /// Sets `name` — Shape Guide Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ShapeGuide::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ShapeGuide::ATTR_NAME)
+    }
+    /// Sets `fmla` — Shape Guide Formula
+    pub fn set_formula(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ShapeGuide::ATTR_FMLA, v)
+    }
+    /// Removes `fmla`.
+    pub fn remove_formula(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ShapeGuide::ATTR_FMLA)
+    }
+}
 /// `a:CT_GeomGuideList/a:avLst` — List of Shape Adjust Values.
 #[derive(Debug)]
 pub enum AdjustValueList {}
@@ -5271,10 +5366,15 @@ impl ooxml_core::ElementSpec for AdjustValueList {
         ],
     );
 }
+impl ooxml_core::ChildOf<AdjustValueList> for ShapeGuide {}
 /// Read-only view of [`AdjustValueList`].
 #[derive(Clone, Debug)]
 pub struct AdjustValueListView<'a>(pub ooxml_core::Lens<'a, AdjustValueList>);
 impl<'a> AdjustValueListView<'a> {
+    /// `a:gd` children in document order.
+    pub fn shape_guide_iter(&self) -> impl Iterator<Item = ShapeGuideView<'a>> {
+        self.0.children::<ShapeGuide>().map(ShapeGuideView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -5287,6 +5387,389 @@ impl<'a> AdjustValueListViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> AdjustValueListView<'_> {
         AdjustValueListView(self.0.as_lens())
+    }
+    /// First `a:gd` child matching `pred`, mutably.
+    pub fn shape_guide_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ShapeGuideViewMut<'_>> {
+        self.0.child_mut_by::<ShapeGuide>(pred).map(ShapeGuideViewMut)
+    }
+    /// Inserts a `a:gd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shape_guide_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ShapeGuideViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<ShapeGuide>(before).map(ShapeGuideViewMut)
+    }
+    /// Appends a `a:gd` at the end of its slot.
+    pub fn insert_shape_guide(
+        &mut self,
+    ) -> Result<ShapeGuideViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<ShapeGuide>().map(ShapeGuideViewMut)
+    }
+    /// Removes the first `a:gd` child.
+    pub fn remove_shape_guide(&mut self) -> bool {
+        self.0.remove::<ShapeGuide>()
+    }
+}
+/// `a:CT_GradientFillProperties/a:gradFill` — Defines the GradientFill Class.
+#[derive(Debug)]
+pub enum GradientFill {}
+impl GradientFill {
+    /// `flip`
+    pub const ATTR_FLIP: ooxml_core::QName = ooxml_core::QName::new("", "flip");
+    /// `rotWithShape`
+    pub const ATTR_ROT_WITH_SHAPE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "rotWithShape",
+    );
+}
+impl ooxml_core::ElementSpec for GradientFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gradFill");
+    const SDK_NAME: &'static str = "a:CT_GradientFillProperties/a:gradFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GradientFill::ATTR_FLIP,
+            ty: ooxml_core::SimpleType::Enum(
+                <TileFlipValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: GradientFill::ATTR_ROT_WITH_SHAPE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "gsLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "lin"),
+                    ooxml_core::QName::new(NS_A, "path"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tileRect")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<GradientFill> for GradientStopList {}
+impl ooxml_core::ChildOf<GradientFill> for LinearGradientFill {}
+/// Read-only view of [`GradientFill`].
+#[derive(Clone, Debug)]
+pub struct GradientFillView<'a>(pub ooxml_core::Lens<'a, GradientFill>);
+impl<'a> GradientFillView<'a> {
+    /// `flip` — Tile Flip (default `none`)
+    pub fn flip(&self) -> ooxml_core::EnumValue<'a, TileFlipValues> {
+        self.0.attr_enum_or(GradientFill::ATTR_FLIP, "none")
+    }
+    /// `rotWithShape` — Rotate With Shape
+    pub fn rotate_with_shape(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                GradientFill::ATTR_ROT_WITH_SHAPE,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `a:gsLst` child.
+    pub fn gradient_stop_list(&self) -> Option<GradientStopListView<'a>> {
+        self.0.child::<GradientStopList>().map(GradientStopListView)
+    }
+    /// First `a:lin` child.
+    pub fn linear_gradient_fill(&self) -> Option<LinearGradientFillView<'a>> {
+        self.0.child::<LinearGradientFill>().map(LinearGradientFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GradientFill`]. Reads go through [`GradientFillViewMut::as_view`].
+#[derive(Debug)]
+pub struct GradientFillViewMut<'a>(pub ooxml_core::LensMut<'a, GradientFill>);
+impl<'a> GradientFillViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GradientFillView<'_> {
+        GradientFillView(self.0.as_lens())
+    }
+    /// Sets `flip` — Tile Flip (default `none`)
+    pub fn set_flip(&mut self, v: TileFlipValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(GradientFill::ATTR_FLIP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `flip`.
+    pub fn remove_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GradientFill::ATTR_FLIP)
+    }
+    /// Sets `rotWithShape` — Rotate With Shape
+    pub fn set_rotate_with_shape(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GradientFill::ATTR_ROT_WITH_SHAPE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `rotWithShape`.
+    pub fn remove_rotate_with_shape(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GradientFill::ATTR_ROT_WITH_SHAPE)
+    }
+    /// First `a:gsLst` child, mutably.
+    pub fn gradient_stop_list_mut(&mut self) -> Option<GradientStopListViewMut<'_>> {
+        self.0.child_mut::<GradientStopList>().map(GradientStopListViewMut)
+    }
+    /// Existing `a:gsLst` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_stop_list(
+        &mut self,
+    ) -> Result<GradientStopListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientStopList>().map(GradientStopListViewMut)
+    }
+    /// Removes the first `a:gsLst` child.
+    pub fn remove_gradient_stop_list(&mut self) -> bool {
+        self.0.remove::<GradientStopList>()
+    }
+    /// First `a:lin` child, mutably.
+    pub fn linear_gradient_fill_mut(&mut self) -> Option<LinearGradientFillViewMut<'_>> {
+        self.0.child_mut::<LinearGradientFill>().map(LinearGradientFillViewMut)
+    }
+    /// Existing `a:lin` child, or a new one in schema position.
+    pub fn get_or_insert_linear_gradient_fill(
+        &mut self,
+    ) -> Result<LinearGradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LinearGradientFill>().map(LinearGradientFillViewMut)
+    }
+    /// Removes the first `a:lin` child.
+    pub fn remove_linear_gradient_fill(&mut self) -> bool {
+        self.0.remove::<LinearGradientFill>()
+    }
+}
+/// `a:CT_GradientStop/a:gs` — Gradient stops.
+#[derive(Debug)]
+pub enum GradientStop {}
+impl GradientStop {
+    /// `pos`
+    pub const ATTR_POS: ooxml_core::QName = ooxml_core::QName::new("", "pos");
+}
+impl ooxml_core::ElementSpec for GradientStop {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gs");
+    const SDK_NAME: &'static str = "a:CT_GradientStop/a:gs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GradientStop::ATTR_POS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<GradientStop> for HslColor {}
+impl ooxml_core::ChildOf<GradientStop> for PresetColor {}
+impl ooxml_core::ChildOf<GradientStop> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<GradientStop> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<GradientStop> for SchemeColor {}
+impl ooxml_core::ChildOf<GradientStop> for SystemColor {}
+/// Read-only view of [`GradientStop`].
+#[derive(Clone, Debug)]
+pub struct GradientStopView<'a>(pub ooxml_core::Lens<'a, GradientStop>);
+impl<'a> GradientStopView<'a> {
+    /// `pos` — Position
+    pub fn position(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GradientStop::ATTR_POS, ooxml_core::value::parse_i32)
+    }
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GradientStop`]. Reads go through [`GradientStopViewMut::as_view`].
+#[derive(Debug)]
+pub struct GradientStopViewMut<'a>(pub ooxml_core::LensMut<'a, GradientStop>);
+impl<'a> GradientStopViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GradientStopView<'_> {
+        GradientStopView(self.0.as_lens())
+    }
+    /// Sets `pos` — Position
+    pub fn set_position(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(GradientStop::ATTR_POS, s))
+    }
+    /// Removes `pos`.
+    pub fn remove_position(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GradientStop::ATTR_POS)
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:schemeClr` child, mutably.
+    pub fn scheme_color_mut(&mut self) -> Option<SchemeColorViewMut<'_>> {
+        self.0.child_mut::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Existing `a:schemeClr` child, or a new one in schema position.
+    pub fn get_or_insert_scheme_color(
+        &mut self,
+    ) -> Result<SchemeColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Removes the first `a:schemeClr` child.
+    pub fn remove_scheme_color(&mut self) -> bool {
+        self.0.remove::<SchemeColor>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
+/// `a:CT_GradientStopList/a:gsLst` — Gradient Stop List.
+#[derive(Debug)]
+pub enum GradientStopList {}
+impl ooxml_core::ElementSpec for GradientStopList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gsLst");
+    const SDK_NAME: &'static str = "a:CT_GradientStopList/a:gsLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "gs")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<GradientStopList> for GradientStop {}
+/// Read-only view of [`GradientStopList`].
+#[derive(Clone, Debug)]
+pub struct GradientStopListView<'a>(pub ooxml_core::Lens<'a, GradientStopList>);
+impl<'a> GradientStopListView<'a> {
+    /// `a:gs` children in document order.
+    pub fn gradient_stop_iter(&self) -> impl Iterator<Item = GradientStopView<'a>> {
+        self.0.children::<GradientStop>().map(GradientStopView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GradientStopList`]. Reads go through [`GradientStopListViewMut::as_view`].
+#[derive(Debug)]
+pub struct GradientStopListViewMut<'a>(pub ooxml_core::LensMut<'a, GradientStopList>);
+impl<'a> GradientStopListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GradientStopListView<'_> {
+        GradientStopListView(self.0.as_lens())
+    }
+    /// First `a:gs` child matching `pred`, mutably.
+    pub fn gradient_stop_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GradientStopViewMut<'_>> {
+        self.0.child_mut_by::<GradientStop>(pred).map(GradientStopViewMut)
+    }
+    /// Inserts a `a:gs` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gradient_stop_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GradientStopViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GradientStop>(before).map(GradientStopViewMut)
+    }
+    /// Appends a `a:gs` at the end of its slot.
+    pub fn insert_gradient_stop(
+        &mut self,
+    ) -> Result<GradientStopViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GradientStop>().map(GradientStopViewMut)
+    }
+    /// Removes the first `a:gs` child.
+    pub fn remove_gradient_stop(&mut self) -> bool {
+        self.0.remove::<GradientStop>()
     }
 }
 /// `a:CT_GraphicalObject/a:graphic` — Graphic Object.
@@ -6273,6 +6756,95 @@ impl<'a> TransformGroupView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`TransformGroup`]. Reads go through [`TransformGroupViewMut::as_view`].
+#[derive(Debug)]
+pub struct TransformGroupViewMut<'a>(pub ooxml_core::LensMut<'a, TransformGroup>);
+impl<'a> TransformGroupViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TransformGroupView<'_> {
+        TransformGroupView(self.0.as_lens())
+    }
+    /// Sets `rot` — Rotation (default `0`)
+    pub fn set_rotation(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(TransformGroup::ATTR_ROT, s))
+    }
+    /// Removes `rot`.
+    pub fn remove_rotation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TransformGroup::ATTR_ROT)
+    }
+    /// Sets `flipH` — Horizontal Flip (default `false`)
+    pub fn set_horizontal_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TransformGroup::ATTR_FLIP_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipH`.
+    pub fn remove_horizontal_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TransformGroup::ATTR_FLIP_H)
+    }
+    /// Sets `flipV` — Vertical Flip (default `false`)
+    pub fn set_vertical_flip(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TransformGroup::ATTR_FLIP_V, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `flipV`.
+    pub fn remove_vertical_flip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TransformGroup::ATTR_FLIP_V)
+    }
+    /// First `a:chOff` child, mutably.
+    pub fn child_offset_mut(&mut self) -> Option<ChildOffsetViewMut<'_>> {
+        self.0.child_mut::<ChildOffset>().map(ChildOffsetViewMut)
+    }
+    /// Existing `a:chOff` child, or a new one in schema position.
+    pub fn get_or_insert_child_offset(
+        &mut self,
+    ) -> Result<ChildOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ChildOffset>().map(ChildOffsetViewMut)
+    }
+    /// Removes the first `a:chOff` child.
+    pub fn remove_child_offset(&mut self) -> bool {
+        self.0.remove::<ChildOffset>()
+    }
+    /// First `a:off` child, mutably.
+    pub fn offset_mut(&mut self) -> Option<OffsetViewMut<'_>> {
+        self.0.child_mut::<Offset>().map(OffsetViewMut)
+    }
+    /// Existing `a:off` child, or a new one in schema position.
+    pub fn get_or_insert_offset(
+        &mut self,
+    ) -> Result<OffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Offset>().map(OffsetViewMut)
+    }
+    /// Removes the first `a:off` child.
+    pub fn remove_offset(&mut self) -> bool {
+        self.0.remove::<Offset>()
+    }
+    /// First `a:chExt` child, mutably.
+    pub fn child_extents_mut(&mut self) -> Option<ChildExtentsViewMut<'_>> {
+        self.0.child_mut::<ChildExtents>().map(ChildExtentsViewMut)
+    }
+    /// Existing `a:chExt` child, or a new one in schema position.
+    pub fn get_or_insert_child_extents(
+        &mut self,
+    ) -> Result<ChildExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ChildExtents>().map(ChildExtentsViewMut)
+    }
+    /// Removes the first `a:chExt` child.
+    pub fn remove_child_extents(&mut self) -> bool {
+        self.0.remove::<ChildExtents>()
+    }
+    /// First `a:ext` child, mutably.
+    pub fn extents_mut(&mut self) -> Option<ExtentsViewMut<'_>> {
+        self.0.child_mut::<Extents>().map(ExtentsViewMut)
+    }
+    /// Existing `a:ext` child, or a new one in schema position.
+    pub fn get_or_insert_extents(
+        &mut self,
+    ) -> Result<ExtentsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Extents>().map(ExtentsViewMut)
+    }
+    /// Removes the first `a:ext` child.
+    pub fn remove_extents(&mut self) -> bool {
+        self.0.remove::<Extents>()
+    }
+}
 /// `a:CT_HslColor/a:hslClr` — Hue, Saturation, Luminance Color Model.
 #[derive(Debug)]
 pub enum HslColor {}
@@ -7202,6 +7774,291 @@ impl<'a> TailEndViewMut<'a> {
         self.0.remove_attr(TailEnd::ATTR_LEN)
     }
 }
+/// `a:CT_LineProperties/a:ln` — Defines the Outline Class.
+#[derive(Debug)]
+pub enum Outline {}
+impl Outline {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `cmpd`
+    pub const ATTR_CMPD: ooxml_core::QName = ooxml_core::QName::new("", "cmpd");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for Outline {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ln");
+    const SDK_NAME: &'static str = "a:CT_LineProperties/a:ln";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Outline::ATTR_W,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Outline::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineCapValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Outline::ATTR_CMPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <CompoundLineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Outline::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <PenAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "prstDash"),
+                    ooxml_core::QName::new(NS_A, "custDash"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "round"),
+                    ooxml_core::QName::new(NS_A, "bevel"),
+                    ooxml_core::QName::new(NS_A, "miter"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "headEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tailEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Outline> for GradientFill {}
+impl ooxml_core::ChildOf<Outline> for HeadEnd {}
+impl ooxml_core::ChildOf<Outline> for TailEnd {}
+impl ooxml_core::ChildOf<Outline> for NoFill {}
+impl ooxml_core::ChildOf<Outline> for PresetDash {}
+impl ooxml_core::ChildOf<Outline> for SolidFill {}
+/// Read-only view of [`Outline`].
+#[derive(Clone, Debug)]
+pub struct OutlineView<'a>(pub ooxml_core::Lens<'a, Outline>);
+impl<'a> OutlineView<'a> {
+    /// `w` — line width
+    pub fn width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Outline::ATTR_W, ooxml_core::value::parse_i32)
+    }
+    /// `cap` — line cap
+    pub fn cap_type(&self) -> Option<ooxml_core::EnumValue<'a, LineCapValues>> {
+        self.0.attr_enum(Outline::ATTR_CAP)
+    }
+    /// `cmpd` — compound line type
+    pub fn compound_line_type(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, CompoundLineValues>> {
+        self.0.attr_enum(Outline::ATTR_CMPD)
+    }
+    /// `algn` — pen alignment
+    pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
+        self.0.attr_enum(Outline::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
+    /// First `a:headEnd` child.
+    pub fn head_end(&self) -> Option<HeadEndView<'a>> {
+        self.0.child::<HeadEnd>().map(HeadEndView)
+    }
+    /// First `a:tailEnd` child.
+    pub fn tail_end(&self) -> Option<TailEndView<'a>> {
+        self.0.child::<TailEnd>().map(TailEndView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:prstDash` child.
+    pub fn preset_dash(&self) -> Option<PresetDashView<'a>> {
+        self.0.child::<PresetDash>().map(PresetDashView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Outline`]. Reads go through [`OutlineViewMut::as_view`].
+#[derive(Debug)]
+pub struct OutlineViewMut<'a>(pub ooxml_core::LensMut<'a, Outline>);
+impl<'a> OutlineViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OutlineView<'_> {
+        OutlineView(self.0.as_lens())
+    }
+    /// Sets `w` — line width
+    pub fn set_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Outline::ATTR_W, s))
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Outline::ATTR_W)
+    }
+    /// Sets `cap` — line cap
+    pub fn set_cap_type(&mut self, v: LineCapValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Outline::ATTR_CAP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cap`.
+    pub fn remove_cap_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Outline::ATTR_CAP)
+    }
+    /// Sets `cmpd` — compound line type
+    pub fn set_compound_line_type(
+        &mut self,
+        v: CompoundLineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Outline::ATTR_CMPD, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cmpd`.
+    pub fn remove_compound_line_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Outline::ATTR_CMPD)
+    }
+    /// Sets `algn` — pen alignment
+    pub fn set_alignment(
+        &mut self,
+        v: PenAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Outline::ATTR_ALGN, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Outline::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
+    /// First `a:headEnd` child, mutably.
+    pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
+        self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Existing `a:headEnd` child, or a new one in schema position.
+    pub fn get_or_insert_head_end(
+        &mut self,
+    ) -> Result<HeadEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Removes the first `a:headEnd` child.
+    pub fn remove_head_end(&mut self) -> bool {
+        self.0.remove::<HeadEnd>()
+    }
+    /// First `a:tailEnd` child, mutably.
+    pub fn tail_end_mut(&mut self) -> Option<TailEndViewMut<'_>> {
+        self.0.child_mut::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Existing `a:tailEnd` child, or a new one in schema position.
+    pub fn get_or_insert_tail_end(
+        &mut self,
+    ) -> Result<TailEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Removes the first `a:tailEnd` child.
+    pub fn remove_tail_end(&mut self) -> bool {
+        self.0.remove::<TailEnd>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:prstDash` child, mutably.
+    pub fn preset_dash_mut(&mut self) -> Option<PresetDashViewMut<'_>> {
+        self.0.child_mut::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Existing `a:prstDash` child, or a new one in schema position.
+    pub fn get_or_insert_preset_dash(
+        &mut self,
+    ) -> Result<PresetDashViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Removes the first `a:prstDash` child.
+    pub fn remove_preset_dash(&mut self) -> bool {
+        self.0.remove::<PresetDash>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
 /// `a:CT_LineProperties/a:lnB` — Bottom Border Line Properties.
 #[derive(Debug)]
 pub enum BottomBorderLineProperties {}
@@ -7299,6 +8156,7 @@ impl ooxml_core::ElementSpec for BottomBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<BottomBorderLineProperties> for GradientFill {}
 impl ooxml_core::ChildOf<BottomBorderLineProperties> for HeadEnd {}
 impl ooxml_core::ChildOf<BottomBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<BottomBorderLineProperties> for NoFill {}
@@ -7331,6 +8189,10 @@ impl<'a> BottomBorderLinePropertiesView<'a> {
     /// `algn` — pen alignment
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(BottomBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:headEnd` child.
     pub fn head_end(&self) -> Option<HeadEndView<'a>> {
@@ -7419,6 +8281,20 @@ impl<'a> BottomBorderLinePropertiesViewMut<'a> {
     /// Removes `algn`.
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(BottomBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:headEnd` child, mutably.
     pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
@@ -7588,6 +8464,7 @@ impl ooxml_core::ElementSpec for LeftBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<LeftBorderLineProperties> for GradientFill {}
 impl ooxml_core::ChildOf<LeftBorderLineProperties> for HeadEnd {}
 impl ooxml_core::ChildOf<LeftBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<LeftBorderLineProperties> for NoFill {}
@@ -7617,6 +8494,10 @@ impl<'a> LeftBorderLinePropertiesView<'a> {
     /// `algn` — pen alignment
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(LeftBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:headEnd` child.
     pub fn head_end(&self) -> Option<HeadEndView<'a>> {
@@ -7705,6 +8586,20 @@ impl<'a> LeftBorderLinePropertiesViewMut<'a> {
     /// Removes `algn`.
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(LeftBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:headEnd` child, mutably.
     pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
@@ -7874,6 +8769,7 @@ impl ooxml_core::ElementSpec for RightBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<RightBorderLineProperties> for GradientFill {}
 impl ooxml_core::ChildOf<RightBorderLineProperties> for HeadEnd {}
 impl ooxml_core::ChildOf<RightBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<RightBorderLineProperties> for NoFill {}
@@ -7903,6 +8799,10 @@ impl<'a> RightBorderLinePropertiesView<'a> {
     /// `algn` — pen alignment
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(RightBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:headEnd` child.
     pub fn head_end(&self) -> Option<HeadEndView<'a>> {
@@ -7991,6 +8891,20 @@ impl<'a> RightBorderLinePropertiesViewMut<'a> {
     /// Removes `algn`.
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(RightBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:headEnd` child, mutably.
     pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
@@ -8160,6 +9074,7 @@ impl ooxml_core::ElementSpec for TopBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<TopBorderLineProperties> for GradientFill {}
 impl ooxml_core::ChildOf<TopBorderLineProperties> for HeadEnd {}
 impl ooxml_core::ChildOf<TopBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<TopBorderLineProperties> for NoFill {}
@@ -8188,6 +9103,10 @@ impl<'a> TopBorderLinePropertiesView<'a> {
     /// `algn` — pen alignment
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(TopBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:headEnd` child.
     pub fn head_end(&self) -> Option<HeadEndView<'a>> {
@@ -8273,6 +9192,20 @@ impl<'a> TopBorderLinePropertiesViewMut<'a> {
     /// Removes `algn`.
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(TopBorderLineProperties::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:headEnd` child, mutably.
     pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
@@ -8442,6 +9375,7 @@ impl ooxml_core::ElementSpec for Underline {
         ],
     );
 }
+impl ooxml_core::ChildOf<Underline> for GradientFill {}
 impl ooxml_core::ChildOf<Underline> for HeadEnd {}
 impl ooxml_core::ChildOf<Underline> for TailEnd {}
 impl ooxml_core::ChildOf<Underline> for NoFill {}
@@ -8468,6 +9402,10 @@ impl<'a> UnderlineView<'a> {
     /// `algn` — pen alignment
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(Underline::ATTR_ALGN)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:headEnd` child.
     pub fn head_end(&self) -> Option<HeadEndView<'a>> {
@@ -8540,6 +9478,20 @@ impl<'a> UnderlineViewMut<'a> {
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Underline::ATTR_ALGN)
     }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
     /// First `a:headEnd` child, mutably.
     pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
         self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
@@ -8609,6 +9561,81 @@ impl<'a> UnderlineViewMut<'a> {
     /// Removes the first `a:solidFill` child.
     pub fn remove_solid_fill(&mut self) -> bool {
         self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_LinearShadeProperties/a:lin` — Linear Gradient Fill.
+#[derive(Debug)]
+pub enum LinearGradientFill {}
+impl LinearGradientFill {
+    /// `ang`
+    pub const ATTR_ANG: ooxml_core::QName = ooxml_core::QName::new("", "ang");
+    /// `scaled`
+    pub const ATTR_SCALED: ooxml_core::QName = ooxml_core::QName::new("", "scaled");
+}
+impl ooxml_core::ElementSpec for LinearGradientFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lin");
+    const SDK_NAME: &'static str = "a:CT_LinearShadeProperties/a:lin";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LinearGradientFill::ATTR_ANG,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LinearGradientFill::ATTR_SCALED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LinearGradientFill`].
+#[derive(Clone, Debug)]
+pub struct LinearGradientFillView<'a>(pub ooxml_core::Lens<'a, LinearGradientFill>);
+impl<'a> LinearGradientFillView<'a> {
+    /// `ang` — Angle
+    pub fn angle(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(LinearGradientFill::ATTR_ANG, ooxml_core::value::parse_i32)
+    }
+    /// `scaled` — Scaled
+    pub fn scaled(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(LinearGradientFill::ATTR_SCALED, ooxml_core::value::parse_bool)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LinearGradientFill`]. Reads go through [`LinearGradientFillViewMut::as_view`].
+#[derive(Debug)]
+pub struct LinearGradientFillViewMut<'a>(
+    pub ooxml_core::LensMut<'a, LinearGradientFill>,
+);
+impl<'a> LinearGradientFillViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LinearGradientFillView<'_> {
+        LinearGradientFillView(self.0.as_lens())
+    }
+    /// Sets `ang` — Angle
+    pub fn set_angle(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(LinearGradientFill::ATTR_ANG, s),
+        )
+    }
+    /// Removes `ang`.
+    pub fn remove_angle(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LinearGradientFill::ATTR_ANG)
+    }
+    /// Sets `scaled` — Scaled
+    pub fn set_scaled(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(LinearGradientFill::ATTR_SCALED, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `scaled`.
+    pub fn remove_scaled(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LinearGradientFill::ATTR_SCALED)
     }
 }
 /// `a:CT_NoFillProperties/a:noFill` — Defines the NoFill Class.
@@ -10149,6 +11176,31 @@ impl<'a> ChildOffsetView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`ChildOffset`]. Reads go through [`ChildOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct ChildOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, ChildOffset>);
+impl<'a> ChildOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ChildOffsetView<'_> {
+        ChildOffsetView(self.0.as_lens())
+    }
+    /// Sets `x` — X-Axis Coordinate
+    pub fn set_x(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(ChildOffset::ATTR_X, s))
+    }
+    /// Removes `x`.
+    pub fn remove_x(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ChildOffset::ATTR_X)
+    }
+    /// Sets `y` — Y-Axis Coordinate
+    pub fn set_y(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(ChildOffset::ATTR_Y, s))
+    }
+    /// Removes `y`.
+    pub fn remove_y(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ChildOffset::ATTR_Y)
+    }
+}
 /// `a:CT_Point2D/a:off` — Offset.
 #[derive(Debug)]
 pub enum Offset {}
@@ -10620,6 +11672,31 @@ impl<'a> ChildExtentsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`ChildExtents`]. Reads go through [`ChildExtentsViewMut::as_view`].
+#[derive(Debug)]
+pub struct ChildExtentsViewMut<'a>(pub ooxml_core::LensMut<'a, ChildExtents>);
+impl<'a> ChildExtentsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ChildExtentsView<'_> {
+        ChildExtentsView(self.0.as_lens())
+    }
+    /// Sets `cx` — Extent Length
+    pub fn set_cx(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(ChildExtents::ATTR_CX, s))
+    }
+    /// Removes `cx`.
+    pub fn remove_cx(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ChildExtents::ATTR_CX)
+    }
+    /// Sets `cy` — Extent Width
+    pub fn set_cy(&mut self, v: i64) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i64(v, |s| self.0.set_attr(ChildExtents::ATTR_CY, s))
+    }
+    /// Removes `cy`.
+    pub fn remove_cy(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ChildExtents::ATTR_CY)
     }
 }
 /// `a:CT_PositiveSize2D/a:ext` — Extents.
@@ -14148,6 +15225,8 @@ impl ooxml_core::ElementSpec for ShapeProperties {
     );
 }
 impl ooxml_core::ChildOf<ShapeProperties> for CustomGeometry {}
+impl ooxml_core::ChildOf<ShapeProperties> for GradientFill {}
+impl ooxml_core::ChildOf<ShapeProperties> for Outline {}
 impl ooxml_core::ChildOf<ShapeProperties> for NoFill {}
 impl ooxml_core::ChildOf<ShapeProperties> for PresetGeometry {}
 impl ooxml_core::ChildOf<ShapeProperties> for SolidFill {}
@@ -14165,6 +15244,14 @@ impl<'a> ShapePropertiesView<'a> {
     /// First `a:custGeom` child.
     pub fn custom_geometry(&self) -> Option<CustomGeometryView<'a>> {
         self.0.child::<CustomGeometry>().map(CustomGeometryView)
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
     }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
@@ -14205,6 +15292,34 @@ impl<'a> ShapePropertiesViewMut<'a> {
     /// Removes `bwMode`.
     pub fn remove_black_white_mode(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(ShapeProperties::ATTR_BW_MODE)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
     }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
@@ -16036,6 +17151,7 @@ impl ooxml_core::ElementSpec for TableCellProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableCellProperties> for GradientFill {}
 impl ooxml_core::ChildOf<TableCellProperties> for BottomBorderLineProperties {}
 impl ooxml_core::ChildOf<TableCellProperties> for LeftBorderLineProperties {}
 impl ooxml_core::ChildOf<TableCellProperties> for RightBorderLineProperties {}
@@ -16140,6 +17256,10 @@ impl<'a> TableCellPropertiesView<'a> {
         &self,
     ) -> ooxml_core::EnumValue<'a, TextHorizontalOverflowValues> {
         self.0.attr_enum_or(TableCellProperties::ATTR_HORZ_OVERFLOW, "clip")
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:lnB` child.
     pub fn bottom_border_line_properties(
@@ -16283,6 +17403,20 @@ impl<'a> TableCellPropertiesViewMut<'a> {
     /// Removes `horzOverflow`.
     pub fn remove_horizontal_overflow(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(TableCellProperties::ATTR_HORZ_OVERFLOW)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:lnB` child, mutably.
     pub fn bottom_border_line_properties_mut(
@@ -16648,6 +17782,7 @@ impl ooxml_core::ElementSpec for TableProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableProperties> for GradientFill {}
 impl ooxml_core::ChildOf<TableProperties> for NoFill {}
 impl ooxml_core::ChildOf<TableProperties> for ExtensionList {}
 impl ooxml_core::ChildOf<TableProperties> for SolidFill {}
@@ -16718,6 +17853,10 @@ impl<'a> TablePropertiesView<'a> {
                 "false",
                 ooxml_core::value::parse_bool,
             )
+    }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
     }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
@@ -16809,6 +17948,20 @@ impl<'a> TablePropertiesViewMut<'a> {
     /// Removes `bandCol`.
     pub fn remove_band_column(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(TableProperties::ATTR_BAND_COL)
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
@@ -18598,8 +19751,10 @@ impl ooxml_core::ElementSpec for DefaultRunProperties {
     );
 }
 impl ooxml_core::ChildOf<DefaultRunProperties> for Highlight {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for GradientFill {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for HyperlinkOnClick {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for Outline {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for Underline {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for NoFill {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for ExtensionList {}
@@ -18733,6 +19888,10 @@ impl<'a> DefaultRunPropertiesView<'a> {
     pub fn highlight(&self) -> Option<HighlightView<'a>> {
         self.0.child::<Highlight>().map(HighlightView)
     }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
     /// First `a:hlinkClick` child.
     pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
         self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
@@ -18740,6 +19899,10 @@ impl<'a> DefaultRunPropertiesView<'a> {
     /// First `a:hlinkMouseOver` child.
     pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
         self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
     }
     /// First `a:uLn` child.
     pub fn underline_child(&self) -> Option<UnderlineView<'a>> {
@@ -19011,6 +20174,34 @@ impl<'a> DefaultRunPropertiesViewMut<'a> {
     /// Removes the first `a:highlight` child.
     pub fn remove_highlight(&mut self) -> bool {
         self.0.remove::<Highlight>()
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
     }
     /// First `a:uLn` child, mutably.
     pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
@@ -19427,8 +20618,10 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
     );
 }
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for Highlight {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for GradientFill {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for HyperlinkOnClick {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for Outline {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for Underline {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for NoFill {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for ExtensionList {}
@@ -19620,6 +20813,10 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     pub fn highlight(&self) -> Option<HighlightView<'a>> {
         self.0.child::<Highlight>().map(HighlightView)
     }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
     /// First `a:hlinkClick` child.
     pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
         self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
@@ -19627,6 +20824,10 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     /// First `a:hlinkMouseOver` child.
     pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
         self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
     }
     /// First `a:uLn` child.
     pub fn underline_child(&self) -> Option<UnderlineView<'a>> {
@@ -19917,6 +21118,34 @@ impl<'a> EndParagraphRunPropertiesViewMut<'a> {
     /// Removes the first `a:highlight` child.
     pub fn remove_highlight(&mut self) -> bool {
         self.0.remove::<Highlight>()
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
     }
     /// First `a:uLn` child, mutably.
     pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
@@ -20333,8 +21562,10 @@ impl ooxml_core::ElementSpec for RunProperties {
     );
 }
 impl ooxml_core::ChildOf<RunProperties> for Highlight {}
+impl ooxml_core::ChildOf<RunProperties> for GradientFill {}
 impl ooxml_core::ChildOf<RunProperties> for HyperlinkOnClick {}
 impl ooxml_core::ChildOf<RunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<RunProperties> for Outline {}
 impl ooxml_core::ChildOf<RunProperties> for Underline {}
 impl ooxml_core::ChildOf<RunProperties> for NoFill {}
 impl ooxml_core::ChildOf<RunProperties> for ExtensionList {}
@@ -20493,6 +21724,10 @@ impl<'a> RunPropertiesView<'a> {
     pub fn highlight(&self) -> Option<HighlightView<'a>> {
         self.0.child::<Highlight>().map(HighlightView)
     }
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
     /// First `a:hlinkClick` child.
     pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
         self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
@@ -20500,6 +21735,10 @@ impl<'a> RunPropertiesView<'a> {
     /// First `a:hlinkMouseOver` child.
     pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
         self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
     }
     /// First `a:uLn` child.
     pub fn underline_child(&self) -> Option<UnderlineView<'a>> {
@@ -20739,6 +21978,34 @@ impl<'a> RunPropertiesViewMut<'a> {
     /// Removes the first `a:highlight` child.
     pub fn remove_highlight(&mut self) -> bool {
         self.0.remove::<Highlight>()
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
     }
     /// First `a:uLn` child, mutably.
     pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
@@ -27062,12 +28329,17 @@ impl ooxml_core::ElementSpec for UnderlineFill {
         ],
     );
 }
+impl ooxml_core::ChildOf<UnderlineFill> for GradientFill {}
 impl ooxml_core::ChildOf<UnderlineFill> for NoFill {}
 impl ooxml_core::ChildOf<UnderlineFill> for SolidFill {}
 /// Read-only view of [`UnderlineFill`].
 #[derive(Clone, Debug)]
 pub struct UnderlineFillView<'a>(pub ooxml_core::Lens<'a, UnderlineFill>);
 impl<'a> UnderlineFillView<'a> {
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
         self.0.child::<NoFill>().map(NoFillView)
@@ -27088,6 +28360,20 @@ impl<'a> UnderlineFillViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> UnderlineFillView<'_> {
         UnderlineFillView(self.0.as_lens())
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
     }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
@@ -30870,7 +32156,24 @@ const _: () = ooxml_core::schema::assert_child::<FontScheme, MajorFont>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, MinorFont>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<Gamma>();
+const _: () = ooxml_core::schema::assert_spec::<ShapeGuide>();
 const _: () = ooxml_core::schema::assert_spec::<AdjustValueList>();
+const _: () = ooxml_core::schema::assert_child::<AdjustValueList, ShapeGuide>();
+const _: () = ooxml_core::schema::assert_spec::<GradientFill>();
+const _: () = ooxml_core::schema::assert_child::<GradientFill, GradientStopList>();
+const _: () = ooxml_core::schema::assert_child::<GradientFill, LinearGradientFill>();
+const _: () = ooxml_core::schema::assert_spec::<GradientStop>();
+const _: () = ooxml_core::schema::assert_child::<GradientStop, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<GradientStop, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<GradientStop, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    GradientStop,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<GradientStop, SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<GradientStop, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<GradientStopList>();
+const _: () = ooxml_core::schema::assert_child::<GradientStopList, GradientStop>();
 const _: () = ooxml_core::schema::assert_spec::<Graphic>();
 const _: () = ooxml_core::schema::assert_child::<Graphic, GraphicData>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicData>();
@@ -30993,7 +32296,18 @@ const _: () = ooxml_core::schema::assert_spec::<InverseGamma>();
 const _: () = ooxml_core::schema::assert_spec::<Inverse>();
 const _: () = ooxml_core::schema::assert_spec::<HeadEnd>();
 const _: () = ooxml_core::schema::assert_spec::<TailEnd>();
+const _: () = ooxml_core::schema::assert_spec::<Outline>();
+const _: () = ooxml_core::schema::assert_child::<Outline, GradientFill>();
+const _: () = ooxml_core::schema::assert_child::<Outline, HeadEnd>();
+const _: () = ooxml_core::schema::assert_child::<Outline, TailEnd>();
+const _: () = ooxml_core::schema::assert_child::<Outline, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<Outline, PresetDash>();
+const _: () = ooxml_core::schema::assert_child::<Outline, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<BottomBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    BottomBorderLineProperties,
+    GradientFill,
+>();
 const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, HeadEnd>();
 const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, NoFill>();
@@ -31006,12 +32320,20 @@ const _: () = ooxml_core::schema::assert_child::<
     SolidFill,
 >();
 const _: () = ooxml_core::schema::assert_spec::<LeftBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    LeftBorderLineProperties,
+    GradientFill,
+>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, HeadEnd>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, PresetDash>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<RightBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    RightBorderLineProperties,
+    GradientFill,
+>();
 const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, HeadEnd>();
 const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, NoFill>();
@@ -31021,17 +32343,23 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<TopBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    TopBorderLineProperties,
+    GradientFill,
+>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, HeadEnd>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, PresetDash>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<Underline>();
+const _: () = ooxml_core::schema::assert_child::<Underline, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<Underline, HeadEnd>();
 const _: () = ooxml_core::schema::assert_child::<Underline, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<Underline, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<Underline, PresetDash>();
 const _: () = ooxml_core::schema::assert_child::<Underline, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<LinearGradientFill>();
 const _: () = ooxml_core::schema::assert_spec::<NoFill>();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualPictureDrawingProperties>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -31235,6 +32563,8 @@ const _: () = ooxml_core::schema::assert_child::<SchemeColor, AlphaModulation>()
 const _: () = ooxml_core::schema::assert_child::<SchemeColor, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<ShapeProperties>();
 const _: () = ooxml_core::schema::assert_child::<ShapeProperties, CustomGeometry>();
+const _: () = ooxml_core::schema::assert_child::<ShapeProperties, GradientFill>();
+const _: () = ooxml_core::schema::assert_child::<ShapeProperties, Outline>();
 const _: () = ooxml_core::schema::assert_child::<ShapeProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<ShapeProperties, PresetGeometry>();
 const _: () = ooxml_core::schema::assert_child::<ShapeProperties, SolidFill>();
@@ -31296,6 +32626,7 @@ const _: () = ooxml_core::schema::assert_child::<TableCell, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TableCellProperties>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TextBody>();
 const _: () = ooxml_core::schema::assert_spec::<TableCellProperties>();
+const _: () = ooxml_core::schema::assert_child::<TableCellProperties, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<
     TableCellProperties,
     BottomBorderLineProperties,
@@ -31320,6 +32651,7 @@ const _: () = ooxml_core::schema::assert_child::<GridColumn, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<TableGrid>();
 const _: () = ooxml_core::schema::assert_child::<TableGrid, GridColumn>();
 const _: () = ooxml_core::schema::assert_spec::<TableProperties>();
+const _: () = ooxml_core::schema::assert_child::<TableProperties, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<TableProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<TableProperties, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableProperties, SolidFill>();
@@ -31355,6 +32687,7 @@ const _: () = ooxml_core::schema::assert_spec::<BulletFontText>();
 const _: () = ooxml_core::schema::assert_spec::<CharacterBullet>();
 const _: () = ooxml_core::schema::assert_spec::<DefaultRunProperties>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, Highlight>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<
     DefaultRunProperties,
     HyperlinkOnClick,
@@ -31363,6 +32696,7 @@ const _: () = ooxml_core::schema::assert_child::<
     DefaultRunProperties,
     HyperlinkOnMouseOver,
 >();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, Outline>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, ExtensionList>();
@@ -31387,12 +32721,17 @@ const _: () = ooxml_core::schema::assert_spec::<EndParagraphRunProperties>();
 const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, Highlight>();
 const _: () = ooxml_core::schema::assert_child::<
     EndParagraphRunProperties,
+    GradientFill,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
     HyperlinkOnClick,
 >();
 const _: () = ooxml_core::schema::assert_child::<
     EndParagraphRunProperties,
     HyperlinkOnMouseOver,
 >();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, Outline>();
 const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -31427,8 +32766,10 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Highlight>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, HyperlinkOnClick>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, HyperlinkOnMouseOver>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Outline>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, ExtensionList>();
@@ -32182,6 +33523,7 @@ const _: () = ooxml_core::schema::assert_spec::<TabStopList>();
 const _: () = ooxml_core::schema::assert_child::<TabStopList, TabStop>();
 const _: () = ooxml_core::schema::assert_spec::<UnderlineFillText>();
 const _: () = ooxml_core::schema::assert_spec::<UnderlineFill>();
+const _: () = ooxml_core::schema::assert_child::<UnderlineFill, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<UnderlineFill, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<UnderlineFill, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<UnderlineFollowsText>();

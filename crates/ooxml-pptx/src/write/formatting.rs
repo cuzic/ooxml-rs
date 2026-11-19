@@ -23,7 +23,7 @@ fn checked_properties(node: &RawNode, name: QName) -> Result<Option<&RawNode>> {
     Ok(properties)
 }
 
-fn remove_choices<E: ElementSpec>(lens: &mut LensMut<'_, E>, choices: &[QName]) {
+pub(super) fn remove_choices<E: ElementSpec>(lens: &mut LensMut<'_, E>, choices: &[QName]) {
     while let Some(index) = {
         lens.node()
             .indexed_elements()
@@ -160,7 +160,7 @@ pub enum RunFill {
     NoFill,
 }
 
-const FILL: [QName; 6] = [
+pub(super) const FILL: [QName; 6] = [
     a("noFill"),
     a("solidFill"),
     a("gradFill"),

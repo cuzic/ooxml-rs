@@ -432,6 +432,35 @@ def first_diff(a, b, path='$'):
     return None if a == b else f'{path}: {a!r} != {b!r}'
 
 
+def check_shape_properties(outdir):
+    from pptx import Presentation
+    from pptx.dml.color import RGBColor
+    from pptx.enum.dml import MSO_FILL, MSO_LINE_DASH_STYLE
+    from pptx.enum.shapes import MSO_SHAPE
+
+    prs = Presentation(os.path.join(outdir, 'p3b-shape-properties.pptx'))
+    group = prs.slides[2].shapes[0]
+    arrow, oval, right_arrow = group.shapes
+    rect = lambda shape: (shape.left, shape.top, shape.width, shape.height)
+    assert rect(group) == (800000, 1100000, 4000600, 2204032)
+    assert rect(arrow) == (800000, 1100000, 2000000, 850000)
+    assert arrow.rotation == 30.0
+    assert arrow.auto_shape_type == MSO_SHAPE.UP_ARROW
+    assert abs(arrow.adjustments[0] - 0.35) < 1e-9
+    assert arrow.fill.type == MSO_FILL.SOLID
+    assert arrow.fill.fore_color.rgb == RGBColor(18, 52, 86)
+    assert arrow.line.width == 38100
+    assert arrow.line.color.rgb == RGBColor(192, 80, 40)
+    assert arrow.line.dash_style == MSO_LINE_DASH_STYLE.DASH
+    assert rect(oval) == (3886200, 1905000, 914400, 914400)
+    assert oval.fill.type == MSO_FILL.GRADIENT
+    assert [(stop.position, stop.color.rgb) for stop in oval.fill.gradient_stops] == [
+        (0.0, RGBColor(255, 255, 255)), (1.0, RGBColor(0, 128, 128)),
+    ]
+    assert rect(right_arrow) == (1828800, 2819400, 978408, 484632)
+    print('P3b python-pptx: shape properties and explicit group fit read back')
+
+
 def check_text_formatting(outdir):
     from pptx import Presentation
     from pptx.dml.color import RGBColor
@@ -492,6 +521,7 @@ def main():
     replaces = sum(len(r['replaced']) for c in cases for r in c.get('replace', []))
     print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {replaces} replaced matches, {failures} failures')
     check_text_formatting(outdir)
+    check_shape_properties(outdir)
     sys.exit(1 if failures else 0)
 
 

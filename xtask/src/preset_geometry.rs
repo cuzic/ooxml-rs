@@ -1,0 +1,197 @@
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
+use std::fmt::Write;
+use std::path::Path;
+
+use quick_xml::{
+    Reader,
+    events::{BytesStart, Event},
+};
+
+use crate::Res;
+
+pub(crate) const DIR: &str = "reference/ecma-376-drawingml-geometries";
+pub(crate) const OUTPUT: &str = "crates/ooxml-pptx/src/write/preset_geometry.rs";
+
+fn attribute(element: &BytesStart<'_>, name: &str) -> Res<String> {
+    let attr = element
+        .try_get_attribute(name)?
+        .ok_or_else(|| format!("missing geometry attribute {name}"))?;
+    Ok(attr.value.into_owned())
+}
+
+type Presets = BTreeMap<String, BTreeMap<String, i64>>;
+
+fn parse(input: &str) -> Res<Presets> {
+    let mut reader = Reader::from_str(input);
+    let mut depth = 0;
+    let mut preset = String::new();
+    let mut adjustments = false;
+    let mut presets = Presets::new();
+    let mut definitions = BTreeMap::new();
+    let mut guides = BTreeMap::new();
+    let mut start = 0;
+    loop {
+        let position = reader.buffer_position() as usize;
+        match reader.read_event()? {
+            Event::Start(element) => {
+                match depth {
+                    0 if element.name().as_ref() != "presetShapeDefinitons" => {
+                        return Err("unexpected preset geometry root".into());
+                    }
+                    1 => {
+                        preset = element.name().as_ref().to_owned();
+                        start = position;
+                        guides.clear();
+                    }
+                    2 => adjustments = element.local_name().as_ref() == "avLst",
+                    _ => {}
+                }
+                depth += 1;
+            }
+            Event::End(_) => {
+                depth -= 1;
+                if depth == 1 {
+                    let definition = &input[start..reader.buffer_position() as usize];
+                    match definitions.entry(preset.clone()) {
+                        Entry::Vacant(entry) => {
+                            entry.insert(definition);
+                            presets.insert(preset.clone(), std::mem::take(&mut guides));
+                        }
+                        Entry::Occupied(entry) if *entry.get() == definition => {}
+                        Entry::Occupied(_) => {
+                            return Err(format!("conflicting duplicate preset {preset}").into());
+                        }
+                    }
+                }
+            }
+            Event::Empty(element)
+                if depth == 3 && adjustments && element.local_name().as_ref() == "gd" =>
+            {
+                let name = attribute(&element, "name")?;
+                let formula = attribute(&element, "fmla")?;
+                let value = formula
+                    .strip_prefix("val ")
+                    .ok_or("expected a constant adjustment")?
+                    .parse()?;
+                if guides.insert(name.clone(), value).is_some() {
+                    return Err(format!("duplicate adjustment {preset}/{name}").into());
+                }
+            }
+            Event::DocType(_) => return Err("unexpected DTD in preset definitions".into()),
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    Ok(presets)
+}
+
+fn supplement(presets: &mut Presets, extra: Presets) -> Res<()> {
+    for (name, guides) in extra {
+        if presets.contains_key(&name) {
+            return Err(format!("supplement overlaps vendored preset {name}").into());
+        }
+        if name != "upArrow" || presets.get("downArrow") != Some(&guides) {
+            return Err(format!("unexpected supplement definition for {name}").into());
+        }
+        presets.insert(name, guides);
+    }
+    Ok(())
+}
+
+fn load(root: &Path, xsd: &crate::xsd::Xsd) -> Res<Presets> {
+    let dir = root.join(DIR);
+    let input = std::fs::read_to_string(dir.join("presetShapeDefinitions.xml"))?;
+    let mut presets = parse(&input)?;
+    supplement(
+        &mut presets,
+        toml::from_str(&std::fs::read_to_string(dir.join("supplement.toml"))?)?,
+    )?;
+    let shape_type = xsd
+        .files
+        .iter()
+        .flat_map(|file| &file.root.children)
+        .find(|node| node.is_xs("simpleType") && node.attr("name") == Some("ST_ShapeType"))
+        .ok_or("missing ST_ShapeType")?;
+    let expected: BTreeSet<_> = shape_type
+        .iter()
+        .into_iter()
+        .filter(|node| node.is_xs("enumeration"))
+        .filter_map(|node| node.attr("value"))
+        .collect();
+    if expected.len() != 187
+        || presets.keys().map(String::as_str).collect::<BTreeSet<_>>() != expected
+    {
+        return Err("preset names differ from the 187 ST_ShapeType values".into());
+    }
+    Ok(presets)
+}
+
+pub(crate) fn generate(root: &Path, xsd: &crate::xsd::Xsd) -> Res<String> {
+    let presets = load(root, xsd)?;
+    let mut output = String::from(
+        "// @generated by cargo xtask codegen. Do not edit.\n\n\
+         type Adjustments = &'static [(&'static str, i64)];\n\
+         pub(super) const PRESET_ADJUSTMENTS: &[(&str, Adjustments)] = &[\n",
+    );
+    for (preset, adjustments) in presets {
+        write!(output, "    ({preset:?}, &[")?;
+        for (index, (name, value)) in adjustments.into_iter().enumerate() {
+            if index != 0 {
+                write!(output, ", ")?;
+            }
+            write!(output, "({name:?}, {value})")?;
+        }
+        writeln!(output, "]),")?;
+    }
+    output.push_str("];\n");
+    Ok(prettyplease::unparse(&syn::parse_file(&output)?).replacen(
+        "type Adjustments",
+        "// @generated by cargo xtask codegen. Do not edit.\n\ntype Adjustments",
+        1,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duplicates_compare_the_whole_definition() {
+        let wrap = |body| format!("<presetShapeDefinitons>{body}</presetShapeDefinitons>");
+        let identical = wrap("<arrow><pathLst/></arrow><arrow><pathLst/></arrow>");
+        assert_eq!(parse(&identical).unwrap().len(), 1);
+        let conflicting =
+            wrap("<arrow><pathLst/></arrow><arrow><pathLst><path/></pathLst></arrow>");
+        assert!(parse(&conflicting).is_err());
+    }
+
+    #[test]
+    fn supplement_checks_overlap_and_defaults() {
+        let guides = BTreeMap::from([("adj1".into(), 50_000), ("adj2".into(), 50_000)]);
+        let mut presets = BTreeMap::from([("downArrow".into(), guides.clone())]);
+        assert!(
+            supplement(
+                &mut presets,
+                BTreeMap::from([("downArrow".into(), guides.clone())])
+            )
+            .is_err()
+        );
+        assert!(
+            supplement(
+                &mut presets,
+                BTreeMap::from([("upArrow".into(), BTreeMap::new())])
+            )
+            .is_err()
+        );
+        supplement(&mut presets, BTreeMap::from([("upArrow".into(), guides)])).unwrap();
+    }
+
+    #[test]
+    fn vendored_and_supplemented_presets_match_shape_type() {
+        let root = crate::root();
+        let xsd = crate::xsd::Xsd::load(&root.join(crate::XSD_DIR)).unwrap();
+        let presets = load(&root, &xsd).unwrap();
+        assert_eq!(presets.len(), 187);
+        assert_eq!(presets["upArrow"], presets["downArrow"]);
+    }
+}

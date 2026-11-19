@@ -12,6 +12,8 @@
 mod cases;
 #[path = "../tests/oracle/model.rs"]
 mod model;
+#[path = "../tests/oracle/shape_properties_case.rs"]
+mod shape_properties_case;
 
 use std::path::PathBuf;
 
@@ -29,6 +31,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     std::fs::write(out.join("cases.json"), serde_json::to_string_pretty(&cases::cases_json(&cases))?)?;
     formatting_case(&out)?;
+    let mut shapes = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(shape_properties_case::FIXTURE))?;
+    shape_properties_case::edit(&mut shapes)?;
+    shapes.save(out.join(format!("{}.pptx", shape_properties_case::NAME)))?;
     let edits: usize = cases.iter().map(|c| c.edits.len()).sum();
     println!("{} cases, {edits} edits written to {}", cases.len(), out.display());
     Ok(())

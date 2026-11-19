@@ -24,6 +24,9 @@ mod table;
 pub use table::{CellFill, Edge, Line, Side, TableColor, TableFlag, TableMut};
 pub(crate) use table::TableSession;
 
+mod preset_geometry;
+mod shape_properties;
+pub use shape_properties::{GroupMut, ShapeFill};
 mod smartart;
 pub use smartart::{CacheReport, SmartArtMut, SmartArtNode};
 
@@ -639,7 +642,7 @@ impl<'a> SlideMut<'a> {
         }
         ids.reverse(); // own id first, then enclosing groups
         let guard = Guard::new(&self.refs, &ids);
-        Ok(ShapeMut { doc: self.doc.reborrow(), path: p.to_vec(), guard, styles: &self.table_styles, tables: &mut *self.tables })
+        Ok(ShapeMut { doc: self.doc.reborrow(), slide_id: self.info.slide_id, path: p.to_vec(), guard, styles: &self.table_styles, tables: &mut *self.tables })
     }
 
     /// The shape with this `cNvPr@id` ([`Error::ShapeNotFound`],
@@ -657,6 +660,7 @@ impl<'a> SlideMut<'a> {
 /// A shape opened for editing.
 #[derive(Debug)]
 pub struct ShapeMut<'a> {
+    slide_id: u32,
     doc: EditPart<'a>,
     path: Vec<usize>,
     guard: Guard,

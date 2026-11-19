@@ -816,3 +816,24 @@ is accepted. With valid nonzero extents, unit scaling (`ext == chExt`)
 always admits an exact fit for an unrotated, unflipped group. For a
 group without `a:xfrm`, create the identity transform using the child
 bounds for both coordinate spaces.
+
+### Post-acceptance decision — P3b preset definitions
+
+The Ecma XML is vendored byte for byte. It contains two identical
+`upDownArrow` definitions and omits `upArrow`. Codegen collapses identical
+definitions and rejects conflicting duplicates. A handwritten supplement
+provides only the `upArrow` adjustment defaults, `adj1 = adj2 = 50000`.
+They are checked against the in-file `downArrow` definition because
+`upArrow` is its vertical mirror. Supplement entries cannot overlap the
+XML, and the combined names must equal the 187 XSD `ST_ShapeType` values.
+
+### Post-acceptance note — P3b shape property APIs
+
+`ShapeMut` writes rects, rotation and flips, `ShapeFill`, `LineSpec`,
+preset geometry and validated constant adjustments. `None` for the
+outline and `ShapeFill::Inherit` remove the respective direct value.
+`clear_rect` removes the direct offset and extent. Rotation and flip
+edits that create a placeholder transform materialize its inherited
+rectangle first when it resolves. Group fit uses
+`ValueOutOfRange { what: "exact group fit" }` for unrepresentable affine
+fits and `TransformedGroup` when a rotated or flipped group would change.

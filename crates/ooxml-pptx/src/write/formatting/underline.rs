@@ -62,26 +62,19 @@ impl LineEnd {
     }
 }
 
-impl UnderlineLine {
-    pub(super) fn validate(&self) -> Result<()> {
-        if let Self::Line(line) = self {
-            if let Some(width) = line.width {
-                check_range(width, 0, 20_116_800, "w")?;
-            }
-            if let Some(RunFill::Solid(color)) = &line.fill {
-                color.validate()?;
-            }
+impl LineSpec {
+    pub(in crate::write) fn validate(&self) -> Result<()> {
+        if let Some(width) = self.width {
+            check_range(width, 0, 20_116_800, "w")?;
+        }
+        if let Some(RunFill::Solid(color)) = &self.fill {
+            color.validate()?;
         }
         Ok(())
     }
 
-    pub(super) fn matches(&self, child: &RawNode) -> bool {
-        let Self::Line(line) = self else {
-            return child.is(dml::UnderlineFollowsText::QNAME);
-        };
-        if !child.is(dml::Underline::QNAME) {
-            return false;
-        }
+    pub(in crate::write) fn matches(&self, child: &RawNode) -> bool {
+        let line = self;
         let attr = |name| child.attr(QName::new("", name));
         let head = only_choice(Some(child), &[dml::HeadEnd::QNAME]);
         let tail = only_choice(Some(child), &[dml::TailEnd::QNAME]);
@@ -130,39 +123,38 @@ impl UnderlineLine {
                 .is_none_or(|(end, node)| end.matches(node))
     }
 
-    pub(super) fn write<E: ElementSpec>(&self, parent: &mut LensMut<'_, E>) -> Result<()>
+    pub(in crate::write) fn write<E: ElementSpec>(&self, node: &mut LensMut<'_, E>) -> Result<()>
     where
-        dml::Underline: ChildOf<E>,
-        dml::UnderlineFollowsText: ChildOf<E>,
+        dml::SolidFill: ChildOf<E>,
+        dml::NoFill: ChildOf<E>,
+        dml::PresetDash: ChildOf<E>,
+        dml::HeadEnd: ChildOf<E>,
+        dml::TailEnd: ChildOf<E>,
     {
-        let Self::Line(line) = self else {
-            parent.insert::<dml::UnderlineFollowsText>()?;
-            return Ok(());
-        };
-        let mut view = dml::UnderlineViewMut(parent.insert::<dml::Underline>()?);
+        let line = self;
         if let Some(width) = line.width {
-            view.set_width(width)?;
+            ooxml_core::value::with_i32(width, |value| node.set_attr(QName::new("", "w"), value))?;
         }
         if let Some(cap) = line.cap {
-            view.set_cap_type(cap)?;
+            node.set_attr(QName::new("", "cap"), cap.as_str())?;
         }
         if let Some(compound) = line.compound {
-            view.set_compound_line_type(compound)?;
+            node.set_attr(QName::new("", "cmpd"), compound.as_str())?;
         }
         match &line.fill {
-            Some(RunFill::Solid(color)) => color.write(&mut view.0.insert::<dml::SolidFill>()?)?,
+            Some(RunFill::Solid(color)) => color.write(&mut node.insert::<dml::SolidFill>()?)?,
             Some(RunFill::NoFill) => {
-                view.0.insert::<dml::NoFill>()?;
+                node.insert::<dml::NoFill>()?;
             }
             None => {}
         }
         if let Some(dash) = line.dash {
-            dml::PresetDashViewMut(view.0.insert::<dml::PresetDash>()?).set_val(dash)?;
+            dml::PresetDashViewMut(node.insert::<dml::PresetDash>()?).set_val(dash)?;
         }
         macro_rules! write_end {
             ($end:expr, $spec:ident, $view:ident) => {
                 if let Some(end) = $end {
-                    let mut end_view = dml::$view(view.0.insert::<dml::$spec>()?);
+                    let mut end_view = dml::$view(node.insert::<dml::$spec>()?);
                     if let Some(kind) = end.kind {
                         end_view.set_type(kind)?;
                     }
@@ -178,6 +170,36 @@ impl UnderlineLine {
         write_end!(line.head, HeadEnd, HeadEndViewMut);
         write_end!(line.tail, TailEnd, TailEndViewMut);
         Ok(())
+    }
+}
+
+impl UnderlineLine {
+    pub(super) fn validate(&self) -> Result<()> {
+        match self {
+            Self::Line(line) => line.validate(),
+            Self::FollowText => Ok(()),
+        }
+    }
+
+    pub(super) fn matches(&self, child: &RawNode) -> bool {
+        match self {
+            Self::Line(line) => child.is(dml::Underline::QNAME) && line.matches(child),
+            Self::FollowText => child.is(dml::UnderlineFollowsText::QNAME),
+        }
+    }
+
+    pub(super) fn write<E: ElementSpec>(&self, parent: &mut LensMut<'_, E>) -> Result<()>
+    where
+        dml::Underline: ChildOf<E>,
+        dml::UnderlineFollowsText: ChildOf<E>,
+    {
+        match self {
+            Self::Line(line) => line.write(&mut parent.insert::<dml::Underline>()?),
+            Self::FollowText => {
+                parent.insert::<dml::UnderlineFollowsText>()?;
+                Ok(())
+            }
+        }
     }
 }
 

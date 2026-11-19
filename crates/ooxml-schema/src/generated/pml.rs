@@ -1157,6 +1157,8 @@ impl ooxml_core::ElementSpec for GroupShapeProperties {
     );
 }
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::GradientFill {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::TransformGroup {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<GroupShapeProperties> for super::dml::NoFill {}
@@ -1173,6 +1175,11 @@ impl<'a> GroupShapePropertiesView<'a> {
         &self,
     ) -> Option<ooxml_core::EnumValue<'a, BlackWhiteModeValues>> {
         self.0.attr_enum(GroupShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<super::dml::GradientFillView<'a>> {
+        self.0.child::<super::dml::GradientFill>().map(super::dml::GradientFillView)
     }
     #[cfg(feature = "dml")]
     /// First `a:xfrm` child.
@@ -1197,6 +1204,133 @@ impl<'a> GroupShapePropertiesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`GroupShapeProperties`]. Reads go through [`GroupShapePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct GroupShapePropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, GroupShapeProperties>,
+);
+impl<'a> GroupShapePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GroupShapePropertiesView<'_> {
+        GroupShapePropertiesView(self.0.as_lens())
+    }
+    /// Sets `bwMode` — Black and White Mode
+    pub fn set_black_white_mode(
+        &mut self,
+        v: BlackWhiteModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                GroupShapeProperties::ATTR_BW_MODE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `bwMode`.
+    pub fn remove_black_white_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GroupShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<super::dml::GradientFillViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::GradientFill>()
+            .map(super::dml::GradientFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<super::dml::GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::GradientFill>()
+            .map(super::dml::GradientFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::GradientFill>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:xfrm` child, mutably.
+    pub fn transform_group_mut(
+        &mut self,
+    ) -> Option<super::dml::TransformGroupViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::TransformGroup>()
+            .map(super::dml::TransformGroupViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:xfrm` child, or a new one in schema position.
+    pub fn get_or_insert_transform_group(
+        &mut self,
+    ) -> Result<super::dml::TransformGroupViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::TransformGroup>()
+            .map(super::dml::TransformGroupViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:xfrm` child.
+    pub fn remove_transform_group(&mut self) -> bool {
+        self.0.remove::<super::dml::TransformGroup>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<super::dml::NoFillViewMut<'_>> {
+        self.0.child_mut::<super::dml::NoFill>().map(super::dml::NoFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<super::dml::NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::NoFill>().map(super::dml::NoFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::NoFill>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(
+        &mut self,
+    ) -> Option<super::dml::ExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::ExtensionList>()
+            .map(super::dml::ExtensionListViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<super::dml::ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::ExtensionList>()
+            .map(super::dml::ExtensionListViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<super::dml::ExtensionList>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<super::dml::SolidFillViewMut<'_>> {
+        self.0.child_mut::<super::dml::SolidFill>().map(super::dml::SolidFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<super::dml::SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::SolidFill>().map(super::dml::SolidFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::SolidFill>()
     }
 }
 /// `a:CT_NonVisualDrawingProps/p:cNvPr` — Non-Visual Drawing Properties.
@@ -1499,6 +1633,10 @@ impl ooxml_core::ElementSpec for ShapeProperties {
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::CustomGeometry {}
 #[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::GradientFill {}
+#[cfg(all(feature = "pml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::Outline {}
+#[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::NoFill {}
 #[cfg(all(feature = "pml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::PresetGeometry {}
@@ -1520,6 +1658,16 @@ impl<'a> ShapePropertiesView<'a> {
     /// First `a:custGeom` child.
     pub fn custom_geometry(&self) -> Option<super::dml::CustomGeometryView<'a>> {
         self.0.child::<super::dml::CustomGeometry>().map(super::dml::CustomGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<super::dml::GradientFillView<'a>> {
+        self.0.child::<super::dml::GradientFill>().map(super::dml::GradientFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<super::dml::OutlineView<'a>> {
+        self.0.child::<super::dml::Outline>().map(super::dml::OutlineView)
     }
     #[cfg(feature = "dml")]
     /// First `a:noFill` child.
@@ -1544,6 +1692,140 @@ impl<'a> ShapePropertiesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`ShapeProperties`]. Reads go through [`ShapePropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct ShapePropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, ShapeProperties>);
+impl<'a> ShapePropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ShapePropertiesView<'_> {
+        ShapePropertiesView(self.0.as_lens())
+    }
+    /// Sets `bwMode` — Black and White Mode
+    pub fn set_black_white_mode(
+        &mut self,
+        v: BlackWhiteModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ShapeProperties::ATTR_BW_MODE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `bwMode`.
+    pub fn remove_black_white_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<super::dml::GradientFillViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::GradientFill>()
+            .map(super::dml::GradientFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<super::dml::GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::GradientFill>()
+            .map(super::dml::GradientFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::GradientFill>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<super::dml::OutlineViewMut<'_>> {
+        self.0.child_mut::<super::dml::Outline>().map(super::dml::OutlineViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<super::dml::OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Outline>().map(super::dml::OutlineViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<super::dml::Outline>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<super::dml::NoFillViewMut<'_>> {
+        self.0.child_mut::<super::dml::NoFill>().map(super::dml::NoFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<super::dml::NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::NoFill>().map(super::dml::NoFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::NoFill>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:prstGeom` child, mutably.
+    pub fn preset_geometry_mut(
+        &mut self,
+    ) -> Option<super::dml::PresetGeometryViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::PresetGeometry>()
+            .map(super::dml::PresetGeometryViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:prstGeom` child, or a new one in schema position.
+    pub fn get_or_insert_preset_geometry(
+        &mut self,
+    ) -> Result<super::dml::PresetGeometryViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::PresetGeometry>()
+            .map(super::dml::PresetGeometryViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:prstGeom` child.
+    pub fn remove_preset_geometry(&mut self) -> bool {
+        self.0.remove::<super::dml::PresetGeometry>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<super::dml::SolidFillViewMut<'_>> {
+        self.0.child_mut::<super::dml::SolidFill>().map(super::dml::SolidFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<super::dml::SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::SolidFill>().map(super::dml::SolidFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::SolidFill>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:xfrm` child, mutably.
+    pub fn transform2_d_mut(&mut self) -> Option<super::dml::Transform2DViewMut<'_>> {
+        self.0.child_mut::<super::dml::Transform2D>().map(super::dml::Transform2DViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:xfrm` child, or a new one in schema position.
+    pub fn get_or_insert_transform2_d(
+        &mut self,
+    ) -> Result<super::dml::Transform2DViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::Transform2D>()
+            .map(super::dml::Transform2DViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:xfrm` child.
+    pub fn remove_transform2_d(&mut self) -> bool {
+        self.0.remove::<super::dml::Transform2D>()
     }
 }
 /// `a:CT_ShapeStyle/p:style` — Shape Style.
@@ -8867,6 +9149,11 @@ const _: () = ooxml_core::schema::assert_spec::<GroupShapeProperties>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<
     GroupShapeProperties,
+    super::dml::GradientFill,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GroupShapeProperties,
     super::dml::TransformGroup,
 >();
 #[cfg(all(feature = "pml", feature = "dml"))]
@@ -8903,6 +9190,13 @@ const _: () = ooxml_core::schema::assert_child::<
     ShapeProperties,
     super::dml::CustomGeometry,
 >();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::GradientFill,
+>();
+#[cfg(all(feature = "pml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<ShapeProperties, super::dml::Outline>();
 #[cfg(all(feature = "pml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<ShapeProperties, super::dml::NoFill>();
 #[cfg(all(feature = "pml", feature = "dml"))]
