@@ -1023,3 +1023,36 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   continuation separator and continuation notice notes. A section split
   invalidates the generation of each paragraph whose section properties it
   changes.
+
+### Part 3 (§5, §5a, §8)
+
+| Operation | W2 column |
+|---|---|
+| `add_bookmark` | Text |
+| `remove_bookmark` | Structure |
+| `create_list`, `apply_list`, `restart_list`, `remove_from_list` | Structure |
+| `add_style` | W1/W3 only |
+
+- `BookmarkRange` takes a current `Match` or inclusive first/last paragraph
+  references. Splits retain formatting and omit run revision-session attributes
+  on the new halves. The annotation maximum survives removals for the lifetime
+  of the open document. Name collisions ignore case. The field scan joins
+  complex-field instruction fragments and also checks simple fields. Ambiguous
+  marker pairs refuse, as do markers that the editable story tree cannot reach.
+- `create_list` writes nine levels for either `Bullet` or `Decimal`. Selection
+  of the numbering part and registration of a new one use the main part's
+  relationships. `restart_list` takes an explicit start value and copies
+  overrides for the other levels. It checks every affected paragraph before
+  applying the new instance. `remove_from_list` follows the paragraph's style
+  chain when deciding whether to suppress inherited numbering.
+- `add_style` writes paragraph and character styles using the Phase1 formatting
+  planner. It includes existing style references from numbering and stories in
+  collision checks. The ECMA style run properties use `CT_RPr`, which includes
+  highlight alongside the other Phase1 properties.
+- **Open question:** the minimal `styles.xml` template remains part of the
+  `Document::new()` design. Until that template is specified, adding a style to
+  a document without a styles part returns `NoStylesPart`.
+- The generated editable case is checked with python-docx using
+  `crates/ooxml-docx/tests/oracle/phase2_registries.py`. The Rust tests check
+  unchanged ZIP bytes on refusal, unchanged nodes and entries on success, and
+  the appended OPC entries using an independent XML parser.

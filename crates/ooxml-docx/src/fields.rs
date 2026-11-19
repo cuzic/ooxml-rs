@@ -425,6 +425,7 @@ pub(crate) struct FieldScan {
     stack: Vec<Open>,
     codes: Vec<String>,
     scopes: Vec<Scope>,
+    bookmark_targets: Option<BTreeSet<String>>,
 }
 
 /// How the scan reads an element's children: as the body walk does, or —
@@ -453,7 +454,15 @@ impl ScanMode {
 
 impl FieldScan {
     pub(crate) fn scan(root: &RawNode) -> Vec<String> {
-        let mut s = FieldScan::default();
+        Self::collect(root, false).codes
+    }
+
+    pub(crate) fn bookmark_targets(root: &RawNode) -> BTreeSet<String> {
+        Self::collect(root, true).bookmark_targets.unwrap_or_default()
+    }
+
+    fn collect(root: &RawNode, collect_bookmarks: bool) -> Self {
+        let mut s = FieldScan { bookmark_targets: collect_bookmarks.then(BTreeSet::new), ..Self::default() };
         let root_mode = if is::<ooxml_schema::wml::Document>(root) { Mode::Document } else { Mode::Block };
         let mut containers = 0u32;
         // (node, index of the next child to visit, mode for its children,
@@ -485,7 +494,7 @@ impl FieldScan {
         for open in std::mem::take(&mut s.stack) {
             s.finish(open);
         }
-        s.codes
+        s
     }
 
     fn finish(&mut self, open: Open) {
@@ -494,7 +503,34 @@ impl FieldScan {
             () if open.calculated && field_code(&open.instruction) == "FORMTEXT" => CALCULATED_FORM_FIELD.into(),
             () => key(&open.instruction, open.nested),
         };
+        self.record_bookmark_target(&open.instruction);
         self.codes.push(key);
+    }
+
+    fn record_bookmark_target(&mut self, instruction: &str) {
+        let Some(targets) = &mut self.bookmark_targets else { return };
+        let (code, rest) = split_code(instruction);
+        let target = match code.as_str() {
+            "REF" | "PAGEREF" | "NOTEREF" => arguments(rest).and_then(|args| args.first().copied()),
+            "HYPERLINK" => {
+                let mut chars = rest.char_indices();
+                let mut target = None;
+                while let Some((_, c)) = chars.next() {
+                    if QUOTES.contains(&c) {
+                        chars.find(|(_, next)| closes(c, *next));
+                    } else if c == '\\' && let Some((index, switch)) = chars.next() {
+                        let tail = &rest[index + switch.len_utf8()..];
+                        if switch.eq_ignore_ascii_case(&'l') && (tail.starts_with(char::is_whitespace) || tail.starts_with(QUOTES)) {
+                            target = arguments(tail).and_then(|args| args.first().copied());
+                            break;
+                        }
+                    }
+                }
+                target
+            }
+            _ => None,
+        };
+        targets.extend(target.map(crate::names::bookmark_key));
     }
 
     fn malformed(&mut self) {
@@ -508,7 +544,9 @@ impl FieldScan {
         // same rule, in foreign containers).
         let in_run = matches!(parent, ScanMode::Walk(Mode::Run));
         if is::<SimpleField>(node) {
-            self.codes.push(field_key(node.attr(SimpleField::ATTR_W_INSTR).unwrap_or_default()));
+            let instruction = node.attr(SimpleField::ATTR_W_INSTR).unwrap_or_default();
+            self.record_bookmark_target(instruction);
+            self.codes.push(field_key(instruction));
         } else if is::<FieldChar>(node) {
             if !in_run || self.scopes.last() == Some(&Scope::AlternateContent) {
                 self.malformed();
@@ -663,7 +701,8 @@ pub enum Operation {
     /// column of its own (revision 2, review M4).
     Style,
     /// Structural edits (ADR-0011 §10): new paragraphs, section breaks,
-    /// table rows and columns. They change paragraph counts, numbering,
+    /// table rows and columns, bookmark removal and list edits. They change
+    /// paragraph counts, numbering,
     /// outline and pagination, so only [`STRUCTURE_ALLOWED`] is added.
     Structure,
 }

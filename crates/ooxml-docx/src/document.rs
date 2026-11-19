@@ -97,6 +97,7 @@ pub struct Document {
     pub(crate) styles_part: Option<String>,
     /// More than one styles relationship: style setters refuse.
     pub(crate) styles_ambiguous: bool,
+    pub(crate) annotation_high_water: u32,
     /// [`Document::enable_update_fields_on_open`] was called: W2 is lifted
     /// for every operation (ADR-0007 §6.3).
     pub(crate) fields_opt_in: bool,
@@ -264,6 +265,7 @@ impl Document {
             settings_parts,
             styles_part,
             styles_ambiguous,
+            annotation_high_water: 0,
             fields_opt_in: false,
         })
     }
@@ -976,5 +978,31 @@ impl CustomProperties {
             }
         }
         Ok(out)
+    }
+}
+
+impl Document {
+    /// Parts to scan for registry references. Content types also find glossary
+    /// and auxiliary parts that are outside the public story index.
+    pub(crate) fn registry_parts(&self, additional: &[&str]) -> Result<Vec<String>> {
+        const TYPE_PREFIX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.";
+        const REL_PREFIX: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
+        const EFFECTS_TYPE: &str = "application/vnd.ms-word.stylesWithEffects+xml";
+        const EFFECTS_REL: &str = "http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects";
+        let include_effects = additional.contains(&"stylesWithEffects");
+        let story_kind = |kind| matches!(kind, "header" | "footer" | "endnotes" | "footnotes" | "comments");
+        let mut parts: std::collections::BTreeSet<_> = self.stories.iter().map(|s| s.id.part.clone()).collect();
+        parts.extend(self.pkg.part_names().filter(|name| {
+            let content_type = self.pkg.content_type(name);
+            (include_effects && content_type == Some(EFFECTS_TYPE))
+                || content_type.and_then(|t| t.strip_prefix(TYPE_PREFIX))
+                .and_then(|t| t.strip_suffix("+xml"))
+                .is_some_and(|kind| story_kind(kind) || kind == "document.glossary" || additional.contains(&kind))
+        }).map(str::to_owned));
+        let rels = self.pkg.relationships(self.main_part_name())?;
+        parts.extend(rels.iter().filter(|r| (include_effects && r.rel_type == EFFECTS_REL) || r.rel_type.strip_prefix(REL_PREFIX)
+            .is_some_and(|kind| story_kind(kind) || kind == "glossaryDocument" || additional.contains(&kind)))
+            .filter_map(|r| rels.resolve(r)).filter(|name| self.pkg.contains(name)));
+        Ok(parts.into_iter().collect())
     }
 }
