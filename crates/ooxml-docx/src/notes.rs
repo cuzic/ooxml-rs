@@ -28,7 +28,7 @@ const fn w(local: &'static str) -> QName {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NoteId(pub i32);
 
-fn styled_run<'a>(
+pub(crate) fn styled_run<'a>(
     p: &'a mut LensMut<'_, Paragraph>,
     after: Option<usize>,
     style: &str,
@@ -125,19 +125,30 @@ impl Document {
         ))
     }
 
-    fn new_note_xml(&self, local: &str) -> Result<XmlDocument> {
+    pub(crate) fn new_wml_xml(&self, local: &str) -> Result<XmlDocument> {
         Ok(XmlDocument::parse_with(
             format!(r#"<w:{local} xmlns:w="{NS_W}"/>"#).as_bytes(),
             &self.pkg.parse_options(),
         )?)
     }
 
-    fn stage_note_xml(
+    pub(crate) fn stage_wml_part(
         &self,
         plan: &mut RegistryPlan,
         local: &str,
         part: Option<String>,
         xml: XmlDocument,
+    ) -> Result<String> {
+        self.stage_word_part(plan, local, part, xml, &format!("{REL}/{local}"))
+    }
+
+    pub(crate) fn stage_word_part(
+        &self,
+        plan: &mut RegistryPlan,
+        local: &str,
+        part: Option<String>,
+        xml: XmlDocument,
+        relationship: &str,
     ) -> Result<String> {
         if let Some(part) = part {
             plan.stage_part(&self.pkg, &part, xml)?;
@@ -165,7 +176,7 @@ impl Document {
         plan.add_relationship(
             &self.pkg,
             Some(self.main_part_name()),
-            &format!("{REL}/{local}"),
+            relationship,
             Target::Part(name.clone()),
         )?;
         Ok(name)
@@ -282,13 +293,13 @@ impl Document {
         let styles_part = self.styles_part.clone();
         let mut styles = match &styles_part {
             Some(part) => self.pkg.xml_part(part)?.clone(),
-            None => self.new_note_xml("styles")?,
+            None => self.new_wml_xml("styles")?,
         };
         let mut used = self.used_style_ids()?;
         let (body_style, body_added) =
-            note_style(&mut styles, &mut used, body_name, body_id, "paragraph")?;
+            named_annotation_style(&mut styles, &mut used, body_name, body_id, "paragraph", None)?;
         let (ref_style, ref_added) =
-            note_style(&mut styles, &mut used, ref_name, ref_id, "character")?;
+            named_annotation_style(&mut styles, &mut used, ref_name, ref_id, "character", None)?;
 
         let mut p = source.lens_mut_at::<Paragraph>(&path)?;
         let mut run = styled_run(&mut p, after, &ref_style)?;
@@ -311,7 +322,7 @@ impl Document {
                 Some(part) if *part == target => source.clone(),
                 Some(part) => self.pkg.xml_part(part)?.clone(),
                 None => {
-                    let mut xml = self.new_note_xml(local)?;
+                    let mut xml = self.new_wml_xml(local)?;
                     if i == 0 {
                         add_separators::<Footnotes, Footnote>(&mut xml)?;
                     } else {
@@ -349,7 +360,7 @@ impl Document {
             let part = self.settings_parts.first().cloned();
             let mut xml = match &part {
                 Some(part) => self.pkg.xml_part(part)?.clone(),
-                None => self.new_note_xml("settings")?,
+                None => self.new_wml_xml("settings")?,
             };
             let separator_ids = |index: usize| {
                 let Some(part) = &parts[index] else {
@@ -388,16 +399,16 @@ impl Document {
         }
         for (i, local) in ["footnotes", "endnotes"].into_iter().enumerate() {
             if let Some(xml) = note_docs[i].take() {
-                parts[i] = Some(self.stage_note_xml(&mut plan, local, parts[i].take(), xml)?);
+                parts[i] = Some(self.stage_wml_part(&mut plan, local, parts[i].take(), xml)?);
             }
         }
         let styles_part = if body_added || ref_added {
-            Some(self.stage_note_xml(&mut plan, "styles", styles_part, styles)?)
+            Some(self.stage_wml_part(&mut plan, "styles", styles_part, styles)?)
         } else {
             styles_part
         };
         let settings_part = settings
-            .map(|(part, xml)| self.stage_note_xml(&mut plan, "settings", part, xml))
+            .map(|(part, xml)| self.stage_wml_part(&mut plan, "settings", part, xml))
             .transpose()?;
         self.pkg.apply(plan)?;
         self.styles_part = styles_part;
@@ -436,12 +447,13 @@ where
     Ok(())
 }
 
-fn note_style(
+pub(crate) fn named_annotation_style(
     xml: &mut XmlDocument,
     used: &mut BTreeSet<String>,
     name: &str,
     stem: &str,
     kind: &str,
+    size: Option<&str>,
 ) -> Result<(String, bool)> {
     let mut styles = xml.lens_mut::<Styles>()?;
     let view = styles.as_lens();
@@ -482,7 +494,11 @@ fn note_style(
     style.set_attr(w("type"), kind)?;
     style.set_attr(w("styleId"), &id)?;
     style.insert::<StyleName>()?.set_attr(w("val"), name)?;
-    if kind == "character" {
+    if let Some(size) = size {
+        let mut props = style.insert::<StyleRunProperties>()?;
+        props.insert::<FontSize>()?.set_attr(w("val"), size)?;
+        props.insert::<FontSizeComplexScript>()?.set_attr(w("val"), size)?;
+    } else if kind == "character" {
         style
             .insert::<StyleRunProperties>()?
             .insert::<VerticalTextAlignment>()?

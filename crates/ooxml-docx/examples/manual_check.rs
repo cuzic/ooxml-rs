@@ -173,6 +173,28 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
         done: "Added a footnote and an endnote to the first paragraph".into(),
         check: "Follow both reference marks. The footnote reads D3a inserted footnote. The endnote reads D3a inserted endnote.",
     });
+    let file = "31-comment-thread.docx";
+    let mut doc = synthetic("<w:p><w:r><w:t>Review this phrase today.</w:t></w:r></w:p>")?;
+    let run = doc.paragraph(0).and_then(|p| p.run(0)).ok_or("missing comment anchor")?.run_ref();
+    let comment = |author: &str, text: &str| ooxml_docx::NewComment {
+        author: author.into(),
+        initials: None,
+        date: None,
+        paragraphs: vec![text.into()],
+    };
+    let id = doc.add_comment(
+        ooxml_docx::TextRange::with_offsets(run, 7, run, 18),
+        comment("Ada Lovelace", "D3b review comment."),
+    )?;
+    doc.reply(id, comment("Grace Hopper", "D3b review reply."))?;
+    doc.set_resolved(id, true)?;
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file,
+        fixture: "",
+        done: "Commented on ‘this phrase’, added a reply, and resolved the thread".into(),
+        check: "In the Comments pane, show resolved comments. Ada Lovelace’s comment and Grace Hopper’s reply belong to the same resolved thread on ‘this phrase’.",
+    });
     Ok(cases)
 }
 

@@ -87,6 +87,14 @@
       ["word/styles.xml", "./w:style[@w:styleId='FootnoteReference']/w:rPr/w:vertAlign[@w:val='superscript']", 1]
     ]
   },
+  "docx/31-comment-thread.docx": {"text": ["Review this phrase today."],
+    "xml": [
+      ["word/comments.xml", "./w:comment[@w:author='Ada Lovelace']/w:p/w:r/w:t[.='D3b review comment.']", 1],
+      ["word/comments.xml", "./w:comment[@w:author='Grace Hopper']/w:p/w:r/w:t[.='D3b review reply.']", 1],
+      ["word/document.xml", "./w:body/w:p/w:r/w:t[.='this phrase']", 1],
+      ["word/document.xml", "./w:body/w:p/w:commentRangeStart", 2]
+    ]
+  },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},

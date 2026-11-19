@@ -17,6 +17,7 @@ def check(directory):
     doc = read(path)
     check_registries(doc)
     check_notes(read(Path(directory) / "30-insert-footnote-endnote.docx"))
+    check_comments(read(Path(directory) / "31-comment-thread.docx"))
 
 
 def read(path):
@@ -85,6 +86,24 @@ def check_notes(doc):
         props, = doc.settings.element.xpath(f"w:{kind}Pr")
         assert [node.get(qn("w:id")) for node in props.findall(qn(f"w:{kind}"))] == ["-1", "0"]
     print("python-docx footnote and endnote read-back passed")
+
+
+def check_comments(doc):
+    parent, reply = list(doc.comments)
+    assert (parent.author, parent.text) == ("Ada Lovelace", "D3b review comment.")
+    assert (reply.author, reply.text) == ("Grace Hopper", "D3b review reply.")
+    for comment in (parent, reply):
+        ident = str(comment.comment_id)
+        start, = doc.element.xpath(f".//w:commentRangeStart[@w:id='{ident}']")
+        end, = doc.element.xpath(f".//w:commentRangeEnd[@w:id='{ident}']")
+        node = start.getnext()
+        texts = []
+        while node is not end:
+            assert node is not None
+            texts.extend(t.text for t in node.findall(qn("w:t")))
+            node = node.getnext()
+        assert "".join(texts) == "this phrase"
+    print("python-docx comment authors, bodies and ranges read-back passed")
 
 
 if __name__ == "__main__":
