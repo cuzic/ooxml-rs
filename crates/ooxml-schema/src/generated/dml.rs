@@ -1166,6 +1166,154 @@ impl ooxml_core::EnumType for ShapeTypeValues {
         self as usize
     }
 }
+/// `a:ST_LineEndType` — Line End Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LineEndValues {
+    /// `none`
+    None,
+    /// `triangle`
+    Triangle,
+    /// `stealth`
+    Stealth,
+    /// `diamond`
+    Diamond,
+    /// `oval`
+    Oval,
+    /// `arrow`
+    Arrow,
+}
+impl ooxml_core::EnumType for LineEndValues {
+    const VALUES: &'static [&'static str] = &[
+        "none",
+        "triangle",
+        "stealth",
+        "diamond",
+        "oval",
+        "arrow",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::Triangle),
+            2 => Some(Self::Stealth),
+            3 => Some(Self::Diamond),
+            4 => Some(Self::Oval),
+            5 => Some(Self::Arrow),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_LineEndWidth` — Line End Width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LineEndWidthValues {
+    /// `sm`
+    Small,
+    /// `med`
+    Medium,
+    /// `lg`
+    Large,
+}
+impl ooxml_core::EnumType for LineEndWidthValues {
+    const VALUES: &'static [&'static str] = &["sm", "med", "lg"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Small),
+            1 => Some(Self::Medium),
+            2 => Some(Self::Large),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_LineEndLength` — Line End Length.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LineEndLengthValues {
+    /// `sm`
+    Small,
+    /// `med`
+    Medium,
+    /// `lg`
+    Large,
+}
+impl ooxml_core::EnumType for LineEndLengthValues {
+    const VALUES: &'static [&'static str] = &["sm", "med", "lg"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Small),
+            1 => Some(Self::Medium),
+            2 => Some(Self::Large),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_PresetLineDashVal` — Preset Line Dash Value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PresetLineDashValues {
+    /// `solid`
+    Solid,
+    /// `dot`
+    Dot,
+    /// `dash`
+    Dash,
+    /// `lgDash`
+    LargeDash,
+    /// `dashDot`
+    DashDot,
+    /// `lgDashDot`
+    LargeDashDot,
+    /// `lgDashDotDot`
+    LargeDashDotDot,
+    /// `sysDash`
+    SystemDash,
+    /// `sysDot`
+    SystemDot,
+    /// `sysDashDot`
+    SystemDashDot,
+    /// `sysDashDotDot`
+    SystemDashDotDot,
+}
+impl ooxml_core::EnumType for PresetLineDashValues {
+    const VALUES: &'static [&'static str] = &[
+        "solid",
+        "dot",
+        "dash",
+        "lgDash",
+        "dashDot",
+        "lgDashDot",
+        "lgDashDotDot",
+        "sysDash",
+        "sysDot",
+        "sysDashDot",
+        "sysDashDotDot",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Solid),
+            1 => Some(Self::Dot),
+            2 => Some(Self::Dash),
+            3 => Some(Self::LargeDash),
+            4 => Some(Self::DashDot),
+            5 => Some(Self::LargeDashDot),
+            6 => Some(Self::LargeDashDotDot),
+            7 => Some(Self::SystemDash),
+            8 => Some(Self::SystemDot),
+            9 => Some(Self::SystemDashDot),
+            10 => Some(Self::SystemDashDotDot),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_LineCap` — End Line Cap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LineCapValues {
@@ -1690,6 +1838,33 @@ impl ooxml_core::EnumType for TextCapsValues {
             0 => Some(Self::None),
             1 => Some(Self::Small),
             2 => Some(Self::All),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `a:ST_TextTabAlignType` — Text Tab Alignment Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextTabAlignmentValues {
+    /// `l`
+    Left,
+    /// `ctr`
+    Center,
+    /// `r`
+    Right,
+    /// `dec`
+    Decimal,
+}
+impl ooxml_core::EnumType for TextTabAlignmentValues {
+    const VALUES: &'static [&'static str] = &["l", "ctr", "r", "dec"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Left),
+            1 => Some(Self::Center),
+            2 => Some(Self::Right),
+            3 => Some(Self::Decimal),
             _ => None,
         }
     }
@@ -2645,6 +2820,55 @@ impl<'a> RowIdIdentifierViewMut<'a> {
         self.0.remove_attr(RowIdIdentifier::ATTR_VAL)
     }
 }
+/// `a:CT_Angle/a:hueOff` — Hue Offset.
+#[derive(Debug)]
+pub enum HueOffset {}
+impl HueOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for HueOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hueOff");
+    const SDK_NAME: &'static str = "a:CT_Angle/a:hueOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HueOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`HueOffset`].
+#[derive(Clone, Debug)]
+pub struct HueOffsetView<'a>(pub ooxml_core::Lens<'a, HueOffset>);
+impl<'a> HueOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(HueOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HueOffset`]. Reads go through [`HueOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct HueOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, HueOffset>);
+impl<'a> HueOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HueOffsetView<'_> {
+        HueOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(HueOffset::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HueOffset::ATTR_VAL)
+    }
+}
 /// `a:CT_BaseStyles/a:themeElements` — Defines the ThemeElements Class.
 #[derive(Debug)]
 pub enum ThemeElements {}
@@ -2892,6 +3116,200 @@ impl<'a> BulletColorView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`BulletColor`]. Reads go through [`BulletColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletColorViewMut<'a>(pub ooxml_core::LensMut<'a, BulletColor>);
+impl<'a> BulletColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletColorView<'_> {
+        BulletColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:schemeClr` child, mutably.
+    pub fn scheme_color_mut(&mut self) -> Option<SchemeColorViewMut<'_>> {
+        self.0.child_mut::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Existing `a:schemeClr` child, or a new one in schema position.
+    pub fn get_or_insert_scheme_color(
+        &mut self,
+    ) -> Result<SchemeColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Removes the first `a:schemeClr` child.
+    pub fn remove_scheme_color(&mut self) -> bool {
+        self.0.remove::<SchemeColor>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
+/// `a:CT_Color/a:highlight` — Defines the Highlight Class.
+#[derive(Debug)]
+pub enum Highlight {}
+impl ooxml_core::ElementSpec for Highlight {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "highlight");
+    const SDK_NAME: &'static str = "a:CT_Color/a:highlight";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Highlight> for HslColor {}
+impl ooxml_core::ChildOf<Highlight> for PresetColor {}
+impl ooxml_core::ChildOf<Highlight> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<Highlight> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<Highlight> for SchemeColor {}
+impl ooxml_core::ChildOf<Highlight> for SystemColor {}
+/// Read-only view of [`Highlight`].
+#[derive(Clone, Debug)]
+pub struct HighlightView<'a>(pub ooxml_core::Lens<'a, Highlight>);
+impl<'a> HighlightView<'a> {
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Highlight`]. Reads go through [`HighlightViewMut::as_view`].
+#[derive(Debug)]
+pub struct HighlightViewMut<'a>(pub ooxml_core::LensMut<'a, Highlight>);
+impl<'a> HighlightViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HighlightView<'_> {
+        HighlightView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:schemeClr` child, mutably.
+    pub fn scheme_color_mut(&mut self) -> Option<SchemeColorViewMut<'_>> {
+        self.0.child_mut::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Existing `a:schemeClr` child, or a new one in schema position.
+    pub fn get_or_insert_scheme_color(
+        &mut self,
+    ) -> Result<SchemeColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Removes the first `a:schemeClr` child.
+    pub fn remove_scheme_color(&mut self) -> bool {
+        self.0.remove::<SchemeColor>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_Color2/a:accent1` — Accent 1.
@@ -3969,6 +4387,33 @@ impl<'a> ColorSchemeView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_ComplementTransform/a:comp` — Complement.
+#[derive(Debug)]
+pub enum Complement {}
+impl ooxml_core::ElementSpec for Complement {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "comp");
+    const SDK_NAME: &'static str = "a:CT_ComplementTransform/a:comp";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Complement`].
+#[derive(Clone, Debug)]
+pub struct ComplementView<'a>(pub ooxml_core::Lens<'a, Complement>);
+impl<'a> ComplementView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Complement`]. Reads go through [`ComplementViewMut::as_view`].
+#[derive(Debug)]
+pub struct ComplementViewMut<'a>(pub ooxml_core::LensMut<'a, Complement>);
+impl<'a> ComplementViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ComplementView<'_> {
+        ComplementView(self.0.as_lens())
+    }
+}
 /// `a:CT_CustomGeometry2D/a:custGeom` — Custom geometry.
 #[derive(Debug)]
 pub enum CustomGeometry {}
@@ -4181,6 +4626,55 @@ impl<'a> MasterColorMappingView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `a:CT_FixedPercentage/a:alphaOff` — Alpha Offset.
+#[derive(Debug)]
+pub enum AlphaOffset {}
+impl AlphaOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for AlphaOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "alphaOff");
+    const SDK_NAME: &'static str = "a:CT_FixedPercentage/a:alphaOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AlphaOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`AlphaOffset`].
+#[derive(Clone, Debug)]
+pub struct AlphaOffsetView<'a>(pub ooxml_core::Lens<'a, AlphaOffset>);
+impl<'a> AlphaOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(AlphaOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AlphaOffset`]. Reads go through [`AlphaOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct AlphaOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, AlphaOffset>);
+impl<'a> AlphaOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AlphaOffsetView<'_> {
+        AlphaOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(AlphaOffset::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AlphaOffset::ATTR_VAL)
     }
 }
 /// `a:CT_FontCollection/a:majorFont` — Major Font.
@@ -4485,6 +4979,33 @@ impl<'a> FontSchemeView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `a:CT_GammaTransform/a:gamma` — Gamma.
+#[derive(Debug)]
+pub enum Gamma {}
+impl ooxml_core::ElementSpec for Gamma {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gamma");
+    const SDK_NAME: &'static str = "a:CT_GammaTransform/a:gamma";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Gamma`].
+#[derive(Clone, Debug)]
+pub struct GammaView<'a>(pub ooxml_core::Lens<'a, Gamma>);
+impl<'a> GammaView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Gamma`]. Reads go through [`GammaViewMut::as_view`].
+#[derive(Debug)]
+pub struct GammaViewMut<'a>(pub ooxml_core::LensMut<'a, Gamma>);
+impl<'a> GammaViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GammaView<'_> {
+        GammaView(self.0.as_lens())
     }
 }
 /// `a:CT_GeomGuideList/a:avLst` — List of Shape Adjust Values.
@@ -5299,6 +5820,33 @@ impl<'a> GraphicFrameLocksViewMut<'a> {
         self.0.remove::<ExtensionList>()
     }
 }
+/// `a:CT_GrayscaleTransform/a:gray` — Gray.
+#[derive(Debug)]
+pub enum Gray {}
+impl ooxml_core::ElementSpec for Gray {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "gray");
+    const SDK_NAME: &'static str = "a:CT_GrayscaleTransform/a:gray";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Gray`].
+#[derive(Clone, Debug)]
+pub struct GrayView<'a>(pub ooxml_core::Lens<'a, Gray>);
+impl<'a> GrayView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Gray`]. Reads go through [`GrayViewMut::as_view`].
+#[derive(Debug)]
+pub struct GrayViewMut<'a>(pub ooxml_core::LensMut<'a, Gray>);
+impl<'a> GrayViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GrayView<'_> {
+        GrayView(self.0.as_lens())
+    }
+}
 /// `a:CT_GroupTransform2D/a:xfrm` — 2D Transform for Grouped Objects.
 #[derive(Debug)]
 pub enum TransformGroup {}
@@ -5482,6 +6030,34 @@ impl ooxml_core::ElementSpec for HslColor {
         ],
     );
 }
+impl ooxml_core::ChildOf<HslColor> for HueOffset {}
+impl ooxml_core::ChildOf<HslColor> for Complement {}
+impl ooxml_core::ChildOf<HslColor> for AlphaOffset {}
+impl ooxml_core::ChildOf<HslColor> for Gamma {}
+impl ooxml_core::ChildOf<HslColor> for Gray {}
+impl ooxml_core::ChildOf<HslColor> for InverseGamma {}
+impl ooxml_core::ChildOf<HslColor> for Inverse {}
+impl ooxml_core::ChildOf<HslColor> for Blue {}
+impl ooxml_core::ChildOf<HslColor> for BlueModulation {}
+impl ooxml_core::ChildOf<HslColor> for BlueOffset {}
+impl ooxml_core::ChildOf<HslColor> for Green {}
+impl ooxml_core::ChildOf<HslColor> for GreenModulation {}
+impl ooxml_core::ChildOf<HslColor> for GreenOffset {}
+impl ooxml_core::ChildOf<HslColor> for Luminance {}
+impl ooxml_core::ChildOf<HslColor> for LuminanceModulation {}
+impl ooxml_core::ChildOf<HslColor> for LuminanceOffset {}
+impl ooxml_core::ChildOf<HslColor> for Red {}
+impl ooxml_core::ChildOf<HslColor> for RedModulation {}
+impl ooxml_core::ChildOf<HslColor> for RedOffset {}
+impl ooxml_core::ChildOf<HslColor> for Saturation {}
+impl ooxml_core::ChildOf<HslColor> for SaturationModulation {}
+impl ooxml_core::ChildOf<HslColor> for SaturationOffset {}
+impl ooxml_core::ChildOf<HslColor> for Hue {}
+impl ooxml_core::ChildOf<HslColor> for Alpha {}
+impl ooxml_core::ChildOf<HslColor> for Shade {}
+impl ooxml_core::ChildOf<HslColor> for Tint {}
+impl ooxml_core::ChildOf<HslColor> for AlphaModulation {}
+impl ooxml_core::ChildOf<HslColor> for HueModulation {}
 /// Read-only view of [`HslColor`].
 #[derive(Clone, Debug)]
 pub struct HslColorView<'a>(pub ooxml_core::Lens<'a, HslColor>);
@@ -5501,6 +6077,130 @@ impl<'a> HslColorView<'a> {
         &self,
     ) -> Result<Option<ooxml_core::value::DmlPercent>, ooxml_core::AttrError> {
         self.0.attr_parsed(HslColor::ATTR_LUM, ooxml_core::value::parse_dml_percent)
+    }
+    /// `a:hueOff` children in document order.
+    pub fn hue_offset_iter(&self) -> impl Iterator<Item = HueOffsetView<'a>> {
+        self.0.children::<HueOffset>().map(HueOffsetView)
+    }
+    /// `a:comp` children in document order.
+    pub fn complement_iter(&self) -> impl Iterator<Item = ComplementView<'a>> {
+        self.0.children::<Complement>().map(ComplementView)
+    }
+    /// `a:alphaOff` children in document order.
+    pub fn alpha_offset_iter(&self) -> impl Iterator<Item = AlphaOffsetView<'a>> {
+        self.0.children::<AlphaOffset>().map(AlphaOffsetView)
+    }
+    /// `a:gamma` children in document order.
+    pub fn gamma_iter(&self) -> impl Iterator<Item = GammaView<'a>> {
+        self.0.children::<Gamma>().map(GammaView)
+    }
+    /// `a:gray` children in document order.
+    pub fn gray_iter(&self) -> impl Iterator<Item = GrayView<'a>> {
+        self.0.children::<Gray>().map(GrayView)
+    }
+    /// `a:invGamma` children in document order.
+    pub fn inverse_gamma_iter(&self) -> impl Iterator<Item = InverseGammaView<'a>> {
+        self.0.children::<InverseGamma>().map(InverseGammaView)
+    }
+    /// `a:inv` children in document order.
+    pub fn inverse_iter(&self) -> impl Iterator<Item = InverseView<'a>> {
+        self.0.children::<Inverse>().map(InverseView)
+    }
+    /// `a:blue` children in document order.
+    pub fn blue_iter(&self) -> impl Iterator<Item = BlueView<'a>> {
+        self.0.children::<Blue>().map(BlueView)
+    }
+    /// `a:blueMod` children in document order.
+    pub fn blue_modulation_iter(&self) -> impl Iterator<Item = BlueModulationView<'a>> {
+        self.0.children::<BlueModulation>().map(BlueModulationView)
+    }
+    /// `a:blueOff` children in document order.
+    pub fn blue_offset_iter(&self) -> impl Iterator<Item = BlueOffsetView<'a>> {
+        self.0.children::<BlueOffset>().map(BlueOffsetView)
+    }
+    /// `a:green` children in document order.
+    pub fn green_iter(&self) -> impl Iterator<Item = GreenView<'a>> {
+        self.0.children::<Green>().map(GreenView)
+    }
+    /// `a:greenMod` children in document order.
+    pub fn green_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = GreenModulationView<'a>> {
+        self.0.children::<GreenModulation>().map(GreenModulationView)
+    }
+    /// `a:greenOff` children in document order.
+    pub fn green_offset_iter(&self) -> impl Iterator<Item = GreenOffsetView<'a>> {
+        self.0.children::<GreenOffset>().map(GreenOffsetView)
+    }
+    /// `a:lum` children in document order.
+    pub fn luminance_iter(&self) -> impl Iterator<Item = LuminanceView<'a>> {
+        self.0.children::<Luminance>().map(LuminanceView)
+    }
+    /// `a:lumMod` children in document order.
+    pub fn luminance_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceModulationView<'a>> {
+        self.0.children::<LuminanceModulation>().map(LuminanceModulationView)
+    }
+    /// `a:lumOff` children in document order.
+    pub fn luminance_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceOffsetView<'a>> {
+        self.0.children::<LuminanceOffset>().map(LuminanceOffsetView)
+    }
+    /// `a:red` children in document order.
+    pub fn red_iter(&self) -> impl Iterator<Item = RedView<'a>> {
+        self.0.children::<Red>().map(RedView)
+    }
+    /// `a:redMod` children in document order.
+    pub fn red_modulation_iter(&self) -> impl Iterator<Item = RedModulationView<'a>> {
+        self.0.children::<RedModulation>().map(RedModulationView)
+    }
+    /// `a:redOff` children in document order.
+    pub fn red_offset_iter(&self) -> impl Iterator<Item = RedOffsetView<'a>> {
+        self.0.children::<RedOffset>().map(RedOffsetView)
+    }
+    /// `a:sat` children in document order.
+    pub fn saturation_iter(&self) -> impl Iterator<Item = SaturationView<'a>> {
+        self.0.children::<Saturation>().map(SaturationView)
+    }
+    /// `a:satMod` children in document order.
+    pub fn saturation_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationModulationView<'a>> {
+        self.0.children::<SaturationModulation>().map(SaturationModulationView)
+    }
+    /// `a:satOff` children in document order.
+    pub fn saturation_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationOffsetView<'a>> {
+        self.0.children::<SaturationOffset>().map(SaturationOffsetView)
+    }
+    /// `a:hue` children in document order.
+    pub fn hue_iter(&self) -> impl Iterator<Item = HueView<'a>> {
+        self.0.children::<Hue>().map(HueView)
+    }
+    /// `a:alpha` children in document order.
+    pub fn alpha_iter(&self) -> impl Iterator<Item = AlphaView<'a>> {
+        self.0.children::<Alpha>().map(AlphaView)
+    }
+    /// `a:shade` children in document order.
+    pub fn shade_iter(&self) -> impl Iterator<Item = ShadeView<'a>> {
+        self.0.children::<Shade>().map(ShadeView)
+    }
+    /// `a:tint` children in document order.
+    pub fn tint_iter(&self) -> impl Iterator<Item = TintView<'a>> {
+        self.0.children::<Tint>().map(TintView)
+    }
+    /// `a:alphaMod` children in document order.
+    pub fn alpha_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = AlphaModulationView<'a>> {
+        self.0.children::<AlphaModulation>().map(AlphaModulationView)
+    }
+    /// `a:hueMod` children in document order.
+    pub fn hue_modulation_iter(&self) -> impl Iterator<Item = HueModulationView<'a>> {
+        self.0.children::<HueModulation>().map(HueModulationView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -5942,6 +6642,252 @@ impl<'a> HyperlinkOnMouseOverView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_InverseGammaTransform/a:invGamma` — Inverse Gamma.
+#[derive(Debug)]
+pub enum InverseGamma {}
+impl ooxml_core::ElementSpec for InverseGamma {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "invGamma");
+    const SDK_NAME: &'static str = "a:CT_InverseGammaTransform/a:invGamma";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`InverseGamma`].
+#[derive(Clone, Debug)]
+pub struct InverseGammaView<'a>(pub ooxml_core::Lens<'a, InverseGamma>);
+impl<'a> InverseGammaView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`InverseGamma`]. Reads go through [`InverseGammaViewMut::as_view`].
+#[derive(Debug)]
+pub struct InverseGammaViewMut<'a>(pub ooxml_core::LensMut<'a, InverseGamma>);
+impl<'a> InverseGammaViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> InverseGammaView<'_> {
+        InverseGammaView(self.0.as_lens())
+    }
+}
+/// `a:CT_InverseTransform/a:inv` — Inverse.
+#[derive(Debug)]
+pub enum Inverse {}
+impl ooxml_core::ElementSpec for Inverse {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "inv");
+    const SDK_NAME: &'static str = "a:CT_InverseTransform/a:inv";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Inverse`].
+#[derive(Clone, Debug)]
+pub struct InverseView<'a>(pub ooxml_core::Lens<'a, Inverse>);
+impl<'a> InverseView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Inverse`]. Reads go through [`InverseViewMut::as_view`].
+#[derive(Debug)]
+pub struct InverseViewMut<'a>(pub ooxml_core::LensMut<'a, Inverse>);
+impl<'a> InverseViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> InverseView<'_> {
+        InverseView(self.0.as_lens())
+    }
+}
+/// `a:CT_LineEndProperties/a:headEnd` — default head line end style is none.
+#[derive(Debug)]
+pub enum HeadEnd {}
+impl HeadEnd {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `len`
+    pub const ATTR_LEN: ooxml_core::QName = ooxml_core::QName::new("", "len");
+}
+impl ooxml_core::ElementSpec for HeadEnd {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "headEnd");
+    const SDK_NAME: &'static str = "a:CT_LineEndProperties/a:headEnd";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HeadEnd::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineEndValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: HeadEnd::ATTR_W,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineEndWidthValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: HeadEnd::ATTR_LEN,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineEndLengthValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`HeadEnd`].
+#[derive(Clone, Debug)]
+pub struct HeadEndView<'a>(pub ooxml_core::Lens<'a, HeadEnd>);
+impl<'a> HeadEndView<'a> {
+    /// `type` — Line Head/End Type (default `none`)
+    pub fn type_(&self) -> ooxml_core::EnumValue<'a, LineEndValues> {
+        self.0.attr_enum_or(HeadEnd::ATTR_TYPE, "none")
+    }
+    /// `w` — Width of Head/End
+    pub fn width(&self) -> Option<ooxml_core::EnumValue<'a, LineEndWidthValues>> {
+        self.0.attr_enum(HeadEnd::ATTR_W)
+    }
+    /// `len` — Length of Head/End
+    pub fn length(&self) -> Option<ooxml_core::EnumValue<'a, LineEndLengthValues>> {
+        self.0.attr_enum(HeadEnd::ATTR_LEN)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HeadEnd`]. Reads go through [`HeadEndViewMut::as_view`].
+#[derive(Debug)]
+pub struct HeadEndViewMut<'a>(pub ooxml_core::LensMut<'a, HeadEnd>);
+impl<'a> HeadEndViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HeadEndView<'_> {
+        HeadEndView(self.0.as_lens())
+    }
+    /// Sets `type` — Line Head/End Type (default `none`)
+    pub fn set_type(&mut self, v: LineEndValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HeadEnd::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeadEnd::ATTR_TYPE)
+    }
+    /// Sets `w` — Width of Head/End
+    pub fn set_width(&mut self, v: LineEndWidthValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HeadEnd::ATTR_W, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeadEnd::ATTR_W)
+    }
+    /// Sets `len` — Length of Head/End
+    pub fn set_length(
+        &mut self,
+        v: LineEndLengthValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HeadEnd::ATTR_LEN, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `len`.
+    pub fn remove_length(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeadEnd::ATTR_LEN)
+    }
+}
+/// `a:CT_LineEndProperties/a:tailEnd` — default tail line end style is none.
+#[derive(Debug)]
+pub enum TailEnd {}
+impl TailEnd {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `len`
+    pub const ATTR_LEN: ooxml_core::QName = ooxml_core::QName::new("", "len");
+}
+impl ooxml_core::ElementSpec for TailEnd {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tailEnd");
+    const SDK_NAME: &'static str = "a:CT_LineEndProperties/a:tailEnd";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TailEnd::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineEndValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: TailEnd::ATTR_W,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineEndWidthValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TailEnd::ATTR_LEN,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineEndLengthValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TailEnd`].
+#[derive(Clone, Debug)]
+pub struct TailEndView<'a>(pub ooxml_core::Lens<'a, TailEnd>);
+impl<'a> TailEndView<'a> {
+    /// `type` — Line Head/End Type (default `none`)
+    pub fn type_(&self) -> ooxml_core::EnumValue<'a, LineEndValues> {
+        self.0.attr_enum_or(TailEnd::ATTR_TYPE, "none")
+    }
+    /// `w` — Width of Head/End
+    pub fn width(&self) -> Option<ooxml_core::EnumValue<'a, LineEndWidthValues>> {
+        self.0.attr_enum(TailEnd::ATTR_W)
+    }
+    /// `len` — Length of Head/End
+    pub fn length(&self) -> Option<ooxml_core::EnumValue<'a, LineEndLengthValues>> {
+        self.0.attr_enum(TailEnd::ATTR_LEN)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TailEnd`]. Reads go through [`TailEndViewMut::as_view`].
+#[derive(Debug)]
+pub struct TailEndViewMut<'a>(pub ooxml_core::LensMut<'a, TailEnd>);
+impl<'a> TailEndViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TailEndView<'_> {
+        TailEndView(self.0.as_lens())
+    }
+    /// Sets `type` — Line Head/End Type (default `none`)
+    pub fn set_type(&mut self, v: LineEndValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TailEnd::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TailEnd::ATTR_TYPE)
+    }
+    /// Sets `w` — Width of Head/End
+    pub fn set_width(&mut self, v: LineEndWidthValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TailEnd::ATTR_W, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TailEnd::ATTR_W)
+    }
+    /// Sets `len` — Length of Head/End
+    pub fn set_length(
+        &mut self,
+        v: LineEndLengthValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TailEnd::ATTR_LEN, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `len`.
+    pub fn remove_length(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TailEnd::ATTR_LEN)
+    }
+}
 /// `a:CT_LineProperties/a:lnB` — Bottom Border Line Properties.
 #[derive(Debug)]
 pub enum BottomBorderLineProperties {}
@@ -6039,7 +6985,10 @@ impl ooxml_core::ElementSpec for BottomBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<BottomBorderLineProperties> for HeadEnd {}
+impl ooxml_core::ChildOf<BottomBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<BottomBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<BottomBorderLineProperties> for PresetDash {}
 impl ooxml_core::ChildOf<BottomBorderLineProperties> for SolidFill {}
 /// Read-only view of [`BottomBorderLineProperties`].
 #[derive(Clone, Debug)]
@@ -6069,9 +7018,21 @@ impl<'a> BottomBorderLinePropertiesView<'a> {
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(BottomBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child.
+    pub fn head_end(&self) -> Option<HeadEndView<'a>> {
+        self.0.child::<HeadEnd>().map(HeadEndView)
+    }
+    /// First `a:tailEnd` child.
+    pub fn tail_end(&self) -> Option<TailEndView<'a>> {
+        self.0.child::<TailEnd>().map(TailEndView)
+    }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
         self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:prstDash` child.
+    pub fn preset_dash(&self) -> Option<PresetDashView<'a>> {
+        self.0.child::<PresetDash>().map(PresetDashView)
     }
     /// First `a:solidFill` child.
     pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
@@ -6145,6 +7106,34 @@ impl<'a> BottomBorderLinePropertiesViewMut<'a> {
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(BottomBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child, mutably.
+    pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
+        self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Existing `a:headEnd` child, or a new one in schema position.
+    pub fn get_or_insert_head_end(
+        &mut self,
+    ) -> Result<HeadEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Removes the first `a:headEnd` child.
+    pub fn remove_head_end(&mut self) -> bool {
+        self.0.remove::<HeadEnd>()
+    }
+    /// First `a:tailEnd` child, mutably.
+    pub fn tail_end_mut(&mut self) -> Option<TailEndViewMut<'_>> {
+        self.0.child_mut::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Existing `a:tailEnd` child, or a new one in schema position.
+    pub fn get_or_insert_tail_end(
+        &mut self,
+    ) -> Result<TailEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Removes the first `a:tailEnd` child.
+    pub fn remove_tail_end(&mut self) -> bool {
+        self.0.remove::<TailEnd>()
+    }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
         self.0.child_mut::<NoFill>().map(NoFillViewMut)
@@ -6158,6 +7147,20 @@ impl<'a> BottomBorderLinePropertiesViewMut<'a> {
     /// Removes the first `a:noFill` child.
     pub fn remove_no_fill(&mut self) -> bool {
         self.0.remove::<NoFill>()
+    }
+    /// First `a:prstDash` child, mutably.
+    pub fn preset_dash_mut(&mut self) -> Option<PresetDashViewMut<'_>> {
+        self.0.child_mut::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Existing `a:prstDash` child, or a new one in schema position.
+    pub fn get_or_insert_preset_dash(
+        &mut self,
+    ) -> Result<PresetDashViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Removes the first `a:prstDash` child.
+    pub fn remove_preset_dash(&mut self) -> bool {
+        self.0.remove::<PresetDash>()
     }
     /// First `a:solidFill` child, mutably.
     pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
@@ -6271,7 +7274,10 @@ impl ooxml_core::ElementSpec for LeftBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<LeftBorderLineProperties> for HeadEnd {}
+impl ooxml_core::ChildOf<LeftBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<LeftBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<LeftBorderLineProperties> for PresetDash {}
 impl ooxml_core::ChildOf<LeftBorderLineProperties> for SolidFill {}
 /// Read-only view of [`LeftBorderLineProperties`].
 #[derive(Clone, Debug)]
@@ -6298,9 +7304,21 @@ impl<'a> LeftBorderLinePropertiesView<'a> {
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(LeftBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child.
+    pub fn head_end(&self) -> Option<HeadEndView<'a>> {
+        self.0.child::<HeadEnd>().map(HeadEndView)
+    }
+    /// First `a:tailEnd` child.
+    pub fn tail_end(&self) -> Option<TailEndView<'a>> {
+        self.0.child::<TailEnd>().map(TailEndView)
+    }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
         self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:prstDash` child.
+    pub fn preset_dash(&self) -> Option<PresetDashView<'a>> {
+        self.0.child::<PresetDash>().map(PresetDashView)
     }
     /// First `a:solidFill` child.
     pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
@@ -6374,6 +7392,34 @@ impl<'a> LeftBorderLinePropertiesViewMut<'a> {
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(LeftBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child, mutably.
+    pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
+        self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Existing `a:headEnd` child, or a new one in schema position.
+    pub fn get_or_insert_head_end(
+        &mut self,
+    ) -> Result<HeadEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Removes the first `a:headEnd` child.
+    pub fn remove_head_end(&mut self) -> bool {
+        self.0.remove::<HeadEnd>()
+    }
+    /// First `a:tailEnd` child, mutably.
+    pub fn tail_end_mut(&mut self) -> Option<TailEndViewMut<'_>> {
+        self.0.child_mut::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Existing `a:tailEnd` child, or a new one in schema position.
+    pub fn get_or_insert_tail_end(
+        &mut self,
+    ) -> Result<TailEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Removes the first `a:tailEnd` child.
+    pub fn remove_tail_end(&mut self) -> bool {
+        self.0.remove::<TailEnd>()
+    }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
         self.0.child_mut::<NoFill>().map(NoFillViewMut)
@@ -6387,6 +7433,20 @@ impl<'a> LeftBorderLinePropertiesViewMut<'a> {
     /// Removes the first `a:noFill` child.
     pub fn remove_no_fill(&mut self) -> bool {
         self.0.remove::<NoFill>()
+    }
+    /// First `a:prstDash` child, mutably.
+    pub fn preset_dash_mut(&mut self) -> Option<PresetDashViewMut<'_>> {
+        self.0.child_mut::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Existing `a:prstDash` child, or a new one in schema position.
+    pub fn get_or_insert_preset_dash(
+        &mut self,
+    ) -> Result<PresetDashViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Removes the first `a:prstDash` child.
+    pub fn remove_preset_dash(&mut self) -> bool {
+        self.0.remove::<PresetDash>()
     }
     /// First `a:solidFill` child, mutably.
     pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
@@ -6500,7 +7560,10 @@ impl ooxml_core::ElementSpec for RightBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<RightBorderLineProperties> for HeadEnd {}
+impl ooxml_core::ChildOf<RightBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<RightBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<RightBorderLineProperties> for PresetDash {}
 impl ooxml_core::ChildOf<RightBorderLineProperties> for SolidFill {}
 /// Read-only view of [`RightBorderLineProperties`].
 #[derive(Clone, Debug)]
@@ -6527,9 +7590,21 @@ impl<'a> RightBorderLinePropertiesView<'a> {
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(RightBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child.
+    pub fn head_end(&self) -> Option<HeadEndView<'a>> {
+        self.0.child::<HeadEnd>().map(HeadEndView)
+    }
+    /// First `a:tailEnd` child.
+    pub fn tail_end(&self) -> Option<TailEndView<'a>> {
+        self.0.child::<TailEnd>().map(TailEndView)
+    }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
         self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:prstDash` child.
+    pub fn preset_dash(&self) -> Option<PresetDashView<'a>> {
+        self.0.child::<PresetDash>().map(PresetDashView)
     }
     /// First `a:solidFill` child.
     pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
@@ -6603,6 +7678,34 @@ impl<'a> RightBorderLinePropertiesViewMut<'a> {
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(RightBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child, mutably.
+    pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
+        self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Existing `a:headEnd` child, or a new one in schema position.
+    pub fn get_or_insert_head_end(
+        &mut self,
+    ) -> Result<HeadEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Removes the first `a:headEnd` child.
+    pub fn remove_head_end(&mut self) -> bool {
+        self.0.remove::<HeadEnd>()
+    }
+    /// First `a:tailEnd` child, mutably.
+    pub fn tail_end_mut(&mut self) -> Option<TailEndViewMut<'_>> {
+        self.0.child_mut::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Existing `a:tailEnd` child, or a new one in schema position.
+    pub fn get_or_insert_tail_end(
+        &mut self,
+    ) -> Result<TailEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Removes the first `a:tailEnd` child.
+    pub fn remove_tail_end(&mut self) -> bool {
+        self.0.remove::<TailEnd>()
+    }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
         self.0.child_mut::<NoFill>().map(NoFillViewMut)
@@ -6616,6 +7719,20 @@ impl<'a> RightBorderLinePropertiesViewMut<'a> {
     /// Removes the first `a:noFill` child.
     pub fn remove_no_fill(&mut self) -> bool {
         self.0.remove::<NoFill>()
+    }
+    /// First `a:prstDash` child, mutably.
+    pub fn preset_dash_mut(&mut self) -> Option<PresetDashViewMut<'_>> {
+        self.0.child_mut::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Existing `a:prstDash` child, or a new one in schema position.
+    pub fn get_or_insert_preset_dash(
+        &mut self,
+    ) -> Result<PresetDashViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Removes the first `a:prstDash` child.
+    pub fn remove_preset_dash(&mut self) -> bool {
+        self.0.remove::<PresetDash>()
     }
     /// First `a:solidFill` child, mutably.
     pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
@@ -6729,7 +7846,10 @@ impl ooxml_core::ElementSpec for TopBorderLineProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<TopBorderLineProperties> for HeadEnd {}
+impl ooxml_core::ChildOf<TopBorderLineProperties> for TailEnd {}
 impl ooxml_core::ChildOf<TopBorderLineProperties> for NoFill {}
+impl ooxml_core::ChildOf<TopBorderLineProperties> for PresetDash {}
 impl ooxml_core::ChildOf<TopBorderLineProperties> for SolidFill {}
 /// Read-only view of [`TopBorderLineProperties`].
 #[derive(Clone, Debug)]
@@ -6755,9 +7875,21 @@ impl<'a> TopBorderLinePropertiesView<'a> {
     pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
         self.0.attr_enum(TopBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child.
+    pub fn head_end(&self) -> Option<HeadEndView<'a>> {
+        self.0.child::<HeadEnd>().map(HeadEndView)
+    }
+    /// First `a:tailEnd` child.
+    pub fn tail_end(&self) -> Option<TailEndView<'a>> {
+        self.0.child::<TailEnd>().map(TailEndView)
+    }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
         self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:prstDash` child.
+    pub fn preset_dash(&self) -> Option<PresetDashView<'a>> {
+        self.0.child::<PresetDash>().map(PresetDashView)
     }
     /// First `a:solidFill` child.
     pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
@@ -6828,6 +7960,34 @@ impl<'a> TopBorderLinePropertiesViewMut<'a> {
     pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(TopBorderLineProperties::ATTR_ALGN)
     }
+    /// First `a:headEnd` child, mutably.
+    pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
+        self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Existing `a:headEnd` child, or a new one in schema position.
+    pub fn get_or_insert_head_end(
+        &mut self,
+    ) -> Result<HeadEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Removes the first `a:headEnd` child.
+    pub fn remove_head_end(&mut self) -> bool {
+        self.0.remove::<HeadEnd>()
+    }
+    /// First `a:tailEnd` child, mutably.
+    pub fn tail_end_mut(&mut self) -> Option<TailEndViewMut<'_>> {
+        self.0.child_mut::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Existing `a:tailEnd` child, or a new one in schema position.
+    pub fn get_or_insert_tail_end(
+        &mut self,
+    ) -> Result<TailEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Removes the first `a:tailEnd` child.
+    pub fn remove_tail_end(&mut self) -> bool {
+        self.0.remove::<TailEnd>()
+    }
     /// First `a:noFill` child, mutably.
     pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
         self.0.child_mut::<NoFill>().map(NoFillViewMut)
@@ -6841,6 +8001,286 @@ impl<'a> TopBorderLinePropertiesViewMut<'a> {
     /// Removes the first `a:noFill` child.
     pub fn remove_no_fill(&mut self) -> bool {
         self.0.remove::<NoFill>()
+    }
+    /// First `a:prstDash` child, mutably.
+    pub fn preset_dash_mut(&mut self) -> Option<PresetDashViewMut<'_>> {
+        self.0.child_mut::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Existing `a:prstDash` child, or a new one in schema position.
+    pub fn get_or_insert_preset_dash(
+        &mut self,
+    ) -> Result<PresetDashViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Removes the first `a:prstDash` child.
+    pub fn remove_preset_dash(&mut self) -> bool {
+        self.0.remove::<PresetDash>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_LineProperties/a:uLn` — Underline Stroke.
+#[derive(Debug)]
+pub enum Underline {}
+impl Underline {
+    /// `w`
+    pub const ATTR_W: ooxml_core::QName = ooxml_core::QName::new("", "w");
+    /// `cap`
+    pub const ATTR_CAP: ooxml_core::QName = ooxml_core::QName::new("", "cap");
+    /// `cmpd`
+    pub const ATTR_CMPD: ooxml_core::QName = ooxml_core::QName::new("", "cmpd");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for Underline {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "uLn");
+    const SDK_NAME: &'static str = "a:CT_LineProperties/a:uLn";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_W,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_CAP,
+            ty: ooxml_core::SimpleType::Enum(
+                <LineCapValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_CMPD,
+            ty: ooxml_core::SimpleType::Enum(
+                <CompoundLineValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Underline::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <PenAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "prstDash"),
+                    ooxml_core::QName::new(NS_A, "custDash"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "round"),
+                    ooxml_core::QName::new(NS_A, "bevel"),
+                    ooxml_core::QName::new(NS_A, "miter"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "headEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tailEnd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Underline> for HeadEnd {}
+impl ooxml_core::ChildOf<Underline> for TailEnd {}
+impl ooxml_core::ChildOf<Underline> for NoFill {}
+impl ooxml_core::ChildOf<Underline> for PresetDash {}
+impl ooxml_core::ChildOf<Underline> for SolidFill {}
+/// Read-only view of [`Underline`].
+#[derive(Clone, Debug)]
+pub struct UnderlineView<'a>(pub ooxml_core::Lens<'a, Underline>);
+impl<'a> UnderlineView<'a> {
+    /// `w` — line width
+    pub fn width(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Underline::ATTR_W, ooxml_core::value::parse_i32)
+    }
+    /// `cap` — line cap
+    pub fn cap_type(&self) -> Option<ooxml_core::EnumValue<'a, LineCapValues>> {
+        self.0.attr_enum(Underline::ATTR_CAP)
+    }
+    /// `cmpd` — compound line type
+    pub fn compound_line_type(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, CompoundLineValues>> {
+        self.0.attr_enum(Underline::ATTR_CMPD)
+    }
+    /// `algn` — pen alignment
+    pub fn alignment(&self) -> Option<ooxml_core::EnumValue<'a, PenAlignmentValues>> {
+        self.0.attr_enum(Underline::ATTR_ALGN)
+    }
+    /// First `a:headEnd` child.
+    pub fn head_end(&self) -> Option<HeadEndView<'a>> {
+        self.0.child::<HeadEnd>().map(HeadEndView)
+    }
+    /// First `a:tailEnd` child.
+    pub fn tail_end(&self) -> Option<TailEndView<'a>> {
+        self.0.child::<TailEnd>().map(TailEndView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:prstDash` child.
+    pub fn preset_dash(&self) -> Option<PresetDashView<'a>> {
+        self.0.child::<PresetDash>().map(PresetDashView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Underline`]. Reads go through [`UnderlineViewMut::as_view`].
+#[derive(Debug)]
+pub struct UnderlineViewMut<'a>(pub ooxml_core::LensMut<'a, Underline>);
+impl<'a> UnderlineViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> UnderlineView<'_> {
+        UnderlineView(self.0.as_lens())
+    }
+    /// Sets `w` — line width
+    pub fn set_width(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Underline::ATTR_W, s))
+    }
+    /// Removes `w`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_W)
+    }
+    /// Sets `cap` — line cap
+    pub fn set_cap_type(&mut self, v: LineCapValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_CAP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cap`.
+    pub fn remove_cap_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_CAP)
+    }
+    /// Sets `cmpd` — compound line type
+    pub fn set_compound_line_type(
+        &mut self,
+        v: CompoundLineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_CMPD, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cmpd`.
+    pub fn remove_compound_line_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_CMPD)
+    }
+    /// Sets `algn` — pen alignment
+    pub fn set_alignment(
+        &mut self,
+        v: PenAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Underline::ATTR_ALGN, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Underline::ATTR_ALGN)
+    }
+    /// First `a:headEnd` child, mutably.
+    pub fn head_end_mut(&mut self) -> Option<HeadEndViewMut<'_>> {
+        self.0.child_mut::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Existing `a:headEnd` child, or a new one in schema position.
+    pub fn get_or_insert_head_end(
+        &mut self,
+    ) -> Result<HeadEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeadEnd>().map(HeadEndViewMut)
+    }
+    /// Removes the first `a:headEnd` child.
+    pub fn remove_head_end(&mut self) -> bool {
+        self.0.remove::<HeadEnd>()
+    }
+    /// First `a:tailEnd` child, mutably.
+    pub fn tail_end_mut(&mut self) -> Option<TailEndViewMut<'_>> {
+        self.0.child_mut::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Existing `a:tailEnd` child, or a new one in schema position.
+    pub fn get_or_insert_tail_end(
+        &mut self,
+    ) -> Result<TailEndViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TailEnd>().map(TailEndViewMut)
+    }
+    /// Removes the first `a:tailEnd` child.
+    pub fn remove_tail_end(&mut self) -> bool {
+        self.0.remove::<TailEnd>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:prstDash` child, mutably.
+    pub fn preset_dash_mut(&mut self) -> Option<PresetDashViewMut<'_>> {
+        self.0.child_mut::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Existing `a:prstDash` child, or a new one in schema position.
+    pub fn get_or_insert_preset_dash(
+        &mut self,
+    ) -> Result<PresetDashViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetDash>().map(PresetDashViewMut)
+    }
+    /// Removes the first `a:prstDash` child.
+    pub fn remove_preset_dash(&mut self) -> bool {
+        self.0.remove::<PresetDash>()
     }
     /// First `a:solidFill` child, mutably.
     pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
@@ -7138,6 +8578,754 @@ impl<'a> ThemeView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_Percentage/a:blue` — Blue.
+#[derive(Debug)]
+pub enum Blue {}
+impl Blue {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Blue {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "blue");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:blue";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Blue::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Blue`].
+#[derive(Clone, Debug)]
+pub struct BlueView<'a>(pub ooxml_core::Lens<'a, Blue>);
+impl<'a> BlueView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Blue::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Blue`]. Reads go through [`BlueViewMut::as_view`].
+#[derive(Debug)]
+pub struct BlueViewMut<'a>(pub ooxml_core::LensMut<'a, Blue>);
+impl<'a> BlueViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BlueView<'_> {
+        BlueView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Blue::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Blue::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:blueMod` — Blue Modification.
+#[derive(Debug)]
+pub enum BlueModulation {}
+impl BlueModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for BlueModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "blueMod");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:blueMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BlueModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BlueModulation`].
+#[derive(Clone, Debug)]
+pub struct BlueModulationView<'a>(pub ooxml_core::Lens<'a, BlueModulation>);
+impl<'a> BlueModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BlueModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BlueModulation`]. Reads go through [`BlueModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct BlueModulationViewMut<'a>(pub ooxml_core::LensMut<'a, BlueModulation>);
+impl<'a> BlueModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BlueModulationView<'_> {
+        BlueModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(BlueModulation::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BlueModulation::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:blueOff` — Blue Offset.
+#[derive(Debug)]
+pub enum BlueOffset {}
+impl BlueOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for BlueOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "blueOff");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:blueOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BlueOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BlueOffset`].
+#[derive(Clone, Debug)]
+pub struct BlueOffsetView<'a>(pub ooxml_core::Lens<'a, BlueOffset>);
+impl<'a> BlueOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BlueOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BlueOffset`]. Reads go through [`BlueOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct BlueOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, BlueOffset>);
+impl<'a> BlueOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BlueOffsetView<'_> {
+        BlueOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(BlueOffset::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BlueOffset::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:green` — Green.
+#[derive(Debug)]
+pub enum Green {}
+impl Green {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Green {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "green");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:green";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Green::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Green`].
+#[derive(Clone, Debug)]
+pub struct GreenView<'a>(pub ooxml_core::Lens<'a, Green>);
+impl<'a> GreenView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Green::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Green`]. Reads go through [`GreenViewMut::as_view`].
+#[derive(Debug)]
+pub struct GreenViewMut<'a>(pub ooxml_core::LensMut<'a, Green>);
+impl<'a> GreenViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GreenView<'_> {
+        GreenView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Green::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Green::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:greenMod` — Green Modification.
+#[derive(Debug)]
+pub enum GreenModulation {}
+impl GreenModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for GreenModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "greenMod");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:greenMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GreenModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`GreenModulation`].
+#[derive(Clone, Debug)]
+pub struct GreenModulationView<'a>(pub ooxml_core::Lens<'a, GreenModulation>);
+impl<'a> GreenModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GreenModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GreenModulation`]. Reads go through [`GreenModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct GreenModulationViewMut<'a>(pub ooxml_core::LensMut<'a, GreenModulation>);
+impl<'a> GreenModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GreenModulationView<'_> {
+        GreenModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(GreenModulation::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GreenModulation::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:greenOff` — Green Offset.
+#[derive(Debug)]
+pub enum GreenOffset {}
+impl GreenOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for GreenOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "greenOff");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:greenOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: GreenOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`GreenOffset`].
+#[derive(Clone, Debug)]
+pub struct GreenOffsetView<'a>(pub ooxml_core::Lens<'a, GreenOffset>);
+impl<'a> GreenOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(GreenOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`GreenOffset`]. Reads go through [`GreenOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct GreenOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, GreenOffset>);
+impl<'a> GreenOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> GreenOffsetView<'_> {
+        GreenOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(GreenOffset::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(GreenOffset::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:lum` — Luminance.
+#[derive(Debug)]
+pub enum Luminance {}
+impl Luminance {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Luminance {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lum");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:lum";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Luminance::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Luminance`].
+#[derive(Clone, Debug)]
+pub struct LuminanceView<'a>(pub ooxml_core::Lens<'a, Luminance>);
+impl<'a> LuminanceView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Luminance::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Luminance`]. Reads go through [`LuminanceViewMut::as_view`].
+#[derive(Debug)]
+pub struct LuminanceViewMut<'a>(pub ooxml_core::LensMut<'a, Luminance>);
+impl<'a> LuminanceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LuminanceView<'_> {
+        LuminanceView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Luminance::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Luminance::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:lumMod` — Luminance Modulation.
+#[derive(Debug)]
+pub enum LuminanceModulation {}
+impl LuminanceModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for LuminanceModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lumMod");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:lumMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LuminanceModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LuminanceModulation`].
+#[derive(Clone, Debug)]
+pub struct LuminanceModulationView<'a>(pub ooxml_core::Lens<'a, LuminanceModulation>);
+impl<'a> LuminanceModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(LuminanceModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LuminanceModulation`]. Reads go through [`LuminanceModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct LuminanceModulationViewMut<'a>(
+    pub ooxml_core::LensMut<'a, LuminanceModulation>,
+);
+impl<'a> LuminanceModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LuminanceModulationView<'_> {
+        LuminanceModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(LuminanceModulation::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LuminanceModulation::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:lumOff` — Luminance Offset.
+#[derive(Debug)]
+pub enum LuminanceOffset {}
+impl LuminanceOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for LuminanceOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lumOff");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:lumOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LuminanceOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LuminanceOffset`].
+#[derive(Clone, Debug)]
+pub struct LuminanceOffsetView<'a>(pub ooxml_core::Lens<'a, LuminanceOffset>);
+impl<'a> LuminanceOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(LuminanceOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LuminanceOffset`]. Reads go through [`LuminanceOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct LuminanceOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, LuminanceOffset>);
+impl<'a> LuminanceOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LuminanceOffsetView<'_> {
+        LuminanceOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(LuminanceOffset::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LuminanceOffset::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:red` — Red.
+#[derive(Debug)]
+pub enum Red {}
+impl Red {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Red {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "red");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:red";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Red::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Red`].
+#[derive(Clone, Debug)]
+pub struct RedView<'a>(pub ooxml_core::Lens<'a, Red>);
+impl<'a> RedView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Red::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Red`]. Reads go through [`RedViewMut::as_view`].
+#[derive(Debug)]
+pub struct RedViewMut<'a>(pub ooxml_core::LensMut<'a, Red>);
+impl<'a> RedViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RedView<'_> {
+        RedView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Red::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Red::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:redMod` — Red Modulation.
+#[derive(Debug)]
+pub enum RedModulation {}
+impl RedModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RedModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "redMod");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:redMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RedModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RedModulation`].
+#[derive(Clone, Debug)]
+pub struct RedModulationView<'a>(pub ooxml_core::Lens<'a, RedModulation>);
+impl<'a> RedModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(RedModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RedModulation`]. Reads go through [`RedModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct RedModulationViewMut<'a>(pub ooxml_core::LensMut<'a, RedModulation>);
+impl<'a> RedModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RedModulationView<'_> {
+        RedModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(RedModulation::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RedModulation::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:redOff` — Red Offset.
+#[derive(Debug)]
+pub enum RedOffset {}
+impl RedOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RedOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "redOff");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:redOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RedOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RedOffset`].
+#[derive(Clone, Debug)]
+pub struct RedOffsetView<'a>(pub ooxml_core::Lens<'a, RedOffset>);
+impl<'a> RedOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(RedOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RedOffset`]. Reads go through [`RedOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct RedOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, RedOffset>);
+impl<'a> RedOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RedOffsetView<'_> {
+        RedOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(RedOffset::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RedOffset::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:sat` — Saturation.
+#[derive(Debug)]
+pub enum Saturation {}
+impl Saturation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Saturation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "sat");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:sat";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Saturation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Saturation`].
+#[derive(Clone, Debug)]
+pub struct SaturationView<'a>(pub ooxml_core::Lens<'a, Saturation>);
+impl<'a> SaturationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Saturation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Saturation`]. Reads go through [`SaturationViewMut::as_view`].
+#[derive(Debug)]
+pub struct SaturationViewMut<'a>(pub ooxml_core::LensMut<'a, Saturation>);
+impl<'a> SaturationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SaturationView<'_> {
+        SaturationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Saturation::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Saturation::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:satMod` — Saturation Modulation.
+#[derive(Debug)]
+pub enum SaturationModulation {}
+impl SaturationModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for SaturationModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "satMod");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:satMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SaturationModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SaturationModulation`].
+#[derive(Clone, Debug)]
+pub struct SaturationModulationView<'a>(pub ooxml_core::Lens<'a, SaturationModulation>);
+impl<'a> SaturationModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(SaturationModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SaturationModulation`]. Reads go through [`SaturationModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct SaturationModulationViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SaturationModulation>,
+);
+impl<'a> SaturationModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SaturationModulationView<'_> {
+        SaturationModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(SaturationModulation::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SaturationModulation::ATTR_VAL)
+    }
+}
+/// `a:CT_Percentage/a:satOff` — Saturation Offset.
+#[derive(Debug)]
+pub enum SaturationOffset {}
+impl SaturationOffset {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for SaturationOffset {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "satOff");
+    const SDK_NAME: &'static str = "a:CT_Percentage/a:satOff";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SaturationOffset::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SaturationOffset`].
+#[derive(Clone, Debug)]
+pub struct SaturationOffsetView<'a>(pub ooxml_core::Lens<'a, SaturationOffset>);
+impl<'a> SaturationOffsetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(SaturationOffset::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SaturationOffset`]. Reads go through [`SaturationOffsetViewMut::as_view`].
+#[derive(Debug)]
+pub struct SaturationOffsetViewMut<'a>(pub ooxml_core::LensMut<'a, SaturationOffset>);
+impl<'a> SaturationOffsetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SaturationOffsetView<'_> {
+        SaturationOffsetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(SaturationOffset::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SaturationOffset::ATTR_VAL)
+    }
+}
 /// `a:CT_Point2D/a:chOff` — Child Offset.
 #[derive(Debug)]
 pub enum ChildOffset {}
@@ -7247,6 +9435,300 @@ impl<'a> OffsetViewMut<'a> {
     /// Removes `y`.
     pub fn remove_y(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Offset::ATTR_Y)
+    }
+}
+/// `a:CT_PositiveFixedAngle/a:hue` — Hue.
+#[derive(Debug)]
+pub enum Hue {}
+impl Hue {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Hue {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hue");
+    const SDK_NAME: &'static str = "a:CT_PositiveFixedAngle/a:hue";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Hue::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Hue`].
+#[derive(Clone, Debug)]
+pub struct HueView<'a>(pub ooxml_core::Lens<'a, Hue>);
+impl<'a> HueView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Hue::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Hue`]. Reads go through [`HueViewMut::as_view`].
+#[derive(Debug)]
+pub struct HueViewMut<'a>(pub ooxml_core::LensMut<'a, Hue>);
+impl<'a> HueViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HueView<'_> {
+        HueView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Hue::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hue::ATTR_VAL)
+    }
+}
+/// `a:CT_PositiveFixedPercentage/a:alpha` — Alpha.
+#[derive(Debug)]
+pub enum Alpha {}
+impl Alpha {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Alpha {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "alpha");
+    const SDK_NAME: &'static str = "a:CT_PositiveFixedPercentage/a:alpha";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Alpha::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Alpha`].
+#[derive(Clone, Debug)]
+pub struct AlphaView<'a>(pub ooxml_core::Lens<'a, Alpha>);
+impl<'a> AlphaView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Alpha::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Alpha`]. Reads go through [`AlphaViewMut::as_view`].
+#[derive(Debug)]
+pub struct AlphaViewMut<'a>(pub ooxml_core::LensMut<'a, Alpha>);
+impl<'a> AlphaViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AlphaView<'_> {
+        AlphaView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Alpha::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Alpha::ATTR_VAL)
+    }
+}
+/// `a:CT_PositiveFixedPercentage/a:shade` — Shade.
+#[derive(Debug)]
+pub enum Shade {}
+impl Shade {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Shade {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "shade");
+    const SDK_NAME: &'static str = "a:CT_PositiveFixedPercentage/a:shade";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Shade::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Shade`].
+#[derive(Clone, Debug)]
+pub struct ShadeView<'a>(pub ooxml_core::Lens<'a, Shade>);
+impl<'a> ShadeView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Shade::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Shade`]. Reads go through [`ShadeViewMut::as_view`].
+#[derive(Debug)]
+pub struct ShadeViewMut<'a>(pub ooxml_core::LensMut<'a, Shade>);
+impl<'a> ShadeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ShadeView<'_> {
+        ShadeView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Shade::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Shade::ATTR_VAL)
+    }
+}
+/// `a:CT_PositiveFixedPercentage/a:tint` — Tint.
+#[derive(Debug)]
+pub enum Tint {}
+impl Tint {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for Tint {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tint");
+    const SDK_NAME: &'static str = "a:CT_PositiveFixedPercentage/a:tint";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Tint::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Tint`].
+#[derive(Clone, Debug)]
+pub struct TintView<'a>(pub ooxml_core::Lens<'a, Tint>);
+impl<'a> TintView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Tint::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Tint`]. Reads go through [`TintViewMut::as_view`].
+#[derive(Debug)]
+pub struct TintViewMut<'a>(pub ooxml_core::LensMut<'a, Tint>);
+impl<'a> TintViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TintView<'_> {
+        TintView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Tint::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Tint::ATTR_VAL)
+    }
+}
+/// `a:CT_PositivePercentage/a:alphaMod` — Alpha Modulation.
+#[derive(Debug)]
+pub enum AlphaModulation {}
+impl AlphaModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for AlphaModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "alphaMod");
+    const SDK_NAME: &'static str = "a:CT_PositivePercentage/a:alphaMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AlphaModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`AlphaModulation`].
+#[derive(Clone, Debug)]
+pub struct AlphaModulationView<'a>(pub ooxml_core::Lens<'a, AlphaModulation>);
+impl<'a> AlphaModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(AlphaModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AlphaModulation`]. Reads go through [`AlphaModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct AlphaModulationViewMut<'a>(pub ooxml_core::LensMut<'a, AlphaModulation>);
+impl<'a> AlphaModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AlphaModulationView<'_> {
+        AlphaModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(AlphaModulation::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AlphaModulation::ATTR_VAL)
+    }
+}
+/// `a:CT_PositivePercentage/a:hueMod` — Hue Modulate.
+#[derive(Debug)]
+pub enum HueModulation {}
+impl HueModulation {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for HueModulation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "hueMod");
+    const SDK_NAME: &'static str = "a:CT_PositivePercentage/a:hueMod";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HueModulation::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`HueModulation`].
+#[derive(Clone, Debug)]
+pub struct HueModulationView<'a>(pub ooxml_core::Lens<'a, HueModulation>);
+impl<'a> HueModulationView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(HueModulation::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HueModulation`]. Reads go through [`HueModulationViewMut::as_view`].
+#[derive(Debug)]
+pub struct HueModulationViewMut<'a>(pub ooxml_core::LensMut<'a, HueModulation>);
+impl<'a> HueModulationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HueModulationView<'_> {
+        HueModulationView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(HueModulation::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HueModulation::ATTR_VAL)
     }
 }
 /// `a:CT_PositiveSize2D/a:chExt` — Child Extents.
@@ -7419,6 +9901,34 @@ impl ooxml_core::ElementSpec for PresetColor {
         ],
     );
 }
+impl ooxml_core::ChildOf<PresetColor> for HueOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Complement {}
+impl ooxml_core::ChildOf<PresetColor> for AlphaOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Gamma {}
+impl ooxml_core::ChildOf<PresetColor> for Gray {}
+impl ooxml_core::ChildOf<PresetColor> for InverseGamma {}
+impl ooxml_core::ChildOf<PresetColor> for Inverse {}
+impl ooxml_core::ChildOf<PresetColor> for Blue {}
+impl ooxml_core::ChildOf<PresetColor> for BlueModulation {}
+impl ooxml_core::ChildOf<PresetColor> for BlueOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Green {}
+impl ooxml_core::ChildOf<PresetColor> for GreenModulation {}
+impl ooxml_core::ChildOf<PresetColor> for GreenOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Luminance {}
+impl ooxml_core::ChildOf<PresetColor> for LuminanceModulation {}
+impl ooxml_core::ChildOf<PresetColor> for LuminanceOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Red {}
+impl ooxml_core::ChildOf<PresetColor> for RedModulation {}
+impl ooxml_core::ChildOf<PresetColor> for RedOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Saturation {}
+impl ooxml_core::ChildOf<PresetColor> for SaturationModulation {}
+impl ooxml_core::ChildOf<PresetColor> for SaturationOffset {}
+impl ooxml_core::ChildOf<PresetColor> for Hue {}
+impl ooxml_core::ChildOf<PresetColor> for Alpha {}
+impl ooxml_core::ChildOf<PresetColor> for Shade {}
+impl ooxml_core::ChildOf<PresetColor> for Tint {}
+impl ooxml_core::ChildOf<PresetColor> for AlphaModulation {}
+impl ooxml_core::ChildOf<PresetColor> for HueModulation {}
 /// Read-only view of [`PresetColor`].
 #[derive(Clone, Debug)]
 pub struct PresetColorView<'a>(pub ooxml_core::Lens<'a, PresetColor>);
@@ -7427,9 +9937,804 @@ impl<'a> PresetColorView<'a> {
     pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, PresetColorValues>> {
         self.0.attr_enum(PresetColor::ATTR_VAL)
     }
+    /// `a:hueOff` children in document order.
+    pub fn hue_offset_iter(&self) -> impl Iterator<Item = HueOffsetView<'a>> {
+        self.0.children::<HueOffset>().map(HueOffsetView)
+    }
+    /// `a:comp` children in document order.
+    pub fn complement_iter(&self) -> impl Iterator<Item = ComplementView<'a>> {
+        self.0.children::<Complement>().map(ComplementView)
+    }
+    /// `a:alphaOff` children in document order.
+    pub fn alpha_offset_iter(&self) -> impl Iterator<Item = AlphaOffsetView<'a>> {
+        self.0.children::<AlphaOffset>().map(AlphaOffsetView)
+    }
+    /// `a:gamma` children in document order.
+    pub fn gamma_iter(&self) -> impl Iterator<Item = GammaView<'a>> {
+        self.0.children::<Gamma>().map(GammaView)
+    }
+    /// `a:gray` children in document order.
+    pub fn gray_iter(&self) -> impl Iterator<Item = GrayView<'a>> {
+        self.0.children::<Gray>().map(GrayView)
+    }
+    /// `a:invGamma` children in document order.
+    pub fn inverse_gamma_iter(&self) -> impl Iterator<Item = InverseGammaView<'a>> {
+        self.0.children::<InverseGamma>().map(InverseGammaView)
+    }
+    /// `a:inv` children in document order.
+    pub fn inverse_iter(&self) -> impl Iterator<Item = InverseView<'a>> {
+        self.0.children::<Inverse>().map(InverseView)
+    }
+    /// `a:blue` children in document order.
+    pub fn blue_iter(&self) -> impl Iterator<Item = BlueView<'a>> {
+        self.0.children::<Blue>().map(BlueView)
+    }
+    /// `a:blueMod` children in document order.
+    pub fn blue_modulation_iter(&self) -> impl Iterator<Item = BlueModulationView<'a>> {
+        self.0.children::<BlueModulation>().map(BlueModulationView)
+    }
+    /// `a:blueOff` children in document order.
+    pub fn blue_offset_iter(&self) -> impl Iterator<Item = BlueOffsetView<'a>> {
+        self.0.children::<BlueOffset>().map(BlueOffsetView)
+    }
+    /// `a:green` children in document order.
+    pub fn green_iter(&self) -> impl Iterator<Item = GreenView<'a>> {
+        self.0.children::<Green>().map(GreenView)
+    }
+    /// `a:greenMod` children in document order.
+    pub fn green_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = GreenModulationView<'a>> {
+        self.0.children::<GreenModulation>().map(GreenModulationView)
+    }
+    /// `a:greenOff` children in document order.
+    pub fn green_offset_iter(&self) -> impl Iterator<Item = GreenOffsetView<'a>> {
+        self.0.children::<GreenOffset>().map(GreenOffsetView)
+    }
+    /// `a:lum` children in document order.
+    pub fn luminance_iter(&self) -> impl Iterator<Item = LuminanceView<'a>> {
+        self.0.children::<Luminance>().map(LuminanceView)
+    }
+    /// `a:lumMod` children in document order.
+    pub fn luminance_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceModulationView<'a>> {
+        self.0.children::<LuminanceModulation>().map(LuminanceModulationView)
+    }
+    /// `a:lumOff` children in document order.
+    pub fn luminance_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceOffsetView<'a>> {
+        self.0.children::<LuminanceOffset>().map(LuminanceOffsetView)
+    }
+    /// `a:red` children in document order.
+    pub fn red_iter(&self) -> impl Iterator<Item = RedView<'a>> {
+        self.0.children::<Red>().map(RedView)
+    }
+    /// `a:redMod` children in document order.
+    pub fn red_modulation_iter(&self) -> impl Iterator<Item = RedModulationView<'a>> {
+        self.0.children::<RedModulation>().map(RedModulationView)
+    }
+    /// `a:redOff` children in document order.
+    pub fn red_offset_iter(&self) -> impl Iterator<Item = RedOffsetView<'a>> {
+        self.0.children::<RedOffset>().map(RedOffsetView)
+    }
+    /// `a:sat` children in document order.
+    pub fn saturation_iter(&self) -> impl Iterator<Item = SaturationView<'a>> {
+        self.0.children::<Saturation>().map(SaturationView)
+    }
+    /// `a:satMod` children in document order.
+    pub fn saturation_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationModulationView<'a>> {
+        self.0.children::<SaturationModulation>().map(SaturationModulationView)
+    }
+    /// `a:satOff` children in document order.
+    pub fn saturation_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationOffsetView<'a>> {
+        self.0.children::<SaturationOffset>().map(SaturationOffsetView)
+    }
+    /// `a:hue` children in document order.
+    pub fn hue_iter(&self) -> impl Iterator<Item = HueView<'a>> {
+        self.0.children::<Hue>().map(HueView)
+    }
+    /// `a:alpha` children in document order.
+    pub fn alpha_iter(&self) -> impl Iterator<Item = AlphaView<'a>> {
+        self.0.children::<Alpha>().map(AlphaView)
+    }
+    /// `a:shade` children in document order.
+    pub fn shade_iter(&self) -> impl Iterator<Item = ShadeView<'a>> {
+        self.0.children::<Shade>().map(ShadeView)
+    }
+    /// `a:tint` children in document order.
+    pub fn tint_iter(&self) -> impl Iterator<Item = TintView<'a>> {
+        self.0.children::<Tint>().map(TintView)
+    }
+    /// `a:alphaMod` children in document order.
+    pub fn alpha_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = AlphaModulationView<'a>> {
+        self.0.children::<AlphaModulation>().map(AlphaModulationView)
+    }
+    /// `a:hueMod` children in document order.
+    pub fn hue_modulation_iter(&self) -> impl Iterator<Item = HueModulationView<'a>> {
+        self.0.children::<HueModulation>().map(HueModulationView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`PresetColor`]. Reads go through [`PresetColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresetColorViewMut<'a>(pub ooxml_core::LensMut<'a, PresetColor>);
+impl<'a> PresetColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresetColorView<'_> {
+        PresetColorView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: PresetColorValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresetColor::ATTR_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresetColor::ATTR_VAL)
+    }
+    /// First `a:hueOff` child matching `pred`, mutably.
+    pub fn hue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<HueOffset>(pred).map(HueOffsetViewMut)
+    }
+    /// Inserts a `a:hueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueOffset>(before).map(HueOffsetViewMut)
+    }
+    /// Appends a `a:hueOff` at the end of its slot.
+    pub fn insert_hue_offset(
+        &mut self,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueOffset>().map(HueOffsetViewMut)
+    }
+    /// Removes the first `a:hueOff` child.
+    pub fn remove_hue_offset(&mut self) -> bool {
+        self.0.remove::<HueOffset>()
+    }
+    /// First `a:comp` child matching `pred`, mutably.
+    pub fn complement_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ComplementViewMut<'_>> {
+        self.0.child_mut_by::<Complement>(pred).map(ComplementViewMut)
+    }
+    /// Inserts a `a:comp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_complement_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Complement>(before).map(ComplementViewMut)
+    }
+    /// Appends a `a:comp` at the end of its slot.
+    pub fn insert_complement(
+        &mut self,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Complement>().map(ComplementViewMut)
+    }
+    /// Removes the first `a:comp` child.
+    pub fn remove_complement(&mut self) -> bool {
+        self.0.remove::<Complement>()
+    }
+    /// First `a:alphaOff` child matching `pred`, mutably.
+    pub fn alpha_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaOffsetViewMut<'_>> {
+        self.0.child_mut_by::<AlphaOffset>(pred).map(AlphaOffsetViewMut)
+    }
+    /// Inserts a `a:alphaOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaOffset>(before).map(AlphaOffsetViewMut)
+    }
+    /// Appends a `a:alphaOff` at the end of its slot.
+    pub fn insert_alpha_offset(
+        &mut self,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaOffset>().map(AlphaOffsetViewMut)
+    }
+    /// Removes the first `a:alphaOff` child.
+    pub fn remove_alpha_offset(&mut self) -> bool {
+        self.0.remove::<AlphaOffset>()
+    }
+    /// First `a:gamma` child matching `pred`, mutably.
+    pub fn gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GammaViewMut<'_>> {
+        self.0.child_mut_by::<Gamma>(pred).map(GammaViewMut)
+    }
+    /// Inserts a `a:gamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gamma>(before).map(GammaViewMut)
+    }
+    /// Appends a `a:gamma` at the end of its slot.
+    pub fn insert_gamma(&mut self) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gamma>().map(GammaViewMut)
+    }
+    /// Removes the first `a:gamma` child.
+    pub fn remove_gamma(&mut self) -> bool {
+        self.0.remove::<Gamma>()
+    }
+    /// First `a:gray` child matching `pred`, mutably.
+    pub fn gray_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GrayViewMut<'_>> {
+        self.0.child_mut_by::<Gray>(pred).map(GrayViewMut)
+    }
+    /// Inserts a `a:gray` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gray_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gray>(before).map(GrayViewMut)
+    }
+    /// Appends a `a:gray` at the end of its slot.
+    pub fn insert_gray(&mut self) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gray>().map(GrayViewMut)
+    }
+    /// Removes the first `a:gray` child.
+    pub fn remove_gray(&mut self) -> bool {
+        self.0.remove::<Gray>()
+    }
+    /// First `a:invGamma` child matching `pred`, mutably.
+    pub fn inverse_gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseGammaViewMut<'_>> {
+        self.0.child_mut_by::<InverseGamma>(pred).map(InverseGammaViewMut)
+    }
+    /// Inserts a `a:invGamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<InverseGamma>(before).map(InverseGammaViewMut)
+    }
+    /// Appends a `a:invGamma` at the end of its slot.
+    pub fn insert_inverse_gamma(
+        &mut self,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<InverseGamma>().map(InverseGammaViewMut)
+    }
+    /// Removes the first `a:invGamma` child.
+    pub fn remove_inverse_gamma(&mut self) -> bool {
+        self.0.remove::<InverseGamma>()
+    }
+    /// First `a:inv` child matching `pred`, mutably.
+    pub fn inverse_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseViewMut<'_>> {
+        self.0.child_mut_by::<Inverse>(pred).map(InverseViewMut)
+    }
+    /// Inserts a `a:inv` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Inverse>(before).map(InverseViewMut)
+    }
+    /// Appends a `a:inv` at the end of its slot.
+    pub fn insert_inverse(&mut self) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Inverse>().map(InverseViewMut)
+    }
+    /// Removes the first `a:inv` child.
+    pub fn remove_inverse(&mut self) -> bool {
+        self.0.remove::<Inverse>()
+    }
+    /// First `a:blue` child matching `pred`, mutably.
+    pub fn blue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueViewMut<'_>> {
+        self.0.child_mut_by::<Blue>(pred).map(BlueViewMut)
+    }
+    /// Inserts a `a:blue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Blue>(before).map(BlueViewMut)
+    }
+    /// Appends a `a:blue` at the end of its slot.
+    pub fn insert_blue(&mut self) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Blue>().map(BlueViewMut)
+    }
+    /// Removes the first `a:blue` child.
+    pub fn remove_blue(&mut self) -> bool {
+        self.0.remove::<Blue>()
+    }
+    /// First `a:blueMod` child matching `pred`, mutably.
+    pub fn blue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueModulationViewMut<'_>> {
+        self.0.child_mut_by::<BlueModulation>(pred).map(BlueModulationViewMut)
+    }
+    /// Inserts a `a:blueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueModulation>(before).map(BlueModulationViewMut)
+    }
+    /// Appends a `a:blueMod` at the end of its slot.
+    pub fn insert_blue_modulation(
+        &mut self,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueModulation>().map(BlueModulationViewMut)
+    }
+    /// Removes the first `a:blueMod` child.
+    pub fn remove_blue_modulation(&mut self) -> bool {
+        self.0.remove::<BlueModulation>()
+    }
+    /// First `a:blueOff` child matching `pred`, mutably.
+    pub fn blue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<BlueOffset>(pred).map(BlueOffsetViewMut)
+    }
+    /// Inserts a `a:blueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueOffset>(before).map(BlueOffsetViewMut)
+    }
+    /// Appends a `a:blueOff` at the end of its slot.
+    pub fn insert_blue_offset(
+        &mut self,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueOffset>().map(BlueOffsetViewMut)
+    }
+    /// Removes the first `a:blueOff` child.
+    pub fn remove_blue_offset(&mut self) -> bool {
+        self.0.remove::<BlueOffset>()
+    }
+    /// First `a:green` child matching `pred`, mutably.
+    pub fn green_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenViewMut<'_>> {
+        self.0.child_mut_by::<Green>(pred).map(GreenViewMut)
+    }
+    /// Inserts a `a:green` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Green>(before).map(GreenViewMut)
+    }
+    /// Appends a `a:green` at the end of its slot.
+    pub fn insert_green(&mut self) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Green>().map(GreenViewMut)
+    }
+    /// Removes the first `a:green` child.
+    pub fn remove_green(&mut self) -> bool {
+        self.0.remove::<Green>()
+    }
+    /// First `a:greenMod` child matching `pred`, mutably.
+    pub fn green_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenModulationViewMut<'_>> {
+        self.0.child_mut_by::<GreenModulation>(pred).map(GreenModulationViewMut)
+    }
+    /// Inserts a `a:greenMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenModulation>(before).map(GreenModulationViewMut)
+    }
+    /// Appends a `a:greenMod` at the end of its slot.
+    pub fn insert_green_modulation(
+        &mut self,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenModulation>().map(GreenModulationViewMut)
+    }
+    /// Removes the first `a:greenMod` child.
+    pub fn remove_green_modulation(&mut self) -> bool {
+        self.0.remove::<GreenModulation>()
+    }
+    /// First `a:greenOff` child matching `pred`, mutably.
+    pub fn green_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenOffsetViewMut<'_>> {
+        self.0.child_mut_by::<GreenOffset>(pred).map(GreenOffsetViewMut)
+    }
+    /// Inserts a `a:greenOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenOffset>(before).map(GreenOffsetViewMut)
+    }
+    /// Appends a `a:greenOff` at the end of its slot.
+    pub fn insert_green_offset(
+        &mut self,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenOffset>().map(GreenOffsetViewMut)
+    }
+    /// Removes the first `a:greenOff` child.
+    pub fn remove_green_offset(&mut self) -> bool {
+        self.0.remove::<GreenOffset>()
+    }
+    /// First `a:lum` child matching `pred`, mutably.
+    pub fn luminance_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceViewMut<'_>> {
+        self.0.child_mut_by::<Luminance>(pred).map(LuminanceViewMut)
+    }
+    /// Inserts a `a:lum` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Luminance>(before).map(LuminanceViewMut)
+    }
+    /// Appends a `a:lum` at the end of its slot.
+    pub fn insert_luminance(
+        &mut self,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Luminance>().map(LuminanceViewMut)
+    }
+    /// Removes the first `a:lum` child.
+    pub fn remove_luminance(&mut self) -> bool {
+        self.0.remove::<Luminance>()
+    }
+    /// First `a:lumMod` child matching `pred`, mutably.
+    pub fn luminance_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceModulationViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceModulation>(pred).map(LuminanceModulationViewMut)
+    }
+    /// Inserts a `a:lumMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceModulation>(before).map(LuminanceModulationViewMut)
+    }
+    /// Appends a `a:lumMod` at the end of its slot.
+    pub fn insert_luminance_modulation(
+        &mut self,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceModulation>().map(LuminanceModulationViewMut)
+    }
+    /// Removes the first `a:lumMod` child.
+    pub fn remove_luminance_modulation(&mut self) -> bool {
+        self.0.remove::<LuminanceModulation>()
+    }
+    /// First `a:lumOff` child matching `pred`, mutably.
+    pub fn luminance_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceOffsetViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceOffset>(pred).map(LuminanceOffsetViewMut)
+    }
+    /// Inserts a `a:lumOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceOffset>(before).map(LuminanceOffsetViewMut)
+    }
+    /// Appends a `a:lumOff` at the end of its slot.
+    pub fn insert_luminance_offset(
+        &mut self,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceOffset>().map(LuminanceOffsetViewMut)
+    }
+    /// Removes the first `a:lumOff` child.
+    pub fn remove_luminance_offset(&mut self) -> bool {
+        self.0.remove::<LuminanceOffset>()
+    }
+    /// First `a:red` child matching `pred`, mutably.
+    pub fn red_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedViewMut<'_>> {
+        self.0.child_mut_by::<Red>(pred).map(RedViewMut)
+    }
+    /// Inserts a `a:red` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Red>(before).map(RedViewMut)
+    }
+    /// Appends a `a:red` at the end of its slot.
+    pub fn insert_red(&mut self) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Red>().map(RedViewMut)
+    }
+    /// Removes the first `a:red` child.
+    pub fn remove_red(&mut self) -> bool {
+        self.0.remove::<Red>()
+    }
+    /// First `a:redMod` child matching `pred`, mutably.
+    pub fn red_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedModulationViewMut<'_>> {
+        self.0.child_mut_by::<RedModulation>(pred).map(RedModulationViewMut)
+    }
+    /// Inserts a `a:redMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedModulation>(before).map(RedModulationViewMut)
+    }
+    /// Appends a `a:redMod` at the end of its slot.
+    pub fn insert_red_modulation(
+        &mut self,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedModulation>().map(RedModulationViewMut)
+    }
+    /// Removes the first `a:redMod` child.
+    pub fn remove_red_modulation(&mut self) -> bool {
+        self.0.remove::<RedModulation>()
+    }
+    /// First `a:redOff` child matching `pred`, mutably.
+    pub fn red_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedOffsetViewMut<'_>> {
+        self.0.child_mut_by::<RedOffset>(pred).map(RedOffsetViewMut)
+    }
+    /// Inserts a `a:redOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedOffset>(before).map(RedOffsetViewMut)
+    }
+    /// Appends a `a:redOff` at the end of its slot.
+    pub fn insert_red_offset(
+        &mut self,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedOffset>().map(RedOffsetViewMut)
+    }
+    /// Removes the first `a:redOff` child.
+    pub fn remove_red_offset(&mut self) -> bool {
+        self.0.remove::<RedOffset>()
+    }
+    /// First `a:sat` child matching `pred`, mutably.
+    pub fn saturation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationViewMut<'_>> {
+        self.0.child_mut_by::<Saturation>(pred).map(SaturationViewMut)
+    }
+    /// Inserts a `a:sat` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Saturation>(before).map(SaturationViewMut)
+    }
+    /// Appends a `a:sat` at the end of its slot.
+    pub fn insert_saturation(
+        &mut self,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Saturation>().map(SaturationViewMut)
+    }
+    /// Removes the first `a:sat` child.
+    pub fn remove_saturation(&mut self) -> bool {
+        self.0.remove::<Saturation>()
+    }
+    /// First `a:satMod` child matching `pred`, mutably.
+    pub fn saturation_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationModulationViewMut<'_>> {
+        self.0
+            .child_mut_by::<SaturationModulation>(pred)
+            .map(SaturationModulationViewMut)
+    }
+    /// Inserts a `a:satMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationModulation>(before).map(SaturationModulationViewMut)
+    }
+    /// Appends a `a:satMod` at the end of its slot.
+    pub fn insert_saturation_modulation(
+        &mut self,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationModulation>().map(SaturationModulationViewMut)
+    }
+    /// Removes the first `a:satMod` child.
+    pub fn remove_saturation_modulation(&mut self) -> bool {
+        self.0.remove::<SaturationModulation>()
+    }
+    /// First `a:satOff` child matching `pred`, mutably.
+    pub fn saturation_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationOffsetViewMut<'_>> {
+        self.0.child_mut_by::<SaturationOffset>(pred).map(SaturationOffsetViewMut)
+    }
+    /// Inserts a `a:satOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationOffset>(before).map(SaturationOffsetViewMut)
+    }
+    /// Appends a `a:satOff` at the end of its slot.
+    pub fn insert_saturation_offset(
+        &mut self,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationOffset>().map(SaturationOffsetViewMut)
+    }
+    /// Removes the first `a:satOff` child.
+    pub fn remove_saturation_offset(&mut self) -> bool {
+        self.0.remove::<SaturationOffset>()
+    }
+    /// First `a:hue` child matching `pred`, mutably.
+    pub fn hue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueViewMut<'_>> {
+        self.0.child_mut_by::<Hue>(pred).map(HueViewMut)
+    }
+    /// Inserts a `a:hue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hue>(before).map(HueViewMut)
+    }
+    /// Appends a `a:hue` at the end of its slot.
+    pub fn insert_hue(&mut self) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hue>().map(HueViewMut)
+    }
+    /// Removes the first `a:hue` child.
+    pub fn remove_hue(&mut self) -> bool {
+        self.0.remove::<Hue>()
+    }
+    /// First `a:alpha` child matching `pred`, mutably.
+    pub fn alpha_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaViewMut<'_>> {
+        self.0.child_mut_by::<Alpha>(pred).map(AlphaViewMut)
+    }
+    /// Inserts a `a:alpha` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Alpha>(before).map(AlphaViewMut)
+    }
+    /// Appends a `a:alpha` at the end of its slot.
+    pub fn insert_alpha(&mut self) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Alpha>().map(AlphaViewMut)
+    }
+    /// Removes the first `a:alpha` child.
+    pub fn remove_alpha(&mut self) -> bool {
+        self.0.remove::<Alpha>()
+    }
+    /// First `a:shade` child matching `pred`, mutably.
+    pub fn shade_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ShadeViewMut<'_>> {
+        self.0.child_mut_by::<Shade>(pred).map(ShadeViewMut)
+    }
+    /// Inserts a `a:shade` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shade_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Shade>(before).map(ShadeViewMut)
+    }
+    /// Appends a `a:shade` at the end of its slot.
+    pub fn insert_shade(&mut self) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Shade>().map(ShadeViewMut)
+    }
+    /// Removes the first `a:shade` child.
+    pub fn remove_shade(&mut self) -> bool {
+        self.0.remove::<Shade>()
+    }
+    /// First `a:tint` child matching `pred`, mutably.
+    pub fn tint_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TintViewMut<'_>> {
+        self.0.child_mut_by::<Tint>(pred).map(TintViewMut)
+    }
+    /// Inserts a `a:tint` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_tint_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Tint>(before).map(TintViewMut)
+    }
+    /// Appends a `a:tint` at the end of its slot.
+    pub fn insert_tint(&mut self) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Tint>().map(TintViewMut)
+    }
+    /// Removes the first `a:tint` child.
+    pub fn remove_tint(&mut self) -> bool {
+        self.0.remove::<Tint>()
+    }
+    /// First `a:alphaMod` child matching `pred`, mutably.
+    pub fn alpha_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaModulationViewMut<'_>> {
+        self.0.child_mut_by::<AlphaModulation>(pred).map(AlphaModulationViewMut)
+    }
+    /// Inserts a `a:alphaMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaModulation>(before).map(AlphaModulationViewMut)
+    }
+    /// Appends a `a:alphaMod` at the end of its slot.
+    pub fn insert_alpha_modulation(
+        &mut self,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaModulation>().map(AlphaModulationViewMut)
+    }
+    /// Removes the first `a:alphaMod` child.
+    pub fn remove_alpha_modulation(&mut self) -> bool {
+        self.0.remove::<AlphaModulation>()
+    }
+    /// First `a:hueMod` child matching `pred`, mutably.
+    pub fn hue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueModulationViewMut<'_>> {
+        self.0.child_mut_by::<HueModulation>(pred).map(HueModulationViewMut)
+    }
+    /// Inserts a `a:hueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueModulation>(before).map(HueModulationViewMut)
+    }
+    /// Appends a `a:hueMod` at the end of its slot.
+    pub fn insert_hue_modulation(
+        &mut self,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueModulation>().map(HueModulationViewMut)
+    }
+    /// Removes the first `a:hueMod` child.
+    pub fn remove_hue_modulation(&mut self) -> bool {
+        self.0.remove::<HueModulation>()
     }
 }
 /// `a:CT_PresetGeometry2D/a:prstGeom` — Preset geometry.
@@ -7511,6 +10816,57 @@ impl<'a> PresetGeometryViewMut<'a> {
         self.0.remove::<AdjustValueList>()
     }
 }
+/// `a:CT_PresetLineDashProperties/a:prstDash` — Preset Dash.
+#[derive(Debug)]
+pub enum PresetDash {}
+impl PresetDash {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for PresetDash {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "prstDash");
+    const SDK_NAME: &'static str = "a:CT_PresetLineDashProperties/a:prstDash";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PresetDash::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <PresetLineDashValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PresetDash`].
+#[derive(Clone, Debug)]
+pub struct PresetDashView<'a>(pub ooxml_core::Lens<'a, PresetDash>);
+impl<'a> PresetDashView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, PresetLineDashValues>> {
+        self.0.attr_enum(PresetDash::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PresetDash`]. Reads go through [`PresetDashViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresetDashViewMut<'a>(pub ooxml_core::LensMut<'a, PresetDash>);
+impl<'a> PresetDashViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresetDashView<'_> {
+        PresetDashView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: PresetLineDashValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresetDash::ATTR_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresetDash::ATTR_VAL)
+    }
+}
 /// `a:CT_RegularTextRun/a:r` — Text Run.
 #[derive(Debug)]
 pub enum Run {}
@@ -7561,6 +10917,20 @@ impl<'a> RunViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> RunView<'_> {
         RunView(self.0.as_lens())
+    }
+    /// First `a:rPr` child, mutably.
+    pub fn run_properties_mut(&mut self) -> Option<RunPropertiesViewMut<'_>> {
+        self.0.child_mut::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Existing `a:rPr` child, or a new one in schema position.
+    pub fn get_or_insert_run_properties(
+        &mut self,
+    ) -> Result<RunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Removes the first `a:rPr` child.
+    pub fn remove_run_properties(&mut self) -> bool {
+        self.0.remove::<RunProperties>()
     }
     /// First `a:t` child, mutably.
     pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
@@ -7748,6 +11118,34 @@ impl ooxml_core::ElementSpec for RgbColorModelHex {
         ],
     );
 }
+impl ooxml_core::ChildOf<RgbColorModelHex> for HueOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Complement {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for AlphaOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Gamma {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Gray {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for InverseGamma {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Inverse {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Blue {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for BlueModulation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for BlueOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Green {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for GreenModulation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for GreenOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Luminance {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for LuminanceModulation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for LuminanceOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Red {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for RedModulation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for RedOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Saturation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for SaturationModulation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for SaturationOffset {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Hue {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Alpha {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Shade {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for Tint {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for AlphaModulation {}
+impl ooxml_core::ChildOf<RgbColorModelHex> for HueModulation {}
 /// Read-only view of [`RgbColorModelHex`].
 #[derive(Clone, Debug)]
 pub struct RgbColorModelHexView<'a>(pub ooxml_core::Lens<'a, RgbColorModelHex>);
@@ -7765,6 +11163,130 @@ impl<'a> RgbColorModelHexView<'a> {
                 RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX,
                 ooxml_core::value::parse_i32,
             )
+    }
+    /// `a:hueOff` children in document order.
+    pub fn hue_offset_iter(&self) -> impl Iterator<Item = HueOffsetView<'a>> {
+        self.0.children::<HueOffset>().map(HueOffsetView)
+    }
+    /// `a:comp` children in document order.
+    pub fn complement_iter(&self) -> impl Iterator<Item = ComplementView<'a>> {
+        self.0.children::<Complement>().map(ComplementView)
+    }
+    /// `a:alphaOff` children in document order.
+    pub fn alpha_offset_iter(&self) -> impl Iterator<Item = AlphaOffsetView<'a>> {
+        self.0.children::<AlphaOffset>().map(AlphaOffsetView)
+    }
+    /// `a:gamma` children in document order.
+    pub fn gamma_iter(&self) -> impl Iterator<Item = GammaView<'a>> {
+        self.0.children::<Gamma>().map(GammaView)
+    }
+    /// `a:gray` children in document order.
+    pub fn gray_iter(&self) -> impl Iterator<Item = GrayView<'a>> {
+        self.0.children::<Gray>().map(GrayView)
+    }
+    /// `a:invGamma` children in document order.
+    pub fn inverse_gamma_iter(&self) -> impl Iterator<Item = InverseGammaView<'a>> {
+        self.0.children::<InverseGamma>().map(InverseGammaView)
+    }
+    /// `a:inv` children in document order.
+    pub fn inverse_iter(&self) -> impl Iterator<Item = InverseView<'a>> {
+        self.0.children::<Inverse>().map(InverseView)
+    }
+    /// `a:blue` children in document order.
+    pub fn blue_iter(&self) -> impl Iterator<Item = BlueView<'a>> {
+        self.0.children::<Blue>().map(BlueView)
+    }
+    /// `a:blueMod` children in document order.
+    pub fn blue_modulation_iter(&self) -> impl Iterator<Item = BlueModulationView<'a>> {
+        self.0.children::<BlueModulation>().map(BlueModulationView)
+    }
+    /// `a:blueOff` children in document order.
+    pub fn blue_offset_iter(&self) -> impl Iterator<Item = BlueOffsetView<'a>> {
+        self.0.children::<BlueOffset>().map(BlueOffsetView)
+    }
+    /// `a:green` children in document order.
+    pub fn green_iter(&self) -> impl Iterator<Item = GreenView<'a>> {
+        self.0.children::<Green>().map(GreenView)
+    }
+    /// `a:greenMod` children in document order.
+    pub fn green_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = GreenModulationView<'a>> {
+        self.0.children::<GreenModulation>().map(GreenModulationView)
+    }
+    /// `a:greenOff` children in document order.
+    pub fn green_offset_iter(&self) -> impl Iterator<Item = GreenOffsetView<'a>> {
+        self.0.children::<GreenOffset>().map(GreenOffsetView)
+    }
+    /// `a:lum` children in document order.
+    pub fn luminance_iter(&self) -> impl Iterator<Item = LuminanceView<'a>> {
+        self.0.children::<Luminance>().map(LuminanceView)
+    }
+    /// `a:lumMod` children in document order.
+    pub fn luminance_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceModulationView<'a>> {
+        self.0.children::<LuminanceModulation>().map(LuminanceModulationView)
+    }
+    /// `a:lumOff` children in document order.
+    pub fn luminance_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceOffsetView<'a>> {
+        self.0.children::<LuminanceOffset>().map(LuminanceOffsetView)
+    }
+    /// `a:red` children in document order.
+    pub fn red_iter(&self) -> impl Iterator<Item = RedView<'a>> {
+        self.0.children::<Red>().map(RedView)
+    }
+    /// `a:redMod` children in document order.
+    pub fn red_modulation_iter(&self) -> impl Iterator<Item = RedModulationView<'a>> {
+        self.0.children::<RedModulation>().map(RedModulationView)
+    }
+    /// `a:redOff` children in document order.
+    pub fn red_offset_iter(&self) -> impl Iterator<Item = RedOffsetView<'a>> {
+        self.0.children::<RedOffset>().map(RedOffsetView)
+    }
+    /// `a:sat` children in document order.
+    pub fn saturation_iter(&self) -> impl Iterator<Item = SaturationView<'a>> {
+        self.0.children::<Saturation>().map(SaturationView)
+    }
+    /// `a:satMod` children in document order.
+    pub fn saturation_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationModulationView<'a>> {
+        self.0.children::<SaturationModulation>().map(SaturationModulationView)
+    }
+    /// `a:satOff` children in document order.
+    pub fn saturation_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationOffsetView<'a>> {
+        self.0.children::<SaturationOffset>().map(SaturationOffsetView)
+    }
+    /// `a:hue` children in document order.
+    pub fn hue_iter(&self) -> impl Iterator<Item = HueView<'a>> {
+        self.0.children::<Hue>().map(HueView)
+    }
+    /// `a:alpha` children in document order.
+    pub fn alpha_iter(&self) -> impl Iterator<Item = AlphaView<'a>> {
+        self.0.children::<Alpha>().map(AlphaView)
+    }
+    /// `a:shade` children in document order.
+    pub fn shade_iter(&self) -> impl Iterator<Item = ShadeView<'a>> {
+        self.0.children::<Shade>().map(ShadeView)
+    }
+    /// `a:tint` children in document order.
+    pub fn tint_iter(&self) -> impl Iterator<Item = TintView<'a>> {
+        self.0.children::<Tint>().map(TintView)
+    }
+    /// `a:alphaMod` children in document order.
+    pub fn alpha_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = AlphaModulationView<'a>> {
+        self.0.children::<AlphaModulation>().map(AlphaModulationView)
+    }
+    /// `a:hueMod` children in document order.
+    pub fn hue_modulation_iter(&self) -> impl Iterator<Item = HueModulationView<'a>> {
+        self.0.children::<HueModulation>().map(HueModulationView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7809,6 +11331,660 @@ impl<'a> RgbColorModelHexViewMut<'a> {
         &mut self,
     ) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(RgbColorModelHex::ATTR_A14_LEGACY_SPREADSHEET_COLOR_INDEX)
+    }
+    /// First `a:hueOff` child matching `pred`, mutably.
+    pub fn hue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<HueOffset>(pred).map(HueOffsetViewMut)
+    }
+    /// Inserts a `a:hueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueOffset>(before).map(HueOffsetViewMut)
+    }
+    /// Appends a `a:hueOff` at the end of its slot.
+    pub fn insert_hue_offset(
+        &mut self,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueOffset>().map(HueOffsetViewMut)
+    }
+    /// Removes the first `a:hueOff` child.
+    pub fn remove_hue_offset(&mut self) -> bool {
+        self.0.remove::<HueOffset>()
+    }
+    /// First `a:comp` child matching `pred`, mutably.
+    pub fn complement_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ComplementViewMut<'_>> {
+        self.0.child_mut_by::<Complement>(pred).map(ComplementViewMut)
+    }
+    /// Inserts a `a:comp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_complement_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Complement>(before).map(ComplementViewMut)
+    }
+    /// Appends a `a:comp` at the end of its slot.
+    pub fn insert_complement(
+        &mut self,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Complement>().map(ComplementViewMut)
+    }
+    /// Removes the first `a:comp` child.
+    pub fn remove_complement(&mut self) -> bool {
+        self.0.remove::<Complement>()
+    }
+    /// First `a:alphaOff` child matching `pred`, mutably.
+    pub fn alpha_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaOffsetViewMut<'_>> {
+        self.0.child_mut_by::<AlphaOffset>(pred).map(AlphaOffsetViewMut)
+    }
+    /// Inserts a `a:alphaOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaOffset>(before).map(AlphaOffsetViewMut)
+    }
+    /// Appends a `a:alphaOff` at the end of its slot.
+    pub fn insert_alpha_offset(
+        &mut self,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaOffset>().map(AlphaOffsetViewMut)
+    }
+    /// Removes the first `a:alphaOff` child.
+    pub fn remove_alpha_offset(&mut self) -> bool {
+        self.0.remove::<AlphaOffset>()
+    }
+    /// First `a:gamma` child matching `pred`, mutably.
+    pub fn gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GammaViewMut<'_>> {
+        self.0.child_mut_by::<Gamma>(pred).map(GammaViewMut)
+    }
+    /// Inserts a `a:gamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gamma>(before).map(GammaViewMut)
+    }
+    /// Appends a `a:gamma` at the end of its slot.
+    pub fn insert_gamma(&mut self) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gamma>().map(GammaViewMut)
+    }
+    /// Removes the first `a:gamma` child.
+    pub fn remove_gamma(&mut self) -> bool {
+        self.0.remove::<Gamma>()
+    }
+    /// First `a:gray` child matching `pred`, mutably.
+    pub fn gray_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GrayViewMut<'_>> {
+        self.0.child_mut_by::<Gray>(pred).map(GrayViewMut)
+    }
+    /// Inserts a `a:gray` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gray_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gray>(before).map(GrayViewMut)
+    }
+    /// Appends a `a:gray` at the end of its slot.
+    pub fn insert_gray(&mut self) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gray>().map(GrayViewMut)
+    }
+    /// Removes the first `a:gray` child.
+    pub fn remove_gray(&mut self) -> bool {
+        self.0.remove::<Gray>()
+    }
+    /// First `a:invGamma` child matching `pred`, mutably.
+    pub fn inverse_gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseGammaViewMut<'_>> {
+        self.0.child_mut_by::<InverseGamma>(pred).map(InverseGammaViewMut)
+    }
+    /// Inserts a `a:invGamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<InverseGamma>(before).map(InverseGammaViewMut)
+    }
+    /// Appends a `a:invGamma` at the end of its slot.
+    pub fn insert_inverse_gamma(
+        &mut self,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<InverseGamma>().map(InverseGammaViewMut)
+    }
+    /// Removes the first `a:invGamma` child.
+    pub fn remove_inverse_gamma(&mut self) -> bool {
+        self.0.remove::<InverseGamma>()
+    }
+    /// First `a:inv` child matching `pred`, mutably.
+    pub fn inverse_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseViewMut<'_>> {
+        self.0.child_mut_by::<Inverse>(pred).map(InverseViewMut)
+    }
+    /// Inserts a `a:inv` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Inverse>(before).map(InverseViewMut)
+    }
+    /// Appends a `a:inv` at the end of its slot.
+    pub fn insert_inverse(&mut self) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Inverse>().map(InverseViewMut)
+    }
+    /// Removes the first `a:inv` child.
+    pub fn remove_inverse(&mut self) -> bool {
+        self.0.remove::<Inverse>()
+    }
+    /// First `a:blue` child matching `pred`, mutably.
+    pub fn blue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueViewMut<'_>> {
+        self.0.child_mut_by::<Blue>(pred).map(BlueViewMut)
+    }
+    /// Inserts a `a:blue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Blue>(before).map(BlueViewMut)
+    }
+    /// Appends a `a:blue` at the end of its slot.
+    pub fn insert_blue(&mut self) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Blue>().map(BlueViewMut)
+    }
+    /// Removes the first `a:blue` child.
+    pub fn remove_blue(&mut self) -> bool {
+        self.0.remove::<Blue>()
+    }
+    /// First `a:blueMod` child matching `pred`, mutably.
+    pub fn blue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueModulationViewMut<'_>> {
+        self.0.child_mut_by::<BlueModulation>(pred).map(BlueModulationViewMut)
+    }
+    /// Inserts a `a:blueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueModulation>(before).map(BlueModulationViewMut)
+    }
+    /// Appends a `a:blueMod` at the end of its slot.
+    pub fn insert_blue_modulation(
+        &mut self,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueModulation>().map(BlueModulationViewMut)
+    }
+    /// Removes the first `a:blueMod` child.
+    pub fn remove_blue_modulation(&mut self) -> bool {
+        self.0.remove::<BlueModulation>()
+    }
+    /// First `a:blueOff` child matching `pred`, mutably.
+    pub fn blue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<BlueOffset>(pred).map(BlueOffsetViewMut)
+    }
+    /// Inserts a `a:blueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueOffset>(before).map(BlueOffsetViewMut)
+    }
+    /// Appends a `a:blueOff` at the end of its slot.
+    pub fn insert_blue_offset(
+        &mut self,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueOffset>().map(BlueOffsetViewMut)
+    }
+    /// Removes the first `a:blueOff` child.
+    pub fn remove_blue_offset(&mut self) -> bool {
+        self.0.remove::<BlueOffset>()
+    }
+    /// First `a:green` child matching `pred`, mutably.
+    pub fn green_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenViewMut<'_>> {
+        self.0.child_mut_by::<Green>(pred).map(GreenViewMut)
+    }
+    /// Inserts a `a:green` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Green>(before).map(GreenViewMut)
+    }
+    /// Appends a `a:green` at the end of its slot.
+    pub fn insert_green(&mut self) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Green>().map(GreenViewMut)
+    }
+    /// Removes the first `a:green` child.
+    pub fn remove_green(&mut self) -> bool {
+        self.0.remove::<Green>()
+    }
+    /// First `a:greenMod` child matching `pred`, mutably.
+    pub fn green_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenModulationViewMut<'_>> {
+        self.0.child_mut_by::<GreenModulation>(pred).map(GreenModulationViewMut)
+    }
+    /// Inserts a `a:greenMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenModulation>(before).map(GreenModulationViewMut)
+    }
+    /// Appends a `a:greenMod` at the end of its slot.
+    pub fn insert_green_modulation(
+        &mut self,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenModulation>().map(GreenModulationViewMut)
+    }
+    /// Removes the first `a:greenMod` child.
+    pub fn remove_green_modulation(&mut self) -> bool {
+        self.0.remove::<GreenModulation>()
+    }
+    /// First `a:greenOff` child matching `pred`, mutably.
+    pub fn green_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenOffsetViewMut<'_>> {
+        self.0.child_mut_by::<GreenOffset>(pred).map(GreenOffsetViewMut)
+    }
+    /// Inserts a `a:greenOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenOffset>(before).map(GreenOffsetViewMut)
+    }
+    /// Appends a `a:greenOff` at the end of its slot.
+    pub fn insert_green_offset(
+        &mut self,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenOffset>().map(GreenOffsetViewMut)
+    }
+    /// Removes the first `a:greenOff` child.
+    pub fn remove_green_offset(&mut self) -> bool {
+        self.0.remove::<GreenOffset>()
+    }
+    /// First `a:lum` child matching `pred`, mutably.
+    pub fn luminance_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceViewMut<'_>> {
+        self.0.child_mut_by::<Luminance>(pred).map(LuminanceViewMut)
+    }
+    /// Inserts a `a:lum` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Luminance>(before).map(LuminanceViewMut)
+    }
+    /// Appends a `a:lum` at the end of its slot.
+    pub fn insert_luminance(
+        &mut self,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Luminance>().map(LuminanceViewMut)
+    }
+    /// Removes the first `a:lum` child.
+    pub fn remove_luminance(&mut self) -> bool {
+        self.0.remove::<Luminance>()
+    }
+    /// First `a:lumMod` child matching `pred`, mutably.
+    pub fn luminance_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceModulationViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceModulation>(pred).map(LuminanceModulationViewMut)
+    }
+    /// Inserts a `a:lumMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceModulation>(before).map(LuminanceModulationViewMut)
+    }
+    /// Appends a `a:lumMod` at the end of its slot.
+    pub fn insert_luminance_modulation(
+        &mut self,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceModulation>().map(LuminanceModulationViewMut)
+    }
+    /// Removes the first `a:lumMod` child.
+    pub fn remove_luminance_modulation(&mut self) -> bool {
+        self.0.remove::<LuminanceModulation>()
+    }
+    /// First `a:lumOff` child matching `pred`, mutably.
+    pub fn luminance_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceOffsetViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceOffset>(pred).map(LuminanceOffsetViewMut)
+    }
+    /// Inserts a `a:lumOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceOffset>(before).map(LuminanceOffsetViewMut)
+    }
+    /// Appends a `a:lumOff` at the end of its slot.
+    pub fn insert_luminance_offset(
+        &mut self,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceOffset>().map(LuminanceOffsetViewMut)
+    }
+    /// Removes the first `a:lumOff` child.
+    pub fn remove_luminance_offset(&mut self) -> bool {
+        self.0.remove::<LuminanceOffset>()
+    }
+    /// First `a:red` child matching `pred`, mutably.
+    pub fn red_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedViewMut<'_>> {
+        self.0.child_mut_by::<Red>(pred).map(RedViewMut)
+    }
+    /// Inserts a `a:red` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Red>(before).map(RedViewMut)
+    }
+    /// Appends a `a:red` at the end of its slot.
+    pub fn insert_red(&mut self) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Red>().map(RedViewMut)
+    }
+    /// Removes the first `a:red` child.
+    pub fn remove_red(&mut self) -> bool {
+        self.0.remove::<Red>()
+    }
+    /// First `a:redMod` child matching `pred`, mutably.
+    pub fn red_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedModulationViewMut<'_>> {
+        self.0.child_mut_by::<RedModulation>(pred).map(RedModulationViewMut)
+    }
+    /// Inserts a `a:redMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedModulation>(before).map(RedModulationViewMut)
+    }
+    /// Appends a `a:redMod` at the end of its slot.
+    pub fn insert_red_modulation(
+        &mut self,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedModulation>().map(RedModulationViewMut)
+    }
+    /// Removes the first `a:redMod` child.
+    pub fn remove_red_modulation(&mut self) -> bool {
+        self.0.remove::<RedModulation>()
+    }
+    /// First `a:redOff` child matching `pred`, mutably.
+    pub fn red_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedOffsetViewMut<'_>> {
+        self.0.child_mut_by::<RedOffset>(pred).map(RedOffsetViewMut)
+    }
+    /// Inserts a `a:redOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedOffset>(before).map(RedOffsetViewMut)
+    }
+    /// Appends a `a:redOff` at the end of its slot.
+    pub fn insert_red_offset(
+        &mut self,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedOffset>().map(RedOffsetViewMut)
+    }
+    /// Removes the first `a:redOff` child.
+    pub fn remove_red_offset(&mut self) -> bool {
+        self.0.remove::<RedOffset>()
+    }
+    /// First `a:sat` child matching `pred`, mutably.
+    pub fn saturation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationViewMut<'_>> {
+        self.0.child_mut_by::<Saturation>(pred).map(SaturationViewMut)
+    }
+    /// Inserts a `a:sat` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Saturation>(before).map(SaturationViewMut)
+    }
+    /// Appends a `a:sat` at the end of its slot.
+    pub fn insert_saturation(
+        &mut self,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Saturation>().map(SaturationViewMut)
+    }
+    /// Removes the first `a:sat` child.
+    pub fn remove_saturation(&mut self) -> bool {
+        self.0.remove::<Saturation>()
+    }
+    /// First `a:satMod` child matching `pred`, mutably.
+    pub fn saturation_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationModulationViewMut<'_>> {
+        self.0
+            .child_mut_by::<SaturationModulation>(pred)
+            .map(SaturationModulationViewMut)
+    }
+    /// Inserts a `a:satMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationModulation>(before).map(SaturationModulationViewMut)
+    }
+    /// Appends a `a:satMod` at the end of its slot.
+    pub fn insert_saturation_modulation(
+        &mut self,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationModulation>().map(SaturationModulationViewMut)
+    }
+    /// Removes the first `a:satMod` child.
+    pub fn remove_saturation_modulation(&mut self) -> bool {
+        self.0.remove::<SaturationModulation>()
+    }
+    /// First `a:satOff` child matching `pred`, mutably.
+    pub fn saturation_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationOffsetViewMut<'_>> {
+        self.0.child_mut_by::<SaturationOffset>(pred).map(SaturationOffsetViewMut)
+    }
+    /// Inserts a `a:satOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationOffset>(before).map(SaturationOffsetViewMut)
+    }
+    /// Appends a `a:satOff` at the end of its slot.
+    pub fn insert_saturation_offset(
+        &mut self,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationOffset>().map(SaturationOffsetViewMut)
+    }
+    /// Removes the first `a:satOff` child.
+    pub fn remove_saturation_offset(&mut self) -> bool {
+        self.0.remove::<SaturationOffset>()
+    }
+    /// First `a:hue` child matching `pred`, mutably.
+    pub fn hue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueViewMut<'_>> {
+        self.0.child_mut_by::<Hue>(pred).map(HueViewMut)
+    }
+    /// Inserts a `a:hue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hue>(before).map(HueViewMut)
+    }
+    /// Appends a `a:hue` at the end of its slot.
+    pub fn insert_hue(&mut self) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hue>().map(HueViewMut)
+    }
+    /// Removes the first `a:hue` child.
+    pub fn remove_hue(&mut self) -> bool {
+        self.0.remove::<Hue>()
+    }
+    /// First `a:alpha` child matching `pred`, mutably.
+    pub fn alpha_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaViewMut<'_>> {
+        self.0.child_mut_by::<Alpha>(pred).map(AlphaViewMut)
+    }
+    /// Inserts a `a:alpha` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Alpha>(before).map(AlphaViewMut)
+    }
+    /// Appends a `a:alpha` at the end of its slot.
+    pub fn insert_alpha(&mut self) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Alpha>().map(AlphaViewMut)
+    }
+    /// Removes the first `a:alpha` child.
+    pub fn remove_alpha(&mut self) -> bool {
+        self.0.remove::<Alpha>()
+    }
+    /// First `a:shade` child matching `pred`, mutably.
+    pub fn shade_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ShadeViewMut<'_>> {
+        self.0.child_mut_by::<Shade>(pred).map(ShadeViewMut)
+    }
+    /// Inserts a `a:shade` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shade_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Shade>(before).map(ShadeViewMut)
+    }
+    /// Appends a `a:shade` at the end of its slot.
+    pub fn insert_shade(&mut self) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Shade>().map(ShadeViewMut)
+    }
+    /// Removes the first `a:shade` child.
+    pub fn remove_shade(&mut self) -> bool {
+        self.0.remove::<Shade>()
+    }
+    /// First `a:tint` child matching `pred`, mutably.
+    pub fn tint_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TintViewMut<'_>> {
+        self.0.child_mut_by::<Tint>(pred).map(TintViewMut)
+    }
+    /// Inserts a `a:tint` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_tint_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Tint>(before).map(TintViewMut)
+    }
+    /// Appends a `a:tint` at the end of its slot.
+    pub fn insert_tint(&mut self) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Tint>().map(TintViewMut)
+    }
+    /// Removes the first `a:tint` child.
+    pub fn remove_tint(&mut self) -> bool {
+        self.0.remove::<Tint>()
+    }
+    /// First `a:alphaMod` child matching `pred`, mutably.
+    pub fn alpha_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaModulationViewMut<'_>> {
+        self.0.child_mut_by::<AlphaModulation>(pred).map(AlphaModulationViewMut)
+    }
+    /// Inserts a `a:alphaMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaModulation>(before).map(AlphaModulationViewMut)
+    }
+    /// Appends a `a:alphaMod` at the end of its slot.
+    pub fn insert_alpha_modulation(
+        &mut self,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaModulation>().map(AlphaModulationViewMut)
+    }
+    /// Removes the first `a:alphaMod` child.
+    pub fn remove_alpha_modulation(&mut self) -> bool {
+        self.0.remove::<AlphaModulation>()
+    }
+    /// First `a:hueMod` child matching `pred`, mutably.
+    pub fn hue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueModulationViewMut<'_>> {
+        self.0.child_mut_by::<HueModulation>(pred).map(HueModulationViewMut)
+    }
+    /// Inserts a `a:hueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueModulation>(before).map(HueModulationViewMut)
+    }
+    /// Appends a `a:hueMod` at the end of its slot.
+    pub fn insert_hue_modulation(
+        &mut self,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueModulation>().map(HueModulationViewMut)
+    }
+    /// Removes the first `a:hueMod` child.
+    pub fn remove_hue_modulation(&mut self) -> bool {
+        self.0.remove::<HueModulation>()
     }
 }
 /// `a:CT_ScRgbColor/a:scrgbClr` — RGB Color Model - Percentage Variant.
@@ -7882,6 +12058,34 @@ impl ooxml_core::ElementSpec for RgbColorModelPercentage {
         ],
     );
 }
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for HueOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Complement {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for AlphaOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Gamma {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Gray {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for InverseGamma {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Inverse {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Blue {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for BlueModulation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for BlueOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Green {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for GreenModulation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for GreenOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Luminance {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for LuminanceModulation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for LuminanceOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Red {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for RedModulation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for RedOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Saturation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for SaturationModulation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for SaturationOffset {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Hue {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Alpha {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Shade {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for Tint {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for AlphaModulation {}
+impl ooxml_core::ChildOf<RgbColorModelPercentage> for HueModulation {}
 /// Read-only view of [`RgbColorModelPercentage`].
 #[derive(Clone, Debug)]
 pub struct RgbColorModelPercentageView<'a>(
@@ -7917,6 +12121,130 @@ impl<'a> RgbColorModelPercentageView<'a> {
                 RgbColorModelPercentage::ATTR_B,
                 ooxml_core::value::parse_dml_percent,
             )
+    }
+    /// `a:hueOff` children in document order.
+    pub fn hue_offset_iter(&self) -> impl Iterator<Item = HueOffsetView<'a>> {
+        self.0.children::<HueOffset>().map(HueOffsetView)
+    }
+    /// `a:comp` children in document order.
+    pub fn complement_iter(&self) -> impl Iterator<Item = ComplementView<'a>> {
+        self.0.children::<Complement>().map(ComplementView)
+    }
+    /// `a:alphaOff` children in document order.
+    pub fn alpha_offset_iter(&self) -> impl Iterator<Item = AlphaOffsetView<'a>> {
+        self.0.children::<AlphaOffset>().map(AlphaOffsetView)
+    }
+    /// `a:gamma` children in document order.
+    pub fn gamma_iter(&self) -> impl Iterator<Item = GammaView<'a>> {
+        self.0.children::<Gamma>().map(GammaView)
+    }
+    /// `a:gray` children in document order.
+    pub fn gray_iter(&self) -> impl Iterator<Item = GrayView<'a>> {
+        self.0.children::<Gray>().map(GrayView)
+    }
+    /// `a:invGamma` children in document order.
+    pub fn inverse_gamma_iter(&self) -> impl Iterator<Item = InverseGammaView<'a>> {
+        self.0.children::<InverseGamma>().map(InverseGammaView)
+    }
+    /// `a:inv` children in document order.
+    pub fn inverse_iter(&self) -> impl Iterator<Item = InverseView<'a>> {
+        self.0.children::<Inverse>().map(InverseView)
+    }
+    /// `a:blue` children in document order.
+    pub fn blue_iter(&self) -> impl Iterator<Item = BlueView<'a>> {
+        self.0.children::<Blue>().map(BlueView)
+    }
+    /// `a:blueMod` children in document order.
+    pub fn blue_modulation_iter(&self) -> impl Iterator<Item = BlueModulationView<'a>> {
+        self.0.children::<BlueModulation>().map(BlueModulationView)
+    }
+    /// `a:blueOff` children in document order.
+    pub fn blue_offset_iter(&self) -> impl Iterator<Item = BlueOffsetView<'a>> {
+        self.0.children::<BlueOffset>().map(BlueOffsetView)
+    }
+    /// `a:green` children in document order.
+    pub fn green_iter(&self) -> impl Iterator<Item = GreenView<'a>> {
+        self.0.children::<Green>().map(GreenView)
+    }
+    /// `a:greenMod` children in document order.
+    pub fn green_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = GreenModulationView<'a>> {
+        self.0.children::<GreenModulation>().map(GreenModulationView)
+    }
+    /// `a:greenOff` children in document order.
+    pub fn green_offset_iter(&self) -> impl Iterator<Item = GreenOffsetView<'a>> {
+        self.0.children::<GreenOffset>().map(GreenOffsetView)
+    }
+    /// `a:lum` children in document order.
+    pub fn luminance_iter(&self) -> impl Iterator<Item = LuminanceView<'a>> {
+        self.0.children::<Luminance>().map(LuminanceView)
+    }
+    /// `a:lumMod` children in document order.
+    pub fn luminance_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceModulationView<'a>> {
+        self.0.children::<LuminanceModulation>().map(LuminanceModulationView)
+    }
+    /// `a:lumOff` children in document order.
+    pub fn luminance_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceOffsetView<'a>> {
+        self.0.children::<LuminanceOffset>().map(LuminanceOffsetView)
+    }
+    /// `a:red` children in document order.
+    pub fn red_iter(&self) -> impl Iterator<Item = RedView<'a>> {
+        self.0.children::<Red>().map(RedView)
+    }
+    /// `a:redMod` children in document order.
+    pub fn red_modulation_iter(&self) -> impl Iterator<Item = RedModulationView<'a>> {
+        self.0.children::<RedModulation>().map(RedModulationView)
+    }
+    /// `a:redOff` children in document order.
+    pub fn red_offset_iter(&self) -> impl Iterator<Item = RedOffsetView<'a>> {
+        self.0.children::<RedOffset>().map(RedOffsetView)
+    }
+    /// `a:sat` children in document order.
+    pub fn saturation_iter(&self) -> impl Iterator<Item = SaturationView<'a>> {
+        self.0.children::<Saturation>().map(SaturationView)
+    }
+    /// `a:satMod` children in document order.
+    pub fn saturation_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationModulationView<'a>> {
+        self.0.children::<SaturationModulation>().map(SaturationModulationView)
+    }
+    /// `a:satOff` children in document order.
+    pub fn saturation_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationOffsetView<'a>> {
+        self.0.children::<SaturationOffset>().map(SaturationOffsetView)
+    }
+    /// `a:hue` children in document order.
+    pub fn hue_iter(&self) -> impl Iterator<Item = HueView<'a>> {
+        self.0.children::<Hue>().map(HueView)
+    }
+    /// `a:alpha` children in document order.
+    pub fn alpha_iter(&self) -> impl Iterator<Item = AlphaView<'a>> {
+        self.0.children::<Alpha>().map(AlphaView)
+    }
+    /// `a:shade` children in document order.
+    pub fn shade_iter(&self) -> impl Iterator<Item = ShadeView<'a>> {
+        self.0.children::<Shade>().map(ShadeView)
+    }
+    /// `a:tint` children in document order.
+    pub fn tint_iter(&self) -> impl Iterator<Item = TintView<'a>> {
+        self.0.children::<Tint>().map(TintView)
+    }
+    /// `a:alphaMod` children in document order.
+    pub fn alpha_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = AlphaModulationView<'a>> {
+        self.0.children::<AlphaModulation>().map(AlphaModulationView)
+    }
+    /// `a:hueMod` children in document order.
+    pub fn hue_modulation_iter(&self) -> impl Iterator<Item = HueModulationView<'a>> {
+        self.0.children::<HueModulation>().map(HueModulationView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7982,6 +12310,34 @@ impl ooxml_core::ElementSpec for SchemeColor {
         ],
     );
 }
+impl ooxml_core::ChildOf<SchemeColor> for HueOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Complement {}
+impl ooxml_core::ChildOf<SchemeColor> for AlphaOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Gamma {}
+impl ooxml_core::ChildOf<SchemeColor> for Gray {}
+impl ooxml_core::ChildOf<SchemeColor> for InverseGamma {}
+impl ooxml_core::ChildOf<SchemeColor> for Inverse {}
+impl ooxml_core::ChildOf<SchemeColor> for Blue {}
+impl ooxml_core::ChildOf<SchemeColor> for BlueModulation {}
+impl ooxml_core::ChildOf<SchemeColor> for BlueOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Green {}
+impl ooxml_core::ChildOf<SchemeColor> for GreenModulation {}
+impl ooxml_core::ChildOf<SchemeColor> for GreenOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Luminance {}
+impl ooxml_core::ChildOf<SchemeColor> for LuminanceModulation {}
+impl ooxml_core::ChildOf<SchemeColor> for LuminanceOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Red {}
+impl ooxml_core::ChildOf<SchemeColor> for RedModulation {}
+impl ooxml_core::ChildOf<SchemeColor> for RedOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Saturation {}
+impl ooxml_core::ChildOf<SchemeColor> for SaturationModulation {}
+impl ooxml_core::ChildOf<SchemeColor> for SaturationOffset {}
+impl ooxml_core::ChildOf<SchemeColor> for Hue {}
+impl ooxml_core::ChildOf<SchemeColor> for Alpha {}
+impl ooxml_core::ChildOf<SchemeColor> for Shade {}
+impl ooxml_core::ChildOf<SchemeColor> for Tint {}
+impl ooxml_core::ChildOf<SchemeColor> for AlphaModulation {}
+impl ooxml_core::ChildOf<SchemeColor> for HueModulation {}
 /// Read-only view of [`SchemeColor`].
 #[derive(Clone, Debug)]
 pub struct SchemeColorView<'a>(pub ooxml_core::Lens<'a, SchemeColor>);
@@ -7989,6 +12345,130 @@ impl<'a> SchemeColorView<'a> {
     /// `val` — Value
     pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, SchemeColorValues>> {
         self.0.attr_enum(SchemeColor::ATTR_VAL)
+    }
+    /// `a:hueOff` children in document order.
+    pub fn hue_offset_iter(&self) -> impl Iterator<Item = HueOffsetView<'a>> {
+        self.0.children::<HueOffset>().map(HueOffsetView)
+    }
+    /// `a:comp` children in document order.
+    pub fn complement_iter(&self) -> impl Iterator<Item = ComplementView<'a>> {
+        self.0.children::<Complement>().map(ComplementView)
+    }
+    /// `a:alphaOff` children in document order.
+    pub fn alpha_offset_iter(&self) -> impl Iterator<Item = AlphaOffsetView<'a>> {
+        self.0.children::<AlphaOffset>().map(AlphaOffsetView)
+    }
+    /// `a:gamma` children in document order.
+    pub fn gamma_iter(&self) -> impl Iterator<Item = GammaView<'a>> {
+        self.0.children::<Gamma>().map(GammaView)
+    }
+    /// `a:gray` children in document order.
+    pub fn gray_iter(&self) -> impl Iterator<Item = GrayView<'a>> {
+        self.0.children::<Gray>().map(GrayView)
+    }
+    /// `a:invGamma` children in document order.
+    pub fn inverse_gamma_iter(&self) -> impl Iterator<Item = InverseGammaView<'a>> {
+        self.0.children::<InverseGamma>().map(InverseGammaView)
+    }
+    /// `a:inv` children in document order.
+    pub fn inverse_iter(&self) -> impl Iterator<Item = InverseView<'a>> {
+        self.0.children::<Inverse>().map(InverseView)
+    }
+    /// `a:blue` children in document order.
+    pub fn blue_iter(&self) -> impl Iterator<Item = BlueView<'a>> {
+        self.0.children::<Blue>().map(BlueView)
+    }
+    /// `a:blueMod` children in document order.
+    pub fn blue_modulation_iter(&self) -> impl Iterator<Item = BlueModulationView<'a>> {
+        self.0.children::<BlueModulation>().map(BlueModulationView)
+    }
+    /// `a:blueOff` children in document order.
+    pub fn blue_offset_iter(&self) -> impl Iterator<Item = BlueOffsetView<'a>> {
+        self.0.children::<BlueOffset>().map(BlueOffsetView)
+    }
+    /// `a:green` children in document order.
+    pub fn green_iter(&self) -> impl Iterator<Item = GreenView<'a>> {
+        self.0.children::<Green>().map(GreenView)
+    }
+    /// `a:greenMod` children in document order.
+    pub fn green_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = GreenModulationView<'a>> {
+        self.0.children::<GreenModulation>().map(GreenModulationView)
+    }
+    /// `a:greenOff` children in document order.
+    pub fn green_offset_iter(&self) -> impl Iterator<Item = GreenOffsetView<'a>> {
+        self.0.children::<GreenOffset>().map(GreenOffsetView)
+    }
+    /// `a:lum` children in document order.
+    pub fn luminance_iter(&self) -> impl Iterator<Item = LuminanceView<'a>> {
+        self.0.children::<Luminance>().map(LuminanceView)
+    }
+    /// `a:lumMod` children in document order.
+    pub fn luminance_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceModulationView<'a>> {
+        self.0.children::<LuminanceModulation>().map(LuminanceModulationView)
+    }
+    /// `a:lumOff` children in document order.
+    pub fn luminance_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceOffsetView<'a>> {
+        self.0.children::<LuminanceOffset>().map(LuminanceOffsetView)
+    }
+    /// `a:red` children in document order.
+    pub fn red_iter(&self) -> impl Iterator<Item = RedView<'a>> {
+        self.0.children::<Red>().map(RedView)
+    }
+    /// `a:redMod` children in document order.
+    pub fn red_modulation_iter(&self) -> impl Iterator<Item = RedModulationView<'a>> {
+        self.0.children::<RedModulation>().map(RedModulationView)
+    }
+    /// `a:redOff` children in document order.
+    pub fn red_offset_iter(&self) -> impl Iterator<Item = RedOffsetView<'a>> {
+        self.0.children::<RedOffset>().map(RedOffsetView)
+    }
+    /// `a:sat` children in document order.
+    pub fn saturation_iter(&self) -> impl Iterator<Item = SaturationView<'a>> {
+        self.0.children::<Saturation>().map(SaturationView)
+    }
+    /// `a:satMod` children in document order.
+    pub fn saturation_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationModulationView<'a>> {
+        self.0.children::<SaturationModulation>().map(SaturationModulationView)
+    }
+    /// `a:satOff` children in document order.
+    pub fn saturation_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationOffsetView<'a>> {
+        self.0.children::<SaturationOffset>().map(SaturationOffsetView)
+    }
+    /// `a:hue` children in document order.
+    pub fn hue_iter(&self) -> impl Iterator<Item = HueView<'a>> {
+        self.0.children::<Hue>().map(HueView)
+    }
+    /// `a:alpha` children in document order.
+    pub fn alpha_iter(&self) -> impl Iterator<Item = AlphaView<'a>> {
+        self.0.children::<Alpha>().map(AlphaView)
+    }
+    /// `a:shade` children in document order.
+    pub fn shade_iter(&self) -> impl Iterator<Item = ShadeView<'a>> {
+        self.0.children::<Shade>().map(ShadeView)
+    }
+    /// `a:tint` children in document order.
+    pub fn tint_iter(&self) -> impl Iterator<Item = TintView<'a>> {
+        self.0.children::<Tint>().map(TintView)
+    }
+    /// `a:alphaMod` children in document order.
+    pub fn alpha_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = AlphaModulationView<'a>> {
+        self.0.children::<AlphaModulation>().map(AlphaModulationView)
+    }
+    /// `a:hueMod` children in document order.
+    pub fn hue_modulation_iter(&self) -> impl Iterator<Item = HueModulationView<'a>> {
+        self.0.children::<HueModulation>().map(HueModulationView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -8010,6 +12490,660 @@ impl<'a> SchemeColorViewMut<'a> {
     /// Removes `val`.
     pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(SchemeColor::ATTR_VAL)
+    }
+    /// First `a:hueOff` child matching `pred`, mutably.
+    pub fn hue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<HueOffset>(pred).map(HueOffsetViewMut)
+    }
+    /// Inserts a `a:hueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueOffset>(before).map(HueOffsetViewMut)
+    }
+    /// Appends a `a:hueOff` at the end of its slot.
+    pub fn insert_hue_offset(
+        &mut self,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueOffset>().map(HueOffsetViewMut)
+    }
+    /// Removes the first `a:hueOff` child.
+    pub fn remove_hue_offset(&mut self) -> bool {
+        self.0.remove::<HueOffset>()
+    }
+    /// First `a:comp` child matching `pred`, mutably.
+    pub fn complement_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ComplementViewMut<'_>> {
+        self.0.child_mut_by::<Complement>(pred).map(ComplementViewMut)
+    }
+    /// Inserts a `a:comp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_complement_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Complement>(before).map(ComplementViewMut)
+    }
+    /// Appends a `a:comp` at the end of its slot.
+    pub fn insert_complement(
+        &mut self,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Complement>().map(ComplementViewMut)
+    }
+    /// Removes the first `a:comp` child.
+    pub fn remove_complement(&mut self) -> bool {
+        self.0.remove::<Complement>()
+    }
+    /// First `a:alphaOff` child matching `pred`, mutably.
+    pub fn alpha_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaOffsetViewMut<'_>> {
+        self.0.child_mut_by::<AlphaOffset>(pred).map(AlphaOffsetViewMut)
+    }
+    /// Inserts a `a:alphaOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaOffset>(before).map(AlphaOffsetViewMut)
+    }
+    /// Appends a `a:alphaOff` at the end of its slot.
+    pub fn insert_alpha_offset(
+        &mut self,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaOffset>().map(AlphaOffsetViewMut)
+    }
+    /// Removes the first `a:alphaOff` child.
+    pub fn remove_alpha_offset(&mut self) -> bool {
+        self.0.remove::<AlphaOffset>()
+    }
+    /// First `a:gamma` child matching `pred`, mutably.
+    pub fn gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GammaViewMut<'_>> {
+        self.0.child_mut_by::<Gamma>(pred).map(GammaViewMut)
+    }
+    /// Inserts a `a:gamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gamma>(before).map(GammaViewMut)
+    }
+    /// Appends a `a:gamma` at the end of its slot.
+    pub fn insert_gamma(&mut self) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gamma>().map(GammaViewMut)
+    }
+    /// Removes the first `a:gamma` child.
+    pub fn remove_gamma(&mut self) -> bool {
+        self.0.remove::<Gamma>()
+    }
+    /// First `a:gray` child matching `pred`, mutably.
+    pub fn gray_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GrayViewMut<'_>> {
+        self.0.child_mut_by::<Gray>(pred).map(GrayViewMut)
+    }
+    /// Inserts a `a:gray` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gray_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gray>(before).map(GrayViewMut)
+    }
+    /// Appends a `a:gray` at the end of its slot.
+    pub fn insert_gray(&mut self) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gray>().map(GrayViewMut)
+    }
+    /// Removes the first `a:gray` child.
+    pub fn remove_gray(&mut self) -> bool {
+        self.0.remove::<Gray>()
+    }
+    /// First `a:invGamma` child matching `pred`, mutably.
+    pub fn inverse_gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseGammaViewMut<'_>> {
+        self.0.child_mut_by::<InverseGamma>(pred).map(InverseGammaViewMut)
+    }
+    /// Inserts a `a:invGamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<InverseGamma>(before).map(InverseGammaViewMut)
+    }
+    /// Appends a `a:invGamma` at the end of its slot.
+    pub fn insert_inverse_gamma(
+        &mut self,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<InverseGamma>().map(InverseGammaViewMut)
+    }
+    /// Removes the first `a:invGamma` child.
+    pub fn remove_inverse_gamma(&mut self) -> bool {
+        self.0.remove::<InverseGamma>()
+    }
+    /// First `a:inv` child matching `pred`, mutably.
+    pub fn inverse_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseViewMut<'_>> {
+        self.0.child_mut_by::<Inverse>(pred).map(InverseViewMut)
+    }
+    /// Inserts a `a:inv` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Inverse>(before).map(InverseViewMut)
+    }
+    /// Appends a `a:inv` at the end of its slot.
+    pub fn insert_inverse(&mut self) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Inverse>().map(InverseViewMut)
+    }
+    /// Removes the first `a:inv` child.
+    pub fn remove_inverse(&mut self) -> bool {
+        self.0.remove::<Inverse>()
+    }
+    /// First `a:blue` child matching `pred`, mutably.
+    pub fn blue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueViewMut<'_>> {
+        self.0.child_mut_by::<Blue>(pred).map(BlueViewMut)
+    }
+    /// Inserts a `a:blue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Blue>(before).map(BlueViewMut)
+    }
+    /// Appends a `a:blue` at the end of its slot.
+    pub fn insert_blue(&mut self) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Blue>().map(BlueViewMut)
+    }
+    /// Removes the first `a:blue` child.
+    pub fn remove_blue(&mut self) -> bool {
+        self.0.remove::<Blue>()
+    }
+    /// First `a:blueMod` child matching `pred`, mutably.
+    pub fn blue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueModulationViewMut<'_>> {
+        self.0.child_mut_by::<BlueModulation>(pred).map(BlueModulationViewMut)
+    }
+    /// Inserts a `a:blueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueModulation>(before).map(BlueModulationViewMut)
+    }
+    /// Appends a `a:blueMod` at the end of its slot.
+    pub fn insert_blue_modulation(
+        &mut self,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueModulation>().map(BlueModulationViewMut)
+    }
+    /// Removes the first `a:blueMod` child.
+    pub fn remove_blue_modulation(&mut self) -> bool {
+        self.0.remove::<BlueModulation>()
+    }
+    /// First `a:blueOff` child matching `pred`, mutably.
+    pub fn blue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<BlueOffset>(pred).map(BlueOffsetViewMut)
+    }
+    /// Inserts a `a:blueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueOffset>(before).map(BlueOffsetViewMut)
+    }
+    /// Appends a `a:blueOff` at the end of its slot.
+    pub fn insert_blue_offset(
+        &mut self,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueOffset>().map(BlueOffsetViewMut)
+    }
+    /// Removes the first `a:blueOff` child.
+    pub fn remove_blue_offset(&mut self) -> bool {
+        self.0.remove::<BlueOffset>()
+    }
+    /// First `a:green` child matching `pred`, mutably.
+    pub fn green_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenViewMut<'_>> {
+        self.0.child_mut_by::<Green>(pred).map(GreenViewMut)
+    }
+    /// Inserts a `a:green` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Green>(before).map(GreenViewMut)
+    }
+    /// Appends a `a:green` at the end of its slot.
+    pub fn insert_green(&mut self) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Green>().map(GreenViewMut)
+    }
+    /// Removes the first `a:green` child.
+    pub fn remove_green(&mut self) -> bool {
+        self.0.remove::<Green>()
+    }
+    /// First `a:greenMod` child matching `pred`, mutably.
+    pub fn green_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenModulationViewMut<'_>> {
+        self.0.child_mut_by::<GreenModulation>(pred).map(GreenModulationViewMut)
+    }
+    /// Inserts a `a:greenMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenModulation>(before).map(GreenModulationViewMut)
+    }
+    /// Appends a `a:greenMod` at the end of its slot.
+    pub fn insert_green_modulation(
+        &mut self,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenModulation>().map(GreenModulationViewMut)
+    }
+    /// Removes the first `a:greenMod` child.
+    pub fn remove_green_modulation(&mut self) -> bool {
+        self.0.remove::<GreenModulation>()
+    }
+    /// First `a:greenOff` child matching `pred`, mutably.
+    pub fn green_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenOffsetViewMut<'_>> {
+        self.0.child_mut_by::<GreenOffset>(pred).map(GreenOffsetViewMut)
+    }
+    /// Inserts a `a:greenOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenOffset>(before).map(GreenOffsetViewMut)
+    }
+    /// Appends a `a:greenOff` at the end of its slot.
+    pub fn insert_green_offset(
+        &mut self,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenOffset>().map(GreenOffsetViewMut)
+    }
+    /// Removes the first `a:greenOff` child.
+    pub fn remove_green_offset(&mut self) -> bool {
+        self.0.remove::<GreenOffset>()
+    }
+    /// First `a:lum` child matching `pred`, mutably.
+    pub fn luminance_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceViewMut<'_>> {
+        self.0.child_mut_by::<Luminance>(pred).map(LuminanceViewMut)
+    }
+    /// Inserts a `a:lum` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Luminance>(before).map(LuminanceViewMut)
+    }
+    /// Appends a `a:lum` at the end of its slot.
+    pub fn insert_luminance(
+        &mut self,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Luminance>().map(LuminanceViewMut)
+    }
+    /// Removes the first `a:lum` child.
+    pub fn remove_luminance(&mut self) -> bool {
+        self.0.remove::<Luminance>()
+    }
+    /// First `a:lumMod` child matching `pred`, mutably.
+    pub fn luminance_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceModulationViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceModulation>(pred).map(LuminanceModulationViewMut)
+    }
+    /// Inserts a `a:lumMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceModulation>(before).map(LuminanceModulationViewMut)
+    }
+    /// Appends a `a:lumMod` at the end of its slot.
+    pub fn insert_luminance_modulation(
+        &mut self,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceModulation>().map(LuminanceModulationViewMut)
+    }
+    /// Removes the first `a:lumMod` child.
+    pub fn remove_luminance_modulation(&mut self) -> bool {
+        self.0.remove::<LuminanceModulation>()
+    }
+    /// First `a:lumOff` child matching `pred`, mutably.
+    pub fn luminance_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceOffsetViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceOffset>(pred).map(LuminanceOffsetViewMut)
+    }
+    /// Inserts a `a:lumOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceOffset>(before).map(LuminanceOffsetViewMut)
+    }
+    /// Appends a `a:lumOff` at the end of its slot.
+    pub fn insert_luminance_offset(
+        &mut self,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceOffset>().map(LuminanceOffsetViewMut)
+    }
+    /// Removes the first `a:lumOff` child.
+    pub fn remove_luminance_offset(&mut self) -> bool {
+        self.0.remove::<LuminanceOffset>()
+    }
+    /// First `a:red` child matching `pred`, mutably.
+    pub fn red_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedViewMut<'_>> {
+        self.0.child_mut_by::<Red>(pred).map(RedViewMut)
+    }
+    /// Inserts a `a:red` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Red>(before).map(RedViewMut)
+    }
+    /// Appends a `a:red` at the end of its slot.
+    pub fn insert_red(&mut self) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Red>().map(RedViewMut)
+    }
+    /// Removes the first `a:red` child.
+    pub fn remove_red(&mut self) -> bool {
+        self.0.remove::<Red>()
+    }
+    /// First `a:redMod` child matching `pred`, mutably.
+    pub fn red_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedModulationViewMut<'_>> {
+        self.0.child_mut_by::<RedModulation>(pred).map(RedModulationViewMut)
+    }
+    /// Inserts a `a:redMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedModulation>(before).map(RedModulationViewMut)
+    }
+    /// Appends a `a:redMod` at the end of its slot.
+    pub fn insert_red_modulation(
+        &mut self,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedModulation>().map(RedModulationViewMut)
+    }
+    /// Removes the first `a:redMod` child.
+    pub fn remove_red_modulation(&mut self) -> bool {
+        self.0.remove::<RedModulation>()
+    }
+    /// First `a:redOff` child matching `pred`, mutably.
+    pub fn red_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedOffsetViewMut<'_>> {
+        self.0.child_mut_by::<RedOffset>(pred).map(RedOffsetViewMut)
+    }
+    /// Inserts a `a:redOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedOffset>(before).map(RedOffsetViewMut)
+    }
+    /// Appends a `a:redOff` at the end of its slot.
+    pub fn insert_red_offset(
+        &mut self,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedOffset>().map(RedOffsetViewMut)
+    }
+    /// Removes the first `a:redOff` child.
+    pub fn remove_red_offset(&mut self) -> bool {
+        self.0.remove::<RedOffset>()
+    }
+    /// First `a:sat` child matching `pred`, mutably.
+    pub fn saturation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationViewMut<'_>> {
+        self.0.child_mut_by::<Saturation>(pred).map(SaturationViewMut)
+    }
+    /// Inserts a `a:sat` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Saturation>(before).map(SaturationViewMut)
+    }
+    /// Appends a `a:sat` at the end of its slot.
+    pub fn insert_saturation(
+        &mut self,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Saturation>().map(SaturationViewMut)
+    }
+    /// Removes the first `a:sat` child.
+    pub fn remove_saturation(&mut self) -> bool {
+        self.0.remove::<Saturation>()
+    }
+    /// First `a:satMod` child matching `pred`, mutably.
+    pub fn saturation_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationModulationViewMut<'_>> {
+        self.0
+            .child_mut_by::<SaturationModulation>(pred)
+            .map(SaturationModulationViewMut)
+    }
+    /// Inserts a `a:satMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationModulation>(before).map(SaturationModulationViewMut)
+    }
+    /// Appends a `a:satMod` at the end of its slot.
+    pub fn insert_saturation_modulation(
+        &mut self,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationModulation>().map(SaturationModulationViewMut)
+    }
+    /// Removes the first `a:satMod` child.
+    pub fn remove_saturation_modulation(&mut self) -> bool {
+        self.0.remove::<SaturationModulation>()
+    }
+    /// First `a:satOff` child matching `pred`, mutably.
+    pub fn saturation_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationOffsetViewMut<'_>> {
+        self.0.child_mut_by::<SaturationOffset>(pred).map(SaturationOffsetViewMut)
+    }
+    /// Inserts a `a:satOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationOffset>(before).map(SaturationOffsetViewMut)
+    }
+    /// Appends a `a:satOff` at the end of its slot.
+    pub fn insert_saturation_offset(
+        &mut self,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationOffset>().map(SaturationOffsetViewMut)
+    }
+    /// Removes the first `a:satOff` child.
+    pub fn remove_saturation_offset(&mut self) -> bool {
+        self.0.remove::<SaturationOffset>()
+    }
+    /// First `a:hue` child matching `pred`, mutably.
+    pub fn hue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueViewMut<'_>> {
+        self.0.child_mut_by::<Hue>(pred).map(HueViewMut)
+    }
+    /// Inserts a `a:hue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hue>(before).map(HueViewMut)
+    }
+    /// Appends a `a:hue` at the end of its slot.
+    pub fn insert_hue(&mut self) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hue>().map(HueViewMut)
+    }
+    /// Removes the first `a:hue` child.
+    pub fn remove_hue(&mut self) -> bool {
+        self.0.remove::<Hue>()
+    }
+    /// First `a:alpha` child matching `pred`, mutably.
+    pub fn alpha_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaViewMut<'_>> {
+        self.0.child_mut_by::<Alpha>(pred).map(AlphaViewMut)
+    }
+    /// Inserts a `a:alpha` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Alpha>(before).map(AlphaViewMut)
+    }
+    /// Appends a `a:alpha` at the end of its slot.
+    pub fn insert_alpha(&mut self) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Alpha>().map(AlphaViewMut)
+    }
+    /// Removes the first `a:alpha` child.
+    pub fn remove_alpha(&mut self) -> bool {
+        self.0.remove::<Alpha>()
+    }
+    /// First `a:shade` child matching `pred`, mutably.
+    pub fn shade_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ShadeViewMut<'_>> {
+        self.0.child_mut_by::<Shade>(pred).map(ShadeViewMut)
+    }
+    /// Inserts a `a:shade` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shade_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Shade>(before).map(ShadeViewMut)
+    }
+    /// Appends a `a:shade` at the end of its slot.
+    pub fn insert_shade(&mut self) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Shade>().map(ShadeViewMut)
+    }
+    /// Removes the first `a:shade` child.
+    pub fn remove_shade(&mut self) -> bool {
+        self.0.remove::<Shade>()
+    }
+    /// First `a:tint` child matching `pred`, mutably.
+    pub fn tint_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TintViewMut<'_>> {
+        self.0.child_mut_by::<Tint>(pred).map(TintViewMut)
+    }
+    /// Inserts a `a:tint` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_tint_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Tint>(before).map(TintViewMut)
+    }
+    /// Appends a `a:tint` at the end of its slot.
+    pub fn insert_tint(&mut self) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Tint>().map(TintViewMut)
+    }
+    /// Removes the first `a:tint` child.
+    pub fn remove_tint(&mut self) -> bool {
+        self.0.remove::<Tint>()
+    }
+    /// First `a:alphaMod` child matching `pred`, mutably.
+    pub fn alpha_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaModulationViewMut<'_>> {
+        self.0.child_mut_by::<AlphaModulation>(pred).map(AlphaModulationViewMut)
+    }
+    /// Inserts a `a:alphaMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaModulation>(before).map(AlphaModulationViewMut)
+    }
+    /// Appends a `a:alphaMod` at the end of its slot.
+    pub fn insert_alpha_modulation(
+        &mut self,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaModulation>().map(AlphaModulationViewMut)
+    }
+    /// Removes the first `a:alphaMod` child.
+    pub fn remove_alpha_modulation(&mut self) -> bool {
+        self.0.remove::<AlphaModulation>()
+    }
+    /// First `a:hueMod` child matching `pred`, mutably.
+    pub fn hue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueModulationViewMut<'_>> {
+        self.0.child_mut_by::<HueModulation>(pred).map(HueModulationViewMut)
+    }
+    /// Inserts a `a:hueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueModulation>(before).map(HueModulationViewMut)
+    }
+    /// Appends a `a:hueMod` at the end of its slot.
+    pub fn insert_hue_modulation(
+        &mut self,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueModulation>().map(HueModulationViewMut)
+    }
+    /// Removes the first `a:hueMod` child.
+    pub fn remove_hue_modulation(&mut self) -> bool {
+        self.0.remove::<HueModulation>()
     }
 }
 /// `a:CT_SolidColorFillProperties/a:solidFill` — Defines the SolidFill Class.
@@ -8084,6 +13218,20 @@ impl<'a> SolidFillViewMut<'a> {
     pub fn as_view(&self) -> SolidFillView<'_> {
         SolidFillView(self.0.as_lens())
     }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
     /// First `a:srgbClr` child, mutably.
     pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
         self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
@@ -8111,6 +13259,20 @@ impl<'a> SolidFillViewMut<'a> {
     /// Removes the first `a:schemeClr` child.
     pub fn remove_scheme_color(&mut self) -> bool {
         self.0.remove::<SchemeColor>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_StretchInfoProperties/a:stretch` — Stretch.
@@ -8277,6 +13439,34 @@ impl ooxml_core::ElementSpec for SystemColor {
         ],
     );
 }
+impl ooxml_core::ChildOf<SystemColor> for HueOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Complement {}
+impl ooxml_core::ChildOf<SystemColor> for AlphaOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Gamma {}
+impl ooxml_core::ChildOf<SystemColor> for Gray {}
+impl ooxml_core::ChildOf<SystemColor> for InverseGamma {}
+impl ooxml_core::ChildOf<SystemColor> for Inverse {}
+impl ooxml_core::ChildOf<SystemColor> for Blue {}
+impl ooxml_core::ChildOf<SystemColor> for BlueModulation {}
+impl ooxml_core::ChildOf<SystemColor> for BlueOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Green {}
+impl ooxml_core::ChildOf<SystemColor> for GreenModulation {}
+impl ooxml_core::ChildOf<SystemColor> for GreenOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Luminance {}
+impl ooxml_core::ChildOf<SystemColor> for LuminanceModulation {}
+impl ooxml_core::ChildOf<SystemColor> for LuminanceOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Red {}
+impl ooxml_core::ChildOf<SystemColor> for RedModulation {}
+impl ooxml_core::ChildOf<SystemColor> for RedOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Saturation {}
+impl ooxml_core::ChildOf<SystemColor> for SaturationModulation {}
+impl ooxml_core::ChildOf<SystemColor> for SaturationOffset {}
+impl ooxml_core::ChildOf<SystemColor> for Hue {}
+impl ooxml_core::ChildOf<SystemColor> for Alpha {}
+impl ooxml_core::ChildOf<SystemColor> for Shade {}
+impl ooxml_core::ChildOf<SystemColor> for Tint {}
+impl ooxml_core::ChildOf<SystemColor> for AlphaModulation {}
+impl ooxml_core::ChildOf<SystemColor> for HueModulation {}
 /// Read-only view of [`SystemColor`].
 #[derive(Clone, Debug)]
 pub struct SystemColorView<'a>(pub ooxml_core::Lens<'a, SystemColor>);
@@ -8289,9 +13479,812 @@ impl<'a> SystemColorView<'a> {
     pub fn last_color(&self) -> Option<&'a str> {
         self.0.attr(SystemColor::ATTR_LAST_CLR)
     }
+    /// `a:hueOff` children in document order.
+    pub fn hue_offset_iter(&self) -> impl Iterator<Item = HueOffsetView<'a>> {
+        self.0.children::<HueOffset>().map(HueOffsetView)
+    }
+    /// `a:comp` children in document order.
+    pub fn complement_iter(&self) -> impl Iterator<Item = ComplementView<'a>> {
+        self.0.children::<Complement>().map(ComplementView)
+    }
+    /// `a:alphaOff` children in document order.
+    pub fn alpha_offset_iter(&self) -> impl Iterator<Item = AlphaOffsetView<'a>> {
+        self.0.children::<AlphaOffset>().map(AlphaOffsetView)
+    }
+    /// `a:gamma` children in document order.
+    pub fn gamma_iter(&self) -> impl Iterator<Item = GammaView<'a>> {
+        self.0.children::<Gamma>().map(GammaView)
+    }
+    /// `a:gray` children in document order.
+    pub fn gray_iter(&self) -> impl Iterator<Item = GrayView<'a>> {
+        self.0.children::<Gray>().map(GrayView)
+    }
+    /// `a:invGamma` children in document order.
+    pub fn inverse_gamma_iter(&self) -> impl Iterator<Item = InverseGammaView<'a>> {
+        self.0.children::<InverseGamma>().map(InverseGammaView)
+    }
+    /// `a:inv` children in document order.
+    pub fn inverse_iter(&self) -> impl Iterator<Item = InverseView<'a>> {
+        self.0.children::<Inverse>().map(InverseView)
+    }
+    /// `a:blue` children in document order.
+    pub fn blue_iter(&self) -> impl Iterator<Item = BlueView<'a>> {
+        self.0.children::<Blue>().map(BlueView)
+    }
+    /// `a:blueMod` children in document order.
+    pub fn blue_modulation_iter(&self) -> impl Iterator<Item = BlueModulationView<'a>> {
+        self.0.children::<BlueModulation>().map(BlueModulationView)
+    }
+    /// `a:blueOff` children in document order.
+    pub fn blue_offset_iter(&self) -> impl Iterator<Item = BlueOffsetView<'a>> {
+        self.0.children::<BlueOffset>().map(BlueOffsetView)
+    }
+    /// `a:green` children in document order.
+    pub fn green_iter(&self) -> impl Iterator<Item = GreenView<'a>> {
+        self.0.children::<Green>().map(GreenView)
+    }
+    /// `a:greenMod` children in document order.
+    pub fn green_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = GreenModulationView<'a>> {
+        self.0.children::<GreenModulation>().map(GreenModulationView)
+    }
+    /// `a:greenOff` children in document order.
+    pub fn green_offset_iter(&self) -> impl Iterator<Item = GreenOffsetView<'a>> {
+        self.0.children::<GreenOffset>().map(GreenOffsetView)
+    }
+    /// `a:lum` children in document order.
+    pub fn luminance_iter(&self) -> impl Iterator<Item = LuminanceView<'a>> {
+        self.0.children::<Luminance>().map(LuminanceView)
+    }
+    /// `a:lumMod` children in document order.
+    pub fn luminance_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceModulationView<'a>> {
+        self.0.children::<LuminanceModulation>().map(LuminanceModulationView)
+    }
+    /// `a:lumOff` children in document order.
+    pub fn luminance_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = LuminanceOffsetView<'a>> {
+        self.0.children::<LuminanceOffset>().map(LuminanceOffsetView)
+    }
+    /// `a:red` children in document order.
+    pub fn red_iter(&self) -> impl Iterator<Item = RedView<'a>> {
+        self.0.children::<Red>().map(RedView)
+    }
+    /// `a:redMod` children in document order.
+    pub fn red_modulation_iter(&self) -> impl Iterator<Item = RedModulationView<'a>> {
+        self.0.children::<RedModulation>().map(RedModulationView)
+    }
+    /// `a:redOff` children in document order.
+    pub fn red_offset_iter(&self) -> impl Iterator<Item = RedOffsetView<'a>> {
+        self.0.children::<RedOffset>().map(RedOffsetView)
+    }
+    /// `a:sat` children in document order.
+    pub fn saturation_iter(&self) -> impl Iterator<Item = SaturationView<'a>> {
+        self.0.children::<Saturation>().map(SaturationView)
+    }
+    /// `a:satMod` children in document order.
+    pub fn saturation_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationModulationView<'a>> {
+        self.0.children::<SaturationModulation>().map(SaturationModulationView)
+    }
+    /// `a:satOff` children in document order.
+    pub fn saturation_offset_iter(
+        &self,
+    ) -> impl Iterator<Item = SaturationOffsetView<'a>> {
+        self.0.children::<SaturationOffset>().map(SaturationOffsetView)
+    }
+    /// `a:hue` children in document order.
+    pub fn hue_iter(&self) -> impl Iterator<Item = HueView<'a>> {
+        self.0.children::<Hue>().map(HueView)
+    }
+    /// `a:alpha` children in document order.
+    pub fn alpha_iter(&self) -> impl Iterator<Item = AlphaView<'a>> {
+        self.0.children::<Alpha>().map(AlphaView)
+    }
+    /// `a:shade` children in document order.
+    pub fn shade_iter(&self) -> impl Iterator<Item = ShadeView<'a>> {
+        self.0.children::<Shade>().map(ShadeView)
+    }
+    /// `a:tint` children in document order.
+    pub fn tint_iter(&self) -> impl Iterator<Item = TintView<'a>> {
+        self.0.children::<Tint>().map(TintView)
+    }
+    /// `a:alphaMod` children in document order.
+    pub fn alpha_modulation_iter(
+        &self,
+    ) -> impl Iterator<Item = AlphaModulationView<'a>> {
+        self.0.children::<AlphaModulation>().map(AlphaModulationView)
+    }
+    /// `a:hueMod` children in document order.
+    pub fn hue_modulation_iter(&self) -> impl Iterator<Item = HueModulationView<'a>> {
+        self.0.children::<HueModulation>().map(HueModulationView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SystemColor`]. Reads go through [`SystemColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct SystemColorViewMut<'a>(pub ooxml_core::LensMut<'a, SystemColor>);
+impl<'a> SystemColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SystemColorView<'_> {
+        SystemColorView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: SystemColorValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SystemColor::ATTR_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SystemColor::ATTR_VAL)
+    }
+    /// Sets `lastClr` — Last Color
+    pub fn set_last_color(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SystemColor::ATTR_LAST_CLR, v)
+    }
+    /// Removes `lastClr`.
+    pub fn remove_last_color(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SystemColor::ATTR_LAST_CLR)
+    }
+    /// First `a:hueOff` child matching `pred`, mutably.
+    pub fn hue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<HueOffset>(pred).map(HueOffsetViewMut)
+    }
+    /// Inserts a `a:hueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueOffset>(before).map(HueOffsetViewMut)
+    }
+    /// Appends a `a:hueOff` at the end of its slot.
+    pub fn insert_hue_offset(
+        &mut self,
+    ) -> Result<HueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueOffset>().map(HueOffsetViewMut)
+    }
+    /// Removes the first `a:hueOff` child.
+    pub fn remove_hue_offset(&mut self) -> bool {
+        self.0.remove::<HueOffset>()
+    }
+    /// First `a:comp` child matching `pred`, mutably.
+    pub fn complement_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ComplementViewMut<'_>> {
+        self.0.child_mut_by::<Complement>(pred).map(ComplementViewMut)
+    }
+    /// Inserts a `a:comp` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_complement_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Complement>(before).map(ComplementViewMut)
+    }
+    /// Appends a `a:comp` at the end of its slot.
+    pub fn insert_complement(
+        &mut self,
+    ) -> Result<ComplementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Complement>().map(ComplementViewMut)
+    }
+    /// Removes the first `a:comp` child.
+    pub fn remove_complement(&mut self) -> bool {
+        self.0.remove::<Complement>()
+    }
+    /// First `a:alphaOff` child matching `pred`, mutably.
+    pub fn alpha_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaOffsetViewMut<'_>> {
+        self.0.child_mut_by::<AlphaOffset>(pred).map(AlphaOffsetViewMut)
+    }
+    /// Inserts a `a:alphaOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaOffset>(before).map(AlphaOffsetViewMut)
+    }
+    /// Appends a `a:alphaOff` at the end of its slot.
+    pub fn insert_alpha_offset(
+        &mut self,
+    ) -> Result<AlphaOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaOffset>().map(AlphaOffsetViewMut)
+    }
+    /// Removes the first `a:alphaOff` child.
+    pub fn remove_alpha_offset(&mut self) -> bool {
+        self.0.remove::<AlphaOffset>()
+    }
+    /// First `a:gamma` child matching `pred`, mutably.
+    pub fn gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GammaViewMut<'_>> {
+        self.0.child_mut_by::<Gamma>(pred).map(GammaViewMut)
+    }
+    /// Inserts a `a:gamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gamma>(before).map(GammaViewMut)
+    }
+    /// Appends a `a:gamma` at the end of its slot.
+    pub fn insert_gamma(&mut self) -> Result<GammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gamma>().map(GammaViewMut)
+    }
+    /// Removes the first `a:gamma` child.
+    pub fn remove_gamma(&mut self) -> bool {
+        self.0.remove::<Gamma>()
+    }
+    /// First `a:gray` child matching `pred`, mutably.
+    pub fn gray_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GrayViewMut<'_>> {
+        self.0.child_mut_by::<Gray>(pred).map(GrayViewMut)
+    }
+    /// Inserts a `a:gray` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_gray_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Gray>(before).map(GrayViewMut)
+    }
+    /// Appends a `a:gray` at the end of its slot.
+    pub fn insert_gray(&mut self) -> Result<GrayViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Gray>().map(GrayViewMut)
+    }
+    /// Removes the first `a:gray` child.
+    pub fn remove_gray(&mut self) -> bool {
+        self.0.remove::<Gray>()
+    }
+    /// First `a:invGamma` child matching `pred`, mutably.
+    pub fn inverse_gamma_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseGammaViewMut<'_>> {
+        self.0.child_mut_by::<InverseGamma>(pred).map(InverseGammaViewMut)
+    }
+    /// Inserts a `a:invGamma` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_gamma_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<InverseGamma>(before).map(InverseGammaViewMut)
+    }
+    /// Appends a `a:invGamma` at the end of its slot.
+    pub fn insert_inverse_gamma(
+        &mut self,
+    ) -> Result<InverseGammaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<InverseGamma>().map(InverseGammaViewMut)
+    }
+    /// Removes the first `a:invGamma` child.
+    pub fn remove_inverse_gamma(&mut self) -> bool {
+        self.0.remove::<InverseGamma>()
+    }
+    /// First `a:inv` child matching `pred`, mutably.
+    pub fn inverse_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InverseViewMut<'_>> {
+        self.0.child_mut_by::<Inverse>(pred).map(InverseViewMut)
+    }
+    /// Inserts a `a:inv` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inverse_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Inverse>(before).map(InverseViewMut)
+    }
+    /// Appends a `a:inv` at the end of its slot.
+    pub fn insert_inverse(&mut self) -> Result<InverseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Inverse>().map(InverseViewMut)
+    }
+    /// Removes the first `a:inv` child.
+    pub fn remove_inverse(&mut self) -> bool {
+        self.0.remove::<Inverse>()
+    }
+    /// First `a:blue` child matching `pred`, mutably.
+    pub fn blue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueViewMut<'_>> {
+        self.0.child_mut_by::<Blue>(pred).map(BlueViewMut)
+    }
+    /// Inserts a `a:blue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Blue>(before).map(BlueViewMut)
+    }
+    /// Appends a `a:blue` at the end of its slot.
+    pub fn insert_blue(&mut self) -> Result<BlueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Blue>().map(BlueViewMut)
+    }
+    /// Removes the first `a:blue` child.
+    pub fn remove_blue(&mut self) -> bool {
+        self.0.remove::<Blue>()
+    }
+    /// First `a:blueMod` child matching `pred`, mutably.
+    pub fn blue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueModulationViewMut<'_>> {
+        self.0.child_mut_by::<BlueModulation>(pred).map(BlueModulationViewMut)
+    }
+    /// Inserts a `a:blueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueModulation>(before).map(BlueModulationViewMut)
+    }
+    /// Appends a `a:blueMod` at the end of its slot.
+    pub fn insert_blue_modulation(
+        &mut self,
+    ) -> Result<BlueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueModulation>().map(BlueModulationViewMut)
+    }
+    /// Removes the first `a:blueMod` child.
+    pub fn remove_blue_modulation(&mut self) -> bool {
+        self.0.remove::<BlueModulation>()
+    }
+    /// First `a:blueOff` child matching `pred`, mutably.
+    pub fn blue_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BlueOffsetViewMut<'_>> {
+        self.0.child_mut_by::<BlueOffset>(pred).map(BlueOffsetViewMut)
+    }
+    /// Inserts a `a:blueOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_blue_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BlueOffset>(before).map(BlueOffsetViewMut)
+    }
+    /// Appends a `a:blueOff` at the end of its slot.
+    pub fn insert_blue_offset(
+        &mut self,
+    ) -> Result<BlueOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BlueOffset>().map(BlueOffsetViewMut)
+    }
+    /// Removes the first `a:blueOff` child.
+    pub fn remove_blue_offset(&mut self) -> bool {
+        self.0.remove::<BlueOffset>()
+    }
+    /// First `a:green` child matching `pred`, mutably.
+    pub fn green_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenViewMut<'_>> {
+        self.0.child_mut_by::<Green>(pred).map(GreenViewMut)
+    }
+    /// Inserts a `a:green` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Green>(before).map(GreenViewMut)
+    }
+    /// Appends a `a:green` at the end of its slot.
+    pub fn insert_green(&mut self) -> Result<GreenViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Green>().map(GreenViewMut)
+    }
+    /// Removes the first `a:green` child.
+    pub fn remove_green(&mut self) -> bool {
+        self.0.remove::<Green>()
+    }
+    /// First `a:greenMod` child matching `pred`, mutably.
+    pub fn green_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenModulationViewMut<'_>> {
+        self.0.child_mut_by::<GreenModulation>(pred).map(GreenModulationViewMut)
+    }
+    /// Inserts a `a:greenMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenModulation>(before).map(GreenModulationViewMut)
+    }
+    /// Appends a `a:greenMod` at the end of its slot.
+    pub fn insert_green_modulation(
+        &mut self,
+    ) -> Result<GreenModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenModulation>().map(GreenModulationViewMut)
+    }
+    /// Removes the first `a:greenMod` child.
+    pub fn remove_green_modulation(&mut self) -> bool {
+        self.0.remove::<GreenModulation>()
+    }
+    /// First `a:greenOff` child matching `pred`, mutably.
+    pub fn green_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<GreenOffsetViewMut<'_>> {
+        self.0.child_mut_by::<GreenOffset>(pred).map(GreenOffsetViewMut)
+    }
+    /// Inserts a `a:greenOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_green_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<GreenOffset>(before).map(GreenOffsetViewMut)
+    }
+    /// Appends a `a:greenOff` at the end of its slot.
+    pub fn insert_green_offset(
+        &mut self,
+    ) -> Result<GreenOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<GreenOffset>().map(GreenOffsetViewMut)
+    }
+    /// Removes the first `a:greenOff` child.
+    pub fn remove_green_offset(&mut self) -> bool {
+        self.0.remove::<GreenOffset>()
+    }
+    /// First `a:lum` child matching `pred`, mutably.
+    pub fn luminance_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceViewMut<'_>> {
+        self.0.child_mut_by::<Luminance>(pred).map(LuminanceViewMut)
+    }
+    /// Inserts a `a:lum` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Luminance>(before).map(LuminanceViewMut)
+    }
+    /// Appends a `a:lum` at the end of its slot.
+    pub fn insert_luminance(
+        &mut self,
+    ) -> Result<LuminanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Luminance>().map(LuminanceViewMut)
+    }
+    /// Removes the first `a:lum` child.
+    pub fn remove_luminance(&mut self) -> bool {
+        self.0.remove::<Luminance>()
+    }
+    /// First `a:lumMod` child matching `pred`, mutably.
+    pub fn luminance_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceModulationViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceModulation>(pred).map(LuminanceModulationViewMut)
+    }
+    /// Inserts a `a:lumMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceModulation>(before).map(LuminanceModulationViewMut)
+    }
+    /// Appends a `a:lumMod` at the end of its slot.
+    pub fn insert_luminance_modulation(
+        &mut self,
+    ) -> Result<LuminanceModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceModulation>().map(LuminanceModulationViewMut)
+    }
+    /// Removes the first `a:lumMod` child.
+    pub fn remove_luminance_modulation(&mut self) -> bool {
+        self.0.remove::<LuminanceModulation>()
+    }
+    /// First `a:lumOff` child matching `pred`, mutably.
+    pub fn luminance_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LuminanceOffsetViewMut<'_>> {
+        self.0.child_mut_by::<LuminanceOffset>(pred).map(LuminanceOffsetViewMut)
+    }
+    /// Inserts a `a:lumOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_luminance_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LuminanceOffset>(before).map(LuminanceOffsetViewMut)
+    }
+    /// Appends a `a:lumOff` at the end of its slot.
+    pub fn insert_luminance_offset(
+        &mut self,
+    ) -> Result<LuminanceOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LuminanceOffset>().map(LuminanceOffsetViewMut)
+    }
+    /// Removes the first `a:lumOff` child.
+    pub fn remove_luminance_offset(&mut self) -> bool {
+        self.0.remove::<LuminanceOffset>()
+    }
+    /// First `a:red` child matching `pred`, mutably.
+    pub fn red_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedViewMut<'_>> {
+        self.0.child_mut_by::<Red>(pred).map(RedViewMut)
+    }
+    /// Inserts a `a:red` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Red>(before).map(RedViewMut)
+    }
+    /// Appends a `a:red` at the end of its slot.
+    pub fn insert_red(&mut self) -> Result<RedViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Red>().map(RedViewMut)
+    }
+    /// Removes the first `a:red` child.
+    pub fn remove_red(&mut self) -> bool {
+        self.0.remove::<Red>()
+    }
+    /// First `a:redMod` child matching `pred`, mutably.
+    pub fn red_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedModulationViewMut<'_>> {
+        self.0.child_mut_by::<RedModulation>(pred).map(RedModulationViewMut)
+    }
+    /// Inserts a `a:redMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedModulation>(before).map(RedModulationViewMut)
+    }
+    /// Appends a `a:redMod` at the end of its slot.
+    pub fn insert_red_modulation(
+        &mut self,
+    ) -> Result<RedModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedModulation>().map(RedModulationViewMut)
+    }
+    /// Removes the first `a:redMod` child.
+    pub fn remove_red_modulation(&mut self) -> bool {
+        self.0.remove::<RedModulation>()
+    }
+    /// First `a:redOff` child matching `pred`, mutably.
+    pub fn red_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RedOffsetViewMut<'_>> {
+        self.0.child_mut_by::<RedOffset>(pred).map(RedOffsetViewMut)
+    }
+    /// Inserts a `a:redOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_red_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RedOffset>(before).map(RedOffsetViewMut)
+    }
+    /// Appends a `a:redOff` at the end of its slot.
+    pub fn insert_red_offset(
+        &mut self,
+    ) -> Result<RedOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RedOffset>().map(RedOffsetViewMut)
+    }
+    /// Removes the first `a:redOff` child.
+    pub fn remove_red_offset(&mut self) -> bool {
+        self.0.remove::<RedOffset>()
+    }
+    /// First `a:sat` child matching `pred`, mutably.
+    pub fn saturation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationViewMut<'_>> {
+        self.0.child_mut_by::<Saturation>(pred).map(SaturationViewMut)
+    }
+    /// Inserts a `a:sat` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Saturation>(before).map(SaturationViewMut)
+    }
+    /// Appends a `a:sat` at the end of its slot.
+    pub fn insert_saturation(
+        &mut self,
+    ) -> Result<SaturationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Saturation>().map(SaturationViewMut)
+    }
+    /// Removes the first `a:sat` child.
+    pub fn remove_saturation(&mut self) -> bool {
+        self.0.remove::<Saturation>()
+    }
+    /// First `a:satMod` child matching `pred`, mutably.
+    pub fn saturation_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationModulationViewMut<'_>> {
+        self.0
+            .child_mut_by::<SaturationModulation>(pred)
+            .map(SaturationModulationViewMut)
+    }
+    /// Inserts a `a:satMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationModulation>(before).map(SaturationModulationViewMut)
+    }
+    /// Appends a `a:satMod` at the end of its slot.
+    pub fn insert_saturation_modulation(
+        &mut self,
+    ) -> Result<SaturationModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationModulation>().map(SaturationModulationViewMut)
+    }
+    /// Removes the first `a:satMod` child.
+    pub fn remove_saturation_modulation(&mut self) -> bool {
+        self.0.remove::<SaturationModulation>()
+    }
+    /// First `a:satOff` child matching `pred`, mutably.
+    pub fn saturation_offset_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SaturationOffsetViewMut<'_>> {
+        self.0.child_mut_by::<SaturationOffset>(pred).map(SaturationOffsetViewMut)
+    }
+    /// Inserts a `a:satOff` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_saturation_offset_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SaturationOffset>(before).map(SaturationOffsetViewMut)
+    }
+    /// Appends a `a:satOff` at the end of its slot.
+    pub fn insert_saturation_offset(
+        &mut self,
+    ) -> Result<SaturationOffsetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SaturationOffset>().map(SaturationOffsetViewMut)
+    }
+    /// Removes the first `a:satOff` child.
+    pub fn remove_saturation_offset(&mut self) -> bool {
+        self.0.remove::<SaturationOffset>()
+    }
+    /// First `a:hue` child matching `pred`, mutably.
+    pub fn hue_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueViewMut<'_>> {
+        self.0.child_mut_by::<Hue>(pred).map(HueViewMut)
+    }
+    /// Inserts a `a:hue` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hue>(before).map(HueViewMut)
+    }
+    /// Appends a `a:hue` at the end of its slot.
+    pub fn insert_hue(&mut self) -> Result<HueViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hue>().map(HueViewMut)
+    }
+    /// Removes the first `a:hue` child.
+    pub fn remove_hue(&mut self) -> bool {
+        self.0.remove::<Hue>()
+    }
+    /// First `a:alpha` child matching `pred`, mutably.
+    pub fn alpha_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaViewMut<'_>> {
+        self.0.child_mut_by::<Alpha>(pred).map(AlphaViewMut)
+    }
+    /// Inserts a `a:alpha` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Alpha>(before).map(AlphaViewMut)
+    }
+    /// Appends a `a:alpha` at the end of its slot.
+    pub fn insert_alpha(&mut self) -> Result<AlphaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Alpha>().map(AlphaViewMut)
+    }
+    /// Removes the first `a:alpha` child.
+    pub fn remove_alpha(&mut self) -> bool {
+        self.0.remove::<Alpha>()
+    }
+    /// First `a:shade` child matching `pred`, mutably.
+    pub fn shade_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ShadeViewMut<'_>> {
+        self.0.child_mut_by::<Shade>(pred).map(ShadeViewMut)
+    }
+    /// Inserts a `a:shade` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_shade_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Shade>(before).map(ShadeViewMut)
+    }
+    /// Appends a `a:shade` at the end of its slot.
+    pub fn insert_shade(&mut self) -> Result<ShadeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Shade>().map(ShadeViewMut)
+    }
+    /// Removes the first `a:shade` child.
+    pub fn remove_shade(&mut self) -> bool {
+        self.0.remove::<Shade>()
+    }
+    /// First `a:tint` child matching `pred`, mutably.
+    pub fn tint_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TintViewMut<'_>> {
+        self.0.child_mut_by::<Tint>(pred).map(TintViewMut)
+    }
+    /// Inserts a `a:tint` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_tint_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Tint>(before).map(TintViewMut)
+    }
+    /// Appends a `a:tint` at the end of its slot.
+    pub fn insert_tint(&mut self) -> Result<TintViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Tint>().map(TintViewMut)
+    }
+    /// Removes the first `a:tint` child.
+    pub fn remove_tint(&mut self) -> bool {
+        self.0.remove::<Tint>()
+    }
+    /// First `a:alphaMod` child matching `pred`, mutably.
+    pub fn alpha_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AlphaModulationViewMut<'_>> {
+        self.0.child_mut_by::<AlphaModulation>(pred).map(AlphaModulationViewMut)
+    }
+    /// Inserts a `a:alphaMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_alpha_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AlphaModulation>(before).map(AlphaModulationViewMut)
+    }
+    /// Appends a `a:alphaMod` at the end of its slot.
+    pub fn insert_alpha_modulation(
+        &mut self,
+    ) -> Result<AlphaModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AlphaModulation>().map(AlphaModulationViewMut)
+    }
+    /// Removes the first `a:alphaMod` child.
+    pub fn remove_alpha_modulation(&mut self) -> bool {
+        self.0.remove::<AlphaModulation>()
+    }
+    /// First `a:hueMod` child matching `pred`, mutably.
+    pub fn hue_modulation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HueModulationViewMut<'_>> {
+        self.0.child_mut_by::<HueModulation>(pred).map(HueModulationViewMut)
+    }
+    /// Inserts a `a:hueMod` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hue_modulation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HueModulation>(before).map(HueModulationViewMut)
+    }
+    /// Appends a `a:hueMod` at the end of its slot.
+    pub fn insert_hue_modulation(
+        &mut self,
+    ) -> Result<HueModulationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HueModulation>().map(HueModulationViewMut)
+    }
+    /// Removes the first `a:hueMod` child.
+    pub fn remove_hue_modulation(&mut self) -> bool {
+        self.0.remove::<HueModulation>()
     }
 }
 /// `a:CT_Table/a:tbl` — Table.
@@ -9746,6 +15739,39 @@ impl<'a> AutoNumberedBulletView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`AutoNumberedBullet`]. Reads go through [`AutoNumberedBulletViewMut::as_view`].
+#[derive(Debug)]
+pub struct AutoNumberedBulletViewMut<'a>(
+    pub ooxml_core::LensMut<'a, AutoNumberedBullet>,
+);
+impl<'a> AutoNumberedBulletViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AutoNumberedBulletView<'_> {
+        AutoNumberedBulletView(self.0.as_lens())
+    }
+    /// Sets `type` — Bullet Autonumbering Type
+    pub fn set_type(
+        &mut self,
+        v: TextAutoNumberSchemeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(AutoNumberedBullet::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AutoNumberedBullet::ATTR_TYPE)
+    }
+    /// Sets `startAt` — Start Numbering At (default `1`)
+    pub fn set_start_at(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(AutoNumberedBullet::ATTR_START_AT, s),
+        )
+    }
+    /// Removes `startAt`.
+    pub fn remove_start_at(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AutoNumberedBullet::ATTR_START_AT)
+    }
+}
 /// `a:CT_TextBlipBullet/a:buBlip` — Picture Bullet.
 #[derive(Debug)]
 pub enum PictureBullet {}
@@ -10734,6 +16760,48 @@ impl<'a> BodyPropertiesViewMut<'a> {
     pub fn remove_extension_list(&mut self) -> bool {
         self.0.remove::<ExtensionList>()
     }
+    /// First `a:noAutofit` child, mutably.
+    pub fn no_auto_fit_mut(&mut self) -> Option<NoAutoFitViewMut<'_>> {
+        self.0.child_mut::<NoAutoFit>().map(NoAutoFitViewMut)
+    }
+    /// Existing `a:noAutofit` child, or a new one in schema position.
+    pub fn get_or_insert_no_auto_fit(
+        &mut self,
+    ) -> Result<NoAutoFitViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoAutoFit>().map(NoAutoFitViewMut)
+    }
+    /// Removes the first `a:noAutofit` child.
+    pub fn remove_no_auto_fit(&mut self) -> bool {
+        self.0.remove::<NoAutoFit>()
+    }
+    /// First `a:normAutofit` child, mutably.
+    pub fn normal_auto_fit_mut(&mut self) -> Option<NormalAutoFitViewMut<'_>> {
+        self.0.child_mut::<NormalAutoFit>().map(NormalAutoFitViewMut)
+    }
+    /// Existing `a:normAutofit` child, or a new one in schema position.
+    pub fn get_or_insert_normal_auto_fit(
+        &mut self,
+    ) -> Result<NormalAutoFitViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NormalAutoFit>().map(NormalAutoFitViewMut)
+    }
+    /// Removes the first `a:normAutofit` child.
+    pub fn remove_normal_auto_fit(&mut self) -> bool {
+        self.0.remove::<NormalAutoFit>()
+    }
+    /// First `a:spAutoFit` child, mutably.
+    pub fn shape_auto_fit_mut(&mut self) -> Option<ShapeAutoFitViewMut<'_>> {
+        self.0.child_mut::<ShapeAutoFit>().map(ShapeAutoFitViewMut)
+    }
+    /// Existing `a:spAutoFit` child, or a new one in schema position.
+    pub fn get_or_insert_shape_auto_fit(
+        &mut self,
+    ) -> Result<ShapeAutoFitViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ShapeAutoFit>().map(ShapeAutoFitViewMut)
+    }
+    /// Removes the first `a:spAutoFit` child.
+    pub fn remove_shape_auto_fit(&mut self) -> bool {
+        self.0.remove::<ShapeAutoFit>()
+    }
 }
 /// `a:CT_TextBulletColorFollowText/a:buClrTx` — Follow Text.
 #[derive(Debug)]
@@ -10753,6 +16821,15 @@ impl<'a> BulletColorTextView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`BulletColorText`]. Reads go through [`BulletColorTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletColorTextViewMut<'a>(pub ooxml_core::LensMut<'a, BulletColorText>);
+impl<'a> BulletColorTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletColorTextView<'_> {
+        BulletColorTextView(self.0.as_lens())
+    }
+}
 /// `a:CT_TextBulletSizeFollowText/a:buSzTx` — Bullet Size Follows Text.
 #[derive(Debug)]
 pub enum BulletSizeText {}
@@ -10769,6 +16846,15 @@ impl<'a> BulletSizeTextView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`BulletSizeText`]. Reads go through [`BulletSizeTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletSizeTextViewMut<'a>(pub ooxml_core::LensMut<'a, BulletSizeText>);
+impl<'a> BulletSizeTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletSizeTextView<'_> {
+        BulletSizeTextView(self.0.as_lens())
     }
 }
 /// `a:CT_TextBulletSizePercent/a:buSzPct` — Bullet Size Percentage.
@@ -10809,6 +16895,31 @@ impl<'a> BulletSizePercentageView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`BulletSizePercentage`]. Reads go through [`BulletSizePercentageViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletSizePercentageViewMut<'a>(
+    pub ooxml_core::LensMut<'a, BulletSizePercentage>,
+);
+impl<'a> BulletSizePercentageViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletSizePercentageView<'_> {
+        BulletSizePercentageView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(BulletSizePercentage::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BulletSizePercentage::ATTR_VAL)
+    }
+}
 /// `a:CT_TextBulletSizePoint/a:buSzPts` — Bullet Size Points.
 #[derive(Debug)]
 pub enum BulletSizePoints {}
@@ -10841,6 +16952,26 @@ impl<'a> BulletSizePointsView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`BulletSizePoints`]. Reads go through [`BulletSizePointsViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletSizePointsViewMut<'a>(pub ooxml_core::LensMut<'a, BulletSizePoints>);
+impl<'a> BulletSizePointsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletSizePointsView<'_> {
+        BulletSizePointsView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BulletSizePoints::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BulletSizePoints::ATTR_VAL)
+    }
+}
 /// `a:CT_TextBulletTypefaceFollowText/a:buFontTx` — Follow text.
 #[derive(Debug)]
 pub enum BulletFontText {}
@@ -10857,6 +16988,15 @@ impl<'a> BulletFontTextView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`BulletFontText`]. Reads go through [`BulletFontTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletFontTextViewMut<'a>(pub ooxml_core::LensMut<'a, BulletFontText>);
+impl<'a> BulletFontTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletFontTextView<'_> {
+        BulletFontTextView(self.0.as_lens())
     }
 }
 /// `a:CT_TextCharBullet/a:buChar` — Character Bullet.
@@ -10889,6 +17029,23 @@ impl<'a> CharacterBulletView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`CharacterBullet`]. Reads go through [`CharacterBulletViewMut::as_view`].
+#[derive(Debug)]
+pub struct CharacterBulletViewMut<'a>(pub ooxml_core::LensMut<'a, CharacterBullet>);
+impl<'a> CharacterBulletViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CharacterBulletView<'_> {
+        CharacterBulletView(self.0.as_lens())
+    }
+    /// Sets `char` — Bullet Character
+    pub fn set_char(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CharacterBullet::ATTR_CHAR, v)
+    }
+    /// Removes `char`.
+    pub fn remove_char(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CharacterBullet::ATTR_CHAR)
     }
 }
 /// `a:CT_TextCharacterProperties/a:defRPr` — Default Text Run Properties.
@@ -11148,8 +17305,10 @@ impl ooxml_core::ElementSpec for DefaultRunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<DefaultRunProperties> for Highlight {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for HyperlinkOnClick {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for Underline {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for NoFill {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for ExtensionList {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for SolidFill {}
@@ -11157,6 +17316,9 @@ impl ooxml_core::ChildOf<DefaultRunProperties> for ComplexScriptFont {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for EastAsianFont {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for LatinFont {}
 impl ooxml_core::ChildOf<DefaultRunProperties> for SymbolFont {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for UnderlineFillText {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for UnderlineFill {}
+impl ooxml_core::ChildOf<DefaultRunProperties> for UnderlineFollowsText {}
 /// Read-only view of [`DefaultRunProperties`].
 #[derive(Clone, Debug)]
 pub struct DefaultRunPropertiesView<'a>(pub ooxml_core::Lens<'a, DefaultRunProperties>);
@@ -11275,6 +17437,10 @@ impl<'a> DefaultRunPropertiesView<'a> {
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(DefaultRunProperties::ATTR_BMK)
     }
+    /// First `a:highlight` child.
+    pub fn highlight(&self) -> Option<HighlightView<'a>> {
+        self.0.child::<Highlight>().map(HighlightView)
+    }
     /// First `a:hlinkClick` child.
     pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
         self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
@@ -11282,6 +17448,10 @@ impl<'a> DefaultRunPropertiesView<'a> {
     /// First `a:hlinkMouseOver` child.
     pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
         self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:uLn` child.
+    pub fn underline_child(&self) -> Option<UnderlineView<'a>> {
+        self.0.child::<Underline>().map(UnderlineView)
     }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
@@ -11311,9 +17481,400 @@ impl<'a> DefaultRunPropertiesView<'a> {
     pub fn symbol_font(&self) -> Option<SymbolFontView<'a>> {
         self.0.child::<SymbolFont>().map(SymbolFontView)
     }
+    /// First `a:uFillTx` child.
+    pub fn underline_fill_text(&self) -> Option<UnderlineFillTextView<'a>> {
+        self.0.child::<UnderlineFillText>().map(UnderlineFillTextView)
+    }
+    /// First `a:uFill` child.
+    pub fn underline_fill(&self) -> Option<UnderlineFillView<'a>> {
+        self.0.child::<UnderlineFill>().map(UnderlineFillView)
+    }
+    /// First `a:uLnTx` child.
+    pub fn underline_follows_text(&self) -> Option<UnderlineFollowsTextView<'a>> {
+        self.0.child::<UnderlineFollowsText>().map(UnderlineFollowsTextView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`DefaultRunProperties`]. Reads go through [`DefaultRunPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefaultRunPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DefaultRunProperties>,
+);
+impl<'a> DefaultRunPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefaultRunPropertiesView<'_> {
+        DefaultRunPropertiesView(self.0.as_lens())
+    }
+    /// Sets `kumimoji` — kumimoji
+    pub fn set_kumimoji(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefaultRunProperties::ATTR_KUMIMOJI,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `kumimoji`.
+    pub fn remove_kumimoji(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_KUMIMOJI)
+    }
+    /// Sets `lang` — lang
+    pub fn set_language(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_LANG, v)
+    }
+    /// Removes `lang`.
+    pub fn remove_language(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_LANG)
+    }
+    /// Sets `altLang` — altLang
+    pub fn set_alternative_language(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_ALT_LANG, v)
+    }
+    /// Removes `altLang`.
+    pub fn remove_alternative_language(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_ALT_LANG)
+    }
+    /// Sets `sz` — sz
+    pub fn set_font_size(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DefaultRunProperties::ATTR_SZ, s),
+        )
+    }
+    /// Removes `sz`.
+    pub fn remove_font_size(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_SZ)
+    }
+    /// Sets `b` — b
+    pub fn set_bold(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_B, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `b`.
+    pub fn remove_bold(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_B)
+    }
+    /// Sets `i` — i
+    pub fn set_italic(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_I, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `i`.
+    pub fn remove_italic(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_I)
+    }
+    /// Sets `u` — u
+    pub fn set_underline(
+        &mut self,
+        v: TextUnderlineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_U, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `u`.
+    pub fn remove_underline(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_U)
+    }
+    /// Sets `strike` — strike
+    pub fn set_strike(&mut self, v: TextStrikeValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(DefaultRunProperties::ATTR_STRIKE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `strike`.
+    pub fn remove_strike(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_STRIKE)
+    }
+    /// Sets `kern` — kern
+    pub fn set_kerning(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DefaultRunProperties::ATTR_KERN, s),
+        )
+    }
+    /// Removes `kern`.
+    pub fn remove_kerning(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_KERN)
+    }
+    /// Sets `cap` — cap (default `none`)
+    pub fn set_capital(&mut self, v: TextCapsValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_CAP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cap`.
+    pub fn remove_capital(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_CAP)
+    }
+    /// Sets `spc` — spc
+    pub fn set_spacing(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(DefaultRunProperties::ATTR_SPC, s),
+        )
+    }
+    /// Removes `spc`.
+    pub fn remove_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_SPC)
+    }
+    /// Sets `normalizeH` — normalizeH
+    pub fn set_normalize_height(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefaultRunProperties::ATTR_NORMALIZE_H,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `normalizeH`.
+    pub fn remove_normalize_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_NORMALIZE_H)
+    }
+    /// Sets `baseline` — baseline
+    pub fn set_baseline(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(DefaultRunProperties::ATTR_BASELINE, s),
+        )
+    }
+    /// Removes `baseline`.
+    pub fn remove_baseline(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_BASELINE)
+    }
+    /// Sets `noProof` — noProof
+    pub fn set_no_proof(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefaultRunProperties::ATTR_NO_PROOF,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noProof`.
+    pub fn remove_no_proof(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_NO_PROOF)
+    }
+    /// Sets `dirty` — dirty (default `true`)
+    pub fn set_dirty(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefaultRunProperties::ATTR_DIRTY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `dirty`.
+    pub fn remove_dirty(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_DIRTY)
+    }
+    /// Sets `err` — err (default `false`)
+    pub fn set_spelling_error(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(DefaultRunProperties::ATTR_ERR, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `err`.
+    pub fn remove_spelling_error(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_ERR)
+    }
+    /// Sets `smtClean` — smtClean (default `true`)
+    pub fn set_smart_tag_clean(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefaultRunProperties::ATTR_SMT_CLEAN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `smtClean`.
+    pub fn remove_smart_tag_clean(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_SMT_CLEAN)
+    }
+    /// Sets `smtId` — smtId (default `0`)
+    pub fn set_smart_tag_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefaultRunProperties::ATTR_SMT_ID, s),
+        )
+    }
+    /// Removes `smtId`.
+    pub fn remove_smart_tag_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_SMT_ID)
+    }
+    /// Sets `bmk` — bmk
+    pub fn set_bookmark(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefaultRunProperties::ATTR_BMK, v)
+    }
+    /// Removes `bmk`.
+    pub fn remove_bookmark(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefaultRunProperties::ATTR_BMK)
+    }
+    /// First `a:highlight` child, mutably.
+    pub fn highlight_mut(&mut self) -> Option<HighlightViewMut<'_>> {
+        self.0.child_mut::<Highlight>().map(HighlightViewMut)
+    }
+    /// Existing `a:highlight` child, or a new one in schema position.
+    pub fn get_or_insert_highlight(
+        &mut self,
+    ) -> Result<HighlightViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Highlight>().map(HighlightViewMut)
+    }
+    /// Removes the first `a:highlight` child.
+    pub fn remove_highlight(&mut self) -> bool {
+        self.0.remove::<Highlight>()
+    }
+    /// First `a:uLn` child, mutably.
+    pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
+        self.0.child_mut::<Underline>().map(UnderlineViewMut)
+    }
+    /// Existing `a:uLn` child, or a new one in schema position.
+    pub fn get_or_insert_underline(
+        &mut self,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Underline>().map(UnderlineViewMut)
+    }
+    /// Removes the first `a:uLn` child.
+    pub fn remove_underline_child(&mut self) -> bool {
+        self.0.remove::<Underline>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+    /// First `a:cs` child, mutably.
+    pub fn complex_script_font_mut(&mut self) -> Option<ComplexScriptFontViewMut<'_>> {
+        self.0.child_mut::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Existing `a:cs` child, or a new one in schema position.
+    pub fn get_or_insert_complex_script_font(
+        &mut self,
+    ) -> Result<ComplexScriptFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Removes the first `a:cs` child.
+    pub fn remove_complex_script_font(&mut self) -> bool {
+        self.0.remove::<ComplexScriptFont>()
+    }
+    /// First `a:ea` child, mutably.
+    pub fn east_asian_font_mut(&mut self) -> Option<EastAsianFontViewMut<'_>> {
+        self.0.child_mut::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Existing `a:ea` child, or a new one in schema position.
+    pub fn get_or_insert_east_asian_font(
+        &mut self,
+    ) -> Result<EastAsianFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Removes the first `a:ea` child.
+    pub fn remove_east_asian_font(&mut self) -> bool {
+        self.0.remove::<EastAsianFont>()
+    }
+    /// First `a:latin` child, mutably.
+    pub fn latin_font_mut(&mut self) -> Option<LatinFontViewMut<'_>> {
+        self.0.child_mut::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Existing `a:latin` child, or a new one in schema position.
+    pub fn get_or_insert_latin_font(
+        &mut self,
+    ) -> Result<LatinFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Removes the first `a:latin` child.
+    pub fn remove_latin_font(&mut self) -> bool {
+        self.0.remove::<LatinFont>()
+    }
+    /// First `a:sym` child, mutably.
+    pub fn symbol_font_mut(&mut self) -> Option<SymbolFontViewMut<'_>> {
+        self.0.child_mut::<SymbolFont>().map(SymbolFontViewMut)
+    }
+    /// Existing `a:sym` child, or a new one in schema position.
+    pub fn get_or_insert_symbol_font(
+        &mut self,
+    ) -> Result<SymbolFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SymbolFont>().map(SymbolFontViewMut)
+    }
+    /// Removes the first `a:sym` child.
+    pub fn remove_symbol_font(&mut self) -> bool {
+        self.0.remove::<SymbolFont>()
+    }
+    /// First `a:uFillTx` child, mutably.
+    pub fn underline_fill_text_mut(&mut self) -> Option<UnderlineFillTextViewMut<'_>> {
+        self.0.child_mut::<UnderlineFillText>().map(UnderlineFillTextViewMut)
+    }
+    /// Existing `a:uFillTx` child, or a new one in schema position.
+    pub fn get_or_insert_underline_fill_text(
+        &mut self,
+    ) -> Result<UnderlineFillTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFillText>().map(UnderlineFillTextViewMut)
+    }
+    /// Removes the first `a:uFillTx` child.
+    pub fn remove_underline_fill_text(&mut self) -> bool {
+        self.0.remove::<UnderlineFillText>()
+    }
+    /// First `a:uFill` child, mutably.
+    pub fn underline_fill_mut(&mut self) -> Option<UnderlineFillViewMut<'_>> {
+        self.0.child_mut::<UnderlineFill>().map(UnderlineFillViewMut)
+    }
+    /// Existing `a:uFill` child, or a new one in schema position.
+    pub fn get_or_insert_underline_fill(
+        &mut self,
+    ) -> Result<UnderlineFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFill>().map(UnderlineFillViewMut)
+    }
+    /// Removes the first `a:uFill` child.
+    pub fn remove_underline_fill(&mut self) -> bool {
+        self.0.remove::<UnderlineFill>()
+    }
+    /// First `a:uLnTx` child, mutably.
+    pub fn underline_follows_text_mut(
+        &mut self,
+    ) -> Option<UnderlineFollowsTextViewMut<'_>> {
+        self.0.child_mut::<UnderlineFollowsText>().map(UnderlineFollowsTextViewMut)
+    }
+    /// Existing `a:uLnTx` child, or a new one in schema position.
+    pub fn get_or_insert_underline_follows_text(
+        &mut self,
+    ) -> Result<UnderlineFollowsTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFollowsText>().map(UnderlineFollowsTextViewMut)
+    }
+    /// Removes the first `a:uLnTx` child.
+    pub fn remove_underline_follows_text(&mut self) -> bool {
+        self.0.remove::<UnderlineFollowsText>()
     }
 }
 /// `a:CT_TextCharacterProperties/a:endParaRPr` — End Paragraph Run Properties.
@@ -11573,8 +18134,10 @@ impl ooxml_core::ElementSpec for EndParagraphRunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for Highlight {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for HyperlinkOnClick {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for Underline {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for NoFill {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for ExtensionList {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for SolidFill {}
@@ -11582,6 +18145,9 @@ impl ooxml_core::ChildOf<EndParagraphRunProperties> for ComplexScriptFont {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for EastAsianFont {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for LatinFont {}
 impl ooxml_core::ChildOf<EndParagraphRunProperties> for SymbolFont {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for UnderlineFillText {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for UnderlineFill {}
+impl ooxml_core::ChildOf<EndParagraphRunProperties> for UnderlineFollowsText {}
 impl ooxml_core::schema::__private::Sealed for EndParagraphRunProperties {}
 impl ooxml_core::Detachable for EndParagraphRunProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -11758,6 +18324,10 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(EndParagraphRunProperties::ATTR_BMK)
     }
+    /// First `a:highlight` child.
+    pub fn highlight(&self) -> Option<HighlightView<'a>> {
+        self.0.child::<Highlight>().map(HighlightView)
+    }
     /// First `a:hlinkClick` child.
     pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
         self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
@@ -11765,6 +18335,10 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     /// First `a:hlinkMouseOver` child.
     pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
         self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:uLn` child.
+    pub fn underline_child(&self) -> Option<UnderlineView<'a>> {
+        self.0.child::<Underline>().map(UnderlineView)
     }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
@@ -11794,9 +18368,419 @@ impl<'a> EndParagraphRunPropertiesView<'a> {
     pub fn symbol_font(&self) -> Option<SymbolFontView<'a>> {
         self.0.child::<SymbolFont>().map(SymbolFontView)
     }
+    /// First `a:uFillTx` child.
+    pub fn underline_fill_text(&self) -> Option<UnderlineFillTextView<'a>> {
+        self.0.child::<UnderlineFillText>().map(UnderlineFillTextView)
+    }
+    /// First `a:uFill` child.
+    pub fn underline_fill(&self) -> Option<UnderlineFillView<'a>> {
+        self.0.child::<UnderlineFill>().map(UnderlineFillView)
+    }
+    /// First `a:uLnTx` child.
+    pub fn underline_follows_text(&self) -> Option<UnderlineFollowsTextView<'a>> {
+        self.0.child::<UnderlineFollowsText>().map(UnderlineFollowsTextView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`EndParagraphRunProperties`]. Reads go through [`EndParagraphRunPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct EndParagraphRunPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, EndParagraphRunProperties>,
+);
+impl<'a> EndParagraphRunPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> EndParagraphRunPropertiesView<'_> {
+        EndParagraphRunPropertiesView(self.0.as_lens())
+    }
+    /// Sets `kumimoji` — kumimoji
+    pub fn set_kumimoji(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_KUMIMOJI,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `kumimoji`.
+    pub fn remove_kumimoji(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_KUMIMOJI)
+    }
+    /// Sets `lang` — lang
+    pub fn set_language(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EndParagraphRunProperties::ATTR_LANG, v)
+    }
+    /// Removes `lang`.
+    pub fn remove_language(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_LANG)
+    }
+    /// Sets `altLang` — altLang
+    pub fn set_alternative_language(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EndParagraphRunProperties::ATTR_ALT_LANG, v)
+    }
+    /// Removes `altLang`.
+    pub fn remove_alternative_language(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_ALT_LANG)
+    }
+    /// Sets `sz` — sz
+    pub fn set_font_size(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(EndParagraphRunProperties::ATTR_SZ, s),
+        )
+    }
+    /// Removes `sz`.
+    pub fn remove_font_size(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_SZ)
+    }
+    /// Sets `b` — b
+    pub fn set_bold(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_B,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `b`.
+    pub fn remove_bold(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_B)
+    }
+    /// Sets `i` — i
+    pub fn set_italic(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_I,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `i`.
+    pub fn remove_italic(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_I)
+    }
+    /// Sets `u` — u
+    pub fn set_underline(
+        &mut self,
+        v: TextUnderlineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(EndParagraphRunProperties::ATTR_U, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `u`.
+    pub fn remove_underline(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_U)
+    }
+    /// Sets `strike` — strike
+    pub fn set_strike(&mut self, v: TextStrikeValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_STRIKE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `strike`.
+    pub fn remove_strike(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_STRIKE)
+    }
+    /// Sets `kern` — kern
+    pub fn set_kerning(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(EndParagraphRunProperties::ATTR_KERN, s),
+        )
+    }
+    /// Removes `kern`.
+    pub fn remove_kerning(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_KERN)
+    }
+    /// Sets `cap` — cap (default `none`)
+    pub fn set_capital(&mut self, v: TextCapsValues) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_CAP,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `cap`.
+    pub fn remove_capital(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_CAP)
+    }
+    /// Sets `spc` — spc
+    pub fn set_spacing(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(EndParagraphRunProperties::ATTR_SPC, s),
+        )
+    }
+    /// Removes `spc`.
+    pub fn remove_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_SPC)
+    }
+    /// Sets `normalizeH` — normalizeH
+    pub fn set_normalize_height(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_NORMALIZE_H,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `normalizeH`.
+    pub fn remove_normalize_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_NORMALIZE_H)
+    }
+    /// Sets `baseline` — baseline
+    pub fn set_baseline(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(EndParagraphRunProperties::ATTR_BASELINE, s),
+        )
+    }
+    /// Removes `baseline`.
+    pub fn remove_baseline(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_BASELINE)
+    }
+    /// Sets `noProof` — noProof
+    pub fn set_no_proof(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_NO_PROOF,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `noProof`.
+    pub fn remove_no_proof(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_NO_PROOF)
+    }
+    /// Sets `dirty` — dirty (default `true`)
+    pub fn set_dirty(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_DIRTY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `dirty`.
+    pub fn remove_dirty(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_DIRTY)
+    }
+    /// Sets `err` — err (default `false`)
+    pub fn set_spelling_error(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_ERR,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `err`.
+    pub fn remove_spelling_error(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_ERR)
+    }
+    /// Sets `smtClean` — smtClean (default `true`)
+    pub fn set_smart_tag_clean(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                EndParagraphRunProperties::ATTR_SMT_CLEAN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `smtClean`.
+    pub fn remove_smart_tag_clean(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_SMT_CLEAN)
+    }
+    /// Sets `smtId` — smtId (default `0`)
+    pub fn set_smart_tag_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(EndParagraphRunProperties::ATTR_SMT_ID, s),
+        )
+    }
+    /// Removes `smtId`.
+    pub fn remove_smart_tag_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_SMT_ID)
+    }
+    /// Sets `bmk` — bmk
+    pub fn set_bookmark(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EndParagraphRunProperties::ATTR_BMK, v)
+    }
+    /// Removes `bmk`.
+    pub fn remove_bookmark(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EndParagraphRunProperties::ATTR_BMK)
+    }
+    /// First `a:highlight` child, mutably.
+    pub fn highlight_mut(&mut self) -> Option<HighlightViewMut<'_>> {
+        self.0.child_mut::<Highlight>().map(HighlightViewMut)
+    }
+    /// Existing `a:highlight` child, or a new one in schema position.
+    pub fn get_or_insert_highlight(
+        &mut self,
+    ) -> Result<HighlightViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Highlight>().map(HighlightViewMut)
+    }
+    /// Removes the first `a:highlight` child.
+    pub fn remove_highlight(&mut self) -> bool {
+        self.0.remove::<Highlight>()
+    }
+    /// First `a:uLn` child, mutably.
+    pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
+        self.0.child_mut::<Underline>().map(UnderlineViewMut)
+    }
+    /// Existing `a:uLn` child, or a new one in schema position.
+    pub fn get_or_insert_underline(
+        &mut self,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Underline>().map(UnderlineViewMut)
+    }
+    /// Removes the first `a:uLn` child.
+    pub fn remove_underline_child(&mut self) -> bool {
+        self.0.remove::<Underline>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+    /// First `a:cs` child, mutably.
+    pub fn complex_script_font_mut(&mut self) -> Option<ComplexScriptFontViewMut<'_>> {
+        self.0.child_mut::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Existing `a:cs` child, or a new one in schema position.
+    pub fn get_or_insert_complex_script_font(
+        &mut self,
+    ) -> Result<ComplexScriptFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Removes the first `a:cs` child.
+    pub fn remove_complex_script_font(&mut self) -> bool {
+        self.0.remove::<ComplexScriptFont>()
+    }
+    /// First `a:ea` child, mutably.
+    pub fn east_asian_font_mut(&mut self) -> Option<EastAsianFontViewMut<'_>> {
+        self.0.child_mut::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Existing `a:ea` child, or a new one in schema position.
+    pub fn get_or_insert_east_asian_font(
+        &mut self,
+    ) -> Result<EastAsianFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Removes the first `a:ea` child.
+    pub fn remove_east_asian_font(&mut self) -> bool {
+        self.0.remove::<EastAsianFont>()
+    }
+    /// First `a:latin` child, mutably.
+    pub fn latin_font_mut(&mut self) -> Option<LatinFontViewMut<'_>> {
+        self.0.child_mut::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Existing `a:latin` child, or a new one in schema position.
+    pub fn get_or_insert_latin_font(
+        &mut self,
+    ) -> Result<LatinFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Removes the first `a:latin` child.
+    pub fn remove_latin_font(&mut self) -> bool {
+        self.0.remove::<LatinFont>()
+    }
+    /// First `a:sym` child, mutably.
+    pub fn symbol_font_mut(&mut self) -> Option<SymbolFontViewMut<'_>> {
+        self.0.child_mut::<SymbolFont>().map(SymbolFontViewMut)
+    }
+    /// Existing `a:sym` child, or a new one in schema position.
+    pub fn get_or_insert_symbol_font(
+        &mut self,
+    ) -> Result<SymbolFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SymbolFont>().map(SymbolFontViewMut)
+    }
+    /// Removes the first `a:sym` child.
+    pub fn remove_symbol_font(&mut self) -> bool {
+        self.0.remove::<SymbolFont>()
+    }
+    /// First `a:uFillTx` child, mutably.
+    pub fn underline_fill_text_mut(&mut self) -> Option<UnderlineFillTextViewMut<'_>> {
+        self.0.child_mut::<UnderlineFillText>().map(UnderlineFillTextViewMut)
+    }
+    /// Existing `a:uFillTx` child, or a new one in schema position.
+    pub fn get_or_insert_underline_fill_text(
+        &mut self,
+    ) -> Result<UnderlineFillTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFillText>().map(UnderlineFillTextViewMut)
+    }
+    /// Removes the first `a:uFillTx` child.
+    pub fn remove_underline_fill_text(&mut self) -> bool {
+        self.0.remove::<UnderlineFillText>()
+    }
+    /// First `a:uFill` child, mutably.
+    pub fn underline_fill_mut(&mut self) -> Option<UnderlineFillViewMut<'_>> {
+        self.0.child_mut::<UnderlineFill>().map(UnderlineFillViewMut)
+    }
+    /// Existing `a:uFill` child, or a new one in schema position.
+    pub fn get_or_insert_underline_fill(
+        &mut self,
+    ) -> Result<UnderlineFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFill>().map(UnderlineFillViewMut)
+    }
+    /// Removes the first `a:uFill` child.
+    pub fn remove_underline_fill(&mut self) -> bool {
+        self.0.remove::<UnderlineFill>()
+    }
+    /// First `a:uLnTx` child, mutably.
+    pub fn underline_follows_text_mut(
+        &mut self,
+    ) -> Option<UnderlineFollowsTextViewMut<'_>> {
+        self.0.child_mut::<UnderlineFollowsText>().map(UnderlineFollowsTextViewMut)
+    }
+    /// Existing `a:uLnTx` child, or a new one in schema position.
+    pub fn get_or_insert_underline_follows_text(
+        &mut self,
+    ) -> Result<UnderlineFollowsTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFollowsText>().map(UnderlineFollowsTextViewMut)
+    }
+    /// Removes the first `a:uLnTx` child.
+    pub fn remove_underline_follows_text(&mut self) -> bool {
+        self.0.remove::<UnderlineFollowsText>()
     }
 }
 /// `a:CT_TextCharacterProperties/a:rPr` — Text Run Properties.
@@ -12056,8 +19040,10 @@ impl ooxml_core::ElementSpec for RunProperties {
         ],
     );
 }
+impl ooxml_core::ChildOf<RunProperties> for Highlight {}
 impl ooxml_core::ChildOf<RunProperties> for HyperlinkOnClick {}
 impl ooxml_core::ChildOf<RunProperties> for HyperlinkOnMouseOver {}
+impl ooxml_core::ChildOf<RunProperties> for Underline {}
 impl ooxml_core::ChildOf<RunProperties> for NoFill {}
 impl ooxml_core::ChildOf<RunProperties> for ExtensionList {}
 impl ooxml_core::ChildOf<RunProperties> for SolidFill {}
@@ -12065,6 +19051,9 @@ impl ooxml_core::ChildOf<RunProperties> for ComplexScriptFont {}
 impl ooxml_core::ChildOf<RunProperties> for EastAsianFont {}
 impl ooxml_core::ChildOf<RunProperties> for LatinFont {}
 impl ooxml_core::ChildOf<RunProperties> for SymbolFont {}
+impl ooxml_core::ChildOf<RunProperties> for UnderlineFillText {}
+impl ooxml_core::ChildOf<RunProperties> for UnderlineFill {}
+impl ooxml_core::ChildOf<RunProperties> for UnderlineFollowsText {}
 impl ooxml_core::schema::__private::Sealed for RunProperties {}
 impl ooxml_core::Detachable for RunProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -12208,6 +19197,10 @@ impl<'a> RunPropertiesView<'a> {
     pub fn bookmark(&self) -> Option<&'a str> {
         self.0.attr(RunProperties::ATTR_BMK)
     }
+    /// First `a:highlight` child.
+    pub fn highlight(&self) -> Option<HighlightView<'a>> {
+        self.0.child::<Highlight>().map(HighlightView)
+    }
     /// First `a:hlinkClick` child.
     pub fn hyperlink_on_click(&self) -> Option<HyperlinkOnClickView<'a>> {
         self.0.child::<HyperlinkOnClick>().map(HyperlinkOnClickView)
@@ -12215,6 +19208,10 @@ impl<'a> RunPropertiesView<'a> {
     /// First `a:hlinkMouseOver` child.
     pub fn hyperlink_on_mouse_over(&self) -> Option<HyperlinkOnMouseOverView<'a>> {
         self.0.child::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverView)
+    }
+    /// First `a:uLn` child.
+    pub fn underline_child(&self) -> Option<UnderlineView<'a>> {
+        self.0.child::<Underline>().map(UnderlineView)
     }
     /// First `a:noFill` child.
     pub fn no_fill(&self) -> Option<NoFillView<'a>> {
@@ -12244,9 +19241,368 @@ impl<'a> RunPropertiesView<'a> {
     pub fn symbol_font(&self) -> Option<SymbolFontView<'a>> {
         self.0.child::<SymbolFont>().map(SymbolFontView)
     }
+    /// First `a:uFillTx` child.
+    pub fn underline_fill_text(&self) -> Option<UnderlineFillTextView<'a>> {
+        self.0.child::<UnderlineFillText>().map(UnderlineFillTextView)
+    }
+    /// First `a:uFill` child.
+    pub fn underline_fill(&self) -> Option<UnderlineFillView<'a>> {
+        self.0.child::<UnderlineFill>().map(UnderlineFillView)
+    }
+    /// First `a:uLnTx` child.
+    pub fn underline_follows_text(&self) -> Option<UnderlineFollowsTextView<'a>> {
+        self.0.child::<UnderlineFollowsText>().map(UnderlineFollowsTextView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`RunProperties`]. Reads go through [`RunPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, RunProperties>);
+impl<'a> RunPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunPropertiesView<'_> {
+        RunPropertiesView(self.0.as_lens())
+    }
+    /// Sets `kumimoji` — kumimoji
+    pub fn set_kumimoji(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_KUMIMOJI, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `kumimoji`.
+    pub fn remove_kumimoji(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_KUMIMOJI)
+    }
+    /// Sets `lang` — lang
+    pub fn set_language(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_LANG, v)
+    }
+    /// Removes `lang`.
+    pub fn remove_language(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_LANG)
+    }
+    /// Sets `altLang` — altLang
+    pub fn set_alternative_language(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_ALT_LANG, v)
+    }
+    /// Removes `altLang`.
+    pub fn remove_alternative_language(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_ALT_LANG)
+    }
+    /// Sets `sz` — sz
+    pub fn set_font_size(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(RunProperties::ATTR_SZ, s))
+    }
+    /// Removes `sz`.
+    pub fn remove_font_size(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_SZ)
+    }
+    /// Sets `b` — b
+    pub fn set_bold(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_B, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `b`.
+    pub fn remove_bold(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_B)
+    }
+    /// Sets `i` — i
+    pub fn set_italic(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_I, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `i`.
+    pub fn remove_italic(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_I)
+    }
+    /// Sets `u` — u
+    pub fn set_underline(
+        &mut self,
+        v: TextUnderlineValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_U, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `u`.
+    pub fn remove_underline(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_U)
+    }
+    /// Sets `strike` — strike
+    pub fn set_strike(&mut self, v: TextStrikeValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_STRIKE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `strike`.
+    pub fn remove_strike(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_STRIKE)
+    }
+    /// Sets `kern` — kern
+    pub fn set_kerning(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(RunProperties::ATTR_KERN, s))
+    }
+    /// Removes `kern`.
+    pub fn remove_kerning(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_KERN)
+    }
+    /// Sets `cap` — cap (default `none`)
+    pub fn set_capital(&mut self, v: TextCapsValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_CAP, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cap`.
+    pub fn remove_capital(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_CAP)
+    }
+    /// Sets `spc` — spc
+    pub fn set_spacing(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(RunProperties::ATTR_SPC, s))
+    }
+    /// Removes `spc`.
+    pub fn remove_spacing(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_SPC)
+    }
+    /// Sets `normalizeH` — normalizeH
+    pub fn set_normalize_height(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(RunProperties::ATTR_NORMALIZE_H, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `normalizeH`.
+    pub fn remove_normalize_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_NORMALIZE_H)
+    }
+    /// Sets `baseline` — baseline
+    pub fn set_baseline(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(RunProperties::ATTR_BASELINE, s),
+        )
+    }
+    /// Removes `baseline`.
+    pub fn remove_baseline(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_BASELINE)
+    }
+    /// Sets `noProof` — noProof
+    pub fn set_no_proof(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_NO_PROOF, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `noProof`.
+    pub fn remove_no_proof(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_NO_PROOF)
+    }
+    /// Sets `dirty` — dirty (default `true`)
+    pub fn set_dirty(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_DIRTY, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `dirty`.
+    pub fn remove_dirty(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_DIRTY)
+    }
+    /// Sets `err` — err (default `false`)
+    pub fn set_spelling_error(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_ERR, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `err`.
+    pub fn remove_spelling_error(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_ERR)
+    }
+    /// Sets `smtClean` — smtClean (default `true`)
+    pub fn set_smart_tag_clean(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_SMT_CLEAN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `smtClean`.
+    pub fn remove_smart_tag_clean(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_SMT_CLEAN)
+    }
+    /// Sets `smtId` — smtId (default `0`)
+    pub fn set_smart_tag_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(RunProperties::ATTR_SMT_ID, s),
+        )
+    }
+    /// Removes `smtId`.
+    pub fn remove_smart_tag_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_SMT_ID)
+    }
+    /// Sets `bmk` — bmk
+    pub fn set_bookmark(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunProperties::ATTR_BMK, v)
+    }
+    /// Removes `bmk`.
+    pub fn remove_bookmark(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunProperties::ATTR_BMK)
+    }
+    /// First `a:highlight` child, mutably.
+    pub fn highlight_mut(&mut self) -> Option<HighlightViewMut<'_>> {
+        self.0.child_mut::<Highlight>().map(HighlightViewMut)
+    }
+    /// Existing `a:highlight` child, or a new one in schema position.
+    pub fn get_or_insert_highlight(
+        &mut self,
+    ) -> Result<HighlightViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Highlight>().map(HighlightViewMut)
+    }
+    /// Removes the first `a:highlight` child.
+    pub fn remove_highlight(&mut self) -> bool {
+        self.0.remove::<Highlight>()
+    }
+    /// First `a:uLn` child, mutably.
+    pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
+        self.0.child_mut::<Underline>().map(UnderlineViewMut)
+    }
+    /// Existing `a:uLn` child, or a new one in schema position.
+    pub fn get_or_insert_underline(
+        &mut self,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Underline>().map(UnderlineViewMut)
+    }
+    /// Removes the first `a:uLn` child.
+    pub fn remove_underline_child(&mut self) -> bool {
+        self.0.remove::<Underline>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+    /// First `a:cs` child, mutably.
+    pub fn complex_script_font_mut(&mut self) -> Option<ComplexScriptFontViewMut<'_>> {
+        self.0.child_mut::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Existing `a:cs` child, or a new one in schema position.
+    pub fn get_or_insert_complex_script_font(
+        &mut self,
+    ) -> Result<ComplexScriptFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Removes the first `a:cs` child.
+    pub fn remove_complex_script_font(&mut self) -> bool {
+        self.0.remove::<ComplexScriptFont>()
+    }
+    /// First `a:ea` child, mutably.
+    pub fn east_asian_font_mut(&mut self) -> Option<EastAsianFontViewMut<'_>> {
+        self.0.child_mut::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Existing `a:ea` child, or a new one in schema position.
+    pub fn get_or_insert_east_asian_font(
+        &mut self,
+    ) -> Result<EastAsianFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Removes the first `a:ea` child.
+    pub fn remove_east_asian_font(&mut self) -> bool {
+        self.0.remove::<EastAsianFont>()
+    }
+    /// First `a:latin` child, mutably.
+    pub fn latin_font_mut(&mut self) -> Option<LatinFontViewMut<'_>> {
+        self.0.child_mut::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Existing `a:latin` child, or a new one in schema position.
+    pub fn get_or_insert_latin_font(
+        &mut self,
+    ) -> Result<LatinFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Removes the first `a:latin` child.
+    pub fn remove_latin_font(&mut self) -> bool {
+        self.0.remove::<LatinFont>()
+    }
+    /// First `a:sym` child, mutably.
+    pub fn symbol_font_mut(&mut self) -> Option<SymbolFontViewMut<'_>> {
+        self.0.child_mut::<SymbolFont>().map(SymbolFontViewMut)
+    }
+    /// Existing `a:sym` child, or a new one in schema position.
+    pub fn get_or_insert_symbol_font(
+        &mut self,
+    ) -> Result<SymbolFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SymbolFont>().map(SymbolFontViewMut)
+    }
+    /// Removes the first `a:sym` child.
+    pub fn remove_symbol_font(&mut self) -> bool {
+        self.0.remove::<SymbolFont>()
+    }
+    /// First `a:uFillTx` child, mutably.
+    pub fn underline_fill_text_mut(&mut self) -> Option<UnderlineFillTextViewMut<'_>> {
+        self.0.child_mut::<UnderlineFillText>().map(UnderlineFillTextViewMut)
+    }
+    /// Existing `a:uFillTx` child, or a new one in schema position.
+    pub fn get_or_insert_underline_fill_text(
+        &mut self,
+    ) -> Result<UnderlineFillTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFillText>().map(UnderlineFillTextViewMut)
+    }
+    /// Removes the first `a:uFillTx` child.
+    pub fn remove_underline_fill_text(&mut self) -> bool {
+        self.0.remove::<UnderlineFillText>()
+    }
+    /// First `a:uFill` child, mutably.
+    pub fn underline_fill_mut(&mut self) -> Option<UnderlineFillViewMut<'_>> {
+        self.0.child_mut::<UnderlineFill>().map(UnderlineFillViewMut)
+    }
+    /// Existing `a:uFill` child, or a new one in schema position.
+    pub fn get_or_insert_underline_fill(
+        &mut self,
+    ) -> Result<UnderlineFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFill>().map(UnderlineFillViewMut)
+    }
+    /// Removes the first `a:uFill` child.
+    pub fn remove_underline_fill(&mut self) -> bool {
+        self.0.remove::<UnderlineFill>()
+    }
+    /// First `a:uLnTx` child, mutably.
+    pub fn underline_follows_text_mut(
+        &mut self,
+    ) -> Option<UnderlineFollowsTextViewMut<'_>> {
+        self.0.child_mut::<UnderlineFollowsText>().map(UnderlineFollowsTextViewMut)
+    }
+    /// Existing `a:uLnTx` child, or a new one in schema position.
+    pub fn get_or_insert_underline_follows_text(
+        &mut self,
+    ) -> Result<UnderlineFollowsTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UnderlineFollowsText>().map(UnderlineFollowsTextViewMut)
+    }
+    /// Removes the first `a:uLnTx` child.
+    pub fn remove_underline_follows_text(&mut self) -> bool {
+        self.0.remove::<UnderlineFollowsText>()
     }
 }
 /// `a:CT_TextField/a:fld` — Text Field.
@@ -12401,6 +19757,50 @@ impl<'a> BulletFontView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`BulletFont`]. Reads go through [`BulletFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct BulletFontViewMut<'a>(pub ooxml_core::LensMut<'a, BulletFont>);
+impl<'a> BulletFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BulletFontView<'_> {
+        BulletFontView(self.0.as_lens())
+    }
+    /// Sets `typeface` — Text Typeface
+    pub fn set_typeface(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BulletFont::ATTR_TYPEFACE, v)
+    }
+    /// Removes `typeface`.
+    pub fn remove_typeface(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BulletFont::ATTR_TYPEFACE)
+    }
+    /// Sets `panose` — Panose Setting
+    pub fn set_panose(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BulletFont::ATTR_PANOSE, v)
+    }
+    /// Removes `panose`.
+    pub fn remove_panose(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BulletFont::ATTR_PANOSE)
+    }
+    /// Sets `pitchFamily` — Similar Font Family (default `0`)
+    pub fn set_pitch_family(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(BulletFont::ATTR_PITCH_FAMILY, s),
+        )
+    }
+    /// Removes `pitchFamily`.
+    pub fn remove_pitch_family(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BulletFont::ATTR_PITCH_FAMILY)
+    }
+    /// Sets `charset` — Similar Character Set (default `1`)
+    pub fn set_character_set(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(v, |s| self.0.set_attr(BulletFont::ATTR_CHARSET, s))
+    }
+    /// Removes `charset`.
+    pub fn remove_character_set(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BulletFont::ATTR_CHARSET)
+    }
+}
 /// `a:CT_TextFont/a:cs` — Complex Script Font.
 #[derive(Debug)]
 pub enum ComplexScriptFont {}
@@ -12477,6 +19877,53 @@ impl<'a> ComplexScriptFontView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`ComplexScriptFont`]. Reads go through [`ComplexScriptFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct ComplexScriptFontViewMut<'a>(pub ooxml_core::LensMut<'a, ComplexScriptFont>);
+impl<'a> ComplexScriptFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ComplexScriptFontView<'_> {
+        ComplexScriptFontView(self.0.as_lens())
+    }
+    /// Sets `typeface` — Text Typeface
+    pub fn set_typeface(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ComplexScriptFont::ATTR_TYPEFACE, v)
+    }
+    /// Removes `typeface`.
+    pub fn remove_typeface(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ComplexScriptFont::ATTR_TYPEFACE)
+    }
+    /// Sets `panose` — Panose Setting
+    pub fn set_panose(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ComplexScriptFont::ATTR_PANOSE, v)
+    }
+    /// Removes `panose`.
+    pub fn remove_panose(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ComplexScriptFont::ATTR_PANOSE)
+    }
+    /// Sets `pitchFamily` — Similar Font Family (default `0`)
+    pub fn set_pitch_family(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(ComplexScriptFont::ATTR_PITCH_FAMILY, s),
+        )
+    }
+    /// Removes `pitchFamily`.
+    pub fn remove_pitch_family(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ComplexScriptFont::ATTR_PITCH_FAMILY)
+    }
+    /// Sets `charset` — Similar Character Set (default `1`)
+    pub fn set_character_set(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(ComplexScriptFont::ATTR_CHARSET, s),
+        )
+    }
+    /// Removes `charset`.
+    pub fn remove_character_set(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ComplexScriptFont::ATTR_CHARSET)
     }
 }
 /// `a:CT_TextFont/a:ea` — East Asian Font.
@@ -12557,6 +20004,53 @@ impl<'a> EastAsianFontView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`EastAsianFont`]. Reads go through [`EastAsianFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct EastAsianFontViewMut<'a>(pub ooxml_core::LensMut<'a, EastAsianFont>);
+impl<'a> EastAsianFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> EastAsianFontView<'_> {
+        EastAsianFontView(self.0.as_lens())
+    }
+    /// Sets `typeface` — Text Typeface
+    pub fn set_typeface(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EastAsianFont::ATTR_TYPEFACE, v)
+    }
+    /// Removes `typeface`.
+    pub fn remove_typeface(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EastAsianFont::ATTR_TYPEFACE)
+    }
+    /// Sets `panose` — Panose Setting
+    pub fn set_panose(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EastAsianFont::ATTR_PANOSE, v)
+    }
+    /// Removes `panose`.
+    pub fn remove_panose(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EastAsianFont::ATTR_PANOSE)
+    }
+    /// Sets `pitchFamily` — Similar Font Family (default `0`)
+    pub fn set_pitch_family(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(EastAsianFont::ATTR_PITCH_FAMILY, s),
+        )
+    }
+    /// Removes `pitchFamily`.
+    pub fn remove_pitch_family(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EastAsianFont::ATTR_PITCH_FAMILY)
+    }
+    /// Sets `charset` — Similar Character Set (default `1`)
+    pub fn set_character_set(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(EastAsianFont::ATTR_CHARSET, s),
+        )
+    }
+    /// Removes `charset`.
+    pub fn remove_character_set(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EastAsianFont::ATTR_CHARSET)
+    }
+}
 /// `a:CT_TextFont/a:latin` — Latin Font.
 #[derive(Debug)]
 pub enum LatinFont {}
@@ -12628,6 +20122,50 @@ impl<'a> LatinFontView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`LatinFont`]. Reads go through [`LatinFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct LatinFontViewMut<'a>(pub ooxml_core::LensMut<'a, LatinFont>);
+impl<'a> LatinFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LatinFontView<'_> {
+        LatinFontView(self.0.as_lens())
+    }
+    /// Sets `typeface` — Text Typeface
+    pub fn set_typeface(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LatinFont::ATTR_TYPEFACE, v)
+    }
+    /// Removes `typeface`.
+    pub fn remove_typeface(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LatinFont::ATTR_TYPEFACE)
+    }
+    /// Sets `panose` — Panose Setting
+    pub fn set_panose(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LatinFont::ATTR_PANOSE, v)
+    }
+    /// Removes `panose`.
+    pub fn remove_panose(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LatinFont::ATTR_PANOSE)
+    }
+    /// Sets `pitchFamily` — Similar Font Family (default `0`)
+    pub fn set_pitch_family(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(LatinFont::ATTR_PITCH_FAMILY, s),
+        )
+    }
+    /// Removes `pitchFamily`.
+    pub fn remove_pitch_family(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LatinFont::ATTR_PITCH_FAMILY)
+    }
+    /// Sets `charset` — Similar Character Set (default `1`)
+    pub fn set_character_set(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(v, |s| self.0.set_attr(LatinFont::ATTR_CHARSET, s))
+    }
+    /// Removes `charset`.
+    pub fn remove_character_set(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LatinFont::ATTR_CHARSET)
     }
 }
 /// `a:CT_TextFont/a:sym` — Defines the SymbolFont Class.
@@ -12703,6 +20241,50 @@ impl<'a> SymbolFontView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`SymbolFont`]. Reads go through [`SymbolFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct SymbolFontViewMut<'a>(pub ooxml_core::LensMut<'a, SymbolFont>);
+impl<'a> SymbolFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SymbolFontView<'_> {
+        SymbolFontView(self.0.as_lens())
+    }
+    /// Sets `typeface` — Text Typeface
+    pub fn set_typeface(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SymbolFont::ATTR_TYPEFACE, v)
+    }
+    /// Removes `typeface`.
+    pub fn remove_typeface(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SymbolFont::ATTR_TYPEFACE)
+    }
+    /// Sets `panose` — Panose Setting
+    pub fn set_panose(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SymbolFont::ATTR_PANOSE, v)
+    }
+    /// Removes `panose`.
+    pub fn remove_panose(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SymbolFont::ATTR_PANOSE)
+    }
+    /// Sets `pitchFamily` — Similar Font Family (default `0`)
+    pub fn set_pitch_family(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(
+            v,
+            |s| self.0.set_attr(SymbolFont::ATTR_PITCH_FAMILY, s),
+        )
+    }
+    /// Removes `pitchFamily`.
+    pub fn remove_pitch_family(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SymbolFont::ATTR_PITCH_FAMILY)
+    }
+    /// Sets `charset` — Similar Character Set (default `1`)
+    pub fn set_character_set(&mut self, v: i8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i8(v, |s| self.0.set_attr(SymbolFont::ATTR_CHARSET, s))
+    }
+    /// Removes `charset`.
+    pub fn remove_character_set(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SymbolFont::ATTR_CHARSET)
+    }
+}
 /// `a:CT_TextLineBreak/a:br` — Text Line Break.
 #[derive(Debug)]
 pub enum Break {}
@@ -12742,6 +20324,20 @@ impl<'a> BreakViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> BreakView<'_> {
         BreakView(self.0.as_lens())
+    }
+    /// First `a:rPr` child, mutably.
+    pub fn run_properties_mut(&mut self) -> Option<RunPropertiesViewMut<'_>> {
+        self.0.child_mut::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Existing `a:rPr` child, or a new one in schema position.
+    pub fn get_or_insert_run_properties(
+        &mut self,
+    ) -> Result<RunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Removes the first `a:rPr` child.
+    pub fn remove_run_properties(&mut self) -> bool {
+        self.0.remove::<RunProperties>()
     }
 }
 /// `a:CT_TextListStyle/a:lstStyle` — Defines the ListStyle Class.
@@ -12982,6 +20578,15 @@ impl<'a> NoAutoFitView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`NoAutoFit`]. Reads go through [`NoAutoFitViewMut::as_view`].
+#[derive(Debug)]
+pub struct NoAutoFitViewMut<'a>(pub ooxml_core::LensMut<'a, NoAutoFit>);
+impl<'a> NoAutoFitViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NoAutoFitView<'_> {
+        NoAutoFitView(self.0.as_lens())
+    }
+}
 /// `a:CT_TextNoBullet/a:buNone` — No Bullet.
 #[derive(Debug)]
 pub enum NoBullet {}
@@ -12998,6 +20603,15 @@ impl<'a> NoBulletView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`NoBullet`]. Reads go through [`NoBulletViewMut::as_view`].
+#[derive(Debug)]
+pub struct NoBulletViewMut<'a>(pub ooxml_core::LensMut<'a, NoBullet>);
+impl<'a> NoBulletViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NoBulletView<'_> {
+        NoBulletView(self.0.as_lens())
     }
 }
 /// `a:CT_TextNormalAutofit/a:normAutofit` — Normal AutoFit.
@@ -13061,6 +20675,43 @@ impl<'a> NormalAutoFitView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`NormalAutoFit`]. Reads go through [`NormalAutoFitViewMut::as_view`].
+#[derive(Debug)]
+pub struct NormalAutoFitViewMut<'a>(pub ooxml_core::LensMut<'a, NormalAutoFit>);
+impl<'a> NormalAutoFitViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NormalAutoFitView<'_> {
+        NormalAutoFitView(self.0.as_lens())
+    }
+    /// Sets `fontScale` — Font Scale (default `100%`)
+    pub fn set_font_scale(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(NormalAutoFit::ATTR_FONT_SCALE, s),
+        )
+    }
+    /// Removes `fontScale`.
+    pub fn remove_font_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NormalAutoFit::ATTR_FONT_SCALE)
+    }
+    /// Sets `lnSpcReduction` — Line Space Reduction (default `0%`)
+    pub fn set_line_space_reduction(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(NormalAutoFit::ATTR_LN_SPC_REDUCTION, s),
+        )
+    }
+    /// Removes `lnSpcReduction`.
+    pub fn remove_line_space_reduction(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NormalAutoFit::ATTR_LN_SPC_REDUCTION)
     }
 }
 /// `a:CT_TextParagraph/a:p` — Text Paragraphs.
@@ -13164,6 +20815,26 @@ impl<'a> ParagraphViewMut<'a> {
     pub fn remove_run(&mut self) -> bool {
         self.0.remove::<Run>()
     }
+    /// First `a:endParaRPr` child, mutably.
+    pub fn end_paragraph_run_properties_mut(
+        &mut self,
+    ) -> Option<EndParagraphRunPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<EndParagraphRunProperties>()
+            .map(EndParagraphRunPropertiesViewMut)
+    }
+    /// Existing `a:endParaRPr` child, or a new one in schema position.
+    pub fn get_or_insert_end_paragraph_run_properties(
+        &mut self,
+    ) -> Result<EndParagraphRunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<EndParagraphRunProperties>()
+            .map(EndParagraphRunPropertiesViewMut)
+    }
+    /// Removes the first `a:endParaRPr` child.
+    pub fn remove_end_paragraph_run_properties(&mut self) -> bool {
+        self.0.remove::<EndParagraphRunProperties>()
+    }
     /// First `a:br` child matching `pred`, mutably.
     pub fn break_mut_by(
         &mut self,
@@ -13185,6 +20856,22 @@ impl<'a> ParagraphViewMut<'a> {
     /// Removes the first `a:br` child.
     pub fn remove_break(&mut self) -> bool {
         self.0.remove::<Break>()
+    }
+    /// First `a:pPr` child, mutably.
+    pub fn paragraph_properties_mut(
+        &mut self,
+    ) -> Option<ParagraphPropertiesViewMut<'_>> {
+        self.0.child_mut::<ParagraphProperties>().map(ParagraphPropertiesViewMut)
+    }
+    /// Existing `a:pPr` child, or a new one in schema position.
+    pub fn get_or_insert_paragraph_properties(
+        &mut self,
+    ) -> Result<ParagraphPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ParagraphProperties>().map(ParagraphPropertiesViewMut)
+    }
+    /// Removes the first `a:pPr` child.
+    pub fn remove_paragraph_properties(&mut self) -> bool {
+        self.0.remove::<ParagraphProperties>()
     }
 }
 /// `a:CT_TextParagraphProperties/a:defPPr` — Default Paragraph Style.
@@ -13383,6 +21070,7 @@ impl ooxml_core::ChildOf<DefaultParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<DefaultParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<DefaultParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<DefaultParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<DefaultParagraphProperties> for TabStopList {}
 /// Read-only view of [`DefaultParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct DefaultParagraphPropertiesView<'a>(
@@ -13536,6 +21224,10 @@ impl<'a> DefaultParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -13738,6 +21430,7 @@ impl ooxml_core::ChildOf<Level1ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level1ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level1ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level1ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level1ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level1ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level1ParagraphPropertiesView<'a>(
@@ -13891,6 +21584,10 @@ impl<'a> Level1ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -14093,6 +21790,7 @@ impl ooxml_core::ChildOf<Level2ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level2ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level2ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level2ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level2ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level2ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level2ParagraphPropertiesView<'a>(
@@ -14246,6 +21944,10 @@ impl<'a> Level2ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -14448,6 +22150,7 @@ impl ooxml_core::ChildOf<Level3ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level3ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level3ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level3ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level3ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level3ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level3ParagraphPropertiesView<'a>(
@@ -14601,6 +22304,10 @@ impl<'a> Level3ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -14803,6 +22510,7 @@ impl ooxml_core::ChildOf<Level4ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level4ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level4ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level4ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level4ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level4ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level4ParagraphPropertiesView<'a>(
@@ -14956,6 +22664,10 @@ impl<'a> Level4ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -15158,6 +22870,7 @@ impl ooxml_core::ChildOf<Level5ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level5ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level5ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level5ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level5ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level5ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level5ParagraphPropertiesView<'a>(
@@ -15311,6 +23024,10 @@ impl<'a> Level5ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -15513,6 +23230,7 @@ impl ooxml_core::ChildOf<Level6ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level6ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level6ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level6ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level6ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level6ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level6ParagraphPropertiesView<'a>(
@@ -15666,6 +23384,10 @@ impl<'a> Level6ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -15868,6 +23590,7 @@ impl ooxml_core::ChildOf<Level7ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level7ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level7ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level7ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level7ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level7ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level7ParagraphPropertiesView<'a>(
@@ -16021,6 +23744,10 @@ impl<'a> Level7ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -16223,6 +23950,7 @@ impl ooxml_core::ChildOf<Level8ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level8ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level8ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level8ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level8ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level8ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level8ParagraphPropertiesView<'a>(
@@ -16376,6 +24104,10 @@ impl<'a> Level8ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -16578,6 +24310,7 @@ impl ooxml_core::ChildOf<Level9ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<Level9ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<Level9ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<Level9ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<Level9ParagraphProperties> for TabStopList {}
 /// Read-only view of [`Level9ParagraphProperties`].
 #[derive(Clone, Debug)]
 pub struct Level9ParagraphPropertiesView<'a>(
@@ -16731,6 +24464,10 @@ impl<'a> Level9ParagraphPropertiesView<'a> {
     /// First `a:spcBef` child.
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
+    }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -16933,6 +24670,7 @@ impl ooxml_core::ChildOf<ParagraphProperties> for NoBullet {}
 impl ooxml_core::ChildOf<ParagraphProperties> for LineSpacing {}
 impl ooxml_core::ChildOf<ParagraphProperties> for SpaceAfter {}
 impl ooxml_core::ChildOf<ParagraphProperties> for SpaceBefore {}
+impl ooxml_core::ChildOf<ParagraphProperties> for TabStopList {}
 impl ooxml_core::schema::__private::Sealed for ParagraphProperties {}
 impl ooxml_core::Detachable for ParagraphProperties {
     const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
@@ -17101,9 +24839,380 @@ impl<'a> ParagraphPropertiesView<'a> {
     pub fn space_before(&self) -> Option<SpaceBeforeView<'a>> {
         self.0.child::<SpaceBefore>().map(SpaceBeforeView)
     }
+    /// First `a:tabLst` child.
+    pub fn tab_stop_list(&self) -> Option<TabStopListView<'a>> {
+        self.0.child::<TabStopList>().map(TabStopListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`ParagraphProperties`]. Reads go through [`ParagraphPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct ParagraphPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ParagraphProperties>,
+);
+impl<'a> ParagraphPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ParagraphPropertiesView<'_> {
+        ParagraphPropertiesView(self.0.as_lens())
+    }
+    /// Sets `marL` — Left Margin
+    pub fn set_left_margin(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ParagraphProperties::ATTR_MAR_L, s),
+        )
+    }
+    /// Removes `marL`.
+    pub fn remove_left_margin(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_MAR_L)
+    }
+    /// Sets `marR` — Right Margin
+    pub fn set_right_margin(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ParagraphProperties::ATTR_MAR_R, s),
+        )
+    }
+    /// Removes `marR`.
+    pub fn remove_right_margin(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_MAR_R)
+    }
+    /// Sets `lvl` — Level
+    pub fn set_level(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ParagraphProperties::ATTR_LVL, s),
+        )
+    }
+    /// Removes `lvl`.
+    pub fn remove_level(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_LVL)
+    }
+    /// Sets `indent` — Indent
+    pub fn set_indent(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ParagraphProperties::ATTR_INDENT, s),
+        )
+    }
+    /// Removes `indent`.
+    pub fn remove_indent(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_INDENT)
+    }
+    /// Sets `algn` — Alignment
+    pub fn set_alignment(
+        &mut self,
+        v: TextAlignmentTypeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ParagraphProperties::ATTR_ALGN, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_ALGN)
+    }
+    /// Sets `defTabSz` — Default Tab Size
+    pub fn set_default_tab_size(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ParagraphProperties::ATTR_DEF_TAB_SZ, s),
+        )
+    }
+    /// Removes `defTabSz`.
+    pub fn remove_default_tab_size(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_DEF_TAB_SZ)
+    }
+    /// Sets `rtl` — Right To Left
+    pub fn set_right_to_left(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ParagraphProperties::ATTR_RTL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `rtl`.
+    pub fn remove_right_to_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_RTL)
+    }
+    /// Sets `eaLnBrk` — East Asian Line Break
+    pub fn set_east_asian_line_break(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ParagraphProperties::ATTR_EA_LN_BRK,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `eaLnBrk`.
+    pub fn remove_east_asian_line_break(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_EA_LN_BRK)
+    }
+    /// Sets `fontAlgn` — Font Alignment
+    pub fn set_font_alignment(
+        &mut self,
+        v: TextFontAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ParagraphProperties::ATTR_FONT_ALGN,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `fontAlgn`.
+    pub fn remove_font_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_FONT_ALGN)
+    }
+    /// Sets `latinLnBrk` — Latin Line Break
+    pub fn set_latin_line_break(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ParagraphProperties::ATTR_LATIN_LN_BRK,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `latinLnBrk`.
+    pub fn remove_latin_line_break(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_LATIN_LN_BRK)
+    }
+    /// Sets `hangingPunct` — Hanging Punctuation
+    pub fn set_height(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ParagraphProperties::ATTR_HANGING_PUNCT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `hangingPunct`.
+    pub fn remove_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ParagraphProperties::ATTR_HANGING_PUNCT)
+    }
+    /// First `a:buClr` child, mutably.
+    pub fn bullet_color_mut(&mut self) -> Option<BulletColorViewMut<'_>> {
+        self.0.child_mut::<BulletColor>().map(BulletColorViewMut)
+    }
+    /// Existing `a:buClr` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_color(
+        &mut self,
+    ) -> Result<BulletColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletColor>().map(BulletColorViewMut)
+    }
+    /// Removes the first `a:buClr` child.
+    pub fn remove_bullet_color(&mut self) -> bool {
+        self.0.remove::<BulletColor>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:buAutoNum` child, mutably.
+    pub fn auto_numbered_bullet_mut(&mut self) -> Option<AutoNumberedBulletViewMut<'_>> {
+        self.0.child_mut::<AutoNumberedBullet>().map(AutoNumberedBulletViewMut)
+    }
+    /// Existing `a:buAutoNum` child, or a new one in schema position.
+    pub fn get_or_insert_auto_numbered_bullet(
+        &mut self,
+    ) -> Result<AutoNumberedBulletViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<AutoNumberedBullet>().map(AutoNumberedBulletViewMut)
+    }
+    /// Removes the first `a:buAutoNum` child.
+    pub fn remove_auto_numbered_bullet(&mut self) -> bool {
+        self.0.remove::<AutoNumberedBullet>()
+    }
+    /// First `a:buClrTx` child, mutably.
+    pub fn bullet_color_text_mut(&mut self) -> Option<BulletColorTextViewMut<'_>> {
+        self.0.child_mut::<BulletColorText>().map(BulletColorTextViewMut)
+    }
+    /// Existing `a:buClrTx` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_color_text(
+        &mut self,
+    ) -> Result<BulletColorTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletColorText>().map(BulletColorTextViewMut)
+    }
+    /// Removes the first `a:buClrTx` child.
+    pub fn remove_bullet_color_text(&mut self) -> bool {
+        self.0.remove::<BulletColorText>()
+    }
+    /// First `a:buSzTx` child, mutably.
+    pub fn bullet_size_text_mut(&mut self) -> Option<BulletSizeTextViewMut<'_>> {
+        self.0.child_mut::<BulletSizeText>().map(BulletSizeTextViewMut)
+    }
+    /// Existing `a:buSzTx` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_size_text(
+        &mut self,
+    ) -> Result<BulletSizeTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletSizeText>().map(BulletSizeTextViewMut)
+    }
+    /// Removes the first `a:buSzTx` child.
+    pub fn remove_bullet_size_text(&mut self) -> bool {
+        self.0.remove::<BulletSizeText>()
+    }
+    /// First `a:buSzPct` child, mutably.
+    pub fn bullet_size_percentage_mut(
+        &mut self,
+    ) -> Option<BulletSizePercentageViewMut<'_>> {
+        self.0.child_mut::<BulletSizePercentage>().map(BulletSizePercentageViewMut)
+    }
+    /// Existing `a:buSzPct` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_size_percentage(
+        &mut self,
+    ) -> Result<BulletSizePercentageViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletSizePercentage>().map(BulletSizePercentageViewMut)
+    }
+    /// Removes the first `a:buSzPct` child.
+    pub fn remove_bullet_size_percentage(&mut self) -> bool {
+        self.0.remove::<BulletSizePercentage>()
+    }
+    /// First `a:buSzPts` child, mutably.
+    pub fn bullet_size_points_mut(&mut self) -> Option<BulletSizePointsViewMut<'_>> {
+        self.0.child_mut::<BulletSizePoints>().map(BulletSizePointsViewMut)
+    }
+    /// Existing `a:buSzPts` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_size_points(
+        &mut self,
+    ) -> Result<BulletSizePointsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletSizePoints>().map(BulletSizePointsViewMut)
+    }
+    /// Removes the first `a:buSzPts` child.
+    pub fn remove_bullet_size_points(&mut self) -> bool {
+        self.0.remove::<BulletSizePoints>()
+    }
+    /// First `a:buFontTx` child, mutably.
+    pub fn bullet_font_text_mut(&mut self) -> Option<BulletFontTextViewMut<'_>> {
+        self.0.child_mut::<BulletFontText>().map(BulletFontTextViewMut)
+    }
+    /// Existing `a:buFontTx` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_font_text(
+        &mut self,
+    ) -> Result<BulletFontTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletFontText>().map(BulletFontTextViewMut)
+    }
+    /// Removes the first `a:buFontTx` child.
+    pub fn remove_bullet_font_text(&mut self) -> bool {
+        self.0.remove::<BulletFontText>()
+    }
+    /// First `a:buChar` child, mutably.
+    pub fn character_bullet_mut(&mut self) -> Option<CharacterBulletViewMut<'_>> {
+        self.0.child_mut::<CharacterBullet>().map(CharacterBulletViewMut)
+    }
+    /// Existing `a:buChar` child, or a new one in schema position.
+    pub fn get_or_insert_character_bullet(
+        &mut self,
+    ) -> Result<CharacterBulletViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CharacterBullet>().map(CharacterBulletViewMut)
+    }
+    /// Removes the first `a:buChar` child.
+    pub fn remove_character_bullet(&mut self) -> bool {
+        self.0.remove::<CharacterBullet>()
+    }
+    /// First `a:defRPr` child, mutably.
+    pub fn default_run_properties_mut(
+        &mut self,
+    ) -> Option<DefaultRunPropertiesViewMut<'_>> {
+        self.0.child_mut::<DefaultRunProperties>().map(DefaultRunPropertiesViewMut)
+    }
+    /// Existing `a:defRPr` child, or a new one in schema position.
+    pub fn get_or_insert_default_run_properties(
+        &mut self,
+    ) -> Result<DefaultRunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DefaultRunProperties>().map(DefaultRunPropertiesViewMut)
+    }
+    /// Removes the first `a:defRPr` child.
+    pub fn remove_default_run_properties(&mut self) -> bool {
+        self.0.remove::<DefaultRunProperties>()
+    }
+    /// First `a:buFont` child, mutably.
+    pub fn bullet_font_mut(&mut self) -> Option<BulletFontViewMut<'_>> {
+        self.0.child_mut::<BulletFont>().map(BulletFontViewMut)
+    }
+    /// Existing `a:buFont` child, or a new one in schema position.
+    pub fn get_or_insert_bullet_font(
+        &mut self,
+    ) -> Result<BulletFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BulletFont>().map(BulletFontViewMut)
+    }
+    /// Removes the first `a:buFont` child.
+    pub fn remove_bullet_font(&mut self) -> bool {
+        self.0.remove::<BulletFont>()
+    }
+    /// First `a:buNone` child, mutably.
+    pub fn no_bullet_mut(&mut self) -> Option<NoBulletViewMut<'_>> {
+        self.0.child_mut::<NoBullet>().map(NoBulletViewMut)
+    }
+    /// Existing `a:buNone` child, or a new one in schema position.
+    pub fn get_or_insert_no_bullet(
+        &mut self,
+    ) -> Result<NoBulletViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoBullet>().map(NoBulletViewMut)
+    }
+    /// Removes the first `a:buNone` child.
+    pub fn remove_no_bullet(&mut self) -> bool {
+        self.0.remove::<NoBullet>()
+    }
+    /// First `a:lnSpc` child, mutably.
+    pub fn line_spacing_mut(&mut self) -> Option<LineSpacingViewMut<'_>> {
+        self.0.child_mut::<LineSpacing>().map(LineSpacingViewMut)
+    }
+    /// Existing `a:lnSpc` child, or a new one in schema position.
+    pub fn get_or_insert_line_spacing(
+        &mut self,
+    ) -> Result<LineSpacingViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LineSpacing>().map(LineSpacingViewMut)
+    }
+    /// Removes the first `a:lnSpc` child.
+    pub fn remove_line_spacing(&mut self) -> bool {
+        self.0.remove::<LineSpacing>()
+    }
+    /// First `a:spcAft` child, mutably.
+    pub fn space_after_mut(&mut self) -> Option<SpaceAfterViewMut<'_>> {
+        self.0.child_mut::<SpaceAfter>().map(SpaceAfterViewMut)
+    }
+    /// Existing `a:spcAft` child, or a new one in schema position.
+    pub fn get_or_insert_space_after(
+        &mut self,
+    ) -> Result<SpaceAfterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpaceAfter>().map(SpaceAfterViewMut)
+    }
+    /// Removes the first `a:spcAft` child.
+    pub fn remove_space_after(&mut self) -> bool {
+        self.0.remove::<SpaceAfter>()
+    }
+    /// First `a:spcBef` child, mutably.
+    pub fn space_before_mut(&mut self) -> Option<SpaceBeforeViewMut<'_>> {
+        self.0.child_mut::<SpaceBefore>().map(SpaceBeforeViewMut)
+    }
+    /// Existing `a:spcBef` child, or a new one in schema position.
+    pub fn get_or_insert_space_before(
+        &mut self,
+    ) -> Result<SpaceBeforeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpaceBefore>().map(SpaceBeforeViewMut)
+    }
+    /// Removes the first `a:spcBef` child.
+    pub fn remove_space_before(&mut self) -> bool {
+        self.0.remove::<SpaceBefore>()
+    }
+    /// First `a:tabLst` child, mutably.
+    pub fn tab_stop_list_mut(&mut self) -> Option<TabStopListViewMut<'_>> {
+        self.0.child_mut::<TabStopList>().map(TabStopListViewMut)
+    }
+    /// Existing `a:tabLst` child, or a new one in schema position.
+    pub fn get_or_insert_tab_stop_list(
+        &mut self,
+    ) -> Result<TabStopListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TabStopList>().map(TabStopListViewMut)
+    }
+    /// Removes the first `a:tabLst` child.
+    pub fn remove_tab_stop_list(&mut self) -> bool {
+        self.0.remove::<TabStopList>()
     }
 }
 /// `a:CT_TextShapeAutofit/a:spAutoFit` — Shape AutoFit.
@@ -17122,6 +25231,15 @@ impl<'a> ShapeAutoFitView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`ShapeAutoFit`]. Reads go through [`ShapeAutoFitViewMut::as_view`].
+#[derive(Debug)]
+pub struct ShapeAutoFitViewMut<'a>(pub ooxml_core::LensMut<'a, ShapeAutoFit>);
+impl<'a> ShapeAutoFitViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ShapeAutoFitView<'_> {
+        ShapeAutoFitView(self.0.as_lens())
     }
 }
 /// `a:CT_TextSpacing/a:lnSpc` — Line Spacing.
@@ -17164,6 +25282,43 @@ impl<'a> LineSpacingView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`LineSpacing`]. Reads go through [`LineSpacingViewMut::as_view`].
+#[derive(Debug)]
+pub struct LineSpacingViewMut<'a>(pub ooxml_core::LensMut<'a, LineSpacing>);
+impl<'a> LineSpacingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LineSpacingView<'_> {
+        LineSpacingView(self.0.as_lens())
+    }
+    /// First `a:spcPct` child, mutably.
+    pub fn spacing_percent_mut(&mut self) -> Option<SpacingPercentViewMut<'_>> {
+        self.0.child_mut::<SpacingPercent>().map(SpacingPercentViewMut)
+    }
+    /// Existing `a:spcPct` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_percent(
+        &mut self,
+    ) -> Result<SpacingPercentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingPercent>().map(SpacingPercentViewMut)
+    }
+    /// Removes the first `a:spcPct` child.
+    pub fn remove_spacing_percent(&mut self) -> bool {
+        self.0.remove::<SpacingPercent>()
+    }
+    /// First `a:spcPts` child, mutably.
+    pub fn spacing_points_mut(&mut self) -> Option<SpacingPointsViewMut<'_>> {
+        self.0.child_mut::<SpacingPoints>().map(SpacingPointsViewMut)
+    }
+    /// Existing `a:spcPts` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_points(
+        &mut self,
+    ) -> Result<SpacingPointsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingPoints>().map(SpacingPointsViewMut)
+    }
+    /// Removes the first `a:spcPts` child.
+    pub fn remove_spacing_points(&mut self) -> bool {
+        self.0.remove::<SpacingPoints>()
+    }
+}
 /// `a:CT_TextSpacing/a:spcAft` — Space After.
 #[derive(Debug)]
 pub enum SpaceAfter {}
@@ -17202,6 +25357,43 @@ impl<'a> SpaceAfterView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SpaceAfter`]. Reads go through [`SpaceAfterViewMut::as_view`].
+#[derive(Debug)]
+pub struct SpaceAfterViewMut<'a>(pub ooxml_core::LensMut<'a, SpaceAfter>);
+impl<'a> SpaceAfterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SpaceAfterView<'_> {
+        SpaceAfterView(self.0.as_lens())
+    }
+    /// First `a:spcPct` child, mutably.
+    pub fn spacing_percent_mut(&mut self) -> Option<SpacingPercentViewMut<'_>> {
+        self.0.child_mut::<SpacingPercent>().map(SpacingPercentViewMut)
+    }
+    /// Existing `a:spcPct` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_percent(
+        &mut self,
+    ) -> Result<SpacingPercentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingPercent>().map(SpacingPercentViewMut)
+    }
+    /// Removes the first `a:spcPct` child.
+    pub fn remove_spacing_percent(&mut self) -> bool {
+        self.0.remove::<SpacingPercent>()
+    }
+    /// First `a:spcPts` child, mutably.
+    pub fn spacing_points_mut(&mut self) -> Option<SpacingPointsViewMut<'_>> {
+        self.0.child_mut::<SpacingPoints>().map(SpacingPointsViewMut)
+    }
+    /// Existing `a:spcPts` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_points(
+        &mut self,
+    ) -> Result<SpacingPointsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingPoints>().map(SpacingPointsViewMut)
+    }
+    /// Removes the first `a:spcPts` child.
+    pub fn remove_spacing_points(&mut self) -> bool {
+        self.0.remove::<SpacingPoints>()
     }
 }
 /// `a:CT_TextSpacing/a:spcBef` — Space Before.
@@ -17244,6 +25436,43 @@ impl<'a> SpaceBeforeView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`SpaceBefore`]. Reads go through [`SpaceBeforeViewMut::as_view`].
+#[derive(Debug)]
+pub struct SpaceBeforeViewMut<'a>(pub ooxml_core::LensMut<'a, SpaceBefore>);
+impl<'a> SpaceBeforeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SpaceBeforeView<'_> {
+        SpaceBeforeView(self.0.as_lens())
+    }
+    /// First `a:spcPct` child, mutably.
+    pub fn spacing_percent_mut(&mut self) -> Option<SpacingPercentViewMut<'_>> {
+        self.0.child_mut::<SpacingPercent>().map(SpacingPercentViewMut)
+    }
+    /// Existing `a:spcPct` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_percent(
+        &mut self,
+    ) -> Result<SpacingPercentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingPercent>().map(SpacingPercentViewMut)
+    }
+    /// Removes the first `a:spcPct` child.
+    pub fn remove_spacing_percent(&mut self) -> bool {
+        self.0.remove::<SpacingPercent>()
+    }
+    /// First `a:spcPts` child, mutably.
+    pub fn spacing_points_mut(&mut self) -> Option<SpacingPointsViewMut<'_>> {
+        self.0.child_mut::<SpacingPoints>().map(SpacingPointsViewMut)
+    }
+    /// Existing `a:spcPts` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_points(
+        &mut self,
+    ) -> Result<SpacingPointsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingPoints>().map(SpacingPointsViewMut)
+    }
+    /// Removes the first `a:spcPts` child.
+    pub fn remove_spacing_points(&mut self) -> bool {
+        self.0.remove::<SpacingPoints>()
+    }
+}
 /// `a:CT_TextSpacingPercent/a:spcPct` — Spacing Percent.
 #[derive(Debug)]
 pub enum SpacingPercent {}
@@ -17279,6 +25508,29 @@ impl<'a> SpacingPercentView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`SpacingPercent`]. Reads go through [`SpacingPercentViewMut::as_view`].
+#[derive(Debug)]
+pub struct SpacingPercentViewMut<'a>(pub ooxml_core::LensMut<'a, SpacingPercent>);
+impl<'a> SpacingPercentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SpacingPercentView<'_> {
+        SpacingPercentView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(
+        &mut self,
+        v: ooxml_core::value::DmlPercent,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_dml_percent(
+            v,
+            |s| self.0.set_attr(SpacingPercent::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingPercent::ATTR_VAL)
+    }
+}
 /// `a:CT_TextSpacingPoint/a:spcPts` — Spacing Points.
 #[derive(Debug)]
 pub enum SpacingPoints {}
@@ -17309,6 +25561,298 @@ impl<'a> SpacingPointsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SpacingPoints`]. Reads go through [`SpacingPointsViewMut::as_view`].
+#[derive(Debug)]
+pub struct SpacingPointsViewMut<'a>(pub ooxml_core::LensMut<'a, SpacingPoints>);
+impl<'a> SpacingPointsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SpacingPointsView<'_> {
+        SpacingPointsView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(SpacingPoints::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SpacingPoints::ATTR_VAL)
+    }
+}
+/// `a:CT_TextTabStop/a:tab` — Tab Stop.
+#[derive(Debug)]
+pub enum TabStop {}
+impl TabStop {
+    /// `pos`
+    pub const ATTR_POS: ooxml_core::QName = ooxml_core::QName::new("", "pos");
+    /// `algn`
+    pub const ATTR_ALGN: ooxml_core::QName = ooxml_core::QName::new("", "algn");
+}
+impl ooxml_core::ElementSpec for TabStop {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tab");
+    const SDK_NAME: &'static str = "a:CT_TextTabStop/a:tab";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TabStop::ATTR_POS,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabStop::ATTR_ALGN,
+            ty: ooxml_core::SimpleType::Enum(
+                <TextTabAlignmentValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TabStop`].
+#[derive(Clone, Debug)]
+pub struct TabStopView<'a>(pub ooxml_core::Lens<'a, TabStop>);
+impl<'a> TabStopView<'a> {
+    /// `pos` — Tab Position
+    pub fn position(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabStop::ATTR_POS, ooxml_core::value::parse_i32)
+    }
+    /// `algn` — Tab Alignment
+    pub fn alignment(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, TextTabAlignmentValues>> {
+        self.0.attr_enum(TabStop::ATTR_ALGN)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TabStop`]. Reads go through [`TabStopViewMut::as_view`].
+#[derive(Debug)]
+pub struct TabStopViewMut<'a>(pub ooxml_core::LensMut<'a, TabStop>);
+impl<'a> TabStopViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TabStopView<'_> {
+        TabStopView(self.0.as_lens())
+    }
+    /// Sets `pos` — Tab Position
+    pub fn set_position(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(TabStop::ATTR_POS, s))
+    }
+    /// Removes `pos`.
+    pub fn remove_position(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabStop::ATTR_POS)
+    }
+    /// Sets `algn` — Tab Alignment
+    pub fn set_alignment(
+        &mut self,
+        v: TextTabAlignmentValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabStop::ATTR_ALGN, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `algn`.
+    pub fn remove_alignment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabStop::ATTR_ALGN)
+    }
+}
+/// `a:CT_TextTabStopList/a:tabLst` — Tab List.
+#[derive(Debug)]
+pub enum TabStopList {}
+impl ooxml_core::ElementSpec for TabStopList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tabLst");
+    const SDK_NAME: &'static str = "a:CT_TextTabStopList/a:tabLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tab")],
+                wildcard: None,
+                max_each: Some(32),
+                max_total: Some(32),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TabStopList> for TabStop {}
+/// Read-only view of [`TabStopList`].
+#[derive(Clone, Debug)]
+pub struct TabStopListView<'a>(pub ooxml_core::Lens<'a, TabStopList>);
+impl<'a> TabStopListView<'a> {
+    /// `a:tab` children in document order.
+    pub fn tab_stop_iter(&self) -> impl Iterator<Item = TabStopView<'a>> {
+        self.0.children::<TabStop>().map(TabStopView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TabStopList`]. Reads go through [`TabStopListViewMut::as_view`].
+#[derive(Debug)]
+pub struct TabStopListViewMut<'a>(pub ooxml_core::LensMut<'a, TabStopList>);
+impl<'a> TabStopListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TabStopListView<'_> {
+        TabStopListView(self.0.as_lens())
+    }
+    /// First `a:tab` child matching `pred`, mutably.
+    pub fn tab_stop_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TabStopViewMut<'_>> {
+        self.0.child_mut_by::<TabStop>(pred).map(TabStopViewMut)
+    }
+    /// Inserts a `a:tab` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_tab_stop_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TabStopViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<TabStop>(before).map(TabStopViewMut)
+    }
+    /// Appends a `a:tab` at the end of its slot.
+    pub fn insert_tab_stop(&mut self) -> Result<TabStopViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<TabStop>().map(TabStopViewMut)
+    }
+    /// Removes the first `a:tab` child.
+    pub fn remove_tab_stop(&mut self) -> bool {
+        self.0.remove::<TabStop>()
+    }
+}
+/// `a:CT_TextUnderlineFillFollowText/a:uFillTx` — Underline Fill Properties Follow Text.
+#[derive(Debug)]
+pub enum UnderlineFillText {}
+impl ooxml_core::ElementSpec for UnderlineFillText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "uFillTx");
+    const SDK_NAME: &'static str = "a:CT_TextUnderlineFillFollowText/a:uFillTx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`UnderlineFillText`].
+#[derive(Clone, Debug)]
+pub struct UnderlineFillTextView<'a>(pub ooxml_core::Lens<'a, UnderlineFillText>);
+impl<'a> UnderlineFillTextView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`UnderlineFillText`]. Reads go through [`UnderlineFillTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct UnderlineFillTextViewMut<'a>(pub ooxml_core::LensMut<'a, UnderlineFillText>);
+impl<'a> UnderlineFillTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> UnderlineFillTextView<'_> {
+        UnderlineFillTextView(self.0.as_lens())
+    }
+}
+/// `a:CT_TextUnderlineFillGroupWrapper/a:uFill` — Underline Fill.
+#[derive(Debug)]
+pub enum UnderlineFill {}
+impl ooxml_core::ElementSpec for UnderlineFill {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "uFill");
+    const SDK_NAME: &'static str = "a:CT_TextUnderlineFillGroupWrapper/a:uFill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<UnderlineFill> for NoFill {}
+impl ooxml_core::ChildOf<UnderlineFill> for SolidFill {}
+/// Read-only view of [`UnderlineFill`].
+#[derive(Clone, Debug)]
+pub struct UnderlineFillView<'a>(pub ooxml_core::Lens<'a, UnderlineFill>);
+impl<'a> UnderlineFillView<'a> {
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`UnderlineFill`]. Reads go through [`UnderlineFillViewMut::as_view`].
+#[derive(Debug)]
+pub struct UnderlineFillViewMut<'a>(pub ooxml_core::LensMut<'a, UnderlineFill>);
+impl<'a> UnderlineFillViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> UnderlineFillView<'_> {
+        UnderlineFillView(self.0.as_lens())
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
+/// `a:CT_TextUnderlineLineFollowText/a:uLnTx` — Underline Follows Text.
+#[derive(Debug)]
+pub enum UnderlineFollowsText {}
+impl ooxml_core::ElementSpec for UnderlineFollowsText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "uLnTx");
+    const SDK_NAME: &'static str = "a:CT_TextUnderlineLineFollowText/a:uLnTx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`UnderlineFollowsText`].
+#[derive(Clone, Debug)]
+pub struct UnderlineFollowsTextView<'a>(pub ooxml_core::Lens<'a, UnderlineFollowsText>);
+impl<'a> UnderlineFollowsTextView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`UnderlineFollowsText`]. Reads go through [`UnderlineFollowsTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct UnderlineFollowsTextViewMut<'a>(
+    pub ooxml_core::LensMut<'a, UnderlineFollowsText>,
+);
+impl<'a> UnderlineFollowsTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> UnderlineFollowsTextView<'_> {
+        UnderlineFollowsTextView(self.0.as_lens())
     }
 }
 /// `a:CT_Transform2D/a:xfrm` — Defines the Transform2D Class.
@@ -19010,6 +27554,7 @@ impl<'a> TextViewMut<'a> {
 }
 const _: () = ooxml_core::schema::assert_spec::<ColIdIdentifier>();
 const _: () = ooxml_core::schema::assert_spec::<RowIdIdentifier>();
+const _: () = ooxml_core::schema::assert_spec::<HueOffset>();
 const _: () = ooxml_core::schema::assert_spec::<ThemeElements>();
 const _: () = ooxml_core::schema::assert_child::<ThemeElements, ColorScheme>();
 const _: () = ooxml_core::schema::assert_child::<ThemeElements, FontScheme>();
@@ -19022,6 +27567,13 @@ const _: () = ooxml_core::schema::assert_child::<BulletColor, RgbColorModelHex>(
 const _: () = ooxml_core::schema::assert_child::<BulletColor, RgbColorModelPercentage>();
 const _: () = ooxml_core::schema::assert_child::<BulletColor, SchemeColor>();
 const _: () = ooxml_core::schema::assert_child::<BulletColor, SystemColor>();
+const _: () = ooxml_core::schema::assert_spec::<Highlight>();
+const _: () = ooxml_core::schema::assert_child::<Highlight, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<Highlight, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<Highlight, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<Highlight, RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<Highlight, SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<Highlight, SystemColor>();
 const _: () = ooxml_core::schema::assert_spec::<Accent1Color>();
 const _: () = ooxml_core::schema::assert_child::<Accent1Color, HslColor>();
 const _: () = ooxml_core::schema::assert_child::<Accent1Color, PresetColor>();
@@ -19134,6 +27686,7 @@ const _: () = ooxml_core::schema::assert_child::<ColorScheme, Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light1Color>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, Light2Color>();
 const _: () = ooxml_core::schema::assert_child::<ColorScheme, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<Complement>();
 const _: () = ooxml_core::schema::assert_spec::<CustomGeometry>();
 const _: () = ooxml_core::schema::assert_child::<CustomGeometry, AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<DataModelExtension>();
@@ -19143,6 +27696,7 @@ const _: () = ooxml_core::schema::assert_child::<
     DataModelExtension,
 >();
 const _: () = ooxml_core::schema::assert_spec::<MasterColorMapping>();
+const _: () = ooxml_core::schema::assert_spec::<AlphaOffset>();
 const _: () = ooxml_core::schema::assert_spec::<MajorFont>();
 const _: () = ooxml_core::schema::assert_child::<MajorFont, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<MajorFont, SupplementalFont>();
@@ -19169,6 +27723,7 @@ const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, MajorFont>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, MinorFont>();
 const _: () = ooxml_core::schema::assert_child::<FontScheme, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<Gamma>();
 const _: () = ooxml_core::schema::assert_spec::<AdjustValueList>();
 const _: () = ooxml_core::schema::assert_spec::<Graphic>();
 const _: () = ooxml_core::schema::assert_child::<Graphic, GraphicData>();
@@ -19246,30 +27801,87 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Styles
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Inline>();
 const _: () = ooxml_core::schema::assert_spec::<GraphicFrameLocks>();
 const _: () = ooxml_core::schema::assert_child::<GraphicFrameLocks, ExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<Gray>();
 const _: () = ooxml_core::schema::assert_spec::<TransformGroup>();
 const _: () = ooxml_core::schema::assert_child::<TransformGroup, ChildOffset>();
 const _: () = ooxml_core::schema::assert_child::<TransformGroup, Offset>();
 const _: () = ooxml_core::schema::assert_child::<TransformGroup, ChildExtents>();
 const _: () = ooxml_core::schema::assert_child::<TransformGroup, Extents>();
 const _: () = ooxml_core::schema::assert_spec::<HslColor>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, HueOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Complement>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, AlphaOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Gamma>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Gray>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, InverseGamma>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Inverse>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Blue>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, BlueModulation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, BlueOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Green>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, GreenModulation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, GreenOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Luminance>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, LuminanceModulation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, LuminanceOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Red>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, RedModulation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, RedOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Saturation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, SaturationModulation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, SaturationOffset>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Hue>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Alpha>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Shade>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, Tint>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, AlphaModulation>();
+const _: () = ooxml_core::schema::assert_child::<HslColor, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnClick>();
 const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnHover>();
 const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnMouseOver>();
+const _: () = ooxml_core::schema::assert_spec::<InverseGamma>();
+const _: () = ooxml_core::schema::assert_spec::<Inverse>();
+const _: () = ooxml_core::schema::assert_spec::<HeadEnd>();
+const _: () = ooxml_core::schema::assert_spec::<TailEnd>();
 const _: () = ooxml_core::schema::assert_spec::<BottomBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, HeadEnd>();
+const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<BottomBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    BottomBorderLineProperties,
+    PresetDash,
+>();
 const _: () = ooxml_core::schema::assert_child::<
     BottomBorderLineProperties,
     SolidFill,
 >();
 const _: () = ooxml_core::schema::assert_spec::<LeftBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, HeadEnd>();
+const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, PresetDash>();
 const _: () = ooxml_core::schema::assert_child::<LeftBorderLineProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<RightBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, HeadEnd>();
+const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    RightBorderLineProperties,
+    PresetDash,
+>();
 const _: () = ooxml_core::schema::assert_child::<RightBorderLineProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<TopBorderLineProperties>();
+const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, HeadEnd>();
+const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, TailEnd>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, PresetDash>();
 const _: () = ooxml_core::schema::assert_child::<TopBorderLineProperties, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<Underline>();
+const _: () = ooxml_core::schema::assert_child::<Underline, HeadEnd>();
+const _: () = ooxml_core::schema::assert_child::<Underline, TailEnd>();
+const _: () = ooxml_core::schema::assert_child::<Underline, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<Underline, PresetDash>();
+const _: () = ooxml_core::schema::assert_child::<Underline, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<NoFill>();
 const _: () = ooxml_core::schema::assert_spec::<Extension>();
 const _: () = ooxml_core::schema::assert_child::<Extension, ColIdIdentifier>();
@@ -19278,20 +27890,190 @@ const _: () = ooxml_core::schema::assert_spec::<ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<ExtensionList, Extension>();
 const _: () = ooxml_core::schema::assert_spec::<Theme>();
 const _: () = ooxml_core::schema::assert_child::<Theme, ThemeElements>();
+const _: () = ooxml_core::schema::assert_spec::<Blue>();
+const _: () = ooxml_core::schema::assert_spec::<BlueModulation>();
+const _: () = ooxml_core::schema::assert_spec::<BlueOffset>();
+const _: () = ooxml_core::schema::assert_spec::<Green>();
+const _: () = ooxml_core::schema::assert_spec::<GreenModulation>();
+const _: () = ooxml_core::schema::assert_spec::<GreenOffset>();
+const _: () = ooxml_core::schema::assert_spec::<Luminance>();
+const _: () = ooxml_core::schema::assert_spec::<LuminanceModulation>();
+const _: () = ooxml_core::schema::assert_spec::<LuminanceOffset>();
+const _: () = ooxml_core::schema::assert_spec::<Red>();
+const _: () = ooxml_core::schema::assert_spec::<RedModulation>();
+const _: () = ooxml_core::schema::assert_spec::<RedOffset>();
+const _: () = ooxml_core::schema::assert_spec::<Saturation>();
+const _: () = ooxml_core::schema::assert_spec::<SaturationModulation>();
+const _: () = ooxml_core::schema::assert_spec::<SaturationOffset>();
 const _: () = ooxml_core::schema::assert_spec::<ChildOffset>();
 const _: () = ooxml_core::schema::assert_spec::<Offset>();
+const _: () = ooxml_core::schema::assert_spec::<Hue>();
+const _: () = ooxml_core::schema::assert_spec::<Alpha>();
+const _: () = ooxml_core::schema::assert_spec::<Shade>();
+const _: () = ooxml_core::schema::assert_spec::<Tint>();
+const _: () = ooxml_core::schema::assert_spec::<AlphaModulation>();
+const _: () = ooxml_core::schema::assert_spec::<HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<ChildExtents>();
 const _: () = ooxml_core::schema::assert_spec::<Extents>();
 const _: () = ooxml_core::schema::assert_spec::<PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, HueOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Complement>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, AlphaOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Gamma>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Gray>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, InverseGamma>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Inverse>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Blue>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, BlueModulation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, BlueOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Green>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, GreenModulation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, GreenOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Luminance>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, LuminanceModulation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, LuminanceOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Red>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, RedModulation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, RedOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Saturation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, SaturationModulation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, SaturationOffset>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Hue>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Alpha>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Shade>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, Tint>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, AlphaModulation>();
+const _: () = ooxml_core::schema::assert_child::<PresetColor, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<PresetGeometry>();
 const _: () = ooxml_core::schema::assert_child::<PresetGeometry, AdjustValueList>();
+const _: () = ooxml_core::schema::assert_spec::<PresetDash>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
 const _: () = ooxml_core::schema::assert_spec::<FillRectangle>();
 const _: () = ooxml_core::schema::assert_spec::<RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, HueOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Complement>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, AlphaOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Gamma>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Gray>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, InverseGamma>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Inverse>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Blue>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, BlueModulation>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, BlueOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Green>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, GreenModulation>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, GreenOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Luminance>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelHex,
+    LuminanceModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, LuminanceOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Red>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, RedModulation>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, RedOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Saturation>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelHex,
+    SaturationModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, SaturationOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Hue>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Alpha>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Shade>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, Tint>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, AlphaModulation>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelHex, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<RgbColorModelPercentage>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, HueOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Complement>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, AlphaOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Gamma>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Gray>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    InverseGamma,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Inverse>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Blue>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    BlueModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, BlueOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Green>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    GreenModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, GreenOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Luminance>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    LuminanceModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    LuminanceOffset,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Red>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    RedModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, RedOffset>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Saturation>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    SaturationModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    SaturationOffset,
+>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Hue>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Alpha>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Shade>();
+const _: () = ooxml_core::schema::assert_child::<RgbColorModelPercentage, Tint>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    AlphaModulation,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    RgbColorModelPercentage,
+    HueModulation,
+>();
 const _: () = ooxml_core::schema::assert_spec::<SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, HueOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Complement>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, AlphaOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Gamma>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Gray>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, InverseGamma>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Inverse>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Blue>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, BlueModulation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, BlueOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Green>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, GreenModulation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, GreenOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Luminance>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, LuminanceModulation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, LuminanceOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Red>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, RedModulation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, RedOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Saturation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, SaturationModulation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, SaturationOffset>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Hue>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Alpha>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Shade>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, Tint>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, AlphaModulation>();
+const _: () = ooxml_core::schema::assert_child::<SchemeColor, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<SolidFill>();
 const _: () = ooxml_core::schema::assert_child::<SolidFill, HslColor>();
 const _: () = ooxml_core::schema::assert_child::<SolidFill, PresetColor>();
@@ -19303,6 +28085,34 @@ const _: () = ooxml_core::schema::assert_spec::<Stretch>();
 const _: () = ooxml_core::schema::assert_child::<Stretch, FillRectangle>();
 const _: () = ooxml_core::schema::assert_spec::<SupplementalFont>();
 const _: () = ooxml_core::schema::assert_spec::<SystemColor>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, HueOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Complement>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, AlphaOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Gamma>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Gray>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, InverseGamma>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Inverse>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Blue>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, BlueModulation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, BlueOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Green>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, GreenModulation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, GreenOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Luminance>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, LuminanceModulation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, LuminanceOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Red>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, RedModulation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, RedOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Saturation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, SaturationModulation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, SaturationOffset>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Hue>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Alpha>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Shade>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, Tint>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, AlphaModulation>();
+const _: () = ooxml_core::schema::assert_child::<SystemColor, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableGrid>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableProperties>();
@@ -19370,6 +28180,7 @@ const _: () = ooxml_core::schema::assert_spec::<BulletSizePoints>();
 const _: () = ooxml_core::schema::assert_spec::<BulletFontText>();
 const _: () = ooxml_core::schema::assert_spec::<CharacterBullet>();
 const _: () = ooxml_core::schema::assert_spec::<DefaultRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, Highlight>();
 const _: () = ooxml_core::schema::assert_child::<
     DefaultRunProperties,
     HyperlinkOnClick,
@@ -19378,6 +28189,7 @@ const _: () = ooxml_core::schema::assert_child::<
     DefaultRunProperties,
     HyperlinkOnMouseOver,
 >();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, SolidFill>();
@@ -19388,7 +28200,17 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, EastAsianFont>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, LatinFont>();
 const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, SymbolFont>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultRunProperties,
+    UnderlineFillText,
+>();
+const _: () = ooxml_core::schema::assert_child::<DefaultRunProperties, UnderlineFill>();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultRunProperties,
+    UnderlineFollowsText,
+>();
 const _: () = ooxml_core::schema::assert_spec::<EndParagraphRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, Highlight>();
 const _: () = ooxml_core::schema::assert_child::<
     EndParagraphRunProperties,
     HyperlinkOnClick,
@@ -19397,6 +28219,7 @@ const _: () = ooxml_core::schema::assert_child::<
     EndParagraphRunProperties,
     HyperlinkOnMouseOver,
 >();
+const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<EndParagraphRunProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<
     EndParagraphRunProperties,
@@ -19416,9 +28239,23 @@ const _: () = ooxml_core::schema::assert_child::<
     EndParagraphRunProperties,
     SymbolFont,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    UnderlineFillText,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    UnderlineFill,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndParagraphRunProperties,
+    UnderlineFollowsText,
+>();
 const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Highlight>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, HyperlinkOnClick>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, HyperlinkOnMouseOver>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, SolidFill>();
@@ -19426,6 +28263,9 @@ const _: () = ooxml_core::schema::assert_child::<RunProperties, ComplexScriptFon
 const _: () = ooxml_core::schema::assert_child::<RunProperties, EastAsianFont>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, LatinFont>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, SymbolFont>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, UnderlineFillText>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, UnderlineFill>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, UnderlineFollowsText>();
 const _: () = ooxml_core::schema::assert_spec::<Field>();
 const _: () = ooxml_core::schema::assert_child::<Field, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Field, ParagraphProperties>();
@@ -19523,6 +28363,10 @@ const _: () = ooxml_core::schema::assert_child::<
     DefaultParagraphProperties,
     SpaceBefore,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    DefaultParagraphProperties,
+    TabStopList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Level1ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     Level1ParagraphProperties,
@@ -19584,6 +28428,10 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     Level1ParagraphProperties,
     SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level1ParagraphProperties,
+    TabStopList,
 >();
 const _: () = ooxml_core::schema::assert_spec::<Level2ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -19647,6 +28495,10 @@ const _: () = ooxml_core::schema::assert_child::<
     Level2ParagraphProperties,
     SpaceBefore,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    Level2ParagraphProperties,
+    TabStopList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Level3ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     Level3ParagraphProperties,
@@ -19708,6 +28560,10 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     Level3ParagraphProperties,
     SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level3ParagraphProperties,
+    TabStopList,
 >();
 const _: () = ooxml_core::schema::assert_spec::<Level4ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -19771,6 +28627,10 @@ const _: () = ooxml_core::schema::assert_child::<
     Level4ParagraphProperties,
     SpaceBefore,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    Level4ParagraphProperties,
+    TabStopList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Level5ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     Level5ParagraphProperties,
@@ -19832,6 +28692,10 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     Level5ParagraphProperties,
     SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level5ParagraphProperties,
+    TabStopList,
 >();
 const _: () = ooxml_core::schema::assert_spec::<Level6ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -19895,6 +28759,10 @@ const _: () = ooxml_core::schema::assert_child::<
     Level6ParagraphProperties,
     SpaceBefore,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    Level6ParagraphProperties,
+    TabStopList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Level7ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     Level7ParagraphProperties,
@@ -19956,6 +28824,10 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     Level7ParagraphProperties,
     SpaceBefore,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Level7ParagraphProperties,
+    TabStopList,
 >();
 const _: () = ooxml_core::schema::assert_spec::<Level8ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -20019,6 +28891,10 @@ const _: () = ooxml_core::schema::assert_child::<
     Level8ParagraphProperties,
     SpaceBefore,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    Level8ParagraphProperties,
+    TabStopList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Level9ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<
     Level9ParagraphProperties,
@@ -20081,6 +28957,10 @@ const _: () = ooxml_core::schema::assert_child::<
     Level9ParagraphProperties,
     SpaceBefore,
 >();
+const _: () = ooxml_core::schema::assert_child::<
+    Level9ParagraphProperties,
+    TabStopList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, BulletColor>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, ExtensionList>();
@@ -20110,6 +28990,7 @@ const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, NoBullet>(
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, LineSpacing>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, SpaceAfter>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, SpaceBefore>();
+const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, TabStopList>();
 const _: () = ooxml_core::schema::assert_spec::<ShapeAutoFit>();
 const _: () = ooxml_core::schema::assert_spec::<LineSpacing>();
 const _: () = ooxml_core::schema::assert_child::<LineSpacing, SpacingPercent>();
@@ -20122,6 +29003,14 @@ const _: () = ooxml_core::schema::assert_child::<SpaceBefore, SpacingPercent>();
 const _: () = ooxml_core::schema::assert_child::<SpaceBefore, SpacingPoints>();
 const _: () = ooxml_core::schema::assert_spec::<SpacingPercent>();
 const _: () = ooxml_core::schema::assert_spec::<SpacingPoints>();
+const _: () = ooxml_core::schema::assert_spec::<TabStop>();
+const _: () = ooxml_core::schema::assert_spec::<TabStopList>();
+const _: () = ooxml_core::schema::assert_child::<TabStopList, TabStop>();
+const _: () = ooxml_core::schema::assert_spec::<UnderlineFillText>();
+const _: () = ooxml_core::schema::assert_spec::<UnderlineFill>();
+const _: () = ooxml_core::schema::assert_child::<UnderlineFill, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<UnderlineFill, SolidFill>();
+const _: () = ooxml_core::schema::assert_spec::<UnderlineFollowsText>();
 const _: () = ooxml_core::schema::assert_spec::<Transform2D>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Offset>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Extents>();

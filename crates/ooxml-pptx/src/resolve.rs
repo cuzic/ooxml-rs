@@ -29,7 +29,7 @@
 use ooxml_core::{AttrError, ElementSpec, EnumType, EnumValue, QName, RawNode};
 use ooxml_schema::dml::{
     BodyProperties, ColorSchemeIndexValues, ParagraphProperties, ShapeTypeValues, RunProperties, TextAlignmentTypeValues, TextAnchoringTypeValues, TextAutoNumberSchemeValues,
-    TextCapsValues, TextStrikeValues, TextUnderlineValues, TextVerticalValues, TextWrappingValues,
+    TextCapsValues, TextFontAlignmentValues, TextStrikeValues, TextUnderlineValues, TextVerticalValues, TextWrappingValues,
 };
 use ooxml_core::value::{DmlPercent, parse_dml_percent};
 
@@ -1132,6 +1132,29 @@ fn find_group<'a>(chain: &Chain<'a>, members: &[&str]) -> std::result::Result<Op
     }
 }
 
+/// A child group whose complete winning element is needed by the caller.
+fn element_group<'a>(chain: &Chain<'a>, members: &[&str]) -> Lookup<'a, &'a RawNode> {
+    match find_group(chain, members) {
+        Ok(Some((node, source))) => Lookup::Set(Resolved { value: Ok(node), source, defaulted: false }),
+        Ok(None) => Lookup::Unset,
+        Err(reason) => Lookup::Unresolved(reason),
+    }
+}
+
+fn highlight<'a>(chain: &Chain<'a>) -> Lookup<'a, Color<'a>> {
+    match find_group(chain, &["highlight"]) {
+        Ok(Some((node, source))) => match node.elements().next() {
+            Some(color) => match color_of(color, chain) {
+                Ok(value) => Lookup::Set(Resolved { value: Ok(value), source, defaulted: false }),
+                Err(reason) => Lookup::Unresolved(reason),
+            },
+            None => Lookup::Set(Resolved { value: Err(attr_error("highlight", "")), source, defaulted: false }),
+        },
+        Ok(None) => Lookup::Unset,
+        Err(reason) => Lookup::Unresolved(reason),
+    }
+}
+
 fn parse_u32(s: &str) -> Option<u32> {
     s.parse().ok()
 }
@@ -1188,6 +1211,12 @@ pub struct RunProps<'a> {
     pub symbol: Lookup<'a, Font<'a>>,
     /// The fill group.
     pub fill: Lookup<'a, Fill<'a>>,
+    /// The highlight colour.
+    pub highlight: Lookup<'a, Color<'a>>,
+    /// The winning underline line choice as a raw element.
+    pub underline_line: Lookup<'a, &'a RawNode>,
+    /// The winning underline fill choice as a raw element.
+    pub underline_fill: Lookup<'a, &'a RawNode>,
 }
 
 impl<'a> RunProps<'a> {
@@ -1209,6 +1238,9 @@ impl<'a> RunProps<'a> {
             complex_script: font(c, "cs", "cs"),
             symbol: font(c, "sym", ""),
             fill: fill(c),
+            highlight: highlight(c),
+            underline_line: element_group(c, &["uLn", "uLnTx"]),
+            underline_fill: element_group(c, &["uFill", "uFillTx"]),
         }
     }
 }
@@ -1341,6 +1373,16 @@ pub struct ParaProps<'a> {
     pub rtl: Lookup<'a, bool>,
     /// `defTabSz`.
     pub default_tab: Lookup<'a, i64>,
+    /// `fontAlgn`.
+    pub font_align: Lookup<'a, EnumValue<'a, TextFontAlignmentValues>>,
+    /// The winning tab list as a raw element.
+    pub tab_stops: Lookup<'a, &'a RawNode>,
+    /// The winning bullet colour choice as a raw element.
+    pub bullet_color: Lookup<'a, &'a RawNode>,
+    /// The winning bullet size choice as a raw element.
+    pub bullet_size: Lookup<'a, &'a RawNode>,
+    /// The winning bullet font choice as a raw element.
+    pub bullet_font: Lookup<'a, &'a RawNode>,
     /// Bullet type group.
     pub bullet: Lookup<'a, Bullet<'a>>,
     /// `a:lnSpc` (`spcPct` as percent or `spcPts` as 1/100 pt).
@@ -1401,6 +1443,11 @@ impl<'a> ParaProps<'a> {
             indent: find_attr(c, "indent", parse_i64),
             rtl: find_attr(c, "rtl", parse_bool),
             default_tab: find_attr(c, "defTabSz", parse_i64),
+            font_align: find_attr(c, "fontAlgn", parse_enum),
+            tab_stops: element_group(c, &["tabLst"]),
+            bullet_color: element_group(c, &["buClr", "buClrTx"]),
+            bullet_size: element_group(c, &["buSzPct", "buSzPts", "buSzTx"]),
+            bullet_font: element_group(c, &["buFont", "buFontTx"]),
             bullet,
             line_spacing: spacing("lnSpc"),
             space_before: spacing("spcBef"),
