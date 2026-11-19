@@ -375,7 +375,7 @@ impl<'d> ShapeMut<'d> {
         &mut self,
         replacement: Option<Rect>,
     ) -> Result<Option<crate::resolve::Xfrm>> {
-        let EditPart::Package { package, name } = &mut self.doc else {
+        let EditPart::Package { package, name, .. } = &mut self.doc else {
             return Ok(None);
         };
         let main = package

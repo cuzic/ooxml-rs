@@ -7,6 +7,33 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// The target uses a script or data scheme.
+    #[error("unsafe hyperlink scheme")]
+    UnsafeLinkScheme,
+    /// The target is not a valid IRI reference.
+    #[error("invalid hyperlink URL")]
+    InvalidLinkUrl,
+    /// This action has no supported write representation.
+    #[error("unsupported hyperlink action")]
+    UnsupportedAction,
+    /// A destination returned by the link reader cannot be written directly.
+    #[error("read-only hyperlink target; use a presentation-scoped slide target for slide links")]
+    ReadOnlyLinkTarget,
+    /// Link editing is unavailable for SmartArt text.
+    #[error("hyperlink editing is unsupported for SmartArt text")]
+    SmartArtLinkUnsupported,
+    /// Replacing or clearing this link would remove its sound reference.
+    #[error("a hyperlink with a sound cannot be replaced or cleared")]
+    LinkHasSound,
+    /// A slide link target belongs to a different presentation session.
+    #[error("hyperlink target belongs to another presentation")]
+    ForeignLinkSlide,
+    /// No slide in the presentation has this id.
+    #[error("no hyperlink target slide with id {slide_id}")]
+    LinkSlideNotFound {
+        /// Stable slide id.
+        slide_id: u32,
+    },
     /// This bullet edit requires support for picture relationships.
     #[error("picture bullet operation is unsupported")]
     UnsupportedBullet,

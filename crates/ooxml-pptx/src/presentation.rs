@@ -61,6 +61,7 @@ pub(crate) struct SlideEntry {
 #[derive(Debug)]
 pub struct Presentation {
     pub(crate) pkg: Package,
+    pub(crate) link_identity: std::sync::Arc<()>,
     pub(crate) slides: Vec<SlideEntry>,
     /// The presentation part (`ppt/presentation.xml`).
     pub(crate) main: String,
@@ -91,7 +92,7 @@ impl Presentation {
         }
         let slides = scan_slides(&mut pkg, &main)?;
         let slide_id_high_water = slides.iter().map(|e| e.slide_id).max().unwrap_or(0);
-        Ok(Presentation { pkg, slides, main, slide_id_high_water, tables: Default::default() })
+        Ok(Presentation { pkg, link_identity: Default::default(), slides, main, slide_id_high_water, tables: Default::default() })
     }
 
     /// Re-reads the slide list after a structural edit.
@@ -154,7 +155,7 @@ impl Presentation {
             return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
         }
         refs.scan_timing(doc.root());
-        let doc = EditPart::Package { package: &mut self.pkg, name: part };
+        let doc = EditPart::Package { package: &mut self.pkg, name: part, slides: &self.slides, link_identity: &self.link_identity };
         Ok(SlideMut { doc, info, refs, table_styles, tables })
     }
 
@@ -241,7 +242,7 @@ impl Presentation {
         let part = part.ok_or(Error::NoNotesSlide { slide_id: slide.slide_id })?;
         // parse read-only first: a part that is not p:notes stays clean
         Lens::<pml::NotesSlide>::root(self.pkg.xml_part(&part)?.root())?;
-        let doc = EditPart::Package { package: &mut self.pkg, name: part.clone() };
+        let doc = EditPart::Package { package: &mut self.pkg, name: part.clone(), slides: &self.slides, link_identity: &self.link_identity };
         Ok(NotesMut { doc, slide, part })
     }
 

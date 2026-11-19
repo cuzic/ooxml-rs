@@ -70,6 +70,8 @@ pub enum LinkTarget {
     },
     /// `ppaction://hlinkshowjump?jump=…`.
     Jump(ShowJump),
+    /// Presentation-scoped slide destination for writing.
+    SlideId(crate::SlideLinkTarget),
     /// `ppaction://customshow?id=…&return=…`.
     CustomShow {
         /// Custom show id.

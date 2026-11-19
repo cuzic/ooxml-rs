@@ -6,6 +6,7 @@
 # Phase0 write path: paragraphs are inserted into / removed from shape text.
 [write]
 names = [
+    "a:CT_NonVisualDrawingProps/p:cNvPr",
     # Phase 3b (ADR-0016 §6): shape properties.
     "a:CT_ShapeProperties/p:spPr",
     "a:CT_GroupShapeProperties/p:grpSpPr",
@@ -93,7 +94,6 @@ names = [
     "p:CT_GroupShapeNonVisual/p:nvGrpSpPr",
     "p:CT_Shape/p:sp",
     "p:CT_ShapeNonVisual/p:nvSpPr",
-    "a:CT_NonVisualDrawingProps/p:cNvPr",
     "p:CT_ApplicationNonVisualDrawingProps/p:nvPr",
     "p:CT_Placeholder/p:ph",
     "p:CT_GraphicalObjectFrame/p:graphicFrame",

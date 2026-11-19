@@ -257,6 +257,7 @@ impl crate::Presentation {
             other => other,
         };
         let guard = Guard {
+            links: false,
             shape_id: frame_id,
             paragraphs: false, // node animations target data model ids, not paragraphs (review m6)
             table: false,
@@ -689,5 +690,34 @@ mod tests {
 
         assert_matches!(smartart.drop_drawing_cache(), Err(Error::SmartArtCacheShared));
         assert_eq!(smartart.pres.to_bytes().unwrap(), before);
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+    use crate::{LinkEvent, LinkSpec, LinkTarget, Presentation};
+
+    #[test]
+    fn staged_smartart_text_refuses_links_without_changing_the_package() {
+        let bytes = include_bytes!("../../../../reference/fixtures/pptx/poi/SmartArt.pptx");
+        let mut presentation = Presentation::from_bytes(bytes.to_vec()).unwrap();
+        let model_id = "{EC0D1448-4AB9-47C0-A4EF-4E8640283403}";
+        presentation
+            .smart_art_mut(0, 4)
+            .unwrap()
+            .set_text(model_id, "SmartArt link test")
+            .unwrap();
+        let before = presentation.to_bytes().unwrap();
+        let mut smart_art = presentation.smart_art_mut(0, 4).unwrap();
+        let link = LinkSpec::new(LinkTarget::NoAction);
+        let result = smart_art.edit(
+            model_id,
+            Which::Paragraph(0),
+            false,
+            |body, _| body.paragraph_mut(0)?.run_mut(0)?.set_link(LinkEvent::Click, Some(&link)),
+        );
+        std::assert_matches!(result, Err(Error::SmartArtLinkUnsupported));
+        assert_eq!(presentation.to_bytes().unwrap(), before);
     }
 }
