@@ -67,7 +67,7 @@ pub(crate) struct SheetIndex {
     pub(crate) sd_len: usize,
     /// `mc:AlternateContent` in `worksheet` (no `sheetData`) or in `sheetData`.
     pub(crate) alternate: Option<&'static str>,
-    /// A grid element appears outside its expected parent.
+    /// A grid element appears outside its expected parent, or there are multiple grids.
     wrapped_grid: bool,
     pub(crate) rows: std::result::Result<Vec<RowEntry>, SheetErr>,
 }
@@ -92,7 +92,9 @@ fn has_ac(n: &RawNode) -> bool {
 
 /// Scan the worksheet for grid elements the index cannot reach.
 fn contains_wrapped_grid(parent: &RawNode) -> bool {
-    parent.elements().filter(|child| !child.is(MC_ALTERNATE_CONTENT)).any(|child| {
+    // The position-specific checks already handle AlternateContent at these two levels.
+    let skip_ac = parent.is(sml::SheetData::QNAME) || parent.is(sml::Row::QNAME);
+    parent.elements().filter(|child| !(skip_ac && child.is(MC_ALTERNATE_CONTENT))).any(|child| {
         let expected = match child {
             n if n.is(sml::SheetData::QNAME) => Some(sml::Worksheet::QNAME),
             n if n.is(sml::Row::QNAME) => Some(sml::SheetData::QNAME),
@@ -141,8 +143,10 @@ impl SheetIndex {
     /// alternate-content refusals).
     pub(crate) fn build(doc: &XmlDocument) -> Self {
         let root = doc.root();
-        let wrapped_grid = contains_wrapped_grid(root);
-        let Some(sd) = root.elements().find(|e| e.is(sml::SheetData::QNAME)) else {
+        let mut grids = root.elements().filter(|e| e.is(sml::SheetData::QNAME));
+        let sd = grids.next();
+        let wrapped_grid = grids.next().is_some() || contains_wrapped_grid(root);
+        let Some(sd) = sd else {
             let alternate = has_ac(root).then_some("worksheet");
             return SheetIndex { sheet_data: false, sd_len: 0, alternate, wrapped_grid, rows: Ok(Vec::new()) };
         };

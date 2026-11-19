@@ -24,8 +24,10 @@ use crate::workbook::Workbook;
 /// [`UnresolvedSibling`](ooxml_core::Error::UnresolvedSibling) for `sheetData`.
 /// This occurs when a SpreadsheetML `sheetData`, `row`, or `c` appears
 /// outside its expected parent (`worksheet`, `sheetData`, or `row`,
-/// respectively), including inside an `mc:ProcessContent` wrapper.
-/// The existing `mc:AlternateContent` checks apply separately.
+/// respectively), including inside markup compatibility wrappers, or when
+/// the worksheet has multiple direct `sheetData` children.
+/// `mc:AlternateContent` directly under `sheetData` or `row` is handled by
+/// the existing position-specific checks.
 /// Edits that need to strip dependent formula caches on an affected sheet
 /// can return the same error even when the edit targets a different sheet.
 #[derive(Debug)]

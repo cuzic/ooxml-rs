@@ -128,3 +128,56 @@ fn grid_nodes_under_unexpected_parents_refuse_cell_edits() {
         assert_eq!(wb.to_bytes().unwrap(), input);
     }
 }
+
+fn with_worksheet_children(children: &str) -> Vec<u8> {
+    with_part(
+        &book(&[("Sheet1", "")], "", ""),
+        "xl/worksheets/sheet1.xml",
+        &format!(r#"<worksheet xmlns="{SML}" {WRAPPER_NS} mc:Ignorable="q">{children}</worksheet>"#),
+    )
+}
+
+fn alternate_content(content: &str) -> String {
+    format!(r#"<mc:AlternateContent><mc:Choice Requires="q">{content}</mc:Choice></mc:AlternateContent>"#)
+}
+
+#[test]
+fn grid_nodes_in_alternate_content_outside_indexed_parents_refuse_edits() {
+    let row = alternate_content(r#"<row r="2"><c r="A2"><v>5</v></c></row>"#);
+    let cell = alternate_content(r#"<c r="B1"><v>5</v></c>"#);
+    let grid = alternate_content(r#"<sheetData><row r="2"><c r="A2"><v>5</v></c></row></sheetData>"#);
+    let worksheets = [
+        (format!(r#"<sheetData>{PLAIN_ROW}<q:w {PROCESS_CONTENT}>{row}</q:w></sheetData>"#), 1, 0),
+        (format!(r#"<sheetData><row r="1"><c r="A1"/><q:w {PROCESS_CONTENT}>{cell}</q:w></row></sheetData>"#), 0, 1),
+        (format!(r#"<sheetData>{PLAIN_ROW}</sheetData><q:w {PROCESS_CONTENT}>{grid}</q:w>"#), 1, 0),
+        (format!("<sheetData>{PLAIN_ROW}</sheetData>{grid}"), 1, 0),
+    ];
+    for (children, row, col) in worksheets {
+        let input = with_worksheet_children(&children);
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        assert_wrapped_grid_error(wb.worksheet().unwrap().write_number(row, col, 7.0));
+        assert_eq!(wb.to_bytes().unwrap(), input, "{children}");
+    }
+}
+
+#[test]
+fn alternate_content_with_controls_stays_editable() {
+    let controls = alternate_content(r#"<controls><control shapeId="1"/></controls>"#);
+    let input = with_worksheet_children(&format!("<sheetData>{PLAIN_ROW}</sheetData>{controls}"));
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().write_number(0, 0, 7.0).unwrap();
+    let output = wb.to_bytes().unwrap();
+    assert_eq!(sheet_xml(&output), sheet_xml(&with_worksheet_children(
+        &format!(r#"<sheetData><row r="1"><c r="A1"><v>7</v></c></row></sheetData>{controls}"#),
+    )));
+}
+
+#[test]
+fn duplicate_sheet_data_refuses_cell_edits() {
+    let input = with_worksheet_children(&format!(
+        r#"<sheetData>{PLAIN_ROW}</sheetData><sheetData><row r="2"><c r="A2"><v>5</v></c></row></sheetData>"#
+    ));
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    assert_wrapped_grid_error(wb.worksheet().unwrap().write_number(1, 0, 7.0));
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
