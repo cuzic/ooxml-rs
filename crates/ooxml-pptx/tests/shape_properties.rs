@@ -654,6 +654,110 @@ fn materialized_placeholder_keeps_other_inherited_transform_fields() {
     );
 }
 
+fn title_transform(p: &mut Presentation) -> (i32, bool, bool, bool) {
+    let deck = p.deck().unwrap();
+    let slide = deck.slide(0).unwrap();
+    let shape = slide
+        .slide()
+        .shapes()
+        .into_iter()
+        .find(|s| s.id().ok() == Some(4))
+        .unwrap();
+    let ooxml_pptx::Lookup::Set(value) = slide.geometry(&shape).unwrap() else {
+        panic!("expected a resolved title transform");
+    };
+    let direct = value.source == Source::Direct;
+    let value = value.value.unwrap();
+    (
+        value.rot.get().unwrap(),
+        value.flip_h.get().unwrap(),
+        value.flip_v.get().unwrap(),
+        direct,
+    )
+}
+
+fn title_fixture(layout_box: &str, partial: Option<&str>) -> Presentation {
+    let mut pkg =
+        Package::from_bytes(cases::read_fixture("python-pptx/ph-inherit-props.pptx")).unwrap();
+    let layout = "ppt/slideLayouts/slideLayout1.xml";
+    let xml = String::from_utf8(pkg.read_part(layout).unwrap()).unwrap();
+    assert_eq!(xml.matches("<p:spPr/>").count(), 1);
+    let xfrm = transform(r#" rot="5400000" flipV="1""#, layout_box, "");
+    pkg.set_part(
+        layout,
+        xml.replace("<p:spPr/>", &format!("<p:spPr>{xfrm}</p:spPr>"))
+            .into_bytes(),
+    )
+    .unwrap();
+    if let Some(partial) = partial {
+        let xml = String::from_utf8(pkg.read_part(SLIDE).unwrap()).unwrap();
+        let title = xml.find(r#"id="4" name="Title 3""#).unwrap();
+        let props = title + xml[title..].find("<p:spPr/>").unwrap();
+        let mut xml = xml;
+        xml.replace_range(
+            props..props + "<p:spPr/>".len(),
+            &format!("<p:spPr>{partial}</p:spPr>"),
+        );
+        pkg.set_part(SLIDE, xml.into_bytes()).unwrap();
+    }
+    Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap()
+}
+
+#[test]
+fn clearing_placeholder_transform_restores_inheritance_before_next_edit() {
+    let mut p = title_fixture(OUTER, None);
+    edit(&mut p, 4, |s| s.set_rect(BOX)).unwrap();
+    assert_eq!(title_transform(&mut p), (5_400_000, false, true, true));
+    edit(&mut p, 4, |s| s.clear_rect()).unwrap();
+    assert_eq!(title_transform(&mut p), (5_400_000, false, true, false));
+    edit(&mut p, 4, |s| s.set_rotation(0)).unwrap();
+    edit(&mut p, 4, |s| s.set_flip_h(true)).unwrap();
+    assert_eq!(title_transform(&mut p), (0, true, true, true));
+}
+
+#[test]
+fn partial_placeholder_transform_preserves_existing_attribute_spelling() {
+    let partial = r#"<a:xfrm  flipV = '&#48;'/>"#;
+    for rect in [false, true] {
+        let mut p = title_fixture(OUTER, Some(partial));
+        let inherited = shape_box(&mut p, 4);
+        assert_eq!(title_transform(&mut p), (5_400_000, false, true, false));
+        if rect {
+            edit(&mut p, 4, |s| s.set_rect(BOX)).unwrap();
+        } else {
+            edit(&mut p, 4, |s| s.set_flip_h(true)).unwrap();
+        }
+        assert_eq!(
+            shape_box(&mut p, 4),
+            if rect { Some(BOX) } else { inherited }
+        );
+        assert_eq!(title_transform(&mut p), (5_400_000, !rect, false, true));
+        let pkg = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
+        let xml = String::from_utf8(pkg.read_part(SLIDE).unwrap()).unwrap();
+        assert!(xml.contains("  flipV = '&#48;'"));
+    }
+    let mut p = title_fixture(OUTER, Some(partial));
+    edit(&mut p, 4, |s| s.clear_rect()).unwrap();
+    let pkg = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
+    let xml = String::from_utf8(pkg.read_part(SLIDE).unwrap()).unwrap();
+    assert!(!xml.contains(partial));
+}
+
+#[test]
+fn placeholder_set_rect_replaces_invalid_inherited_box() {
+    for cx in ["-5", "invalid"] {
+        let layout_box = OUTER.replace(r#"cx="200""#, &format!(r#"cx="{cx}""#));
+        let mut p = title_fixture(&layout_box, None);
+        assert_matches!(
+            refused(&mut p, 4, |s| s.set_rotation(0)),
+            Error::ValueOutOfRange { .. }
+        );
+        edit(&mut p, 4, |s| s.set_rect(BOX)).unwrap();
+        assert_eq!(shape_box(&mut p, 4), Some(BOX));
+        assert_eq!(title_transform(&mut p), (5_400_000, false, true, true));
+    }
+}
+
 #[test]
 fn rotated_group_reports_transform_before_fractional_fit() {
     let outer = r#"<a:off x="0" y="0"/><a:ext cx="2" cy="2"/>"#;

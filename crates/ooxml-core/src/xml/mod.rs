@@ -406,3 +406,32 @@ impl XmlDocument {
         self.root.force_rerender();
     }
 }
+
+#[cfg(test)]
+#[test]
+fn preserve_attribute_spelling_on_edited_start_tag() {
+    use crate::name::QName;
+    use crate::schema::{AttrSpec, Content};
+
+    struct Root;
+    impl ElementSpec for Root {
+        const QNAME: QName = QName::new("", "root");
+        const SDK_NAME: &'static str = "root";
+        const ATTRS: &'static [AttrSpec] = &[];
+        const CONTENT: Content = Content::Empty;
+    }
+
+    let input = r#"<root  keep = '&#65;' edit='old'></root >"#;
+    let mut doc = XmlDocument::parse(input.as_bytes()).unwrap();
+    doc.lens_mut::<Root>().unwrap().preserve_attribute_spelling();
+    assert!(!doc.is_dirty());
+    assert_eq!(doc.serialize(), input);
+    doc.lens_mut::<Root>()
+        .unwrap()
+        .set_attr(QName::new("", "edit"), "new")
+        .unwrap();
+    assert_eq!(
+        doc.serialize(),
+        r#"<root  keep = '&#65;' edit="new"></root >"#
+    );
+}

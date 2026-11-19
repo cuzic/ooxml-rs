@@ -1,7 +1,10 @@
 use super::*;
 use ooxml_core::EnumType;
 
-/// An arrowhead for an explicit underline line.
+/// An arrowhead for an explicit line or underline line.
+///
+/// When used with [`crate::ShapeMut::set_line`], each `None` field leaves the
+/// corresponding attribute on an existing arrowhead unchanged.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LineEnd {
     /// Arrowhead type.

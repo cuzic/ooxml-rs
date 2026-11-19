@@ -3,6 +3,7 @@ ECMA-376 Part 1, 5th edition (2016), OfficeOpenXML-DrawingMLGeometries.zip
 inside ECMA-376-1_5th_edition_december_2016.zip. The Part 1 distribution
 carries no copyright page. The default notice from Ecma’s text copyright
 policy (Version 3, approved December 2025) applies.
+https://ecma-international.org/wp-content/uploads/Ecma_text_copyright_policy_version_3.pdf
 
 COPYRIGHT NOTICE
 

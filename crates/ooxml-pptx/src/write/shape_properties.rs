@@ -53,9 +53,8 @@ pub struct GroupMut<'s, 'd> {
 const RECT_RANGE: Error = Error::ValueOutOfRange {
     what: "shape rectangle",
 };
-const FIT_RANGE: Error = Error::ValueOutOfRange {
-    what: "exact group fit",
-};
+const FIT_WHAT: &str = "exact group fit";
+const FIT_RANGE: Error = Error::ValueOutOfRange { what: FIT_WHAT };
 const MAX_COORD: i64 = 27_273_042_316_900;
 
 fn child(node: &RawNode, name: QName) -> Option<&RawNode> {
@@ -186,12 +185,12 @@ where
 {
     match edit {
         TransformEdit::Rect(value) => write_box::<E, Offset, Extents>(&mut node, value),
-        TransformEdit::Clear => {
-            node.remove::<Offset>();
-            node.remove::<Extents>();
+        TransformEdit::Rotation(value) => {
+            if transform_attr(node.node(), "rot", 0, |s| s.parse().ok()) != Some(value) {
+                set_num(&mut node, "rot", i64::from(value))?;
+            }
             Ok(())
         }
-        TransformEdit::Rotation(value) => set_num(&mut node, "rot", i64::from(value)),
         TransformEdit::Flip(attr, value) => {
             if transform_attr(node.node(), attr, false, parse_bool) != Some(value) {
                 node.set_attr(un(attr), ooxml_core::value::format_bool(value))?;
@@ -204,7 +203,6 @@ where
 #[derive(Clone, Copy)]
 enum TransformEdit {
     Rect(Rect),
-    Clear,
     Rotation(i32),
     Flip(&'static str, bool),
 }
@@ -242,7 +240,6 @@ impl TransformEdit {
                 old == Some(value)
             }
             Self::Rect(value) => node.and_then(rect) == Some(value),
-            Self::Clear => false,
         }
     }
 }
@@ -258,17 +255,16 @@ where
     Extents: ChildOf<E>,
 {
     if !matches!(edit, TransformEdit::Rect(_)) {
-        write_box::<_, Offset, Extents>(
-            node,
-            Rect {
-                x: inherited.x,
-                y: inherited.y,
-                cx: inherited.cx,
-                cy: inherited.cy,
-            },
-        )?;
+        let value = Rect {
+            x: inherited.x,
+            y: inherited.y,
+            cx: inherited.cx,
+            cy: inherited.cy,
+        };
+        validate_rect(value)?;
+        write_box::<_, Offset, Extents>(node, value)?;
     }
-    if !matches!(edit, TransformEdit::Rotation(_)) {
+    if !matches!(edit, TransformEdit::Rotation(_)) && node.node().attr(un("rot")).is_none() {
         let rotation = inherited.rot.get().ok_or(RECT_RANGE)?;
         if rotation != 0 {
             set_num(node, "rot", i64::from(rotation))?;
@@ -276,6 +272,7 @@ where
     }
     for (attr, value) in [("flipH", inherited.flip_h), ("flipV", inherited.flip_v)] {
         if !matches!(edit, TransformEdit::Flip(edited, _) if edited == attr)
+            && node.node().attr(un(attr)).is_none()
             && value.get().ok_or(RECT_RANGE)?
         {
             node.set_attr(un(attr), "1")?;
@@ -301,30 +298,18 @@ impl<'d> ShapeMut<'d> {
             return Err(graphics_error());
         }
         let group = shape.is(GroupShape::QNAME);
-        let placeholder = (transform.is_none() || matches!(edit, TransformEdit::Clear))
-            && !group
-            && read::shapes_of(&self.doc)
-                .into_iter()
-                .any(|shape| shape.path().as_slice() == self.path && shape.placeholder().is_some());
-        if matches!(edit, TransformEdit::Clear) {
-            if group || !placeholder {
-                return Err(Error::UnsupportedContent(
-                    "clear_rect on a non-placeholder".into(),
-                ));
-            }
-            if transform.is_none_or(|node| {
-                child(node, a("off")).is_none() && child(node, a("ext")).is_none()
-            }) {
-                return Ok(());
-            }
-        }
+        let missing_box = transform
+            .is_none_or(|node| child(node, a("off")).is_none() || child(node, a("ext")).is_none());
+        let needs_inheritance = missing_box && !group && self.is_placeholder();
         let had_transform = transform.is_some();
-        if had_transform && edit.matches(transform, None) {
+        if had_transform && !needs_inheritance && edit.matches(transform, None) {
             return Ok(());
         }
         let group_inner = if group {
             match transform {
-                None if !edit.matches(None, None) => Some(child_bounds(shape)?),
+                None if !edit.matches(None, None) => {
+                    Some(child_bounds(shape, "group member bounds")?)
+                }
                 Some(node)
                     if matches!(edit, TransformEdit::Rect(_))
                         && (child(node, a("chOff")).is_none()
@@ -337,8 +322,12 @@ impl<'d> ShapeMut<'d> {
         } else {
             None
         };
-        let inherited = if placeholder && !had_transform {
-            self.inherited_xfrm()?
+        let inherited = if needs_inheritance {
+            let replacement = match edit {
+                TransformEdit::Rect(rect) => Some(rect),
+                _ => None,
+            };
+            self.inherited_xfrm(replacement)?
         } else {
             None
         };
@@ -349,8 +338,11 @@ impl<'d> ShapeMut<'d> {
         if frame {
             let mut frame = staged.lens_mut_at::<GraphicFrame>(&self.path)?;
             let mut xfrm = frame.get_or_insert::<pml::Transform>()?;
-            if let Some(inherited) = inherited {
-                materialize_placeholder(&mut xfrm, inherited, edit)?;
+            if needs_inheritance {
+                xfrm.preserve_attribute_spelling();
+                if let Some(inherited) = inherited {
+                    materialize_placeholder(&mut xfrm, inherited, edit)?;
+                }
             }
             edit_xfrm(xfrm, edit)?;
         } else if group {
@@ -367,8 +359,11 @@ impl<'d> ShapeMut<'d> {
         } else {
             let mut props = props_mut(&mut staged, &self.path)?;
             let mut xfrm = props.get_or_insert::<Transform2D>()?;
-            if let Some(inherited) = inherited {
-                materialize_placeholder(&mut xfrm, inherited, edit)?;
+            if needs_inheritance {
+                xfrm.preserve_attribute_spelling();
+                if let Some(inherited) = inherited {
+                    materialize_placeholder(&mut xfrm, inherited, edit)?;
+                }
             }
             edit_xfrm(xfrm, edit)?;
         }
@@ -376,7 +371,10 @@ impl<'d> ShapeMut<'d> {
         Ok(())
     }
 
-    fn inherited_xfrm(&mut self) -> Result<Option<crate::resolve::Xfrm>> {
+    fn inherited_xfrm(
+        &mut self,
+        replacement: Option<Rect>,
+    ) -> Result<Option<crate::resolve::Xfrm>> {
         let EditPart::Package { package, name } = &mut self.doc else {
             return Ok(None);
         };
@@ -409,17 +407,13 @@ impl<'d> ShapeMut<'d> {
             .into_iter()
             .find(|shape| shape.path().as_slice() == self.path)
             .ok_or(Error::ShapeNotFound)?;
-        let crate::Lookup::Set(value) = slide.geometry(&shape)? else {
+        let crate::Lookup::Set(value) = slide
+            .sheet()
+            .geometry_with_replacement(&shape, replacement)?
+        else {
             return Ok(None);
         };
-        let value = value.value.map_err(|_| RECT_RANGE)?;
-        validate_rect(Rect {
-            x: value.x,
-            y: value.y,
-            cx: value.cx,
-            cy: value.cy,
-        })?;
-        Ok(Some(value))
+        Ok(Some(value.value.map_err(|_| RECT_RANGE)?))
     }
 
     fn commit_shape_edit(&mut self, staged: XmlDocument) {
@@ -434,9 +428,33 @@ impl<'d> ShapeMut<'d> {
         self.update_xfrm(TransformEdit::Rect(rect))
     }
 
-    /// Removes the direct position and size so placeholders can inherit them.
+    fn is_placeholder(&self) -> bool {
+        read::shapes_of(&self.doc)
+            .into_iter()
+            .any(|shape| shape.path().as_slice() == self.path && shape.placeholder().is_some())
+    }
+
+    /// Removes the direct transform so a placeholder inherits its geometry.
     pub fn clear_rect(&mut self) -> Result<()> {
-        self.update_xfrm(TransformEdit::Clear)
+        let shape = self.node();
+        let transform = checked_xfrm(shape)?;
+        if shape.is(GroupShape::QNAME) || !self.is_placeholder() {
+            return Err(Error::UnsupportedContent(
+                "clear_rect on a non-placeholder".into(),
+            ));
+        }
+        if transform.is_some() {
+            let mut staged = self.doc.clone();
+            if shape.is(GraphicFrame::QNAME) {
+                staged
+                    .lens_mut_at::<GraphicFrame>(&self.path)?
+                    .remove::<pml::Transform>();
+            } else {
+                props_mut(&mut staged, &self.path)?.remove::<Transform2D>();
+            }
+            self.commit_shape_edit(staged);
+        }
+        Ok(())
     }
 
     /// Writes rotation in 60000ths of a degree.
@@ -550,7 +568,8 @@ fn fit_axis(
     Ok((start, size))
 }
 
-fn child_bounds(group: &RawNode) -> Result<Rect> {
+fn child_bounds(group: &RawNode, what: &'static str) -> Result<Rect> {
+    let range_error = || Error::ValueOutOfRange { what };
     let mut bounds: Option<(i64, i64, i64, i64)> = None;
     for shape in group
         .elements()
@@ -559,25 +578,27 @@ fn child_bounds(group: &RawNode) -> Result<Rect> {
         if shape.is(ooxml_core::name::MC_ALTERNATE_CONTENT) {
             return Err(Error::InsideAlternateContent);
         }
-        let value = checked_xfrm(shape)?.and_then(rect).ok_or(FIT_RANGE)?;
+        let value = checked_xfrm(shape)?
+            .and_then(rect)
+            .ok_or_else(range_error)?;
         validate_rect(value)?;
-        let right = value.x.checked_add(value.cx).ok_or(FIT_RANGE)?;
-        let bottom = value.y.checked_add(value.cy).ok_or(FIT_RANGE)?;
+        let right = value.x.checked_add(value.cx).ok_or_else(range_error)?;
+        let bottom = value.y.checked_add(value.cy).ok_or_else(range_error)?;
         bounds = Some(match bounds {
             Some((x, y, r, b)) => (x.min(value.x), y.min(value.y), r.max(right), b.max(bottom)),
             None => (value.x, value.y, right, bottom),
         });
     }
-    let (x, y, r, b) = bounds.ok_or(FIT_RANGE)?;
+    let (x, y, r, b) = bounds.ok_or_else(range_error)?;
     let result = Rect {
         x,
         y,
-        cx: r.checked_sub(x).ok_or(FIT_RANGE)?,
-        cy: b.checked_sub(y).ok_or(FIT_RANGE)?,
+        cx: r.checked_sub(x).ok_or_else(range_error)?,
+        cy: b.checked_sub(y).ok_or_else(range_error)?,
     };
     validate_rect(result)?;
     if result.cx == 0 || result.cy == 0 {
-        return Err(FIT_RANGE);
+        return Err(range_error());
     }
     Ok(result)
 }
@@ -586,7 +607,7 @@ impl GroupMut<'_, '_> {
     /// Fits the group box around its immediate children, preserving the affine transform exactly.
     pub fn fit_to_children(&mut self) -> Result<()> {
         let shape = self.shape.node();
-        let inner = child_bounds(shape)?;
+        let inner = child_bounds(shape, FIT_WHAT)?;
         let outer = if let Some(transform) = checked_xfrm(shape)? {
             let (old_outer, old_inner) = group_boxes(transform).ok_or(FIT_RANGE)?;
             if transformed(transform, true).ok_or(FIT_RANGE)? {

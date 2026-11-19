@@ -835,11 +835,14 @@ the source spelling of unchanged attributes even when an edited start tag is
 re-rendered. Passing `None` removes the direct
 outline. `ShapeFill::Inherit` removes the direct fill.
 
-`clear_rect` removes the direct offset and extent on placeholders and
-returns `UnsupportedContent` on other shapes. Creating a placeholder
-transform retains the resolved inherited rotation and flips on fields
-the caller did not edit. Rotation and flip edits also retain the
-resolved inherited rectangle.
+`clear_rect` removes the entire direct transform on placeholders and
+returns `UnsupportedContent` on other shapes. A transform missing its
+offset or extent still inherits geometry. Editing an absent or incomplete
+placeholder transform fills missing rotation and flip attributes from
+inheritance and preserves the source spelling of existing unedited
+attributes. Rotation and flip edits use the inherited rectangle.
+`set_rect` uses the supplied rectangle without validating the inherited
+offset and extent.
 
 Equal rotation and flip writes leave the part unchanged. The first
 transform edit on a group without a transform derives its child space

@@ -749,6 +749,16 @@ impl<'a> Sheet<'a> {
 
     /// Position and size (`a:xfrm`/`p:xfrm` as one unit, §1.5).
     pub fn geometry(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Xfrm>> {
+        self.geometry_with_replacement(shape, None)
+    }
+
+    // Rect edits need the winning rotation and flips, even if the box they
+    // replace contains invalid coordinate values.
+    pub(crate) fn geometry_with_replacement(
+        &self,
+        shape: &ShapeRef<'a>,
+        replacement: Option<Rect>,
+    ) -> Result<Lookup<'a, Xfrm>> {
         let steps = match self.geometry_steps(shape)? {
             Ok(s) => s,
             Err(r) => return Ok(Lookup::Unresolved(r)),
@@ -763,11 +773,20 @@ impl<'a> Sheet<'a> {
                 raw.parse::<i64>().map_err(|_| attr_error(k, raw))
             };
             let value = (|| {
+                let Rect { x: left, y, cx, cy } = match replacement {
+                    Some(rect) => rect,
+                    None => Rect {
+                        x: num(off, "x")?,
+                        y: num(off, "y")?,
+                        cx: num(ext, "cx")?,
+                        cy: num(ext, "cy")?,
+                    },
+                };
                 Ok(Xfrm {
-                    x: num(off, "x")?,
-                    y: num(off, "y")?,
-                    cx: num(ext, "cx")?,
-                    cy: num(ext, "cy")?,
+                    x: left,
+                    y,
+                    cx,
+                    cy,
                     rot: winner(x, "rot", 0, |v| v.parse().ok()),
                     flip_h: winner(x, "flipH", false, ooxml_core::value::parse_bool),
                     flip_v: winner(x, "flipV", false, ooxml_core::value::parse_bool),
