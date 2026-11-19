@@ -18,7 +18,7 @@ use crate::error::{Error, Result};
 use crate::fields::Operation;
 use crate::names::is;
 use crate::story::StoryIndex;
-use crate::revisions::{Marks, TrackedChanges, check_deletable_paragraph, check_path, delete_paragraph_runs, mark_paragraph};
+use crate::revisions::{Marks, REVISION_NS, TrackedChanges, check_deletable_paragraph, check_path, delete_paragraph_runs, mark_paragraph};
 
 const fn w(local: &'static str) -> QName {
     QName::new(NS_W, local)
@@ -304,7 +304,7 @@ impl RowInsertion {
             }
             if let Some(marks) = marks.as_deref_mut() {
                 let mut trpr = row.get_or_insert::<TableRowProperties>()?;
-                marks.write(trpr.insert::<Inserted>()?)?;
+                marks.write(trpr.insert_with_ns::<Inserted>(REVISION_NS)?)?;
             }
             for cell in &self.cells {
                 let mut tc = row.insert::<TableCell>()?;
@@ -1029,7 +1029,7 @@ impl TrackedChanges<'_> {
             for &item in &rows {
                 let row_path = [path.as_slice(), &[item]].concat();
                 let mut row = xml.lens_mut_at::<TableRow>(&row_path)?;
-                marks.write(row.get_or_insert::<TableRowProperties>()?.insert::<Deleted>()?)?;
+                marks.write(row.get_or_insert::<TableRowProperties>()?.insert_with_ns::<Deleted>(REVISION_NS)?)?;
             }
             Ok(())
         })?;

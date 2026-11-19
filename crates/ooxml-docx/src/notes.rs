@@ -201,11 +201,11 @@ impl Document {
                 paragraph: para.index,
                 run: reference.index(),
             })?;
-            run.check_settable()?;
-            if run.has_formatting_change() {
-                return Err(Error::TrackedPropertyChange {
-                    element: "w:rPrChange",
-                });
+            match run.check_settable() {
+                Err(Error::InsideRevision { context: crate::RunContext::Direct }) if run.has_formatting_change() => {
+                    return Err(Error::TrackedPropertyChange { element: "w:rPrChange" });
+                }
+                result => result?,
             }
             let run_path = self.stories[para.story.0].index.path(run.info.frame);
             let p = self

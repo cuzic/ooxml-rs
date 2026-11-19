@@ -55,6 +55,47 @@ fn text_view(p: Node<'_, '_>, accept: bool) -> String {
         .collect()
 }
 
+fn paragraph_view(xml: &str, accept: bool) -> Vec<(String, Vec<String>)> {
+    let tree = roxmltree::Document::parse(xml).unwrap();
+    let mut paragraphs = Vec::new();
+    let mut text = String::new();
+    for paragraph in tree.descendants().filter(|n| w(*n, "p")) {
+        text.push_str(&text_view(paragraph, accept));
+        let properties = paragraph.children().find(|n| w(*n, "pPr"));
+        let mark = properties.and_then(|p| p.children().find(|n| w(*n, "rPr")));
+        let removed_mark = if accept { "del" } else { "ins" };
+        // The N1 rejected-view model keeps the following mark after merging.
+        if mark.is_some_and(|m| m.children().any(|n| w(n, removed_mark))) {
+            continue;
+        }
+        let properties = properties
+            .into_iter()
+            .flat_map(|p| p.descendants().skip(1))
+            .filter(Node::is_element)
+            .filter(|n| !n.ancestors().any(|n| w(n, "ins") || w(n, "del")))
+            .filter(|n| {
+                !w(*n, "rPr")
+                    || n.children()
+                        .any(|c| c.is_element() && !w(c, "ins") && !w(c, "del"))
+            })
+            .map(|n| {
+                let mut attrs: Vec<_> = n
+                    .attributes()
+                    .map(|a| (a.namespace(), a.name(), a.value()))
+                    .collect();
+                attrs.sort_unstable();
+                format!("{:?}:{attrs:?}", n.tag_name())
+            })
+            .collect();
+        paragraphs.push((std::mem::take(&mut text), properties));
+    }
+    assert!(
+        text.is_empty(),
+        "a marked paragraph must have a following mark"
+    );
+    paragraphs
+}
+
 #[test]
 fn text_views_w1_attributes_id_union_and_locality() {
     let bookmark = "<w:bookmarkStart w:id='89' w:name='high'/><w:bookmarkEnd w:id='89'/>";
@@ -133,7 +174,7 @@ fn n1_moves_original_mark_and_places_ins_before_formatting() {
         None,
         None,
     );
-    let mut doc = Document::from_bytes(input).unwrap();
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
     doc.track_changes(author(), None)
         .unwrap()
         .append_paragraph("New")
@@ -161,12 +202,24 @@ fn n1_moves_original_mark_and_places_ins_before_formatting() {
         text_view(paragraphs[0], false) + &text_view(paragraphs[1], false),
         "Old"
     );
-    assert_eq!(text_view(paragraphs[1], true), "New");
+    let mut baseline = Document::from_bytes(input.clone()).unwrap();
+    baseline
+        .insert_paragraph(Place::After(p(0)), "New", &ParagraphSpec::LikeNeighbour)
+        .unwrap();
+    assert_eq!(
+        paragraph_view(&edited, true),
+        paragraph_view(&xml(&baseline.to_bytes().unwrap()), true)
+    );
+    assert_eq!(
+        paragraph_view(&edited, false),
+        paragraph_view(&xml(&input), true)
+    );
 }
 
 #[test]
 fn paragraph_insertion_and_deletion_marks() {
-    let mut doc = Document::from_bytes(docx(&format!("{A}{B}"), None, None)).unwrap();
+    let input = docx(&format!("{A}{B}"), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
     doc.track_changes(author(), None)
         .unwrap()
         .insert_paragraph(Place::Before(p(0)), "First", &ParagraphSpec::Plain)
@@ -192,6 +245,19 @@ fn paragraph_insertion_and_deletion_marks() {
     assert_eq!(text_view(paragraphs[0], true), "First");
     assert_eq!(text_view(paragraphs[1], false), "Before αβ after");
     assert_eq!(text_view(paragraphs[1], true), "");
+    let untracked = docx(
+        &format!("<w:p><w:r><w:t>First</w:t></w:r></w:p>{B}"),
+        None,
+        None,
+    );
+    assert_eq!(
+        paragraph_view(&after, true),
+        paragraph_view(&xml(&untracked), true)
+    );
+    assert_eq!(
+        paragraph_view(&after, false),
+        paragraph_view(&xml(&input), true)
+    );
     assert!(
         paragraphs[1]
             .descendants()
@@ -525,4 +591,25 @@ fn ignorable_old_formatting_is_refused_before_write() {
         Err(Error::Core(ooxml_core::Error::NotDetachable { .. }))
     );
     assert_eq!(doc.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn revision_attributes_get_a_safe_prefix_in_default_wml() {
+    let input = docx(A, None, None);
+    let default_wml = xml(&input)
+        .replace("xmlns:w=", "xmlns=")
+        .replace("<w:", "<")
+        .replace("</w:", "</")
+        .replace("<document ", "<document xmlns:w='urn:reserved' ");
+    let mut doc =
+        Document::from_bytes(common::with_part(&input, MAIN, default_wml.as_bytes())).unwrap();
+    doc.track_changes(author(), None)
+        .unwrap()
+        .set_run_text(0, 0, "New")
+        .unwrap();
+    let after = xml(&doc.to_bytes().unwrap());
+    let tree = roxmltree::Document::parse(&after).unwrap();
+    let ins = tree.descendants().find(|n| w(*n, "ins")).unwrap();
+    assert_eq!(ins.attribute((W_NS, "author")), Some("Ada & Grace"));
+    assert!(after.contains("xmlns:w='urn:reserved'"));
 }
