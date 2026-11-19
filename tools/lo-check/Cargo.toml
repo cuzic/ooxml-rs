@@ -1,0 +1,11 @@
+[package]
+name = "lo-check-calamine"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[dependencies]
+calamine = "=0.38.0"
+
+[workspace]

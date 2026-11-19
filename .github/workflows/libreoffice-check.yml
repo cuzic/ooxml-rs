@@ -1,0 +1,67 @@
+name: LibreOffice manual-check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+  TZ: UTC
+
+jobs:
+  libreoffice:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: "1.99"
+      - name: Install LibreOffice (pinned version and SHA-256)
+        env:
+          LO_VERSION: "25.2.7.2"
+        run: |
+          set -euo pipefail
+          [[ "$LO_VERSION" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || { echo "bad version: $LO_VERSION"; exit 1; }
+          # Pinned SHA-256 per release (from the archive's .sha256/.mirrorlist,
+          # re-computed from the downloaded file). Add a line to allow a release.
+          case "$LO_VERSION" in
+            25.2.7.2) SHA=3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581 ;;
+            *) echo "no pinned SHA-256 for LibreOffice $LO_VERSION"; exit 1 ;;
+          esac
+          tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
+          curl -fsSL --retry 5 -o "$RUNNER_TEMP/$tgz" "https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64/$tgz"
+          echo "$SHA  $RUNNER_TEMP/$tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/lo" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP/lo"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils fonts-noto-cjk "$RUNNER_TEMP"/lo/*/DEBS/*.deb
+          dir="/opt/libreoffice${LO_VERSION%.*.*}/program"
+          "$dir/soffice" --version | grep -F "$LO_VERSION"
+          echo "$dir" >> "$GITHUB_PATH"
+      - name: Install read-back oracles
+        run: |
+          python3 -m venv "$RUNNER_TEMP/lo-venv"
+          "$RUNNER_TEMP/lo-venv/bin/python" -I -m pip install -r tools/lo-check/requirements.txt
+          cargo build --manifest-path tools/lo-check/Cargo.toml --target-dir "$RUNNER_TEMP/lo-oracle"
+      - name: Generate manual-check bundle
+        run: cargo xtask manual-check "$RUNNER_TEMP/manual-check"
+      - name: Verify the bundle
+        run: |
+          "$RUNNER_TEMP/lo-venv/bin/python" -I tools/lo-check/check.py \
+            "$RUNNER_TEMP/manual-check" "$RUNNER_TEMP/lo-oracle/debug/lo-check-calamine" \
+            "$RUNNER_TEMP/lo-failures"
+      - name: Upload failing documents and diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: libreoffice-failures
+          path: ${{ runner.temp }}/lo-failures/
+          if-no-files-found: ignore
