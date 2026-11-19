@@ -1250,6 +1250,7 @@ impl Workbook {
         self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
         let calc_chain = self.calc_chain.clone();
         let set_refs: Vec<String> = set.clone();
+        let removed_table_max = self.removed_table_max(&set);
         let out = self.commit(change, move |plan, pkg| {
             let names: Vec<&str> = set_refs.iter().map(String::as_str).collect();
             plan.remove_parts(pkg, &names, &[REL_WORKSHEET])?;
@@ -1259,6 +1260,7 @@ impl Workbook {
             Ok(())
         })?;
         self.removed_sheet_ids.push(sheet_id);
+        self.forget_removed_tables(&set, removed_table_max);
         Ok(out)
     }
 

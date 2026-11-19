@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_xlsx::{Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
+use ooxml_xlsx::{CellRange, Col, Table, TableStyle, Total, Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
 
 type BoxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// (original for `originals/`, edited output)
@@ -31,6 +31,25 @@ struct Case {
 }
 
 const CASES: &[Case] = &[
+    Case {
+        out: "p5b-table.xlsx",
+        input: None,
+        edits: "Create Sales at A1:D4 with a totals row and a calculated column. Rename A1 from Region to Market.",
+        look_for: "Sales spans A1:D4 and its filter excludes row 4. A1 and the first table column name are Market. A4 says Total, B4 is 7 and D2:D3 calculate to 4 and 10.",
+        edit: |ws| {
+            ws.write_string(1, 0, "North")?;
+            ws.write_string(2, 0, "South")?;
+            ws.write_number(1, 1, 2.0)?;
+            ws.write_number(2, 1, 5.0)?;
+            ws.add_table(Table::new(CellRange::parse("A1:D4")?)
+                .name("Sales")
+                .columns([Col::new("Region").total_label("Total"), Col::new("Units, shipped").total(Total::Sum),
+                    Col::new("Notes"), Col::new("Doubled").formula("[@[Units, shipped]]*2")])
+                .totals_row(true)
+                .style(TableStyle::Medium9))?;
+            ws.write_string(0, 0, "Market")
+        },
+    },
     Case {
         out: "01-minimal.xlsx",
         input: Some("round_trip_corpus/fixture_minimal.xlsx"),
@@ -79,7 +98,7 @@ const CASES: &[Case] = &[
     Case {
         out: "05-pivot-and-table.xlsx",
         input: Some("fixtures/xlsx/poi/ExcelPivotTableSample.xlsx"),
-        edits: "A1 = \"outside\", E2 (table body) = 9 (header row E1:G1 is refused by design)",
+        edits: "A1 = \"outside\", E2 (table body) = 9 (header row E1:G1 is guarded because the table is a pivot source)",
         look_for: "Table E1:G4 still a table with the same headers; both pivot tables open (they may show stale data until Refresh: that is Excel's normal behaviour, roadmap §4).",
         edit: |ws| {
             ws.write_string(0, 0, "outside")?;

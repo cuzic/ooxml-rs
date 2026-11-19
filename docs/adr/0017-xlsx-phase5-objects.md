@@ -705,6 +705,23 @@ Otherwise:
 - the cells stay as plain cells;
 - the id goes into the session high-water.
 
+**Post-acceptance note (P5b).** The XLSX API is
+`Worksheet::{add_table, remove_table}` with `Table`, `Col`, `Total` and `TableStyle`.
+Creation returns the display name. Table styles select a built-in style family and
+number, or omit the style name. The same header synchronization runs for
+`set_string`, `set_string_inline` and string entries in `write_cells`; batch uniqueness
+is checked against the resulting column names. Existing multi-row-header tables
+refuse synchronization because one column name cannot track multiple header cells.
+An unknown name passed to `remove_table` returns `NoSuchTable`. The workbook-wide
+Phase1 metadata refusal may take precedence over the range refusal for unknown `cm`.
+
+Removal stages the sheet before removing the part: the current core
+`RegistryPlan::remove_parts` checks incoming relationship ids against the sheet
+tree already staged in the plan. The plan still publishes all changes together.
+The manual check includes totals over a column name with punctuation and a
+header rename in a different column. The writer also escapes a literal `@` in a
+column specifier so it cannot be read as a row selector.
+
 ### 7. Charts
 
 #### 7.1 What a new chart is

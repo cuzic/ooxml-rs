@@ -56,7 +56,7 @@ pub(crate) struct StringPlan {
     /// The canonical bytes, when a new `si` is appended.
     append: Option<String>,
     content: SiContent,
-    decoded: String,
+    pub(crate) decoded: String,
 }
 
 impl StringPlan {
