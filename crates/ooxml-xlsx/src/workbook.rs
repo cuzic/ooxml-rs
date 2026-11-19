@@ -22,7 +22,7 @@ pub(crate) const REL_WORKSHEET: &str = "http://schemas.openxmlformats.org/office
 const REL_CHARTSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
 pub(crate) const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
-const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
+pub(crate) const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
 const REL_PIVOT_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable";
 const REL_QUERY_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/queryTable";
 const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
@@ -43,6 +43,8 @@ pub(crate) const TEMPLATE: &[u8] = include_bytes!("../template/blank.xlsx");
 /// A table on a sheet: its header rows (empty if `headerRowCount="0"`).
 #[derive(Clone, Debug)]
 pub(crate) struct TableHeader {
+    pub(crate) part: String,
+    pub(crate) rel: String,
     pub(crate) name: String,
     pub(crate) rows: Option<CellRange>,
     /// The whole table (`table/@ref`), for Phase4's overlap refusals.
@@ -131,6 +133,8 @@ pub enum ApplyStep {
     RangeFeature,
     /// Before inserting the worksheet drawing reference.
     ImageDrawing,
+    /// Before inserting the worksheet table reference.
+    TableParts,
 }
 
 pub(crate) type ApplyStepHook = ApplyStep;
@@ -191,6 +195,8 @@ pub struct Workbook {
     template_sheet_taken: bool,
     /// `sheetId`s of sheets deleted in this session (never reused).
     pub(crate) removed_sheet_ids: Vec<u32>,
+    pub(crate) table_high_water: u32,
+    pub(crate) table_names: Option<HashMap<String, Vec<String>>>,
     pub(crate) objects: crate::images::ObjectState,
     #[cfg(feature = "fault-injection")]
     /// The step to fail at, and whether to panic instead of returning `Err`.
@@ -248,6 +254,8 @@ impl Workbook {
             from_template: false,
             template_sheet_taken: false,
             removed_sheet_ids: Vec::new(),
+            table_high_water: 0,
+            table_names: None,
             objects: Default::default(),
             #[cfg(feature = "fault-injection")]
             fault: None,
@@ -742,10 +750,10 @@ fn load_tables(pkg: &mut Package, sheet_part: &str, rels: &Relationships, ids: &
         let n = t.header_row_count().map_err(ooxml_core::Error::from)?;
         let rows = (n > 0).then(|| {
             let mut r = range;
-            r.last.row = (range.first.row + n - 1).min(range.last.row);
+            r.last.row = range.first.row.saturating_add(n - 1).min(range.last.row);
             r
         });
-        out.push(TableHeader { name, rows, range });
+        out.push(TableHeader { part, rel: id.clone(), name, rows, range });
     }
     Ok(out)
 }

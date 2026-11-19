@@ -126,7 +126,7 @@ fn is_ws(b: u8) -> bool {
 
 /// Characters that may appear in a name, a function name or an unquoted
 /// sheet name (besides non-ASCII characters, which all may).
-fn is_name_char(c: char) -> bool {
+pub(crate) fn is_name_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '.' | '\\' | '?')
 }
 
@@ -360,14 +360,22 @@ pub(crate) fn lex(text: &str) -> Result<Vec<Token>, LexError> {
             '[' => {
                 // `[n]` external prefix, or a structured reference `[…]`.
                 let digits = b[i + 1..].iter().take_while(|b| b.is_ascii_digit()).count();
-                if digits > 0 && b.get(i + 1 + digits) == Some(&b']') {
-                    let mut j = i + 2 + digits;
-                    // Optional unquoted sheet (or 3-D span) before '!'.
-                    let k = text[j..].find(|ch: char| !(is_name_char(ch) || ch == ':')).map_or(text.len(), |k| j + k);
-                    if b.get(k) != Some(&b'!') {
+                let external_end = if digits > 0 && b.get(i + 1 + digits) == Some(&b']') {
+                    let after_bracket = i + 2 + digits;
+                    let k = text[after_bracket..].find(|ch: char| !(is_name_char(ch) || ch == ':'))
+                        .map_or(text.len(), |k| after_bracket + k);
+                    if b.get(k) == Some(&b'!') {
+                        Some(k)
+                    } else if text[after_bracket..].starts_with(is_name_char) {
                         return Err(err(k, "external reference without '!'"));
+                    } else {
+                        None
                     }
-                    j = k + 1;
+                } else {
+                    None
+                };
+                if let Some(k) = external_end {
+                    let j = k + 1;
                     let (kind, n) = after_bang(text, j, Prefix::External, start)?;
                     i = j + n;
                     kind

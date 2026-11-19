@@ -663,8 +663,7 @@ impl<'wb> Worksheet<'wb> {
             };
             ops.push((self.sheet, at, op, extra));
         }
-        let plan = self.wb.plan_writes(ops)?;
-        self.wb.apply_writes(plan)
+        self.wb.write_with_headers(ops)
     }
 }
 

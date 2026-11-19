@@ -44,8 +44,10 @@
 //! - writes into array/data-table/spill ranges, edits that would invalidate
 //!   macro-sheet formulas, edits with dependents under iterative
 //!   calculation, shared-formula hand-offs whose translation fails;
-//! - writes into a merged range (top-left cell included), into a table's
-//!   header row, or into a cell with a rich value (`vm`);
+//! - writes into a merged range (top-left cell included), non-string writes
+//!   into a table's header row, or writes into a cell with a rich value (`vm`);
+//!   a string write to a table header also updates the column name and is
+//!   refused when the column is in use;
 //! - reads and writes where `row`/`c` elements lack `r`
 //!   ([`Error::MissingReference`]);
 //! - adding or naming sheets (except the template's one sheet);
@@ -77,6 +79,8 @@ mod registry;
 mod setters;
 mod workbook;
 mod worksheet;
+mod tables;
+pub use tables::{Col, Table, TableStyle, Total};
 
 pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};

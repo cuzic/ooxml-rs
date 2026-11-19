@@ -1147,6 +1147,62 @@ impl ooxml_core::EnumType for TableValues {
         self as usize
     }
 }
+/// `x:ST_TotalsRowFunction` — Totals Row Function Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TotalsRowFunctionValues {
+    /// `none`
+    None,
+    /// `sum`
+    Sum,
+    /// `min`
+    Minimum,
+    /// `max`
+    Maximum,
+    /// `average`
+    Average,
+    /// `count`
+    Count,
+    /// `countNums`
+    CountNumbers,
+    /// `stdDev`
+    StandardDeviation,
+    /// `var`
+    Variance,
+    /// `custom`
+    Custom,
+}
+impl ooxml_core::EnumType for TotalsRowFunctionValues {
+    const VALUES: &'static [&'static str] = &[
+        "none",
+        "sum",
+        "min",
+        "max",
+        "average",
+        "count",
+        "countNums",
+        "stdDev",
+        "var",
+        "custom",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::Sum),
+            2 => Some(Self::Minimum),
+            3 => Some(Self::Maximum),
+            4 => Some(Self::Average),
+            5 => Some(Self::Count),
+            6 => Some(Self::CountNumbers),
+            7 => Some(Self::StandardDeviation),
+            8 => Some(Self::Variance),
+            9 => Some(Self::Custom),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_Visibility` — Visibility Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VisibilityValues {
@@ -17983,6 +18039,8 @@ impl ooxml_core::ElementSpec for Table {
 }
 impl ooxml_core::ChildOf<Table> for AutoFilter {}
 impl ooxml_core::ChildOf<Table> for SortState {}
+impl ooxml_core::ChildOf<Table> for TableColumns {}
+impl ooxml_core::ChildOf<Table> for TableStyleInfo {}
 /// Read-only view of [`Table`].
 #[derive(Clone, Debug)]
 pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
@@ -18125,6 +18183,423 @@ impl<'a> TableView<'a> {
     pub fn sort_state(&self) -> Option<SortStateView<'a>> {
         self.0.child::<SortState>().map(SortStateView)
     }
+    /// First `x:tableColumns` child.
+    pub fn table_columns(&self) -> Option<TableColumnsView<'a>> {
+        self.0.child::<TableColumns>().map(TableColumnsView)
+    }
+    /// First `x:tableStyleInfo` child.
+    pub fn table_style_info(&self) -> Option<TableStyleInfoView<'a>> {
+        self.0.child::<TableStyleInfo>().map(TableStyleInfoView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TableColumn/x:tableColumn` — Table Column.
+#[derive(Debug)]
+pub enum TableColumn {}
+impl TableColumn {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `uniqueName`
+    pub const ATTR_UNIQUE_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "uniqueName",
+    );
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `totalsRowFunction`
+    pub const ATTR_TOTALS_ROW_FUNCTION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowFunction",
+    );
+    /// `totalsRowLabel`
+    pub const ATTR_TOTALS_ROW_LABEL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowLabel",
+    );
+    /// `queryTableFieldId`
+    pub const ATTR_QUERY_TABLE_FIELD_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "queryTableFieldId",
+    );
+    /// `headerRowDxfId`
+    pub const ATTR_HEADER_ROW_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "headerRowDxfId",
+    );
+    /// `dataDxfId`
+    pub const ATTR_DATA_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "dataDxfId",
+    );
+    /// `totalsRowDxfId`
+    pub const ATTR_TOTALS_ROW_DXF_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowDxfId",
+    );
+    /// `headerRowCellStyle`
+    pub const ATTR_HEADER_ROW_CELL_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "headerRowCellStyle",
+    );
+    /// `dataCellStyle`
+    pub const ATTR_DATA_CELL_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "dataCellStyle",
+    );
+    /// `totalsRowCellStyle`
+    pub const ATTR_TOTALS_ROW_CELL_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "totalsRowCellStyle",
+    );
+}
+impl ooxml_core::ElementSpec for TableColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tableColumn");
+    const SDK_NAME: &'static str = "x:CT_TableColumn/x:tableColumn";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_UNIQUE_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_TOTALS_ROW_FUNCTION,
+            ty: ooxml_core::SimpleType::Enum(
+                <TotalsRowFunctionValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_TOTALS_ROW_LABEL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_QUERY_TABLE_FIELD_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_HEADER_ROW_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_DATA_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_TOTALS_ROW_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_HEADER_ROW_CELL_STYLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_DATA_CELL_STYLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableColumn::ATTR_TOTALS_ROW_CELL_STYLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "calculatedColumnFormula")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "totalsRowFormula")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "xmlColumnPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableColumn> for CalculatedColumnFormula {}
+impl ooxml_core::ChildOf<TableColumn> for TotalsRowFormula {}
+/// Read-only view of [`TableColumn`].
+#[derive(Clone, Debug)]
+pub struct TableColumnView<'a>(pub ooxml_core::Lens<'a, TableColumn>);
+impl<'a> TableColumnView<'a> {
+    /// `id` — Table Field Id
+    pub fn id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TableColumn::ATTR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `uniqueName` — Unique Name
+    pub fn unique_name(&self) -> Option<&'a str> {
+        self.0.attr(TableColumn::ATTR_UNIQUE_NAME)
+    }
+    /// `name` — Column name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(TableColumn::ATTR_NAME)
+    }
+    /// `totalsRowFunction` — Totals Row Function (default `none`)
+    pub fn totals_row_function(
+        &self,
+    ) -> ooxml_core::EnumValue<'a, TotalsRowFunctionValues> {
+        self.0.attr_enum_or(TableColumn::ATTR_TOTALS_ROW_FUNCTION, "none")
+    }
+    /// `totalsRowLabel` — Totals Row Label
+    pub fn totals_row_label(&self) -> Option<&'a str> {
+        self.0.attr(TableColumn::ATTR_TOTALS_ROW_LABEL)
+    }
+    /// `queryTableFieldId` — Query Table Field Id
+    pub fn query_table_field_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableColumn::ATTR_QUERY_TABLE_FIELD_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `headerRowDxfId` — Header Row Cell Format Id
+    pub fn header_row_differential_formatting_id(
+        &self,
+    ) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableColumn::ATTR_HEADER_ROW_DXF_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `dataDxfId` — Data and Insert Row Format Id
+    pub fn data_format_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TableColumn::ATTR_DATA_DXF_ID, ooxml_core::value::parse_u32)
+    }
+    /// `totalsRowDxfId` — Totals Row Format Id
+    pub fn totals_row_differential_formatting_id(
+        &self,
+    ) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableColumn::ATTR_TOTALS_ROW_DXF_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `headerRowCellStyle` — Header Row Cell Style
+    pub fn header_row_cell_style(&self) -> Option<&'a str> {
+        self.0.attr(TableColumn::ATTR_HEADER_ROW_CELL_STYLE)
+    }
+    /// `dataCellStyle` — Data Area Style Name
+    pub fn data_cell_style(&self) -> Option<&'a str> {
+        self.0.attr(TableColumn::ATTR_DATA_CELL_STYLE)
+    }
+    /// `totalsRowCellStyle` — Totals Row Style Name
+    pub fn totals_row_cell_style(&self) -> Option<&'a str> {
+        self.0.attr(TableColumn::ATTR_TOTALS_ROW_CELL_STYLE)
+    }
+    /// First `x:calculatedColumnFormula` child.
+    pub fn calculated_column_formula(&self) -> Option<CalculatedColumnFormulaView<'a>> {
+        self.0.child::<CalculatedColumnFormula>().map(CalculatedColumnFormulaView)
+    }
+    /// First `x:totalsRowFormula` child.
+    pub fn totals_row_formula(&self) -> Option<TotalsRowFormulaView<'a>> {
+        self.0.child::<TotalsRowFormula>().map(TotalsRowFormulaView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TableColumns/x:tableColumns` — Table Columns.
+#[derive(Debug)]
+pub enum TableColumns {}
+impl TableColumns {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for TableColumns {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tableColumns");
+    const SDK_NAME: &'static str = "x:CT_TableColumns/x:tableColumns";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableColumns::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tableColumn")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableColumns> for TableColumn {}
+/// Read-only view of [`TableColumns`].
+#[derive(Clone, Debug)]
+pub struct TableColumnsView<'a>(pub ooxml_core::Lens<'a, TableColumns>);
+impl<'a> TableColumnsView<'a> {
+    /// `count` — Column Count
+    pub fn count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TableColumns::ATTR_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `x:tableColumn` children in document order.
+    pub fn table_column_iter(&self) -> impl Iterator<Item = TableColumnView<'a>> {
+        self.0.children::<TableColumn>().map(TableColumnView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TableFormula/x:calculatedColumnFormula` — Calculated Column Formula.
+#[derive(Debug)]
+pub enum CalculatedColumnFormula {}
+impl CalculatedColumnFormula {
+    /// `array`
+    pub const ATTR_ARRAY: ooxml_core::QName = ooxml_core::QName::new("", "array");
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for CalculatedColumnFormula {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_X,
+        "calculatedColumnFormula",
+    );
+    const SDK_NAME: &'static str = "x:CT_TableFormula/x:calculatedColumnFormula";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CalculatedColumnFormula::ATTR_ARRAY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CalculatedColumnFormula::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`CalculatedColumnFormula`].
+#[derive(Clone, Debug)]
+pub struct CalculatedColumnFormulaView<'a>(
+    pub ooxml_core::Lens<'a, CalculatedColumnFormula>,
+);
+impl<'a> CalculatedColumnFormulaView<'a> {
+    /// `array` — Array (default `false`)
+    pub fn array(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CalculatedColumnFormula::ATTR_ARRAY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xml:space` — space
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(CalculatedColumnFormula::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TableFormula/x:totalsRowFormula` — Totals Row Formula.
+#[derive(Debug)]
+pub enum TotalsRowFormula {}
+impl TotalsRowFormula {
+    /// `array`
+    pub const ATTR_ARRAY: ooxml_core::QName = ooxml_core::QName::new("", "array");
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for TotalsRowFormula {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "totalsRowFormula");
+    const SDK_NAME: &'static str = "x:CT_TableFormula/x:totalsRowFormula";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TotalsRowFormula::ATTR_ARRAY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: TotalsRowFormula::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`TotalsRowFormula`].
+#[derive(Clone, Debug)]
+pub struct TotalsRowFormulaView<'a>(pub ooxml_core::Lens<'a, TotalsRowFormula>);
+impl<'a> TotalsRowFormulaView<'a> {
+    /// `array` — Array (default `false`)
+    pub fn array(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                TotalsRowFormula::ATTR_ARRAY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xml:space` — space
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(TotalsRowFormula::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -18202,6 +18677,110 @@ impl<'a> TablePartsView<'a> {
     /// `x:tablePart` children in document order.
     pub fn table_part_iter(&self) -> impl Iterator<Item = TablePartView<'a>> {
         self.0.children::<TablePart>().map(TablePartView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_TableStyleInfo/x:tableStyleInfo` — Table Style.
+#[derive(Debug)]
+pub enum TableStyleInfo {}
+impl TableStyleInfo {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `showFirstColumn`
+    pub const ATTR_SHOW_FIRST_COLUMN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showFirstColumn",
+    );
+    /// `showLastColumn`
+    pub const ATTR_SHOW_LAST_COLUMN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showLastColumn",
+    );
+    /// `showRowStripes`
+    pub const ATTR_SHOW_ROW_STRIPES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showRowStripes",
+    );
+    /// `showColumnStripes`
+    pub const ATTR_SHOW_COLUMN_STRIPES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showColumnStripes",
+    );
+}
+impl ooxml_core::ElementSpec for TableStyleInfo {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tableStyleInfo");
+    const SDK_NAME: &'static str = "x:CT_TableStyleInfo/x:tableStyleInfo";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableStyleInfo::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableStyleInfo::ATTR_SHOW_FIRST_COLUMN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableStyleInfo::ATTR_SHOW_LAST_COLUMN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableStyleInfo::ATTR_SHOW_ROW_STRIPES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableStyleInfo::ATTR_SHOW_COLUMN_STRIPES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TableStyleInfo`].
+#[derive(Clone, Debug)]
+pub struct TableStyleInfoView<'a>(pub ooxml_core::Lens<'a, TableStyleInfo>);
+impl<'a> TableStyleInfoView<'a> {
+    /// `name` — Style Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(TableStyleInfo::ATTR_NAME)
+    }
+    /// `showFirstColumn` — Show First Column
+    pub fn show_first_column(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableStyleInfo::ATTR_SHOW_FIRST_COLUMN,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showLastColumn` — Show Last Column
+    pub fn show_last_column(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableStyleInfo::ATTR_SHOW_LAST_COLUMN,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showRowStripes` — Show Row Stripes
+    pub fn show_row_stripes(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableStyleInfo::ATTR_SHOW_ROW_STRIPES,
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showColumnStripes` — Show Column Stripes
+    pub fn show_column_stripes(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                TableStyleInfo::ATTR_SHOW_COLUMN_STRIPES,
+                ooxml_core::value::parse_bool,
+            )
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -21664,9 +22243,19 @@ const _: () = ooxml_core::schema::assert_child::<Stylesheet, NumberingFormats>()
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, AutoFilter>();
 const _: () = ooxml_core::schema::assert_child::<Table, SortState>();
+const _: () = ooxml_core::schema::assert_child::<Table, TableColumns>();
+const _: () = ooxml_core::schema::assert_child::<Table, TableStyleInfo>();
+const _: () = ooxml_core::schema::assert_spec::<TableColumn>();
+const _: () = ooxml_core::schema::assert_child::<TableColumn, CalculatedColumnFormula>();
+const _: () = ooxml_core::schema::assert_child::<TableColumn, TotalsRowFormula>();
+const _: () = ooxml_core::schema::assert_spec::<TableColumns>();
+const _: () = ooxml_core::schema::assert_child::<TableColumns, TableColumn>();
+const _: () = ooxml_core::schema::assert_spec::<CalculatedColumnFormula>();
+const _: () = ooxml_core::schema::assert_spec::<TotalsRowFormula>();
 const _: () = ooxml_core::schema::assert_spec::<TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<TableParts>();
 const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
+const _: () = ooxml_core::schema::assert_spec::<TableStyleInfo>();
 const _: () = ooxml_core::schema::assert_spec::<Underline>();
 const _: () = ooxml_core::schema::assert_spec::<VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<Workbook>();

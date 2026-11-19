@@ -423,5 +423,12 @@
     "xml": [
       ["xl/worksheets/sheet1.xml", ".//x:conditionalFormatting[@sqref='B1:B3']/x:cfRule[@dxfId='1']", 1]
     ]
+  },
+  "xlsx/39-p5b-table.xlsx": {"sheets": {"Sheet1": {"A1": "Market", "A2": "North", "A4": "Total", "B2": 2.0, "B3": 5.0}},
+    "formulas": {"Sheet1!B4": ["n", "7"], "Sheet1!D2": ["n", "4"], "Sheet1!D3": ["n", "10"]},
+    "xml": [
+      ["xl/tables/table1.xml", ".//x:tableColumns/x:tableColumn[@name='Market']", 1],
+      ["xl/tables/table1.xml", ".//x:autoFilter[@ref='A1:D3']", 1]
+    ]
   }
 }
