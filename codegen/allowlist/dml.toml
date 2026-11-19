@@ -3,6 +3,16 @@
 # Phase0 write path: text in shapes and table cells.
 [write]
 names = [
+    # Phase 3b (ADR-0016 §6): shape properties.
+    "a:CT_GroupTransform2D/a:xfrm",
+    "a:CT_Point2D/a:chOff",
+    "a:CT_PositiveSize2D/a:chExt",
+    "a:CT_GeomGuide/a:gd",
+    "a:CT_LineProperties/a:ln",
+    "a:CT_GradientFillProperties/a:gradFill",
+    "a:CT_GradientStopList/a:gsLst",
+    "a:CT_GradientStop/a:gs",
+    "a:CT_LinearShadeProperties/a:lin",
     # ADR-0017 §3, ECMA-376 §20.5 and MS-XLSX rich values.
     "asvg:CT_SVGBlip/asvg:svgBlip",
     "xdr:CT_TwoCellAnchor/xdr:twoCellAnchor",
@@ -172,9 +182,6 @@ names = [
     "a:CT_TextParagraphProperties/a:lvl8pPr",
     "a:CT_TextParagraphProperties/a:lvl9pPr",
     "a:CT_TextBlipBullet/a:buBlip",
-    "a:CT_GroupTransform2D/a:xfrm",
-    "a:CT_Point2D/a:chOff",
-    "a:CT_PositiveSize2D/a:chExt",
     "a:CT_CustomGeometry2D/a:custGeom",
     "a:CT_ScRgbColor/a:scrgbClr",
     "a:CT_HslColor/a:hslClr",

@@ -1,0 +1,6 @@
+# upArrow is the vertical mirror of downArrow in presetShapeDefinitions.xml.
+# The downArrow definition in that XML supplies both adjustment defaults.
+# No external code (including LibreOffice code) was copied.
+[upArrow]
+adj1 = 50000
+adj2 = 50000

@@ -3,13 +3,14 @@ use std::{borrow::Cow, ops::Range};
 use super::{ElementSpan, RawAttr, RawItem};
 use crate::name::{QName, XML_SPACE, XName};
 
-const DIRTY_BIT: u32 = 1 << 31;
-pub(super) const MAX_SPAN_OFFSET: u32 = DIRTY_BIT - 1;
+const FLAG_BIT: u32 = 1 << 31;
+pub(super) const MAX_SPAN_OFFSET: u32 = FLAG_BIT - 1;
 
 // A parsed tag cannot end at offset zero. A missing open end means a
 // created node, and a missing close end means a self-closing tag.
 #[derive(Clone, Copy, Debug, Default)]
 struct CompactSpan {
+    // The high bit opts into preserving attribute spelling on a dirty tag.
     start: u32,
     // The high bit stores own_dirty.
     open_end: u32,
@@ -23,7 +24,7 @@ impl CompactSpan {
         let open_end = self.open_end & MAX_SPAN_OFFSET;
         let close_end = self.close_end & MAX_SPAN_OFFSET;
         (open_end != 0).then_some(ElementSpan {
-            start: self.start as usize,
+            start: (self.start & MAX_SPAN_OFFSET) as usize,
             open_end: open_end as usize,
             close: (close_end != 0).then_some((self.close_start as usize, close_end as usize)),
         })
@@ -64,12 +65,20 @@ impl RawNode {
         self.span.close_end = end as u32;
     }
 
+    pub(crate) fn preserve_attribute_spelling(&mut self) {
+        self.span.start |= FLAG_BIT;
+    }
+
+    pub(super) fn preserves_attribute_spelling(&self) -> bool {
+        self.span.start & FLAG_BIT != 0
+    }
+
     pub(crate) fn mark_own_dirty(&mut self) {
-        self.span.open_end |= DIRTY_BIT;
+        self.span.open_end |= FLAG_BIT;
     }
 
     pub(crate) fn mark_subtree_dirty(&mut self) {
-        self.span.close_end |= DIRTY_BIT;
+        self.span.close_end |= FLAG_BIT;
     }
 
     pub(crate) fn child_mut(&mut self, index: usize) -> Option<&mut RawItem> {
@@ -118,8 +127,8 @@ impl RawNode {
             attrs: Box::default(),
             children: Vec::new(),
             span: CompactSpan {
-                open_end: DIRTY_BIT,
-                close_end: DIRTY_BIT,
+                open_end: FLAG_BIT,
+                close_end: FLAG_BIT,
                 ..CompactSpan::default()
             },
         }
@@ -182,11 +191,11 @@ impl RawNode {
     /// This element's own name/attributes changed, or it was created, or it
     /// was self-closing and gained a child.
     pub fn own_dirty(&self) -> bool {
-        self.span.open_end & DIRTY_BIT != 0
+        self.span.open_end & FLAG_BIT != 0
     }
     /// This element or a descendant changed.
     pub fn subtree_dirty(&self) -> bool {
-        self.span.close_end & DIRTY_BIT != 0
+        self.span.close_end & FLAG_BIT != 0
     }
     /// Is `xml:space="preserve"` set on this element itself?
     pub fn xml_space_preserve(&self) -> Option<bool> {

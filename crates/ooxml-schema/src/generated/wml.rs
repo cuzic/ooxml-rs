@@ -2216,6 +2216,10 @@ impl ooxml_core::ElementSpec for ShapeProperties {
 #[cfg(all(feature = "wml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::CustomGeometry {}
 #[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::GradientFill {}
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<ShapeProperties> for super::dml::Outline {}
+#[cfg(all(feature = "wml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::NoFill {}
 #[cfg(all(feature = "wml", feature = "dml"))]
 impl ooxml_core::ChildOf<ShapeProperties> for super::dml::PresetGeometry {}
@@ -2237,6 +2241,16 @@ impl<'a> ShapePropertiesView<'a> {
     /// First `a:custGeom` child.
     pub fn custom_geometry(&self) -> Option<super::dml::CustomGeometryView<'a>> {
         self.0.child::<super::dml::CustomGeometry>().map(super::dml::CustomGeometryView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<super::dml::GradientFillView<'a>> {
+        self.0.child::<super::dml::GradientFill>().map(super::dml::GradientFillView)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<super::dml::OutlineView<'a>> {
+        self.0.child::<super::dml::Outline>().map(super::dml::OutlineView)
     }
     #[cfg(feature = "dml")]
     /// First `a:noFill` child.
@@ -2281,6 +2295,44 @@ impl<'a> ShapePropertiesViewMut<'a> {
     /// Removes `bwMode`.
     pub fn remove_black_white_mode(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(ShapeProperties::ATTR_BW_MODE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<super::dml::GradientFillViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::GradientFill>()
+            .map(super::dml::GradientFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<super::dml::GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::GradientFill>()
+            .map(super::dml::GradientFillViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<super::dml::GradientFill>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<super::dml::OutlineViewMut<'_>> {
+        self.0.child_mut::<super::dml::Outline>().map(super::dml::OutlineViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<super::dml::OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::Outline>().map(super::dml::OutlineViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<super::dml::Outline>()
     }
     #[cfg(feature = "dml")]
     /// First `a:noFill` child, mutably.
@@ -16632,6 +16684,13 @@ const _: () = ooxml_core::schema::assert_child::<
     ShapeProperties,
     super::dml::CustomGeometry,
 >();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    ShapeProperties,
+    super::dml::GradientFill,
+>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<ShapeProperties, super::dml::Outline>();
 #[cfg(all(feature = "wml", feature = "dml"))]
 const _: () = ooxml_core::schema::assert_child::<ShapeProperties, super::dml::NoFill>();
 #[cfg(all(feature = "wml", feature = "dml"))]

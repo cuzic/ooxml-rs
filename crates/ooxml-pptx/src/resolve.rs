@@ -749,6 +749,16 @@ impl<'a> Sheet<'a> {
 
     /// Position and size (`a:xfrm`/`p:xfrm` as one unit, §1.5).
     pub fn geometry(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Xfrm>> {
+        self.geometry_with_replacement(shape, None)
+    }
+
+    // Rect edits need the winning rotation and flips, even if the box they
+    // replace contains invalid coordinate values.
+    pub(crate) fn geometry_with_replacement(
+        &self,
+        shape: &ShapeRef<'a>,
+        replacement: Option<Rect>,
+    ) -> Result<Lookup<'a, Xfrm>> {
         let steps = match self.geometry_steps(shape)? {
             Ok(s) => s,
             Err(r) => return Ok(Lookup::Unresolved(r)),
@@ -763,11 +773,20 @@ impl<'a> Sheet<'a> {
                 raw.parse::<i64>().map_err(|_| attr_error(k, raw))
             };
             let value = (|| {
+                let Rect { x: left, y, cx, cy } = match replacement {
+                    Some(rect) => rect,
+                    None => Rect {
+                        x: num(off, "x")?,
+                        y: num(off, "y")?,
+                        cx: num(ext, "cx")?,
+                        cy: num(ext, "cy")?,
+                    },
+                };
                 Ok(Xfrm {
-                    x: num(off, "x")?,
-                    y: num(off, "y")?,
-                    cx: num(ext, "cx")?,
-                    cy: num(ext, "cy")?,
+                    x: left,
+                    y,
+                    cx,
+                    cy,
                     rot: winner(x, "rot", 0, |v| v.parse().ok()),
                     flip_h: winner(x, "flipH", false, ooxml_core::value::parse_bool),
                     flip_v: winner(x, "flipV", false, ooxml_core::value::parse_bool),
@@ -823,23 +842,23 @@ impl<'a> Sheet<'a> {
                 return Err(crate::Error::TransformedGroup { group_id: shape_id(g) });
             }
             // Some(None): element absent; None: present but invalid
-            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<Option<(f64, f64)>> {
+            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<Option<(i64, i64)>> {
                 let Some(e) = child(gx, a(n)) else { return Some(None) };
                 let x = e.attr(un(ax))?.parse::<i64>().ok()?;
                 let y = e.attr(un(ay))?.parse::<i64>().ok()?;
-                Some(Some((x as f64, y as f64)))
+                Some(Some((x, y)))
             };
             let (Some(Some(off)), Some(Some(ext))) = (pt("off", "x", "y"), pt("ext", "cx", "cy")) else { return Ok(None) };
             let (Some(ch_off), Some(ch_ext)) = (pt("chOff", "x", "y"), pt("chExt", "cx", "cy")) else { return Ok(None) };
             let (ch_off, ch_ext) = (ch_off.unwrap_or(off), ch_ext.unwrap_or(ext));
-            if ch_ext.0 == 0.0 || ch_ext.1 == 0.0 {
-                return Ok(None);
-            }
-            let (sx, sy) = (ext.0 / ch_ext.0, ext.1 / ch_ext.1);
-            rx = off.0 + (rx - ch_off.0) * sx;
-            ry = off.1 + (ry - ch_off.1) * sy;
-            rcx *= sx;
-            rcy *= sy;
+            let (Some(x_axis), Some(y_axis)) = (
+                AffineAxis::new(off.0, ext.0, ch_off.0, ch_ext.0),
+                AffineAxis::new(off.1, ext.1, ch_off.1, ch_ext.1),
+            ) else { return Ok(None) };
+            rx = x_axis.map(rx);
+            ry = y_axis.map(ry);
+            rcx *= x_axis.scale;
+            rcy *= y_axis.scale;
         }
         Ok(Some(Rect { x: rx.round() as i64, y: ry.round() as i64, cx: rcx.round() as i64, cy: rcy.round() as i64 }))
     }
@@ -934,6 +953,51 @@ pub struct Rect {
     pub cx: i64,
     /// Height.
     pub cy: i64,
+}
+
+/// Equivalent group boxes reduce to the same floating-point evaluation,
+/// including at half-EMU boundaries after an exact group fit.
+pub(crate) struct AffineAxis {
+    pub(crate) scale: f64,
+    child_anchor: f64,
+    parent_anchor: f64,
+}
+
+impl AffineAxis {
+    pub(crate) fn new(off: i64, ext: i64, child_off: i64, child_ext: i64) -> Option<Self> {
+        if child_ext == 0 {
+            return None;
+        }
+        let (mut a, mut b) = (i128::from(ext).abs(), i128::from(child_ext).abs());
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        let sign = i128::from(child_ext.signum());
+        let numerator = i128::from(ext) / a * sign;
+        let denominator = i128::from(child_ext).abs() / a;
+        let intercept = (i128::from(off) * denominator).checked_sub(i128::from(child_off) * numerator)?;
+        // Use the integer child coordinate nearest the intercept's zero as
+        // the origin when that coordinate can be represented exactly. This
+        // avoids subtracting two huge floating-point values at high scale.
+        let anchor = intercept.checked_neg()
+            .and_then(|value| value.checked_div(numerator))
+            .filter(|&value| (-(1 << 53)..=(1 << 53)).contains(&value))
+            .unwrap_or(0);
+        let shifted = intercept.checked_add(anchor * numerator)?;
+        Some(Self {
+            scale: numerator as f64 / denominator as f64,
+            child_anchor: anchor as f64,
+            parent_anchor: shifted as f64 / denominator as f64,
+        })
+    }
+
+    fn map(&self, value: f64) -> f64 {
+        (value - self.child_anchor).mul_add(self.scale, self.parent_anchor)
+    }
+
+    pub(crate) fn unmap(&self, value: f64) -> f64 {
+        self.child_anchor + (value - self.parent_anchor) / self.scale
+    }
 }
 
 /// A shape's outline.

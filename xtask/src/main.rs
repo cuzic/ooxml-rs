@@ -2,10 +2,12 @@
 //!
 //! Inputs (all vendored, read in sorted order):
 //! `reference/openxml-sdk-data/`, `reference/ecma-376-transitional-xsd/`,
-//! `codegen/allowlist/*.toml`, `codegen/overrides.toml`.
+//! `codegen/allowlist/*.toml`, `codegen/overrides.toml`, and
+//! `reference/ecma-376-drawingml-geometries/`.
 //!
 //! Outputs: `crates/ooxml-schema/src/generated/*.rs`,
-//! `crates/ooxml-core/src/generated/parts.rs`, `codegen/report.txt`.
+//! `crates/ooxml-core/src/generated/parts.rs`, the PPTX preset adjustment
+//! table, and `codegen/report.txt`.
 //! `--check` regenerates in memory, verifies the vendored checksums, and
 //! fails on any difference.
 //!
@@ -18,6 +20,7 @@ mod lower;
 mod manual_check;
 mod model;
 mod pptx_template;
+mod preset_geometry;
 mod sdk;
 mod stats;
 mod xsd;
@@ -61,6 +64,7 @@ pub fn generate(root: &Path) -> Res<BTreeMap<String, String>> {
     }
     let st = stats::compute(&model);
     out.insert(REPORT_FILE.into(), stats::report(&st, &diags, &ctx));
+    out.insert(preset_geometry::OUTPUT.into(), preset_geometry::generate(root, &xsd)?);
     Ok(out)
 }
 
@@ -95,7 +99,12 @@ fn walk(dir: &Path, base: &Path, out: &mut Vec<String>) -> Res<()> {
 /// Verifies vendored inputs against their PROVENANCE.md checksums.
 fn check_inputs(root: &Path) -> Res<Vec<String>> {
     let mut problems = Vec::new();
-    for (d, own) in [(SDK_DIR, &["PROVENANCE.md"][..]), (XSD_DIR, &["PROVENANCE.md", "COPYRIGHT-NOTICE.txt"][..])] {
+    let inputs: [(&str, &[&str]); 3] = [
+        (SDK_DIR, &["PROVENANCE.md"]),
+        (XSD_DIR, &["PROVENANCE.md", "COPYRIGHT-NOTICE.txt"]),
+        (preset_geometry::DIR, &["PROVENANCE.md", "COPYRIGHT-NOTICE.txt", "supplement.toml"]),
+    ];
+    for (d, own) in inputs {
         let dir = root.join(d);
         let table = provenance(&dir)?;
         let mut files = Vec::new();

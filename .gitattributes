@@ -1,2 +1,3 @@
 reference/ecma-376-transitional-xsd/** -text
 reference/openxml-sdk-data/** -text
+reference/ecma-376-drawingml-geometries/presetShapeDefinitions.xml -text -diff

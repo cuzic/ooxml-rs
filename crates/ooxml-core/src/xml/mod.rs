@@ -9,6 +9,8 @@
 //!   children recursed;
 //! - `own_dirty` → the open tag is re-rendered from name/attributes, the
 //!   close tag rendered if there are children, else the tag self-closes.
+//!   A lens can opt into preserving unchanged attribute spellings and the
+//!   existing close tag.
 //!
 //! Bytes before and after the root element (XML declaration, BOM, comments)
 //! are always emitted verbatim.
@@ -403,4 +405,33 @@ impl XmlDocument {
     pub fn force_rerender(&mut self) {
         self.root.force_rerender();
     }
+}
+
+#[cfg(test)]
+#[test]
+fn preserve_attribute_spelling_on_edited_start_tag() {
+    use crate::name::QName;
+    use crate::schema::{AttrSpec, Content};
+
+    struct Root;
+    impl ElementSpec for Root {
+        const QNAME: QName = QName::new("", "root");
+        const SDK_NAME: &'static str = "root";
+        const ATTRS: &'static [AttrSpec] = &[];
+        const CONTENT: Content = Content::Empty;
+    }
+
+    let input = r#"<root  keep = '&#65;' edit='old'></root >"#;
+    let mut doc = XmlDocument::parse(input.as_bytes()).unwrap();
+    doc.lens_mut::<Root>().unwrap().preserve_attribute_spelling();
+    assert!(!doc.is_dirty());
+    assert_eq!(doc.serialize(), input);
+    doc.lens_mut::<Root>()
+        .unwrap()
+        .set_attr(QName::new("", "edit"), "new")
+        .unwrap();
+    assert_eq!(
+        doc.serialize(),
+        r#"<root  keep = '&#65;' edit="new"></root >"#
+    );
 }

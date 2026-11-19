@@ -65,4 +65,5 @@ pub use read::{
 pub use replace::{
     FindOptions, Match, MixedFormat, OnRefusal, PROOFING_ATTRIBUTES, ReplaceOptions, ReplaceReport, Scope, TextLocation,
 };
+pub use write::{GroupMut, ShapeFill};
 pub use write::{AutoFitMode, BulletSize, BulletSpec, ColorSpec, ColorTransform, FontRef, FormatChange, LineEnd, LineSpec, PresetColor, RunFill, RunFormat, SchemeColor, Script, SystemColor, TabStop, ThemeFont, UnderlineFill, UnderlineLine, WriteColor, CacheReport, CellFill, Edge, Line, ParagraphMut, RunMut, ShapeMut, Side, SlideMut, SmartArtMut, SmartArtNode, TableColor, TableFlag, TableMut, TextBodyMut};

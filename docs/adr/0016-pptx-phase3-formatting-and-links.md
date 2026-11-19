@@ -781,3 +781,76 @@ and removes its image relationship only if the staged part has no
 remaining reference. The media part is retained. `ValueOutOfRange`
 reuses the existing pptx error with its `what` field. No generated
 public names were changed.
+
+### Post-acceptance decision — P3b group fitting at integer EMU precision
+
+Section 6 calls for fitting the group to its members while preserving
+their slide rectangles. For some scaled groups no integer group
+transform can satisfy both requirements with the child bounds as
+`chOff`/`chExt`. Consider a group on the slide with horizontal
+`off = chOff = 0`, `ext = 2`, and `chExt = 4`. Its children have
+`(x, cx)` of `(1, 1)` and `(2, 2)` in group coordinates. The resolver
+rounds each child's slide rectangle to `(1, 1)`.
+
+The child bounds require `chOff = 1` and `chExt = 3`. Preserving the
+first child's slide x requires `off = 1`. The first child's width rounds
+to 1 only if the new `ext` is at least 2, while the second child's x
+rounds to 1 only if the new `ext` is at most 1.
+
+The fit uses the bounds of the immediate children's `a:off` and `a:ext`
+in group coordinates. For each axis, set `chOff'` to the minimum and
+`chExt'` to the difference between the maximum and minimum. Preserve the
+old affine map by computing these values with exact rational arithmetic:
+
+- `off' = off + (chOff' - chOff) * ext / chExt`
+- `ext' = chExt' * ext / chExt`
+
+Reject without changing bytes if either result is fractional, either
+child extent in the calculation is zero, or arithmetic overflows. The
+counterexample above is rejected because both new values are fractional
+(`off' = 1/2` and `ext' = 3/2`). A successful fit preserves every
+descendant's `slide_rect()`, regardless of resolver rounding.
+
+For a group with nonzero rotation or either flip, only an unchanged box
+is accepted. With valid nonzero extents, unit scaling (`ext == chExt`)
+always admits an exact fit for an unrotated, unflipped group. For a
+group without `a:xfrm`, create the identity transform using the child
+bounds for both coordinate spaces.
+
+### Post-acceptance decision — P3b preset definitions
+
+The Ecma XML is vendored byte for byte. It contains two identical
+`upDownArrow` definitions and omits `upArrow`. Codegen collapses identical
+definitions and rejects conflicting duplicates. A handwritten supplement
+provides only the `upArrow` adjustment defaults, `adj1 = adj2 = 50000`.
+They are checked against the in-file `downArrow` definition because
+`upArrow` is its vertical mirror. Supplement entries cannot overlap the
+XML, and the combined names must equal the 187 XSD `ST_ShapeType` values.
+
+### Post-acceptance note — P3b shape property APIs
+
+Shape outline edits update only fields supplied in `LineSpec`, retaining
+other line attributes and children. The outline lens opts into preserving
+the source spelling of unchanged attributes even when an edited start tag is
+re-rendered. Passing `None` removes the direct
+outline. `ShapeFill::Inherit` removes the direct fill.
+
+`clear_rect` removes the entire direct transform on placeholders and
+returns `UnsupportedContent` on other shapes. A transform missing its
+offset or extent still inherits geometry. Editing an absent or incomplete
+placeholder transform fills missing rotation and flip attributes from
+inheritance and preserves the source spelling of existing unedited
+attributes. Rotation and flip edits use the inherited rectangle.
+`set_rect` uses the supplied rectangle without validating the inherited
+offset and extent.
+
+Equal rotation and flip writes leave the part unchanged. The first
+transform edit on a group without a transform derives its child space
+from member bounds. A group rectangle edit changes its outer box while
+preserving the child coordinate space. If a legacy transform omits
+`chOff` or `chExt`, a rectangle edit stores the previous fallback value
+as an explicit child offset or extent.
+
+Group fit uses `ValueOutOfRange { what: "exact group fit" }` for
+unrepresentable affine fits. A fit that changes the box of a rotated or
+flipped group returns `TransformedGroup` before exactness is checked.
