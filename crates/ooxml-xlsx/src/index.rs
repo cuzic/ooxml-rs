@@ -16,7 +16,7 @@
 //! PR #29 review m1).
 
 use ooxml_core::{Content, ElementSpec, RawNode, XmlDocument};
-use ooxml_core::name::{MC_ALTERNATE_CONTENT, MC_NS};
+use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_schema::sml;
 
 use crate::error::{Error, Result};
@@ -67,7 +67,7 @@ pub(crate) struct SheetIndex {
     pub(crate) sd_len: usize,
     /// `mc:AlternateContent` in `worksheet` (no `sheetData`) or in `sheetData`.
     pub(crate) alternate: Option<&'static str>,
-    /// A foreign wrapper under `sheetData` contains an SML row or cell.
+    /// A grid element appears outside its expected parent.
     wrapped_grid: bool,
     pub(crate) rows: std::result::Result<Vec<RowEntry>, SheetErr>,
 }
@@ -90,14 +90,17 @@ fn has_ac(n: &RawNode) -> bool {
     n.elements().any(|c| c.is(MC_ALTERNATE_CONTENT))
 }
 
-/// Match resolved names so extension elements named `row` or `c` are harmless.
-fn contains_wrapped_grid(node: &RawNode, under_foreign: bool) -> bool {
-    if under_foreign && (node.is(sml::Row::QNAME) || node.is(sml::Cell::QNAME)) {
-        return true;
-    }
-    let ns = node.name().ns();
-    let under_foreign = under_foreign || (ns != crate::SML_NS && ns != MC_NS);
-    node.elements().any(|child| contains_wrapped_grid(child, under_foreign))
+/// Scan the worksheet for grid elements the index cannot reach.
+fn contains_wrapped_grid(parent: &RawNode) -> bool {
+    parent.elements().filter(|child| !child.is(MC_ALTERNATE_CONTENT)).any(|child| {
+        let expected = match child {
+            n if n.is(sml::SheetData::QNAME) => Some(sml::Worksheet::QNAME),
+            n if n.is(sml::Row::QNAME) => Some(sml::SheetData::QNAME),
+            n if n.is(sml::Cell::QNAME) => Some(sml::Row::QNAME),
+            _ => None,
+        };
+        expected.is_some_and(|name| !parent.is(name)) || contains_wrapped_grid(child)
+    })
 }
 
 /// `(cells_end, misordered)` of a row (see [`RowEntry`]).
@@ -138,13 +141,13 @@ impl SheetIndex {
     /// alternate-content refusals).
     pub(crate) fn build(doc: &XmlDocument) -> Self {
         let root = doc.root();
+        let wrapped_grid = contains_wrapped_grid(root);
         let Some(sd) = root.elements().find(|e| e.is(sml::SheetData::QNAME)) else {
             let alternate = has_ac(root).then_some("worksheet");
-            return SheetIndex { sheet_data: false, sd_len: 0, alternate, wrapped_grid: false, rows: Ok(Vec::new()) };
+            return SheetIndex { sheet_data: false, sd_len: 0, alternate, wrapped_grid, rows: Ok(Vec::new()) };
         };
         let sd_len = sd.children().len();
         let alternate = has_ac(sd).then_some("sheetData");
-        let wrapped_grid = contains_wrapped_grid(sd, false);
         let mut rows: Vec<RowEntry> = Vec::new();
         for (i, n) in sd.indexed_elements().filter(|(_, n)| n.is(sml::Row::QNAME)) {
             let Some(r) = n.attr(sml::Row::ATTR_R) else {
@@ -162,7 +165,7 @@ impl SheetIndex {
         SheetIndex { sheet_data: true, sd_len, alternate, wrapped_grid, rows: Ok(rows) }
     }
 
-    /// Editing this sheet could duplicate grid entries the index cannot see.
+    /// Refuses operations that require a complete grid index.
     pub(crate) fn check_edit(&self) -> Result<()> {
         if self.wrapped_grid {
             return Err(ooxml_core::Error::UnresolvedSibling(sml::SheetData::QNAME).into());
@@ -202,14 +205,17 @@ impl SheetIndex {
         entry.cells.as_deref().map_err(|e| Self::row_error(e, part, entry.row))
     }
 
-    /// [`Self::rows`] for reading or writing a cell of this sheet: first
-    /// refuses `mc:AlternateContent` in `worksheet` (no `sheetData`) or in
-    /// `sheetData`, which may wrap rows.
+    /// [`Self::rows`] for operations that need to locate rows or cells.
+    /// Refuses wrapped grid elements and the existing sheet-level
+    /// `mc:AlternateContent` cases.
     pub(crate) fn target_rows(&self, part: &str) -> Result<&[RowEntry]> {
         match self.alternate {
             Some("worksheet") => Err(ooxml_core::Error::UnresolvedSibling(sml::Worksheet::QNAME).into()),
             Some(_) => Err(ooxml_core::Error::UnresolvedSibling(sml::SheetData::QNAME).into()),
-            None => self.rows(part),
+            None => {
+                self.check_edit()?;
+                self.rows(part)
+            }
         }
     }
 

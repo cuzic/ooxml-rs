@@ -15,6 +15,19 @@ use crate::workbook::Workbook;
 /// reach other sheets, `workbook.xml` and the package (ADR-0003 §6).
 ///
 /// Rows and columns are 0-based (`A1` = `(0, 0)`).
+///
+/// # Wrapped worksheet grids
+///
+/// Cell reads (including iteration), cell writes (including batches and
+/// style changes), row-property setters, merges, and hyperlinks that write
+/// cell text can return [`Error::Core`] with
+/// [`UnresolvedSibling`](ooxml_core::Error::UnresolvedSibling) for `sheetData`.
+/// This occurs when a SpreadsheetML `sheetData`, `row`, or `c` appears
+/// outside its expected parent (`worksheet`, `sheetData`, or `row`,
+/// respectively), including inside an `mc:ProcessContent` wrapper.
+/// The existing `mc:AlternateContent` checks apply separately.
+/// Edits that need to strip dependent formula caches on an affected sheet
+/// can return the same error even when the edit targets a different sheet.
 #[derive(Debug)]
 pub struct Worksheet<'wb> {
     pub(crate) wb: &'wb mut Workbook,
@@ -229,7 +242,6 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
     {
         return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
     }
-    index.check_edit()?;
     let loc = locate(doc, index, part, at)?;
     if index.sheet_data && loc.row.is_none() {
         let ws = doc.lens_mut::<sml::Worksheet>()?;
@@ -576,7 +588,8 @@ impl<'wb> Worksheet<'wb> {
 }
 
 /// A write handle for one cell (ADR-0001: like `HashMap::entry`, nothing
-/// happens until a value is set).
+/// happens until a value is set). See [`Worksheet`] for the wrapped-grid
+/// refusal shared by cell edits.
 #[derive(Debug)]
 pub struct CellMut<'s, 'wb> {
     pub(crate) ws: &'s mut Worksheet<'wb>,
@@ -688,8 +701,7 @@ impl CellMut<'_, '_> {
     /// [`Error::TableHeaderCell`], [`Error::RichValueCell`],
     /// [`Error::MissingReference`], [`Error::OutOfOrder`]; core refusals
     /// such as `UnresolvedSibling` if `sheetData` itself must be inserted
-    /// next to an `mc:AlternateContent`, or if a foreign wrapper under
-    /// `sheetData` hides a spreadsheet row or cell from the index.
+    /// next to an `mc:AlternateContent`.
     pub fn set_string(self, value: &str) -> Result<()> {
         let ws = &mut *self.ws;
         ws.wb.write_string(ws.sheet, self.at, value, None)

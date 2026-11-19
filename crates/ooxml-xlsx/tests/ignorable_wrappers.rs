@@ -2,12 +2,14 @@ mod common;
 
 use std::assert_matches;
 
-use common::{p1::book, sheet_xml};
+use common::p1::{SML, book, with_part};
+use common::sheet_xml;
 use ooxml_core::ElementSpec;
 use ooxml_schema::sml;
 use ooxml_xlsx::{Error, Workbook};
 
 const WRAPPER_NS: &str = r#"xmlns:q="urn:test:extension" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
+const PROCESS_CONTENT: &str = r#"mc:Ignorable="q" mc:ProcessContent="q:w""#;
 const PLAIN_ROW: &str = r#"<row r="1"><c r="A1"><v>1</v></c></row>"#;
 
 #[test]
@@ -60,4 +62,69 @@ fn extension_data_without_sml_grid_entries_stays_editable() {
     ws.cell_mut(0, 2).unwrap().set_string("text").unwrap();
     ws.cell_mut(1, 1).unwrap().set_formula("1+2").unwrap();
     assert_eq!(sheet_xml(&wb.to_bytes().unwrap()).matches(&extension).count(), 2);
+}
+
+fn assert_wrapped_grid_error<T: std::fmt::Debug>(result: ooxml_xlsx::Result<T>) {
+    assert_matches!(
+        result,
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(q))) if q == sml::SheetData::QNAME
+    );
+}
+
+#[test]
+fn wrapped_rows_refuse_row_properties_and_merges() {
+    let rows = format!(
+        r#"{PLAIN_ROW}<q:w {WRAPPER_NS} {PROCESS_CONTENT}><row r="2"><c r="A2"><v>5</v></c></row></q:w>"#
+    );
+    let input = book(&[("Sheet1", &rows)], "", "");
+    type Edit = fn(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<()>;
+    let edits: [Edit; 5] = [
+        |ws| ws.set_row_height(1, 30.0),
+        |ws| ws.set_row_hidden(1, true),
+        |ws| ws.set_row_outline(1, 1),
+        |ws| ws.merge("A1:A2"),
+        |ws| ws.merge_clearing("A1:A2"),
+    ];
+    for edit in edits {
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        assert_wrapped_grid_error(edit(&mut wb.worksheet().unwrap()));
+        assert_eq!(wb.to_bytes().unwrap(), input);
+    }
+}
+
+#[test]
+fn process_content_wrapped_cell_refuses_single_and_bulk_reads() {
+    let rows = format!(
+        r#"<row r="1"><q:w {WRAPPER_NS} {PROCESS_CONTENT}><c r="B1"><v>5</v></c></q:w></row>"#
+    );
+    let input = book(&[("Sheet1", &rows)], "", "");
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    {
+        let ws = wb.worksheet().unwrap();
+        assert_wrapped_grid_error(ws.cell(0, 1));
+        let mut cells = ws.cells();
+        assert_wrapped_grid_error(cells.next().unwrap());
+        assert!(cells.next().is_none());
+    }
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn grid_nodes_under_unexpected_parents_refuse_cell_edits() {
+    const ROW: &str = r#"<row r="2"><c r="A2"><v>5</v></c></row>"#;
+    let worksheets = [
+        format!("<sheetData>{PLAIN_ROW}<foo>{ROW}</foo></sheetData>"),
+        format!(r#"<sheetData>{PLAIN_ROW}<extLst><ext uri="{{X}}">{ROW}</ext></extLst></sheetData>"#),
+        format!(r#"<q:w {WRAPPER_NS} {PROCESS_CONTENT}><sheetData>{PLAIN_ROW}{ROW}</sheetData></q:w>"#),
+    ];
+    for children in worksheets {
+        let input = with_part(
+            &book(&[("Sheet1", "")], "", ""),
+            "xl/worksheets/sheet1.xml",
+            &format!(r#"<worksheet xmlns="{SML}">{children}</worksheet>"#),
+        );
+        let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+        assert_wrapped_grid_error(wb.worksheet().unwrap().write_number(1, 0, 7.0));
+        assert_eq!(wb.to_bytes().unwrap(), input);
+    }
 }
