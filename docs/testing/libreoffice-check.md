@@ -64,7 +64,9 @@ cargo xtask manual-check "$lo_check_tmp/bundle"
 
 ## XLSX table read-back
 
-After generating the bundle, use openpyxl 3.1.5 to verify the table name,
+CI runs this check in the `xlsx table read-back (openpyxl 3.1.5)` job of
+`.github/workflows/ci.yml`. To run it locally after generating the bundle,
+use openpyxl 3.1.5 to verify the table name,
 column metadata, filter range and calculated-column formulas in the
 original `39-p5b-table.xlsx`:
 
