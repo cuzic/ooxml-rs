@@ -28,14 +28,12 @@ pub(super) fn specifier(name: &str, nested: bool) -> String {
 #[derive(Default)]
 struct Items {
     columns: Vec<String>,
-    row: bool,
 }
 
 impl Items {
     fn item(&mut self, item: &str) -> Option<()> {
         match fold(item).as_str() {
-            "#this row" | "@" => self.row = true,
-            "#all" | "#data" | "#headers" | "#totals" => {}
+            "#this row" | "@" | "#all" | "#data" | "#headers" | "#totals" => {}
             _ if item.starts_with('#') || item.is_empty() => return None,
             _ => {
                 let mut decoded = String::new();
@@ -79,7 +77,6 @@ fn parse(spec: &str) -> Option<Items> {
     let mut rest = spec.strip_circumfix('[', ']')?;
     let mut result = Items::default();
     if let Some(row) = rest.strip_prefix('@') {
-        result.row = true;
         rest = row;
         if rest.is_empty() {
             return Some(result);

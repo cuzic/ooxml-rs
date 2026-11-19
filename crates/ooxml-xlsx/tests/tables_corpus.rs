@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use ooxml_core::{QName, XmlDocument};
+use ooxml_core::{Package, QName, XmlDocument};
 use ooxml_xlsx::{CellIndex, CellRange, CellValue, MAX_ROWS, Table, Workbook};
 
 const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
@@ -26,6 +26,22 @@ fn table_parts(wb: &Workbook) -> Vec<(u32, String, CellRange)> {
             ))
         })
         .collect()
+}
+
+fn first_column_name(pkg: &Package, part: &str, at: CellIndex) -> Option<String> {
+    let bytes = pkg.read_part(part).ok()?;
+    let doc = XmlDocument::parse_with(&bytes, &pkg.parse_options()).ok()?;
+    let root = doc.root();
+    let range = CellRange::parse(root.attr(QName::new("", "ref"))?).ok()?;
+    if range.first != at {
+        return None;
+    }
+    root.elements()
+        .find(|n| n.name().local() == "tableColumns")?
+        .elements()
+        .find(|n| n.name().local() == "tableColumn")?
+        .attr(QName::new("", "name"))
+        .map(str::to_owned)
 }
 
 #[test]
@@ -160,8 +176,20 @@ fn poi_table_sweep() {
             let cell = ws.cell(pos.row, pos.col).unwrap().unwrap();
             assert_eq!(
                 cell.value().unwrap(),
-                CellValue::String(value),
+                CellValue::String(value.clone()),
                 "{path:?} {sheet}!{pos}"
+            );
+            let sheet_part = ws.part_name().to_owned();
+            let pkg = wb.package();
+            let rels = pkg.relationships(&sheet_part).unwrap();
+            let name = rels
+                .by_type(REL_TABLE)
+                .filter_map(|rel| rels.resolve(rel))
+                .find_map(|part| first_column_name(pkg, &part, pos));
+            assert_eq!(
+                name.as_deref(),
+                Some(value.as_str()),
+                "{path:?} table at {sheet}!{pos}"
             );
         }
     }

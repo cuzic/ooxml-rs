@@ -566,3 +566,47 @@ fn slicer_ids_are_reserved_and_slicer_sources_are_protected() {
     wb.worksheet().unwrap().add_table(table("D1:E2")).unwrap();
     assert!(table_xml(&wb, "xl/tables/table2.xml").contains(r#"id="18""#));
 }
+
+#[test]
+fn last_table_removal_is_local_to_sheet_reference_and_registry() {
+    use ooxml_core::{ElementSpec, XmlDocument};
+    use ooxml_schema::sml;
+
+    let mut wb = Workbook::new().unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    ws.write_string(1, 0, "Preserve me").unwrap();
+    ws.add_table(table("A1:B3").name("Sales")).unwrap();
+    let sheet = wb.worksheet_part().to_owned();
+    let before = wb.to_bytes().unwrap();
+
+    wb.worksheet().unwrap().remove_table("Sales").unwrap();
+    let after = wb.to_bytes().unwrap();
+    let mut expected = common::part(&before, &sheet);
+    let doc = XmlDocument::parse(&expected).unwrap();
+    let span = doc
+        .root()
+        .elements()
+        .find(|n| n.is(sml::TableParts::QNAME))
+        .unwrap()
+        .span()
+        .unwrap();
+    expected.drain(span.start..span.end());
+    assert_eq!(common::part(&after, &sheet), expected);
+    let after_entries = common::entries(&after);
+    for entry in common::entries(&before) {
+        if ![
+            sheet.as_str(),
+            TABLE1,
+            "[Content_Types].xml",
+            "xl/worksheets/_rels/sheet1.xml.rels",
+        ]
+        .contains(&entry.0.as_str())
+        {
+            assert!(
+                after_entries.contains(&entry),
+                "removed or changed {}",
+                entry.0
+            );
+        }
+    }
+}
