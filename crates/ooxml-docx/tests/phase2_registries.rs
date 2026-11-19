@@ -275,11 +275,12 @@ fn style_ids_references_and_locality() {
     spec.run.bold = Prop::Set(true);
     spec.run.highlight = Prop::Set(Highlight::Yellow);
     spec.paragraph.alignment = Prop::Set(Alignment::Center);
-    assert_eq!(doc.add_style(&spec).unwrap(), "a2");
+    assert_eq!(doc.add_style(&spec).unwrap(), "a0");
     let written = xml(&doc, "word/styles.xml");
     assert!(written.contains(old));
-    assert!(written.contains(r#"<w:style w:styleId="a2" w:type="paragraph" w:customStyle="1"><w:name w:val="日本語"/><w:basedOn w:val="Base"/><w:next w:val="Base"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:highlight w:val="yellow"/></w:rPr></w:style>"#), "{written}");
+    assert!(written.contains(r#"<w:style w:styleId="a0" w:type="paragraph" w:customStyle="1"><w:name w:val="日本語"/><w:basedOn w:val="Base"/><w:next w:val="Base"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:highlight w:val="yellow"/></w:rPr></w:style>"#), "{written}");
     unchanged_parts(&doc, &before, &["word/styles.xml"]);
+    assert_eq!(doc.add_style(&style("別名")).unwrap(), "a2");
     assert_matches!(refusals(&mut doc, |d| d.add_style(&spec)), Error::DuplicateStyleName { .. });
     assert_matches!(
         refusals(&mut doc, |d| d.add_style(&style("heading 3"))),

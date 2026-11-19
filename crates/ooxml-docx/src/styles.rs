@@ -382,7 +382,7 @@ impl Document {
                 stem.push('a');
             }
             if used.contains(&fold(&stem)) {
-                (1..).map(|i| format!("{stem}{i}")).find(|id| !used.contains(&fold(id))).expect("finite registry")
+                (0..).map(|i| format!("{stem}{i}")).find(|id| !used.contains(&fold(id))).expect("finite registry")
             } else {
                 stem
             }
