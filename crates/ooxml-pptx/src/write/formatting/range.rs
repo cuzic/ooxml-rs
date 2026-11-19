@@ -1,6 +1,7 @@
 use super::*;
 
 struct RangeEdit {
+    child_index: usize,
     run_index: usize,
     slot_index: usize,
     text: Option<(String, std::ops::Range<usize>)>,
@@ -17,14 +18,17 @@ impl ParagraphMut<'_> {
         }
         let mut path = self.loc.body.clone();
         path.push(self.loc.child(&self.doc)?);
-        let mut staged = self.doc.clone();
-        let edits = plan_range(&staged, &path, start, end, format)?;
+        let mut edits = plan_range(&self.doc, &path, start, end, format)?;
         if edits.is_empty() {
             return Ok(());
         }
-        let mut paragraph = self.loc.lens(&mut staged)?;
+        let mut staged = self.doc.clone();
+        for edit in edits.iter_mut().filter(|edit| edit.text.is_some()) {
+            edit.properties = split_properties(&staged, &path, edit.child_index)?;
+        }
         for edit in edits.into_iter().rev() {
-            apply_range_edit(&mut paragraph, edit, format)?;
+            let paragraph = self.loc.lens(&mut staged)?;
+            apply_range_edit(paragraph, edit, format)?;
         }
         *self.doc = staged;
         Ok(())
@@ -64,11 +68,11 @@ fn plan_range(
         {
             return Err(Error::RangeSplitsField);
         }
-        if item.is(Run::QNAME) && start.max(offset) < end.min(limit) {
-            let run = doc.lens_at::<Run>(&[path, &[child]].concat())?;
-            let properties = run.child::<RunProperties>();
-            if format.changes(properties.as_ref().map(|node| node.raw())) {
+        if start.max(offset) < end.min(limit) {
+            let properties = checked_properties(item, RunProperties::QNAME)?;
+            if format.changes(properties) {
                 let mut edit = RangeEdit {
+                    child_index: child,
                     run_index,
                     slot_index,
                     text: None,
@@ -83,31 +87,6 @@ fn plan_range(
                             .map_or(text.len(), |(byte, _)| byte)
                     };
                     let bytes = byte_offset(first)..byte_offset(last);
-                    let opts = ooxml_core::lens::SamePartOptions::default()
-                        .keep_extension(ooxml_core::lens::ext_uri::HYPERLINK_COLOR);
-                    edit.properties = properties
-                        .map(|properties| {
-                            properties
-                                .detach_same_part_as::<RunProperties>(&[], &opts)
-                                .map_err(|err| {
-                                    use ooxml_core::{DetachRefusal, Error as CoreError};
-                                    match err {
-                                        CoreError::NotDetachable {
-                                            reason:
-                                                DetachRefusal::UniqueAttribute
-                                                | DetachRefusal::ExtensionList
-                                                | DetachRefusal::MarkupCompatibility
-                                                | DetachRefusal::AlternateContent,
-                                            ..
-                                        } => Error::FormatNotCopyable("a:rPr"),
-                                        err => Error::Core(err),
-                                    }
-                                })
-                        })
-                        .transpose()?;
-                    if let Some(copy) = &edit.properties {
-                        copy.check_insert_under(doc, path, 1)?;
-                    }
                     edit.text = Some((text.into_owned(), bytes));
                 }
                 edits.push(edit);
@@ -122,16 +101,67 @@ fn plan_range(
     Ok(edits)
 }
 
+fn split_properties(
+    doc: &XmlDocument,
+    path: &[usize],
+    child: usize,
+) -> Result<Option<ooxml_core::lens::SamePartDetached<RunProperties>>> {
+    let opts = ooxml_core::lens::SamePartOptions::default()
+        .keep_extension(ooxml_core::lens::ext_uri::HYPERLINK_COLOR);
+    let run = doc.lens_at::<Run>(&[path, &[child]].concat())?;
+    let properties = run
+        .child::<RunProperties>()
+        .map(|properties| {
+            properties
+                .detach_same_part_as::<RunProperties>(&[], &opts)
+                .map_err(|err| {
+                    use ooxml_core::{DetachRefusal, Error as CoreError};
+                    match err {
+                        CoreError::NotDetachable {
+                            reason:
+                                DetachRefusal::UniqueAttribute
+                                | DetachRefusal::ExtensionList
+                                | DetachRefusal::MarkupCompatibility
+                                | DetachRefusal::AlternateContent,
+                            ..
+                        } => Error::FormatNotCopyable("a:rPr"),
+                        err => Error::Core(err),
+                    }
+                })
+        })
+        .transpose()?;
+    if let Some(copy) = &properties {
+        copy.check_insert_under(doc, path, 1)?;
+    }
+    Ok(properties)
+}
+
 fn apply_range_edit(
-    paragraph: &mut LensMut<'_, Paragraph>,
+    mut paragraph: LensMut<'_, Paragraph>,
     edit: RangeEdit,
     format: &RunFormat,
 ) -> Result<()> {
     let Some((text, middle)) = edit.text else {
-        let mut run = paragraph
-            .nth_child_mut::<Run>(edit.run_index)
-            .expect("planned run");
-        return format.apply(&mut run);
+        // Reverse application keeps earlier raw child indices stable.
+        let index = edit.child_index;
+        let item = paragraph.node().children()[index]
+            .as_element()
+            .expect("planned item");
+        return if item.is(Field::QNAME) {
+            format.apply(
+                &mut paragraph
+                    .into_child_at::<Field>(index)
+                    .expect("planned field"),
+            )
+        } else if item.is(Break::QNAME) {
+            format.apply(
+                &mut paragraph
+                    .into_child_at::<Break>(index)
+                    .expect("planned break"),
+            )
+        } else {
+            format.apply(&mut paragraph.into_child_at::<Run>(index).expect("planned run"))
+        };
     };
     let (left, selected, right) = (
         &text[..middle.start],
@@ -151,12 +181,13 @@ fn apply_range_edit(
     }
     let mut position = edit.slot_index + 1;
     if !left.is_empty() {
-        let mut run = insert_split_run(paragraph, position, edit.properties.as_ref(), selected)?;
+        let mut run =
+            insert_split_run(&mut paragraph, position, edit.properties.as_ref(), selected)?;
         format.apply(&mut run)?;
         position += 1;
     }
     if !right.is_empty() {
-        insert_split_run(paragraph, position, edit.properties.as_ref(), right)?;
+        insert_split_run(&mut paragraph, position, edit.properties.as_ref(), right)?;
     }
     Ok(())
 }

@@ -14,11 +14,29 @@ pub enum AutoFitMode {
 
 const AUTOFIT: [QName; 3] = [NoAutoFit::QNAME, NormalAutoFit::QNAME, ShapeAutoFit::QNAME];
 
+impl AutoFitMode {
+    fn qname(self) -> QName {
+        match self {
+            Self::None => NoAutoFit::QNAME,
+            Self::Normal => NormalAutoFit::QNAME,
+            Self::Shape => ShapeAutoFit::QNAME,
+        }
+    }
+}
+
 impl TextBodyMut<'_> {
+    fn autofit_properties(&self) -> Result<Option<&RawNode>> {
+        body_paragraphs(self.node())?;
+        checked_properties(self.node(), BodyProperties::QNAME)
+    }
+
     /// Sets the direct autofit choice. An existing normal-autofit scale
     /// stays cached until an explicit reset or until PowerPoint refits.
     pub fn autofit(&mut self, mode: AutoFitMode) -> Result<()> {
-        body_paragraphs(self.node())?;
+        let properties = self.autofit_properties()?;
+        if only_choice(properties, &AUTOFIT).is_some_and(|child| child.is(mode.qname())) {
+            return Ok(());
+        }
         let mut staged = self.doc.clone();
         let body = body_lens(&mut staged, &self.path)?;
         with_body!(body, lens => set_autofit(lens, mode))?;
@@ -28,14 +46,14 @@ impl TextBodyMut<'_> {
 
     /// Clears the direct autofit choice so the body can inherit it.
     pub fn clear_autofit(&mut self) -> Result<()> {
-        body_paragraphs(self.node())?;
+        self.autofit_properties()?;
         let body = body_lens(&mut self.doc, &self.path)?;
         with_body!(body, lens => clear_autofit(lens))
     }
 
     /// Drops the cached font scale and line spacing reduction.
     pub fn reset_autofit_scale(&mut self) -> Result<()> {
-        body_paragraphs(self.node())?;
+        self.autofit_properties()?;
         let body = body_lens(&mut self.doc, &self.path)?;
         with_body!(body, lens => reset_autofit_scale(lens))
     }
@@ -45,20 +63,7 @@ fn set_autofit<E: ElementSpec>(mut lens: LensMut<'_, E>, mode: AutoFitMode) -> R
 where
     BodyProperties: ChildOf<E>,
 {
-    let qname = match mode {
-        AutoFitMode::None => NoAutoFit::QNAME,
-        AutoFitMode::Normal => NormalAutoFit::QNAME,
-        AutoFitMode::Shape => ShapeAutoFit::QNAME,
-    };
     let mut properties = lens.get_or_insert::<BodyProperties>()?;
-    let mut choices = properties
-        .node()
-        .elements()
-        .filter(|child| AUTOFIT.iter().any(|&q| child.is(q)));
-    if choices.next().is_some_and(|child| child.is(qname)) && choices.next().is_none() {
-        return Ok(());
-    }
-    drop(choices);
     remove_choices(&mut properties, &AUTOFIT);
     match mode {
         AutoFitMode::None => drop(properties.insert::<NoAutoFit>()?),

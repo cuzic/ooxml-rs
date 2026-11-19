@@ -85,10 +85,31 @@ impl UnderlineLine {
         let attr = |name| child.attr(QName::new("", name));
         let head = only_choice(Some(child), &[dml::HeadEnd::QNAME]);
         let tail = only_choice(Some(child), &[dml::TailEnd::QNAME]);
-        attr("w").and_then(int) == line.width
+        let dash = only_choice(Some(child), &[dml::PresetDash::QNAME]);
+        let expected_children = [
+            line.fill.is_some(),
+            line.dash.is_some(),
+            line.head.is_some(),
+            line.tail.is_some(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count();
+        let expected_attrs = [
+            line.width.is_some(),
+            line.cap.is_some(),
+            line.compound.is_some(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count();
+        child.elements().count() == expected_children
+            && child.attrs().len() == expected_attrs
+            && attr("w").and_then(int) == line.width
             && attr("cap").and_then(dml::LineCapValues::parse) == line.cap
             && attr("cmpd").and_then(dml::CompoundLineValues::parse) == line.compound
-            && only_choice(Some(child), &[dml::PresetDash::QNAME])
+            && dash.is_some() == line.dash.is_some()
+            && dash
                 .and_then(|dash| dash.attr(dml::PresetDash::ATTR_VAL))
                 .and_then(dml::PresetLineDashValues::parse)
                 == line.dash

@@ -764,6 +764,13 @@ The resolver exposes the winning highlight, underline appearance,
 paragraph font alignment, tab list and bullet appearance with their source.
 Run ranges address Unicode scalar values, preserve field contents and
 breaks, and split regular runs only where the direct properties change.
+A covered field or break receives direct formatting in its own `a:rPr`
+and stays intact. A boundary inside cached field text is rejected.
+Formatting setters and clears, including attribute-only edits and
+autofit reset, reject `mc:AlternateContent` inside the edited property
+element with `InsideAlternateContent`. Replacing an explicit underline
+line removes properties outside the requested `LineSpec`, including
+custom dashes, joins, alignment and extensions.
 Clearing underline also removes the direct underline appearance. A
 `RunFormat` that clears underline and sets its appearance at the same
 time is rejected before editing.

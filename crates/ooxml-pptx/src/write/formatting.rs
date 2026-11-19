@@ -10,6 +10,19 @@ use ooxml_schema::dml::{
     TextUnderlineValues,
 };
 
+fn checked_properties(node: &RawNode, name: QName) -> Result<Option<&RawNode>> {
+    fn contains_alternate_content(node: &RawNode) -> bool {
+        node.is(ooxml_core::name::MC_ALTERNATE_CONTENT)
+            || node.elements().any(contains_alternate_content)
+    }
+
+    let properties = node.elements().find(|child| child.is(name));
+    if properties.is_some_and(contains_alternate_content) {
+        return Err(Error::InsideAlternateContent);
+    }
+    Ok(properties)
+}
+
 fn remove_choices<E: ElementSpec>(lens: &mut LensMut<'_, E>, choices: &[QName]) {
     while let Some(index) = {
         lens.node()
@@ -430,7 +443,10 @@ impl RunFormat {
         Ok(())
     }
 
-    fn apply(&self, run: &mut LensMut<'_, Run>) -> Result<()> {
+    fn apply<E: ElementSpec>(&self, run: &mut LensMut<'_, E>) -> Result<()>
+    where
+        RunProperties: ChildOf<E>,
+    {
         if self.changes(run.as_lens().child::<RunProperties>().map(|p| p.raw())) {
             let mut view = dml::RunPropertiesViewMut(run.get_or_insert::<RunProperties>()?);
             apply_attributes!(self, view, RunProperties);
@@ -444,7 +460,16 @@ impl RunMut<'_> {
     /// Applies several direct run properties atomically.
     pub fn format(&mut self, format: &RunFormat) -> Result<()> {
         format.validate()?;
-        para_shape(self.loc.node(&self.doc)?)?;
+        let paragraph = self.loc.node(&self.doc)?;
+        let shape = para_shape(paragraph)?;
+        let index = *shape
+            .runs
+            .get(self.index)
+            .ok_or(Error::RunNotFound(self.index))?;
+        let run = node_at(paragraph, &[index]).expect("validated run");
+        if !format.changes(checked_properties(run, RunProperties::QNAME)?) {
+            return Ok(());
+        }
         let mut staged = self.doc.clone();
         let mut paragraph = self.loc.lens(&mut staged)?;
         let mut run = paragraph
@@ -460,21 +485,21 @@ impl ParagraphMut<'_> {
     /// Applies formatting to the end-of-paragraph run properties.
     pub fn end_format(&mut self, format: &RunFormat) -> Result<()> {
         format.validate()?;
-        para_shape(self.node()?)?;
+        let paragraph = self.node()?;
+        para_shape(paragraph)?;
+        if !format.changes(checked_properties(
+            paragraph,
+            EndParagraphRunProperties::QNAME,
+        )?) {
+            return Ok(());
+        }
         let mut staged = self.doc.clone();
         let mut paragraph = self.loc.lens(&mut staged)?;
-        if format.changes(
-            paragraph
-                .as_lens()
-                .child::<EndParagraphRunProperties>()
-                .map(|p| p.raw()),
-        ) {
-            let mut view = dml::EndParagraphRunPropertiesViewMut(
-                paragraph.get_or_insert::<EndParagraphRunProperties>()?,
-            );
-            apply_attributes!(format, view, EndParagraphRunProperties);
-            apply_children!(format, view.0);
-        }
+        let mut view = dml::EndParagraphRunPropertiesViewMut(
+            paragraph.get_or_insert::<EndParagraphRunProperties>()?,
+        );
+        apply_attributes!(format, view, EndParagraphRunProperties);
+        apply_children!(format, view.0);
         *self.doc = staged;
         Ok(())
     }
@@ -486,10 +511,7 @@ impl ParagraphMut<'_> {
     ) -> Result<()> {
         let node = self.node()?;
         para_shape(node)?;
-        if changed(
-            node.elements()
-                .find(|node| node.is(ParagraphProperties::QNAME)),
-        ) {
+        if changed(checked_properties(node, ParagraphProperties::QNAME)?) {
             let mut staged = self.doc.clone();
             let mut paragraph = self.loc.lens(&mut staged)?;
             update(dml::ParagraphPropertiesViewMut(

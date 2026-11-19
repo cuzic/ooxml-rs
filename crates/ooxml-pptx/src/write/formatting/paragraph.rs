@@ -361,9 +361,7 @@ impl ParagraphMut<'_> {
         bullet.validate()?;
         let paragraph = self.node()?;
         para_shape(paragraph)?;
-        let props = paragraph
-            .elements()
-            .find(|child| child.is(ParagraphProperties::QNAME));
+        let props = checked_properties(paragraph, ParagraphProperties::QNAME)?;
         if bullet.matches(props) {
             return Ok(());
         }
