@@ -68,12 +68,14 @@
 mod body;
 mod bookmarks;
 mod document;
+mod effective;
 mod error;
 pub mod fields;
 mod format;
 mod images;
 mod names;
 mod numbering;
+mod notes;
 mod replace;
 mod story;
 mod structure;
@@ -83,8 +85,10 @@ mod text;
 
 pub use bookmarks::{BookmarkId, BookmarkRange};
 pub use document::{Document, Paragraph, Run};
+pub use effective::{EffectiveParagraph, EffectiveProperties, EffectiveRun, EffectiveValue, Provenance};
 pub use error::{Error, Result};
 pub use fields::Operation;
+pub use notes::NoteId;
 pub use numbering::{ListTemplate, NumId};
 pub use format::{
     Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,

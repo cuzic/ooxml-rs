@@ -1031,3 +1031,20 @@ owner's decision.
     §17.7.3. Section numbers are from memory and marked *(u)* where a rule depends on them.
   - [MS-DOCX] for `w14`, `w15`, `w16cid` and `w16cex` (`commentsExtended`, `commentsIds`,
     `commentsExtensible`, `people`, `paraId`, `checkbox`).
+
+## Post-acceptance note (D3a, Issue #90)
+
+The public read interfaces are `Run::effective` and `Paragraph::effective`.
+`EffectiveProperties` exposes resolved scalar WordprocessingML values by
+element and attribute name, each with a `Provenance`. The run view also
+provides typed toggle and half-point size accessors. The paragraph view
+returns the paragraph mark's run formatting separately. A cyclic or longer
+than 64 style chain returns `StyleCycle`.
+
+`Document::add_footnote` and `Document::add_endnote` accept a
+`RunPosition`. They reject empty note bodies, invalid or ambiguous part
+relationships and ids, and id exhaustion before writing. A single registry
+transaction commits the reference, definition, style changes, and any new
+parts and separator settings. New definitions use a separate signed id
+space per kind and treat zero as reserved. Missing styles have minimal
+definitions under the portable built-in names (§3.5).

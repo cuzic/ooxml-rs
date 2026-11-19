@@ -28,6 +28,15 @@ pub enum Error {
     /// The annotation registry has reached Word's integer limit.
     #[error("annotation ids exhausted")]
     AnnotationIdsExhausted,
+    /// A style chain cycles or exceeds the supported depth.
+    #[error("cyclic or more than 64 styles in a basedOn chain")]
+    StyleCycle,
+    /// A note part or identifier could not be resolved unambiguously.
+    #[error("invalid or ambiguous note part or id")]
+    InvalidNotePart,
+    /// The note registry has reached Word's integer limit.
+    #[error("note ids exhausted")]
+    NoteIdsExhausted,
     /// Numbering definitions or direct numbering are missing or ambiguous.
     #[error("invalid or ambiguous numbering")]
     InvalidNumbering,

@@ -140,6 +140,17 @@ names = [
     "w:CT_FtnEdn/w:footnote",
     "w:CT_Endnotes/w:endnotes",
     "w:CT_FtnEdn/w:endnote",
+    # ADR-0015 §4: note references, separators, and settings.
+    "w:CT_FtnEdnRef/w:footnoteReference",
+    "w:CT_FtnEdnRef/w:endnoteReference",
+    "w:CT_Empty/w:footnoteRef",
+    "w:CT_Empty/w:endnoteRef",
+    "w:CT_Empty/w:separator",
+    "w:CT_Empty/w:continuationSeparator",
+    "w:CT_FtnDocProps/w:footnotePr",
+    "w:CT_EdnDocProps/w:endnotePr",
+    "w:CT_FtnEdnSepRef/w:footnote",
+    "w:CT_FtnEdnSepRef/w:endnote",
     "w:CT_Comments/w:comments",
     "w:CT_Comment/w:comment",
     # Word Phase1 (ADR-0007 §5): style lookup.
