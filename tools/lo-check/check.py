@@ -30,7 +30,11 @@ FILTERS = {
     ".docx": "Office Open XML Text",
     ".pptx": "Impress MS PowerPoint 2007 XML",
 }
-UNTAGGED_WRITER_CASES = {"10-footnotes-endnotes.docx", "14a-footnote.docx"}
+UNTAGGED_WRITER_CASES = {
+    "10-footnotes-endnotes.docx",
+    "14a-footnote.docx",
+    "30-insert-footnote-endnote.docx",
+}
 XML_NAMESPACES = {
     "x": SML[1:-1],
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
@@ -50,7 +54,8 @@ CHECKS = {
     "d": "Independent read-back",
 }
 # The default Writer PDF export crashes on the SDK footnote/endnote fixture
-# in LibreOffice 25.2.7.2. This check only needs a plain PDF.
+# in LibreOffice 25.2.7.2 (and on documents with inserted notes, case 30).
+# This check only needs a plain PDF.
 WRITER_PDF = 'pdf:writer_pdf_Export:{"UseTaggedPDF":{"type":"boolean","value":"false"}}'
 # Export every Calc sheet (option 12 = -1). Calc still formats dates and
 # percentages with option 9 (save as shown) turned off.
