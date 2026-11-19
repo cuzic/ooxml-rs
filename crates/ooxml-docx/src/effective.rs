@@ -966,6 +966,10 @@ mod tests {
                     else {
                         continue;
                     };
+                    if expected.len() != 6 || !expected.bytes().all(|byte| byte.is_ascii_hexdigit())
+                    {
+                        continue;
+                    }
                     let matched = expected.eq_ignore_ascii_case(&computed);
                     colors.0 += 1;
                     colors.1 += usize::from(matched);

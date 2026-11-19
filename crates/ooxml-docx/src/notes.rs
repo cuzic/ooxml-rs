@@ -73,6 +73,8 @@ where
     Ok(())
 }
 
+const SEPARATORS: [(&str, &str); 2] = [("separator", "-1"), ("continuationSeparator", "0")];
+
 fn add_separators<R, N>(xml: &mut XmlDocument) -> Result<()>
 where
     R: ElementSpec,
@@ -80,7 +82,7 @@ where
     Paragraph: ChildOf<N>,
 {
     let mut root = xml.lens_mut::<R>()?;
-    for (kind, id) in [("separator", "-1"), ("continuationSeparator", "0")] {
+    for (kind, id) in SEPARATORS {
         let mut note = root.insert::<N>()?;
         note.set_attr(w("type"), kind)?;
         note.set_attr(w("id"), id)?;
@@ -342,8 +344,7 @@ impl Document {
             note_docs[i] = Some(xml);
         }
 
-        let missing = parts.each_ref().map(Option::is_none);
-        let settings = if missing.contains(&true) {
+        let settings = if parts.iter().any(Option::is_none) {
             if self.settings_parts.len() > 1 {
                 return Err(Error::AmbiguousSettings);
             }
@@ -352,17 +353,32 @@ impl Document {
                 Some(part) => self.pkg.xml_part(part)?.clone(),
                 None => self.new_note_xml("settings")?,
             };
+            let separator_ids = |index: usize| {
+                let Some(part) = &parts[index] else {
+                    return SEPARATORS.map(|(_, id)| id).to_vec();
+                };
+                let root = self.pkg.parsed_part(part).expect("parsed note part").root();
+                let name = if index == 0 { "footnote" } else { "endnote" };
+                root.elements()
+                    .filter(|node| {
+                        node.is(w(name))
+                            && matches!(
+                                node.attr(w("type")),
+                                Some("separator" | "continuationSeparator")
+                            )
+                    })
+                    .filter_map(|node| node.attr(w("id")))
+                    .collect()
+            };
             let mut settings = xml.lens_mut::<Settings>()?;
-            if missing[0] {
-                settings_separators::<FootnoteDocumentWideProperties, FootnoteSpecialReference>(
-                    &mut settings,
-                )?;
-            }
-            if missing[1] {
-                settings_separators::<EndnoteDocumentWideProperties, EndnoteSpecialReference>(
-                    &mut settings,
-                )?;
-            }
+            settings_separators::<FootnoteDocumentWideProperties, FootnoteSpecialReference>(
+                &mut settings,
+                &separator_ids(0),
+            )?;
+            settings_separators::<EndnoteDocumentWideProperties, EndnoteSpecialReference>(
+                &mut settings,
+                &separator_ids(1),
+            )?;
             Some((part, xml))
         } else {
             None
@@ -403,13 +419,13 @@ impl Document {
     }
 }
 
-fn settings_separators<P, S>(settings: &mut LensMut<'_, Settings>) -> Result<()>
+fn settings_separators<P, S>(settings: &mut LensMut<'_, Settings>, ids: &[&str]) -> Result<()>
 where
     P: ChildOf<Settings>,
     S: ChildOf<P>,
 {
     let mut props = settings.get_or_insert_with_ns::<P>(W)?;
-    for id in ["-1", "0"] {
+    for &id in ids {
         if !props
             .as_lens()
             .raw()

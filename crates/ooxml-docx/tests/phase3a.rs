@@ -433,3 +433,69 @@ fn computed_theme_fonts_and_colors_have_provenance() {
     );
     assert_eq!(run.properties.value("color").unwrap().value, "111111");
 }
+
+#[test]
+fn table_banding_uses_grid_columns_and_vertical_merge_start() {
+    let styles = format!(
+        r#"<w:styles xmlns:w="{W_NS}">
+        <w:style w:type="table" w:styleId="T">
+          <w:tblStylePr w:type="band1Vert"><w:rPr><w:color w:val="112233"/></w:rPr></w:tblStylePr>
+          <w:tblStylePr w:type="band2Vert"><w:rPr><w:color w:val="445566"/></w:rPr></w:tblStylePr>
+          <w:tblStylePr w:type="firstRow"><w:rPr><w:b/></w:rPr></w:tblStylePr>
+        </w:style></w:styles>"#
+    );
+    let body = r#"<w:tbl><w:tblPr><w:tblStyle w:val="T"/><w:tblLook w:val="0220"/></w:tblPr>
+       <w:tblGrid><w:gridCol/><w:gridCol/><w:gridCol/></w:tblGrid>
+       <w:tr>
+         <w:tc><w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>merged start</w:t></w:r></w:p></w:tc>
+         <w:tc><w:p><w:r><w:t>third grid column</w:t></w:r></w:p></w:tc>
+       </w:tr>
+       <w:tr>
+         <w:tc><w:tcPr><w:gridSpan w:val="2"/><w:vMerge/></w:tcPr><w:p><w:r><w:t>merged continuation</w:t></w:r></w:p></w:tc>
+         <w:tc><w:p><w:pPr><w:cnfStyle w:val="100001000000"/></w:pPr><w:r><w:t>cached flags ignored</w:t></w:r></w:p></w:tc>
+       </w:tr></w:tbl>"#;
+    let doc = Document::from_bytes(package(
+        &document(body),
+        &[("styles", "styles.xml", &styles)],
+    ))
+    .unwrap();
+    for (p, expected_bold) in doc.paragraphs().zip([true, true, true, false]) {
+        let run = p.run(0).unwrap().effective().unwrap();
+        assert_eq!(run.properties.value("color").unwrap().value, "112233");
+        assert_eq!(
+            run.toggle("b").unwrap().value,
+            expected_bold,
+            "{}",
+            p.text()
+        );
+    }
+}
+
+#[test]
+fn creating_a_missing_companion_keeps_existing_separator_ids() {
+    let footnotes = format!(
+        r#"<w:footnotes xmlns:w="{W_NS}">
+      <w:footnote w:type="separator" w:id="0"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+      <w:footnote w:type="continuationSeparator" w:id="1"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>
+    </w:footnotes>"#
+    );
+    let input = package(
+        &document("<w:p><w:r><w:t>Anchor</w:t></w:r></w:p>"),
+        &[("footnotes", "footnotes.xml", &footnotes)],
+    );
+    let mut doc = Document::from_bytes(input).unwrap();
+    let at = RunPosition::EndOf(doc.paragraph(0).unwrap().para_ref());
+    assert_eq!(doc.add_endnote(at, vec!["end".into()]).unwrap(), NoteId(1));
+    let bytes = doc.to_bytes().unwrap();
+    assert_eq!(part(&bytes, "word/footnotes.xml"), footnotes.as_bytes());
+    let settings = String::from_utf8(part(&bytes, "word/settings.xml")).unwrap();
+    assert!(
+        settings.contains(
+            "<w:footnotePr><w:footnote w:id=\"0\"/><w:footnote w:id=\"1\"/></w:footnotePr>"
+        )
+    );
+    assert!(
+        settings
+            .contains("<w:endnotePr><w:endnote w:id=\"-1\"/><w:endnote w:id=\"0\"/></w:endnotePr>")
+    );
+}
