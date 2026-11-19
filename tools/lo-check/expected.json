@@ -64,6 +64,20 @@
       ["word/document.xml", ".//w:tcPr/w:vMerge", 2]
     ]
   },
+  "docx/29-bookmark-list-style.docx": {"text": ["First item, bookmarked", "Restart at five", "Last line, unnumbered"],
+    "xml": [
+      ["word/document.xml", "./w:body/w:p[1]/w:bookmarkStart[@w:name='ManualBookmark'][@w:id='2']", 1],
+      ["word/document.xml", "./w:body/w:p[1]/w:bookmarkEnd[@w:id='2']", 1],
+      ["word/document.xml", "./w:body/w:p[1]/w:r/w:t[.='bookmarked']", 1],
+      ["word/document.xml", ".//w:bookmarkStart[@w:name='Temporary']", 0],
+      ["word/document.xml", "./w:body/w:p[1]/w:pPr/w:numPr/w:numId[@w:val='1']", 1],
+      ["word/document.xml", "./w:body/w:p[2]/w:pPr/w:numPr/w:numId[@w:val='2']", 1],
+      ["word/numbering.xml", "./w:num[@w:numId='2']/w:lvlOverride[@w:ilvl='0']/w:startOverride[@w:val='5']", 1],
+      ["word/document.xml", "./w:body/w:p[3]/w:pPr/w:numPr", 0],
+      ["word/document.xml", "./w:body/w:p[3]/w:pPr/w:pStyle[@w:val='ManualCustom']", 1],
+      ["word/styles.xml", "./w:style[@w:styleId='ManualCustom'][@w:customStyle='1']/w:rPr/w:b", 1]
+    ]
+  },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},
