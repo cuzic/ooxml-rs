@@ -11,7 +11,7 @@ readme = "README.md"
 # Fixtures are third-party files under their own licences
 # (reference/fixtures/pptx/LICENSES); tests read them from the repository
 # and they are never packaged into this crate (ADR-0005 §7, review m9).
-include = ["src/**/*.rs", "Cargo.toml", "README.md"]
+include = ["src/**/*.rs", "Cargo.toml", "README.md", "THIRD-PARTY-NOTICES"]
 
 [dependencies]
 ooxml-core = { workspace = true }

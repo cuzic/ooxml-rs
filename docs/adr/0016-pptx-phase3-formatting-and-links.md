@@ -829,11 +829,25 @@ XML, and the combined names must equal the 187 XSD `ST_ShapeType` values.
 
 ### Post-acceptance note — P3b shape property APIs
 
-`ShapeMut` writes rects, rotation and flips, `ShapeFill`, `LineSpec`,
-preset geometry and validated constant adjustments. `None` for the
-outline and `ShapeFill::Inherit` remove the respective direct value.
-`clear_rect` removes the direct offset and extent. Rotation and flip
-edits that create a placeholder transform materialize its inherited
-rectangle first when it resolves. Group fit uses
-`ValueOutOfRange { what: "exact group fit" }` for unrepresentable affine
-fits and `TransformedGroup` when a rotated or flipped group would change.
+Shape outline edits update only fields supplied in `LineSpec`, retaining
+other line attributes and children. The outline lens opts into preserving
+the source spelling of unchanged attributes even when an edited start tag is
+re-rendered. Passing `None` removes the direct
+outline. `ShapeFill::Inherit` removes the direct fill.
+
+`clear_rect` removes the direct offset and extent on placeholders and
+returns `UnsupportedContent` on other shapes. Creating a placeholder
+transform retains the resolved inherited rotation and flips on fields
+the caller did not edit. Rotation and flip edits also retain the
+resolved inherited rectangle.
+
+Equal rotation and flip writes leave the part unchanged. The first
+transform edit on a group without a transform derives its child space
+from member bounds. A group rectangle edit changes its outer box while
+preserving the child coordinate space. If a legacy transform omits
+`chOff` or `chExt`, a rectangle edit stores the previous fallback value
+as an explicit child offset or extent.
+
+Group fit uses `ValueOutOfRange { what: "exact group fit" }` for
+unrepresentable affine fits. A fit that changes the box of a rotated or
+flipped group returns `TransformedGroup` before exactness is checked.

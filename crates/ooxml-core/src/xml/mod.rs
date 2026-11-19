@@ -9,6 +9,8 @@
 //!   children recursed;
 //! - `own_dirty` → the open tag is re-rendered from name/attributes, the
 //!   close tag rendered if there are children, else the tag self-closes.
+//!   A lens can opt into preserving unchanged attribute spellings and the
+//!   existing close tag.
 //!
 //! Bytes before and after the root element (XML declaration, BOM, comments)
 //! are always emitted verbatim.

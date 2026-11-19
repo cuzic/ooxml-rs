@@ -123,6 +123,52 @@ impl LineSpec {
                 .is_none_or(|(end, node)| end.matches(node))
     }
 
+    pub(in crate::write) fn update_outline(
+        &self,
+        node: &mut LensMut<'_, dml::Outline>,
+    ) -> Result<()> {
+        let mut update = self.clone();
+        let ooxml_core::Content::Slots(slots) = dml::Outline::CONTENT else {
+            unreachable!("outline has ordered slots")
+        };
+        if update.fill.is_some()
+            || update.dash.is_some()
+            || update.head.is_some()
+            || update.tail.is_some()
+        {
+            let mut next_slot = 0;
+            for child in node.node().elements() {
+                let Some(index) = slots[next_slot..]
+                    .iter()
+                    .position(|slot| slot.names.iter().any(|&name| child.is(name)))
+                else {
+                    return Err(Error::UnsupportedContent(
+                        "ambiguous outline children".into(),
+                    ));
+                };
+                next_slot += index + 1;
+            }
+        }
+        let fill_slot = slots
+            .iter()
+            .find(|slot| slot.names.contains(&dml::SolidFill::QNAME))
+            .expect("outline fill slot")
+            .names;
+        if let Some(fill) = &update.fill {
+            if only_choice(Some(node.node()), fill_slot).is_some_and(|old| fill_matches(fill, old))
+            {
+                update.fill = None;
+            } else {
+                remove_choices(node, fill_slot);
+            }
+        }
+        if update.dash.is_some() {
+            remove_choices(node, &[QName::new(dml::PresetDash::QNAME.ns, "custDash")]);
+        }
+        node.preserve_attribute_spelling();
+        update.write(node)
+    }
+
     pub(in crate::write) fn write<E: ElementSpec>(&self, node: &mut LensMut<'_, E>) -> Result<()>
     where
         dml::SolidFill: ChildOf<E>,
@@ -132,7 +178,9 @@ impl LineSpec {
         dml::TailEnd: ChildOf<E>,
     {
         let line = self;
-        if let Some(width) = line.width {
+        if let Some(width) = line.width
+            && node.node().attr(QName::new("", "w")).and_then(int) != Some(width)
+        {
             ooxml_core::value::with_i32(width, |value| node.set_attr(QName::new("", "w"), value))?;
         }
         if let Some(cap) = line.cap {
@@ -149,12 +197,16 @@ impl LineSpec {
             None => {}
         }
         if let Some(dash) = line.dash {
-            dml::PresetDashViewMut(node.insert::<dml::PresetDash>()?).set_val(dash)?;
+            let mut dash_node = node.get_or_insert::<dml::PresetDash>()?;
+            dash_node.preserve_attribute_spelling();
+            dml::PresetDashViewMut(dash_node).set_val(dash)?;
         }
         macro_rules! write_end {
             ($end:expr, $spec:ident, $view:ident) => {
                 if let Some(end) = $end {
-                    let mut end_view = dml::$view(node.insert::<dml::$spec>()?);
+                    let mut end_node = node.get_or_insert::<dml::$spec>()?;
+                    end_node.preserve_attribute_spelling();
+                    let mut end_view = dml::$view(end_node);
                     if let Some(kind) = end.kind {
                         end_view.set_type(kind)?;
                     }

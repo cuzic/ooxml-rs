@@ -7,10 +7,10 @@ use std::assert_matches;
 
 use ooxml_core::Package;
 use ooxml_pptx::{
-    ColorSpec, Error, LineSpec, Presentation, Rect, ShapeFill, ShapeKind, ShapeMut, Source,
-    WriteColor,
+    ColorSpec, Error, LineEnd, LineSpec, Presentation, Rect, RunFill, ShapeFill, ShapeKind,
+    ShapeMut, Source, WriteColor,
 };
-use ooxml_schema::dml::ShapeTypeValues;
+use ooxml_schema::dml::{LineEndLengthValues, PresetLineDashValues, ShapeTypeValues};
 
 const SLIDE: &str = "ppt/slides/slide1.xml";
 const BOX: Rect = Rect {
@@ -266,7 +266,8 @@ fn geometry_and_paint_are_local_and_idempotent() {
     assert!(output.ends_with(suffix));
     assert!(output.contains(r#"name="adj1" fmla="val 35000""#));
     assert!(output.contains(r#"<a:lin ang="5400000""#));
-    assert!(output.contains(r#"flipH="1" flipV="0""#));
+    assert!(output.contains(r#"flipH="1""#));
+    assert!(!output.contains("flipV="));
     assert_eq!(shape_box(&mut p, 81), Some(BOX));
 
     // Test the no-op against reloaded bytes as well as the dirty tree.
@@ -453,4 +454,214 @@ fn corpus_shape_edit_sweep() {
         cases::FIXTURES.len()
     );
     assert!(applied.into_iter().all(|count| count > 0));
+}
+
+#[test]
+fn outline_patch_preserves_unedited_xml_and_inserts_in_order() {
+    let children = concat!(
+        "<a:solidFill><a:srgbClr val='FF0000'/></a:solidFill>",
+        "<a:round /><a:headEnd type='triangle' w='lg'/>",
+        "<a:extLst><a:ext uri='custom' /></a:extLst>",
+    );
+    let line = format!(r#"<a:ln w="12700" algn = 'i&#110;'>{children}</a:ln>"#);
+    let shape = member(80, 1, 2, 3, 4).replace("</p:spPr>", &format!("{line}</p:spPr>"));
+    let mut p = synthetic(&shape);
+    let patch = LineSpec {
+        width: Some(25400),
+        ..LineSpec::default()
+    };
+    edit(&mut p, 80, |s| s.set_line(Some(&patch))).unwrap();
+    let bytes = p.to_bytes().unwrap();
+    let xml = String::from_utf8(
+        Package::from_bytes(bytes.as_slice())
+            .unwrap()
+            .read_part(SLIDE)
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(xml.contains(&line.replace("12700", "25400")), "{xml}");
+    edit(&mut p, 80, |s| s.set_line(Some(&patch))).unwrap();
+    assert_eq!(p.to_bytes().unwrap(), bytes);
+
+    let patch = LineSpec {
+        fill: Some(RunFill::NoFill),
+        dash: Some(PresetLineDashValues::Dash),
+        ..LineSpec::default()
+    };
+    edit(&mut p, 80, |s| s.set_line(Some(&patch))).unwrap();
+    let xml = String::from_utf8(
+        Package::from_bytes(p.to_bytes().unwrap())
+            .unwrap()
+            .read_part(SLIDE)
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        xml.contains(concat!(
+            r#"<a:ln w="25400" algn = 'i&#110;'><a:noFill/><a:prstDash val="dash"/>"#,
+            "<a:round /><a:headEnd type='triangle' w='lg'/>",
+            "<a:extLst><a:ext uri='custom' /></a:extLst></a:ln>",
+        )),
+        "{xml}"
+    );
+
+    let end_patch = LineSpec {
+        head: Some(LineEnd {
+            length: Some(LineEndLengthValues::Medium),
+            ..LineEnd::default()
+        }),
+        ..LineSpec::default()
+    };
+    edit(&mut p, 80, |s| s.set_line(Some(&end_patch))).unwrap();
+    let xml = String::from_utf8(p.package().read_part(SLIDE).unwrap()).unwrap();
+    assert!(
+        xml.contains(r#"<a:headEnd type='triangle' w='lg' len="med"/>"#),
+        "{xml}"
+    );
+
+    let mut p = synthetic(&shape.replace("<a:round />", "<a:unknown/>"));
+    assert_matches!(
+        refused(&mut p, 80, |s| s.set_line(Some(&patch))),
+        Error::UnsupportedContent(_)
+    );
+    let mut p = synthetic(&shape.replace("</a:ln>", "</a:ln><a:ln/>"));
+    assert_matches!(
+        refused(&mut p, 80, |s| s.set_line(Some(&patch))),
+        Error::UnsupportedContent(_)
+    );
+}
+
+#[test]
+fn group_transform_edits_preserve_the_child_coordinate_space() {
+    let shape = member(81, 100, 200, 300, 400);
+    let mut p = synthetic(&group(80, "", &shape));
+    let before = p.to_bytes().unwrap();
+    let member_box = shape_box(&mut p, 81);
+    edit(&mut p, 80, |s| s.set_rotation(0)).unwrap();
+    assert_eq!(shape_box(&mut p, 81), member_box);
+    assert_eq!(p.to_bytes().unwrap(), before);
+    edit(&mut p, 80, |s| s.set_rotation(1)).unwrap();
+    edit(&mut p, 80, |s| s.set_rotation(0)).unwrap();
+    assert_eq!(shape_box(&mut p, 80), member_box);
+    assert_eq!(shape_box(&mut p, 81), member_box);
+
+    let destination = Rect {
+        x: 5000,
+        y: 5000,
+        cx: 600,
+        cy: 800,
+    };
+    let mut p = synthetic(&group(80, "", &shape));
+    edit(&mut p, 80, |s| s.set_rect(destination)).unwrap();
+    assert_eq!(shape_box(&mut p, 81), Some(destination));
+    assert_matches!(
+        refused(&mut p, 80, |s| s.clear_rect()),
+        Error::UnsupportedContent(_)
+    );
+    assert_matches!(
+        refused(&mut p, 81, |s| s.clear_rect()),
+        Error::UnsupportedContent(_)
+    );
+
+    let legacy = transform("", OUTER, "");
+    let mut p = synthetic(&group(80, &legacy, &member(81, 1000, 2000, 200, 400)));
+    edit(&mut p, 80, |s| s.set_rect(destination)).unwrap();
+    assert_eq!(shape_box(&mut p, 81), Some(destination));
+
+    let mut p = synthetic(&group(80, "", ""));
+    assert_matches!(
+        refused(&mut p, 80, |s| s.set_rect(destination)),
+        Error::ValueOutOfRange { .. }
+    );
+}
+
+#[test]
+fn effective_default_rotation_and_flips_are_byte_noops() {
+    let mut p = synthetic(&member(80, 1, 2, 3, 4));
+    let before = p.to_bytes().unwrap();
+    edit(&mut p, 80, |s| {
+        s.set_rotation(0)?;
+        s.set_flip_h(false)?;
+        s.set_flip_v(false)
+    })
+    .unwrap();
+    assert_eq!(p.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn materialized_placeholder_keeps_other_inherited_transform_fields() {
+    let mut pkg =
+        Package::from_bytes(cases::read_fixture("python-pptx/ph-inherit-props.pptx")).unwrap();
+    let layout = "ppt/slideLayouts/slideLayout1.xml";
+    let xml = String::from_utf8(pkg.read_part(layout).unwrap()).unwrap();
+    let layout_xfrm = transform(r#" rot="5400000" flipV="1""#, OUTER, "");
+    let title = format!("<p:spPr>{layout_xfrm}</p:spPr>");
+    assert_eq!(xml.matches("<p:spPr/>").count(), 1);
+    pkg.set_part(layout, xml.replace("<p:spPr/>", &title).into_bytes())
+        .unwrap();
+    let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    let before = p.to_bytes().unwrap();
+    edit(&mut p, 4, |s| s.set_rotation(5_400_000)).unwrap();
+    assert_eq!(p.to_bytes().unwrap(), before);
+
+    for (rect, rotation, flip_h) in [
+        (false, None, Some(true)),
+        (true, None, None),
+        (false, Some(42), None),
+    ] {
+        let mut p = Presentation::from_bytes(before.clone()).unwrap();
+        let old_box = shape_box(&mut p, 4);
+        edit(&mut p, 4, |s| {
+            if let Some(rotation) = rotation {
+                s.set_rotation(rotation)
+            } else if let Some(flip_h) = flip_h {
+                s.set_flip_h(flip_h)
+            } else {
+                s.set_rect(BOX)
+            }
+        })
+        .unwrap();
+        assert_eq!(shape_box(&mut p, 4), if rect { Some(BOX) } else { old_box });
+        let deck = p.deck().unwrap();
+        let slide = deck.slide(0).unwrap();
+        let shape = slide
+            .slide()
+            .shapes()
+            .into_iter()
+            .find(|s| s.id().ok() == Some(4))
+            .unwrap();
+        let ooxml_pptx::Lookup::Set(ooxml_pptx::Resolved {
+            value,
+            source: Source::Direct,
+            ..
+        }) = slide.geometry(&shape).unwrap()
+        else {
+            panic!("expected a direct transform")
+        };
+        let value = value.unwrap();
+        assert_eq!(value.rot.get(), Some(rotation.unwrap_or(5_400_000)));
+        assert_eq!(value.flip_h.get(), Some(flip_h.unwrap_or(false)));
+        assert_eq!(value.flip_v.get(), Some(true));
+    }
+
+    let malformed = title.replace(r#"flipV="1""#, r#"flipV="invalid""#);
+    pkg.set_part(layout, xml.replace("<p:spPr/>", &malformed).into_bytes())
+        .unwrap();
+    let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    assert_matches!(
+        refused(&mut p, 4, |s| s.set_rect(BOX)),
+        Error::ValueOutOfRange { .. }
+    );
+}
+
+#[test]
+fn rotated_group_reports_transform_before_fractional_fit() {
+    let outer = r#"<a:off x="0" y="0"/><a:ext cx="2" cy="2"/>"#;
+    let inner = r#"<a:chOff x="0" y="0"/><a:chExt cx="4" cy="4"/>"#;
+    let xfrm = transform(r#" rot="1""#, outer, inner);
+    let mut p = synthetic(&group(80, &xfrm, &member(81, 1, 2, 3, 4)));
+    assert_matches!(
+        refused(&mut p, 80, fit),
+        Error::TransformedGroup { group_id: Some(80) }
+    );
 }

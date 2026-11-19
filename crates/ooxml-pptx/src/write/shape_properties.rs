@@ -178,19 +178,12 @@ fn props_mut<'d>(
     Ok(doc.lens_mut_at(&path)?)
 }
 
-fn edit_xfrm<E>(
-    mut node: LensMut<'_, E>,
-    edit: TransformEdit,
-    inherited: Option<Rect>,
-) -> Result<()>
+fn edit_xfrm<E>(mut node: LensMut<'_, E>, edit: TransformEdit) -> Result<()>
 where
     E: ElementSpec,
     Offset: ChildOf<E>,
     Extents: ChildOf<E>,
 {
-    if let Some(value) = inherited {
-        write_box::<E, Offset, Extents>(&mut node, value)?;
-    }
     match edit {
         TransformEdit::Rect(value) => write_box::<E, Offset, Extents>(&mut node, value),
         TransformEdit::Clear => {
@@ -200,7 +193,7 @@ where
         }
         TransformEdit::Rotation(value) => set_num(&mut node, "rot", i64::from(value)),
         TransformEdit::Flip(attr, value) => {
-            if node.node().attr(un(attr)).and_then(parse_bool) != Some(value) {
+            if transform_attr(node.node(), attr, false, parse_bool) != Some(value) {
                 node.set_attr(un(attr), ooxml_core::value::format_bool(value))?;
             }
             Ok(())
@@ -214,6 +207,81 @@ enum TransformEdit {
     Clear,
     Rotation(i32),
     Flip(&'static str, bool),
+}
+
+fn transform_attr<T>(
+    node: &RawNode,
+    name: &'static str,
+    default: T,
+    parse: impl FnOnce(&str) -> Option<T>,
+) -> Option<T> {
+    match node.attr(un(name)) {
+        Some(value) => parse(value),
+        None => Some(default),
+    }
+}
+
+impl TransformEdit {
+    fn matches(self, node: Option<&RawNode>, inherited: Option<&crate::resolve::Xfrm>) -> bool {
+        match self {
+            Self::Rotation(value) => {
+                let old = match (node, inherited) {
+                    (Some(node), _) => transform_attr(node, "rot", 0, |s| s.parse().ok()),
+                    (_, Some(inherited)) => inherited.rot.get(),
+                    _ => Some(0),
+                };
+                old == Some(value)
+            }
+            Self::Flip(attr, value) => {
+                let old = match (node, inherited) {
+                    (Some(node), _) => transform_attr(node, attr, false, parse_bool),
+                    (_, Some(inherited)) if attr == "flipH" => inherited.flip_h.get(),
+                    (_, Some(inherited)) => inherited.flip_v.get(),
+                    _ => Some(false),
+                };
+                old == Some(value)
+            }
+            Self::Rect(value) => node.and_then(rect) == Some(value),
+            Self::Clear => false,
+        }
+    }
+}
+
+fn materialize_placeholder<E>(
+    node: &mut LensMut<'_, E>,
+    inherited: crate::resolve::Xfrm,
+    edit: TransformEdit,
+) -> Result<()>
+where
+    E: ElementSpec,
+    Offset: ChildOf<E>,
+    Extents: ChildOf<E>,
+{
+    if !matches!(edit, TransformEdit::Rect(_)) {
+        write_box::<_, Offset, Extents>(
+            node,
+            Rect {
+                x: inherited.x,
+                y: inherited.y,
+                cx: inherited.cx,
+                cy: inherited.cy,
+            },
+        )?;
+    }
+    if !matches!(edit, TransformEdit::Rotation(_)) {
+        let rotation = inherited.rot.get().ok_or(RECT_RANGE)?;
+        if rotation != 0 {
+            set_num(node, "rot", i64::from(rotation))?;
+        }
+    }
+    for (attr, value) in [("flipH", inherited.flip_h), ("flipV", inherited.flip_v)] {
+        if !matches!(edit, TransformEdit::Flip(edited, _) if edited == attr)
+            && value.get().ok_or(RECT_RANGE)?
+        {
+            node.set_attr(un(attr), "1")?;
+        }
+    }
+    Ok(())
 }
 
 impl<'d> ShapeMut<'d> {
@@ -232,41 +300,83 @@ impl<'d> ShapeMut<'d> {
         if frame && matches!(edit, TransformEdit::Flip(..)) {
             return Err(graphics_error());
         }
-        if matches!(edit, TransformEdit::Clear)
-            && transform.is_none_or(|node| {
-                child(node, a("off")).is_none() && child(node, a("ext")).is_none()
-            })
-        {
-            return Ok(());
-        }
         let group = shape.is(GroupShape::QNAME);
-        let inherit = transform.is_none()
-            && !matches!(edit, TransformEdit::Rect(_) | TransformEdit::Clear)
+        let placeholder = (transform.is_none() || matches!(edit, TransformEdit::Clear))
+            && !group
             && read::shapes_of(&self.doc)
                 .into_iter()
                 .any(|shape| shape.path().as_slice() == self.path && shape.placeholder().is_some());
-        let inherited = if inherit {
-            self.inherited_rect()?
+        if matches!(edit, TransformEdit::Clear) {
+            if group || !placeholder {
+                return Err(Error::UnsupportedContent(
+                    "clear_rect on a non-placeholder".into(),
+                ));
+            }
+            if transform.is_none_or(|node| {
+                child(node, a("off")).is_none() && child(node, a("ext")).is_none()
+            }) {
+                return Ok(());
+            }
+        }
+        let had_transform = transform.is_some();
+        if had_transform && edit.matches(transform, None) {
+            return Ok(());
+        }
+        let group_inner = if group {
+            match transform {
+                None if !edit.matches(None, None) => Some(child_bounds(shape)?),
+                Some(node)
+                    if matches!(edit, TransformEdit::Rect(_))
+                        && (child(node, a("chOff")).is_none()
+                            || child(node, a("chExt")).is_none()) =>
+                {
+                    Some(group_boxes(node).ok_or(RECT_RANGE)?.1)
+                }
+                _ => None,
+            }
         } else {
             None
         };
+        let inherited = if placeholder && !had_transform {
+            self.inherited_xfrm()?
+        } else {
+            None
+        };
+        if !had_transform && edit.matches(None, inherited.as_ref()) {
+            return Ok(());
+        }
         let mut staged = self.doc.clone();
         if frame {
             let mut frame = staged.lens_mut_at::<GraphicFrame>(&self.path)?;
-            edit_xfrm(frame.get_or_insert::<pml::Transform>()?, edit, inherited)?;
+            let mut xfrm = frame.get_or_insert::<pml::Transform>()?;
+            if let Some(inherited) = inherited {
+                materialize_placeholder(&mut xfrm, inherited, edit)?;
+            }
+            edit_xfrm(xfrm, edit)?;
         } else if group {
             let mut group = staged.lens_mut_at::<GroupShape>(&self.path)?;
             let mut props = group.get_or_insert::<pml::GroupShapeProperties>()?;
-            edit_xfrm(props.get_or_insert::<TransformGroup>()?, edit, inherited)?;
+            let mut xfrm = props.get_or_insert::<TransformGroup>()?;
+            if let Some(inner) = group_inner {
+                if !had_transform && !matches!(edit, TransformEdit::Rect(_)) {
+                    write_box::<_, Offset, Extents>(&mut xfrm, inner)?;
+                }
+                write_box::<_, ChildOffset, ChildExtents>(&mut xfrm, inner)?;
+            }
+            edit_xfrm(xfrm, edit)?;
         } else {
             let mut props = props_mut(&mut staged, &self.path)?;
-            edit_xfrm(props.get_or_insert::<Transform2D>()?, edit, inherited)?;
+            let mut xfrm = props.get_or_insert::<Transform2D>()?;
+            if let Some(inherited) = inherited {
+                materialize_placeholder(&mut xfrm, inherited, edit)?;
+            }
+            edit_xfrm(xfrm, edit)?;
         }
         self.commit_shape_edit(staged);
         Ok(())
     }
 
-    fn inherited_rect(&mut self) -> Result<Option<Rect>> {
+    fn inherited_xfrm(&mut self) -> Result<Option<crate::resolve::Xfrm>> {
         let EditPart::Package { package, name } = &mut self.doc else {
             return Ok(None);
         };
@@ -303,13 +413,12 @@ impl<'d> ShapeMut<'d> {
             return Ok(None);
         };
         let value = value.value.map_err(|_| RECT_RANGE)?;
-        let value = Rect {
+        validate_rect(Rect {
             x: value.x,
             y: value.y,
             cx: value.cx,
             cy: value.cy,
-        };
-        validate_rect(value)?;
+        })?;
         Ok(Some(value))
     }
 
@@ -480,6 +589,14 @@ impl GroupMut<'_, '_> {
         let inner = child_bounds(shape)?;
         let outer = if let Some(transform) = checked_xfrm(shape)? {
             let (old_outer, old_inner) = group_boxes(transform).ok_or(FIT_RANGE)?;
+            if transformed(transform, true).ok_or(FIT_RANGE)? {
+                if old_inner == inner {
+                    return Ok(());
+                }
+                return Err(Error::TransformedGroup {
+                    group_id: raw_shape_id(shape),
+                });
+            }
             let (x, cx) = fit_axis(
                 old_outer.x,
                 old_outer.cx,
@@ -497,14 +614,6 @@ impl GroupMut<'_, '_> {
                 inner.cy,
             )?;
             let outer = Rect { x, y, cx, cy };
-            if transformed(transform, true).ok_or(FIT_RANGE)? {
-                if old_outer == outer && old_inner == inner {
-                    return Ok(());
-                }
-                return Err(Error::TransformedGroup {
-                    group_id: raw_shape_id(shape),
-                });
-            }
             if old_outer == outer
                 && read_box(transform, ChildOffset::QNAME, ChildExtents::QNAME) == Some(inner)
             {
@@ -653,7 +762,7 @@ impl ShapeMut<'_> {
         Ok(())
     }
 
-    /// Sets a direct outline. Passing `None` restores line inheritance.
+    /// Updates the specified fields of a direct outline. Passing `None` restores line inheritance.
     pub fn set_line(&mut self, line: Option<&LineSpec>) -> Result<()> {
         let shape = self.node();
         if shape.is(GraphicFrame::QNAME) {
@@ -666,17 +775,23 @@ impl ShapeMut<'_> {
             line.validate()?;
         }
         let props = checked(child(shape, p("spPr")))?;
-        let old = props.and_then(|node| child(node, dml::Outline::QNAME));
-        match (line, old) {
-            (None, None) => return Ok(()),
-            (Some(line), Some(old)) if line.matches(old) => return Ok(()),
-            _ => {}
+        let outlines = props
+            .into_iter()
+            .flat_map(RawNode::elements)
+            .filter(|node| node.is(dml::Outline::QNAME))
+            .count();
+        if outlines > 1 {
+            return Err(Error::UnsupportedContent("multiple shape outlines".into()));
+        }
+        if line.is_none() && outlines == 0 {
+            return Ok(());
         }
         let mut staged = self.doc.clone();
         let mut props = props_mut(&mut staged, &self.path)?;
-        props.remove::<dml::Outline>();
         if let Some(line) = line {
-            line.write(&mut props.insert::<dml::Outline>()?)?;
+            line.update_outline(&mut props.get_or_insert::<dml::Outline>()?)?;
+        } else {
+            props.remove::<dml::Outline>();
         }
         self.commit_shape_edit(staged);
         Ok(())

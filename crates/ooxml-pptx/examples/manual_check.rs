@@ -840,7 +840,7 @@ fn main() -> R {
         items.push(Item {
             file: save(&out, shape_properties_case::NAME, &p)?,
             source,
-            edit: "On slide 3, move and resize Rectangle 1. Change it to a blue up arrow rotated 30°, with an orange dashed outline and arrowheads. Give Oval 2 a vertical white-to-teal gradient. Fit Group 4 around its members.".into(),
+            edit: "On slide 3, move and resize Rectangle 1. Change it to a blue up arrow rotated 30° and flipped horizontally, with an orange dashed outline and arrowheads. Give Oval 2 a vertical white-to-teal gradient. Fit Group 4 around its members.".into(),
             observe: vec![
                 "The blue up arrow and its orange outline appear above and left of the other members.",
                 "Oval 2 has a white-to-teal gradient.",
