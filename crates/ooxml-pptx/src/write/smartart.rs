@@ -257,6 +257,7 @@ impl crate::Presentation {
             other => other,
         };
         let guard = Guard {
+            links: false,
             shape_id: frame_id,
             paragraphs: false, // node animations target data model ids, not paragraphs (review m6)
             table: false,

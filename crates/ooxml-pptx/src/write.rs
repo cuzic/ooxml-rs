@@ -17,6 +17,9 @@ use crate::read::{self, ShapePath, Slide, SlideInfo, TextBodyRef, find_by_id, ra
 use crate::refs::SlideRefs;
 use crate::text;
 
+mod links;
+pub use links::{FieldMut, LinkSpec, SlideLinkTarget};
+
 mod part;
 pub(crate) use part::EditPart;
 
@@ -544,6 +547,7 @@ pub(crate) struct Guard {
     paragraphs: bool,
     characters: bool,
     comments: bool,
+    links: bool,
     table: bool,
 }
 
@@ -551,7 +555,7 @@ impl Guard {
     /// A body nothing refers into: notes bodies (no `p:timing`, no comment
     /// anchors in notes parts; ADR-0008 §2).
     pub(crate) fn unlocked(shape_id: u32) -> Self {
-        Guard { shape_id, paragraphs: false, characters: false, comments: false, table: false }
+        Guard { shape_id, paragraphs: false, characters: false, comments: false, links: false, table: false }
     }
     fn new(refs: &SlideRefs, ids: &[u32]) -> Self {
         Guard {
@@ -559,6 +563,7 @@ impl Guard {
             paragraphs: refs.paragraphs.covers(ids),
             characters: refs.characters.covers(ids),
             comments: refs.comments.covers(ids),
+            links: refs.links.covers(ids),
             table: refs.tables.covers(ids),
         }
     }

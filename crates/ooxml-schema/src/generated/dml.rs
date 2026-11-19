@@ -6,6 +6,8 @@ pub const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 pub const NS_A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
 /// `a16`: `http://schemas.microsoft.com/office/drawing/2014/main`
 pub const NS_A16: &str = "http://schemas.microsoft.com/office/drawing/2014/main";
+/// `ahyp`: `http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor`
+pub const NS_AHYP: &str = "http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor";
 /// `asvg`: `http://schemas.microsoft.com/office/drawing/2016/SVG/main`
 pub const NS_ASVG: &str = "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
 /// `cs`: `http://schemas.microsoft.com/office/drawing/2012/chartStyle`
@@ -28,6 +30,27 @@ pub const NS_XDR14: &str = "http://schemas.microsoft.com/office/excel/2010/sprea
 pub const NS_XLRD: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata";
 /// `xlrvrel`: `http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel`
 pub const NS_XLRVREL: &str = "http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel";
+/// `ahyp:ST_HyperlinkColor` — HyperlinkColorEnum.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum HyperlinkColorEnum {
+    /// `hlink`
+    HLink,
+    /// `tx`
+    Tx,
+}
+impl ooxml_core::EnumType for HyperlinkColorEnum {
+    const VALUES: &'static [&'static str] = &["hlink", "tx"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::HLink),
+            1 => Some(Self::Tx),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `xlrd:ST_RichValueValueType` — RichValueValueType.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RichValueValueType {
@@ -5861,6 +5884,7 @@ impl ooxml_core::ChildOf<GraphicData> for Blip {}
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Theme {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
+impl ooxml_core::ChildOf<GraphicData> for HyperlinkColor {}
 impl ooxml_core::ChildOf<GraphicData> for SVGBlip {}
 impl ooxml_core::ChildOf<GraphicData> for DgmDataModelRoot {}
 impl ooxml_core::ChildOf<GraphicData> for DspDrawing {}
@@ -5950,6 +5974,10 @@ impl<'a> GraphicDataView<'a> {
     /// `a:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
+    }
+    /// `ahyp:hlinkClr` children in document order.
+    pub fn hyperlink_color_iter(&self) -> impl Iterator<Item = HyperlinkColorView<'a>> {
+        self.0.children::<HyperlinkColor>().map(HyperlinkColorView)
     }
     /// `asvg:svgBlip` children in document order.
     pub fn svg_blip_iter(&self) -> impl Iterator<Item = SVGBlipView<'a>> {
@@ -6203,6 +6231,17 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `a:tbl` child.
     pub fn remove_table(&mut self) -> bool {
         self.0.remove::<Table>()
+    }
+    /// First `ahyp:hlinkClr` child matching `pred`, mutably.
+    pub fn hyperlink_color_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HyperlinkColorViewMut<'_>> {
+        self.0.child_mut_by::<HyperlinkColor>(pred).map(HyperlinkColorViewMut)
+    }
+    /// Removes the first `ahyp:hlinkClr` child.
+    pub fn remove_hyperlink_color(&mut self) -> bool {
+        self.0.remove::<HyperlinkColor>()
     }
     /// First `asvg:svgBlip` child matching `pred`, mutably.
     pub fn svg_blip_mut_by(
@@ -7182,6 +7221,7 @@ impl ooxml_core::ElementSpec for HyperlinkOnClick {
         ],
     );
 }
+impl ooxml_core::ChildOf<HyperlinkOnClick> for HyperlinkExtensionList {}
 /// Read-only view of [`HyperlinkOnClick`].
 #[derive(Clone, Debug)]
 pub struct HyperlinkOnClickView<'a>(pub ooxml_core::Lens<'a, HyperlinkOnClick>);
@@ -7233,9 +7273,110 @@ impl<'a> HyperlinkOnClickView<'a> {
                 ooxml_core::value::parse_bool,
             )
     }
+    /// First `a:extLst` child.
+    pub fn hyperlink_extension_list(&self) -> Option<HyperlinkExtensionListView<'a>> {
+        self.0.child::<HyperlinkExtensionList>().map(HyperlinkExtensionListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`HyperlinkOnClick`]. Reads go through [`HyperlinkOnClickViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkOnClickViewMut<'a>(pub ooxml_core::LensMut<'a, HyperlinkOnClick>);
+impl<'a> HyperlinkOnClickViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkOnClickView<'_> {
+        HyperlinkOnClickView(self.0.as_lens())
+    }
+    /// Sets `r:id` — relationship identifier to find target URI
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnClick::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_R_ID)
+    }
+    /// Sets `invalidUrl` — In case the url is invalid so we can't create a relationship, we'll save it here, r:id will point to a NULL one (default ``)
+    pub fn set_invalid_url(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnClick::ATTR_INVALID_URL, v)
+    }
+    /// Removes `invalidUrl`.
+    pub fn remove_invalid_url(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_INVALID_URL)
+    }
+    /// Sets `action` — Action to take, it may still need r:id to specify an action target (default ``)
+    pub fn set_action(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnClick::ATTR_ACTION, v)
+    }
+    /// Removes `action`.
+    pub fn remove_action(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_ACTION)
+    }
+    /// Sets `tgtFrame` — target frame for navigating to the URI (default ``)
+    pub fn set_target_frame(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnClick::ATTR_TGT_FRAME, v)
+    }
+    /// Removes `tgtFrame`.
+    pub fn remove_target_frame(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_TGT_FRAME)
+    }
+    /// Sets `tooltip` — tooltip for display (default ``)
+    pub fn set_tooltip(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnClick::ATTR_TOOLTIP, v)
+    }
+    /// Removes `tooltip`.
+    pub fn remove_tooltip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_TOOLTIP)
+    }
+    /// Sets `history` — whether to add this URI to the history when navigating to it (default `true`)
+    pub fn set_history(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(HyperlinkOnClick::ATTR_HISTORY, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `history`.
+    pub fn remove_history(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_HISTORY)
+    }
+    /// Sets `highlightClick` — Whether to highlight it when click on a shape (default `false`)
+    pub fn set_highlight_click(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HyperlinkOnClick::ATTR_HIGHLIGHT_CLICK,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `highlightClick`.
+    pub fn remove_highlight_click(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_HIGHLIGHT_CLICK)
+    }
+    /// Sets `endSnd` — Whether to stop previous sound when click on it (default `false`)
+    pub fn set_end_sound(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(HyperlinkOnClick::ATTR_END_SND, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `endSnd`.
+    pub fn remove_end_sound(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnClick::ATTR_END_SND)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn hyperlink_extension_list_mut(
+        &mut self,
+    ) -> Option<HyperlinkExtensionListViewMut<'_>> {
+        self.0.child_mut::<HyperlinkExtensionList>().map(HyperlinkExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_extension_list(
+        &mut self,
+    ) -> Result<HyperlinkExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<HyperlinkExtensionList>()
+            .map(HyperlinkExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_hyperlink_extension_list(&mut self) -> bool {
+        self.0.remove::<HyperlinkExtensionList>()
     }
 }
 /// `a:CT_Hyperlink/a:hlinkHover` — Defines the HyperlinkOnHover Class.
@@ -7327,6 +7468,7 @@ impl ooxml_core::ElementSpec for HyperlinkOnHover {
         ],
     );
 }
+impl ooxml_core::ChildOf<HyperlinkOnHover> for HyperlinkExtensionList {}
 /// Read-only view of [`HyperlinkOnHover`].
 #[derive(Clone, Debug)]
 pub struct HyperlinkOnHoverView<'a>(pub ooxml_core::Lens<'a, HyperlinkOnHover>);
@@ -7378,9 +7520,110 @@ impl<'a> HyperlinkOnHoverView<'a> {
                 ooxml_core::value::parse_bool,
             )
     }
+    /// First `a:extLst` child.
+    pub fn hyperlink_extension_list(&self) -> Option<HyperlinkExtensionListView<'a>> {
+        self.0.child::<HyperlinkExtensionList>().map(HyperlinkExtensionListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`HyperlinkOnHover`]. Reads go through [`HyperlinkOnHoverViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkOnHoverViewMut<'a>(pub ooxml_core::LensMut<'a, HyperlinkOnHover>);
+impl<'a> HyperlinkOnHoverViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkOnHoverView<'_> {
+        HyperlinkOnHoverView(self.0.as_lens())
+    }
+    /// Sets `r:id` — relationship identifier to find target URI
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnHover::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_R_ID)
+    }
+    /// Sets `invalidUrl` — In case the url is invalid so we can't create a relationship, we'll save it here, r:id will point to a NULL one (default ``)
+    pub fn set_invalid_url(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnHover::ATTR_INVALID_URL, v)
+    }
+    /// Removes `invalidUrl`.
+    pub fn remove_invalid_url(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_INVALID_URL)
+    }
+    /// Sets `action` — Action to take, it may still need r:id to specify an action target (default ``)
+    pub fn set_action(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnHover::ATTR_ACTION, v)
+    }
+    /// Removes `action`.
+    pub fn remove_action(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_ACTION)
+    }
+    /// Sets `tgtFrame` — target frame for navigating to the URI (default ``)
+    pub fn set_target_frame(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnHover::ATTR_TGT_FRAME, v)
+    }
+    /// Removes `tgtFrame`.
+    pub fn remove_target_frame(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_TGT_FRAME)
+    }
+    /// Sets `tooltip` — tooltip for display (default ``)
+    pub fn set_tooltip(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnHover::ATTR_TOOLTIP, v)
+    }
+    /// Removes `tooltip`.
+    pub fn remove_tooltip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_TOOLTIP)
+    }
+    /// Sets `history` — whether to add this URI to the history when navigating to it (default `true`)
+    pub fn set_history(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(HyperlinkOnHover::ATTR_HISTORY, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `history`.
+    pub fn remove_history(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_HISTORY)
+    }
+    /// Sets `highlightClick` — Whether to highlight it when click on a shape (default `false`)
+    pub fn set_highlight_click(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HyperlinkOnHover::ATTR_HIGHLIGHT_CLICK,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `highlightClick`.
+    pub fn remove_highlight_click(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_HIGHLIGHT_CLICK)
+    }
+    /// Sets `endSnd` — Whether to stop previous sound when click on it (default `false`)
+    pub fn set_end_sound(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(HyperlinkOnHover::ATTR_END_SND, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `endSnd`.
+    pub fn remove_end_sound(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnHover::ATTR_END_SND)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn hyperlink_extension_list_mut(
+        &mut self,
+    ) -> Option<HyperlinkExtensionListViewMut<'_>> {
+        self.0.child_mut::<HyperlinkExtensionList>().map(HyperlinkExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_extension_list(
+        &mut self,
+    ) -> Result<HyperlinkExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<HyperlinkExtensionList>()
+            .map(HyperlinkExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_hyperlink_extension_list(&mut self) -> bool {
+        self.0.remove::<HyperlinkExtensionList>()
     }
 }
 /// `a:CT_Hyperlink/a:hlinkMouseOver` — Defines the HyperlinkOnMouseOver Class.
@@ -7472,6 +7715,7 @@ impl ooxml_core::ElementSpec for HyperlinkOnMouseOver {
         ],
     );
 }
+impl ooxml_core::ChildOf<HyperlinkOnMouseOver> for HyperlinkExtensionList {}
 /// Read-only view of [`HyperlinkOnMouseOver`].
 #[derive(Clone, Debug)]
 pub struct HyperlinkOnMouseOverView<'a>(pub ooxml_core::Lens<'a, HyperlinkOnMouseOver>);
@@ -7523,9 +7767,268 @@ impl<'a> HyperlinkOnMouseOverView<'a> {
                 ooxml_core::value::parse_bool,
             )
     }
+    /// First `a:extLst` child.
+    pub fn hyperlink_extension_list(&self) -> Option<HyperlinkExtensionListView<'a>> {
+        self.0.child::<HyperlinkExtensionList>().map(HyperlinkExtensionListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`HyperlinkOnMouseOver`]. Reads go through [`HyperlinkOnMouseOverViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkOnMouseOverViewMut<'a>(
+    pub ooxml_core::LensMut<'a, HyperlinkOnMouseOver>,
+);
+impl<'a> HyperlinkOnMouseOverViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkOnMouseOverView<'_> {
+        HyperlinkOnMouseOverView(self.0.as_lens())
+    }
+    /// Sets `r:id` — relationship identifier to find target URI
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnMouseOver::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_R_ID)
+    }
+    /// Sets `invalidUrl` — In case the url is invalid so we can't create a relationship, we'll save it here, r:id will point to a NULL one (default ``)
+    pub fn set_invalid_url(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnMouseOver::ATTR_INVALID_URL, v)
+    }
+    /// Removes `invalidUrl`.
+    pub fn remove_invalid_url(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_INVALID_URL)
+    }
+    /// Sets `action` — Action to take, it may still need r:id to specify an action target (default ``)
+    pub fn set_action(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnMouseOver::ATTR_ACTION, v)
+    }
+    /// Removes `action`.
+    pub fn remove_action(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_ACTION)
+    }
+    /// Sets `tgtFrame` — target frame for navigating to the URI (default ``)
+    pub fn set_target_frame(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnMouseOver::ATTR_TGT_FRAME, v)
+    }
+    /// Removes `tgtFrame`.
+    pub fn remove_target_frame(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_TGT_FRAME)
+    }
+    /// Sets `tooltip` — tooltip for display (default ``)
+    pub fn set_tooltip(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkOnMouseOver::ATTR_TOOLTIP, v)
+    }
+    /// Removes `tooltip`.
+    pub fn remove_tooltip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_TOOLTIP)
+    }
+    /// Sets `history` — whether to add this URI to the history when navigating to it (default `true`)
+    pub fn set_history(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HyperlinkOnMouseOver::ATTR_HISTORY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `history`.
+    pub fn remove_history(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_HISTORY)
+    }
+    /// Sets `highlightClick` — Whether to highlight it when click on a shape (default `false`)
+    pub fn set_highlight_click(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HyperlinkOnMouseOver::ATTR_HIGHLIGHT_CLICK,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `highlightClick`.
+    pub fn remove_highlight_click(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_HIGHLIGHT_CLICK)
+    }
+    /// Sets `endSnd` — Whether to stop previous sound when click on it (default `false`)
+    pub fn set_end_sound(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HyperlinkOnMouseOver::ATTR_END_SND,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `endSnd`.
+    pub fn remove_end_sound(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkOnMouseOver::ATTR_END_SND)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn hyperlink_extension_list_mut(
+        &mut self,
+    ) -> Option<HyperlinkExtensionListViewMut<'_>> {
+        self.0.child_mut::<HyperlinkExtensionList>().map(HyperlinkExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_extension_list(
+        &mut self,
+    ) -> Result<HyperlinkExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<HyperlinkExtensionList>()
+            .map(HyperlinkExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_hyperlink_extension_list(&mut self) -> bool {
+        self.0.remove::<HyperlinkExtensionList>()
+    }
+}
+/// `a:CT_HyperlinkExtension/a:ext` — Defines the HyperlinkExtension Class.
+#[derive(Debug)]
+pub enum HyperlinkExtension {}
+impl HyperlinkExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for HyperlinkExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "ext");
+    const SDK_NAME: &'static str = "a:CT_HyperlinkExtension/a:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HyperlinkExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_AHYP, "hlinkClr")],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<HyperlinkExtension> for HyperlinkColor {}
+/// Read-only view of [`HyperlinkExtension`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkExtensionView<'a>(pub ooxml_core::Lens<'a, HyperlinkExtension>);
+impl<'a> HyperlinkExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(HyperlinkExtension::ATTR_URI)
+    }
+    /// First `ahyp:hlinkClr` child.
+    pub fn hyperlink_color(&self) -> Option<HyperlinkColorView<'a>> {
+        self.0.child::<HyperlinkColor>().map(HyperlinkColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HyperlinkExtension`]. Reads go through [`HyperlinkExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, HyperlinkExtension>,
+);
+impl<'a> HyperlinkExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkExtensionView<'_> {
+        HyperlinkExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkExtension::ATTR_URI)
+    }
+    /// First `ahyp:hlinkClr` child, mutably.
+    pub fn hyperlink_color_mut(&mut self) -> Option<HyperlinkColorViewMut<'_>> {
+        self.0.child_mut::<HyperlinkColor>().map(HyperlinkColorViewMut)
+    }
+    /// Existing `ahyp:hlinkClr` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_color(
+        &mut self,
+    ) -> Result<HyperlinkColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkColor>().map(HyperlinkColorViewMut)
+    }
+    /// Removes the first `ahyp:hlinkClr` child.
+    pub fn remove_hyperlink_color(&mut self) -> bool {
+        self.0.remove::<HyperlinkColor>()
+    }
+}
+/// `a:CT_HyperlinkExtensionList/a:extLst` — Future extensions..
+#[derive(Debug)]
+pub enum HyperlinkExtensionList {}
+impl ooxml_core::ElementSpec for HyperlinkExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "extLst");
+    const SDK_NAME: &'static str = "a:CT_HyperlinkExtensionList/a:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<HyperlinkExtensionList> for HyperlinkExtension {}
+/// Read-only view of [`HyperlinkExtensionList`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, HyperlinkExtensionList>,
+);
+impl<'a> HyperlinkExtensionListView<'a> {
+    /// `a:ext` children in document order.
+    pub fn hyperlink_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = HyperlinkExtensionView<'a>> {
+        self.0.children::<HyperlinkExtension>().map(HyperlinkExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HyperlinkExtensionList`]. Reads go through [`HyperlinkExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, HyperlinkExtensionList>,
+);
+impl<'a> HyperlinkExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkExtensionListView<'_> {
+        HyperlinkExtensionListView(self.0.as_lens())
+    }
+    /// First `a:ext` child matching `pred`, mutably.
+    pub fn hyperlink_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HyperlinkExtensionViewMut<'_>> {
+        self.0.child_mut_by::<HyperlinkExtension>(pred).map(HyperlinkExtensionViewMut)
+    }
+    /// Inserts a `a:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hyperlink_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HyperlinkExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<HyperlinkExtension>(before).map(HyperlinkExtensionViewMut)
+    }
+    /// Appends a `a:ext` at the end of its slot.
+    pub fn insert_hyperlink_extension(
+        &mut self,
+    ) -> Result<HyperlinkExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<HyperlinkExtension>().map(HyperlinkExtensionViewMut)
+    }
+    /// Removes the first `a:ext` child.
+    pub fn remove_hyperlink_extension(&mut self) -> bool {
+        self.0.remove::<HyperlinkExtension>()
     }
 }
 /// `a:CT_InverseGammaTransform/a:invGamma` — Inverse Gamma.
@@ -15681,6 +16184,34 @@ impl<'a> NonVisualDrawingPropertiesViewMut<'a> {
     pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(NonVisualDrawingProperties::ATTR_TITLE)
     }
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(&mut self) -> Option<HyperlinkOnClickViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnClick>()
+    }
+    /// First `a:hlinkHover` child, mutably.
+    pub fn hyperlink_on_hover_mut(&mut self) -> Option<HyperlinkOnHoverViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnHover>().map(HyperlinkOnHoverViewMut)
+    }
+    /// Existing `a:hlinkHover` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_hover(
+        &mut self,
+    ) -> Result<HyperlinkOnHoverViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnHover>().map(HyperlinkOnHoverViewMut)
+    }
+    /// Removes the first `a:hlinkHover` child.
+    pub fn remove_hyperlink_on_hover(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnHover>()
+    }
 }
 /// `a:CT_StretchInfoProperties/a:stretch` — Stretch.
 #[derive(Debug)]
@@ -20189,6 +20720,36 @@ impl<'a> DefaultRunPropertiesViewMut<'a> {
     pub fn remove_gradient_fill(&mut self) -> bool {
         self.0.remove::<GradientFill>()
     }
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(&mut self) -> Option<HyperlinkOnClickViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnClick>()
+    }
+    /// First `a:hlinkMouseOver` child, mutably.
+    pub fn hyperlink_on_mouse_over_mut(
+        &mut self,
+    ) -> Option<HyperlinkOnMouseOverViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverViewMut)
+    }
+    /// Existing `a:hlinkMouseOver` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_mouse_over(
+        &mut self,
+    ) -> Result<HyperlinkOnMouseOverViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverViewMut)
+    }
+    /// Removes the first `a:hlinkMouseOver` child.
+    pub fn remove_hyperlink_on_mouse_over(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnMouseOver>()
+    }
     /// First `a:ln` child, mutably.
     pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
         self.0.child_mut::<Outline>().map(OutlineViewMut)
@@ -21133,6 +21694,36 @@ impl<'a> EndParagraphRunPropertiesViewMut<'a> {
     pub fn remove_gradient_fill(&mut self) -> bool {
         self.0.remove::<GradientFill>()
     }
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(&mut self) -> Option<HyperlinkOnClickViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnClick>()
+    }
+    /// First `a:hlinkMouseOver` child, mutably.
+    pub fn hyperlink_on_mouse_over_mut(
+        &mut self,
+    ) -> Option<HyperlinkOnMouseOverViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverViewMut)
+    }
+    /// Existing `a:hlinkMouseOver` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_mouse_over(
+        &mut self,
+    ) -> Result<HyperlinkOnMouseOverViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverViewMut)
+    }
+    /// Removes the first `a:hlinkMouseOver` child.
+    pub fn remove_hyperlink_on_mouse_over(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnMouseOver>()
+    }
     /// First `a:ln` child, mutably.
     pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
         self.0.child_mut::<Outline>().map(OutlineViewMut)
@@ -21993,6 +22584,36 @@ impl<'a> RunPropertiesViewMut<'a> {
     pub fn remove_gradient_fill(&mut self) -> bool {
         self.0.remove::<GradientFill>()
     }
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(&mut self) -> Option<HyperlinkOnClickViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnClick>().map(HyperlinkOnClickViewMut)
+    }
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnClick>()
+    }
+    /// First `a:hlinkMouseOver` child, mutably.
+    pub fn hyperlink_on_mouse_over_mut(
+        &mut self,
+    ) -> Option<HyperlinkOnMouseOverViewMut<'_>> {
+        self.0.child_mut::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverViewMut)
+    }
+    /// Existing `a:hlinkMouseOver` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_mouse_over(
+        &mut self,
+    ) -> Result<HyperlinkOnMouseOverViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HyperlinkOnMouseOver>().map(HyperlinkOnMouseOverViewMut)
+    }
+    /// Removes the first `a:hlinkMouseOver` child.
+    pub fn remove_hyperlink_on_mouse_over(&mut self) -> bool {
+        self.0.remove::<HyperlinkOnMouseOver>()
+    }
     /// First `a:ln` child, mutably.
     pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
         self.0.child_mut::<Outline>().map(OutlineViewMut)
@@ -22241,6 +22862,73 @@ impl<'a> FieldView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Field`]. Reads go through [`FieldViewMut::as_view`].
+#[derive(Debug)]
+pub struct FieldViewMut<'a>(pub ooxml_core::LensMut<'a, Field>);
+impl<'a> FieldViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FieldView<'_> {
+        FieldView(self.0.as_lens())
+    }
+    /// Sets `id` — Field ID
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Field::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Field::ATTR_ID)
+    }
+    /// Sets `type` — Field Type
+    pub fn set_type(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Field::ATTR_TYPE, v)
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Field::ATTR_TYPE)
+    }
+    /// First `a:rPr` child, mutably.
+    pub fn run_properties_mut(&mut self) -> Option<RunPropertiesViewMut<'_>> {
+        self.0.child_mut::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Existing `a:rPr` child, or a new one in schema position.
+    pub fn get_or_insert_run_properties(
+        &mut self,
+    ) -> Result<RunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Removes the first `a:rPr` child.
+    pub fn remove_run_properties(&mut self) -> bool {
+        self.0.remove::<RunProperties>()
+    }
+    /// First `a:pPr` child, mutably.
+    pub fn paragraph_properties_mut(
+        &mut self,
+    ) -> Option<ParagraphPropertiesViewMut<'_>> {
+        self.0.child_mut::<ParagraphProperties>().map(ParagraphPropertiesViewMut)
+    }
+    /// Existing `a:pPr` child, or a new one in schema position.
+    pub fn get_or_insert_paragraph_properties(
+        &mut self,
+    ) -> Result<ParagraphPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ParagraphProperties>().map(ParagraphPropertiesViewMut)
+    }
+    /// Removes the first `a:pPr` child.
+    pub fn remove_paragraph_properties(&mut self) -> bool {
+        self.0.remove::<ParagraphProperties>()
+    }
+    /// First `a:t` child, mutably.
+    pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
+        self.0.child_mut::<Text>().map(TextViewMut)
+    }
+    /// Existing `a:t` child, or a new one in schema position.
+    pub fn get_or_insert_text(&mut self) -> Result<TextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Text>().map(TextViewMut)
+    }
+    /// Removes the first `a:t` child.
+    pub fn remove_text(&mut self) -> bool {
+        self.0.remove::<Text>()
     }
 }
 /// `a:CT_TextFont/a:buFont` — Specified.
@@ -23393,6 +24081,28 @@ impl<'a> ParagraphViewMut<'a> {
     /// Removes the first `a:endParaRPr` child.
     pub fn remove_end_paragraph_run_properties(&mut self) -> bool {
         self.0.remove::<EndParagraphRunProperties>()
+    }
+    /// First `a:fld` child matching `pred`, mutably.
+    pub fn field_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FieldViewMut<'_>> {
+        self.0.child_mut_by::<Field>(pred).map(FieldViewMut)
+    }
+    /// Inserts a `a:fld` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_field_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FieldViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Field>(before).map(FieldViewMut)
+    }
+    /// Appends a `a:fld` at the end of its slot.
+    pub fn insert_field(&mut self) -> Result<FieldViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Field>().map(FieldViewMut)
+    }
+    /// Removes the first `a:fld` child.
+    pub fn remove_field(&mut self) -> bool {
+        self.0.remove::<Field>()
     }
     /// First `a:br` child matching `pred`, mutably.
     pub fn break_mut_by(
@@ -28620,6 +29330,57 @@ impl<'a> TableStyleIdViewMut<'a> {
         self.0.set_text(v)
     }
 }
+/// `ahyp:CT_HyperlinkColor/ahyp:hlinkClr` — Defines the HyperlinkColor Class.
+#[derive(Debug)]
+pub enum HyperlinkColor {}
+impl HyperlinkColor {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for HyperlinkColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_AHYP, "hlinkClr");
+    const SDK_NAME: &'static str = "ahyp:CT_HyperlinkColor/ahyp:hlinkClr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HyperlinkColor::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <HyperlinkColorEnum as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`HyperlinkColor`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkColorView<'a>(pub ooxml_core::Lens<'a, HyperlinkColor>);
+impl<'a> HyperlinkColorView<'a> {
+    /// `val` — val
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, HyperlinkColorEnum>> {
+        self.0.attr_enum(HyperlinkColor::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HyperlinkColor`]. Reads go through [`HyperlinkColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkColorViewMut<'a>(pub ooxml_core::LensMut<'a, HyperlinkColor>);
+impl<'a> HyperlinkColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkColorView<'_> {
+        HyperlinkColorView(self.0.as_lens())
+    }
+    /// Sets `val` — val
+    pub fn set_val(&mut self, v: HyperlinkColorEnum) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(HyperlinkColor::ATTR_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HyperlinkColor::ATTR_VAL)
+    }
+}
 /// `asvg:CT_SVGBlip/asvg:svgBlip` — Defines the SVGBlip Class.
 #[derive(Debug)]
 pub enum SVGBlip {}
@@ -32183,6 +32944,7 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, Blip>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Theme>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, HyperlinkColor>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, SVGBlip>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, DgmDataModelRoot>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, DspDrawing>();
@@ -32290,8 +33052,27 @@ const _: () = ooxml_core::schema::assert_child::<HslColor, Tint>();
 const _: () = ooxml_core::schema::assert_child::<HslColor, AlphaModulation>();
 const _: () = ooxml_core::schema::assert_child::<HslColor, HueModulation>();
 const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnClick>();
+const _: () = ooxml_core::schema::assert_child::<
+    HyperlinkOnClick,
+    HyperlinkExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnHover>();
+const _: () = ooxml_core::schema::assert_child::<
+    HyperlinkOnHover,
+    HyperlinkExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<HyperlinkOnMouseOver>();
+const _: () = ooxml_core::schema::assert_child::<
+    HyperlinkOnMouseOver,
+    HyperlinkExtensionList,
+>();
+const _: () = ooxml_core::schema::assert_spec::<HyperlinkExtension>();
+const _: () = ooxml_core::schema::assert_child::<HyperlinkExtension, HyperlinkColor>();
+const _: () = ooxml_core::schema::assert_spec::<HyperlinkExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<
+    HyperlinkExtensionList,
+    HyperlinkExtension,
+>();
 const _: () = ooxml_core::schema::assert_spec::<InverseGamma>();
 const _: () = ooxml_core::schema::assert_spec::<Inverse>();
 const _: () = ooxml_core::schema::assert_spec::<HeadEnd>();
@@ -33531,6 +34312,7 @@ const _: () = ooxml_core::schema::assert_spec::<Transform2D>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Offset>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Extents>();
 const _: () = ooxml_core::schema::assert_spec::<TableStyleId>();
+const _: () = ooxml_core::schema::assert_spec::<HyperlinkColor>();
 const _: () = ooxml_core::schema::assert_spec::<SVGBlip>();
 const _: () = ooxml_core::schema::assert_spec::<DgmDataModelRoot>();
 const _: () = ooxml_core::schema::assert_child::<

@@ -1667,6 +1667,52 @@ impl<'a> NonVisualDrawingPropertiesViewMut<'a> {
     pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(NonVisualDrawingProperties::ATTR_TITLE)
     }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(
+        &mut self,
+    ) -> Option<super::dml::HyperlinkOnClickViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<super::dml::HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<super::dml::HyperlinkOnClick>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkHover` child, mutably.
+    pub fn hyperlink_on_hover_mut(
+        &mut self,
+    ) -> Option<super::dml::HyperlinkOnHoverViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:hlinkHover` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_hover(
+        &mut self,
+    ) -> Result<super::dml::HyperlinkOnHoverViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:hlinkHover` child.
+    pub fn remove_hyperlink_on_hover(&mut self) -> bool {
+        self.0.remove::<super::dml::HyperlinkOnHover>()
+    }
 }
 /// `a:CT_NonVisualDrawingProps/wp:docPr` — Drawing Object Non-Visual Properties.
 #[derive(Debug)]
@@ -1835,6 +1881,52 @@ impl<'a> DocPropertiesViewMut<'a> {
     /// Removes `title`.
     pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(DocProperties::ATTR_TITLE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(
+        &mut self,
+    ) -> Option<super::dml::HyperlinkOnClickViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<super::dml::HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<super::dml::HyperlinkOnClick>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkHover` child, mutably.
+    pub fn hyperlink_on_hover_mut(
+        &mut self,
+    ) -> Option<super::dml::HyperlinkOnHoverViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:hlinkHover` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_hover(
+        &mut self,
+    ) -> Result<super::dml::HyperlinkOnHoverViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:hlinkHover` child.
+    pub fn remove_hyperlink_on_hover(&mut self) -> bool {
+        self.0.remove::<super::dml::HyperlinkOnHover>()
     }
 }
 /// `a:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr` — Defines the NonVisualGraphicFrameDrawingProperties Class.

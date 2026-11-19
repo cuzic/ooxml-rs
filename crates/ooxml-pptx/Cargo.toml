@@ -17,6 +17,7 @@ include = ["src/**/*.rs", "Cargo.toml", "README.md", "THIRD-PARTY-NOTICES"]
 ooxml-core = { workspace = true }
 ooxml-schema = { workspace = true, features = ["pml", "dml"] }
 thiserror = { workspace = true }
+iri-string = "0.7"
 
 [dev-dependencies]
 serde_json = "1"

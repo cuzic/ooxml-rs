@@ -3,6 +3,14 @@
 # Phase0 write path: text in shapes and table cells.
 [write]
 names = [
+    # Phase 3c (ADR-0016 §7): text and shape links.
+    "a:CT_Hyperlink/a:hlinkClick",
+    "a:CT_Hyperlink/a:hlinkMouseOver",
+    "a:CT_Hyperlink/a:hlinkHover",
+    "a:CT_TextField/a:fld",
+    "ahyp:CT_HyperlinkColor/ahyp:hlinkClr",
+    "a:CT_HyperlinkExtensionList/a:extLst",
+    "a:CT_HyperlinkExtension/a:ext",
     # Phase 3b (ADR-0016 §6): shape properties.
     "a:CT_GroupTransform2D/a:xfrm",
     "a:CT_Point2D/a:chOff",
@@ -186,9 +194,6 @@ names = [
     "a:CT_ScRgbColor/a:scrgbClr",
     "a:CT_HslColor/a:hslClr",
     "a:CT_FontReference/a:fontRef",
-    "a:CT_Hyperlink/a:hlinkClick",
-    "a:CT_Hyperlink/a:hlinkMouseOver",
-    "a:CT_Hyperlink/a:hlinkHover",
     "a:CT_OfficeStyleSheet/a:theme",
     "a:CT_BaseStyles/a:themeElements",
     "a:CT_ColorScheme/a:clrScheme",
@@ -210,7 +215,6 @@ names = [
     "a:CT_SupplementalFont/a:font",
     "a:CT_ColorMapping/a:overrideClrMapping",
     "a:CT_EmptyElement/a:masterClrMapping",
-    "a:CT_TextField/a:fld",
 ]
 
 # Detachable (ADR-0002 note "detach/insert", ADR-0005 §9): copied by
