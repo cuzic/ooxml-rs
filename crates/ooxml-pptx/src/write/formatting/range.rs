@@ -19,6 +19,9 @@ impl ParagraphMut<'_> {
         path.push(self.loc.child(&self.doc)?);
         let mut staged = self.doc.clone();
         let edits = plan_range(&staged, &path, start, end, format)?;
+        if edits.is_empty() {
+            return Ok(());
+        }
         let mut paragraph = self.loc.lens(&mut staged)?;
         for edit in edits.into_iter().rev() {
             apply_range_edit(&mut paragraph, edit, format)?;

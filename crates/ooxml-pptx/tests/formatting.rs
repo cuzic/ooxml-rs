@@ -373,3 +373,127 @@ fn splits_copy_hyperlink_and_allowlisted_extension_verbatim() {
             .unwrap()
     );
 }
+
+#[test]
+fn range_splits_under_character_animation_lock() {
+    const ID: u32 = 584_707;
+    let mut pkg = Package::from_bytes(cases::read_fixture("poi/45545_Comment.pptx")).unwrap();
+    let xml = String::from_utf8(pkg.read_part(PART).unwrap()).unwrap();
+    let xml = xml.replace("<p:pRg ", "<p:charRg ");
+    pkg.set_part(PART, xml.clone().into_bytes()).unwrap();
+    let mut pres = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    let original_text = |pres: &mut Presentation| {
+        pres.slide(0)
+            .unwrap()
+            .shape_by_id(ID)
+            .unwrap()
+            .unwrap()
+            .text_body()
+            .unwrap()
+            .text()
+    };
+    let text = original_text(&mut pres);
+    {
+        let mut slide = pres.slide_mut(0).unwrap();
+        let mut shape = slide.shape_mut_by_id(ID).unwrap();
+        let mut body = shape.text_body_mut().unwrap();
+        let mut paragraph = body.paragraph_mut(2).unwrap();
+        assert_matches!(
+            paragraph.add_run("x"),
+            Err(Error::AnimatedCharacters { shape_id: ID })
+        );
+        paragraph.format_range(0, 1, &bold()).unwrap();
+    }
+    let mut reopened = Presentation::from_bytes(pres.to_bytes().unwrap()).unwrap();
+    assert_eq!(original_text(&mut reopened), text);
+    let result = String::from_utf8(reopened.package().read_part(PART).unwrap()).unwrap();
+    let timing = |text: &str| text.find("<p:timing").unwrap();
+    assert_eq!(result[timing(&result)..], xml[timing(&xml)..]);
+    assert_ne!(result, xml);
+}
+
+#[test]
+fn color_transform_order_and_same_value() {
+    use ooxml_pptx::ColorTransform::{LuminanceModulation, LuminanceOffset};
+    let color = ColorSpec {
+        color: WriteColor::Scheme(SchemeColor::Accent1),
+        transforms: vec![
+            LuminanceOffset(10_000),
+            LuminanceModulation(60_000),
+            LuminanceOffset(20_000),
+        ],
+    };
+    let mut pres = open();
+    let set_color =
+        |body: &mut TextBodyMut<'_>| body.paragraph_mut(0)?.run_mut(0)?.color(color.clone());
+    edit(&mut pres, set_color).unwrap();
+    let before = pres.to_bytes().unwrap();
+    edit(&mut pres, set_color).unwrap();
+    assert_eq!(pres.to_bytes().unwrap(), before);
+    let pkg = Package::from_bytes(before).unwrap();
+    let xml = String::from_utf8(pkg.read_part(PART).unwrap()).unwrap();
+    assert!(xml.contains(concat!(
+        "<a:schemeClr val=\"accent1\">",
+        "<a:lumOff val=\"10000\"/><a:lumMod val=\"60000\"/><a:lumOff val=\"20000\"/>",
+        "</a:schemeClr>",
+    )));
+}
+
+#[test]
+fn clear_paragraph_and_end_format_restore_inherited_sources() {
+    let mut pres = patch(
+        "<a:lstStyle/>",
+        r#"<a:lstStyle><a:lvl1pPr algn="r"><a:defRPr i="1"/></a:lvl1pPr></a:lstStyle>"#,
+    );
+    let inherited = Source::ShapeListStyle { level: 0 };
+    let check = |pres: &mut Presentation, expected: Source<'_>| {
+        let deck = pres.deck().unwrap();
+        let slide = deck.slide(0).unwrap();
+        let shape = slide
+            .slide()
+            .shapes()
+            .into_iter()
+            .find(|shape| shape.text_body().is_some())
+            .unwrap();
+        let body = shape.text_body().unwrap();
+        let paragraph = body.paragraphs()[0];
+        let alignment = slide.para_props(&shape, body, paragraph).unwrap().align;
+        let italic = slide
+            .run_props(&shape, body, paragraph, RunItem::End)
+            .unwrap()
+            .italic;
+        assert_eq!(alignment.source(), Some(&expected));
+        assert_eq!(italic.source(), Some(&expected));
+        let direct = expected == Source::Direct;
+        assert_eq!(
+            alignment.value(),
+            Some(&ooxml_core::EnumValue::Known(if direct {
+                TextAlignmentTypeValues::Center
+            } else {
+                TextAlignmentTypeValues::Right
+            }))
+        );
+        assert_eq!(italic.value(), Some(&!direct));
+    };
+    check(&mut pres, inherited.clone());
+    edit(&mut pres, |body| {
+        let mut paragraph = body.paragraph_mut(0)?;
+        paragraph.align(TextAlignmentTypeValues::Center)?;
+        paragraph.end_format(&RunFormat {
+            italic: Some(FormatChange::Set(false)),
+            ..RunFormat::default()
+        })
+    })
+    .unwrap();
+    check(&mut pres, Source::Direct);
+    edit(&mut pres, |body| {
+        let mut paragraph = body.paragraph_mut(0)?;
+        paragraph.clear_align()?;
+        paragraph.end_format(&RunFormat {
+            italic: Some(FormatChange::Clear),
+            ..RunFormat::default()
+        })
+    })
+    .unwrap();
+    check(&mut pres, inherited);
+}
