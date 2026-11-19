@@ -494,6 +494,10 @@ pub fn targeted_docs() -> Vec<crate::fixtures::Fixture> {
             r#"<w:p><w:r><w:t>see </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t> end</w:t></w:r></w:p>"#,
         ),
         (
+            "run-property-revision",
+            r#"<w:p><w:r><w:rPr><w:b/><w:rPrChange w:id="1" w:author="a"><w:rPr/></w:rPrChange></w:rPr><w:t>bold</w:t></w:r><w:r><w:t>plain</w:t></w:r></w:p>"#,
+        ),
+        (
             "whitespace",
             r#"<w:p><w:r><w:t> {{name}} </w:t><w:tab/><w:t xml:space="preserve"> stay </w:t></w:r></w:p>"#,
         ),

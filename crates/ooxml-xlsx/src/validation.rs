@@ -165,6 +165,12 @@ impl Workbook {
         self.check_editable()?;
         let new = ranges(sqref)?;
         let sqref = new.iter().map(ToString::to_string).collect::<Vec<_>>().join(" ");
+        if v.operator.is_some() && matches!(v.kind, ValidationType::List | ValidationType::Custom) {
+            return Err(Error::InvalidSetting {
+                what: "validation operator".into(),
+                reason: "list and custom validations do not support comparison operators".into(),
+            });
+        }
         let between = matches!(v.operator, Some(ValidationOperator::Between | ValidationOperator::NotBetween));
         crate::rangefmla::check_second_formula(between, v.formula2.is_some())?;
         // formulas
@@ -228,7 +234,7 @@ impl Workbook {
             }
         }
         let v = v.clone();
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             let mut dvs = ws.get_or_insert::<sml::DataValidations>()?;
@@ -268,7 +274,7 @@ impl Workbook {
         if plain.is_empty() && ext_hits.is_empty() {
             return Err(Error::NoSuchRule { what: "validation", sqref: sqref.to_owned() });
         }
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if !plain.is_empty() {

@@ -385,6 +385,50 @@ fn delete_rows_refuses_revisions_in_repaired_cell() {
 }
 
 #[test]
+fn retained_cells_keep_tracked_paragraph_content_byte_identical() {
+    let paragraph = r#"<w:p><w:ins w:author='a' w:id='1'><w:r><w:t>tracked</w:t></w:r></w:ins></w:p>"#;
+    let untouched = "<w:tr><!-- untouched --><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr>";
+    let row = format!("<w:tr><w:tc>{paragraph}</w:tc>{}</w:tr>", cell(""));
+    let mut doc = open(&table(&[1000, 1000], &[row, untouched.into()]));
+    doc.merge_cells(t0(), 0..1, 0..2).unwrap();
+
+    let merged = format!(r#"<w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>{paragraph}</w:tc></w:tr>"#);
+    assert_eq!(body_of(&doc), table(&[1000, 1000], &[merged.clone(), untouched.into()]));
+
+    let mut doc = open(&table(&[1000, 1000], std::slice::from_ref(&merged)));
+    doc.insert_column(t0(), 1, 500).unwrap();
+    let widened = merged.replace(r#"w:w="2000""#, r#"w:w="2500""#).replace(r#"w:val="2""#, r#"w:val="3""#);
+    assert_eq!(body_of(&doc), table(&[1000, 500, 1000], &[widened]));
+    doc.delete_column(t0(), 1).unwrap();
+    assert_eq!(body_of(&doc), table(&[1000, 1000], &[merged]));
+
+    let restart = r#"<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc></w:tr>"#;
+    let continuation = format!("<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr>{paragraph}</w:tc></w:tr>");
+    let mut doc = open(&table(&[1000], &[restart.into(), continuation.clone()]));
+    doc.delete_rows(t0(), 0..1).unwrap();
+    let repaired = continuation.replace("<w:vMerge/>", r#"<w:vMerge w:val="restart"/>"#);
+    assert_eq!(body_of(&doc), table(&[1000], &[repaired]));
+}
+
+#[test]
+fn merge_refuses_tracked_paragraph_marks_in_continuation_cells() {
+    let plain = format!("<w:tr>{}</w:tr>", cell(""));
+    let tracked = r#"<w:tr><w:tc><w:p><w:pPr><w:rPr><w:ins w:id="1" w:author="a"/></w:rPr></w:pPr></w:p></w:tc></w:tr>"#;
+    let mut doc = open(&table(&[1000], &[plain, tracked.into()]));
+    assert_matches!(refused(&mut doc, |d| d.merge_cells(t0(), 0..2, 0..1)), Error::RevisionInRange { element } if element == "w:ins");
+}
+
+#[test]
+fn delete_rows_refuses_row_revisions_at_repair_destination() {
+    let restart = r#"<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc></w:tr>"#;
+    for revision in ["ins", "del", "trPrChange"] {
+        let continuation = format!(r#"<w:tr><w:trPr><w:{revision} w:id="1" w:author="a"/></w:trPr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc></w:tr>"#);
+        let mut doc = open(&table(&[1000], &[restart.into(), continuation]));
+        assert_matches!(refused(&mut doc, |d| d.delete_rows(t0(), 0..1)), Error::RevisionInRange { element } if element == format!("w:{revision}"));
+    }
+}
+
+#[test]
 fn delete_rows_treats_a_different_span_as_a_vertical_merge_boundary() {
     let continuation = format!("<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>{}</w:tr>", cell(""));
     let restart = r#"<w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc></w:tr>"#;
