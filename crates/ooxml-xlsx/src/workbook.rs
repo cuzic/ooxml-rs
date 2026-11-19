@@ -129,6 +129,8 @@ pub enum ApplyStep {
     StructuralReindex,
     /// Before a Phase4 range-feature edit (merge, autofilter, protection).
     RangeFeature,
+    /// Before inserting the worksheet drawing reference.
+    ImageDrawing,
 }
 
 pub(crate) type ApplyStepHook = ApplyStep;
@@ -189,6 +191,7 @@ pub struct Workbook {
     template_sheet_taken: bool,
     /// `sheetId`s of sheets deleted in this session (never reused).
     pub(crate) removed_sheet_ids: Vec<u32>,
+    pub(crate) objects: crate::images::ObjectState,
     #[cfg(feature = "fault-injection")]
     /// The step to fail at, and whether to panic instead of returning `Err`.
     pub(crate) fault: Option<(ApplyStep, bool)>,
@@ -245,6 +248,7 @@ impl Workbook {
             from_template: false,
             template_sheet_taken: false,
             removed_sheet_ids: Vec::new(),
+            objects: Default::default(),
             #[cfg(feature = "fault-injection")]
             fault: None,
         };

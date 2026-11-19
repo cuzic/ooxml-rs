@@ -8459,6 +8459,55 @@ impl<'a> DefinedNamesViewMut<'a> {
         self.0.remove::<DefinedName>()
     }
 }
+/// `x:CT_Drawing/x:drawing` — Drawing.
+#[derive(Debug)]
+pub enum Drawing {}
+impl Drawing {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for Drawing {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "drawing");
+    const SDK_NAME: &'static str = "x:CT_Drawing/x:drawing";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Drawing::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Drawing`].
+#[derive(Clone, Debug)]
+pub struct DrawingView<'a>(pub ooxml_core::Lens<'a, Drawing>);
+impl<'a> DrawingView<'a> {
+    /// `r:id` — Relationship id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Drawing::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Drawing`]. Reads go through [`DrawingViewMut::as_view`].
+#[derive(Debug)]
+pub struct DrawingViewMut<'a>(pub ooxml_core::LensMut<'a, Drawing>);
+impl<'a> DrawingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DrawingView<'_> {
+        DrawingView(self.0.as_lens())
+    }
+    /// Sets `r:id` — Relationship id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Drawing::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Drawing::ATTR_R_ID)
+    }
+}
 /// `x:CT_Dxf/x:dxf` — Formatting.
 #[derive(Debug)]
 pub enum DifferentialFormat {}
@@ -9697,6 +9746,103 @@ impl<'a> FontsViewMut<'a> {
         self.0.remove::<Font>()
     }
 }
+/// `x:CT_FutureMetadata/x:futureMetadata` — Future Metadata.
+#[derive(Debug)]
+pub enum FutureMetadata {}
+impl FutureMetadata {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for FutureMetadata {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "futureMetadata");
+    const SDK_NAME: &'static str = "x:CT_FutureMetadata/x:futureMetadata";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FutureMetadata::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FutureMetadata::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "bk")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FutureMetadata> for FutureMetadataBlock {}
+/// Read-only view of [`FutureMetadata`].
+#[derive(Clone, Debug)]
+pub struct FutureMetadataView<'a>(pub ooxml_core::Lens<'a, FutureMetadata>);
+impl<'a> FutureMetadataView<'a> {
+    /// `name` — Metadata Type Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(FutureMetadata::ATTR_NAME)
+    }
+    /// `count` — Future Metadata Block Count (default `0`)
+    pub fn count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                FutureMetadata::ATTR_COUNT,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `x:bk` children in document order.
+    pub fn future_metadata_block_iter(
+        &self,
+    ) -> impl Iterator<Item = FutureMetadataBlockView<'a>> {
+        self.0.children::<FutureMetadataBlock>().map(FutureMetadataBlockView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_FutureMetadataBlock/x:bk` — Future Metadata Block.
+#[derive(Debug)]
+pub enum FutureMetadataBlock {}
+impl ooxml_core::ElementSpec for FutureMetadataBlock {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "bk");
+    const SDK_NAME: &'static str = "x:CT_FutureMetadataBlock/x:bk";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`FutureMetadataBlock`].
+#[derive(Clone, Debug)]
+pub struct FutureMetadataBlockView<'a>(pub ooxml_core::Lens<'a, FutureMetadataBlock>);
+impl<'a> FutureMetadataBlockView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `x:CT_HeaderFooter/x:headerFooter` — Header Footer Settings.
 #[derive(Debug)]
 pub enum HeaderFooter {}
@@ -10470,6 +10616,55 @@ impl<'a> FontFamilyViewMut<'a> {
         self.0.remove_attr(FontFamily::ATTR_VAL)
     }
 }
+/// `x:CT_LegacyDrawing/x:legacyDrawing` — Defines the LegacyDrawing Class.
+#[derive(Debug)]
+pub enum LegacyDrawing {}
+impl LegacyDrawing {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for LegacyDrawing {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "legacyDrawing");
+    const SDK_NAME: &'static str = "x:CT_LegacyDrawing/x:legacyDrawing";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LegacyDrawing::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LegacyDrawing`].
+#[derive(Clone, Debug)]
+pub struct LegacyDrawingView<'a>(pub ooxml_core::Lens<'a, LegacyDrawing>);
+impl<'a> LegacyDrawingView<'a> {
+    /// `r:id` — Relationship Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(LegacyDrawing::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LegacyDrawing`]. Reads go through [`LegacyDrawingViewMut::as_view`].
+#[derive(Debug)]
+pub struct LegacyDrawingViewMut<'a>(pub ooxml_core::LensMut<'a, LegacyDrawing>);
+impl<'a> LegacyDrawingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LegacyDrawingView<'_> {
+        LegacyDrawingView(self.0.as_lens())
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LegacyDrawing::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LegacyDrawing::ATTR_R_ID)
+    }
+}
 /// `x:CT_MergeCell/x:mergeCell` — Merged Cell.
 #[derive(Debug)]
 pub enum MergeCell {}
@@ -10604,6 +10799,758 @@ impl<'a> MergeCellsViewMut<'a> {
     /// Removes the first `x:mergeCell` child.
     pub fn remove_merge_cell(&mut self) -> bool {
         self.0.remove::<MergeCell>()
+    }
+}
+/// `x:CT_Metadata/x:metadata` — Metadata.
+#[derive(Debug)]
+pub enum Metadata {}
+impl ooxml_core::ElementSpec for Metadata {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "metadata");
+    const SDK_NAME: &'static str = "x:CT_Metadata/x:metadata";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "metadataTypes")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "metadataStrings")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "mdxMetadata")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "futureMetadata")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cellMetadata")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "valueMetadata")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Metadata> for FutureMetadata {}
+impl ooxml_core::ChildOf<Metadata> for ValueMetadata {}
+impl ooxml_core::ChildOf<Metadata> for MetadataTypes {}
+/// Read-only view of [`Metadata`].
+#[derive(Clone, Debug)]
+pub struct MetadataView<'a>(pub ooxml_core::Lens<'a, Metadata>);
+impl<'a> MetadataView<'a> {
+    /// `x:futureMetadata` children in document order.
+    pub fn future_metadata_iter(&self) -> impl Iterator<Item = FutureMetadataView<'a>> {
+        self.0.children::<FutureMetadata>().map(FutureMetadataView)
+    }
+    /// First `x:valueMetadata` child.
+    pub fn value_metadata(&self) -> Option<ValueMetadataView<'a>> {
+        self.0.child::<ValueMetadata>().map(ValueMetadataView)
+    }
+    /// First `x:metadataTypes` child.
+    pub fn metadata_types(&self) -> Option<MetadataTypesView<'a>> {
+        self.0.child::<MetadataTypes>().map(MetadataTypesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_MetadataBlock/x:bk` — Metadata Block.
+#[derive(Debug)]
+pub enum MetadataBlock {}
+impl ooxml_core::ElementSpec for MetadataBlock {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "bk");
+    const SDK_NAME: &'static str = "x:CT_MetadataBlock/x:bk";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "rc")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<MetadataBlock> for MetadataRecord {}
+/// Read-only view of [`MetadataBlock`].
+#[derive(Clone, Debug)]
+pub struct MetadataBlockView<'a>(pub ooxml_core::Lens<'a, MetadataBlock>);
+impl<'a> MetadataBlockView<'a> {
+    /// `x:rc` children in document order.
+    pub fn metadata_record_iter(&self) -> impl Iterator<Item = MetadataRecordView<'a>> {
+        self.0.children::<MetadataRecord>().map(MetadataRecordView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_MetadataBlocks/x:valueMetadata` — Value Metadata.
+#[derive(Debug)]
+pub enum ValueMetadata {}
+impl ValueMetadata {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for ValueMetadata {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "valueMetadata");
+    const SDK_NAME: &'static str = "x:CT_MetadataBlocks/x:valueMetadata";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ValueMetadata::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "bk")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ValueMetadata> for MetadataBlock {}
+/// Read-only view of [`ValueMetadata`].
+#[derive(Clone, Debug)]
+pub struct ValueMetadataView<'a>(pub ooxml_core::Lens<'a, ValueMetadata>);
+impl<'a> ValueMetadataView<'a> {
+    /// `count` — Metadata Block Count (default `0`)
+    pub fn count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(ValueMetadata::ATTR_COUNT, "0", ooxml_core::value::parse_u32)
+    }
+    /// `x:bk` children in document order.
+    pub fn metadata_block_iter(&self) -> impl Iterator<Item = MetadataBlockView<'a>> {
+        self.0.children::<MetadataBlock>().map(MetadataBlockView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_MetadataRecord/x:rc` — Metadata Record.
+#[derive(Debug)]
+pub enum MetadataRecord {}
+impl MetadataRecord {
+    /// `t`
+    pub const ATTR_T: ooxml_core::QName = ooxml_core::QName::new("", "t");
+    /// `v`
+    pub const ATTR_V: ooxml_core::QName = ooxml_core::QName::new("", "v");
+}
+impl ooxml_core::ElementSpec for MetadataRecord {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "rc");
+    const SDK_NAME: &'static str = "x:CT_MetadataRecord/x:rc";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: MetadataRecord::ATTR_T,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataRecord::ATTR_V,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`MetadataRecord`].
+#[derive(Clone, Debug)]
+pub struct MetadataRecordView<'a>(pub ooxml_core::Lens<'a, MetadataRecord>);
+impl<'a> MetadataRecordView<'a> {
+    /// `t` — Metadata Record Type Index
+    pub fn type_index(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(MetadataRecord::ATTR_T, ooxml_core::value::parse_u32)
+    }
+    /// `v` — Metadata Record Value Index
+    pub fn val(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(MetadataRecord::ATTR_V, ooxml_core::value::parse_u32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_MetadataType/x:metadataType` — Metadata Type Information.
+#[derive(Debug)]
+pub enum MetadataType {}
+impl MetadataType {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `minSupportedVersion`
+    pub const ATTR_MIN_SUPPORTED_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minSupportedVersion",
+    );
+    /// `ghostRow`
+    pub const ATTR_GHOST_ROW: ooxml_core::QName = ooxml_core::QName::new("", "ghostRow");
+    /// `ghostCol`
+    pub const ATTR_GHOST_COL: ooxml_core::QName = ooxml_core::QName::new("", "ghostCol");
+    /// `edit`
+    pub const ATTR_EDIT: ooxml_core::QName = ooxml_core::QName::new("", "edit");
+    /// `delete`
+    pub const ATTR_DELETE: ooxml_core::QName = ooxml_core::QName::new("", "delete");
+    /// `copy`
+    pub const ATTR_COPY: ooxml_core::QName = ooxml_core::QName::new("", "copy");
+    /// `pasteAll`
+    pub const ATTR_PASTE_ALL: ooxml_core::QName = ooxml_core::QName::new("", "pasteAll");
+    /// `pasteFormulas`
+    pub const ATTR_PASTE_FORMULAS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteFormulas",
+    );
+    /// `pasteValues`
+    pub const ATTR_PASTE_VALUES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteValues",
+    );
+    /// `pasteFormats`
+    pub const ATTR_PASTE_FORMATS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteFormats",
+    );
+    /// `pasteComments`
+    pub const ATTR_PASTE_COMMENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteComments",
+    );
+    /// `pasteDataValidation`
+    pub const ATTR_PASTE_DATA_VALIDATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteDataValidation",
+    );
+    /// `pasteBorders`
+    pub const ATTR_PASTE_BORDERS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteBorders",
+    );
+    /// `pasteColWidths`
+    pub const ATTR_PASTE_COL_WIDTHS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteColWidths",
+    );
+    /// `pasteNumberFormats`
+    pub const ATTR_PASTE_NUMBER_FORMATS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pasteNumberFormats",
+    );
+    /// `merge`
+    pub const ATTR_MERGE: ooxml_core::QName = ooxml_core::QName::new("", "merge");
+    /// `splitFirst`
+    pub const ATTR_SPLIT_FIRST: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "splitFirst",
+    );
+    /// `splitAll`
+    pub const ATTR_SPLIT_ALL: ooxml_core::QName = ooxml_core::QName::new("", "splitAll");
+    /// `rowColShift`
+    pub const ATTR_ROW_COL_SHIFT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "rowColShift",
+    );
+    /// `clearAll`
+    pub const ATTR_CLEAR_ALL: ooxml_core::QName = ooxml_core::QName::new("", "clearAll");
+    /// `clearFormats`
+    pub const ATTR_CLEAR_FORMATS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "clearFormats",
+    );
+    /// `clearContents`
+    pub const ATTR_CLEAR_CONTENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "clearContents",
+    );
+    /// `clearComments`
+    pub const ATTR_CLEAR_COMMENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "clearComments",
+    );
+    /// `assign`
+    pub const ATTR_ASSIGN: ooxml_core::QName = ooxml_core::QName::new("", "assign");
+    /// `coerce`
+    pub const ATTR_COERCE: ooxml_core::QName = ooxml_core::QName::new("", "coerce");
+    /// `adjust`
+    pub const ATTR_ADJUST: ooxml_core::QName = ooxml_core::QName::new("", "adjust");
+    /// `cellMeta`
+    pub const ATTR_CELL_META: ooxml_core::QName = ooxml_core::QName::new("", "cellMeta");
+}
+impl ooxml_core::ElementSpec for MetadataType {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "metadataType");
+    const SDK_NAME: &'static str = "x:CT_MetadataType/x:metadataType";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_MIN_SUPPORTED_VERSION,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_GHOST_ROW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_GHOST_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_EDIT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_DELETE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_COPY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_ALL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_FORMULAS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_VALUES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_FORMATS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_COMMENTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_DATA_VALIDATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_BORDERS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_COL_WIDTHS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_PASTE_NUMBER_FORMATS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_MERGE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_SPLIT_FIRST,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_SPLIT_ALL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_ROW_COL_SHIFT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_CLEAR_ALL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_CLEAR_FORMATS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_CLEAR_CONTENTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_CLEAR_COMMENTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_ASSIGN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_COERCE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_ADJUST,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: MetadataType::ATTR_CELL_META,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`MetadataType`].
+#[derive(Clone, Debug)]
+pub struct MetadataTypeView<'a>(pub ooxml_core::Lens<'a, MetadataType>);
+impl<'a> MetadataTypeView<'a> {
+    /// `name` — Metadata Type Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(MetadataType::ATTR_NAME)
+    }
+    /// `minSupportedVersion` — Minimum Supported Version
+    pub fn min_supported_version(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                MetadataType::ATTR_MIN_SUPPORTED_VERSION,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `ghostRow` — Metadata Ghost Row (default `false`)
+    pub fn ghost_row(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_GHOST_ROW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `ghostCol` — Metadata Ghost Column (default `false`)
+    pub fn ghost_column(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_GHOST_COL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `edit` — Metadata Edit (default `false`)
+    pub fn edit(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_EDIT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `delete` — Metadata Cell Value Delete (default `false`)
+    pub fn delete(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_DELETE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `copy` — Metadata Copy (default `false`)
+    pub fn copy(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_COPY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteAll` — Metadata Paste All (default `false`)
+    pub fn paste_all(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_ALL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteFormulas` — Metadata Paste Formulas (default `false`)
+    pub fn paste_formulas(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_FORMULAS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteValues` — Metadata Paste Special Values (default `false`)
+    pub fn paste_values(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_VALUES,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteFormats` — Metadata Paste Formats (default `false`)
+    pub fn paste_formats(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_FORMATS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteComments` — Metadata Paste Comments (default `false`)
+    pub fn paste_comments(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_COMMENTS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteDataValidation` — Metadata Paste Data Validation (default `false`)
+    pub fn paste_data_validation(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_DATA_VALIDATION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteBorders` — Metadata Paste Borders (default `false`)
+    pub fn paste_borders(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_BORDERS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteColWidths` — Metadata Paste Column Widths (default `false`)
+    pub fn paste_col_widths(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_COL_WIDTHS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pasteNumberFormats` — Metadata Paste Number Formats (default `false`)
+    pub fn paste_number_formats(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_PASTE_NUMBER_FORMATS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `merge` — Metadata Merge (default `false`)
+    pub fn merge(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_MERGE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `splitFirst` — Meatadata Split First (default `false`)
+    pub fn split_first(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_SPLIT_FIRST,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `splitAll` — Metadata Split All (default `false`)
+    pub fn split_all(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_SPLIT_ALL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `rowColShift` — Metadata Insert Delete (default `false`)
+    pub fn row_column_shift(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_ROW_COL_SHIFT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `clearAll` — Metadata Clear All (default `false`)
+    pub fn clear_all(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_CLEAR_ALL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `clearFormats` — Metadata Clear Formats (default `false`)
+    pub fn clear_formats(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_CLEAR_FORMATS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `clearContents` — Metadata Clear Contents (default `false`)
+    pub fn clear_contents(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_CLEAR_CONTENTS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `clearComments` — Metadata Clear Comments (default `false`)
+    pub fn clear_comments(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_CLEAR_COMMENTS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `assign` — Metadata Formula Assignment (default `false`)
+    pub fn assign(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_ASSIGN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `coerce` — Metadata Coercion (default `false`)
+    pub fn coerce(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_COERCE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `adjust` — Adjust Metadata (default `false`)
+    pub fn adjust(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_ADJUST,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `cellMeta` — Cell Metadata (default `false`)
+    pub fn cell_meta(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                MetadataType::ATTR_CELL_META,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_MetadataTypes/x:metadataTypes` — Metadata Types Collection.
+#[derive(Debug)]
+pub enum MetadataTypes {}
+impl MetadataTypes {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for MetadataTypes {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "metadataTypes");
+    const SDK_NAME: &'static str = "x:CT_MetadataTypes/x:metadataTypes";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: MetadataTypes::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "metadataType")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<MetadataTypes> for MetadataType {}
+/// Read-only view of [`MetadataTypes`].
+#[derive(Clone, Debug)]
+pub struct MetadataTypesView<'a>(pub ooxml_core::Lens<'a, MetadataTypes>);
+impl<'a> MetadataTypesView<'a> {
+    /// `count` — Metadata Type Count (default `0`)
+    pub fn count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(MetadataTypes::ATTR_COUNT, "0", ooxml_core::value::parse_u32)
+    }
+    /// `x:metadataType` children in document order.
+    pub fn metadata_type_iter(&self) -> impl Iterator<Item = MetadataTypeView<'a>> {
+        self.0.children::<MetadataType>().map(MetadataTypeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `x:CT_NumFmt/x:numFmt` — Number Formats.
@@ -18625,8 +19572,10 @@ impl ooxml_core::ChildOf<Worksheet> for AutoFilter {}
 impl ooxml_core::ChildOf<Worksheet> for Columns {}
 impl ooxml_core::ChildOf<Worksheet> for ConditionalFormatting {}
 impl ooxml_core::ChildOf<Worksheet> for DataValidations {}
+impl ooxml_core::ChildOf<Worksheet> for Drawing {}
 impl ooxml_core::ChildOf<Worksheet> for HeaderFooter {}
 impl ooxml_core::ChildOf<Worksheet> for Hyperlinks {}
+impl ooxml_core::ChildOf<Worksheet> for LegacyDrawing {}
 impl ooxml_core::ChildOf<Worksheet> for MergeCells {}
 impl ooxml_core::ChildOf<Worksheet> for ColumnBreaks {}
 impl ooxml_core::ChildOf<Worksheet> for RowBreaks {}
@@ -18664,6 +19613,10 @@ impl<'a> WorksheetView<'a> {
     pub fn data_validations(&self) -> Option<DataValidationsView<'a>> {
         self.0.child::<DataValidations>().map(DataValidationsView)
     }
+    /// First `x:drawing` child.
+    pub fn drawing(&self) -> Option<DrawingView<'a>> {
+        self.0.child::<Drawing>().map(DrawingView)
+    }
     /// First `x:headerFooter` child.
     pub fn header_footer(&self) -> Option<HeaderFooterView<'a>> {
         self.0.child::<HeaderFooter>().map(HeaderFooterView)
@@ -18671,6 +19624,10 @@ impl<'a> WorksheetView<'a> {
     /// First `x:hyperlinks` child.
     pub fn hyperlinks(&self) -> Option<HyperlinksView<'a>> {
         self.0.child::<Hyperlinks>().map(HyperlinksView)
+    }
+    /// First `x:legacyDrawing` child.
+    pub fn legacy_drawing(&self) -> Option<LegacyDrawingView<'a>> {
+        self.0.child::<LegacyDrawing>().map(LegacyDrawingView)
     }
     /// First `x:mergeCells` child.
     pub fn merge_cells(&self) -> Option<MergeCellsView<'a>> {
@@ -18823,6 +19780,20 @@ impl<'a> WorksheetViewMut<'a> {
     pub fn remove_data_validations(&mut self) -> bool {
         self.0.remove::<DataValidations>()
     }
+    /// First `x:drawing` child, mutably.
+    pub fn drawing_mut(&mut self) -> Option<DrawingViewMut<'_>> {
+        self.0.child_mut::<Drawing>().map(DrawingViewMut)
+    }
+    /// Existing `x:drawing` child, or a new one in schema position.
+    pub fn get_or_insert_drawing(
+        &mut self,
+    ) -> Result<DrawingViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Drawing>().map(DrawingViewMut)
+    }
+    /// Removes the first `x:drawing` child.
+    pub fn remove_drawing(&mut self) -> bool {
+        self.0.remove::<Drawing>()
+    }
     /// First `x:headerFooter` child, mutably.
     pub fn header_footer_mut(&mut self) -> Option<HeaderFooterViewMut<'_>> {
         self.0.child_mut::<HeaderFooter>().map(HeaderFooterViewMut)
@@ -18850,6 +19821,20 @@ impl<'a> WorksheetViewMut<'a> {
     /// Removes the first `x:hyperlinks` child.
     pub fn remove_hyperlinks(&mut self) -> bool {
         self.0.remove::<Hyperlinks>()
+    }
+    /// First `x:legacyDrawing` child, mutably.
+    pub fn legacy_drawing_mut(&mut self) -> Option<LegacyDrawingViewMut<'_>> {
+        self.0.child_mut::<LegacyDrawing>().map(LegacyDrawingViewMut)
+    }
+    /// Existing `x:legacyDrawing` child, or a new one in schema position.
+    pub fn get_or_insert_legacy_drawing(
+        &mut self,
+    ) -> Result<LegacyDrawingViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LegacyDrawing>().map(LegacyDrawingViewMut)
+    }
+    /// Removes the first `x:legacyDrawing` child.
+    pub fn remove_legacy_drawing(&mut self) -> bool {
+        self.0.remove::<LegacyDrawing>()
     }
     /// First `x:mergeCells` child, mutably.
     pub fn merge_cells_mut(&mut self) -> Option<MergeCellsViewMut<'_>> {
@@ -20530,6 +21515,7 @@ const _: () = ooxml_core::schema::assert_child::<DataValidations, DataValidation
 const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
+const _: () = ooxml_core::schema::assert_spec::<Drawing>();
 const _: () = ooxml_core::schema::assert_spec::<DifferentialFormat>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Border>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Alignment>();
@@ -20568,6 +21554,9 @@ const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
 const _: () = ooxml_core::schema::assert_spec::<FontSize>();
 const _: () = ooxml_core::schema::assert_spec::<Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Fonts, Font>();
+const _: () = ooxml_core::schema::assert_spec::<FutureMetadata>();
+const _: () = ooxml_core::schema::assert_child::<FutureMetadata, FutureMetadataBlock>();
+const _: () = ooxml_core::schema::assert_spec::<FutureMetadataBlock>();
 const _: () = ooxml_core::schema::assert_spec::<HeaderFooter>();
 const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenFooter>();
 const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenHeader>();
@@ -20585,9 +21574,22 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 const _: () = ooxml_core::schema::assert_spec::<RunPropertyCharSet>();
 const _: () = ooxml_core::schema::assert_spec::<FontFamily>();
+const _: () = ooxml_core::schema::assert_spec::<LegacyDrawing>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
+const _: () = ooxml_core::schema::assert_spec::<Metadata>();
+const _: () = ooxml_core::schema::assert_child::<Metadata, FutureMetadata>();
+const _: () = ooxml_core::schema::assert_child::<Metadata, ValueMetadata>();
+const _: () = ooxml_core::schema::assert_child::<Metadata, MetadataTypes>();
+const _: () = ooxml_core::schema::assert_spec::<MetadataBlock>();
+const _: () = ooxml_core::schema::assert_child::<MetadataBlock, MetadataRecord>();
+const _: () = ooxml_core::schema::assert_spec::<ValueMetadata>();
+const _: () = ooxml_core::schema::assert_child::<ValueMetadata, MetadataBlock>();
+const _: () = ooxml_core::schema::assert_spec::<MetadataRecord>();
+const _: () = ooxml_core::schema::assert_spec::<MetadataType>();
+const _: () = ooxml_core::schema::assert_spec::<MetadataTypes>();
+const _: () = ooxml_core::schema::assert_child::<MetadataTypes, MetadataType>();
 const _: () = ooxml_core::schema::assert_spec::<NumberingFormat>();
 const _: () = ooxml_core::schema::assert_spec::<NumberingFormats>();
 const _: () = ooxml_core::schema::assert_child::<NumberingFormats, NumberingFormat>();
@@ -20682,8 +21684,10 @@ const _: () = ooxml_core::schema::assert_child::<Worksheet, AutoFilter>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, Columns>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, ConditionalFormatting>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, DataValidations>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, Drawing>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, HeaderFooter>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, Hyperlinks>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, LegacyDrawing>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, ColumnBreaks>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, RowBreaks>();

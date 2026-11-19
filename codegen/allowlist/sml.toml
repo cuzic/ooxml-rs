@@ -9,6 +9,9 @@
 # Phase0 write path (ADR-0001 / ADR-0002 §5).
 [write]
 names = [
+    # ADR-0017 §3, ECMA-376 §18.3 and §18.9.
+    "x:CT_Drawing/x:drawing",
+    "x:CT_LegacyDrawing/x:legacyDrawing",
     "x:CT_Worksheet/x:worksheet",
     "x:CT_SheetDimension/x:dimension",
     "x:CT_SheetData/x:sheetData",
@@ -134,6 +137,15 @@ names = [
 # first sheet, shared/rich strings, merged ranges, table header rows.
 [read]
 names = [
+    # ADR-0017 §3.3, ECMA-376 §18.9.
+    "x:CT_Metadata/x:metadata",
+    "x:CT_MetadataTypes/x:metadataTypes",
+    "x:CT_MetadataType/x:metadataType",
+    "x:CT_FutureMetadata/x:futureMetadata",
+    "x:CT_MetadataBlocks/x:valueMetadata",
+    "x:CT_MetadataBlock/x:bk",
+    "x:CT_FutureMetadataBlock/x:bk",
+    "x:CT_MetadataRecord/x:rc",
     # Phase4 part 1 (ADR-0014 §7): an autofilter with criteria or a sort is
     # refused, so these are only detected.
     "x:CT_FilterColumn/x:filterColumn",

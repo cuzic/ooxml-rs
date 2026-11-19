@@ -60,6 +60,7 @@ pub enum CellValue {
 pub struct CellRef<'a> {
     view: sml::CellView<'a>,
     sst: Option<&'a [String]>,
+    workbook: &'a Workbook,
 }
 
 /// Concatenates `t` texts (rich runs included) the way calamine reads them:
@@ -79,6 +80,11 @@ pub(crate) fn text_of<'a>(t: Option<TextView<'a>>, runs: impl Iterator<Item = Op
 }
 
 impl<'a> CellRef<'a> {
+    /// Resolves a local rich-value image stored in this cell.
+    pub fn image(&self) -> Result<Option<crate::CellImage>> {
+        crate::images::cell_image(&self.workbook.pkg, &self.workbook.workbook_part, self.raw())
+    }
+
     /// The `r` attribute (e.g. `B2`).
     pub fn reference(&self) -> &'a str {
         self.view.cell_reference().unwrap_or_default()
@@ -505,7 +511,7 @@ impl<'wb> Worksheet<'wb> {
     /// A read view of a `c` node (its lens is rooted at the cell: reads
     /// never look at ancestors).
     fn cell_ref<'s>(&'s self, c: &'s RawNode) -> Result<CellRef<'s>> {
-        Ok(CellRef { view: sml::CellView(ooxml_core::Lens::root(c)?), sst: self.wb.shared_strings.as_deref() })
+        Ok(CellRef { view: sml::CellView(ooxml_core::Lens::root(c)?), sst: self.wb.shared_strings.as_deref(), workbook: self.wb })
     }
 
     /// Every existing cell, in document order (row by row, left to right):
