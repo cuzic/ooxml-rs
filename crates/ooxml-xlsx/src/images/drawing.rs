@@ -125,7 +125,7 @@ impl Position {
 fn write_xstring_attribute(xml: &mut String, name: &str, value: &str) {
     use quick_xml::events::attributes::Attribute;
     let attribute = Attribute::from((name, crate::escape::encode(value)));
-    let escaped = std::str::from_utf8(&attribute.value).expect("escaped UTF-8");
+    let escaped = attribute.value;
     write!(xml, " {name}=\"{escaped}\"").unwrap();
 }
 

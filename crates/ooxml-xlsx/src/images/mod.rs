@@ -445,29 +445,32 @@ fn add_media(
 
 fn drawing_target(pkg: &mut Package, sheet: &str) -> Result<Option<String>> {
     let rels = pkg.relationships(sheet)?;
-    let doc = pkg.xml_part(sheet)?;
-    let mut links = doc
-        .root()
-        .elements()
-        .filter(|node| node.is(sml::Drawing::QNAME));
-    let Some(link) = links.next() else {
-        if doc
+    let target = {
+        let doc = pkg.xml_part(sheet)?;
+        let mut links = doc
             .root()
             .elements()
-            .filter(|node| node.is(MC_ALTERNATE_CONTENT))
-            .any(|wrapper| walk(wrapper).any(|node| node.is(sml::Drawing::QNAME)))
-        {
-            return Err(ooxml_core::Error::UnresolvedSibling(sml::Worksheet::QNAME).into());
+            .filter(|node| node.is(sml::Drawing::QNAME));
+        let Some(link) = links.next() else {
+            if doc
+                .root()
+                .elements()
+                .filter(|node| node.is(MC_ALTERNATE_CONTENT))
+                .any(|wrapper| walk(wrapper).any(|node| node.is(sml::Drawing::QNAME)))
+            {
+                return Err(ooxml_core::Error::UnresolvedSibling(sml::Worksheet::QNAME).into());
+            }
+            return Ok(None);
+        };
+        if links.next().is_some() {
+            return Err(part_error(sheet, "multiple drawing references"));
         }
-        return Ok(None);
+        let id = link
+            .attr(QName::new(R, "id"))
+            .ok_or_else(|| part_error(sheet, "drawing has no r:id"))?;
+        internal_target(&rels, id, REL_DRAWING)
     };
-    if links.next().is_some() {
-        return Err(part_error(sheet, "multiple drawing references"));
-    }
-    let id = link
-        .attr(QName::new(R, "id"))
-        .ok_or_else(|| part_error(sheet, "drawing has no r:id"))?;
-    internal_target(&rels, id, REL_DRAWING)
+    target
         .and_then(|part| pkg.part_name(&part).map(str::to_owned))
         .map(Some)
         .ok_or_else(|| part_error(sheet, "drawing relationship does not resolve"))
