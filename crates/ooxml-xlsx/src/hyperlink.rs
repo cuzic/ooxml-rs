@@ -220,7 +220,7 @@ impl Workbook {
             self.edit_cell(sheet, r.first, op)?;
         }
         let (display, tooltip) = (opts.display.clone(), opts.tooltip.clone());
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let id = match &target {
                 Some(t) => Some(add_rel(&mut wb.pkg, &part, t)?),
                 None => None,
@@ -259,7 +259,7 @@ impl Workbook {
         if items.is_empty() {
             return Err(Error::NoSuchRule { what: "hyperlink", sqref: r.to_string() });
         }
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if items.len() == total {

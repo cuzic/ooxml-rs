@@ -18,11 +18,13 @@ fault-injection = []
 ooxml-core = { workspace = true }
 ooxml-schema = { workspace = true, features = ["sml", "props"] }
 quick-xml = { workspace = true }
+regex = "1"
+sha2 = "0.11"
 thiserror = { workspace = true }
 getrandom = { workspace = true }
 
 [dev-dependencies]
-calamine = "0.38"
+calamine = { version = "0.38", features = ["picture"] }
 rust_xlsxwriter = { version = "0.102", default-features = false }
 zip = { workspace = true }
 

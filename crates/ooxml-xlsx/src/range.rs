@@ -57,7 +57,7 @@ fn absolute(r: &CellRange) -> String {
 impl Workbook {
     /// Runs `apply` with ADR-0003 §3.1's poisoning: poisoned before, cleared
     /// on success; a failure (a bug after a successful plan) stays poisoned.
-    fn poisoning(&mut self, apply: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
+    pub(crate) fn poisoning(&mut self, apply: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
         self.poisoned = Some("a range-feature edit was interrupted while being applied".into());
         let result = self.fault_point(crate::workbook::ApplyStep::RangeFeature).and_then(|()| apply(self));
         match result {

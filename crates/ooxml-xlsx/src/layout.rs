@@ -211,7 +211,7 @@ impl Workbook {
                 (true, Some(_)) => {}
             }
         }
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             let mut views = ws.get_or_insert::<sml::SheetViews>()?;
@@ -226,23 +226,6 @@ impl Workbook {
             };
             apply(&mut view)
         })
-    }
-
-    /// ADR-0003 §3.1 poisoning around an apply step (Phase4's fault point).
-    pub(crate) fn poisoning_layout(&mut self, apply: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
-        self.poisoned = Some("a range-feature edit was interrupted while being applied".into());
-        let result = self.fault_point(crate::workbook::ApplyStep::RangeFeature).and_then(|()| apply(self));
-        match result {
-            Ok(()) => {
-                self.poisoned = None;
-                Ok(())
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                self.poisoned = Some(msg.clone());
-                Err(Error::Poisoned(msg))
-            }
-        }
     }
 }
 
@@ -595,7 +578,7 @@ impl Workbook {
             }
         }
         // ---- apply ----
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if let Some(l) = outline.filter(|&l| l > 0) {
@@ -666,7 +649,7 @@ impl Workbook {
                 ws.check_insert_by::<sml::SheetFormatProperties>(|_, _| false)?;
             }
         }
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if let RowEdit::Outline(l) = edit
@@ -810,7 +793,7 @@ impl Workbook {
                 ws.check_insert_by::<E>(|_, _| false)?;
             }
         }
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             let mut e = ws.get_or_insert::<E>()?;
@@ -858,7 +841,7 @@ impl Worksheet<'_> {
         })?;
         if let Some(fit) = setup.fit_to_page {
             let part = self.wb.sheet_part_of(sheet);
-            self.wb.poisoning_layout(|wb| {
+            self.wb.poisoning(|wb| {
                 let doc = wb.pkg.xml_part_mut(&part)?;
                 let mut ws = doc.lens_mut::<sml::Worksheet>()?;
                 if !fit && ws.child_mut::<sml::SheetProperties>().is_none() {
