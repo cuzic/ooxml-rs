@@ -30,16 +30,26 @@ jobs:
           LO_VERSION: "25.2.7.2"
         run: |
           set -euo pipefail
-          [[ "$LO_VERSION" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || { echo "bad version: $LO_VERSION"; exit 1; }
-          # Pinned SHA-256 per release (from the archive's .sha256/.mirrorlist,
-          # re-computed from the downloaded file). Add a line to allow a release.
-          case "$LO_VERSION" in
-            25.2.7.2) SHA=3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581 ;;
-            *) echo "no pinned SHA-256 for LibreOffice $LO_VERSION"; exit 1 ;;
-          esac
+          # Same release and checksum as o3-recalc.yml. Fetch ranges in parallel:
+          # the archive throttles individual transfers on hosted runners.
+          sha=3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581
+          size=208730836
+          chunk=$(((size + 7) / 8))
           tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
-          curl -fsSL --retry 5 -o "$RUNNER_TEMP/$tgz" "https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64/$tgz"
-          echo "$SHA  $RUNNER_TEMP/$tgz" | sha256sum -c -
+          url="https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64/$tgz"
+          parts=$(mktemp -d "$RUNNER_TEMP/lo-download.XXXXXX")
+          pids=()
+          for i in {0..7}; do
+            start=$((i * chunk))
+            end=$((start + chunk - 1))
+            ((end < size)) || end=$((size - 1))
+            curl -fsSL --retry 2 --max-time 300 --max-filesize "$((end - start + 1))" \
+              --range "$start-$end" --output "$parts/part-$i" "$url" &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          cat "$parts"/part-* > "$RUNNER_TEMP/$tgz"
+          echo "$sha  $RUNNER_TEMP/$tgz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/lo" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP/lo"
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends poppler-utils fonts-noto-cjk "$RUNNER_TEMP"/lo/*/DEBS/*.deb

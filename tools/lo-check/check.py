@@ -2,8 +2,9 @@
 """Verify the editable OOXML outputs of cargo xtask manual-check."""
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 import csv
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 import math
 import os
@@ -140,7 +141,10 @@ def same_value(kind, expected, actual):
     if expected == actual:
         return True
     if kind == "n" and actual not in (None, "") and expected not in (None, ""):
-        return math.isclose(Decimal(expected), Decimal(actual), rel_tol=1e-12)
+        try:
+            return math.isclose(Decimal(expected), Decimal(actual), rel_tol=1e-12)
+        except InvalidOperation:
+            return False
     return False
 
 
@@ -294,10 +298,16 @@ def main():
     totals = Counter()
     failed_files = 0
     formulas = 0
-    for name, source in sorted(files.items()):
+    calamine = args.calamine.resolve()
+
+    def check_file(item):
+        name, source = item
         with tempfile.TemporaryDirectory(prefix="lo-check-") as tmp:
-            scratch = Path(tmp)
-            results, checked = verify(source, manifest[name], args.calamine.resolve(), scratch)
+            results, checked = verify(source, manifest[name], calamine, Path(tmp))
+        return name, source, results, checked
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for name, source, results, checked in executor.map(check_file, sorted(files.items())):
             formulas += checked
             errors = []
             for key, error in results.items():
