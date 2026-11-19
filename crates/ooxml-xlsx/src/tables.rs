@@ -415,16 +415,19 @@ impl Workbook {
                 .ok_or_else(refused)?;
             let old = escape::decode(original).into_owned();
             let encoded = column_name(&text)?;
-            if self.table_referenced(&table, &names, id, references::Use::Source)? {
+            if self.table_referenced(&table, &names, id, references::Use::Source, &[])? {
                 return Err(refused());
-            }
-            if old != text
-                && self.table_referenced(&table, &names, id, references::Use::Column(&old))?
-            {
-                return Err(Error::ColumnInUse(old));
             }
             if old == text {
                 continue;
+            }
+            let usage = references::Use::Column(&old);
+            if writes.iter().any(|(target_sheet, target, op, _)| {
+                matches!(op, CellOp::Formula(formula) if references::has_reference(
+                    formula, target_sheet == sheet && table.range.contains(*target), &names, usage,
+                ))
+            }) || self.table_referenced(&table, &names, id, usage, &writes)? {
+                return Err(Error::ColumnInUse(old));
             }
             let doc = match staged.entry(table.part.clone()) {
                 std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
@@ -560,6 +563,7 @@ impl Worksheet<'_> {
                 .collect::<Result<Vec<_>>>()?,
         };
         check_unique(columns.iter().map(|c| &c.name))?;
+        let column_names = columns.iter().map(|col| fold(&col.name)).collect();
         let style = table.style.name()?;
         let mut writes = Vec::new();
         for (i, col) in columns.iter_mut().enumerate() {
@@ -611,7 +615,7 @@ impl Worksheet<'_> {
                 }
             }
             if let Some(formula) = &mut col.formula {
-                *formula = references::calculated(formula, &name)?;
+                *formula = references::calculated(formula, &name, &column_names)?;
                 for row in first_data..=last_data {
                     self.plan_table_cell(
                         &mut writes,
@@ -839,7 +843,7 @@ impl Worksheet<'_> {
         };
         if !worksheet_table(&root)
             || wb.pkg.part_name(&rels).is_some()
-            || wb.table_referenced(&table, &names, id, references::Use::Table)?
+            || wb.table_referenced(&table, &names, id, references::Use::Table, &[])?
         {
             return Err(Error::TableInUse(table.name));
         }

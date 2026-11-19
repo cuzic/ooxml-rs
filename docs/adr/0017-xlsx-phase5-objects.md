@@ -722,6 +722,15 @@ The manual check includes totals over a column name with punctuation and a
 header rename in a different column. The writer also escapes a literal `@` in a
 column specifier so it cannot be read as a row selector.
 
+Calculated-column formulas qualify local structured references with the table name
+and expand the row selector to `[#This Row]`. Invalid structured references and
+unknown columns in the new table return `InvalidFormula`. Header renames check
+references against the cell writes in the same batch. Table removal also checks
+for a bare table-name token when a formula cannot be lexed.
+The LibreOffice workflow added in #82 checks `39-p5b-table.xlsx` against the
+manual-check manifest. The [LibreOffice verification guide](../testing/libreoffice-check.md)
+shows how to run the separate openpyxl table read-back.
+
 ### 7. Charts
 
 #### 7.1 What a new chart is

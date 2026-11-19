@@ -1,11 +1,13 @@
 //! Structured-reference specifiers and reference checks for table edits.
 
-use super::{attr, descendants};
+use super::{Write, attr};
+use crate::edit::CellOp;
 use crate::formula::lexer::{Prefix, TokKind, lex};
 use crate::formula::precedents::fold;
 use crate::workbook::TableHeader;
 use crate::{CellIndex, Error, Result, Workbook};
-use ooxml_core::{RawNode, XmlDocument};
+use ooxml_core::{ElementSpec, RawNode, XmlDocument};
+use std::collections::HashSet;
 
 pub(super) fn specifier(name: &str, nested: bool) -> String {
     let double = !nested
@@ -27,14 +29,19 @@ pub(super) fn specifier(name: &str, nested: bool) -> String {
 
 #[derive(Default)]
 struct Items {
+    selectors: Vec<&'static str>,
     columns: Vec<String>,
 }
 
 impl Items {
     fn item(&mut self, item: &str) -> Option<()> {
         match fold(item).as_str() {
-            "#this row" | "@" | "#all" | "#data" | "#headers" | "#totals" => {}
-            _ if item.starts_with('#') || item.is_empty() => return None,
+            "#this row" | "@" => self.selectors.push("#This Row"),
+            "#all" => self.selectors.push("#All"),
+            "#data" => self.selectors.push("#Data"),
+            "#headers" => self.selectors.push("#Headers"),
+            "#totals" => self.selectors.push("#Totals"),
+            _ if item.starts_with(['#', '@']) || item.is_empty() => return None,
             _ => {
                 let mut decoded = String::new();
                 let mut chars = item.chars();
@@ -77,55 +84,88 @@ fn parse(spec: &str) -> Option<Items> {
     let mut rest = spec.strip_circumfix('[', ']')?;
     let mut result = Items::default();
     if let Some(row) = rest.strip_prefix('@') {
+        result.selectors.push("#This Row");
         rest = row;
         if rest.is_empty() {
             return Some(result);
         }
     }
-    if !rest.starts_with('[') {
+    if !rest.trim_start().starts_with('[') {
+        let selectors = result.selectors.len();
         result.item(rest)?;
+        if selectors != 0 && result.columns.is_empty() {
+            return None;
+        }
         return Some(result);
     }
+    rest = rest.trim_start();
     loop {
         let (item, tail) = take_item(rest)?;
-        let start = result.columns.len();
+        if !result.columns.is_empty() {
+            return None;
+        }
         result.item(item)?;
         let mut tail = tail.trim_start();
         if let Some(range) = tail.strip_prefix(':') {
             let (end, remaining) = take_item(range.trim_start())?;
             result.item(end)?;
-            if result.columns.len() != start + 2 {
+            if result.columns.len() != 2 {
                 return None;
             }
             tail = remaining.trim_start();
         }
         if tail.is_empty() {
-            return Some(result);
+            return match result.selectors.as_slice() {
+                [] | [_] | ["#Headers", "#Data"] | ["#Data", "#Totals"] => Some(result),
+                _ => None,
+            };
         }
         rest = tail.strip_prefix(',')?.trim_start();
     }
 }
 
-pub(super) fn calculated(text: &str, name: &str) -> Result<String> {
+pub(super) fn calculated(text: &str, name: &str, columns: &HashSet<String>) -> Result<String> {
     let text = text.strip_prefix('=').unwrap_or(text);
     let invalid = |reason: &str| Error::InvalidFormula {
         text: text.to_owned(),
         reason: reason.to_owned(),
     };
     let tokens = lex(text).map_err(|e| invalid(e.message))?;
+    let own_name = fold(name);
     let mut output = String::new();
     let mut pos = 0;
     for token in tokens.iter().filter(|t| matches!(t.kind, TokKind::Opaque)) {
         let raw = &text[token.start..token.end];
-        if !raw.starts_with("[@") {
+        let Some(i) = raw.find('[') else { continue };
+        let items = parse(&raw[i..]).ok_or_else(|| invalid("invalid structured reference"))?;
+        if i != 0 && fold(&raw[..i]) != own_name {
             continue;
         }
-        let items = parse(raw).ok_or_else(|| invalid("invalid structured reference"))?;
-        let [col] = items.columns.as_slice() else {
-            return Err(invalid("expected one column in local row reference"));
-        };
+        if items
+            .columns
+            .iter()
+            .any(|col| !columns.contains(&fold(col)))
+        {
+            return Err(invalid("unknown column in structured reference"));
+        }
         output.push_str(&text[pos..token.start]);
-        output.push_str(&format!("{name}[[#This Row],{}]", specifier(col, true)));
+        output.push_str(name);
+        match (items.selectors.as_slice(), items.columns.as_slice()) {
+            ([], [col]) => output.push_str(&specifier(col, false)),
+            ([selector], []) => output.push_str(&format!("[{selector}]")),
+            (selectors, cols) => {
+                let mut parts: Vec<_> = selectors.iter().map(|item| format!("[{item}]")).collect();
+                if !cols.is_empty() {
+                    parts.push(
+                        cols.iter()
+                            .map(|col| specifier(col, true))
+                            .collect::<Vec<_>>()
+                            .join(":"),
+                    );
+                }
+                output.push_str(&format!("[{}]", parts.join(",")));
+            }
+        }
         pos = token.end;
     }
     output.push_str(&text[pos..]);
@@ -139,13 +179,16 @@ pub(super) enum Use<'a> {
     Table,
 }
 
-fn has_reference(text: &str, own: bool, names: &[String], usage: Use<'_>) -> bool {
+pub(super) fn has_reference(text: &str, own: bool, names: &[String], usage: Use<'_>) -> bool {
     if !text.contains('[') && !matches!(usage, Use::Table) {
         return false;
     }
     let Ok(tokens) = lex(text.strip_prefix('=').unwrap_or(text)) else {
         return matches!(usage, Use::Column(_))
-            || names.iter().any(|n| fold(text).contains(&format!("{n}[")))
+            || (matches!(usage, Use::Table)
+                && text
+                    .split(|c| !crate::formula::lexer::is_name_char(c))
+                    .any(|word| names.contains(&fold(word))))
             || own;
     };
     let text = text.strip_prefix('=').unwrap_or(text);
@@ -212,12 +255,18 @@ impl Workbook {
         names: &[String],
         id: u32,
         usage: Use<'_>,
+        writes: &[Write],
     ) -> Result<bool> {
         let worksheet = self
             .contexts
             .iter()
             .find(|(_, context)| context.tables.iter().any(|t| t.part == table.part))
-            .and_then(|(sheet, _)| self.sheets[*sheet].part.as_deref());
+            .map(|(sheet, _)| *sheet);
+        let replaced: HashSet<_> = writes
+            .iter()
+            .filter(|(_, _, op, _)| !matches!(op, CellOp::StyleOnly))
+            .map(|(sheet, at, _, _)| (*sheet, *at))
+            .collect();
         for part in self.pkg.part_names() {
             let ct = self
                 .pkg
@@ -257,7 +306,30 @@ impl Workbook {
                 parsed = doc;
                 &parsed
             };
-            for node in descendants(doc.root()) {
+            let own_part = part == table.part;
+            let sheet = self
+                .sheets
+                .iter()
+                .position(|sheet| sheet.part.as_deref() == Some(part));
+            let mut stack = vec![(doc.root(), own_part)];
+            while let Some((node, own)) = stack.pop() {
+                let cell = sheet
+                    .filter(|_| node.name().local() == "c")
+                    .zip(node.attr(attr("r")).and_then(|r| CellIndex::parse(r).ok()));
+                let own = own
+                    || cell.is_some_and(|(sheet, at)| {
+                        Some(sheet) == worksheet && table.range.contains(at)
+                    });
+                stack.extend(node.elements().filter_map(|child| {
+                    // Editing a shared master can hand its formula to a different cell.
+                    if child.is(ooxml_schema::sml::CellFormula::QNAME)
+                        && child.attr(attr("t")) != Some("shared")
+                        && cell.is_some_and(|cell| replaced.contains(&cell))
+                    {
+                        return None;
+                    }
+                    Some((child, own))
+                }));
                 match node.name().local() {
                     "worksheetSource"
                         if node
@@ -276,22 +348,7 @@ impl Workbook {
                 if matches!(usage, Use::Source) {
                     continue;
                 }
-                let own_part = part == table.part;
-                if part == worksheet.unwrap_or_default() && node.name().local() == "c" {
-                    let own = node
-                        .attr(attr("r"))
-                        .and_then(|r| CellIndex::parse(r).ok())
-                        .is_some_and(|at| table.range.contains(at));
-                    if own
-                        && node
-                            .elements()
-                            .filter(|n| formula_node(n))
-                            .any(|f| has_reference(&f.text(), true, names, usage))
-                    {
-                        return Ok(true);
-                    }
-                }
-                if formula_node(node) && has_reference(&node.text(), own_part, names, usage) {
+                if formula_node(node) && has_reference(&node.text(), own, names, usage) {
                     return Ok(true);
                 }
                 if node.name().local() == "cfvo"

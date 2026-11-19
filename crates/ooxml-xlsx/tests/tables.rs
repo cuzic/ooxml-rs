@@ -610,3 +610,116 @@ fn last_table_removal_is_local_to_sheet_reference_and_registry() {
         }
     }
 }
+
+#[test]
+fn calculated_column_qualifies_and_validates_structured_references() {
+    for (formula, expected) in [
+        ("[@Q]*2", "Sales[[#This Row],[Q]]*2"),
+        ("sales[@q]*2", "Sales[[#This Row],[q]]*2"),
+        ("[[#This Row],[Q]]*2", "Sales[[#This Row],[Q]]*2"),
+        ("SUM([Q])", "SUM(Sales[Q])"),
+        ("SUM([1])", "SUM(Sales[1])"),
+        ("SUM([[#Data],[Q]:[1]])", "SUM(Sales[[#Data],[Q]:[1]])"),
+        (
+            "Other[@Missing]+[@Q]",
+            "Other[@Missing]+Sales[[#This Row],[Q]]",
+        ),
+        (
+            "IF([@Q],\"[@Q]\",0)",
+            "IF(Sales[[#This Row],[Q]],\"[@Q]\",0)",
+        ),
+    ] {
+        let mut wb = Workbook::new().unwrap();
+        let mut ws = wb.worksheet().unwrap();
+        ws.add_table(table("A1:C3").name("Sales").columns([
+            Col::new("Q"),
+            Col::new("1"),
+            Col::new("C").formula(formula),
+        ]))
+        .unwrap();
+        assert_eq!(ws.cell(1, 2).unwrap().unwrap().formula().unwrap(), expected);
+        assert_eq!(ws.cell(2, 2).unwrap().unwrap().formula().unwrap(), expected);
+        assert!(table_xml(&wb, "xl/tables/table1.xml").contains(&format!(
+            "<calculatedColumnFormula>{expected}</calculatedColumnFormula>"
+        )));
+    }
+
+    for formula in [
+        "[@Missing]+1",
+        "Sales[missing]",
+        "SUM([[Q]:[Missing]])",
+        "[[#Unknown],[Q]]",
+        "[[Q],[C]]",
+        "Other[[#Unknown],[Q]]",
+        "[@Q",
+    ] {
+        let mut wb = Workbook::new().unwrap();
+        std::assert_matches!(
+            refused(&mut wb, |ws| ws.add_table(
+                table("A1:B3")
+                    .name("Sales")
+                    .columns([Col::new("Q"), Col::new("C").formula(formula)])
+            )),
+            Error::InvalidFormula { .. }
+        );
+    }
+}
+
+#[test]
+fn header_rename_checks_the_batch_result() {
+    let mut wb = Workbook::new().unwrap();
+    wb.worksheet()
+        .unwrap()
+        .add_table(
+            table("A1:B3")
+                .name("Sales")
+                .columns([Col::new("Q"), Col::new("C")]),
+        )
+        .unwrap();
+    for (cell, formula) in [("Z1", "SUM(Sales[q])"), ("B2", "[@Q]")] {
+        std::assert_matches!(
+            refused(&mut wb, |ws| ws.write_cells(&[
+                (at("A1"), CellWrite::String("Quantity")),
+                (at(cell), CellWrite::Formula(formula)),
+            ])),
+            Error::ColumnInUse(_)
+        );
+    }
+    let mut ws = wb.worksheet().unwrap();
+    ws.write_cells(&[(at("B2"), CellWrite::Formula("[@Q]"))])
+        .unwrap();
+    ws.write_cells(&[
+        (at("A1"), CellWrite::String("Quantity")),
+        (at("B2"), CellWrite::Formula("[@Quantity]")),
+    ])
+    .unwrap();
+    assert_eq!(
+        ws.cell(1, 1).unwrap().unwrap().formula().unwrap(),
+        "[@Quantity]"
+    );
+}
+
+#[test]
+fn removal_checks_bare_table_names_in_unlexable_formulas() {
+    for (formula, blocked) in [("ROWS(sales)+`", true), ("ROWS(SalesArchive)+`", false)] {
+        let mut wb = Workbook::new().unwrap();
+        let mut ws = wb.worksheet().unwrap();
+        ws.add_table(table("A1:B3").name("Sales")).unwrap();
+        ws.write_cells(&[(at("Z1"), CellWrite::Formula("ROWS(Sales)"))])
+            .unwrap();
+        let part = wb.worksheet_part().to_owned();
+        let bytes = wb.to_bytes().unwrap();
+        let xml = String::from_utf8(common::part(&bytes, &part))
+            .unwrap()
+            .replace(">ROWS(Sales)<", &format!(">{formula}<"));
+        let mut wb = Workbook::from_bytes(common::p1::with_part(&bytes, &part, &xml)).unwrap();
+        if blocked {
+            std::assert_matches!(
+                refused(&mut wb, |ws| ws.remove_table("Sales")),
+                Error::TableInUse(_)
+            );
+        } else {
+            wb.worksheet().unwrap().remove_table("Sales").unwrap();
+        }
+    }
+}

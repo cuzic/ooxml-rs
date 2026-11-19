@@ -32,25 +32,6 @@ struct Case {
 
 const CASES: &[Case] = &[
     Case {
-        out: "p5b-table.xlsx",
-        input: None,
-        edits: "Create Sales at A1:D4 with a totals row and a calculated column. Rename A1 from Region to Market.",
-        look_for: "Sales spans A1:D4 and its filter excludes row 4. A1 and the first table column name are Market. A4 says Total, B4 is 7 and D2:D3 calculate to 4 and 10.",
-        edit: |ws| {
-            ws.write_string(1, 0, "North")?;
-            ws.write_string(2, 0, "South")?;
-            ws.write_number(1, 1, 2.0)?;
-            ws.write_number(2, 1, 5.0)?;
-            ws.add_table(Table::new(CellRange::parse("A1:D4")?)
-                .name("Sales")
-                .columns([Col::new("Region").total_label("Total"), Col::new("Units, shipped").total(Total::Sum),
-                    Col::new("Notes"), Col::new("Doubled").formula("[@[Units, shipped]]*2")])
-                .totals_row(true)
-                .style(TableStyle::Medium9))?;
-            ws.write_string(0, 0, "Market")
-        },
-    },
-    Case {
         out: "01-minimal.xlsx",
         input: Some("round_trip_corpus/fixture_minimal.xlsx"),
         edits: "A1 = \"Name (edited)\", A2 = \"  padded \", B2 = 91, C2 (was TRUE) = 0, D2 (empty, bold style) = 7, F5 = \"new\"",
@@ -373,6 +354,26 @@ const P4_CASES: &[P1Case] = &[
     },
 ];
 
+const P5B_CASE: Case = Case {
+    out: "39-p5b-table.xlsx",
+    input: None,
+    edits: "Create Sales at A1:D4 with a totals row and a calculated column. Rename A1 from Region to Market.",
+    look_for: "Sales spans A1:D4 and its filter excludes row 4. A1 and the first table column name are Market. A4 says Total, B4 is 7 and D2:D3 calculate to 4 and 10.",
+    edit: |ws| {
+        ws.write_string(1, 0, "North")?;
+        ws.write_string(2, 0, "South")?;
+        ws.write_number(1, 1, 2.0)?;
+        ws.write_number(2, 1, 5.0)?;
+        ws.add_table(Table::new(CellRange::parse("A1:D4")?)
+            .name("Sales")
+            .columns([Col::new("Region").total_label("Total"), Col::new("Units, shipped").total(Total::Sum),
+                Col::new("Notes"), Col::new("Doubled").formula("[@[Units, shipped]]*2")])
+            .totals_row(true)
+            .style(TableStyle::Medium9))?;
+        ws.write_string(0, 0, "Market")
+    },
+};
+
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(std::env::args().nth(1).ok_or("usage: manual_check <outdir>")?);
     let originals = out_dir.join("originals");
@@ -446,6 +447,11 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     images.save(out_dir.join("32-p5a-images.xlsx"))?;
     md.push_str("\n## Phase 5a — floating pictures (ADR-0017)\n\n");
     md.push_str("- [ ] Open `32-p5a-images.xlsx` without repair. A blue picture begins at B2 and is 1 × 0.75 in; an orange picture spans D3 to the start of F6. The blue picture's alt text is ‘Blue swatch’. Save and reopen.\n");
+    let mut table = Workbook::new()?;
+    (P5B_CASE.edit)(&mut table.worksheet()?)?;
+    table.save(out_dir.join(P5B_CASE.out))?;
+    md.push_str("\n## Phase 5b — tables (ADR-0017)\n\n");
+    writeln!(md, "- [ ] Open `{}` without repair. {} {}", P5B_CASE.out, P5B_CASE.edits, P5B_CASE.look_for)?;
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
@@ -456,7 +462,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .chain(P2_CASES.iter().map(|c| c.out))
         .chain(P3_CASES.iter().map(|c| c.out))
         .chain(P4_CASES.iter().map(|c| c.out))
-        .chain(["32-p5a-images.xlsx"])
+        .chain(["32-p5a-images.xlsx", P5B_CASE.out])
         .collect();
     for out in &outs {
         let path = out_dir.join(out);

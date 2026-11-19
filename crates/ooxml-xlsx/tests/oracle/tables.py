@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 
 
 def main(directory: Path) -> None:
-    workbook = load_workbook(directory / "p5b-table.xlsx")
+    workbook = load_workbook(directory / "39-p5b-table.xlsx")
     try:
         worksheet = workbook.active
         table = worksheet.tables["Sales"]
