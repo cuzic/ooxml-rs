@@ -7,6 +7,19 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// This bullet edit requires support for picture relationships.
+    #[error("picture bullet operation is unsupported")]
+    UnsupportedBullet,
+    /// Placeholder colour is confined to style matrices.
+    #[error("placeholder scheme colour is invalid for direct text formatting")]
+    InvalidSchemeColor,
+    /// A formatting range is reversed or exceeds the paragraph length.
+    #[error("formatting range out of bounds")]
+    RangeOutOfBounds,
+    /// A formatting range starts or ends inside a field.
+    #[error("formatting range splits a field")]
+    RangeSplitsField,
+
     /// An error from the package / XML layer (`ooxml-core`): I/O, zip,
     /// `EncryptedPackage`, `StrictNotSupported`, malformed XML, and the
     /// lens refusals of ADR-0002 (`NamespaceNotInScope`, `UnresolvedSibling`,
@@ -248,6 +261,18 @@ pub enum Error {
     ValueOutOfRange {
         /// The attribute.
         what: &'static str,
+    },
+    /// The requested shape fill is outside the supported choices.
+    #[error("unsupported shape fill")]
+    UnsupportedFill,
+    /// The shape has custom geometry.
+    #[error("cannot edit custom geometry as a preset")]
+    UnsupportedGeometry,
+    /// The adjustment is absent from the current preset definition.
+    #[error("unknown preset adjustment {name:?}")]
+    UnknownAdjustment {
+        /// Guide name.
+        name: String,
     },
     /// A find/replace pattern that is empty or contains `\n`, `\r` or `\v`
     /// (matches never cross paragraphs or line breaks; ADR-0008 §4).

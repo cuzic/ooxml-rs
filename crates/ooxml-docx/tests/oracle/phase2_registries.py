@@ -14,6 +14,12 @@ from lxml import etree
 
 def check(directory):
     path = Path(directory) / "29-bookmark-list-style.docx"
+    doc = read(path)
+    check_registries(doc)
+    check_notes(read(Path(directory) / "30-insert-footnote-endnote.docx"))
+
+
+def read(path):
     # Preflight ZIP XML without resolving entities, and never hand a part
     # with a DTD to the library under test.
     parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
@@ -25,7 +31,10 @@ def check(directory):
                     raise ValueError(f"DTD in {name}")
                 etree.fromstring(data, parser)
 
-    doc = Document(path)
+    return Document(path)
+
+
+def check_registries(doc):
     first, restart, plain = doc.paragraphs
     assert [p.text for p in doc.paragraphs] == [
         "First item, bookmarked", "Restart at five", "Last line, unnumbered"
@@ -54,6 +63,28 @@ def check(directory):
     assert plain.style.element.get(qn("w:customStyle")) == "1"
     assert plain.style.element.xpath("w:qFormat")
     print("python-docx bookmark, numbering and style read-back passed")
+
+
+def check_notes(doc):
+    for kind in ("footnote", "endnote"):
+        reference, = doc.paragraphs[0]._p.xpath(f".//w:{kind}Reference")
+        note_id = reference.get(qn("w:id"))
+        notes = doc.part.part_related_by(
+            f"http://schemas.openxmlformats.org/officeDocument/2006/relationships/{kind}s"
+        )
+        root = etree.fromstring(
+            notes.blob, etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
+        )
+        definitions = {note.get(qn("w:id")): note for note in root}
+        assert len(definitions) == len(root)
+        note = definitions[note_id]
+        assert note.find(f".//{qn(f'w:{kind}Ref')}") is not None
+        assert "".join(node.text for node in note.iter(qn("w:t"))) == f" D3a inserted {kind}."
+        assert definitions["-1"].get(qn("w:type")) == "separator"
+        assert definitions["0"].get(qn("w:type")) == "continuationSeparator"
+        props, = doc.settings.element.xpath(f"w:{kind}Pr")
+        assert [node.get(qn("w:id")) for node in props.findall(qn(f"w:{kind}"))] == ["-1", "0"]
+    print("python-docx footnote and endnote read-back passed")
 
 
 if __name__ == "__main__":

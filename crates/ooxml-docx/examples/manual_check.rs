@@ -159,6 +159,20 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
     });
     phase1(out, &mut cases)?;
     phase2_part3(out, &mut cases)?;
+    let file = "30-insert-footnote-endnote.docx";
+    let fixture = "poi-55733";
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join(format!("{fixture}.docx")))?;
+    let at = ooxml_docx::RunPosition::EndOf(doc.paragraph(0).ok_or("missing anchor paragraph")?.para_ref());
+    doc.add_footnote(at, vec!["D3a inserted footnote.".into()])?;
+    doc.add_endnote(at, vec!["D3a inserted endnote.".into()])?;
+    doc.save(out.join(file))?;
+    Document::open(out.join(file))?;
+    cases.push(Case {
+        file,
+        fixture,
+        done: "Added a footnote and an endnote to the first paragraph".into(),
+        check: "Follow both reference marks. The footnote reads D3a inserted footnote. The endnote reads D3a inserted endnote.",
+    });
     Ok(cases)
 }
 

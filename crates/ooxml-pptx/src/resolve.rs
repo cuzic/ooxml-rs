@@ -29,7 +29,7 @@
 use ooxml_core::{AttrError, ElementSpec, EnumType, EnumValue, QName, RawNode};
 use ooxml_schema::dml::{
     BodyProperties, ColorSchemeIndexValues, ParagraphProperties, ShapeTypeValues, RunProperties, TextAlignmentTypeValues, TextAnchoringTypeValues, TextAutoNumberSchemeValues,
-    TextCapsValues, TextStrikeValues, TextUnderlineValues, TextVerticalValues, TextWrappingValues,
+    TextCapsValues, TextFontAlignmentValues, TextStrikeValues, TextUnderlineValues, TextVerticalValues, TextWrappingValues,
 };
 use ooxml_core::value::{DmlPercent, parse_dml_percent};
 
@@ -749,6 +749,16 @@ impl<'a> Sheet<'a> {
 
     /// Position and size (`a:xfrm`/`p:xfrm` as one unit, §1.5).
     pub fn geometry(&self, shape: &ShapeRef<'a>) -> Result<Lookup<'a, Xfrm>> {
+        self.geometry_with_replacement(shape, None)
+    }
+
+    // Rect edits need the winning rotation and flips, even if the box they
+    // replace contains invalid coordinate values.
+    pub(crate) fn geometry_with_replacement(
+        &self,
+        shape: &ShapeRef<'a>,
+        replacement: Option<Rect>,
+    ) -> Result<Lookup<'a, Xfrm>> {
         let steps = match self.geometry_steps(shape)? {
             Ok(s) => s,
             Err(r) => return Ok(Lookup::Unresolved(r)),
@@ -763,11 +773,20 @@ impl<'a> Sheet<'a> {
                 raw.parse::<i64>().map_err(|_| attr_error(k, raw))
             };
             let value = (|| {
+                let Rect { x: left, y, cx, cy } = match replacement {
+                    Some(rect) => rect,
+                    None => Rect {
+                        x: num(off, "x")?,
+                        y: num(off, "y")?,
+                        cx: num(ext, "cx")?,
+                        cy: num(ext, "cy")?,
+                    },
+                };
                 Ok(Xfrm {
-                    x: num(off, "x")?,
-                    y: num(off, "y")?,
-                    cx: num(ext, "cx")?,
-                    cy: num(ext, "cy")?,
+                    x: left,
+                    y,
+                    cx,
+                    cy,
                     rot: winner(x, "rot", 0, |v| v.parse().ok()),
                     flip_h: winner(x, "flipH", false, ooxml_core::value::parse_bool),
                     flip_v: winner(x, "flipV", false, ooxml_core::value::parse_bool),
@@ -823,23 +842,23 @@ impl<'a> Sheet<'a> {
                 return Err(crate::Error::TransformedGroup { group_id: shape_id(g) });
             }
             // Some(None): element absent; None: present but invalid
-            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<Option<(f64, f64)>> {
+            let pt = |n: &'static str, ax: &'static str, ay: &'static str| -> Option<Option<(i64, i64)>> {
                 let Some(e) = child(gx, a(n)) else { return Some(None) };
                 let x = e.attr(un(ax))?.parse::<i64>().ok()?;
                 let y = e.attr(un(ay))?.parse::<i64>().ok()?;
-                Some(Some((x as f64, y as f64)))
+                Some(Some((x, y)))
             };
             let (Some(Some(off)), Some(Some(ext))) = (pt("off", "x", "y"), pt("ext", "cx", "cy")) else { return Ok(None) };
             let (Some(ch_off), Some(ch_ext)) = (pt("chOff", "x", "y"), pt("chExt", "cx", "cy")) else { return Ok(None) };
             let (ch_off, ch_ext) = (ch_off.unwrap_or(off), ch_ext.unwrap_or(ext));
-            if ch_ext.0 == 0.0 || ch_ext.1 == 0.0 {
-                return Ok(None);
-            }
-            let (sx, sy) = (ext.0 / ch_ext.0, ext.1 / ch_ext.1);
-            rx = off.0 + (rx - ch_off.0) * sx;
-            ry = off.1 + (ry - ch_off.1) * sy;
-            rcx *= sx;
-            rcy *= sy;
+            let (Some(x_axis), Some(y_axis)) = (
+                AffineAxis::new(off.0, ext.0, ch_off.0, ch_ext.0),
+                AffineAxis::new(off.1, ext.1, ch_off.1, ch_ext.1),
+            ) else { return Ok(None) };
+            rx = x_axis.map(rx);
+            ry = y_axis.map(ry);
+            rcx *= x_axis.scale;
+            rcy *= y_axis.scale;
         }
         Ok(Some(Rect { x: rx.round() as i64, y: ry.round() as i64, cx: rcx.round() as i64, cy: rcy.round() as i64 }))
     }
@@ -934,6 +953,51 @@ pub struct Rect {
     pub cx: i64,
     /// Height.
     pub cy: i64,
+}
+
+/// Equivalent group boxes reduce to the same floating-point evaluation,
+/// including at half-EMU boundaries after an exact group fit.
+pub(crate) struct AffineAxis {
+    pub(crate) scale: f64,
+    child_anchor: f64,
+    parent_anchor: f64,
+}
+
+impl AffineAxis {
+    pub(crate) fn new(off: i64, ext: i64, child_off: i64, child_ext: i64) -> Option<Self> {
+        if child_ext == 0 {
+            return None;
+        }
+        let (mut a, mut b) = (i128::from(ext).abs(), i128::from(child_ext).abs());
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        let sign = i128::from(child_ext.signum());
+        let numerator = i128::from(ext) / a * sign;
+        let denominator = i128::from(child_ext).abs() / a;
+        let intercept = (i128::from(off) * denominator).checked_sub(i128::from(child_off) * numerator)?;
+        // Use the integer child coordinate nearest the intercept's zero as
+        // the origin when that coordinate can be represented exactly. This
+        // avoids subtracting two huge floating-point values at high scale.
+        let anchor = intercept.checked_neg()
+            .and_then(|value| value.checked_div(numerator))
+            .filter(|&value| (-(1 << 53)..=(1 << 53)).contains(&value))
+            .unwrap_or(0);
+        let shifted = intercept.checked_add(anchor * numerator)?;
+        Some(Self {
+            scale: numerator as f64 / denominator as f64,
+            child_anchor: anchor as f64,
+            parent_anchor: shifted as f64 / denominator as f64,
+        })
+    }
+
+    fn map(&self, value: f64) -> f64 {
+        (value - self.child_anchor).mul_add(self.scale, self.parent_anchor)
+    }
+
+    pub(crate) fn unmap(&self, value: f64) -> f64 {
+        self.child_anchor + (value - self.parent_anchor) / self.scale
+    }
 }
 
 /// A shape's outline.
@@ -1132,6 +1196,29 @@ fn find_group<'a>(chain: &Chain<'a>, members: &[&str]) -> std::result::Result<Op
     }
 }
 
+/// A child group whose complete winning element is needed by the caller.
+fn element_group<'a>(chain: &Chain<'a>, members: &[&str]) -> Lookup<'a, &'a RawNode> {
+    match find_group(chain, members) {
+        Ok(Some((node, source))) => Lookup::Set(Resolved { value: Ok(node), source, defaulted: false }),
+        Ok(None) => Lookup::Unset,
+        Err(reason) => Lookup::Unresolved(reason),
+    }
+}
+
+fn highlight<'a>(chain: &Chain<'a>) -> Lookup<'a, Color<'a>> {
+    match find_group(chain, &["highlight"]) {
+        Ok(Some((node, source))) => match node.elements().next() {
+            Some(color) => match color_of(color, chain) {
+                Ok(value) => Lookup::Set(Resolved { value: Ok(value), source, defaulted: false }),
+                Err(reason) => Lookup::Unresolved(reason),
+            },
+            None => Lookup::Set(Resolved { value: Err(attr_error("highlight", "")), source, defaulted: false }),
+        },
+        Ok(None) => Lookup::Unset,
+        Err(reason) => Lookup::Unresolved(reason),
+    }
+}
+
 fn parse_u32(s: &str) -> Option<u32> {
     s.parse().ok()
 }
@@ -1188,6 +1275,12 @@ pub struct RunProps<'a> {
     pub symbol: Lookup<'a, Font<'a>>,
     /// The fill group.
     pub fill: Lookup<'a, Fill<'a>>,
+    /// The highlight colour.
+    pub highlight: Lookup<'a, Color<'a>>,
+    /// The winning underline line choice as a raw element.
+    pub underline_line: Lookup<'a, &'a RawNode>,
+    /// The winning underline fill choice as a raw element.
+    pub underline_fill: Lookup<'a, &'a RawNode>,
 }
 
 impl<'a> RunProps<'a> {
@@ -1209,6 +1302,9 @@ impl<'a> RunProps<'a> {
             complex_script: font(c, "cs", "cs"),
             symbol: font(c, "sym", ""),
             fill: fill(c),
+            highlight: highlight(c),
+            underline_line: element_group(c, &["uLn", "uLnTx"]),
+            underline_fill: element_group(c, &["uFill", "uFillTx"]),
         }
     }
 }
@@ -1341,6 +1437,16 @@ pub struct ParaProps<'a> {
     pub rtl: Lookup<'a, bool>,
     /// `defTabSz`.
     pub default_tab: Lookup<'a, i64>,
+    /// `fontAlgn`.
+    pub font_align: Lookup<'a, EnumValue<'a, TextFontAlignmentValues>>,
+    /// The winning tab list as a raw element.
+    pub tab_stops: Lookup<'a, &'a RawNode>,
+    /// The winning bullet colour choice as a raw element.
+    pub bullet_color: Lookup<'a, &'a RawNode>,
+    /// The winning bullet size choice as a raw element.
+    pub bullet_size: Lookup<'a, &'a RawNode>,
+    /// The winning bullet font choice as a raw element.
+    pub bullet_font: Lookup<'a, &'a RawNode>,
     /// Bullet type group.
     pub bullet: Lookup<'a, Bullet<'a>>,
     /// `a:lnSpc` (`spcPct` as percent or `spcPts` as 1/100 pt).
@@ -1401,6 +1507,11 @@ impl<'a> ParaProps<'a> {
             indent: find_attr(c, "indent", parse_i64),
             rtl: find_attr(c, "rtl", parse_bool),
             default_tab: find_attr(c, "defTabSz", parse_i64),
+            font_align: find_attr(c, "fontAlgn", parse_enum),
+            tab_stops: element_group(c, &["tabLst"]),
+            bullet_color: element_group(c, &["buClr", "buClrTx"]),
+            bullet_size: element_group(c, &["buSzPct", "buSzPts", "buSzTx"]),
+            bullet_font: element_group(c, &["buFont", "buFontTx"]),
             bullet,
             line_spacing: spacing("lnSpc"),
             space_before: spacing("spcBef"),

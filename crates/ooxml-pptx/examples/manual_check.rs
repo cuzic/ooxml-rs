@@ -16,6 +16,9 @@ use std::path::{Path, PathBuf};
 use ooxml_core::Package;
 use ooxml_pptx::{CellFill, Edge, Line, Presentation, ShapeKind, TableColor, TextItem};
 
+#[path = "../tests/oracle/shape_properties_case.rs"]
+mod shape_properties_case;
+
 type R<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 fn fixture(rel: &str) -> PathBuf {
@@ -793,6 +796,55 @@ fn main() -> R {
                 "Notes pane of slide 1 shows three paragraphs; the second has a line break (Shift+Enter) before \"after a line break\".",
                 "All three paragraphs are bold red (new paragraphs copy the format of the first run of the last paragraph, Phase 0 set_text).",
                 "The slide itself and slide 2's notes are unchanged.",
+            ],
+        });
+    }
+
+    // P3a: formatted title range, paragraph alignment and autofit.
+    {
+        use ooxml_pptx::{AutoFitMode, FontRef, FormatChange, RunFill, RunFormat, WriteColor};
+        use ooxml_schema::dml::TextAlignmentTypeValues;
+
+        let source = "poi/sample.pptx";
+        let mut p = Presentation::open(fixture(source))?;
+        let id = find_shape(&mut p, 0, |shape| shape.text_body().is_some())?;
+        let mut slide = p.slide_mut(0)?;
+        let mut shape = slide.shape_mut_by_id(id)?;
+        let mut body = shape.text_body_mut()?;
+        body.autofit(AutoFitMode::Shape)?;
+        let mut para = body.paragraph_mut(0)?;
+        para.align(TextAlignmentTypeValues::Center)?;
+        para.format_range(0, 5, &RunFormat {
+            bold: Some(FormatChange::Set(true)),
+            size: Some(FormatChange::Set(2800)),
+            latin: Some(FormatChange::Set(FontRef::Typeface("Arial".into()))),
+            fill: Some(FormatChange::Set(RunFill::Solid(WriteColor::Rgb([0x12, 0x34, 0x56]).into()))),
+            ..RunFormat::default()
+        })?;
+        items.push(Item {
+            file: save(&out, "p3a-text-formatting", &p)?,
+            source,
+            edit: "Format the first five title characters, centre the paragraph, and set shape autofit.".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Lorem is bold, 28 pt Arial, and dark blue. The remaining title text keeps its original formatting.",
+                "The title paragraph is centred and retains every character.",
+            ],
+        });
+    }
+
+    {
+        let source = shape_properties_case::FIXTURE;
+        let mut p = Presentation::open(fixture(source))?;
+        shape_properties_case::edit(&mut p)?;
+        items.push(Item {
+            file: save(&out, shape_properties_case::NAME, &p)?,
+            source,
+            edit: "On slide 3, move and resize Rectangle 1. Change it to a blue up arrow rotated 30° and flipped horizontally, with an orange dashed outline and arrowheads. Give Oval 2 a vertical white-to-teal gradient. Fit Group 4 around its members.".into(),
+            observe: vec![
+                "The blue up arrow and its orange outline appear above and left of the other members.",
+                "Oval 2 has a white-to-teal gradient.",
+                "Selecting Group 4 shows a bounding box around all three shapes. Compare Oval 2 and Right Arrow 3 against the source to check that fitting preserved their positions and sizes.",
             ],
         });
     }

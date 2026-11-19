@@ -98,6 +98,9 @@ pub struct Document {
     /// More than one styles relationship: style setters refuse.
     pub(crate) styles_ambiguous: bool,
     pub(crate) annotation_high_water: u32,
+    pub(crate) note_high_water: [i32; 2],
+    pub(crate) theme_part: Option<String>,
+    pub(crate) numbering_part: Option<String>,
     /// [`Document::enable_update_fields_on_open`] was called: W2 is lifted
     /// for every operation (ADR-0007 §6.3).
     pub(crate) fields_opt_in: bool,
@@ -173,6 +176,12 @@ impl Document {
             .zip(STORY_RELATIONSHIPS)
             .flat_map(|(&k, t)| target(t).into_iter().map(move |n| (k, n)))
             .collect();
+        let related = |kind| {
+            let relation = format!("http://schemas.openxmlformats.org/officeDocument/2006/relationships/{kind}");
+            target(&relation).into_iter().next()
+        };
+        let theme_part = related("theme");
+        let numbering_part = related("numbering");
         let mut seen = std::collections::BTreeSet::new();
         for (kind, part) in story_parts {
             if !seen.insert(part.clone()) || part == main {
@@ -194,6 +203,9 @@ impl Document {
         // does not parse does not fail the open: the style operations report
         // the error (ADR-0007 §5; Phase0 never read it).
         if let Some(name) = &styles_part {
+            let _ = pkg.xml_part(name);
+        }
+        for name in theme_part.iter().chain(&numbering_part) {
             let _ = pkg.xml_part(name);
         }
         let custom = CustomProperties::read(&pkg)?;
@@ -266,6 +278,9 @@ impl Document {
             styles_part,
             styles_ambiguous,
             annotation_high_water: 0,
+            note_high_water: [0; 2],
+            theme_part,
+            numbering_part,
             fields_opt_in: false,
         })
     }
@@ -454,6 +469,18 @@ impl Document {
         g.insert(at.index.min(g.len()), 0);
         for i in at.index..self.generations[at.story.0].len() {
             self.bump(ParaRef::new(at.story, i));
+        }
+    }
+
+    pub(crate) fn refresh_note_story(&mut self, kind: StoryKind, part: String) {
+        let root = self.pkg.parsed_part(&part).expect("committed note part").root();
+        let index = body::index_root(root, Mode::Notes);
+        if let Some(i) = self.stories.iter().position(|story| story.id.part == part) {
+            self.generations[i].resize(index.paragraphs.len(), 0);
+            self.stories[i].index = index;
+        } else {
+            self.generations.push(vec![0; index.paragraphs.len()]);
+            self.stories.push(StoryData { id: StoryId { kind, part }, index, sections: Vec::new() });
         }
     }
 
@@ -767,7 +794,7 @@ pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> &'a RawNode {
 /// A paragraph of a story's flow.
 #[derive(Clone, Copy, Debug)]
 pub struct Paragraph<'d> {
-    doc: &'d Document,
+    pub(crate) doc: &'d Document,
     story: StoryIndex,
     data: &'d StoryData,
     root: &'d RawNode,
@@ -817,6 +844,22 @@ impl<'d> Paragraph<'d> {
         node_at(self.root, &self.data.index.path(self.info.frame))
     }
 
+    pub(crate) fn table_context(&self) -> Option<(&'d RawNode, &'d RawNode, &'d RawNode)> {
+        let mut node = self.root;
+        let (mut table, mut row, mut cell) = (None, None, None);
+        for index in self.data.index.path(self.info.frame) {
+            node = node.indexed_elements().find(|(i, _)| *i == index)?.1;
+            if node.is(Table::QNAME) {
+                (table, row, cell) = (Some(node), None, None);
+            } else if node.is(TableRow::QNAME) {
+                (row, cell) = (Some(node), None);
+            } else if node.is(TableCell::QNAME) {
+                cell = Some(node);
+            }
+        }
+        Some((table?, row?, cell?))
+    }
+
     /// The "all revisions accepted" text: the text of [`Self::runs`] except
     /// runs inside `w:del` or `w:moveFrom`. Field results are included,
     /// field instructions are not (they are `w:instrText`).
@@ -842,13 +885,10 @@ impl<'d> Paragraph<'d> {
     pub fn run(&self, index: usize) -> Option<Run<'d>> {
         let info = self.info.runs.get(index)?;
         Some(Run {
+            paragraph: *self,
             node: node_at(self.root, &self.data.index.path(info.frame)),
-            body: &self.data.index,
             info,
             index,
-            para: self.para_ref(),
-            separator: self.in_separator_note(),
-            kind: self.data.id.kind,
         })
     }
 }
@@ -856,18 +896,15 @@ impl<'d> Paragraph<'d> {
 /// A run (`w:r`) in a paragraph's flow.
 #[derive(Clone, Copy, Debug)]
 pub struct Run<'d> {
+    pub(crate) paragraph: Paragraph<'d>,
     pub(crate) node: &'d RawNode,
-    body: &'d BodyIndex,
     pub(crate) info: &'d RunInfo,
     index: usize,
-    para: ParaRef,
-    separator: bool,
-    kind: StoryKind,
 }
 
 impl<'d> Run<'d> {
     pub(crate) fn wrappers(&self) -> Vec<Wrapper> {
-        self.body.wrappers(self.info.frame)
+        self.paragraph.data.index.wrappers(self.info.frame)
     }
 
     /// Inside `w:del` or `w:moveFrom` (at any depth): the run's text is not
@@ -883,7 +920,7 @@ impl<'d> Run<'d> {
 
     /// This run as a [`RunRef`].
     pub fn run_ref(&self) -> RunRef {
-        RunRef::new(self.para, self.index)
+        RunRef::new(self.paragraph.para_ref(), self.index)
     }
 
     /// The `w:r` element.
@@ -936,8 +973,8 @@ impl<'d> Run<'d> {
         if let Some(w) = ws.iter().find(|w| w.is_revision()) {
             return Err(Error::InsideRevision { context: w.context() });
         }
-        if self.separator {
-            let ancestor = if self.kind == StoryKind::Endnotes { "w:endnote (separator)" } else { "w:footnote (separator)" };
+        if self.paragraph.in_separator_note() {
+            let ancestor = if self.paragraph.data.id.kind == StoryKind::Endnotes { "w:endnote (separator)" } else { "w:footnote (separator)" };
             return Err(Error::UnsupportedContext { ancestor });
         }
         if let Some(w) = ws.iter().find(|w| **w != Wrapper::Hyperlink) {

@@ -1229,6 +1229,13 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         if E::ATTRS_INCOMPLETE { Err(Error::IncompleteSpec(E::QNAME)) } else { Ok(()) }
     }
 
+    /// Preserves the source spelling of unchanged attributes when this element's
+    /// start tag is re-rendered. Has no effect on newly created elements or on
+    /// the document's dirty state.
+    pub fn preserve_attribute_spelling(&mut self) {
+        self.node_mut().preserve_attribute_spelling();
+    }
+
     /// Sets attribute `q` (untyped). An existing attribute keeps its position
     /// and prefix; a new one is appended. A namespaced attribute needs a
     /// non-empty prefix bound to its URI ([`Error::NamespaceNotInScope`]).

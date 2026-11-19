@@ -432,6 +432,65 @@ def first_diff(a, b, path='$'):
     return None if a == b else f'{path}: {a!r} != {b!r}'
 
 
+def check_shape_properties(outdir):
+    from pptx import Presentation
+    from pptx.dml.color import RGBColor
+    from pptx.enum.dml import MSO_FILL, MSO_LINE_DASH_STYLE
+    from pptx.enum.shapes import MSO_SHAPE
+
+    prs = Presentation(os.path.join(outdir, 'p3b-shape-properties.pptx'))
+    group = prs.slides[2].shapes[0]
+    arrow, oval, right_arrow = group.shapes
+    rect = lambda shape: (shape.left, shape.top, shape.width, shape.height)
+    assert rect(group) == (800000, 1100000, 4000600, 2204032)
+    assert rect(arrow) == (800000, 1100000, 2000000, 850000)
+    assert arrow.rotation == 30.0
+    assert arrow.auto_shape_type == MSO_SHAPE.UP_ARROW
+    assert abs(arrow.adjustments[0] - 0.35) < 1e-9
+    assert arrow.fill.type == MSO_FILL.SOLID
+    assert arrow.fill.fore_color.rgb == RGBColor(18, 52, 86)
+    assert arrow.line.width == 38100
+    assert arrow.line.color.rgb == RGBColor(192, 80, 40)
+    assert arrow.line.dash_style == MSO_LINE_DASH_STYLE.DASH
+    assert rect(oval) == (3886200, 1905000, 914400, 914400)
+    assert oval.fill.type == MSO_FILL.GRADIENT
+    assert [(stop.position, stop.color.rgb) for stop in oval.fill.gradient_stops] == [
+        (0.0, RGBColor(255, 255, 255)), (1.0, RGBColor(0, 128, 128)),
+    ]
+    assert rect(right_arrow) == (1828800, 2819400, 978408, 484632)
+    print('P3b python-pptx: shape properties and explicit group fit read back')
+
+
+def check_text_formatting(outdir):
+    from pptx import Presentation
+    from pptx.dml.color import RGBColor
+    from pptx.enum.dml import MSO_THEME_COLOR
+    from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+    from pptx.util import Pt
+
+    prs = Presentation(os.path.join(outdir, 'text-formatting.pptx'))
+    body = next(shape.text_frame for shape in prs.slides[0].shapes if shape.has_text_frame)
+    para = body.paragraphs[0]
+    first, second = para.runs
+    assert body.auto_size == MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    assert para.text == 'Lorem ipsum dolor sit amet'
+    assert first.text == 'Lorem'
+    assert para.alignment == PP_ALIGN.CENTER
+    assert para.level == 1
+    assert para.line_spacing == 1.2
+    assert para.space_before == Pt(6)
+    assert para.space_after == Pt(3)
+    assert first.font.name == 'Arial'
+    assert first.font.size == Pt(28)
+    assert first.font.bold is True
+    assert first.font.italic is True
+    assert first.font.underline is True
+    assert first.font.color.rgb == RGBColor(0x12, 0x34, 0x56)
+    assert second.font.color.theme_color == MSO_THEME_COLOR.ACCENT_1
+    assert second.font.color.brightness == 0.2
+    print('P3a python-pptx: direct text formatting read back')
+
+
 def main():
     args = sys.argv[1:]
     site = None
@@ -461,6 +520,8 @@ def main():
                 print(f'FAIL {c["name"]}: {label}: {d}')
     replaces = sum(len(r['replaced']) for c in cases for r in c.get('replace', []))
     print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {replaces} replaced matches, {failures} failures')
+    check_text_formatting(outdir)
+    check_shape_properties(outdir)
     sys.exit(1 if failures else 0)
 
 

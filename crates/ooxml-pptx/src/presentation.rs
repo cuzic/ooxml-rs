@@ -12,7 +12,7 @@ use crate::read::{Slide, SlideInfo};
 use crate::refs::SlideRefs;
 use crate::replace::{self, BodyCtx, FindOptions, Match, OnRefusal, ParaPlan, ReplaceOptions, ReplaceReport, Scope, TextLocation};
 use crate::notes::{NotesMut, NotesRef};
-use crate::write::{Guard, SlideMut, node_at};
+use crate::write::{EditPart, Guard, SlideMut, node_at};
 
 /// A part searched by `find`/`replace_all`: a slide or its notes slide.
 #[derive(Clone, Debug)]
@@ -149,11 +149,12 @@ impl Presentation {
         let mut refs = self.comment_refs(&part)?;
         let table_styles = self.table_style_ids();
         let tables = self.tables.entry(part.clone()).or_default();
-        let doc = self.pkg.xml_part_mut(&part)?;
+        let doc = self.pkg.xml_part(&part)?;
         if !doc.root().is(pml::Slide::QNAME) {
             return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
         }
         refs.scan_timing(doc.root());
+        let doc = EditPart::Package { package: &mut self.pkg, name: part };
         Ok(SlideMut { doc, info, refs, table_styles, tables })
     }
 
@@ -240,7 +241,7 @@ impl Presentation {
         let part = part.ok_or(Error::NoNotesSlide { slide_id: slide.slide_id })?;
         // parse read-only first: a part that is not p:notes stays clean
         Lens::<pml::NotesSlide>::root(self.pkg.xml_part(&part)?.root())?;
-        let doc = self.pkg.xml_part_mut(&part)?;
+        let doc = EditPart::Package { package: &mut self.pkg, name: part.clone() };
         Ok(NotesMut { doc, slide, part })
     }
 

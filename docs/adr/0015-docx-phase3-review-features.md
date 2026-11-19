@@ -681,6 +681,8 @@ pub enum FieldSpec {
 
 ### 8. Effective formatting (read-only resolver)
 
+The scalar formatting API omits properties with child elements, such as `tabs` and `pBdr`.
+
 ```rust
 impl Run<'_> { pub fn effective(&self) -> Result<EffectiveRun>; }
 impl Paragraph<'_> { pub fn effective(&self) -> Result<EffectiveParagraph>; }
@@ -1031,3 +1033,27 @@ owner's decision.
     §17.7.3. Section numbers are from memory and marked *(u)* where a rule depends on them.
   - [MS-DOCX] for `w14`, `w15`, `w16cid` and `w16cex` (`commentsExtended`, `commentsIds`,
     `commentsExtensible`, `people`, `paraId`, `checkbox`).
+
+## Post-acceptance note (D3a, Issue #90)
+
+The public read interfaces are `Run::effective` and `Paragraph::effective`.
+`EffectiveProperties` exposes resolved scalar WordprocessingML values by
+element and attribute name, each with a `Provenance`. The scalar view omits container properties such
+as `tabs` and `pBdr` and excludes revision markers from paragraph-mark formatting.
+Empty on/off properties resolve to `1`. Numbering can follow `numStyleLink`
+and stops when it revisits a numbering instance. The run view also
+provides typed toggle and half-point size accessors. The paragraph view
+returns the paragraph mark's run formatting separately. A cyclic or longer
+than 64 style chain returns `StyleCycle`.
+
+`Document::add_footnote` and `Document::add_endnote` accept a
+`RunPosition` in the main document body, including table cells. Anchors in
+other stories return `UnsupportedContext`. They reject empty note bodies, invalid or ambiguous part
+relationships and ids, and id exhaustion before writing. A single registry
+transaction commits the reference, definition, style changes, and any new
+parts and separator settings. New definitions use a separate signed id
+space per kind and treat zero as reserved. Missing styles have minimal
+definitions under the portable built-in names (§3.5), with superscript for
+new reference styles. The new note-related elements stay in the `[read]`
+allowlist because it already generates the `ChildOf` edges used for typed
+insertion and dedicated mutable views are unnecessary.
