@@ -1,7 +1,8 @@
 mod common;
 
-use common::{W_NS, docx, package, part};
-use ooxml_docx::{Document, Error, NoteId, Provenance, RunPosition};
+use common::{W_NS, document_xml, docx, package, part, story_xml, with_part};
+use ooxml_docx::{Document, Error, NoteId, Provenance, RunPosition, StoryKind};
+use std::assert_matches;
 
 fn document(body: &str) -> String {
     format!(r#"<w:document xmlns:w="{W_NS}"><w:body>{body}</w:body></w:document>"#)
@@ -114,6 +115,323 @@ fn note_refusals_leave_package_byte_identical() {
         }
         assert_eq!(doc.to_bytes().unwrap(), input, "{expected}");
     }
+}
+
+#[test]
+fn note_anchors_are_limited_to_the_document_body() {
+    let p = "<w:p><w:r><w:t>Anchor</w:t></w:r></w:p>";
+    let body = document(&format!("<w:tbl><w:tr><w:tc>{p}</w:tc></w:tr></w:tbl>"));
+    let header = story_xml("hdr", p);
+    let footer = story_xml("ftr", p);
+    let footnotes = story_xml(
+        "footnotes",
+        &format!(r#"<w:footnote w:id="1">{p}</w:footnote>"#),
+    );
+    let endnotes = story_xml(
+        "endnotes",
+        &format!(r#"<w:endnote w:id="1">{p}</w:endnote>"#),
+    );
+    let comments = story_xml(
+        "comments",
+        &format!(r#"<w:comment w:id="1" w:author="A">{p}</w:comment>"#),
+    );
+    let input = package(
+        &body,
+        &[
+            ("header", "header.xml", &header),
+            ("footer", "footer.xml", &footer),
+            ("footnotes", "footnotes.xml", &footnotes),
+            ("endnotes", "endnotes.xml", &endnotes),
+            ("comments", "comments.xml", &comments),
+        ],
+    );
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    for kind in [
+        StoryKind::Header,
+        StoryKind::Footer,
+        StoryKind::Footnotes,
+        StoryKind::Endnotes,
+        StoryKind::Comments,
+    ] {
+        let para = doc
+            .stories()
+            .find(|story| story.id().kind() == kind)
+            .unwrap()
+            .paragraphs()
+            .next()
+            .unwrap()
+            .para_ref();
+        let at = RunPosition::EndOf(para);
+        assert_matches!(
+            doc.add_footnote(at, vec!["foot".into()]),
+            Err(Error::UnsupportedContext { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input, "{kind:?}");
+        assert_matches!(
+            doc.add_endnote(at, vec!["end".into()]),
+            Err(Error::UnsupportedContext { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input, "{kind:?}");
+    }
+    let at = RunPosition::EndOf(doc.paragraph(0).unwrap().para_ref());
+    assert_eq!(
+        doc.add_footnote(at, vec!["foot".into()]).unwrap(),
+        NoteId(2)
+    );
+    assert_eq!(doc.add_endnote(at, vec!["end".into()]).unwrap(), NoteId(2));
+    let output = doc.to_bytes().unwrap();
+    let styles = String::from_utf8(part(&output, "word/styles.xml")).unwrap();
+    for id in ["FootnoteReference", "EndnoteReference"] {
+        let (_, style) = styles.split_once(&format!(r#"w:styleId="{id}""#)).unwrap();
+        let (style, _) = style.split_once("</w:style>").unwrap();
+        assert!(style.contains(r#"<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>"#));
+    }
+    assert_eq!(
+        styles
+            .matches(r#"<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>"#)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn note_registry_refusals_leave_package_byte_identical() {
+    let body = document("<w:p/>");
+    let notes = story_xml("footnotes", "");
+    let settings = story_xml("settings", "");
+    let wrong_root = story_xml("endnotes", "");
+    let styles = story_xml(
+        "styles",
+        concat!(
+            r#"<w:style w:type="character" w:styleId="A"><w:name w:val="footnote reference"/></w:style>"#,
+            r#"<w:style w:type="character" w:styleId="B"><w:name w:val="footnote reference"/></w:style>"#,
+        ),
+    );
+    let single = package(&body, &[("footnotes", "footnotes.xml", &notes)]);
+    let dangling = String::from_utf8(part(&single, "word/_rels/document.xml.rels"))
+        .unwrap()
+        .replace("footnotes.xml", "missing.xml");
+    let dangling = with_part(&single, "word/_rels/document.xml.rels", dangling.as_bytes());
+    for (input, case) in [
+        (
+            package(
+                &body,
+                &[
+                    ("footnotes", "a.xml", &notes),
+                    ("footnotes", "b.xml", &notes),
+                ],
+            ),
+            "duplicate",
+        ),
+        (dangling, "dangling"),
+        (
+            package(&body, &[("footnotes", "footnotes.xml", &wrong_root)]),
+            "wrong root",
+        ),
+        (
+            package(&body, &[("styles", "styles.xml", &styles)]),
+            "style name",
+        ),
+        (
+            package(
+                &body,
+                &[("styles", "a.xml", &styles), ("styles", "b.xml", &styles)],
+            ),
+            "styles part",
+        ),
+        (
+            package(
+                &body,
+                &[
+                    ("settings", "a.xml", &settings),
+                    ("settings", "b.xml", &settings),
+                ],
+            ),
+            "settings",
+        ),
+    ] {
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let at = RunPosition::EndOf(doc.paragraph(0).unwrap().para_ref());
+        let result = doc.add_footnote(at, vec!["note".into()]);
+        let Err(error) = result else {
+            panic!("{case}: {result:?}")
+        };
+        match (case, error) {
+            ("duplicate" | "dangling" | "wrong root", Error::InvalidNotePart)
+            | ("style name", Error::AmbiguousStyle { .. })
+            | ("styles part", Error::AmbiguousStylesPart)
+            | ("settings", Error::AmbiguousSettings) => {}
+            (case, error) => panic!("{case}: {error:?}"),
+        }
+        assert_eq!(doc.to_bytes().unwrap(), input, "{case}");
+    }
+}
+
+#[test]
+fn adding_notes_does_not_adopt_a_dangling_relationship_id() {
+    let body = document_xml(r#"<w:p><w:hyperlink r:id="rId1"/></w:p>"#);
+    let input = package(&body, &[]);
+    let mut doc = Document::from_bytes(input).unwrap();
+    let at = RunPosition::EndOf(doc.paragraph(0).unwrap().para_ref());
+    doc.add_footnote(at, vec!["note".into()]).unwrap();
+    let output = doc.to_bytes().unwrap();
+    let rels = String::from_utf8(part(&output, "word/_rels/document.xml.rels")).unwrap();
+    assert!(!rels.contains(r#"Id="rId1""#));
+    let main = String::from_utf8(part(&output, "word/document.xml")).unwrap();
+    assert!(main.contains(r#"<w:hyperlink r:id="rId1"/>"#));
+}
+
+#[test]
+fn effective_on_off_properties_and_style_fallback() {
+    let paragraph_flags = [
+        "keepNext",
+        "keepLines",
+        "pageBreakBefore",
+        "widowControl",
+        "suppressLineNumbers",
+        "suppressAutoHyphens",
+        "kinsoku",
+        "wordWrap",
+        "overflowPunct",
+        "topLinePunct",
+        "autoSpaceDE",
+        "autoSpaceDN",
+        "bidi",
+        "adjustRightInd",
+        "snapToGrid",
+        "contextualSpacing",
+        "mirrorIndents",
+        "suppressOverlap",
+    ];
+    let character_flags = [
+        "noProof",
+        "snapToGrid",
+        "webHidden",
+        "rtl",
+        "cs",
+        "specVanish",
+        "oMath",
+    ];
+    let elements = |flags: &[&str]| {
+        flags
+            .iter()
+            .map(|name| format!("<w:{name}/>"))
+            .collect::<String>()
+    };
+    let ppr = elements(&paragraph_flags);
+    let rpr = elements(&character_flags);
+    let styles = story_xml(
+        "styles",
+        &format!(
+            r#"
+        <w:style w:type="paragraph" w:styleId="Normal" w:default="1"><w:pPr>{ppr}</w:pPr></w:style>
+        <w:style w:type="character" w:styleId="Default" w:default="1"><w:rPr>{rpr}</w:rPr></w:style>
+    "#
+        ),
+    );
+    let body = document(
+        r#"<w:p><w:pPr><w:pStyle w:val="MissingParagraph"/><w:contextualSpacing w:val="off"/></w:pPr>
+        <w:r><w:rPr><w:rStyle w:val="MissingCharacter"/></w:rPr><w:t>Anchor</w:t></w:r></w:p>
+        <w:p><w:pPr><w:pStyle w:val="MissingParagraph"/></w:pPr></w:p>"#,
+    );
+    let doc = Document::from_bytes(package(&body, &[("styles", "styles.xml", &styles)])).unwrap();
+    let p = doc.paragraph(0).unwrap();
+    let pp = p.effective().unwrap().properties;
+    for name in paragraph_flags {
+        let value = pp.value(name).unwrap();
+        if name == "contextualSpacing" {
+            assert_eq!(
+                (value.value.as_str(), value.provenance),
+                ("0", Provenance::Direct)
+            );
+        } else {
+            assert_eq!(
+                (value.value.as_str(), value.provenance),
+                ("1", Provenance::ParagraphStyle),
+                "{name}"
+            );
+        }
+    }
+    let inherited = doc.paragraph(1).unwrap().effective().unwrap();
+    let spacing = inherited.properties.value("contextualSpacing").unwrap();
+    assert_eq!(
+        (spacing.value.as_str(), spacing.provenance),
+        ("1", Provenance::ParagraphStyle)
+    );
+    let rp = p.run(0).unwrap().effective().unwrap().properties;
+    for name in character_flags {
+        let value = rp.value(name).unwrap();
+        assert_eq!(
+            (value.value.as_str(), value.provenance),
+            ("1", Provenance::CharacterStyle),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn paragraph_mark_omits_revision_and_container_properties() {
+    let input = docx(
+        r#"<w:p><w:pPr>
+        <w:tabs w:val="ignored"><w:tab w:val="left" w:pos="720"/></w:tabs>
+        <w:rPr><w:ins w:author="A"/><w:del w:author="A"/><w:moveFrom w:author="A"/>
+        <w:moveTo w:author="A"/><w:rPrChange w:author="A"/><w:oMath/><w:noProof/></w:rPr>
+    </w:pPr></w:p>"#,
+        None,
+        None,
+    );
+    let doc = Document::from_bytes(input).unwrap();
+    let p = doc.paragraph(0).unwrap().effective().unwrap();
+    assert!(p.properties.value("tabs").is_none());
+    for name in ["ins", "del", "moveFrom", "moveTo", "rPrChange"] {
+        assert!(p.mark.properties.attribute(name, "author").is_none());
+    }
+    assert!(p.mark.properties.value("oMath").is_none());
+    assert_eq!(p.mark.properties.value("noProof").unwrap().value, "1");
+}
+
+#[test]
+fn numbering_follows_style_links_and_stops_at_cycles() {
+    let styles = story_xml(
+        "styles",
+        r#"
+        <w:style w:type="numbering" w:styleId="L"><w:pPr><w:numPr><w:numId w:val="2"/></w:numPr></w:pPr></w:style>
+        <w:style w:type="numbering" w:styleId="Loop"><w:pPr><w:numPr><w:numId w:val="3"/></w:numPr></w:pPr></w:style>
+    "#,
+    );
+    let numbering = story_xml(
+        "numbering",
+        r#"
+        <w:abstractNum w:abstractNumId="1"><w:numStyleLink w:val="L"/></w:abstractNum>
+        <w:abstractNum w:abstractNumId="2"><w:lvl w:ilvl="1"><w:pPr><w:ind w:left="720"/></w:pPr></w:lvl></w:abstractNum>
+        <w:abstractNum w:abstractNumId="3"><w:numStyleLink w:val="Loop"/></w:abstractNum>
+        <w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>
+        <w:num w:numId="2"><w:abstractNumId w:val="2"/></w:num>
+        <w:num w:numId="3"><w:abstractNumId w:val="3"/></w:num>
+    "#,
+    );
+    let body = document(
+        r#"
+        <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr></w:p>
+        <w:p><w:pPr><w:numPr><w:numId w:val="3"/></w:numPr></w:pPr></w:p>
+    "#,
+    );
+    let doc = Document::from_bytes(package(
+        &body,
+        &[
+            ("styles", "styles.xml", &styles),
+            ("numbering", "numbering.xml", &numbering),
+        ],
+    ))
+    .unwrap();
+    let p = doc.paragraph(0).unwrap().effective().unwrap();
+    let indent = p.properties.attribute("ind", "left").unwrap();
+    assert_eq!(
+        (indent.value.as_str(), indent.provenance),
+        ("720", Provenance::Numbering)
+    );
+    let p = doc.paragraph(1).unwrap().effective().unwrap();
+    assert!(p.properties.attribute("ind", "left").is_none());
 }
 
 #[test]
@@ -333,6 +651,14 @@ fn after_run_applies_r1_to_r4_before_staging() {
         (revision, "revision"),
         (wrapped, "wrapper"),
         (non_text, "non-text"),
+        (
+            r#"<w:r><w:rPr><w:rPrChange w:id="1" w:author="A"/></w:rPr><w:t>text</w:t></w:r>"#,
+            "tracked",
+        ),
+        (
+            r#"<w:hyperlink><w:r><w:t>text</w:t></w:r></w:hyperlink>"#,
+            "hyperlink",
+        ),
     ] {
         let input = docx(&format!("<w:p>{run}</w:p>"), None, None);
         let mut doc = Document::from_bytes(input.clone()).unwrap();
@@ -344,7 +670,14 @@ fn after_run_applies_r1_to_r4_before_staging() {
             ("field", Error::InsideField)
             | ("revision", Error::InsideRevision { .. })
             | ("wrapper", Error::UnsupportedContext { .. })
-            | ("non-text", Error::RunNotTextOnly { .. }) => {}
+            | ("non-text", Error::RunNotTextOnly { .. })
+            | (
+                "tracked",
+                Error::TrackedPropertyChange {
+                    element: "w:rPrChange",
+                },
+            )
+            | ("hyperlink", Error::NestedHyperlink) => {}
             (expected, err) => panic!("{expected}: {err:?}"),
         }
         assert_eq!(doc.to_bytes().unwrap(), input);
@@ -369,6 +702,14 @@ fn existing_note_styles_are_selected_by_name_and_dangling_styles_are_reserved() 
     assert!(footnotes.contains("<w:rStyle w:val=\"a5\"/>"));
     let source = String::from_utf8(part(&output, "word/document.xml")).unwrap();
     assert!(source.contains("<w:rStyle w:val=\"a5\"/>"));
+    let output_styles = String::from_utf8(part(&output, "word/styles.xml")).unwrap();
+    let existing = styles
+        .split_once('>')
+        .unwrap()
+        .1
+        .strip_suffix("</w:styles>")
+        .unwrap();
+    assert!(output_styles.contains(existing));
 }
 
 #[test]

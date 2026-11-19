@@ -1,6 +1,6 @@
 //! Read-only Word formatting cascade (ADR-0015 §8).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ooxml_core::{QName, RawNode, value::parse_on_off};
 use ooxml_schema::wml::NS_W;
@@ -158,13 +158,13 @@ fn properties(
 ) {
     for property in container.into_iter().flat_map(RawNode::elements) {
         let name = property.name();
-        if name.ns() != NS_W {
+        if name.ns() != NS_W || property.elements().next().is_some() {
             continue;
         }
         let element = name.local();
         match element {
             "rPr" | "pPrChange" | "rPrChange" | "cnfStyle" | "pStyle" | "rStyle" | "sectPr"
-            | "numPr" => continue,
+            | "numPr" | "ins" | "del" | "moveFrom" | "moveTo" => continue,
             "rFonts" => {
                 for (attribute, themed) in FONT_SLOTS {
                     if let Some(value) = property
@@ -187,7 +187,31 @@ fn properties(
             _ if TOGGLES.contains(&element)
                 || matches!(
                     element,
-                    "keepNext" | "keepLines" | "pageBreakBefore" | "widowControl"
+                    // CT_OnOff children of CT_PPrBase and EG_RPrBase.
+                    "keepNext"
+                        | "keepLines"
+                        | "pageBreakBefore"
+                        | "widowControl"
+                        | "suppressLineNumbers"
+                        | "suppressAutoHyphens"
+                        | "kinsoku"
+                        | "wordWrap"
+                        | "overflowPunct"
+                        | "topLinePunct"
+                        | "autoSpaceDE"
+                        | "autoSpaceDN"
+                        | "bidi"
+                        | "adjustRightInd"
+                        | "snapToGrid"
+                        | "contextualSpacing"
+                        | "mirrorIndents"
+                        | "suppressOverlap"
+                        | "noProof"
+                        | "webHidden"
+                        | "rtl"
+                        | "cs"
+                        | "specVanish"
+                        | "oMath"
                 ) =>
             {
                 if let Some(value) = on(property) {
@@ -589,6 +613,7 @@ fn table_conditions(
 }
 
 fn numbering<'a>(
+    doc: &'a Document,
     root: Option<&'a RawNode>,
     pprs: impl Iterator<Item = &'a RawNode>,
     styles: &[&RawNode],
@@ -600,38 +625,51 @@ fn numbering<'a>(
         id = val(numpr, "numId").or(id);
         level = val(numpr, "ilvl").or(level);
     }
-    let id = id?.parse::<u32>().ok().filter(|&n| n != 0)?;
+    let mut id = id?.parse::<u32>().ok()?;
     let id_matches =
         |node: &RawNode, key, id| node.attr(w(key)).and_then(|n| n.parse::<u32>().ok()) == Some(id);
-    let num = root
-        .elements()
-        .find(|node| node.is(w("num")) && id_matches(node, "numId", id))?;
-    let abstract_id = val(num, "abstractNumId")?.parse::<u32>().ok()?;
-    let abstract_num = root
-        .elements()
-        .find(|node| node.is(w("abstractNum")) && id_matches(node, "abstractNumId", abstract_id))?;
-    let levels = || abstract_num.elements().filter(|node| node.is(w("lvl")));
-    let lvl = level
-        .or_else(|| {
-            styles.iter().rev().find_map(|style| {
-                let style_id = style.attr(w("styleId"))?;
-                levels()
-                    .find(|node| val(node, "pStyle") == Some(style_id))?
-                    .attr(w("ilvl"))
+    let mut visited = BTreeSet::new();
+    while id != 0 && visited.insert(id) {
+        let num = root
+            .elements()
+            .find(|node| node.is(w("num")) && id_matches(node, "numId", id))?;
+        let abstract_id = val(num, "abstractNumId")?.parse::<u32>().ok()?;
+        let abstract_num = root.elements().find(|node| {
+            node.is(w("abstractNum")) && id_matches(node, "abstractNumId", abstract_id)
+        })?;
+        let levels = || abstract_num.elements().filter(|node| node.is(w("lvl")));
+        let lvl = level
+            .or_else(|| {
+                styles.iter().rev().find_map(|style| {
+                    let style_id = style.attr(w("styleId"))?;
+                    levels()
+                        .find(|node| val(node, "pStyle") == Some(style_id))?
+                        .attr(w("ilvl"))
+                })
             })
-        })
-        .unwrap_or("0")
-        .parse::<u32>()
-        .ok()?;
-    if let Some(override_level) = num
-        .elements()
-        .find(|node| node.is(w("lvlOverride")) && id_matches(node, "ilvl", lvl))
-        .and_then(|node| child(node, "lvl"))
-    {
-        return child(override_level, "pPr");
+            .unwrap_or("0")
+            .parse::<u32>()
+            .ok()?;
+        let override_level = num
+            .elements()
+            .find(|node| node.is(w("lvlOverride")) && id_matches(node, "ilvl", lvl))
+            .and_then(|node| child(node, "lvl"));
+        if let Some(resolved) =
+            override_level.or_else(|| levels().find(|node| id_matches(node, "ilvl", lvl)))
+        {
+            return child(resolved, "pPr");
+        }
+
+        let linked_id = val(abstract_num, "numStyleLink")?;
+        let linked_style = doc.style_nodes().find(|node| {
+            StyleKind::of(node.attr(w("type"))) == StyleKind::Numbering
+                && node.attr(w("styleId")) == Some(linked_id)
+        })?;
+        id = val(child(child(linked_style, "pPr")?, "numPr")?, "numId")?
+            .parse()
+            .ok()?;
     }
-    let level = levels().find(|node| id_matches(node, "ilvl", lvl))?;
-    child(level, "pPr")
+    None
 }
 
 struct Cascade<'a> {
@@ -763,7 +801,7 @@ impl<'a> Cascade<'a> {
             .chain(direct_ppr);
         properties(
             &mut paragraph_properties,
-            numbering(num, pprs, &pstyles),
+            numbering(doc, num, pprs, &pstyles),
             Provenance::Numbering,
             &theme,
         );
@@ -784,7 +822,7 @@ impl<'a> Cascade<'a> {
         })
     }
 
-    fn run(&self, direct: Option<&RawNode>) -> Result<EffectiveRun> {
+    fn run(&self, direct: Option<&RawNode>, paragraph_mark: bool) -> Result<EffectiveRun> {
         let mut character = EffectiveProperties::default();
         for style in chain(
             self.doc,
@@ -805,6 +843,9 @@ impl<'a> Cascade<'a> {
             Provenance::Direct,
             &self.theme,
         );
+        if paragraph_mark {
+            direct_properties.0.remove("oMath");
+        }
         let mut resolved = self.defaults.clone();
         let layers = [&self.table, &self.paragraph, &character, &direct_properties];
         for layer in layers {
@@ -853,7 +894,7 @@ impl Paragraph<'_> {
     /// Resolves paragraph and paragraph-mark formatting without editing the package.
     pub fn effective(&self) -> Result<EffectiveParagraph> {
         let cascade = Cascade::new(self)?;
-        let mark = cascade.run(cascade.direct_ppr.and_then(|ppr| child(ppr, "rPr")))?;
+        let mark = cascade.run(cascade.direct_ppr.and_then(|ppr| child(ppr, "rPr")), true)?;
         Ok(EffectiveParagraph {
             properties: cascade.paragraph_properties,
             mark,
@@ -864,7 +905,7 @@ impl Paragraph<'_> {
 impl Run<'_> {
     /// Resolves run formatting without editing the package.
     pub fn effective(&self) -> Result<EffectiveRun> {
-        Cascade::new(&self.paragraph)?.run(child(self.raw(), "rPr"))
+        Cascade::new(&self.paragraph)?.run(child(self.raw(), "rPr"), false)
     }
 }
 
@@ -936,12 +977,9 @@ mod tests {
             }) {
                 continue;
             }
-            let Ok(mut doc) = Document::open(&path) else {
+            let Ok(doc) = Document::open(&path) else {
                 continue;
             };
-            for part in doc.registry_parts(&["styles"]).unwrap() {
-                let _ = doc.pkg.xml_part(&part);
-            }
             let theme = Theme {
                 elements: doc
                     .theme_part
@@ -954,13 +992,9 @@ mod tests {
                     .and_then(|name| doc.pkg.parsed_part(name))
                     .map(|xml| xml.root()),
             };
-            for part in doc.registry_parts(&["styles"]).unwrap() {
-                let Some(xml) = doc.pkg.parsed_part(&part) else {
-                    continue;
-                };
-                for color in
-                    crate::names::descendants(xml.root()).filter(|node| node.is(w("color")))
-                {
+            // Compare the primary styles with the theme used by the resolver.
+            if let Some(styles) = doc.styles_root() {
+                for color in crate::names::descendants(styles).filter(|node| node.is(w("color"))) {
                     let (Some(expected), Some(computed)) =
                         (color.attr(w("val")), theme.color(color))
                     else {

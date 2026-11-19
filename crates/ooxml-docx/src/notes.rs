@@ -98,12 +98,12 @@ where
 }
 
 impl Document {
-    /// Adds a footnote at a paragraph boundary or after a direct text run.
+    /// Adds a footnote in the document body at a paragraph boundary or after a direct text run.
     pub fn add_footnote(&mut self, at: RunPosition, paragraphs: Vec<String>) -> Result<NoteId> {
         self.add_note(at, &paragraphs, false)
     }
 
-    /// Adds an endnote at a paragraph boundary or after a direct text run.
+    /// Adds an endnote in the document body at a paragraph boundary or after a direct text run.
     pub fn add_endnote(&mut self, at: RunPosition, paragraphs: Vec<String>) -> Result<NoteId> {
         self.add_note(at, &paragraphs, true)
     }
@@ -162,19 +162,12 @@ impl Document {
             )?,
             result => result?,
         };
-        let id = plan.add_relationship(
+        plan.add_relationship(
             &self.pkg,
             Some(self.main_part_name()),
             &format!("{REL}/{local}"),
             Target::Part(name.clone()),
         )?;
-        if descendants(self.story_root_node(crate::StoryIndex::MAIN)).any(|node| {
-            node.attrs()
-                .iter()
-                .any(|a| a.name().ns() == NS_R && a.value().eq_ignore_ascii_case(&id))
-        }) {
-            return Err(Error::RelIdReferenced { id });
-        }
         Ok(name)
     }
 
@@ -187,6 +180,11 @@ impl Document {
         self.write_gate_for(Operation::Structure)?;
         let para = at.para();
         self.check_structure_neighbour(para)?;
+        if para.story != crate::StoryIndex::MAIN {
+            return Err(Error::UnsupportedContext {
+                ancestor: "a story outside w:body",
+            });
+        }
         let after = if let RunPosition::After(reference) = at {
             let run = self.run_at(reference).ok_or(Error::NoSuchRun {
                 paragraph: para.index,
@@ -484,5 +482,11 @@ fn note_style(
     style.set_attr(w("type"), kind)?;
     style.set_attr(w("styleId"), &id)?;
     style.insert::<StyleName>()?.set_attr(w("val"), name)?;
+    if kind == "character" {
+        style
+            .insert::<StyleRunProperties>()?
+            .insert::<VerticalTextAlignment>()?
+            .set_attr(w("val"), "superscript")?;
+    }
     Ok((id, true))
 }

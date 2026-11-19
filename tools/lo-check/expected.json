@@ -83,7 +83,8 @@
       ["word/document.xml", "./w:body/w:p[1]/w:r/w:footnoteReference[@w:id='1']", 1],
       ["word/document.xml", "./w:body/w:p[1]/w:r/w:endnoteReference[@w:id='1']", 1],
       ["word/footnotes.xml", "./w:footnote[@w:id='1']/w:p/w:r/w:t[.=' D3a inserted footnote.']", 1],
-      ["word/endnotes.xml", "./w:endnote[@w:id='1']/w:p/w:r/w:t[.=' D3a inserted endnote.']", 1]
+      ["word/endnotes.xml", "./w:endnote[@w:id='1']/w:p/w:r/w:t[.=' D3a inserted endnote.']", 1],
+      ["word/styles.xml", "./w:style[@w:styleId='FootnoteReference']/w:rPr/w:vertAlign[@w:val='superscript']", 1]
     ]
   },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
