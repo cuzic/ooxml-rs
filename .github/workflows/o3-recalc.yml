@@ -31,10 +31,12 @@ env:
   LANG: C.UTF-8
   LC_ALL: C.UTF-8
   TZ: UTC
+  LO_VERSION: ${{ inputs.libreoffice_version }}
 
 jobs:
   o3:
     runs-on: ubuntu-24.04
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -42,21 +44,34 @@ jobs:
       - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master @ 2026-11-16
         with:
           toolchain: "1.99"
-      - name: Install LibreOffice (pinned version and SHA-256)
-        env:
-          LO_VERSION: ${{ inputs.libreoffice_version }}
+      - name: Select pinned LibreOffice checksum
+        id: libreoffice
         run: |
-          set -euo pipefail
-          [[ "$LO_VERSION" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || { echo "bad version: $LO_VERSION"; exit 1; }
-          # Pinned SHA-256 per release (from the archive's .sha256/.mirrorlist,
-          # re-computed from the downloaded file). Add a line to allow a release.
           case "$LO_VERSION" in
-            25.2.7.2) SHA=3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581 ;;
+            25.2.7.2) echo "sha256=3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581" >> "$GITHUB_OUTPUT" ;;
             *) echo "no pinned SHA-256 for LibreOffice $LO_VERSION"; exit 1 ;;
           esac
+      - name: Cache LibreOffice tarball
+        id: libreoffice-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/LibreOffice_${{ env.LO_VERSION }}_Linux_x86-64_deb.tar.gz
+          key: libreoffice-linux-x86-64-deb-${{ env.LO_VERSION }}-${{ steps.libreoffice.outputs.sha256 }}
+      - name: Download LibreOffice tarball
+        if: steps.libreoffice-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 60
+        run: |
           tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
-          curl -fsSL --retry 5 -o "$RUNNER_TEMP/$tgz" "https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64/$tgz"
-          echo "$SHA  $RUNNER_TEMP/$tgz" | sha256sum -c -
+          url="https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64/$tgz"
+          curl -fsSL --retry 5 --retry-all-errors -C - --connect-timeout 30 \
+            --max-time 2100 --retry-max-time 3500 --output "$RUNNER_TEMP/$tgz" "$url"
+      - name: Install LibreOffice (pinned version and SHA-256)
+        env:
+          LO_SHA256: ${{ steps.libreoffice.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
+          echo "$LO_SHA256  $RUNNER_TEMP/$tgz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/lo" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP/lo"
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends "$RUNNER_TEMP"/lo/*/DEBS/*.deb

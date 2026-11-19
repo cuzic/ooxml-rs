@@ -5,6 +5,7 @@
 //!
 //! - `xlsx/`, `pptx/`, `docx/`: each example's own outputs and `CHECKLIST.md`;
 //! - `CHECKLIST.md`: an index of the formats, with each one's status;
+//! - `expected.json`: content and recalculation expectations for LibreOffice CI;
 //! - `manual-check.zip`: everything above, to send as one file.
 //!
 //! A format whose example fails is skipped with a message naming the command
@@ -65,6 +66,10 @@ pub fn run(root: &Path, out: &Path) -> Res<bool> {
     }
 
     std::fs::write(out.join("CHECKLIST.md"), index(root, &out, &outcomes)?)?;
+    std::fs::write(
+        out.join("expected.json"),
+        include_str!("../../tools/lo-check/expected.json"),
+    )?;
     let files = write_zip(&out)?;
     eprintln!("manual-check: wrote {} ({files} files) and CHECKLIST.md to {}", ZIP_NAME, out.display());
     Ok(outcomes.iter().all(|o| matches!(o, Outcome::Written)))

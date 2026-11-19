@@ -195,15 +195,14 @@ impl Document {
     /// specific level first; read-only; not the Phase3 resolver (ADR-0007
     /// §4, "inherited superseding attributes").
     pub(crate) fn inherited_ppr_attr(&self, style: Option<&str>, element: &'static str, attr: &'static str) -> Result<Option<String>> {
+        self.inherited_paragraph_value(style, |ppr| {
+            ppr.elements().find(|e| e.is(w(element)))?.attr(w(attr)).map(str::to_owned)
+        })
+    }
+
+    fn inherited_paragraph_value(&self, style: Option<&str>, value: impl Fn(&RawNode) -> Option<String>) -> Result<Option<String>> {
         let Some(root) = self.styles_root() else { return Ok(None) };
-        let from_ppr = |n: &RawNode| -> Option<String> {
-            n.elements()
-                .find(|e| e.is(w("pPr")))?
-                .elements()
-                .find(|e| e.is(w(element)))?
-                .attr(w(attr))
-                .map(str::to_owned)
-        };
+        let from_ppr = |n: &RawNode| value(n.elements().find(|e| e.is(w("pPr")))?);
         let by_id = |id: &str| self.style_nodes().find(|s| s.attr(w("styleId")) == Some(id));
         let default = || {
             self.style_nodes().find(|s| {
@@ -230,6 +229,16 @@ impl Document {
             .find(|e| e.is(w("docDefaults")))
             .and_then(|d| d.elements().find(|e| e.is(w("pPrDefault"))))
             .and_then(from_ppr))
+    }
+
+    pub(crate) fn inherited_numbering(&self, style: Option<&str>) -> Result<Option<u32>> {
+        if self.styles_ambiguous {
+            return Err(Error::AmbiguousStylesPart);
+        }
+        self.inherited_paragraph_value(style, |ppr| {
+            let props = ppr.elements().find(|n| n.is(w("numPr")))?;
+            val(props, "numId").map(str::to_owned)
+        }).map(|value| value.and_then(|v| v.trim().parse().ok()))
     }
 
     /// The explicit opt-in that lifts W2 (`StaleFieldRisk`) for every
@@ -287,5 +296,136 @@ impl Document {
     /// Whether [`Self::enable_update_fields_on_open`] was called.
     pub fn update_fields_opted_in(&self) -> bool {
         self.fields_opt_in
+    }
+}
+
+/// Definition of a new paragraph or character style (ADR-0011 §8).
+#[derive(Clone, Debug)]
+pub struct StyleSpec<'a> {
+    /// Paragraph or character.
+    pub kind: StyleKind,
+    /// Display name.
+    pub name: &'a str,
+    /// Explicit id, or an id derived from the display name.
+    pub id: Option<&'a str>,
+    /// Existing parent style id of the same kind.
+    pub based_on: Option<&'a str>,
+    /// Existing following style id of the same kind.
+    pub next: Option<&'a str>,
+    /// Run formatting of the new style.
+    pub run: crate::RunFormat,
+    /// Paragraph formatting of a paragraph style.
+    pub paragraph: crate::ParagraphFormat,
+}
+
+impl Document {
+    /// Append a custom style and return its id. Requires a styles part.
+    pub fn add_style(&mut self, spec: &StyleSpec<'_>) -> Result<String> {
+        use crate::format::{apply_ppr, apply_rpr, plan_paragraph, plan_run};
+        use crate::names::descendants;
+        use ooxml_core::{NsDecl, RegistryPlan};
+        use ooxml_schema::wml::{BasedOn, NextParagraphStyle, PrimaryStyle, Style, StyleName, StyleParagraphProperties, StyleRunProperties, Styles};
+
+        self.write_gate_w1_w3()?;
+        if self.styles_ambiguous {
+            return Err(Error::AmbiguousStylesPart);
+        }
+        let part = self.styles_part.clone().ok_or(Error::NoStylesPart)?;
+        let root = self.styles_root().ok_or(Error::NoStylesPart)?;
+        let kind = match spec.kind {
+            StyleKind::Paragraph => "paragraph",
+            StyleKind::Character => "character",
+            _ => return Err(Error::InvalidValue { what: "style kind", value: format!("{:?}", spec.kind) }),
+        };
+        for (what, value) in [("style name", Some(spec.name)), ("style id", spec.id)] {
+            if let Some(value) = value {
+                if value.trim().is_empty() {
+                    return Err(Error::InvalidValue { what, value: value.into() });
+                }
+                if let Some((_, ch)) = ooxml_core::value::first_invalid_xml_char(value) {
+                    return Err(Error::InvalidXmlChar { ch });
+                }
+            }
+        }
+        let name = fold(spec.name);
+        if !self.style_ids_by_name(spec.name).is_empty() {
+            return Err(Error::DuplicateStyleName { name: spec.name.into() });
+        }
+        if root.elements().filter(|n| n.is(w("latentStyles"))).flat_map(RawNode::elements)
+            .any(|n| n.is(w("lsdException")) && n.attr(w("name")).is_some_and(|n| fold(n) == name))
+        {
+            return Err(Error::BuiltInStyleName { name: spec.name.into() });
+        }
+        for id in [spec.based_on, spec.next].into_iter().flatten() {
+            self.resolve_style(id, spec.kind)?;
+        }
+        let mut used = BTreeSet::new();
+        for part in self.registry_parts(&["styles", "stylesWithEffects", "numbering", "settings"])? {
+            let xml = self.pkg.xml_part(&part)?;
+            for n in descendants(xml.root()).filter(|n| n.name().ns() == NS_W) {
+                let attr = match n.name().local() {
+                    "style" => "styleId",
+                    "pStyle" | "rStyle" | "tblStyle" | "basedOn" | "next" | "link" | "styleLink" | "numStyleLink" | "clickAndTypeStyle" | "defaultTableStyle" => "val",
+                    _ => continue,
+                };
+                used.extend(n.attr(w(attr)).map(fold));
+            }
+        }
+        let id = if let Some(id) = spec.id {
+            if used.contains(&fold(id)) {
+                return Err(Error::StyleIdInUse { id: id.into() });
+            }
+            id.into()
+        } else {
+            let mut stem: String = spec.name.chars().filter(char::is_ascii_alphanumeric).collect();
+            if stem.is_empty() {
+                stem.push('a');
+            }
+            if used.contains(&fold(&stem)) {
+                (0..).map(|i| format!("{stem}{i}")).find(|id| !used.contains(&fold(id))).expect("finite registry")
+            } else {
+                stem
+            }
+        };
+        let run = plan_run(None, &spec.run)?;
+        let paragraph = plan_paragraph(None, &spec.paragraph, &|element, attr| {
+            self.inherited_ppr_attr(spec.based_on, element, attr)
+        })?;
+        if spec.kind == StyleKind::Character && !paragraph.props.is_empty() {
+            return Err(Error::InvalidValue { what: "character style paragraph formatting", value: spec.name.into() });
+        }
+
+        let mut xml = self.pkg.xml_part(&part)?.clone();
+        let mut styles = xml.lens_mut::<Styles>()?;
+        let mut style = styles.insert_with_ns::<Style>(&[NsDecl { prefix: "w", uri: NS_W }])?;
+        style.set_attr(w("styleId"), &id)?;
+        style.set_attr(w("type"), kind)?;
+        style.set_attr(w("customStyle"), "1")?;
+        style.insert::<StyleName>()?.set_attr(w("val"), spec.name)?;
+        if let Some(id) = spec.based_on {
+            style.insert::<BasedOn>()?.set_attr(w("val"), id)?;
+        }
+        if let Some(id) = spec.next {
+            style.insert::<NextParagraphStyle>()?.set_attr(w("val"), id)?;
+        }
+        style.insert::<PrimaryStyle>()?;
+        if !paragraph.props.is_empty() {
+            let mut ppr = style.insert::<StyleParagraphProperties>()?.cast()?;
+            for op in &paragraph.props {
+                apply_ppr(&mut ppr, op)?;
+            }
+        }
+        if !run.props.is_empty() {
+            // The ECMA style rPr uses CT_RPr. The SDK's style-specific
+            // projection omits highlight, which belongs to the Phase1 subset.
+            let mut rpr = style.insert::<StyleRunProperties>()?.cast()?;
+            for op in &run.props {
+                apply_rpr(&mut rpr, op)?;
+            }
+        }
+        let mut plan = RegistryPlan::new(&self.pkg);
+        plan.stage_part(&self.pkg, &part, xml)?;
+        self.pkg.apply(plan)?;
+        Ok(id)
     }
 }

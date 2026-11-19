@@ -322,7 +322,7 @@ name would restyle 22 paragraphs.
 | **Bookmark names** | every `bookmarkStart/@w:name`, plus every name a `REF`/`PAGEREF`/`NOTEREF`/`HYPERLINK \l` instruction or a `w:hyperlink/@w:anchor` mentions | none: the caller names it. It must be absent ignoring case (Unicode lower-casing), at most 40 characters, and a **Unicode letter** followed by letters, digits or `_` *(Word's UI rule; review m4, proposed default Q3)*. Caller names starting with `_` are refused | exact duplicates: POI 1 file (LibreOffice `__DdeLink__`), 8 template outputs; case-only: 0; over 40 characters: 1; Cyrillic names exist (POI `WordWithAttachments.docx`) |
 | **Numbering** | `numId`: `w:num/@w:numId` ∪ `w:numIdMacAtCleanup/@w:val` ∪ every `w:numPr/w:numId` in the stories, styles and numbering parts. `abstractNumId`: definitions ∪ `w:num/w:abstractNumId` | max + 1 for each. `numId` 0 is reserved ("no numbering": 58 SDK `numPr`) and never allocated (review m3) | duplicates, gaps, dangling references: 0 everywhere; `numIdMacAtCleanup` ≥ max `numId` in 4 SDK files; largest max + 1: 100 / 104 |
 | **`nsid`** | all `abstractNum/w:nsid` | random 8-hex-digit value absent from the set | duplicates: 0 |
-| **Style ids** | `w:styleId` in `styles.xml` ∪ every `pStyle`/`rStyle`/`tblStyle` in the stories and styles, `basedOn`/`next`/`link`, `numbering.xml`'s `w:lvl/w:pStyle`, `styleLink`/`numStyleLink` (`stylesWithEffects.xml` read-only, §8) | derived from the name, checked; see §8 | undefined references: POI 22 `pStyle` + 1 `link`, template 8 `link` (`review1.py`); duplicate ids: 0 |
+| **Style ids** | `w:styleId` in `styles.xml` ∪ every `pStyle`/`rStyle`/`tblStyle` in the stories and styles, `basedOn`/`next`/`link`, `numbering.xml`'s `w:lvl/w:pStyle`, `styleLink`/`numStyleLink` (`stylesWithEffects.xml` read-only, §8), plus `settings.xml`’s `w:clickAndTypeStyle/@w:val` and `w:defaultTableStyle/@w:val` | derived from the name, checked; see §8 | undefined references: POI 22 `pStyle` + 1 `link`, template 8 `link` (`review1.py`); duplicate ids: 0 |
 | **Relationship ids, part names, content types** | core (§1) | core | §1 |
 
 **No `w14:paraId`/`textId` in Phase2.** New paragraphs and rows get none, as in Phase0:
@@ -702,11 +702,14 @@ after it a new `w:r` with a copy of the run's `w:rPr` (`detach_as`, refused with
     `w:CT_String253/w:basedOn`, `w:CT_String253/w:next`, `w:CT_RPrStyle/w:rPr`,
     `w:CT_PPrStyle/w:pPr`;
   - images: `w:CT_Drawing/w:drawing`.
-- **`[detach]`** gains the following entries (revision 3, review N7, adds the last one):
+- **`[detach]`** gains the following entries:
   - `w:CT_TrPr/w:trPr`, `w:CT_TcPr/w:tcPr`, `w:CT_PPr/w:pPr`;
   - `w:CT_SectPr/w:sectPr`, always copied with its header/footer references skipped (§6);
-  - `w:CT_NumLvl/w:lvlOverride`, for `restart_list` (§5a). Each review checks that the
-  subtree holds no document-unique id once the listed skips apply.
+  - `w:CT_NumLvl/w:lvlOverride`, for `restart_list` (§5a);
+  - `w:CT_RPr/w:rPr`, for bookmark run splits (§9.2). Runs with `w:rPrChange` are
+    refused before copying, which prevents duplicating the annotation id.
+  Each review checks that the subtree holds no document-unique id once the
+  listed restrictions apply.
 - **New file `codegen/allowlist/wpd.toml`** for the `wp` and `pic` entries, which only Word
   uses: `wp:CT_Inline/wp:inline`, `wp:CT_PositiveSize2D/wp:extent`,
   `wp:CT_EffectExtent/wp:effectExtent`, `wp:CT_NonVisualDrawingProps/wp:docPr`,
@@ -1029,3 +1032,50 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   continuation separator and continuation notice notes. A section split
   invalidates the generation of each paragraph whose section properties it
   changes.
+
+### Part 3 (§5, §5a, §8)
+
+| Operation | W2 column |
+|---|---|
+| `add_bookmark` | Text |
+| `remove_bookmark` | Structure |
+| `create_list`, `apply_list`, `restart_list`, `remove_from_list` | Structure |
+| `add_style` | W1/W3 only |
+
+- `BookmarkRange` takes a current `Match` or inclusive first/last paragraph
+  references. Splits retain formatting and omit run revision-session attributes
+  on the new halves. The annotation maximum survives removals for the lifetime
+  of the open document. Name collisions ignore case and are scoped to the
+  stories, as are field and anchor references and bookmark removal. Glossary
+  annotations still contribute to the id maximum. The field scan joins
+  complex-field instruction fragments and also checks simple fields. Ambiguous
+  marker pairs refuse, as do markers that the editable story tree cannot reach.
+- Bookmark splits move intact run children within the story XML. The move
+  checks namespace and inherited whitespace context. The suffix run copies
+  the original run’s `xml:space` attribute before moving children. A `w:t` that straddles
+  the split is divided. The allowlist includes `w:CT_RPr/w:rPr` for
+  copying the run formatting (§11). A run containing `w:rPrChange` is refused
+  before the copy, so its annotation id cannot be duplicated. Bookmark markers
+  must be direct paragraph children. A hyperlink may occur between them when
+  both endpoints are outside it. A range containing field boundaries or with
+  an endpoint inside a field is refused to keep the field intact. Paragraph
+  property changes (`w:pPrChange`) stay in place and allow bookmarking.
+- `create_list` writes nine levels for either `Bullet` or `Decimal`. Selection
+  of the numbering part and registration of a new one use the main part's
+  relationships. `restart_list` takes an explicit start value and copies
+  all level overrides and updates only the restart level’s `w:startOverride`.
+  Duplicate overrides for the same numeric level in the source instance
+  return `InvalidNumbering`. It checks every affected paragraph before
+  applying the new instance. `remove_from_list` follows the paragraph's style
+  chain when deciding whether to suppress inherited numbering.
+- `add_style` writes paragraph and character styles using the Phase1 formatting
+  planner. It includes existing style references from numbering and stories in
+  collision checks. The ECMA style run properties use `CT_RPr`, which includes
+  highlight alongside the other Phase1 properties.
+- **Open question:** the minimal `styles.xml` template remains part of the
+  `Document::new()` design. Until that template is specified, adding a style to
+  a document without a styles part returns `NoStylesPart`.
+- The generated editable case is checked in CI with python-docx using
+  `crates/ooxml-docx/tests/oracle/phase2_registries.py`. The Rust tests check
+  unchanged ZIP bytes on refusal, unchanged nodes and entries on success, and
+  the appended OPC entries using an independent XML parser.

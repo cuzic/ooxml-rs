@@ -76,6 +76,34 @@ names = [
     "a:CT_NonVisualPictureProperties/pic:cNvPicPr",
     "a:CT_BlipFillProperties/pic:blipFill",
     "a:CT_ShapeProperties/pic:spPr",
+    # Word Phase2 part 3 (ADR-0011 §5, §5a, §8).
+    "w:CT_Bookmark/w:bookmarkStart",
+    "w:CT_MarkupRange/w:bookmarkEnd",
+    "w:CT_NumPr/w:numPr",
+    "w:CT_NonNegativeDecimalNumber255/w:ilvl",
+    "w:CT_NonNegativeDecimalNumber/w:numId",
+    "w:CT_Numbering/w:numbering",
+    "w:CT_AbstractNum/w:abstractNum",
+    "w:CT_Num/w:num",
+    "w:CT_NonNegativeDecimalNumber/w:abstractNumId",
+    "w:CT_Lvl/w:lvl",
+    "w:CT_NumLvl/w:lvlOverride",
+    "w:CT_DecimalNumber/w:startOverride",
+    "w:CT_NonNegativeDecimalNumber/w:start",
+    "w:CT_NumFmt/w:numFmt",
+    "w:CT_LongHexNumber/w:nsid",
+    "w:CT_LevelText/w:lvlText",
+    "w:CT_LevelJustification/w:lvlJc",
+    "w:CT_MultiLevelType/w:multiLevelType",
+    "w:CT_String253/w:basedOn",
+    "w:CT_String253/w:next",
+    "w:CT_OnOffOnly/w:qFormat",
+    "w:CT_PPrStyle/w:pPr",
+    "w:CT_RPrStyle/w:rPr",
+    "w:CT_PPrBase/w:pPr",
+    "w:CT_Styles/w:styles",
+    "w:CT_Style/w:style",
+    "w:CT_StyleName/w:name",
 ]
 
 # (ADR-0011 §7 reads w:hMerge raw.)
@@ -115,9 +143,6 @@ names = [
     "w:CT_Comments/w:comments",
     "w:CT_Comment/w:comment",
     # Word Phase1 (ADR-0007 §5): style lookup.
-    "w:CT_Styles/w:styles",
-    "w:CT_Style/w:style",
-    "w:CT_StyleName/w:name",
 ]
 
 # Word Phase2 (ADR-0011 §11): copied by detach_as. pPr is copied without
@@ -126,6 +151,8 @@ names = [
 # footer references (r:id), which are written again with typed setters.
 [detach]
 names = [
+    "w:CT_RPr/w:rPr",
+    "w:CT_NumLvl/w:lvlOverride",
     "w:CT_PPr/w:pPr",
     "w:CT_SectPr/w:sectPr",
     # ADR-0011 §7: row and cell properties of template rows; the revision

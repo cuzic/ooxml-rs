@@ -88,6 +88,27 @@ impl ooxml_core::EnumType for BlackWhiteModeValues {
         self as usize
     }
 }
+/// `w:ST_OnOffOnly` — OnOffOnlyValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum OnOffOnlyValues {
+    /// `on`
+    On,
+    /// `off`
+    Off,
+}
+impl ooxml_core::EnumType for OnOffOnlyValues {
+    const VALUES: &'static [&'static str] = &["on", "off"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::On),
+            1 => Some(Self::Off),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_HighlightColor` — HighlightColorValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HighlightColorValues {
@@ -337,6 +358,27 @@ impl ooxml_core::EnumType for DocumentProtectionValues {
             2 => Some(Self::Comments),
             3 => Some(Self::TrackedChanges),
             4 => Some(Self::Forms),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_DisplacedByCustomXml` — DisplacedByCustomXmlValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DisplacedByCustomXmlValues {
+    /// `next`
+    Next,
+    /// `prev`
+    Previous,
+}
+impl ooxml_core::EnumType for DisplacedByCustomXmlValues {
+    const VALUES: &'static [&'static str] = &["next", "prev"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Next),
+            1 => Some(Self::Previous),
             _ => None,
         }
     }
@@ -691,6 +733,34 @@ impl ooxml_core::EnumType for MergedCellValues {
         self as usize
     }
 }
+/// `w:ST_MultiLevelType` — MultiLevelValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MultiLevelValues {
+    /// `singleLevel`
+    SingleLevel,
+    /// `multilevel`
+    Multilevel,
+    /// `hybridMultilevel`
+    HybridMultilevel,
+}
+impl ooxml_core::EnumType for MultiLevelValues {
+    const VALUES: &'static [&'static str] = &[
+        "singleLevel",
+        "multilevel",
+        "hybridMultilevel",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::SingleLevel),
+            1 => Some(Self::Multilevel),
+            2 => Some(Self::HybridMultilevel),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `w:ST_StyleType` — StyleValues.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StyleValues {
@@ -800,6 +870,30 @@ impl ooxml_core::EnumType for ThemeColorValues {
             14 => Some(Self::Text1),
             15 => Some(Self::Background2),
             16 => Some(Self::Text2),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_LevelJustification` — Horizontal Alignment Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LevelJustificationValues {
+    /// `left`
+    Left,
+    /// `center`
+    Center,
+    /// `right`
+    Right,
+}
+impl ooxml_core::EnumType for LevelJustificationValues {
+    const VALUES: &'static [&'static str] = &["left", "center", "right"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Left),
+            1 => Some(Self::Center),
+            2 => Some(Self::Right),
             _ => None,
         }
     }
@@ -2493,6 +2587,173 @@ impl<'a> NonVisualPicturePropertiesViewMut<'a> {
         self.0.remove::<NonVisualPictureDrawingProperties>()
     }
 }
+/// `w:CT_AbstractNum/w:abstractNum` — Abstract Numbering Definition.
+#[derive(Debug)]
+pub enum AbstractNum {}
+impl AbstractNum {
+    /// `w:abstractNumId`
+    pub const ATTR_W_ABSTRACT_NUM_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "abstractNumId",
+    );
+}
+impl ooxml_core::ElementSpec for AbstractNum {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "abstractNum");
+    const SDK_NAME: &'static str = "w:CT_AbstractNum/w:abstractNum";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AbstractNum::ATTR_W_ABSTRACT_NUM_ID,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "nsid")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "multiLevelType")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tmpl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "name")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "styleLink")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numStyleLink")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvl")],
+                wildcard: None,
+                max_each: Some(9),
+                max_total: Some(9),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<AbstractNum> for Nsid {}
+impl ooxml_core::ChildOf<AbstractNum> for Level {}
+impl ooxml_core::ChildOf<AbstractNum> for MultiLevelType {}
+/// Read-only view of [`AbstractNum`].
+#[derive(Clone, Debug)]
+pub struct AbstractNumView<'a>(pub ooxml_core::Lens<'a, AbstractNum>);
+impl<'a> AbstractNumView<'a> {
+    /// `w:abstractNumId` — Abstract Numbering Definition ID
+    pub fn abstract_number_id(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                AbstractNum::ATTR_W_ABSTRACT_NUM_ID,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// First `w:nsid` child.
+    pub fn nsid(&self) -> Option<NsidView<'a>> {
+        self.0.child::<Nsid>().map(NsidView)
+    }
+    /// `w:lvl` children in document order.
+    pub fn level_iter(&self) -> impl Iterator<Item = LevelView<'a>> {
+        self.0.children::<Level>().map(LevelView)
+    }
+    /// First `w:multiLevelType` child.
+    pub fn multi_level_type(&self) -> Option<MultiLevelTypeView<'a>> {
+        self.0.child::<MultiLevelType>().map(MultiLevelTypeView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AbstractNum`]. Reads go through [`AbstractNumViewMut::as_view`].
+#[derive(Debug)]
+pub struct AbstractNumViewMut<'a>(pub ooxml_core::LensMut<'a, AbstractNum>);
+impl<'a> AbstractNumViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AbstractNumView<'_> {
+        AbstractNumView(self.0.as_lens())
+    }
+    /// Sets `w:abstractNumId` — Abstract Numbering Definition ID
+    pub fn set_abstract_number_id(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(AbstractNum::ATTR_W_ABSTRACT_NUM_ID, s),
+        )
+    }
+    /// Removes `w:abstractNumId`.
+    pub fn remove_abstract_number_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AbstractNum::ATTR_W_ABSTRACT_NUM_ID)
+    }
+    /// First `w:nsid` child, mutably.
+    pub fn nsid_mut(&mut self) -> Option<NsidViewMut<'_>> {
+        self.0.child_mut::<Nsid>().map(NsidViewMut)
+    }
+    /// Existing `w:nsid` child, or a new one in schema position.
+    pub fn get_or_insert_nsid(&mut self) -> Result<NsidViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Nsid>().map(NsidViewMut)
+    }
+    /// Removes the first `w:nsid` child.
+    pub fn remove_nsid(&mut self) -> bool {
+        self.0.remove::<Nsid>()
+    }
+    /// First `w:lvl` child matching `pred`, mutably.
+    pub fn level_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LevelViewMut<'_>> {
+        self.0.child_mut_by::<Level>(pred).map(LevelViewMut)
+    }
+    /// Inserts a `w:lvl` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_level_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LevelViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Level>(before).map(LevelViewMut)
+    }
+    /// Appends a `w:lvl` at the end of its slot.
+    pub fn insert_level(&mut self) -> Result<LevelViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Level>().map(LevelViewMut)
+    }
+    /// Removes the first `w:lvl` child.
+    pub fn remove_level(&mut self) -> bool {
+        self.0.remove::<Level>()
+    }
+    /// First `w:multiLevelType` child, mutably.
+    pub fn multi_level_type_mut(&mut self) -> Option<MultiLevelTypeViewMut<'_>> {
+        self.0.child_mut::<MultiLevelType>().map(MultiLevelTypeViewMut)
+    }
+    /// Existing `w:multiLevelType` child, or a new one in schema position.
+    pub fn get_or_insert_multi_level_type(
+        &mut self,
+    ) -> Result<MultiLevelTypeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<MultiLevelType>().map(MultiLevelTypeViewMut)
+    }
+    /// Removes the first `w:multiLevelType` child.
+    pub fn remove_multi_level_type(&mut self) -> bool {
+        self.0.remove::<MultiLevelType>()
+    }
+}
 /// `w:CT_Body/w:body` — Defines the Body Class.
 #[derive(Debug)]
 pub enum Body {}
@@ -2553,6 +2814,8 @@ impl ooxml_core::ElementSpec for Body {
         ],
     );
 }
+impl ooxml_core::ChildOf<Body> for BookmarkStart {}
+impl ooxml_core::ChildOf<Body> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Body> for Paragraph {}
 impl ooxml_core::ChildOf<Body> for DeletedRun {}
 impl ooxml_core::ChildOf<Body> for InsertedRun {}
@@ -2564,6 +2827,14 @@ impl ooxml_core::ChildOf<Body> for Table {}
 #[derive(Clone, Debug)]
 pub struct BodyView<'a>(pub ooxml_core::Lens<'a, Body>);
 impl<'a> BodyView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -2604,6 +2875,54 @@ impl<'a> BodyViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> BodyView<'_> {
         BodyView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
     }
     /// First `w:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
@@ -2664,6 +2983,157 @@ impl<'a> BodyViewMut<'a> {
     /// Removes the first `w:tbl` child.
     pub fn remove_table(&mut self) -> bool {
         self.0.remove::<Table>()
+    }
+}
+/// `w:CT_Bookmark/w:bookmarkStart` — Defines the BookmarkStart Class.
+#[derive(Debug)]
+pub enum BookmarkStart {}
+impl BookmarkStart {
+    /// `w:name`
+    pub const ATTR_W_NAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "name");
+    /// `w:colFirst`
+    pub const ATTR_W_COL_FIRST: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "colFirst",
+    );
+    /// `w:colLast`
+    pub const ATTR_W_COL_LAST: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "colLast",
+    );
+    /// `w:displacedByCustomXml`
+    pub const ATTR_W_DISPLACED_BY_CUSTOM_XML: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "displacedByCustomXml",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for BookmarkStart {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "bookmarkStart");
+    const SDK_NAME: &'static str = "w:CT_Bookmark/w:bookmarkStart";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BookmarkStart::ATTR_W_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BookmarkStart::ATTR_W_COL_FIRST,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BookmarkStart::ATTR_W_COL_LAST,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BookmarkStart::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+            ty: ooxml_core::SimpleType::Enum(
+                <DisplacedByCustomXmlValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BookmarkStart::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BookmarkStart`].
+#[derive(Clone, Debug)]
+pub struct BookmarkStartView<'a>(pub ooxml_core::Lens<'a, BookmarkStart>);
+impl<'a> BookmarkStartView<'a> {
+    /// `w:name` — name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(BookmarkStart::ATTR_W_NAME)
+    }
+    /// `w:colFirst` — colFirst
+    pub fn column_first(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BookmarkStart::ATTR_W_COL_FIRST, ooxml_core::value::parse_i32)
+    }
+    /// `w:colLast` — colLast
+    pub fn column_last(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(BookmarkStart::ATTR_W_COL_LAST, ooxml_core::value::parse_i32)
+    }
+    /// `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn displaced_by_custom_xml(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, DisplacedByCustomXmlValues>> {
+        self.0.attr_enum(BookmarkStart::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(BookmarkStart::ATTR_W_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BookmarkStart`]. Reads go through [`BookmarkStartViewMut::as_view`].
+#[derive(Debug)]
+pub struct BookmarkStartViewMut<'a>(pub ooxml_core::LensMut<'a, BookmarkStart>);
+impl<'a> BookmarkStartViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BookmarkStartView<'_> {
+        BookmarkStartView(self.0.as_lens())
+    }
+    /// Sets `w:name` — name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BookmarkStart::ATTR_W_NAME, v)
+    }
+    /// Removes `w:name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkStart::ATTR_W_NAME)
+    }
+    /// Sets `w:colFirst` — colFirst
+    pub fn set_column_first(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BookmarkStart::ATTR_W_COL_FIRST, s),
+        )
+    }
+    /// Removes `w:colFirst`.
+    pub fn remove_column_first(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkStart::ATTR_W_COL_FIRST)
+    }
+    /// Sets `w:colLast` — colLast
+    pub fn set_column_last(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(BookmarkStart::ATTR_W_COL_LAST, s),
+        )
+    }
+    /// Removes `w:colLast`.
+    pub fn remove_column_last(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkStart::ATTR_W_COL_LAST)
+    }
+    /// Sets `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn set_displaced_by_custom_xml(
+        &mut self,
+        v: DisplacedByCustomXmlValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BookmarkStart::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `w:displacedByCustomXml`.
+    pub fn remove_displaced_by_custom_xml(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkStart::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// Sets `w:id` — Annotation Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BookmarkStart::ATTR_W_ID, v)
+    }
+    /// Removes `w:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkStart::ATTR_W_ID)
     }
 }
 /// `w:CT_Br/w:br` — Break.
@@ -2938,6 +3408,8 @@ impl ooxml_core::ElementSpec for Comment {
         ],
     );
 }
+impl ooxml_core::ChildOf<Comment> for BookmarkStart {}
+impl ooxml_core::ChildOf<Comment> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Comment> for Paragraph {}
 impl ooxml_core::ChildOf<Comment> for Table {}
 /// Read-only view of [`Comment`].
@@ -2963,6 +3435,14 @@ impl<'a> CommentView<'a> {
     /// `w:id` — Annotation Identifier
     pub fn id(&self) -> Option<&'a str> {
         self.0.attr(Comment::ATTR_W_ID)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -3154,6 +3634,66 @@ impl<'a> GridSpanViewMut<'a> {
     /// Removes `w:val`.
     pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(GridSpan::ATTR_W_VAL)
+    }
+}
+/// `w:CT_DecimalNumber/w:startOverride` — Numbering Level Starting Value Override.
+#[derive(Debug)]
+pub enum StartOverrideNumberingValue {}
+impl StartOverrideNumberingValue {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for StartOverrideNumberingValue {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "startOverride");
+    const SDK_NAME: &'static str = "w:CT_DecimalNumber/w:startOverride";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: StartOverrideNumberingValue::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`StartOverrideNumberingValue`].
+#[derive(Clone, Debug)]
+pub struct StartOverrideNumberingValueView<'a>(
+    pub ooxml_core::Lens<'a, StartOverrideNumberingValue>,
+);
+impl<'a> StartOverrideNumberingValueView<'a> {
+    /// `w:val` — Decimal Number Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                StartOverrideNumberingValue::ATTR_W_VAL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`StartOverrideNumberingValue`]. Reads go through [`StartOverrideNumberingValueViewMut::as_view`].
+#[derive(Debug)]
+pub struct StartOverrideNumberingValueViewMut<'a>(
+    pub ooxml_core::LensMut<'a, StartOverrideNumberingValue>,
+);
+impl<'a> StartOverrideNumberingValueViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StartOverrideNumberingValueView<'_> {
+        StartOverrideNumberingValueView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Decimal Number Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(StartOverrideNumberingValue::ATTR_W_VAL, s),
+        )
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(StartOverrideNumberingValue::ATTR_W_VAL)
     }
 }
 /// `w:CT_DocProtect/w:documentProtection` — Document Editing Restrictions.
@@ -4144,6 +4684,8 @@ impl ooxml_core::ElementSpec for Endnote {
         ],
     );
 }
+impl ooxml_core::ChildOf<Endnote> for BookmarkStart {}
+impl ooxml_core::ChildOf<Endnote> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Endnote> for Paragraph {}
 impl ooxml_core::ChildOf<Endnote> for DeletedRun {}
 impl ooxml_core::ChildOf<Endnote> for InsertedRun {}
@@ -4161,6 +4703,14 @@ impl<'a> EndnoteView<'a> {
     /// `w:id` — Footnote/Endnote ID
     pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
         self.0.attr_parsed(Endnote::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -4264,6 +4814,8 @@ impl ooxml_core::ElementSpec for Footnote {
         ],
     );
 }
+impl ooxml_core::ChildOf<Footnote> for BookmarkStart {}
+impl ooxml_core::ChildOf<Footnote> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Footnote> for Paragraph {}
 impl ooxml_core::ChildOf<Footnote> for DeletedRun {}
 impl ooxml_core::ChildOf<Footnote> for InsertedRun {}
@@ -4281,6 +4833,14 @@ impl<'a> FootnoteView<'a> {
     /// `w:id` — Footnote/Endnote ID
     pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
         self.0.attr_parsed(Footnote::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -4365,6 +4925,8 @@ impl ooxml_core::ElementSpec for Footer {
         ],
     );
 }
+impl ooxml_core::ChildOf<Footer> for BookmarkStart {}
+impl ooxml_core::ChildOf<Footer> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Footer> for Paragraph {}
 impl ooxml_core::ChildOf<Footer> for DeletedRun {}
 impl ooxml_core::ChildOf<Footer> for InsertedRun {}
@@ -4375,6 +4937,14 @@ impl ooxml_core::ChildOf<Footer> for Table {}
 #[derive(Clone, Debug)]
 pub struct FooterView<'a>(pub ooxml_core::Lens<'a, Footer>);
 impl<'a> FooterView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -4458,6 +5028,8 @@ impl ooxml_core::ElementSpec for Header {
         ],
     );
 }
+impl ooxml_core::ChildOf<Header> for BookmarkStart {}
+impl ooxml_core::ChildOf<Header> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Header> for Paragraph {}
 impl ooxml_core::ChildOf<Header> for DeletedRun {}
 impl ooxml_core::ChildOf<Header> for InsertedRun {}
@@ -4468,6 +5040,14 @@ impl ooxml_core::ChildOf<Header> for Table {}
 #[derive(Clone, Debug)]
 pub struct HeaderView<'a>(pub ooxml_core::Lens<'a, Header>);
 impl<'a> HeaderView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -4926,7 +5506,9 @@ impl ooxml_core::ElementSpec for Hyperlink {
         ],
     );
 }
+impl ooxml_core::ChildOf<Hyperlink> for BookmarkStart {}
 impl ooxml_core::ChildOf<Hyperlink> for Hyperlink {}
+impl ooxml_core::ChildOf<Hyperlink> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Hyperlink> for Run {}
 impl ooxml_core::ChildOf<Hyperlink> for DeletedRun {}
 impl ooxml_core::ChildOf<Hyperlink> for InsertedRun {}
@@ -4961,9 +5543,17 @@ impl<'a> HyperlinkView<'a> {
     pub fn id(&self) -> Option<&'a str> {
         self.0.attr(Hyperlink::ATTR_R_ID)
     }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
     /// `w:hyperlink` children in document order.
     pub fn hyperlink_iter(&self) -> impl Iterator<Item = HyperlinkView<'a>> {
         self.0.children::<Hyperlink>().map(HyperlinkView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -5050,6 +5640,30 @@ impl<'a> HyperlinkViewMut<'a> {
     pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Hyperlink::ATTR_R_ID)
     }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
     /// First `w:hyperlink` child matching `pred`, mutably.
     pub fn hyperlink_mut_by(
         &mut self,
@@ -5073,6 +5687,30 @@ impl<'a> HyperlinkViewMut<'a> {
     /// Removes the first `w:hyperlink` child.
     pub fn remove_hyperlink(&mut self) -> bool {
         self.0.remove::<Hyperlink>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
     }
     /// First `w:r` child matching `pred`, mutably.
     pub fn run_mut_by(
@@ -5453,6 +6091,130 @@ impl<'a> JustificationViewMut<'a> {
         self.0.remove_attr(Justification::ATTR_W_VAL)
     }
 }
+/// `w:CT_LevelJustification/w:lvlJc` — Justification.
+#[derive(Debug)]
+pub enum LevelJustification {}
+impl LevelJustification {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for LevelJustification {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "lvlJc");
+    const SDK_NAME: &'static str = "w:CT_LevelJustification/w:lvlJc";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LevelJustification::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <LevelJustificationValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LevelJustification`].
+#[derive(Clone, Debug)]
+pub struct LevelJustificationView<'a>(pub ooxml_core::Lens<'a, LevelJustification>);
+impl<'a> LevelJustificationView<'a> {
+    /// `w:val` — Alignment Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, LevelJustificationValues>> {
+        self.0.attr_enum(LevelJustification::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LevelJustification`]. Reads go through [`LevelJustificationViewMut::as_view`].
+#[derive(Debug)]
+pub struct LevelJustificationViewMut<'a>(
+    pub ooxml_core::LensMut<'a, LevelJustification>,
+);
+impl<'a> LevelJustificationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LevelJustificationView<'_> {
+        LevelJustificationView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Alignment Type
+    pub fn set_val(
+        &mut self,
+        v: LevelJustificationValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LevelJustification::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LevelJustification::ATTR_W_VAL)
+    }
+}
+/// `w:CT_LevelText/w:lvlText` — Numbering Level Text.
+#[derive(Debug)]
+pub enum LevelText {}
+impl LevelText {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+    /// `w:null`
+    pub const ATTR_W_NULL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "null");
+}
+impl ooxml_core::ElementSpec for LevelText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "lvlText");
+    const SDK_NAME: &'static str = "w:CT_LevelText/w:lvlText";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LevelText::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: LevelText::ATTR_W_NULL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LevelText`].
+#[derive(Clone, Debug)]
+pub struct LevelTextView<'a>(pub ooxml_core::Lens<'a, LevelText>);
+impl<'a> LevelTextView<'a> {
+    /// `w:val` — Level Text
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(LevelText::ATTR_W_VAL)
+    }
+    /// `w:null` — Level Text Is Null Character
+    pub fn null(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(LevelText::ATTR_W_NULL, ooxml_core::value::parse_on_off)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LevelText`]. Reads go through [`LevelTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct LevelTextViewMut<'a>(pub ooxml_core::LensMut<'a, LevelText>);
+impl<'a> LevelTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LevelTextView<'_> {
+        LevelTextView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Level Text
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LevelText::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LevelText::ATTR_W_VAL)
+    }
+    /// Sets `w:null` — Level Text Is Null Character
+    pub fn set_null(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LevelText::ATTR_W_NULL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:null`.
+    pub fn remove_null(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LevelText::ATTR_W_NULL)
+    }
+}
 /// `w:CT_LineNumber/w:lnNumType` — Defines the LineNumberType Class.
 #[derive(Debug)]
 pub enum LineNumberType {}
@@ -5582,6 +6344,1249 @@ impl<'a> LineNumberTypeViewMut<'a> {
     /// Removes `w:restart`.
     pub fn remove_restart(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(LineNumberType::ATTR_W_RESTART)
+    }
+}
+/// `w:CT_LongHexNumber/w:nsid` — Abstract Numbering Definition Identifier.
+#[derive(Debug)]
+pub enum Nsid {}
+impl Nsid {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Nsid {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "nsid");
+    const SDK_NAME: &'static str = "w:CT_LongHexNumber/w:nsid";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Nsid::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Nsid`].
+#[derive(Clone, Debug)]
+pub struct NsidView<'a>(pub ooxml_core::Lens<'a, Nsid>);
+impl<'a> NsidView<'a> {
+    /// `w:val` — Long Hexadecimal Number Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(Nsid::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Nsid`]. Reads go through [`NsidViewMut::as_view`].
+#[derive(Debug)]
+pub struct NsidViewMut<'a>(pub ooxml_core::LensMut<'a, Nsid>);
+impl<'a> NsidViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NsidView<'_> {
+        NsidView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Long Hexadecimal Number Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Nsid::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Nsid::ATTR_W_VAL)
+    }
+}
+/// `w:CT_Lvl/w:lvl` — Numbering Level Definition.
+#[derive(Debug)]
+pub enum Level {}
+impl Level {
+    /// `w:ilvl`
+    pub const ATTR_W_ILVL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ilvl");
+    /// `w:tplc`
+    pub const ATTR_W_TPLC: ooxml_core::QName = ooxml_core::QName::new(NS_W, "tplc");
+    /// `w:tentative`
+    pub const ATTR_W_TENTATIVE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "tentative",
+    );
+}
+impl ooxml_core::ElementSpec for Level {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "lvl");
+    const SDK_NAME: &'static str = "w:CT_Lvl/w:lvl";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Level::ATTR_W_ILVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level::ATTR_W_TPLC,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Level::ATTR_W_TENTATIVE,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "start")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numFmt")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvlRestart")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "isLgl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suff")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvlText")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvlPicBulletId")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "legacy")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvlJc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "rPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Level> for LevelJustification {}
+impl ooxml_core::ChildOf<Level> for LevelText {}
+impl ooxml_core::ChildOf<Level> for StartNumberingValue {}
+impl ooxml_core::ChildOf<Level> for NumberingFormat {}
+impl ooxml_core::ChildOf<Level> for PreviousParagraphProperties {}
+/// Read-only view of [`Level`].
+#[derive(Clone, Debug)]
+pub struct LevelView<'a>(pub ooxml_core::Lens<'a, Level>);
+impl<'a> LevelView<'a> {
+    /// `w:ilvl` — Numbering Level
+    pub fn level_index(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Level::ATTR_W_ILVL, ooxml_core::value::parse_i32)
+    }
+    /// `w:tplc` — Template Code
+    pub fn template_code(&self) -> Option<&'a str> {
+        self.0.attr(Level::ATTR_W_TPLC)
+    }
+    /// `w:tentative` — Tentative Numbering
+    pub fn tentative(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Level::ATTR_W_TENTATIVE, ooxml_core::value::parse_on_off)
+    }
+    /// First `w:lvlJc` child.
+    pub fn level_justification(&self) -> Option<LevelJustificationView<'a>> {
+        self.0.child::<LevelJustification>().map(LevelJustificationView)
+    }
+    /// First `w:lvlText` child.
+    pub fn level_text(&self) -> Option<LevelTextView<'a>> {
+        self.0.child::<LevelText>().map(LevelTextView)
+    }
+    /// First `w:start` child.
+    pub fn start_numbering_value(&self) -> Option<StartNumberingValueView<'a>> {
+        self.0.child::<StartNumberingValue>().map(StartNumberingValueView)
+    }
+    /// First `w:numFmt` child.
+    pub fn numbering_format(&self) -> Option<NumberingFormatView<'a>> {
+        self.0.child::<NumberingFormat>().map(NumberingFormatView)
+    }
+    /// First `w:pPr` child.
+    pub fn previous_paragraph_properties(
+        &self,
+    ) -> Option<PreviousParagraphPropertiesView<'a>> {
+        self.0
+            .child::<PreviousParagraphProperties>()
+            .map(PreviousParagraphPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Level`]. Reads go through [`LevelViewMut::as_view`].
+#[derive(Debug)]
+pub struct LevelViewMut<'a>(pub ooxml_core::LensMut<'a, Level>);
+impl<'a> LevelViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LevelView<'_> {
+        LevelView(self.0.as_lens())
+    }
+    /// Sets `w:ilvl` — Numbering Level
+    pub fn set_level_index(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(Level::ATTR_W_ILVL, s))
+    }
+    /// Removes `w:ilvl`.
+    pub fn remove_level_index(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Level::ATTR_W_ILVL)
+    }
+    /// Sets `w:tplc` — Template Code
+    pub fn set_template_code(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Level::ATTR_W_TPLC, v)
+    }
+    /// Removes `w:tplc`.
+    pub fn remove_template_code(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Level::ATTR_W_TPLC)
+    }
+    /// Sets `w:tentative` — Tentative Numbering
+    pub fn set_tentative(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Level::ATTR_W_TENTATIVE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:tentative`.
+    pub fn remove_tentative(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Level::ATTR_W_TENTATIVE)
+    }
+    /// First `w:lvlJc` child, mutably.
+    pub fn level_justification_mut(&mut self) -> Option<LevelJustificationViewMut<'_>> {
+        self.0.child_mut::<LevelJustification>().map(LevelJustificationViewMut)
+    }
+    /// Existing `w:lvlJc` child, or a new one in schema position.
+    pub fn get_or_insert_level_justification(
+        &mut self,
+    ) -> Result<LevelJustificationViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LevelJustification>().map(LevelJustificationViewMut)
+    }
+    /// Removes the first `w:lvlJc` child.
+    pub fn remove_level_justification(&mut self) -> bool {
+        self.0.remove::<LevelJustification>()
+    }
+    /// First `w:lvlText` child, mutably.
+    pub fn level_text_mut(&mut self) -> Option<LevelTextViewMut<'_>> {
+        self.0.child_mut::<LevelText>().map(LevelTextViewMut)
+    }
+    /// Existing `w:lvlText` child, or a new one in schema position.
+    pub fn get_or_insert_level_text(
+        &mut self,
+    ) -> Result<LevelTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LevelText>().map(LevelTextViewMut)
+    }
+    /// Removes the first `w:lvlText` child.
+    pub fn remove_level_text(&mut self) -> bool {
+        self.0.remove::<LevelText>()
+    }
+    /// First `w:start` child, mutably.
+    pub fn start_numbering_value_mut(
+        &mut self,
+    ) -> Option<StartNumberingValueViewMut<'_>> {
+        self.0.child_mut::<StartNumberingValue>().map(StartNumberingValueViewMut)
+    }
+    /// Existing `w:start` child, or a new one in schema position.
+    pub fn get_or_insert_start_numbering_value(
+        &mut self,
+    ) -> Result<StartNumberingValueViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<StartNumberingValue>().map(StartNumberingValueViewMut)
+    }
+    /// Removes the first `w:start` child.
+    pub fn remove_start_numbering_value(&mut self) -> bool {
+        self.0.remove::<StartNumberingValue>()
+    }
+    /// First `w:numFmt` child, mutably.
+    pub fn numbering_format_mut(&mut self) -> Option<NumberingFormatViewMut<'_>> {
+        self.0.child_mut::<NumberingFormat>().map(NumberingFormatViewMut)
+    }
+    /// Existing `w:numFmt` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_format(
+        &mut self,
+    ) -> Result<NumberingFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NumberingFormat>().map(NumberingFormatViewMut)
+    }
+    /// Removes the first `w:numFmt` child.
+    pub fn remove_numbering_format(&mut self) -> bool {
+        self.0.remove::<NumberingFormat>()
+    }
+    /// First `w:pPr` child, mutably.
+    pub fn previous_paragraph_properties_mut(
+        &mut self,
+    ) -> Option<PreviousParagraphPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<PreviousParagraphProperties>()
+            .map(PreviousParagraphPropertiesViewMut)
+    }
+    /// Existing `w:pPr` child, or a new one in schema position.
+    pub fn get_or_insert_previous_paragraph_properties(
+        &mut self,
+    ) -> Result<PreviousParagraphPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<PreviousParagraphProperties>()
+            .map(PreviousParagraphPropertiesViewMut)
+    }
+    /// Removes the first `w:pPr` child.
+    pub fn remove_previous_paragraph_properties(&mut self) -> bool {
+        self.0.remove::<PreviousParagraphProperties>()
+    }
+}
+/// `w:CT_MarkupRange/w:bookmarkEnd` — Defines the BookmarkEnd Class.
+#[derive(Debug)]
+pub enum BookmarkEnd {}
+impl BookmarkEnd {
+    /// `w:displacedByCustomXml`
+    pub const ATTR_W_DISPLACED_BY_CUSTOM_XML: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "displacedByCustomXml",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for BookmarkEnd {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "bookmarkEnd");
+    const SDK_NAME: &'static str = "w:CT_MarkupRange/w:bookmarkEnd";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BookmarkEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+            ty: ooxml_core::SimpleType::Enum(
+                <DisplacedByCustomXmlValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: BookmarkEnd::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BookmarkEnd`].
+#[derive(Clone, Debug)]
+pub struct BookmarkEndView<'a>(pub ooxml_core::Lens<'a, BookmarkEnd>);
+impl<'a> BookmarkEndView<'a> {
+    /// `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn displaced_by_custom_xml(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, DisplacedByCustomXmlValues>> {
+        self.0.attr_enum(BookmarkEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(BookmarkEnd::ATTR_W_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BookmarkEnd`]. Reads go through [`BookmarkEndViewMut::as_view`].
+#[derive(Debug)]
+pub struct BookmarkEndViewMut<'a>(pub ooxml_core::LensMut<'a, BookmarkEnd>);
+impl<'a> BookmarkEndViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BookmarkEndView<'_> {
+        BookmarkEndView(self.0.as_lens())
+    }
+    /// Sets `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn set_displaced_by_custom_xml(
+        &mut self,
+        v: DisplacedByCustomXmlValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                BookmarkEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `w:displacedByCustomXml`.
+    pub fn remove_displaced_by_custom_xml(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// Sets `w:id` — Annotation Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BookmarkEnd::ATTR_W_ID, v)
+    }
+    /// Removes `w:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BookmarkEnd::ATTR_W_ID)
+    }
+}
+/// `w:CT_MultiLevelType/w:multiLevelType` — Abstract Numbering Definition Type.
+#[derive(Debug)]
+pub enum MultiLevelType {}
+impl MultiLevelType {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for MultiLevelType {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "multiLevelType");
+    const SDK_NAME: &'static str = "w:CT_MultiLevelType/w:multiLevelType";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: MultiLevelType::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <MultiLevelValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`MultiLevelType`].
+#[derive(Clone, Debug)]
+pub struct MultiLevelTypeView<'a>(pub ooxml_core::Lens<'a, MultiLevelType>);
+impl<'a> MultiLevelTypeView<'a> {
+    /// `w:val` — Abstract Numbering Definition Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, MultiLevelValues>> {
+        self.0.attr_enum(MultiLevelType::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`MultiLevelType`]. Reads go through [`MultiLevelTypeViewMut::as_view`].
+#[derive(Debug)]
+pub struct MultiLevelTypeViewMut<'a>(pub ooxml_core::LensMut<'a, MultiLevelType>);
+impl<'a> MultiLevelTypeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MultiLevelTypeView<'_> {
+        MultiLevelTypeView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Abstract Numbering Definition Type
+    pub fn set_val(&mut self, v: MultiLevelValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(MultiLevelType::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(MultiLevelType::ATTR_W_VAL)
+    }
+}
+/// `w:CT_NonNegativeDecimalNumber/w:abstractNumId` — Defines the AbstractNumId Class.
+#[derive(Debug)]
+pub enum AbstractNumId {}
+impl AbstractNumId {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for AbstractNumId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "abstractNumId");
+    const SDK_NAME: &'static str = "w:CT_NonNegativeDecimalNumber/w:abstractNumId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AbstractNumId::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`AbstractNumId`].
+#[derive(Clone, Debug)]
+pub struct AbstractNumIdView<'a>(pub ooxml_core::Lens<'a, AbstractNumId>);
+impl<'a> AbstractNumIdView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(AbstractNumId::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AbstractNumId`]. Reads go through [`AbstractNumIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct AbstractNumIdViewMut<'a>(pub ooxml_core::LensMut<'a, AbstractNumId>);
+impl<'a> AbstractNumIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AbstractNumIdView<'_> {
+        AbstractNumIdView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(AbstractNumId::ATTR_W_VAL, s))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AbstractNumId::ATTR_W_VAL)
+    }
+}
+/// `w:CT_NonNegativeDecimalNumber/w:numId` — Numbering Definition Instance Reference.
+#[derive(Debug)]
+pub enum NumberingId {}
+impl NumberingId {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for NumberingId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "numId");
+    const SDK_NAME: &'static str = "w:CT_NonNegativeDecimalNumber/w:numId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NumberingId::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NumberingId`].
+#[derive(Clone, Debug)]
+pub struct NumberingIdView<'a>(pub ooxml_core::Lens<'a, NumberingId>);
+impl<'a> NumberingIdView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(NumberingId::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NumberingId`]. Reads go through [`NumberingIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct NumberingIdViewMut<'a>(pub ooxml_core::LensMut<'a, NumberingId>);
+impl<'a> NumberingIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NumberingIdView<'_> {
+        NumberingIdView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(NumberingId::ATTR_W_VAL, s))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NumberingId::ATTR_W_VAL)
+    }
+}
+/// `w:CT_NonNegativeDecimalNumber/w:start` — Starting Value.
+#[derive(Debug)]
+pub enum StartNumberingValue {}
+impl StartNumberingValue {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for StartNumberingValue {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "start");
+    const SDK_NAME: &'static str = "w:CT_NonNegativeDecimalNumber/w:start";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: StartNumberingValue::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`StartNumberingValue`].
+#[derive(Clone, Debug)]
+pub struct StartNumberingValueView<'a>(pub ooxml_core::Lens<'a, StartNumberingValue>);
+impl<'a> StartNumberingValueView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(StartNumberingValue::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`StartNumberingValue`]. Reads go through [`StartNumberingValueViewMut::as_view`].
+#[derive(Debug)]
+pub struct StartNumberingValueViewMut<'a>(
+    pub ooxml_core::LensMut<'a, StartNumberingValue>,
+);
+impl<'a> StartNumberingValueViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StartNumberingValueView<'_> {
+        StartNumberingValueView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(StartNumberingValue::ATTR_W_VAL, s),
+        )
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(StartNumberingValue::ATTR_W_VAL)
+    }
+}
+/// `w:CT_NonNegativeDecimalNumber255/w:ilvl` — Numbering Level Reference.
+#[derive(Debug)]
+pub enum NumberingLevelReference {}
+impl NumberingLevelReference {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for NumberingLevelReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ilvl");
+    const SDK_NAME: &'static str = "w:CT_NonNegativeDecimalNumber255/w:ilvl";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NumberingLevelReference::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NumberingLevelReference`].
+#[derive(Clone, Debug)]
+pub struct NumberingLevelReferenceView<'a>(
+    pub ooxml_core::Lens<'a, NumberingLevelReference>,
+);
+impl<'a> NumberingLevelReferenceView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                NumberingLevelReference::ATTR_W_VAL,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NumberingLevelReference`]. Reads go through [`NumberingLevelReferenceViewMut::as_view`].
+#[derive(Debug)]
+pub struct NumberingLevelReferenceViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NumberingLevelReference>,
+);
+impl<'a> NumberingLevelReferenceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NumberingLevelReferenceView<'_> {
+        NumberingLevelReferenceView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(NumberingLevelReference::ATTR_W_VAL, s),
+        )
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NumberingLevelReference::ATTR_W_VAL)
+    }
+}
+/// `w:CT_Num/w:num` — Numbering Definition Instance.
+#[derive(Debug)]
+pub enum NumberingInstance {}
+impl NumberingInstance {
+    /// `w:numId`
+    pub const ATTR_W_NUM_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "numId");
+    /// `w:durableId`
+    pub const ATTR_W_DURABLE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "durableId",
+    );
+}
+impl ooxml_core::ElementSpec for NumberingInstance {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "num");
+    const SDK_NAME: &'static str = "w:CT_Num/w:num";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NumberingInstance::ATTR_W_NUM_ID,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: NumberingInstance::ATTR_W_DURABLE_ID,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "abstractNumId")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvlOverride")],
+                wildcard: None,
+                max_each: Some(9),
+                max_total: Some(9),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<NumberingInstance> for AbstractNumId {}
+impl ooxml_core::ChildOf<NumberingInstance> for LevelOverride {}
+/// Read-only view of [`NumberingInstance`].
+#[derive(Clone, Debug)]
+pub struct NumberingInstanceView<'a>(pub ooxml_core::Lens<'a, NumberingInstance>);
+impl<'a> NumberingInstanceView<'a> {
+    /// `w:numId` — numId
+    pub fn number_id(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(NumberingInstance::ATTR_W_NUM_ID, ooxml_core::value::parse_i32)
+    }
+    /// `w:durableId` — durableId
+    pub fn durable_id(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                NumberingInstance::ATTR_W_DURABLE_ID,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// First `w:abstractNumId` child.
+    pub fn abstract_num_id(&self) -> Option<AbstractNumIdView<'a>> {
+        self.0.child::<AbstractNumId>().map(AbstractNumIdView)
+    }
+    /// `w:lvlOverride` children in document order.
+    pub fn level_override_iter(&self) -> impl Iterator<Item = LevelOverrideView<'a>> {
+        self.0.children::<LevelOverride>().map(LevelOverrideView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NumberingInstance`]. Reads go through [`NumberingInstanceViewMut::as_view`].
+#[derive(Debug)]
+pub struct NumberingInstanceViewMut<'a>(pub ooxml_core::LensMut<'a, NumberingInstance>);
+impl<'a> NumberingInstanceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NumberingInstanceView<'_> {
+        NumberingInstanceView(self.0.as_lens())
+    }
+    /// Sets `w:numId` — numId
+    pub fn set_number_id(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(NumberingInstance::ATTR_W_NUM_ID, s),
+        )
+    }
+    /// Removes `w:numId`.
+    pub fn remove_number_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NumberingInstance::ATTR_W_NUM_ID)
+    }
+    /// Sets `w:durableId` — durableId
+    pub fn set_durable_id(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(NumberingInstance::ATTR_W_DURABLE_ID, s),
+        )
+    }
+    /// Removes `w:durableId`.
+    pub fn remove_durable_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NumberingInstance::ATTR_W_DURABLE_ID)
+    }
+    /// First `w:abstractNumId` child, mutably.
+    pub fn abstract_num_id_mut(&mut self) -> Option<AbstractNumIdViewMut<'_>> {
+        self.0.child_mut::<AbstractNumId>().map(AbstractNumIdViewMut)
+    }
+    /// Existing `w:abstractNumId` child, or a new one in schema position.
+    pub fn get_or_insert_abstract_num_id(
+        &mut self,
+    ) -> Result<AbstractNumIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<AbstractNumId>().map(AbstractNumIdViewMut)
+    }
+    /// Removes the first `w:abstractNumId` child.
+    pub fn remove_abstract_num_id(&mut self) -> bool {
+        self.0.remove::<AbstractNumId>()
+    }
+    /// First `w:lvlOverride` child matching `pred`, mutably.
+    pub fn level_override_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LevelOverrideViewMut<'_>> {
+        self.0.child_mut_by::<LevelOverride>(pred).map(LevelOverrideViewMut)
+    }
+    /// Inserts a `w:lvlOverride` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_level_override_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<LevelOverrideViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<LevelOverride>(before).map(LevelOverrideViewMut)
+    }
+    /// Appends a `w:lvlOverride` at the end of its slot.
+    pub fn insert_level_override(
+        &mut self,
+    ) -> Result<LevelOverrideViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<LevelOverride>().map(LevelOverrideViewMut)
+    }
+    /// Removes the first `w:lvlOverride` child.
+    pub fn remove_level_override(&mut self) -> bool {
+        self.0.remove::<LevelOverride>()
+    }
+}
+/// `w:CT_NumFmt/w:numFmt` — Footnote Numbering Format.
+#[derive(Debug)]
+pub enum NumberingFormat {}
+impl NumberingFormat {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+    /// `w:format`
+    pub const ATTR_W_FORMAT: ooxml_core::QName = ooxml_core::QName::new(NS_W, "format");
+}
+impl ooxml_core::ElementSpec for NumberingFormat {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "numFmt");
+    const SDK_NAME: &'static str = "w:CT_NumFmt/w:numFmt";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NumberingFormat::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <NumberFormatValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: NumberingFormat::ATTR_W_FORMAT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NumberingFormat`].
+#[derive(Clone, Debug)]
+pub struct NumberingFormatView<'a>(pub ooxml_core::Lens<'a, NumberingFormat>);
+impl<'a> NumberingFormatView<'a> {
+    /// `w:val` — Numbering Format Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, NumberFormatValues>> {
+        self.0.attr_enum(NumberingFormat::ATTR_W_VAL)
+    }
+    /// `w:format` — format
+    pub fn format(&self) -> Option<&'a str> {
+        self.0.attr(NumberingFormat::ATTR_W_FORMAT)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NumberingFormat`]. Reads go through [`NumberingFormatViewMut::as_view`].
+#[derive(Debug)]
+pub struct NumberingFormatViewMut<'a>(pub ooxml_core::LensMut<'a, NumberingFormat>);
+impl<'a> NumberingFormatViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NumberingFormatView<'_> {
+        NumberingFormatView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Numbering Format Type
+    pub fn set_val(&mut self, v: NumberFormatValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NumberingFormat::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NumberingFormat::ATTR_W_VAL)
+    }
+    /// Sets `w:format` — format
+    pub fn set_format(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NumberingFormat::ATTR_W_FORMAT, v)
+    }
+    /// Removes `w:format`.
+    pub fn remove_format(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NumberingFormat::ATTR_W_FORMAT)
+    }
+}
+/// `w:CT_NumLvl/w:lvlOverride` — Defines the LevelOverride Class.
+#[derive(Debug)]
+pub enum LevelOverride {}
+impl LevelOverride {
+    /// `w:ilvl`
+    pub const ATTR_W_ILVL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "ilvl");
+}
+impl ooxml_core::ElementSpec for LevelOverride {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "lvlOverride");
+    const SDK_NAME: &'static str = "w:CT_NumLvl/w:lvlOverride";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LevelOverride::ATTR_W_ILVL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "startOverride")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lvl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<LevelOverride> for StartOverrideNumberingValue {}
+impl ooxml_core::ChildOf<LevelOverride> for Level {}
+impl ooxml_core::schema::__private::Sealed for LevelOverride {}
+impl ooxml_core::Detachable for LevelOverride {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
+/// Read-only view of [`LevelOverride`].
+#[derive(Clone, Debug)]
+pub struct LevelOverrideView<'a>(pub ooxml_core::Lens<'a, LevelOverride>);
+impl<'a> LevelOverrideView<'a> {
+    /// `w:ilvl` — Numbering Level ID
+    pub fn level_index(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(LevelOverride::ATTR_W_ILVL, ooxml_core::value::parse_i32)
+    }
+    /// First `w:startOverride` child.
+    pub fn start_override_numbering_value(
+        &self,
+    ) -> Option<StartOverrideNumberingValueView<'a>> {
+        self.0
+            .child::<StartOverrideNumberingValue>()
+            .map(StartOverrideNumberingValueView)
+    }
+    /// First `w:lvl` child.
+    pub fn level(&self) -> Option<LevelView<'a>> {
+        self.0.child::<Level>().map(LevelView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LevelOverride`]. Reads go through [`LevelOverrideViewMut::as_view`].
+#[derive(Debug)]
+pub struct LevelOverrideViewMut<'a>(pub ooxml_core::LensMut<'a, LevelOverride>);
+impl<'a> LevelOverrideViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LevelOverrideView<'_> {
+        LevelOverrideView(self.0.as_lens())
+    }
+    /// Sets `w:ilvl` — Numbering Level ID
+    pub fn set_level_index(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(LevelOverride::ATTR_W_ILVL, s),
+        )
+    }
+    /// Removes `w:ilvl`.
+    pub fn remove_level_index(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LevelOverride::ATTR_W_ILVL)
+    }
+    /// First `w:startOverride` child, mutably.
+    pub fn start_override_numbering_value_mut(
+        &mut self,
+    ) -> Option<StartOverrideNumberingValueViewMut<'_>> {
+        self.0
+            .child_mut::<StartOverrideNumberingValue>()
+            .map(StartOverrideNumberingValueViewMut)
+    }
+    /// Existing `w:startOverride` child, or a new one in schema position.
+    pub fn get_or_insert_start_override_numbering_value(
+        &mut self,
+    ) -> Result<StartOverrideNumberingValueViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<StartOverrideNumberingValue>()
+            .map(StartOverrideNumberingValueViewMut)
+    }
+    /// Removes the first `w:startOverride` child.
+    pub fn remove_start_override_numbering_value(&mut self) -> bool {
+        self.0.remove::<StartOverrideNumberingValue>()
+    }
+    /// First `w:lvl` child, mutably.
+    pub fn level_mut(&mut self) -> Option<LevelViewMut<'_>> {
+        self.0.child_mut::<Level>().map(LevelViewMut)
+    }
+    /// Existing `w:lvl` child, or a new one in schema position.
+    pub fn get_or_insert_level(
+        &mut self,
+    ) -> Result<LevelViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Level>().map(LevelViewMut)
+    }
+    /// Removes the first `w:lvl` child.
+    pub fn remove_level(&mut self) -> bool {
+        self.0.remove::<Level>()
+    }
+}
+/// `w:CT_NumPr/w:numPr` — Defines the NumberingProperties Class.
+#[derive(Debug)]
+pub enum NumberingProperties {}
+impl ooxml_core::ElementSpec for NumberingProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "numPr");
+    const SDK_NAME: &'static str = "w:CT_NumPr/w:numPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "ilvl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numId")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numberingChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "ins")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<NumberingProperties> for NumberingId {}
+impl ooxml_core::ChildOf<NumberingProperties> for NumberingLevelReference {}
+/// Read-only view of [`NumberingProperties`].
+#[derive(Clone, Debug)]
+pub struct NumberingPropertiesView<'a>(pub ooxml_core::Lens<'a, NumberingProperties>);
+impl<'a> NumberingPropertiesView<'a> {
+    /// First `w:numId` child.
+    pub fn numbering_id(&self) -> Option<NumberingIdView<'a>> {
+        self.0.child::<NumberingId>().map(NumberingIdView)
+    }
+    /// First `w:ilvl` child.
+    pub fn numbering_level_reference(&self) -> Option<NumberingLevelReferenceView<'a>> {
+        self.0.child::<NumberingLevelReference>().map(NumberingLevelReferenceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NumberingProperties`]. Reads go through [`NumberingPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NumberingPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NumberingProperties>,
+);
+impl<'a> NumberingPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NumberingPropertiesView<'_> {
+        NumberingPropertiesView(self.0.as_lens())
+    }
+    /// First `w:numId` child, mutably.
+    pub fn numbering_id_mut(&mut self) -> Option<NumberingIdViewMut<'_>> {
+        self.0.child_mut::<NumberingId>().map(NumberingIdViewMut)
+    }
+    /// Existing `w:numId` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_id(
+        &mut self,
+    ) -> Result<NumberingIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NumberingId>().map(NumberingIdViewMut)
+    }
+    /// Removes the first `w:numId` child.
+    pub fn remove_numbering_id(&mut self) -> bool {
+        self.0.remove::<NumberingId>()
+    }
+    /// First `w:ilvl` child, mutably.
+    pub fn numbering_level_reference_mut(
+        &mut self,
+    ) -> Option<NumberingLevelReferenceViewMut<'_>> {
+        self.0.child_mut::<NumberingLevelReference>().map(NumberingLevelReferenceViewMut)
+    }
+    /// Existing `w:ilvl` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_level_reference(
+        &mut self,
+    ) -> Result<NumberingLevelReferenceViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<NumberingLevelReference>()
+            .map(NumberingLevelReferenceViewMut)
+    }
+    /// Removes the first `w:ilvl` child.
+    pub fn remove_numbering_level_reference(&mut self) -> bool {
+        self.0.remove::<NumberingLevelReference>()
+    }
+}
+/// `w:CT_Numbering/w:numbering` — Numbering Definitions.
+#[derive(Debug)]
+pub enum Numbering {}
+impl ooxml_core::ElementSpec for Numbering {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "numbering");
+    const SDK_NAME: &'static str = "w:CT_Numbering/w:numbering";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numPicBullet")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "abstractNum")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "num")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numIdMacAtCleanup")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Numbering> for AbstractNum {}
+impl ooxml_core::ChildOf<Numbering> for NumberingInstance {}
+/// Read-only view of [`Numbering`].
+#[derive(Clone, Debug)]
+pub struct NumberingView<'a>(pub ooxml_core::Lens<'a, Numbering>);
+impl<'a> NumberingView<'a> {
+    /// `w:abstractNum` children in document order.
+    pub fn abstract_num_iter(&self) -> impl Iterator<Item = AbstractNumView<'a>> {
+        self.0.children::<AbstractNum>().map(AbstractNumView)
+    }
+    /// `w:num` children in document order.
+    pub fn numbering_instance_iter(
+        &self,
+    ) -> impl Iterator<Item = NumberingInstanceView<'a>> {
+        self.0.children::<NumberingInstance>().map(NumberingInstanceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Numbering`]. Reads go through [`NumberingViewMut::as_view`].
+#[derive(Debug)]
+pub struct NumberingViewMut<'a>(pub ooxml_core::LensMut<'a, Numbering>);
+impl<'a> NumberingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NumberingView<'_> {
+        NumberingView(self.0.as_lens())
+    }
+    /// First `w:abstractNum` child matching `pred`, mutably.
+    pub fn abstract_num_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AbstractNumViewMut<'_>> {
+        self.0.child_mut_by::<AbstractNum>(pred).map(AbstractNumViewMut)
+    }
+    /// Inserts a `w:abstractNum` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_abstract_num_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AbstractNumViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<AbstractNum>(before).map(AbstractNumViewMut)
+    }
+    /// Appends a `w:abstractNum` at the end of its slot.
+    pub fn insert_abstract_num(
+        &mut self,
+    ) -> Result<AbstractNumViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AbstractNum>().map(AbstractNumViewMut)
+    }
+    /// Removes the first `w:abstractNum` child.
+    pub fn remove_abstract_num(&mut self) -> bool {
+        self.0.remove::<AbstractNum>()
+    }
+    /// First `w:num` child matching `pred`, mutably.
+    pub fn numbering_instance_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<NumberingInstanceViewMut<'_>> {
+        self.0.child_mut_by::<NumberingInstance>(pred).map(NumberingInstanceViewMut)
+    }
+    /// Inserts a `w:num` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_numbering_instance_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<NumberingInstanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<NumberingInstance>(before).map(NumberingInstanceViewMut)
+    }
+    /// Appends a `w:num` at the end of its slot.
+    pub fn insert_numbering_instance(
+        &mut self,
+    ) -> Result<NumberingInstanceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<NumberingInstance>().map(NumberingInstanceViewMut)
+    }
+    /// Removes the first `w:num` child.
+    pub fn remove_numbering_instance(&mut self) -> bool {
+        self.0.remove::<NumberingInstance>()
     }
 }
 /// `w:CT_OnOff/w:b` — Defines the Bold Class.
@@ -6026,6 +8031,57 @@ impl<'a> UpdateFieldsOnOpenView<'a> {
         self.0.raw()
     }
 }
+/// `w:CT_OnOffOnly/w:qFormat` — Primary Style.
+#[derive(Debug)]
+pub enum PrimaryStyle {}
+impl PrimaryStyle {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for PrimaryStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "qFormat");
+    const SDK_NAME: &'static str = "w:CT_OnOffOnly/w:qFormat";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PrimaryStyle::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <OnOffOnlyValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PrimaryStyle`].
+#[derive(Clone, Debug)]
+pub struct PrimaryStyleView<'a>(pub ooxml_core::Lens<'a, PrimaryStyle>);
+impl<'a> PrimaryStyleView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, OnOffOnlyValues>> {
+        self.0.attr_enum(PrimaryStyle::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PrimaryStyle`]. Reads go through [`PrimaryStyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct PrimaryStyleViewMut<'a>(pub ooxml_core::LensMut<'a, PrimaryStyle>);
+impl<'a> PrimaryStyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PrimaryStyleView<'_> {
+        PrimaryStyleView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: OnOffOnlyValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PrimaryStyle::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PrimaryStyle::ATTR_W_VAL)
+    }
+}
 /// `w:CT_P/w:p` — Defines the Paragraph Class.
 #[derive(Debug)]
 pub enum Paragraph {}
@@ -6188,7 +8244,9 @@ impl ooxml_core::ElementSpec for Paragraph {
         ],
     );
 }
+impl ooxml_core::ChildOf<Paragraph> for BookmarkStart {}
 impl ooxml_core::ChildOf<Paragraph> for Hyperlink {}
+impl ooxml_core::ChildOf<Paragraph> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Paragraph> for ParagraphProperties {}
 impl ooxml_core::ChildOf<Paragraph> for Run {}
 impl ooxml_core::ChildOf<Paragraph> for DeletedRun {}
@@ -6236,9 +8294,17 @@ impl<'a> ParagraphView<'a> {
                 ooxml_core::value::parse_on_off,
             )
     }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
     /// `w:hyperlink` children in document order.
     pub fn hyperlink_iter(&self) -> impl Iterator<Item = HyperlinkView<'a>> {
         self.0.children::<Hyperlink>().map(HyperlinkView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// First `w:pPr` child.
     pub fn paragraph_properties(&self) -> Option<ParagraphPropertiesView<'a>> {
@@ -6370,6 +8436,30 @@ impl<'a> ParagraphViewMut<'a> {
     pub fn remove_no_spell_error(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Paragraph::ATTR_W14_NO_SPELL_ERR)
     }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
     /// First `w:hyperlink` child matching `pred`, mutably.
     pub fn hyperlink_mut_by(
         &mut self,
@@ -6393,6 +8483,30 @@ impl<'a> ParagraphViewMut<'a> {
     /// Removes the first `w:hyperlink` child.
     pub fn remove_hyperlink(&mut self) -> bool {
         self.0.remove::<Hyperlink>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
     }
     /// First `w:r` child matching `pred`, mutably.
     pub fn run_mut_by(
@@ -6647,6 +8761,7 @@ impl ooxml_core::ElementSpec for ParagraphProperties {
 }
 impl ooxml_core::ChildOf<ParagraphProperties> for Indentation {}
 impl ooxml_core::ChildOf<ParagraphProperties> for Justification {}
+impl ooxml_core::ChildOf<ParagraphProperties> for NumberingProperties {}
 impl ooxml_core::ChildOf<ParagraphProperties> for KeepLines {}
 impl ooxml_core::ChildOf<ParagraphProperties> for KeepNext {}
 impl ooxml_core::ChildOf<ParagraphProperties> for SectionProperties {}
@@ -6699,6 +8814,10 @@ impl<'a> ParagraphPropertiesView<'a> {
     pub fn justification(&self) -> Option<JustificationView<'a>> {
         self.0.child::<Justification>().map(JustificationView)
     }
+    /// First `w:numPr` child.
+    pub fn numbering_properties(&self) -> Option<NumberingPropertiesView<'a>> {
+        self.0.child::<NumberingProperties>().map(NumberingPropertiesView)
+    }
     /// First `w:keepLines` child.
     pub fn keep_lines(&self) -> Option<KeepLinesView<'a>> {
         self.0.child::<KeepLines>().map(KeepLinesView)
@@ -6722,6 +8841,701 @@ impl<'a> ParagraphPropertiesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_PPrBase/w:pPr` — Numbering Level Associated Paragraph Properties.
+#[derive(Debug)]
+pub enum PreviousParagraphProperties {}
+impl ooxml_core::ElementSpec for PreviousParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "pPr");
+    const SDK_NAME: &'static str = "w:CT_PPrBase/w:pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "keepNext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "keepLines")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pageBreakBefore")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "framePr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "widowControl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suppressLineNumbers")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pBdr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "shd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tabs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suppressAutoHyphens")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "kinsoku")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "wordWrap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "overflowPunct")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "topLinePunct")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "autoSpaceDE")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "autoSpaceDN")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "bidi")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "adjustRightInd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "snapToGrid")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "spacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "ind")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "contextualSpacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "mirrorIndents")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suppressOverlap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "jc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textDirection")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textAlignment")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textboxTightWrap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "outlineLvl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for Indentation {}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for Justification {}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for NumberingProperties {}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for KeepLines {}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for KeepNext {}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for SpacingBetweenLines {}
+impl ooxml_core::ChildOf<PreviousParagraphProperties> for ParagraphStyleId {}
+/// Read-only view of [`PreviousParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct PreviousParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, PreviousParagraphProperties>,
+);
+impl<'a> PreviousParagraphPropertiesView<'a> {
+    /// First `w:ind` child.
+    pub fn indentation(&self) -> Option<IndentationView<'a>> {
+        self.0.child::<Indentation>().map(IndentationView)
+    }
+    /// First `w:jc` child.
+    pub fn justification(&self) -> Option<JustificationView<'a>> {
+        self.0.child::<Justification>().map(JustificationView)
+    }
+    /// First `w:numPr` child.
+    pub fn numbering_properties(&self) -> Option<NumberingPropertiesView<'a>> {
+        self.0.child::<NumberingProperties>().map(NumberingPropertiesView)
+    }
+    /// First `w:keepLines` child.
+    pub fn keep_lines(&self) -> Option<KeepLinesView<'a>> {
+        self.0.child::<KeepLines>().map(KeepLinesView)
+    }
+    /// First `w:keepNext` child.
+    pub fn keep_next(&self) -> Option<KeepNextView<'a>> {
+        self.0.child::<KeepNext>().map(KeepNextView)
+    }
+    /// First `w:spacing` child.
+    pub fn spacing_between_lines(&self) -> Option<SpacingBetweenLinesView<'a>> {
+        self.0.child::<SpacingBetweenLines>().map(SpacingBetweenLinesView)
+    }
+    /// First `w:pStyle` child.
+    pub fn paragraph_style_id(&self) -> Option<ParagraphStyleIdView<'a>> {
+        self.0.child::<ParagraphStyleId>().map(ParagraphStyleIdView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PreviousParagraphProperties`]. Reads go through [`PreviousParagraphPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct PreviousParagraphPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, PreviousParagraphProperties>,
+);
+impl<'a> PreviousParagraphPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PreviousParagraphPropertiesView<'_> {
+        PreviousParagraphPropertiesView(self.0.as_lens())
+    }
+    /// First `w:ind` child, mutably.
+    pub fn indentation_mut(&mut self) -> Option<IndentationViewMut<'_>> {
+        self.0.child_mut::<Indentation>().map(IndentationViewMut)
+    }
+    /// Existing `w:ind` child, or a new one in schema position.
+    pub fn get_or_insert_indentation(
+        &mut self,
+    ) -> Result<IndentationViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Indentation>().map(IndentationViewMut)
+    }
+    /// Removes the first `w:ind` child.
+    pub fn remove_indentation(&mut self) -> bool {
+        self.0.remove::<Indentation>()
+    }
+    /// First `w:jc` child, mutably.
+    pub fn justification_mut(&mut self) -> Option<JustificationViewMut<'_>> {
+        self.0.child_mut::<Justification>().map(JustificationViewMut)
+    }
+    /// Existing `w:jc` child, or a new one in schema position.
+    pub fn get_or_insert_justification(
+        &mut self,
+    ) -> Result<JustificationViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Justification>().map(JustificationViewMut)
+    }
+    /// Removes the first `w:jc` child.
+    pub fn remove_justification(&mut self) -> bool {
+        self.0.remove::<Justification>()
+    }
+    /// First `w:numPr` child, mutably.
+    pub fn numbering_properties_mut(
+        &mut self,
+    ) -> Option<NumberingPropertiesViewMut<'_>> {
+        self.0.child_mut::<NumberingProperties>().map(NumberingPropertiesViewMut)
+    }
+    /// Existing `w:numPr` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_properties(
+        &mut self,
+    ) -> Result<NumberingPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NumberingProperties>().map(NumberingPropertiesViewMut)
+    }
+    /// Removes the first `w:numPr` child.
+    pub fn remove_numbering_properties(&mut self) -> bool {
+        self.0.remove::<NumberingProperties>()
+    }
+    /// First `w:keepLines` child, mutably.
+    pub fn keep_lines_mut(&mut self) -> Option<KeepLinesViewMut<'_>> {
+        self.0.child_mut::<KeepLines>().map(KeepLinesViewMut)
+    }
+    /// Existing `w:keepLines` child, or a new one in schema position.
+    pub fn get_or_insert_keep_lines(
+        &mut self,
+    ) -> Result<KeepLinesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<KeepLines>().map(KeepLinesViewMut)
+    }
+    /// Removes the first `w:keepLines` child.
+    pub fn remove_keep_lines(&mut self) -> bool {
+        self.0.remove::<KeepLines>()
+    }
+    /// First `w:keepNext` child, mutably.
+    pub fn keep_next_mut(&mut self) -> Option<KeepNextViewMut<'_>> {
+        self.0.child_mut::<KeepNext>().map(KeepNextViewMut)
+    }
+    /// Existing `w:keepNext` child, or a new one in schema position.
+    pub fn get_or_insert_keep_next(
+        &mut self,
+    ) -> Result<KeepNextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<KeepNext>().map(KeepNextViewMut)
+    }
+    /// Removes the first `w:keepNext` child.
+    pub fn remove_keep_next(&mut self) -> bool {
+        self.0.remove::<KeepNext>()
+    }
+    /// First `w:spacing` child, mutably.
+    pub fn spacing_between_lines_mut(
+        &mut self,
+    ) -> Option<SpacingBetweenLinesViewMut<'_>> {
+        self.0.child_mut::<SpacingBetweenLines>().map(SpacingBetweenLinesViewMut)
+    }
+    /// Existing `w:spacing` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_between_lines(
+        &mut self,
+    ) -> Result<SpacingBetweenLinesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingBetweenLines>().map(SpacingBetweenLinesViewMut)
+    }
+    /// Removes the first `w:spacing` child.
+    pub fn remove_spacing_between_lines(&mut self) -> bool {
+        self.0.remove::<SpacingBetweenLines>()
+    }
+    /// First `w:pStyle` child, mutably.
+    pub fn paragraph_style_id_mut(&mut self) -> Option<ParagraphStyleIdViewMut<'_>> {
+        self.0.child_mut::<ParagraphStyleId>().map(ParagraphStyleIdViewMut)
+    }
+    /// Existing `w:pStyle` child, or a new one in schema position.
+    pub fn get_or_insert_paragraph_style_id(
+        &mut self,
+    ) -> Result<ParagraphStyleIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ParagraphStyleId>().map(ParagraphStyleIdViewMut)
+    }
+    /// Removes the first `w:pStyle` child.
+    pub fn remove_paragraph_style_id(&mut self) -> bool {
+        self.0.remove::<ParagraphStyleId>()
+    }
+}
+/// `w:CT_PPrStyle/w:pPr` — Table Style Conditional Formatting Paragraph Properties.
+#[derive(Debug)]
+pub enum StyleParagraphProperties {}
+impl ooxml_core::ElementSpec for StyleParagraphProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "pPr");
+    const SDK_NAME: &'static str = "w:CT_PPrStyle/w:pPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "keepNext")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "keepLines")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pageBreakBefore")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "framePr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "widowControl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suppressLineNumbers")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pBdr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "shd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "tabs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suppressAutoHyphens")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "kinsoku")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "wordWrap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "overflowPunct")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "topLinePunct")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "autoSpaceDE")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "autoSpaceDN")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "bidi")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "adjustRightInd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "snapToGrid")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "spacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "ind")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "contextualSpacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "mirrorIndents")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "suppressOverlap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "jc")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textDirection")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textAlignment")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "textboxTightWrap")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "outlineLvl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pPrChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<StyleParagraphProperties> for Indentation {}
+impl ooxml_core::ChildOf<StyleParagraphProperties> for Justification {}
+impl ooxml_core::ChildOf<StyleParagraphProperties> for NumberingProperties {}
+impl ooxml_core::ChildOf<StyleParagraphProperties> for KeepLines {}
+impl ooxml_core::ChildOf<StyleParagraphProperties> for KeepNext {}
+impl ooxml_core::ChildOf<StyleParagraphProperties> for SpacingBetweenLines {}
+/// Read-only view of [`StyleParagraphProperties`].
+#[derive(Clone, Debug)]
+pub struct StyleParagraphPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, StyleParagraphProperties>,
+);
+impl<'a> StyleParagraphPropertiesView<'a> {
+    /// First `w:ind` child.
+    pub fn indentation(&self) -> Option<IndentationView<'a>> {
+        self.0.child::<Indentation>().map(IndentationView)
+    }
+    /// First `w:jc` child.
+    pub fn justification(&self) -> Option<JustificationView<'a>> {
+        self.0.child::<Justification>().map(JustificationView)
+    }
+    /// First `w:numPr` child.
+    pub fn numbering_properties(&self) -> Option<NumberingPropertiesView<'a>> {
+        self.0.child::<NumberingProperties>().map(NumberingPropertiesView)
+    }
+    /// First `w:keepLines` child.
+    pub fn keep_lines(&self) -> Option<KeepLinesView<'a>> {
+        self.0.child::<KeepLines>().map(KeepLinesView)
+    }
+    /// First `w:keepNext` child.
+    pub fn keep_next(&self) -> Option<KeepNextView<'a>> {
+        self.0.child::<KeepNext>().map(KeepNextView)
+    }
+    /// First `w:spacing` child.
+    pub fn spacing_between_lines(&self) -> Option<SpacingBetweenLinesView<'a>> {
+        self.0.child::<SpacingBetweenLines>().map(SpacingBetweenLinesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`StyleParagraphProperties`]. Reads go through [`StyleParagraphPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct StyleParagraphPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, StyleParagraphProperties>,
+);
+impl<'a> StyleParagraphPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StyleParagraphPropertiesView<'_> {
+        StyleParagraphPropertiesView(self.0.as_lens())
+    }
+    /// First `w:ind` child, mutably.
+    pub fn indentation_mut(&mut self) -> Option<IndentationViewMut<'_>> {
+        self.0.child_mut::<Indentation>().map(IndentationViewMut)
+    }
+    /// Existing `w:ind` child, or a new one in schema position.
+    pub fn get_or_insert_indentation(
+        &mut self,
+    ) -> Result<IndentationViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Indentation>().map(IndentationViewMut)
+    }
+    /// Removes the first `w:ind` child.
+    pub fn remove_indentation(&mut self) -> bool {
+        self.0.remove::<Indentation>()
+    }
+    /// First `w:jc` child, mutably.
+    pub fn justification_mut(&mut self) -> Option<JustificationViewMut<'_>> {
+        self.0.child_mut::<Justification>().map(JustificationViewMut)
+    }
+    /// Existing `w:jc` child, or a new one in schema position.
+    pub fn get_or_insert_justification(
+        &mut self,
+    ) -> Result<JustificationViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Justification>().map(JustificationViewMut)
+    }
+    /// Removes the first `w:jc` child.
+    pub fn remove_justification(&mut self) -> bool {
+        self.0.remove::<Justification>()
+    }
+    /// First `w:numPr` child, mutably.
+    pub fn numbering_properties_mut(
+        &mut self,
+    ) -> Option<NumberingPropertiesViewMut<'_>> {
+        self.0.child_mut::<NumberingProperties>().map(NumberingPropertiesViewMut)
+    }
+    /// Existing `w:numPr` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_properties(
+        &mut self,
+    ) -> Result<NumberingPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NumberingProperties>().map(NumberingPropertiesViewMut)
+    }
+    /// Removes the first `w:numPr` child.
+    pub fn remove_numbering_properties(&mut self) -> bool {
+        self.0.remove::<NumberingProperties>()
+    }
+    /// First `w:keepLines` child, mutably.
+    pub fn keep_lines_mut(&mut self) -> Option<KeepLinesViewMut<'_>> {
+        self.0.child_mut::<KeepLines>().map(KeepLinesViewMut)
+    }
+    /// Existing `w:keepLines` child, or a new one in schema position.
+    pub fn get_or_insert_keep_lines(
+        &mut self,
+    ) -> Result<KeepLinesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<KeepLines>().map(KeepLinesViewMut)
+    }
+    /// Removes the first `w:keepLines` child.
+    pub fn remove_keep_lines(&mut self) -> bool {
+        self.0.remove::<KeepLines>()
+    }
+    /// First `w:keepNext` child, mutably.
+    pub fn keep_next_mut(&mut self) -> Option<KeepNextViewMut<'_>> {
+        self.0.child_mut::<KeepNext>().map(KeepNextViewMut)
+    }
+    /// Existing `w:keepNext` child, or a new one in schema position.
+    pub fn get_or_insert_keep_next(
+        &mut self,
+    ) -> Result<KeepNextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<KeepNext>().map(KeepNextViewMut)
+    }
+    /// Removes the first `w:keepNext` child.
+    pub fn remove_keep_next(&mut self) -> bool {
+        self.0.remove::<KeepNext>()
+    }
+    /// First `w:spacing` child, mutably.
+    pub fn spacing_between_lines_mut(
+        &mut self,
+    ) -> Option<SpacingBetweenLinesViewMut<'_>> {
+        self.0.child_mut::<SpacingBetweenLines>().map(SpacingBetweenLinesViewMut)
+    }
+    /// Existing `w:spacing` child, or a new one in schema position.
+    pub fn get_or_insert_spacing_between_lines(
+        &mut self,
+    ) -> Result<SpacingBetweenLinesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SpacingBetweenLines>().map(SpacingBetweenLinesViewMut)
+    }
+    /// Removes the first `w:spacing` child.
+    pub fn remove_spacing_between_lines(&mut self) -> bool {
+        self.0.remove::<SpacingBetweenLines>()
     }
 }
 /// `w:CT_PageNumber/w:pgNumType` — Defines the PageNumberType Class.
@@ -7484,6 +10298,41 @@ impl ooxml_core::ChildOf<RunProperties> for Strike {}
 impl ooxml_core::ChildOf<RunProperties> for RunStyle {}
 impl ooxml_core::ChildOf<RunProperties> for Underline {}
 impl ooxml_core::ChildOf<RunProperties> for VerticalTextAlignment {}
+impl ooxml_core::schema::__private::Sealed for RunProperties {}
+impl ooxml_core::Detachable for RunProperties {
+    const UNIQUE_ATTRS: &'static [ooxml_core::UniqueAttr] = &[
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "endParaRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "rPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_CS, "defRPr"),
+            attr: ooxml_core::QName::new("", "smtId"),
+            default: Some("0"),
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "cont"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+        ooxml_core::UniqueAttr {
+            element: ooxml_core::QName::new(NS_A, "effectDag"),
+            attr: ooxml_core::QName::new("", "name"),
+            default: None,
+        },
+    ];
+}
 /// Read-only view of [`RunProperties`].
 #[derive(Clone, Debug)]
 pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
@@ -7543,6 +10392,461 @@ impl<'a> RunPropertiesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_RPrStyle/w:rPr` — Run Properties.
+#[derive(Debug)]
+pub enum StyleRunProperties {}
+impl ooxml_core::ElementSpec for StyleRunProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "rPr");
+    const SDK_NAME: &'static str = "w:CT_RPrStyle/w:rPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "rFonts")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "b")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "bCs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "i")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "iCs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "caps")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "smallCaps")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "strike")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "dstrike")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "outline")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "shadow")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "emboss")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "imprint")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "noProof")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "snapToGrid")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "vanish")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "webHidden")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "color")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "spacing")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "w")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "kern")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "position")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sz")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "szCs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "u")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "effect")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "bdr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "shd")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "fitText")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "vertAlign")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "em")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lang")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "eastAsianLayout")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "specVanish")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "rPrChange")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<StyleRunProperties> for Color {}
+impl ooxml_core::ChildOf<StyleRunProperties> for RunFonts {}
+impl ooxml_core::ChildOf<StyleRunProperties> for FontSize {}
+impl ooxml_core::ChildOf<StyleRunProperties> for FontSizeComplexScript {}
+impl ooxml_core::ChildOf<StyleRunProperties> for Bold {}
+impl ooxml_core::ChildOf<StyleRunProperties> for BoldComplexScript {}
+impl ooxml_core::ChildOf<StyleRunProperties> for Italic {}
+impl ooxml_core::ChildOf<StyleRunProperties> for ItalicComplexScript {}
+impl ooxml_core::ChildOf<StyleRunProperties> for Strike {}
+impl ooxml_core::ChildOf<StyleRunProperties> for Underline {}
+impl ooxml_core::ChildOf<StyleRunProperties> for VerticalTextAlignment {}
+/// Read-only view of [`StyleRunProperties`].
+#[derive(Clone, Debug)]
+pub struct StyleRunPropertiesView<'a>(pub ooxml_core::Lens<'a, StyleRunProperties>);
+impl<'a> StyleRunPropertiesView<'a> {
+    /// First `w:color` child.
+    pub fn color(&self) -> Option<ColorView<'a>> {
+        self.0.child::<Color>().map(ColorView)
+    }
+    /// First `w:rFonts` child.
+    pub fn run_fonts(&self) -> Option<RunFontsView<'a>> {
+        self.0.child::<RunFonts>().map(RunFontsView)
+    }
+    /// First `w:sz` child.
+    pub fn font_size(&self) -> Option<FontSizeView<'a>> {
+        self.0.child::<FontSize>().map(FontSizeView)
+    }
+    /// First `w:szCs` child.
+    pub fn font_size_complex_script(&self) -> Option<FontSizeComplexScriptView<'a>> {
+        self.0.child::<FontSizeComplexScript>().map(FontSizeComplexScriptView)
+    }
+    /// First `w:b` child.
+    pub fn bold(&self) -> Option<BoldView<'a>> {
+        self.0.child::<Bold>().map(BoldView)
+    }
+    /// First `w:bCs` child.
+    pub fn bold_complex_script(&self) -> Option<BoldComplexScriptView<'a>> {
+        self.0.child::<BoldComplexScript>().map(BoldComplexScriptView)
+    }
+    /// First `w:i` child.
+    pub fn italic(&self) -> Option<ItalicView<'a>> {
+        self.0.child::<Italic>().map(ItalicView)
+    }
+    /// First `w:iCs` child.
+    pub fn italic_complex_script(&self) -> Option<ItalicComplexScriptView<'a>> {
+        self.0.child::<ItalicComplexScript>().map(ItalicComplexScriptView)
+    }
+    /// First `w:strike` child.
+    pub fn strike(&self) -> Option<StrikeView<'a>> {
+        self.0.child::<Strike>().map(StrikeView)
+    }
+    /// First `w:u` child.
+    pub fn underline(&self) -> Option<UnderlineView<'a>> {
+        self.0.child::<Underline>().map(UnderlineView)
+    }
+    /// First `w:vertAlign` child.
+    pub fn vertical_text_alignment(&self) -> Option<VerticalTextAlignmentView<'a>> {
+        self.0.child::<VerticalTextAlignment>().map(VerticalTextAlignmentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`StyleRunProperties`]. Reads go through [`StyleRunPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct StyleRunPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, StyleRunProperties>,
+);
+impl<'a> StyleRunPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StyleRunPropertiesView<'_> {
+        StyleRunPropertiesView(self.0.as_lens())
+    }
+    /// First `w:color` child, mutably.
+    pub fn color_mut(&mut self) -> Option<ColorViewMut<'_>> {
+        self.0.child_mut::<Color>().map(ColorViewMut)
+    }
+    /// Existing `w:color` child, or a new one in schema position.
+    pub fn get_or_insert_color(
+        &mut self,
+    ) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Color>().map(ColorViewMut)
+    }
+    /// Removes the first `w:color` child.
+    pub fn remove_color(&mut self) -> bool {
+        self.0.remove::<Color>()
+    }
+    /// First `w:rFonts` child, mutably.
+    pub fn run_fonts_mut(&mut self) -> Option<RunFontsViewMut<'_>> {
+        self.0.child_mut::<RunFonts>().map(RunFontsViewMut)
+    }
+    /// Existing `w:rFonts` child, or a new one in schema position.
+    pub fn get_or_insert_run_fonts(
+        &mut self,
+    ) -> Result<RunFontsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RunFonts>().map(RunFontsViewMut)
+    }
+    /// Removes the first `w:rFonts` child.
+    pub fn remove_run_fonts(&mut self) -> bool {
+        self.0.remove::<RunFonts>()
+    }
+    /// First `w:sz` child, mutably.
+    pub fn font_size_mut(&mut self) -> Option<FontSizeViewMut<'_>> {
+        self.0.child_mut::<FontSize>().map(FontSizeViewMut)
+    }
+    /// Existing `w:sz` child, or a new one in schema position.
+    pub fn get_or_insert_font_size(
+        &mut self,
+    ) -> Result<FontSizeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FontSize>().map(FontSizeViewMut)
+    }
+    /// Removes the first `w:sz` child.
+    pub fn remove_font_size(&mut self) -> bool {
+        self.0.remove::<FontSize>()
+    }
+    /// First `w:szCs` child, mutably.
+    pub fn font_size_complex_script_mut(
+        &mut self,
+    ) -> Option<FontSizeComplexScriptViewMut<'_>> {
+        self.0.child_mut::<FontSizeComplexScript>().map(FontSizeComplexScriptViewMut)
+    }
+    /// Existing `w:szCs` child, or a new one in schema position.
+    pub fn get_or_insert_font_size_complex_script(
+        &mut self,
+    ) -> Result<FontSizeComplexScriptViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FontSizeComplexScript>().map(FontSizeComplexScriptViewMut)
+    }
+    /// Removes the first `w:szCs` child.
+    pub fn remove_font_size_complex_script(&mut self) -> bool {
+        self.0.remove::<FontSizeComplexScript>()
+    }
+    /// First `w:b` child, mutably.
+    pub fn bold_mut(&mut self) -> Option<BoldViewMut<'_>> {
+        self.0.child_mut::<Bold>().map(BoldViewMut)
+    }
+    /// Existing `w:b` child, or a new one in schema position.
+    pub fn get_or_insert_bold(&mut self) -> Result<BoldViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Bold>().map(BoldViewMut)
+    }
+    /// Removes the first `w:b` child.
+    pub fn remove_bold(&mut self) -> bool {
+        self.0.remove::<Bold>()
+    }
+    /// First `w:bCs` child, mutably.
+    pub fn bold_complex_script_mut(&mut self) -> Option<BoldComplexScriptViewMut<'_>> {
+        self.0.child_mut::<BoldComplexScript>().map(BoldComplexScriptViewMut)
+    }
+    /// Existing `w:bCs` child, or a new one in schema position.
+    pub fn get_or_insert_bold_complex_script(
+        &mut self,
+    ) -> Result<BoldComplexScriptViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BoldComplexScript>().map(BoldComplexScriptViewMut)
+    }
+    /// Removes the first `w:bCs` child.
+    pub fn remove_bold_complex_script(&mut self) -> bool {
+        self.0.remove::<BoldComplexScript>()
+    }
+    /// First `w:i` child, mutably.
+    pub fn italic_mut(&mut self) -> Option<ItalicViewMut<'_>> {
+        self.0.child_mut::<Italic>().map(ItalicViewMut)
+    }
+    /// Existing `w:i` child, or a new one in schema position.
+    pub fn get_or_insert_italic(
+        &mut self,
+    ) -> Result<ItalicViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Italic>().map(ItalicViewMut)
+    }
+    /// Removes the first `w:i` child.
+    pub fn remove_italic(&mut self) -> bool {
+        self.0.remove::<Italic>()
+    }
+    /// First `w:iCs` child, mutably.
+    pub fn italic_complex_script_mut(
+        &mut self,
+    ) -> Option<ItalicComplexScriptViewMut<'_>> {
+        self.0.child_mut::<ItalicComplexScript>().map(ItalicComplexScriptViewMut)
+    }
+    /// Existing `w:iCs` child, or a new one in schema position.
+    pub fn get_or_insert_italic_complex_script(
+        &mut self,
+    ) -> Result<ItalicComplexScriptViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ItalicComplexScript>().map(ItalicComplexScriptViewMut)
+    }
+    /// Removes the first `w:iCs` child.
+    pub fn remove_italic_complex_script(&mut self) -> bool {
+        self.0.remove::<ItalicComplexScript>()
+    }
+    /// First `w:strike` child, mutably.
+    pub fn strike_mut(&mut self) -> Option<StrikeViewMut<'_>> {
+        self.0.child_mut::<Strike>().map(StrikeViewMut)
+    }
+    /// Existing `w:strike` child, or a new one in schema position.
+    pub fn get_or_insert_strike(
+        &mut self,
+    ) -> Result<StrikeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Strike>().map(StrikeViewMut)
+    }
+    /// Removes the first `w:strike` child.
+    pub fn remove_strike(&mut self) -> bool {
+        self.0.remove::<Strike>()
+    }
+    /// First `w:u` child, mutably.
+    pub fn underline_mut(&mut self) -> Option<UnderlineViewMut<'_>> {
+        self.0.child_mut::<Underline>().map(UnderlineViewMut)
+    }
+    /// Existing `w:u` child, or a new one in schema position.
+    pub fn get_or_insert_underline(
+        &mut self,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Underline>().map(UnderlineViewMut)
+    }
+    /// Removes the first `w:u` child.
+    pub fn remove_underline(&mut self) -> bool {
+        self.0.remove::<Underline>()
+    }
+    /// First `w:vertAlign` child, mutably.
+    pub fn vertical_text_alignment_mut(
+        &mut self,
+    ) -> Option<VerticalTextAlignmentViewMut<'_>> {
+        self.0.child_mut::<VerticalTextAlignment>().map(VerticalTextAlignmentViewMut)
+    }
+    /// Existing `w:vertAlign` child, or a new one in schema position.
+    pub fn get_or_insert_vertical_text_alignment(
+        &mut self,
+    ) -> Result<VerticalTextAlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<VerticalTextAlignment>().map(VerticalTextAlignmentViewMut)
+    }
+    /// Removes the first `w:vertAlign` child.
+    pub fn remove_vertical_text_alignment(&mut self) -> bool {
+        self.0.remove::<VerticalTextAlignment>()
     }
 }
 /// `w:CT_Row/w:tr` — Table Row.
@@ -7666,6 +10970,8 @@ impl ooxml_core::ElementSpec for TableRow {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableRow> for BookmarkStart {}
+impl ooxml_core::ChildOf<TableRow> for BookmarkEnd {}
 impl ooxml_core::ChildOf<TableRow> for DeletedRun {}
 impl ooxml_core::ChildOf<TableRow> for InsertedRun {}
 impl ooxml_core::ChildOf<TableRow> for MoveFromRun {}
@@ -7700,6 +11006,14 @@ impl<'a> TableRowView<'a> {
     /// `w14:textId` — textId
     pub fn text_id(&self) -> Option<&'a str> {
         self.0.attr(TableRow::ATTR_W14_TEXT_ID)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:del` children in document order.
     pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
@@ -7805,6 +11119,54 @@ impl<'a> TableRowViewMut<'a> {
     /// Removes `w14:textId`.
     pub fn remove_text_id(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(TableRow::ATTR_W14_TEXT_ID)
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
     }
     /// First `w:tblPrEx` child, mutably.
     pub fn table_property_exceptions_mut(
@@ -7972,6 +11334,8 @@ impl ooxml_core::ElementSpec for DeletedRun {
         ],
     );
 }
+impl ooxml_core::ChildOf<DeletedRun> for BookmarkStart {}
+impl ooxml_core::ChildOf<DeletedRun> for BookmarkEnd {}
 impl ooxml_core::ChildOf<DeletedRun> for Run {}
 impl ooxml_core::ChildOf<DeletedRun> for DeletedRun {}
 impl ooxml_core::ChildOf<DeletedRun> for InsertedRun {}
@@ -7996,6 +11360,14 @@ impl<'a> DeletedRunView<'a> {
     /// `w:id` — Annotation Identifier
     pub fn id(&self) -> Option<&'a str> {
         self.0.attr(DeletedRun::ATTR_W_ID)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -8131,6 +11503,8 @@ impl ooxml_core::ElementSpec for InsertedRun {
         ],
     );
 }
+impl ooxml_core::ChildOf<InsertedRun> for BookmarkStart {}
+impl ooxml_core::ChildOf<InsertedRun> for BookmarkEnd {}
 impl ooxml_core::ChildOf<InsertedRun> for Run {}
 impl ooxml_core::ChildOf<InsertedRun> for DeletedRun {}
 impl ooxml_core::ChildOf<InsertedRun> for InsertedRun {}
@@ -8155,6 +11529,14 @@ impl<'a> InsertedRunView<'a> {
     /// `w:id` — Annotation Identifier
     pub fn id(&self) -> Option<&'a str> {
         self.0.attr(InsertedRun::ATTR_W_ID)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -8290,6 +11672,8 @@ impl ooxml_core::ElementSpec for MoveFromRun {
         ],
     );
 }
+impl ooxml_core::ChildOf<MoveFromRun> for BookmarkStart {}
+impl ooxml_core::ChildOf<MoveFromRun> for BookmarkEnd {}
 impl ooxml_core::ChildOf<MoveFromRun> for Run {}
 impl ooxml_core::ChildOf<MoveFromRun> for DeletedRun {}
 impl ooxml_core::ChildOf<MoveFromRun> for InsertedRun {}
@@ -8314,6 +11698,14 @@ impl<'a> MoveFromRunView<'a> {
     /// `w:id` — Annotation Identifier
     pub fn id(&self) -> Option<&'a str> {
         self.0.attr(MoveFromRun::ATTR_W_ID)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -8449,6 +11841,8 @@ impl ooxml_core::ElementSpec for MoveToRun {
         ],
     );
 }
+impl ooxml_core::ChildOf<MoveToRun> for BookmarkStart {}
+impl ooxml_core::ChildOf<MoveToRun> for BookmarkEnd {}
 impl ooxml_core::ChildOf<MoveToRun> for Run {}
 impl ooxml_core::ChildOf<MoveToRun> for DeletedRun {}
 impl ooxml_core::ChildOf<MoveToRun> for InsertedRun {}
@@ -8473,6 +11867,14 @@ impl<'a> MoveToRunView<'a> {
     /// `w:id` — Annotation Identifier
     pub fn id(&self) -> Option<&'a str> {
         self.0.attr(MoveToRun::ATTR_W_ID)
+    }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -9729,7 +13131,9 @@ impl ooxml_core::ElementSpec for SimpleField {
         ],
     );
 }
+impl ooxml_core::ChildOf<SimpleField> for BookmarkStart {}
 impl ooxml_core::ChildOf<SimpleField> for Hyperlink {}
+impl ooxml_core::ChildOf<SimpleField> for BookmarkEnd {}
 impl ooxml_core::ChildOf<SimpleField> for Run {}
 impl ooxml_core::ChildOf<SimpleField> for DeletedRun {}
 impl ooxml_core::ChildOf<SimpleField> for InsertedRun {}
@@ -9752,9 +13156,17 @@ impl<'a> SimpleFieldView<'a> {
     pub fn dirty(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
         self.0.attr_parsed(SimpleField::ATTR_W_DIRTY, ooxml_core::value::parse_on_off)
     }
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
     /// `w:hyperlink` children in document order.
     pub fn hyperlink_iter(&self) -> impl Iterator<Item = HyperlinkView<'a>> {
         self.0.children::<Hyperlink>().map(HyperlinkView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -10076,6 +13488,106 @@ impl<'a> ParagraphStyleIdViewMut<'a> {
         self.0.remove_attr(ParagraphStyleId::ATTR_W_VAL)
     }
 }
+/// `w:CT_String253/w:basedOn` — Parent Style ID.
+#[derive(Debug)]
+pub enum BasedOn {}
+impl BasedOn {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for BasedOn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "basedOn");
+    const SDK_NAME: &'static str = "w:CT_String253/w:basedOn";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: BasedOn::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`BasedOn`].
+#[derive(Clone, Debug)]
+pub struct BasedOnView<'a>(pub ooxml_core::Lens<'a, BasedOn>);
+impl<'a> BasedOnView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(BasedOn::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BasedOn`]. Reads go through [`BasedOnViewMut::as_view`].
+#[derive(Debug)]
+pub struct BasedOnViewMut<'a>(pub ooxml_core::LensMut<'a, BasedOn>);
+impl<'a> BasedOnViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BasedOnView<'_> {
+        BasedOnView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(BasedOn::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(BasedOn::ATTR_W_VAL)
+    }
+}
+/// `w:CT_String253/w:next` — Style For Next Paragraph.
+#[derive(Debug)]
+pub enum NextParagraphStyle {}
+impl NextParagraphStyle {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for NextParagraphStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "next");
+    const SDK_NAME: &'static str = "w:CT_String253/w:next";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NextParagraphStyle::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`NextParagraphStyle`].
+#[derive(Clone, Debug)]
+pub struct NextParagraphStyleView<'a>(pub ooxml_core::Lens<'a, NextParagraphStyle>);
+impl<'a> NextParagraphStyleView<'a> {
+    /// `w:val` — val
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(NextParagraphStyle::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NextParagraphStyle`]. Reads go through [`NextParagraphStyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct NextParagraphStyleViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NextParagraphStyle>,
+);
+impl<'a> NextParagraphStyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NextParagraphStyleView<'_> {
+        NextParagraphStyleView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NextParagraphStyle::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NextParagraphStyle::ATTR_W_VAL)
+    }
+}
 /// `w:CT_String253/w:rStyle` — Defines the RunStyle Class.
 #[derive(Debug)]
 pub enum RunStyle {}
@@ -10311,6 +13823,11 @@ impl ooxml_core::ElementSpec for Style {
         ],
     );
 }
+impl ooxml_core::ChildOf<Style> for PrimaryStyle {}
+impl ooxml_core::ChildOf<Style> for StyleParagraphProperties {}
+impl ooxml_core::ChildOf<Style> for StyleRunProperties {}
+impl ooxml_core::ChildOf<Style> for BasedOn {}
+impl ooxml_core::ChildOf<Style> for NextParagraphStyle {}
 impl ooxml_core::ChildOf<Style> for StyleName {}
 /// Read-only view of [`Style`].
 #[derive(Clone, Debug)]
@@ -10332,6 +13849,28 @@ impl<'a> StyleView<'a> {
     pub fn custom_style(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
         self.0.attr_parsed(Style::ATTR_W_CUSTOM_STYLE, ooxml_core::value::parse_on_off)
     }
+    /// First `w:qFormat` child.
+    pub fn primary_style(&self) -> Option<PrimaryStyleView<'a>> {
+        self.0.child::<PrimaryStyle>().map(PrimaryStyleView)
+    }
+    /// First `w:pPr` child.
+    pub fn style_paragraph_properties(
+        &self,
+    ) -> Option<StyleParagraphPropertiesView<'a>> {
+        self.0.child::<StyleParagraphProperties>().map(StyleParagraphPropertiesView)
+    }
+    /// First `w:rPr` child.
+    pub fn style_run_properties(&self) -> Option<StyleRunPropertiesView<'a>> {
+        self.0.child::<StyleRunProperties>().map(StyleRunPropertiesView)
+    }
+    /// First `w:basedOn` child.
+    pub fn based_on(&self) -> Option<BasedOnView<'a>> {
+        self.0.child::<BasedOn>().map(BasedOnView)
+    }
+    /// First `w:next` child.
+    pub fn next_paragraph_style(&self) -> Option<NextParagraphStyleView<'a>> {
+        self.0.child::<NextParagraphStyle>().map(NextParagraphStyleView)
+    }
     /// First `w:name` child.
     pub fn style_name(&self) -> Option<StyleNameView<'a>> {
         self.0.child::<StyleName>().map(StyleNameView)
@@ -10339,6 +13878,137 @@ impl<'a> StyleView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Style`]. Reads go through [`StyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct StyleViewMut<'a>(pub ooxml_core::LensMut<'a, Style>);
+impl<'a> StyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StyleView<'_> {
+        StyleView(self.0.as_lens())
+    }
+    /// Sets `w:type` — Style Type
+    pub fn set_type(&mut self, v: StyleValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Style::ATTR_W_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Style::ATTR_W_TYPE)
+    }
+    /// Sets `w:styleId` — Style ID
+    pub fn set_style_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Style::ATTR_W_STYLE_ID, v)
+    }
+    /// Removes `w:styleId`.
+    pub fn remove_style_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Style::ATTR_W_STYLE_ID)
+    }
+    /// Sets `w:default` — Default Style
+    pub fn set_default(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Style::ATTR_W_DEFAULT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:default`.
+    pub fn remove_default(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Style::ATTR_W_DEFAULT)
+    }
+    /// Sets `w:customStyle` — User-Defined Style
+    pub fn set_custom_style(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Style::ATTR_W_CUSTOM_STYLE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:customStyle`.
+    pub fn remove_custom_style(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Style::ATTR_W_CUSTOM_STYLE)
+    }
+    /// First `w:qFormat` child, mutably.
+    pub fn primary_style_mut(&mut self) -> Option<PrimaryStyleViewMut<'_>> {
+        self.0.child_mut::<PrimaryStyle>().map(PrimaryStyleViewMut)
+    }
+    /// Existing `w:qFormat` child, or a new one in schema position.
+    pub fn get_or_insert_primary_style(
+        &mut self,
+    ) -> Result<PrimaryStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PrimaryStyle>().map(PrimaryStyleViewMut)
+    }
+    /// Removes the first `w:qFormat` child.
+    pub fn remove_primary_style(&mut self) -> bool {
+        self.0.remove::<PrimaryStyle>()
+    }
+    /// First `w:pPr` child, mutably.
+    pub fn style_paragraph_properties_mut(
+        &mut self,
+    ) -> Option<StyleParagraphPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<StyleParagraphProperties>()
+            .map(StyleParagraphPropertiesViewMut)
+    }
+    /// Existing `w:pPr` child, or a new one in schema position.
+    pub fn get_or_insert_style_paragraph_properties(
+        &mut self,
+    ) -> Result<StyleParagraphPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<StyleParagraphProperties>()
+            .map(StyleParagraphPropertiesViewMut)
+    }
+    /// Removes the first `w:pPr` child.
+    pub fn remove_style_paragraph_properties(&mut self) -> bool {
+        self.0.remove::<StyleParagraphProperties>()
+    }
+    /// First `w:rPr` child, mutably.
+    pub fn style_run_properties_mut(&mut self) -> Option<StyleRunPropertiesViewMut<'_>> {
+        self.0.child_mut::<StyleRunProperties>().map(StyleRunPropertiesViewMut)
+    }
+    /// Existing `w:rPr` child, or a new one in schema position.
+    pub fn get_or_insert_style_run_properties(
+        &mut self,
+    ) -> Result<StyleRunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<StyleRunProperties>().map(StyleRunPropertiesViewMut)
+    }
+    /// Removes the first `w:rPr` child.
+    pub fn remove_style_run_properties(&mut self) -> bool {
+        self.0.remove::<StyleRunProperties>()
+    }
+    /// First `w:basedOn` child, mutably.
+    pub fn based_on_mut(&mut self) -> Option<BasedOnViewMut<'_>> {
+        self.0.child_mut::<BasedOn>().map(BasedOnViewMut)
+    }
+    /// Existing `w:basedOn` child, or a new one in schema position.
+    pub fn get_or_insert_based_on(
+        &mut self,
+    ) -> Result<BasedOnViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BasedOn>().map(BasedOnViewMut)
+    }
+    /// Removes the first `w:basedOn` child.
+    pub fn remove_based_on(&mut self) -> bool {
+        self.0.remove::<BasedOn>()
+    }
+    /// First `w:next` child, mutably.
+    pub fn next_paragraph_style_mut(&mut self) -> Option<NextParagraphStyleViewMut<'_>> {
+        self.0.child_mut::<NextParagraphStyle>().map(NextParagraphStyleViewMut)
+    }
+    /// Existing `w:next` child, or a new one in schema position.
+    pub fn get_or_insert_next_paragraph_style(
+        &mut self,
+    ) -> Result<NextParagraphStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NextParagraphStyle>().map(NextParagraphStyleViewMut)
+    }
+    /// Removes the first `w:next` child.
+    pub fn remove_next_paragraph_style(&mut self) -> bool {
+        self.0.remove::<NextParagraphStyle>()
+    }
+    /// First `w:name` child, mutably.
+    pub fn style_name_mut(&mut self) -> Option<StyleNameViewMut<'_>> {
+        self.0.child_mut::<StyleName>().map(StyleNameViewMut)
+    }
+    /// Existing `w:name` child, or a new one in schema position.
+    pub fn get_or_insert_style_name(
+        &mut self,
+    ) -> Result<StyleNameViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<StyleName>().map(StyleNameViewMut)
+    }
+    /// Removes the first `w:name` child.
+    pub fn remove_style_name(&mut self) -> bool {
+        self.0.remove::<StyleName>()
     }
 }
 /// `w:CT_StyleName/w:name` — Primary Style Name.
@@ -10371,6 +14041,23 @@ impl<'a> StyleNameView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`StyleName`]. Reads go through [`StyleNameViewMut::as_view`].
+#[derive(Debug)]
+pub struct StyleNameViewMut<'a>(pub ooxml_core::LensMut<'a, StyleName>);
+impl<'a> StyleNameViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StyleNameView<'_> {
+        StyleNameView(self.0.as_lens())
+    }
+    /// Sets `w:val` — val
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(StyleName::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(StyleName::ATTR_W_VAL)
     }
 }
 /// `w:CT_Styles/w:styles` — Style Definitions.
@@ -10415,6 +14102,37 @@ impl<'a> StylesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Styles`]. Reads go through [`StylesViewMut::as_view`].
+#[derive(Debug)]
+pub struct StylesViewMut<'a>(pub ooxml_core::LensMut<'a, Styles>);
+impl<'a> StylesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> StylesView<'_> {
+        StylesView(self.0.as_lens())
+    }
+    /// First `w:style` child matching `pred`, mutably.
+    pub fn style_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<StyleViewMut<'_>> {
+        self.0.child_mut_by::<Style>(pred).map(StyleViewMut)
+    }
+    /// Inserts a `w:style` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_style_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<StyleViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Style>(before).map(StyleViewMut)
+    }
+    /// Appends a `w:style` at the end of its slot.
+    pub fn insert_style(&mut self) -> Result<StyleViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Style>().map(StyleViewMut)
+    }
+    /// Removes the first `w:style` child.
+    pub fn remove_style(&mut self) -> bool {
+        self.0.remove::<Style>()
     }
 }
 /// `w:CT_Tbl/w:tbl` — Defines the Table Class.
@@ -10510,6 +14228,8 @@ impl ooxml_core::ElementSpec for Table {
         ],
     );
 }
+impl ooxml_core::ChildOf<Table> for BookmarkStart {}
+impl ooxml_core::ChildOf<Table> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Table> for TableRow {}
 impl ooxml_core::ChildOf<Table> for DeletedRun {}
 impl ooxml_core::ChildOf<Table> for InsertedRun {}
@@ -10520,6 +14240,14 @@ impl ooxml_core::ChildOf<Table> for TableGrid {}
 #[derive(Clone, Debug)]
 pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
 impl<'a> TableView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
     /// `w:tr` children in document order.
     pub fn table_row_iter(&self) -> impl Iterator<Item = TableRowView<'a>> {
         self.0.children::<TableRow>().map(TableRowView)
@@ -10556,6 +14284,28 @@ impl<'a> TableViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> TableView<'_> {
         TableView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
     }
     /// First `w:tr` child matching `pred`, mutably.
     pub fn table_row_mut_by(
@@ -10978,6 +14728,8 @@ impl ooxml_core::ElementSpec for TableCell {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableCell> for BookmarkStart {}
+impl ooxml_core::ChildOf<TableCell> for BookmarkEnd {}
 impl ooxml_core::ChildOf<TableCell> for Paragraph {}
 impl ooxml_core::ChildOf<TableCell> for DeletedRun {}
 impl ooxml_core::ChildOf<TableCell> for InsertedRun {}
@@ -10989,6 +14741,14 @@ impl ooxml_core::ChildOf<TableCell> for TableCellProperties {}
 #[derive(Clone, Debug)]
 pub struct TableCellView<'a>(pub ooxml_core::Lens<'a, TableCell>);
 impl<'a> TableCellView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -11029,6 +14789,54 @@ impl<'a> TableCellViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> TableCellView<'_> {
         TableCellView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
     }
     /// First `w:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
@@ -12411,7 +16219,13 @@ const _: () = ooxml_core::schema::assert_child::<
     NonVisualPictureProperties,
     NonVisualPictureDrawingProperties,
 >();
+const _: () = ooxml_core::schema::assert_spec::<AbstractNum>();
+const _: () = ooxml_core::schema::assert_child::<AbstractNum, Nsid>();
+const _: () = ooxml_core::schema::assert_child::<AbstractNum, Level>();
+const _: () = ooxml_core::schema::assert_child::<AbstractNum, MultiLevelType>();
 const _: () = ooxml_core::schema::assert_spec::<Body>();
+const _: () = ooxml_core::schema::assert_child::<Body, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Body, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Body, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Body, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, InsertedRun>();
@@ -12419,9 +16233,12 @@ const _: () = ooxml_core::schema::assert_child::<Body, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, SectionProperties>();
 const _: () = ooxml_core::schema::assert_child::<Body, Table>();
+const _: () = ooxml_core::schema::assert_spec::<BookmarkStart>();
 const _: () = ooxml_core::schema::assert_spec::<Break>();
 const _: () = ooxml_core::schema::assert_spec::<Color>();
 const _: () = ooxml_core::schema::assert_spec::<Comment>();
+const _: () = ooxml_core::schema::assert_child::<Comment, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Comment, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Comments>();
@@ -12429,6 +16246,7 @@ const _: () = ooxml_core::schema::assert_child::<Comments, Comment>();
 const _: () = ooxml_core::schema::assert_spec::<GridAfter>();
 const _: () = ooxml_core::schema::assert_spec::<GridBefore>();
 const _: () = ooxml_core::schema::assert_spec::<GridSpan>();
+const _: () = ooxml_core::schema::assert_spec::<StartOverrideNumberingValue>();
 const _: () = ooxml_core::schema::assert_spec::<DocumentProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Document>();
 const _: () = ooxml_core::schema::assert_child::<Document, Body>();
@@ -12446,6 +16264,8 @@ const _: () = ooxml_core::schema::assert_spec::<RunFonts>();
 const _: () = ooxml_core::schema::assert_spec::<Footnotes>();
 const _: () = ooxml_core::schema::assert_child::<Footnotes, Footnote>();
 const _: () = ooxml_core::schema::assert_spec::<Endnote>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, InsertedRun>();
@@ -12453,6 +16273,8 @@ const _: () = ooxml_core::schema::assert_child::<Endnote, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Footnote>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, InsertedRun>();
@@ -12460,6 +16282,8 @@ const _: () = ooxml_core::schema::assert_child::<Footnote, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Footer>();
+const _: () = ooxml_core::schema::assert_child::<Footer, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Footer, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Footer, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Footer, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, InsertedRun>();
@@ -12467,6 +16291,8 @@ const _: () = ooxml_core::schema::assert_child::<Footer, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Header>();
+const _: () = ooxml_core::schema::assert_child::<Header, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Header, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Header, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Header, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Header, InsertedRun>();
@@ -12479,7 +16305,9 @@ const _: () = ooxml_core::schema::assert_spec::<Highlight>();
 const _: () = ooxml_core::schema::assert_spec::<FontSize>();
 const _: () = ooxml_core::schema::assert_spec::<FontSizeComplexScript>();
 const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Run>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, InsertedRun>();
@@ -12488,7 +16316,41 @@ const _: () = ooxml_core::schema::assert_child::<Hyperlink, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<Indentation>();
 const _: () = ooxml_core::schema::assert_spec::<Justification>();
+const _: () = ooxml_core::schema::assert_spec::<LevelJustification>();
+const _: () = ooxml_core::schema::assert_spec::<LevelText>();
 const _: () = ooxml_core::schema::assert_spec::<LineNumberType>();
+const _: () = ooxml_core::schema::assert_spec::<Nsid>();
+const _: () = ooxml_core::schema::assert_spec::<Level>();
+const _: () = ooxml_core::schema::assert_child::<Level, LevelJustification>();
+const _: () = ooxml_core::schema::assert_child::<Level, LevelText>();
+const _: () = ooxml_core::schema::assert_child::<Level, StartNumberingValue>();
+const _: () = ooxml_core::schema::assert_child::<Level, NumberingFormat>();
+const _: () = ooxml_core::schema::assert_child::<Level, PreviousParagraphProperties>();
+const _: () = ooxml_core::schema::assert_spec::<BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_spec::<MultiLevelType>();
+const _: () = ooxml_core::schema::assert_spec::<AbstractNumId>();
+const _: () = ooxml_core::schema::assert_spec::<NumberingId>();
+const _: () = ooxml_core::schema::assert_spec::<StartNumberingValue>();
+const _: () = ooxml_core::schema::assert_spec::<NumberingLevelReference>();
+const _: () = ooxml_core::schema::assert_spec::<NumberingInstance>();
+const _: () = ooxml_core::schema::assert_child::<NumberingInstance, AbstractNumId>();
+const _: () = ooxml_core::schema::assert_child::<NumberingInstance, LevelOverride>();
+const _: () = ooxml_core::schema::assert_spec::<NumberingFormat>();
+const _: () = ooxml_core::schema::assert_spec::<LevelOverride>();
+const _: () = ooxml_core::schema::assert_child::<
+    LevelOverride,
+    StartOverrideNumberingValue,
+>();
+const _: () = ooxml_core::schema::assert_child::<LevelOverride, Level>();
+const _: () = ooxml_core::schema::assert_spec::<NumberingProperties>();
+const _: () = ooxml_core::schema::assert_child::<NumberingProperties, NumberingId>();
+const _: () = ooxml_core::schema::assert_child::<
+    NumberingProperties,
+    NumberingLevelReference,
+>();
+const _: () = ooxml_core::schema::assert_spec::<Numbering>();
+const _: () = ooxml_core::schema::assert_child::<Numbering, AbstractNum>();
+const _: () = ooxml_core::schema::assert_child::<Numbering, NumberingInstance>();
 const _: () = ooxml_core::schema::assert_spec::<Bold>();
 const _: () = ooxml_core::schema::assert_spec::<BoldComplexScript>();
 const _: () = ooxml_core::schema::assert_spec::<Italic>();
@@ -12498,8 +16360,11 @@ const _: () = ooxml_core::schema::assert_spec::<KeepNext>();
 const _: () = ooxml_core::schema::assert_spec::<Strike>();
 const _: () = ooxml_core::schema::assert_spec::<TrackRevisions>();
 const _: () = ooxml_core::schema::assert_spec::<UpdateFieldsOnOpen>();
+const _: () = ooxml_core::schema::assert_spec::<PrimaryStyle>();
 const _: () = ooxml_core::schema::assert_spec::<Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Paragraph, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<Paragraph, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Run>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, DeletedRun>();
@@ -12510,6 +16375,10 @@ const _: () = ooxml_core::schema::assert_child::<Paragraph, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, Indentation>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, Justification>();
+const _: () = ooxml_core::schema::assert_child::<
+    ParagraphProperties,
+    NumberingProperties,
+>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, KeepLines>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, KeepNext>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -12523,6 +16392,54 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<
     ParagraphProperties,
     ParagraphStyleId,
+>();
+const _: () = ooxml_core::schema::assert_spec::<PreviousParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    Indentation,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    Justification,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    NumberingProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    KeepLines,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    KeepNext,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    SpacingBetweenLines,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    PreviousParagraphProperties,
+    ParagraphStyleId,
+>();
+const _: () = ooxml_core::schema::assert_spec::<StyleParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleParagraphProperties,
+    Indentation,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleParagraphProperties,
+    Justification,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleParagraphProperties,
+    NumberingProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<StyleParagraphProperties, KeepLines>();
+const _: () = ooxml_core::schema::assert_child::<StyleParagraphProperties, KeepNext>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleParagraphProperties,
+    SpacingBetweenLines,
 >();
 const _: () = ooxml_core::schema::assert_spec::<PageNumberType>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
@@ -12553,7 +16470,33 @@ const _: () = ooxml_core::schema::assert_child::<RunProperties, Strike>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, RunStyle>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, VerticalTextAlignment>();
+const _: () = ooxml_core::schema::assert_spec::<StyleRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, Color>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, RunFonts>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, FontSize>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleRunProperties,
+    FontSizeComplexScript,
+>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, Bold>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleRunProperties,
+    BoldComplexScript,
+>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, Italic>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleRunProperties,
+    ItalicComplexScript,
+>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, Strike>();
+const _: () = ooxml_core::schema::assert_child::<StyleRunProperties, Underline>();
+const _: () = ooxml_core::schema::assert_child::<
+    StyleRunProperties,
+    VerticalTextAlignment,
+>();
 const _: () = ooxml_core::schema::assert_spec::<TableRow>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, MoveFromRun>();
@@ -12562,24 +16505,32 @@ const _: () = ooxml_core::schema::assert_child::<TableRow, TablePropertyExceptio
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableCell>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableRowProperties>();
 const _: () = ooxml_core::schema::assert_spec::<DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<DeletedRun, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<DeletedRun, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, MoveToRun>();
 const _: () = ooxml_core::schema::assert_spec::<InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<InsertedRun, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<InsertedRun, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, MoveToRun>();
 const _: () = ooxml_core::schema::assert_spec::<MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<MoveFromRun, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<MoveFromRun, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, MoveToRun>();
 const _: () = ooxml_core::schema::assert_spec::<MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<MoveToRun, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<MoveToRun, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, InsertedRun>();
@@ -12597,7 +16548,9 @@ const _: () = ooxml_core::schema::assert_child::<Settings, DocumentProtection>()
 const _: () = ooxml_core::schema::assert_child::<Settings, TrackRevisions>();
 const _: () = ooxml_core::schema::assert_child::<Settings, UpdateFieldsOnOpen>();
 const _: () = ooxml_core::schema::assert_spec::<SimpleField>();
+const _: () = ooxml_core::schema::assert_child::<SimpleField, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<SimpleField, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, Run>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, InsertedRun>();
@@ -12606,13 +16559,22 @@ const _: () = ooxml_core::schema::assert_child::<SimpleField, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<SpacingBetweenLines>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphStyleId>();
+const _: () = ooxml_core::schema::assert_spec::<BasedOn>();
+const _: () = ooxml_core::schema::assert_spec::<NextParagraphStyle>();
 const _: () = ooxml_core::schema::assert_spec::<RunStyle>();
 const _: () = ooxml_core::schema::assert_spec::<Style>();
+const _: () = ooxml_core::schema::assert_child::<Style, PrimaryStyle>();
+const _: () = ooxml_core::schema::assert_child::<Style, StyleParagraphProperties>();
+const _: () = ooxml_core::schema::assert_child::<Style, StyleRunProperties>();
+const _: () = ooxml_core::schema::assert_child::<Style, BasedOn>();
+const _: () = ooxml_core::schema::assert_child::<Style, NextParagraphStyle>();
 const _: () = ooxml_core::schema::assert_child::<Style, StyleName>();
 const _: () = ooxml_core::schema::assert_spec::<StyleName>();
 const _: () = ooxml_core::schema::assert_spec::<Styles>();
 const _: () = ooxml_core::schema::assert_child::<Styles, Style>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
+const _: () = ooxml_core::schema::assert_child::<Table, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<Table, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableRow>();
 const _: () = ooxml_core::schema::assert_child::<Table, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Table, InsertedRun>();
@@ -12625,6 +16587,8 @@ const _: () = ooxml_core::schema::assert_spec::<GridColumn>();
 const _: () = ooxml_core::schema::assert_spec::<TablePropertyExceptions>();
 const _: () = ooxml_core::schema::assert_spec::<TableCellWidth>();
 const _: () = ooxml_core::schema::assert_spec::<TableCell>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, InsertedRun>();
