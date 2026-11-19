@@ -292,6 +292,11 @@ impl Package {
         self.parts.iter().map(|p| p.name.as_str())
     }
 
+    /// The stored zip entry name for an OPC-equivalent part name, if present.
+    pub fn part_name(&self, name: &str) -> Option<&str> {
+        self.find_ci(name).map(|i| self.parts[i].name.as_str())
+    }
+
     /// Does the package have this part?
     pub fn contains(&self, name: &str) -> bool {
         self.find(name).is_some()

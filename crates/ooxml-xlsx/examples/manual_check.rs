@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_xlsx::{Border, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
+use ooxml_xlsx::{Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
 
 type BoxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// (original for `originals/`, edited output)
@@ -418,6 +418,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         wb.save(out_dir.join(case.out))?;
         writeln!(md, "| [ ] | `{}` | `{}` | {} | {} | |", case.out, case.input, case.edits, case.look_for)?;
     }
+    let mut images = Workbook::new()?;
+    let mut ws = images.add_worksheet()?;
+    let logo = Image::from_bytes(include_bytes!("../tests/images/blue.png").as_slice())?.alt_text("Blue swatch");
+    ws.insert_image(Anchor::one_cell(CellIndex::parse("B2")?, Size::Emu { width: 914_400, height: 685_800 }), &logo)?;
+    let swatch = Image::from_bytes(include_bytes!("../tests/images/orange.png").as_slice())?;
+    ws.insert_image(Anchor::two_cell(CellIndex::parse("D3")?, CellIndex::parse("F6")?), &swatch)?;
+    images.save(out_dir.join("32-p5a-images.xlsx"))?;
+    md.push_str("\n## Phase 5a — floating pictures (ADR-0017)\n\n");
+    md.push_str("- [ ] Open `32-p5a-images.xlsx` without repair. A blue picture begins at B2 and is 1 × 0.75 in; an orange picture spans D3 to the start of F6. The blue picture's alt text is ‘Blue swatch’. Save and reopen.\n");
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
@@ -428,6 +437,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .chain(P2_CASES.iter().map(|c| c.out))
         .chain(P3_CASES.iter().map(|c| c.out))
         .chain(P4_CASES.iter().map(|c| c.out))
+        .chain(["32-p5a-images.xlsx"])
         .collect();
     for out in &outs {
         let path = out_dir.join(out);

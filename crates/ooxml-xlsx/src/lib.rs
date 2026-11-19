@@ -62,6 +62,8 @@ mod formula;
 mod graph;
 mod condfmt;
 mod hyperlink;
+mod images;
+pub use images::{Anchor, CellImage, EditAs, Image, ImageInfo, ImageMedia, Marker, Size};
 mod index;
 mod layout;
 mod protect;
