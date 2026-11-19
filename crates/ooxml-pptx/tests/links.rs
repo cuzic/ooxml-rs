@@ -7,6 +7,7 @@ use std::assert_matches;
 
 use ooxml_core::Package;
 use ooxml_core::opc::TargetMode;
+use ooxml_core::package::PartNameRequest;
 use ooxml_pptx::{
     Error, FormatChange, LinkEvent, LinkSpec, LinkTarget, Presentation, RunFormat, ShapeMut,
     ShowJump,
@@ -150,6 +151,69 @@ fn replacement_allocates_before_removing_and_preserves_unedited_bytes() {
     run(&mut p, LinkEvent::Click, None).unwrap();
     assert!(link_ids(&p).is_empty());
     assert_eq!(xml(&p, PART), input);
+}
+
+#[test]
+fn shape_click_action_preserves_bytes_outside_its_span() {
+    let mut p = open();
+    let before = xml(&p, PART);
+    let props = "<p:cNvPr id=\"2049\" name=\"Rectangle 2\"/>";
+    action(&mut p, LinkEvent::Click, Some(&LinkSpec::new(LinkTarget::NoAction))).unwrap();
+    let with_action = concat!(
+        "<p:cNvPr id=\"2049\" name=\"Rectangle 2\">",
+        "<a:hlinkClick r:id=\"\" action=\"ppaction://noaction\"/>",
+        "</p:cNvPr>"
+    );
+    assert_eq!(xml(&p, PART), before.replacen(props, with_action, 1));
+
+    let replacement = LinkSpec::new(LinkTarget::Jump(ShowJump::Next));
+    action(&mut p, LinkEvent::Click, Some(&replacement)).unwrap();
+    assert_eq!(
+        xml(&p, PART),
+        before.replacen(props, &with_action.replace("noaction", "hlinkshowjump?jump=nextslide"), 1)
+    );
+    action(&mut p, LinkEvent::Click, None).unwrap();
+    assert_eq!(xml(&p, PART), before);
+}
+
+#[test]
+fn sound_link_can_be_reapplied_but_cannot_be_replaced_or_cleared() {
+    let mut p = open();
+    let old = url("https://example.org/old");
+    action(&mut p, LinkEvent::Click, Some(&old)).unwrap();
+    let link = format!("<a:hlinkClick r:id=\"{}\"/>", link_ids(&p)[0]);
+    let mut pkg = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
+    // A PCM WAV with two silent 8-bit samples.
+    let wav = b"RIFF\x26\0\0\0WAVEfmt \x10\0\0\0\x01\0\x01\0\x40\x1f\0\0\x40\x1f\0\0\x01\0\x08\0data\x02\0\0\0\x80\x80";
+    let (_, audio_id) = pkg
+        .add_related_part(
+            Some(PART),
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio",
+            PartNameRequest::Exact("ppt/media/sound.wav".into()),
+            "audio/wav",
+            wav.to_vec(),
+        )
+        .unwrap();
+    let mut p = patch(
+        pkg.to_bytes().unwrap(),
+        PART,
+        &link,
+        &format!(
+            "{}><a:snd r:embed=\"{audio_id}\"/></a:hlinkClick>",
+            link.strip_suffix("/>").unwrap(),
+        ),
+    );
+
+    let before = p.to_bytes().unwrap();
+    action(&mut p, LinkEvent::Click, Some(&old)).unwrap();
+    assert_eq!(p.to_bytes().unwrap(), before);
+    let new = url("https://example.org/new");
+    for link in [None, Some(&new)] {
+        assert_matches!(
+            refused(&mut p, |p| action(p, LinkEvent::Click, link)),
+            Error::LinkHasSound
+        );
+    }
 }
 
 #[test]
@@ -328,6 +392,26 @@ fn refusals_preserve_original_bytes() {
             Error::InvalidLinkUrl
         );
     }
+    for c in ('\u{200e}'..='\u{200f}')
+        .chain('\u{202a}'..='\u{202e}')
+        .chain('\u{2066}'..='\u{2069}')
+    {
+        let invalid = url(&format!("https://host/a{c}b"));
+        assert_matches!(
+            refused(&mut p, |p| run(p, LinkEvent::Click, Some(&invalid))),
+            Error::InvalidLinkUrl
+        );
+    }
+    for target in [
+        LinkTarget::Slide { slide_id: 256, index: 0 },
+        LinkTarget::Part("ppt/slides/slide1.xml".into()),
+    ] {
+        let spec = LinkSpec::new(target);
+        assert_matches!(
+            refused(&mut p, |p| action(p, LinkEvent::Click, Some(&spec))),
+            Error::ReadOnlyLinkTarget
+        );
+    }
     let bad_tooltip = LinkSpec {
         tooltip: Some("bad\u{1}".into()),
         ..url("https://example.org/new")
@@ -368,15 +452,43 @@ fn refusals_preserve_original_bytes() {
 
 #[test]
 fn comment_anchor_blocks_removal_and_replacement_but_allows_addition() {
+    for anchor in ["hlinkMkLst", "fooMkLst"] {
+        assert_anchor_blocks_links(anchor);
+    }
+}
+
+fn with_anchor(anchor: &str) -> Presentation {
     let bytes = cases::read_fixture("libreoffice/modern-comments.pptx");
     let part = "ppt/comments/modernComment_100_68C49C6.xml";
-    let p = patch(bytes, part, "<ac:deMkLst ", "<ac:hlinkMkLst ");
-    let mut p = patch(
-        p.to_bytes().unwrap(),
-        part,
-        "</ac:deMkLst>",
-        "</ac:hlinkMkLst>",
+    let p = patch(bytes, part, "<ac:deMkLst ", &format!("<ac:{anchor} "));
+    patch(p.to_bytes().unwrap(), part, "</ac:deMkLst>", &format!("</ac:{anchor}>"))
+}
+
+#[test]
+fn text_range_anchor_locks_text_but_allows_link_edits() {
+    let mut p = with_anchor("txMkLst");
+    let old = url("https://example.org/");
+    let new = url("https://example.net/");
+    let set_action = |p: &mut Presentation, link| {
+        p.slide_mut(0)?.shape_mut_by_id(2)?.set_action(LinkEvent::Click, link)
+    };
+    set_action(&mut p, Some(&old)).unwrap();
+    assert_matches!(
+        refused(&mut p, |p| p
+            .slide_mut(0)?
+            .shape_mut_by_id(2)?
+            .text_body_mut()?
+            .paragraph_mut(0)?
+            .run_mut(0)?
+            .set_text("different text")),
+        Error::CommentAnchoredText { shape_id: 2 }
     );
+    set_action(&mut p, Some(&new)).unwrap();
+    set_action(&mut p, None).unwrap();
+}
+
+fn assert_anchor_blocks_links(anchor: &str) {
+    let mut p = with_anchor(anchor);
     let old = url("https://example.org/");
     p.slide_mut(0)
         .unwrap()

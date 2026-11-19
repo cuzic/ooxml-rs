@@ -866,15 +866,25 @@ flipped group returns `TransformedGroup` before exactness is checked.
   read variant `LinkTarget::Slide { slide_id, index }` continues to
   describe the resolved destination. The setter returns
   `ForeignLinkSlide` for a target from another session and
-  `LinkSlideNotFound` for a missing slide id.
+  `LinkSlideNotFound` for a missing slide id. The read variants `Slide`
+  and `Part` return `ReadOnlyLinkTarget` when passed to a setter.
+- For link writes, `InvalidLinkUrl`, `ReadOnlyLinkTarget` and
+  `ForeignLinkSlide` replace §11's `InvalidLinkTarget`.
+  `LinkSlideNotFound` replaces §11's `SlideNotFound` for link targets.
 - URL writes accept a nonempty IRI reference. Supply spaces as
   `%20`. The setter returns `InvalidLinkUrl` for malformed references
-  and `UnsafeLinkScheme` for the three schemes listed in §7.
+  or bidirectional formatting characters (U+200E–U+200F,
+  U+202A–U+202E, U+2066–U+2069), and `UnsafeLinkScheme` for the
+  three schemes listed in §7.
 - The staged registry removal uses core's any-attribute scan. A
   `StillReferenced` result keeps the old relationship and allows the
   edit to commit. Relationships of other types remain owned by their
-  respective features.
+  respective features. Replacing or clearing a link with an `a:snd`
+  child returns `LinkHasSound` and preserves the sound relationship.
+  SmartArt text link edits return `SmartArtLinkUnsupported`.
 - Q3 uses the §7 default. A text link writes the colour extension when
   `text_color` is true. Replacing or clearing an anchored link returns
-  `CommentAnchoredText`. Unsupported action targets return
+  `CommentAnchoredText`. Unknown comment anchors also lock link
+  replacement and removal under ADR-0005 §6. A known text-range anchor
+  (`ac:txMkLst`) locks text edits. Unsupported action targets return
   `UnsupportedAction`.

@@ -187,6 +187,7 @@
       ["ppt/slides/slide1.xml", ".//p:cNvPr/a:hlinkClick[@action='ppaction://hlinkshowjump?jump=lastslide'][@r:id='']", 1],
       ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId3'][@Target='https://example.com/slides?x=1&y=2'][@TargetMode='External']", 1],
       ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Target='slide2.xml']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide']", 1],
       ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Target='slide2.xml'][@TargetMode='External']", 0]
     ]
   },

@@ -16,6 +16,15 @@ pub enum Error {
     /// This action has no supported write representation.
     #[error("unsupported hyperlink action")]
     UnsupportedAction,
+    /// A destination returned by the link reader cannot be written directly.
+    #[error("read-only hyperlink target; use a presentation-scoped slide target for slide links")]
+    ReadOnlyLinkTarget,
+    /// Link editing is unavailable for SmartArt text.
+    #[error("hyperlink editing is unsupported for SmartArt text")]
+    SmartArtLinkUnsupported,
+    /// Replacing or clearing this link would remove its sound reference.
+    #[error("a hyperlink with a sound cannot be replaced or cleared")]
+    LinkHasSound,
     /// A slide link target belongs to a different presentation session.
     #[error("hyperlink target belongs to another presentation")]
     ForeignLinkSlide,

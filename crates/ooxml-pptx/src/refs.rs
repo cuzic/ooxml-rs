@@ -143,7 +143,21 @@ impl SlideRefs {
                 self.scan_table_anchor(a, &below);
                 let c = classify_anchor_descendants(a, &below);
                 let link_anchor = QName::new(AC_NS, "hlinkMkLst");
-                if a.is(link_anchor) || below.iter().any(|n| n.is(link_anchor)) {
+                // An unrecognized anchor may refer to a link. The known
+                // text, table and drawing anchors do not lock links.
+                let known_non_link = match a.name().ns() {
+                    PC_NS => matches!(
+                        a.name().local(),
+                        "sldMkLst" | "sldLayoutMkLst" | "sldMasterMkLst"
+                    ),
+                    AC_NS => matches!(
+                        a.name().local(),
+                        "deMkLst" | "txBodyMkLst" | "txMkLst" | "tblMkLst"
+                            | "tcMkLst" | "trMkLst" | "gridColMkLst"
+                    ),
+                    _ => false,
+                };
+                if !known_non_link || below.iter().any(|n| n.is(link_anchor)) {
                     if c.ids.is_empty() {
                         self.links.all = true;
                     }

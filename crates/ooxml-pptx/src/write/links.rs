@@ -95,7 +95,14 @@ impl Destination {
                     return Err(Error::UnsafeLinkScheme);
                 }
                 if url.is_empty()
-                    || url.chars().any(|c| c.is_whitespace() || c.is_control())
+                    || url.chars().any(|c| {
+                        c.is_whitespace()
+                            || c.is_control()
+                            || matches!(
+                                c,
+                                '\u{200e}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+                            )
+                    })
                     || IriReferenceStr::new(url).is_err()
                 {
                     return Err(Error::InvalidLinkUrl);
@@ -134,6 +141,9 @@ impl Destination {
                 }),
             ),
             LinkTarget::NoAction => (None, Some("ppaction://noaction")),
+            LinkTarget::Slide { .. } | LinkTarget::Part(_) => {
+                return Err(Error::ReadOnlyLinkTarget);
+            }
             _ => return Err(Error::UnsupportedAction),
         };
         Ok(Self {
@@ -226,12 +236,21 @@ impl LinkEdit<'_> {
 fn edit_link(
     doc: &mut EditPart<'_>,
     parent_path: Option<&[usize]>,
-    name: QName,
+    event_name: QName,
     guard: &Guard,
     spec: Option<&LinkSpec>,
     text: bool,
     write: impl FnOnce(&mut XmlDocument, LinkEdit<'_>) -> Result<()>,
 ) -> Result<()> {
+    let EditPart::Package {
+        package,
+        name,
+        slides,
+        link_identity,
+    } = &*doc
+    else {
+        return Err(Error::SmartArtLinkUnsupported);
+    };
     let parent = parent_path.and_then(|path| node_at(doc.root(), path));
     if parent.is_some_and(alternate_content) {
         return Err(Error::InsideAlternateContent);
@@ -239,7 +258,7 @@ fn edit_link(
     let old: Vec<_> = parent
         .into_iter()
         .flat_map(RawNode::indexed_elements)
-        .filter(|(_, n)| n.is(name))
+        .filter(|(_, n)| n.is(event_name))
         .collect();
     if old.is_empty() && spec.is_none() {
         return Ok(());
@@ -254,15 +273,6 @@ fn edit_link(
         .collect();
     let indices = old.iter().map(|(i, _)| *i).collect();
     let text_color = text && spec.is_some_and(|s| s.text_color);
-    let EditPart::Package {
-        package,
-        name,
-        slides,
-        link_identity,
-    } = &*doc
-    else {
-        return Err(Error::UnsupportedAction);
-    };
     let destination = spec
         .map(|s| Destination::resolve(&s.target, slides, link_identity))
         .transpose()?;
@@ -285,6 +295,13 @@ fn edit_link(
         return Err(Error::CommentAnchoredText {
             shape_id: guard.shape_id,
         });
+    }
+
+    if old
+        .iter()
+        .any(|(_, node)| node.elements().any(|child| child.is(a("snd"))))
+    {
+        return Err(Error::LinkHasSound);
     }
 
     let mut staged = doc.clone();
