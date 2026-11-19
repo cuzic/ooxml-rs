@@ -23,12 +23,15 @@ fn src_name(s: Option<&Source<'_>>, direct: &str) -> String {
         Some(Source::ShapeStyle) => "shape.style.fontRef".into(),
         Some(Source::Placeholder { role: ooxml_pptx::Role::Layout, .. }) => "layout.ph.lstStyle".into(),
         Some(Source::Placeholder { role: ooxml_pptx::Role::Master, .. }) => "master.ph.lstStyle".into(),
+        Some(Source::Placeholder { role: ooxml_pptx::Role::NotesMaster, .. }) => "notesMaster.ph.lstStyle".into(),
+        Some(Source::MasterTextStyle { style: TextStyleKind::Notes, .. }) => "notesMaster.notesStyle".into(),
         Some(Source::MasterTextStyle { style, .. }) => format!(
             "master.txStyles.{}",
             match style {
                 TextStyleKind::Title => "titleStyle",
                 TextStyleKind::Body => "bodyStyle",
                 TextStyleKind::Other => "otherStyle",
+                _ => "other",
             }
         ),
         Some(Source::PresentationDefault { .. }) => "presentation.defaultTextStyle".into(),
@@ -52,6 +55,7 @@ fn count(bytes: &[u8], c: &mut BTreeMap<String, usize>) {
     let Ok(deck) = pres.deck() else { return };
     for i in 0..deck.slide_count() {
         let Ok(s) = deck.slide(i) else { continue };
+        count_notes(&s, c);
         if s.chain_parts().is_err() {
             continue;
         }
@@ -99,7 +103,38 @@ fn count(bytes: &[u8], c: &mut BTreeMap<String, usize>) {
     }
 }
 
-const COMPARED: &[&str] = &["ph.slide", "ph.runs", "nonph.runs", "match.layout.", "geometry.from_", "ph.run.sz.", "nonph.run.sz.", "ph.run.b.", "nonph.run.b.", "ph.para.", "nonph.para."];
+/// The notes counters of `chain.py` (ADR-0008 §1.3 "Notes", §1.7): body
+/// placeholders of the notes shape tree (group members included) and the
+/// source of each run's `sz`.
+fn count_notes(s: &ooxml_pptx::DeckSlide<'_, '_>, c: &mut BTreeMap<String, usize>) {
+    let Some(n) = s.notes_sheet() else { return };
+    *c.entry("notes.slide".into()).or_default() += 1;
+    if n.master().is_err() {
+        *c.entry("notes.no_notes_master".into()).or_default() += 1;
+        return;
+    }
+    for sh in n.shapes() {
+        if *sh.kind() != ShapeKind::Shape || sh.placeholder().is_none_or(|ph| ph.view().0.attr(ooxml_core::QName::new("", "type")) != Some("body")) {
+            continue;
+        }
+        *c.entry("notes.body_ph".into()).or_default() += 1;
+        let m = n.placeholder_match(&sh).unwrap().unwrap();
+        if m.master.is_none() {
+            *c.entry("notes.body_ph_without_master_body".into()).or_default() += 1;
+            continue;
+        }
+        let Some(body) = sh.text_body() else { continue };
+        for para in body.paragraphs() {
+            for it in para.items() {
+                let TextItem::Run(r) = it else { continue };
+                let rp = n.run_props(&sh, body, para, RunItem::Run(r)).unwrap();
+                *c.entry(format!("notes.run.sz.from_{}", src_name(rp.size.source(), "run"))).or_default() += 1;
+            }
+        }
+    }
+}
+
+const COMPARED: &[&str] = &["notes.", "ph.slide", "ph.runs", "nonph.runs", "match.layout.", "geometry.from_", "ph.run.sz.", "nonph.run.sz.", "ph.run.b.", "nonph.run.b.", "ph.para.", "nonph.para."];
 
 /// Opt-in: `OOXML_PPTX_CORPUS=dir:dir cargo test -p ooxml-pptx --test resolve -- --ignored`.
 /// With the 633-file corpus of `spikes/pptx-phase1/README.md`, every
@@ -674,6 +709,100 @@ fn xsd_defaults() {
     assert_eq!(ooxml_pptx::ParaProps::xsd_default("algn"), None);
     assert_eq!(ooxml_pptx::script_for_lang("ja-JP"), Some("Jpan"));
     assert_eq!(ooxml_pptx::script_for_lang("zh-TW"), Some("Hant"));
+    assert_eq!(ooxml_pptx::script_for_lang("zh-HK"), Some("Hant"));
     assert_eq!(ooxml_pptx::script_for_lang("zh-CN"), Some("Hans"));
     assert_eq!(ooxml_pptx::script_for_lang("en-US"), None);
+}
+
+// ---------------------------------------------------------------------------
+// Review #56 round 2: r2-m2 (survivors Z6, Z9, Z10, Z19, Z21, Z24) and
+// r2-m3 (slide_rect refuses to guess).
+
+fn rect_of(p: &mut Presentation, name: &str) -> Result<Option<ooxml_pptx::Rect>, ooxml_pptx::Error> {
+    let deck = p.deck().unwrap();
+    let s = deck.slide(0).unwrap();
+    let shapes = s.slide().shapes();
+    let m = shapes.iter().find(|x| x.name() == Some(name)).unwrap();
+    s.slide_rect(m)
+}
+
+#[test]
+fn slide_rect_nested_flipped_and_invalid() {
+    let member = r#"<p:sp><p:nvSpPr><p:cNvPr id="81" name="M"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="10" y="10"/><a:ext cx="10" cy="10"/></a:xfrm></p:spPr></p:sp>"#;
+    let group = |id: u32, attrs: &str, inner: &str, xfrm: &str| {
+        format!(r#"<p:grpSp><p:nvGrpSpPr><p:cNvPr id="{id}" name="G{id}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm{attrs}>{xfrm}</a:xfrm></p:grpSpPr>{inner}</p:grpSp>"#)
+    };
+    let x2 = r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chOff x="0" y="0"/><a:chExt cx="100" cy="100"/>"#;
+    let half = r#"<a:off x="100" y="100"/><a:ext cx="50" cy="50"/><a:chOff x="0" y="0"/><a:chExt cx="100" cy="100"/>"#;
+    // nested: inner ×0.5 → (105,105,5,5); outer ×2 → (1210,1210,10,10)
+    let nested = group(82, "", &group(83, "", member, half), x2);
+    let mut p = patched(&[(SLIDE, "</p:spTree>", &format!("{nested}</p:spTree>"))]);
+    assert_eq!(rect_of(&mut p, "M").unwrap(), Some(ooxml_pptx::Rect { x: 1210, y: 1210, cx: 10, cy: 10 }));
+    // a flipped outer group
+    let flipped = group(84, r#" flipH="1""#, &group(83, "", member, half), x2);
+    let mut p = patched(&[(SLIDE, "</p:spTree>", &format!("{flipped}</p:spTree>"))]);
+    assert!(matches!(rect_of(&mut p, "M"), Err(ooxml_pptx::Error::TransformedGroup { group_id: Some(84) })));
+    // undecidable transforms → None (r2-m3)
+    for (attrs, xfrm) in [
+        (r#" rot="abc""#, x2),
+        (r#" flipV="2""#, x2),
+        ("", r#"<a:ext cx="200" cy="200"/><a:chOff x="0" y="0"/><a:chExt cx="100" cy="100"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="100"/>"#),
+        ("", r#"<a:off x="q" y="1000"/><a:ext cx="200" cy="200"/>"#),
+        ("", r#"<a:off x="NaN" y="1000"/><a:ext cx="200" cy="200"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200.5" cy="200"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chOff x="bad" y="0"/>"#),
+        ("", r#"<a:off x="1000" y="1000"/><a:ext cx="200" cy="200"/><a:chExt cx="100"/>"#),
+    ] {
+        let g = group(85, attrs, member, xfrm);
+        let mut p = patched(&[(SLIDE, "</p:spTree>", &format!("{g}</p:spTree>"))]);
+        assert_eq!(rect_of(&mut p, "M").unwrap(), None, "{attrs} {xfrm}");
+    }
+    // a full turn is no rotation
+    let g = group(86, r#" rot="21600000""#, member, x2);
+    let mut p = patched(&[(SLIDE, "</p:spTree>", &format!("{g}</p:spTree>"))]);
+    assert!(rect_of(&mut p, "M").unwrap().is_some());
+}
+
+/// Z6: a layout placeholder inside mc:AlternateContent is matched.
+#[test]
+fn layout_placeholder_inside_alternate_content() {
+    let layout = String::from_utf8(Package::from_bytes(cases::read_fixture("poi/sample.pptx")).unwrap().read_part(LAYOUT6).unwrap()).unwrap();
+    let start = layout.find("<p:sp><p:nvSpPr><p:cNvPr id=").unwrap();
+    let end = layout[start..].find("</p:sp>").unwrap() + start + "</p:sp>".len();
+    let sp = &layout[start..end];
+    assert!(sp.contains(TITLE_PH));
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Fallback>{sp}</mc:Fallback></mc:AlternateContent>"#);
+    let mut p = patched(&[(LAYOUT6, sp, &ac)]);
+    let (kind, _, _, layout_id, _) = slide2_match(&mut p, "Rectangle 2");
+    assert_eq!(kind, MatchKind::Idx);
+    assert!(layout_id.is_some());
+}
+
+/// Z19: a value from the master placeholder reports the slide's match kind.
+#[test]
+fn master_values_report_the_slide_match_kind() {
+    let mut p = patched(&[(LAYOUT6, TITLE_PH, r#"<p:ph type="pic" idx="50"/>"#)]);
+    let deck = p.deck().unwrap();
+    let s = deck.slide(1).unwrap();
+    let shapes = s.slide().shapes();
+    let t = shapes.iter().find(|x| x.name() == Some("Rectangle 2")).unwrap();
+    let g = s.geometry(t).unwrap();
+    assert!(matches!(g.source(), Some(Source::Placeholder { role: ooxml_pptx::Role::Master, matched: MatchKind::Orphan, .. })), "{g:?}");
+}
+
+/// Z21 / Z24: only the six theme references are references; an invalid
+/// coordinate keeps its raw text.
+#[test]
+fn theme_reference_shape_and_coordinate_raw() {
+    let mut p = patched(&[(SLIDE, TITLE_RUN, r#"<a:r><a:rPr lang="en-US"><a:latin typeface="+xx-yy"/></a:rPr><a:t>x</a:t></a:r>"#)]);
+    title_run(&mut p, |rp, _| {
+        let f = rp.latin.value().unwrap();
+        assert_eq!((f.typeface, f.theme_ref), ("+xx-yy", None));
+    });
+    let mut p = patched(&[(SLIDE, "<p:spPr/><p:txBody><a:bodyPr/>", r#"<p:spPr><a:xfrm><a:off x="q1" y="2"/><a:ext cx="3" cy="4"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/>"#)]);
+    title_body_props(&mut p, |_, g, _| {
+        let Lookup::Set(r) = g else { panic!() };
+        assert_eq!(r.value.unwrap_err().raw, "q1");
+    });
 }

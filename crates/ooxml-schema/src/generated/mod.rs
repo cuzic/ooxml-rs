@@ -12,3 +12,6 @@ cfg_select! {
 cfg_select! {
     feature = "dml" => { pub mod dml; } _ => {}
 }
+cfg_select! {
+    feature = "props" => { pub mod props; } _ => {}
+}

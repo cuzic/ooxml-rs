@@ -14,6 +14,7 @@
 //! contract says otherwise.
 
 pub mod docx;
+pub mod docx_replace;
 pub mod fixtures;
 pub mod input;
 pub mod lens;
@@ -23,11 +24,14 @@ pub mod phase1_oracle;
 pub mod pptx;
 pub mod xlsx;
 pub mod xml;
+pub mod xlsx_formula;
 pub mod zipcmp;
 
 pub use docx::{check_docx, check_docx_input};
+pub use docx_replace::{check_docx_replace, check_docx_replace_input};
 pub use lens::check_lens_ops;
 pub use package::check_package;
 pub use pptx::{check_pptx, check_pptx_input};
 pub use xlsx::{check_xlsx, check_xlsx_input};
+pub use xlsx_formula::{check_xlsx_formula, check_xlsx_formula_input};
 pub use xml::{check_t1, check_t1b};

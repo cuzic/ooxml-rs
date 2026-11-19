@@ -75,13 +75,17 @@ fn nth_kind(items: &[Value], kind: &str, n: usize) -> usize {
 
 fn apply(model: &mut Value, e: &Value) {
     let slide = &mut model["slides"][e["slide"].as_u64().unwrap() as usize];
-    let target = slide["shapes"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|s| s["shape_id"] == e["shape_id"] && s["cell"] == e["cell"])
-        .expect("target in model");
-    let paras = target["paragraphs"].as_array_mut().unwrap();
+    let paras = if e["notes"] == json!(true) {
+        slide["notes"].as_array_mut().expect("notes body in model")
+    } else {
+        let target = slide["shapes"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|s| s["shape_id"] == e["shape_id"] && s["cell"] == e["cell"])
+            .expect("target in model");
+        target["paragraphs"].as_array_mut().unwrap()
+    };
     let a = &e["args"];
     let pi = || a["p"].as_u64().unwrap() as usize;
     let text = || a["text"].as_str().unwrap().to_owned();

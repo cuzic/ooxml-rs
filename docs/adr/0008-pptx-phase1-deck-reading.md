@@ -123,6 +123,48 @@ departs from the §5 sketch, and what PR #56 leaves to the stacked notes PR.
   specified by `tests/oracle/poi_known_differences.md` but not wired (no
   JVM in CI).
 
+### Post-acceptance note (2026-11-16): notes and contexts (§1.7, §2; PR stacked on #56)
+
+- **Contexts are `Sheet<'a>`** (`SheetKind::{Slide, Notes, Layout, Master}`)
+  with the resolver methods; `DeckSlide`'s resolvers delegate to
+  `DeckSlide::sheet()`. `DeckSlide::notes_sheet()`, `Deck::layouts()` and
+  `Deck::masters()` (masters in `p:sldMasterIdLst` order, then their
+  layouts in `p:sldLayoutIdLst` order) give the other contexts.
+- **Notes placeholders:** the notes-master placeholder is reported as
+  `Role::NotesMaster` with the notes match kind (`Type`/`Family`, §1.2
+  step 3; `Orphan` when the notes master has none). `p:notesStyle` is
+  `TextStyleKind::Notes`. The colour map sources are `NotesOverride` and
+  `NotesMaster`.
+- **Non-placeholder shapes on notes slides** resolve steps 1–4 only; §1.3
+  "Notes" excludes `p:defaultTextStyle`, and a notes master has no
+  `otherStyle`. The corpus has no such text: 0 of 395 notes runs.
+- **Master placeholders** report `MatchKind::OnMaster`: they inherit from no
+  placeholder.
+- **Public enums:** `Role`, `TextStyleKind`, `MatchKind` and `MapSource` are
+  now `#[non_exhaustive]`.
+  New variants are `Role::NotesMaster`, `TextStyleKind::Notes`,
+  `MatchKind::OnMaster`, `MapSource::{NotesOverride, NotesMaster}` and
+  `ChainLink::NotesMaster`.
+- **Notes text and editing:** `Presentation::notes(i)` → `NotesRef`,
+  `Presentation::notes_mut(i)` → `NotesMut::body_mut()` (the Phase 0
+  `TextBodyMut`), `DeckSlide::notes()`. Without a notes slide the error is
+  `NoNotesSlide { slide_id }`. `DeckSlide::notes()` and `notes_sheet()`
+  require a relationship target with a `p:notes` root.
+  - The notes body is the first top-level `p:sp` with `p:ph@type="body"`.
+    If it lacks `p:txBody`, the body is absent (`NoNotesBody`), as in
+    python-pptx. A body inside `mc:AlternateContent` is used only when
+    there is no top-level body placeholder. Editing it returns
+    `InsideAlternateContent`. python-pptx never sees such a body.
+- **Find/replace:** `Scope::SlidesAndNotes` searches every slide and its
+  notes body when present. Per the owner decision for PR #76, it processes
+  each notes part once, immediately after the first slide that references
+  it, and uses that slide's index in `TextLocation`. `Scope::Notes(i)`
+  reports `NoNotesSlide`/`NoNotesBody` when appropriate.
+  `TextLocation::notes` marks a notes match. A failed apply also restores
+  the notes parts.
+- **Links on any part:** `PartLinks` from `DeckSlide::link_reader()`,
+  `DeckSlide::notes_link_reader()` or `Deck::link_reader(&sheet)`.
+
 Phase 1 builds on Phase 0.1. Wherever this ADR says "the Phase 0 rules", it
 means ADR-0005 §3 and §6 **as amended by revision 4 §9** (format sources are
 copied as whole subtrees without `a:hlinkClick`/`a:hlinkMouseOver`). If PR

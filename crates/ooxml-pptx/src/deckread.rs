@@ -156,9 +156,53 @@ fn query<'q>(q: &'q str, key: &str) -> Option<&'q str> {
     q.split('&').find_map(|kv| kv.split_once('=').filter(|(k, _)| *k == key).map(|(_, v)| v))
 }
 
-impl<'a> DeckSlide<'a, '_> {
+/// Links and actions of one part (a slide, notes slide, layout or master),
+/// ADR-0008 §3.1. From [`DeckSlide::link_reader`], [`DeckSlide::notes_link_reader`]
+/// or [`Deck::link_reader`].
+#[derive(Clone, Copy, Debug)]
+pub struct PartLinks<'a, 'd> {
+    deck: &'d Deck<'a>,
+    part: &'a str,
+    doc: &'a ooxml_core::XmlDocument,
+}
+
+impl<'a> Deck<'a> {
+    /// The links of a resolution context's part (slide, notes slide,
+    /// layout or master; ADR-0008 §3.1 "on slides and notes", §1.7).
+    pub fn link_reader(&self, sheet: &crate::Sheet<'a>) -> PartLinks<'a, '_> {
+        let part = sheet.part();
+        PartLinks { deck: self, part: part.part_name(), doc: part.doc }
+    }
+}
+
+impl<'a, 'd> DeckSlide<'a, 'd> {
+    /// The slide's links.
+    pub fn link_reader(&self) -> PartLinks<'a, 'd> {
+        let s = self.sheet();
+        PartLinks { deck: self.deck, part: s.part().part_name(), doc: self.doc }
+    }
+    /// The links of the slide's notes slide (`None` without one).
+    pub fn notes_link_reader(&self) -> Option<PartLinks<'a, 'd>> {
+        let n = self.notes_sheet()?;
+        Some(PartLinks { deck: self.deck, part: n.part().part_name(), doc: n.part().doc })
+    }
+    /// [`PartLinks::text_link`] on the slide.
+    pub fn text_link(&self, rpr_owner: &'a RawNode, event: LinkEvent) -> Option<Link<'a>> {
+        self.link_reader().text_link(rpr_owner, event)
+    }
+    /// [`PartLinks::shape_action`] on the slide.
+    pub fn shape_action(&self, shape: &crate::ShapeRef<'a>, event: LinkEvent) -> Option<Link<'a>> {
+        self.link_reader().shape_action(shape, event)
+    }
+    /// [`PartLinks::links`] of the slide.
+    pub fn links(&self) -> Vec<(LinkLocation, Link<'a>)> {
+        self.link_reader().links()
+    }
+}
+
+impl<'a> PartLinks<'a, '_> {
     fn parse_link(&self, n: &'a RawNode, event: LinkEvent) -> Link<'a> {
-        let rels = self.deck.rels_of(&self.info.part_name);
+        let rels = self.deck.rels_of(self.part);
         let rel_id = n.attr(QName::new(R_NS, "id")).filter(|r| !r.is_empty());
         let action = n.attr(un("action")).filter(|s| !s.is_empty());
         let rel = rel_id.map(|r| (r, rels.and_then(|x| x.by_id(r))));
@@ -250,11 +294,11 @@ impl<'a> DeckSlide<'a, '_> {
         child(c, q).map(|n| self.parse_link(n, event))
     }
 
-    /// Every link on the slide: shape actions, then runs and fields of text
+    /// Every link of the part: shape actions, then runs and fields of text
     /// bodies and table cells, in shape order.
     pub fn links(&self) -> Vec<(LinkLocation, Link<'a>)> {
         let mut out = Vec::new();
-        for sh in self.slide().shapes() {
+        for sh in crate::read::shapes_of(self.doc) {
             for ev in [LinkEvent::Click, LinkEvent::Hover] {
                 if let Some(l) = self.shape_action(&sh, ev) {
                     out.push((LinkLocation { shape: sh.path().clone(), cell: None, text: None }, l));

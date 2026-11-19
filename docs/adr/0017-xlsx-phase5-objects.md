@@ -283,12 +283,13 @@ in-place insertions that were checked in step 1:
 
 **Prerequisite: Phase1 multi-cell write plan (an ADR-0003 addendum and its own PR, before P5b
 and P5d).**
-- ADR-0003 §3.1 plans one cell at a time and says "a batch API is not needed for Phase1".
-  Phase5 needs one. `CellWritePlan::new(&workbook, writes: &[(cell, op)])` validates every
-  guard of §3.1 for **all** the cells.
-- The census changes are accumulated **inside** the plan: cell k is planned against the
-  census as cells 1..k−1 leave it. Examples: a calculated column's cells, and the totals row's
-  `SUBTOTAL(109,T[Col])` over that column.
+- `Workbook::plan_writes(Vec<(usize, CellIndex, CellOp, Extra)>)` validates the §3.1 guards
+  for all writes in the operation.
+- **Post-acceptance note (P5-pre).** The plan takes the union of dependents from the pre-batch
+  graph and updates the census during apply. Cells whose values or formulas the plan replaces
+  are excluded from the dependent-cell checks. An individual write after a formula write
+  can therefore set `fullCalcOnLoad` or fail with `IterativeCalculation` in cases where
+  the equivalent batch succeeds without that dependent-cell effect (ADR-0003 §3.1a).
 - **What goes where** (review r2-m4).
   - Only the `calcPr` change (a staged `workbook.xml`) and the calcChain removal go into the
     `RegistryPlan`.

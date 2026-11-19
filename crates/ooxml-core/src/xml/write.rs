@@ -8,7 +8,7 @@ pub(super) fn serialize(doc: &XmlDocument) -> String {
     let src = doc.source();
     let mut out = String::with_capacity(src.len() + 64);
     let root = &doc.root;
-    let span = root.span.expect("the root element is always parsed");
+    let span = root.span().expect("the root element is always parsed");
     out.push_str(&src[..span.start]);
     write_node(&mut out, src, root);
     out.push_str(&src[span.end()..]);
@@ -16,8 +16,8 @@ pub(super) fn serialize(doc: &XmlDocument) -> String {
 }
 
 fn write_node(out: &mut String, src: &str, node: &RawNode) {
-    let span = match node.span {
-        Some(span) if !node.subtree_dirty => {
+    let span = match node.span() {
+        Some(span) if !node.subtree_dirty() => {
             out.push_str(&src[span.start..span.end()]);
             return;
         }
@@ -25,22 +25,22 @@ fn write_node(out: &mut String, src: &str, node: &RawNode) {
     };
     // An originally self-closing element with children must be re-rendered
     // even if a caller bypassed the duty that marks it `own_dirty`.
-    let rerender = node.own_dirty
+    let rerender = node.own_dirty()
         || match span {
             None => true,
-            Some(s) => s.close.is_none() && !node.children.is_empty(),
+            Some(s) => s.close.is_none() && !node.children().is_empty(),
         };
     if rerender {
-        render_open_tag(out, node, node.children.is_empty());
+        render_open_tag(out, node, node.children().is_empty());
     } else {
         let s = span.expect("checked above");
         out.push_str(&src[s.start..s.open_end]);
     }
-    for child in &node.children {
+    for child in node.children() {
         match child {
             RawItem::Element(n) => write_node(out, src, n),
-            RawItem::Text(t) => match &t.span {
-                Some(r) => out.push_str(&src[r.clone()]),
+            RawItem::Text(t) => match t.span() {
+                Some(r) => out.push_str(&src[r]),
                 None if t.cdata => {
                     // `]]>` cannot occur inside a CDATA section: split it.
                     out.push_str("<![CDATA[");
@@ -53,7 +53,7 @@ fn write_node(out: &mut String, src: &str, node: &RawNode) {
         }
     }
     if rerender {
-        if !node.children.is_empty() {
+        if !node.children().is_empty() {
             let _ = write!(out, "</{}>", node.name.display());
         }
     } else if let Some((cs, ce)) = span.and_then(|s| s.close) {

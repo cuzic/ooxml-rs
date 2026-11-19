@@ -12,7 +12,7 @@ include = ["src/**/*.rs", "Cargo.toml", "README.md"]
 
 [dependencies]
 ooxml-core = { workspace = true }
-ooxml-schema = { workspace = true, features = ["wml"] }
+ooxml-schema = { workspace = true, features = ["wml", "dml"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]

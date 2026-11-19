@@ -91,8 +91,11 @@ wb.save("new.xlsx")?;
 | Style-only writes | `set_format(&Format)`, `set_style_index(n)` (lossless copy of another cell's `style_index()`), `set_named_style(name)` (unique `cellStyle` name, case-insensitive; groups whose `apply*="0"` keep the cell's own id, as Excel applies Good/Bad/Neutral), and the preserving setters `set_num_format`, `set_font`, `set_fill`, `set_border`: they copy the cell's current `xf` and replace one id and its `apply*` flag. A cell that does not exist yet starts from its row's style (`customFormat="1"`), else its column's `style`, else 0. The value is untouched, so the per-cell value guards (merged range, table header, array or spill range) do not apply to them (ADR-0014 revision 3 makes the same choice for merged ranges). If any formula or defined name uses `CELL`, `INFO`, `GET.CELL`, `GET.FORMULA` or a function outside Phase1's allowlist, a style-only write invalidates dependents like a value write. |
 | Values | `set_bool`, `set_error` (`#N/A`, …), `set_datetime(ExcelDateTime)`: serial in the workbook's system (1900 with Excel's false 1900-02-29, or 1904); keeps a date `s`, else derives one with built-in 14 (`yyyy-mm-dd` if 14 is redefined). `Worksheet::is_date(row, col)` (calamine's rule) and `datetime(row, col)` read them back without activating the registry (`false` without a styles part). `ExcelDateTime` values come only from validating constructors. |
 | Limits | Appending past 65,490 `cellXfs`+`cellStyleXfs`, 512 fonts, 256 fills, 256 borders or 200 custom number formats is `StyleTableFull` (mapping inferred, ADR-0006 §5.10). A table already past a limit does not block writes that do not grow it. |
-| Cost | A write that reuses existing entries does not depend on the size of `styles.xml` (1,000 formatted writes: 258 ms with 1 xf, 235 ms with 5,001, debug build). A write that **appends** a new entry clones `styles.xml` for atomicity: O(styles.xml) per new distinct format (about 48 ms at 20,000 `cellXfs`, release). The number of such writes is bounded by the distinct formats (and Excel's table limits); an append log instead of the clone is noted for part 2. |
-| Not yet | Rich strings (`set_rich_string`), `CellRef::format()` reading, the `dxfs` registry (Phase4 users): follow-up PR. Named-style + overrides, named-style creation, column/row styles: Phase4. |
+| Cost | A write that reuses existing entries does not depend on the size of `styles.xml` (1,000 formatted writes: 258 ms with 1 xf, 235 ms with 5,001, debug build). A write that **appends** a new entry clones `styles.xml` for atomicity: O(styles.xml) per new distinct format (about 48 ms at 20,000 `cellXfs`, release). The number of such writes is bounded by the distinct formats (and Excel's table limits); an append log instead of the clone is a noted follow-up (PR #50 review round 2, m2). |
+| Rich strings | `set_rich_string(&[(&Font, &str)])`: with an sst, a new `si` of `r` runs (`rPr` with `rFont`, in Excel's order); an existing item with exactly these bytes is reused, and a rich item never matches a plain one. Without an sst, an inline `is` of runs. As in rust_xlsxwriter, a first run in `Font::default()` has no `rPr`. Empty runs and more than 32,767 UTF-16 units in total are refused. |
+| Reading formats | `Worksheet::format(row, col)` / `Workbook::format_of_style(s)` → `FormatRead::Expressible(Format)` (a projection: every group the `xf` uses, `apply*` ignored; writing it again resolves to the same `xf`) or `NotExpressible { style_index, reasons }` (`xfId ≠ 0`, `pivotButton`, `justifyLastLine`, `relativeIndent`, gradient fills, `outline`/`shadow` fonts, extension content, `mc:AlternateContent`). A read: the registry is not activated. |
+| Differential formats | `Workbook::add_differential_format(&DxfFormat) -> u32`: the `dxfs` registry (Phase4's conditional formats and table styles use the index). Only the overriding parts are written; a solid fill is `bgColor` without `patternType`, as Excel writes a `dxf`. Exact-form reuse, also across sessions; `dxfs` inserted in schema order when absent. A `dxf/numFmt` is self-contained: its id comes from the same package-wide allocator as `numFmts` but is not added there. Every `dxfId`/`…DxfId` in the package counts for the dangling-reference check. |
+| Not yet | Named-style + overrides, named-style creation, column/row styles: Phase4. |
 
 Phase2 refusals (in addition to those below): `NoStylesPart`, `UnsupportedStylesPart` (root not a
 SpreadsheetML `styleSheet`), `StyleTableFull`, `NumFmtIdExhausted`, `BuiltinNumFormatRedefined`,
@@ -105,6 +108,22 @@ has extension content it could not carry over, or an `mc:AlternateContent` entry
 index or an append depends on it. Registry additions are planned on a staged clone of
 `styles.xml` and installed in the same apply step as the cell, so every refusal leaves the
 package byte-identical.
+
+## Phase4 part 1: range features (ADR-0014 §3, §7, §11)
+
+Each call checks everything first (an `Err` changes nothing), then edits in place; a failure
+while applying poisons the workbook (ADR-0003 §3.1).
+
+| Call | Behaviour |
+|---|---|
+| `merge(range)` | Adds a `mergeCell` (container + `count`). Refuses a single cell (`MergeSingleCell`), overlap with a merge (`MergeOverlap`), table (`TableOverlap`), PivotTable (`PivotOverlap`), a sheet with any query table, since its output range is not located (`QueryTableOverlap`), array/data-table/spill ranges (`ArrayAnchor`, `ArrayResultCell`), `vm` cells (`RichValueCell`), and **values or formulas in non-anchor cells** (`MergeWouldHideValues { cells }`). |
+| `merge_clearing(range)` | Clears the non-anchor cells first (Phase1 removals: dependents lose caches, `fullCalcOnLoad`, calcChain), all checked before the first; a shared-formula master among them is refused. |
+| `unmerge(range)`, `merged_ranges()` | `NoSuchMerge` unless a merge equals the range; an emptied `mergeCells` is removed. Values the merge hid become visible. |
+| merged anchors | The anchor (top-left cell) accepts value and formula writes; other cells of the range refuse them (`MergedCell`). The guard follows this session's merges. |
+| `set_autofilter(range)` | New `autoFilter`, or a plain one's `ref` (`AutoFilterExists` with criteria or a sort); the sheet-local `_xlnm._FilterDatabase` is reused (text, `hidden="1"`) or created; refuses `TableOverlap`, `DuplicateBuiltInName`, `NameInUse` (a formula or defined name uses it). **Known limit:** when `workbook.xml` has no `definedNames` yet and has any `mc:AlternateContent` child (Excel 2013+ writes `x15ac:absPath` in locally saved files: 61 of 349 corpus workbooks), the new `definedNames` is refused with `Core(UnresolvedSibling)` and nothing changes (ADR-0014 §13). |
+| `remove_autofilter()` | `Ok(false)` without one; `FilterActive` with criteria; clears `sheetPr/@filterMode`; keeps the name and the sheet-level `sortState`. |
+| `protect_sheet(&SheetProtection)` | `sheetProtection` with `sheet="1"` and the `Allow` flags (written inverted, omitted at the schema default); with a password, SHA-512 (`algorithmName`, base64 `hashValue`/`saltValue`, `spinCount` ≤ 10,000,000: `InvalidSpinCount`). The salt comes from the OS random generator unless `with_salt`. Replacing removes every hash and flag attribute first (no legacy `password` next to a SHA hash); unknown attributes stay. |
+| `unprotect_sheet()` | Removes `sheetProtection`; `Ok(false)` without one. Protection is an Excel UI setting and does not stop edits through this crate. |
 
 ## Usage example
 
@@ -156,7 +175,7 @@ before anything is touched; only then is the plan applied, by steps that cannot 
 | `InvalidFormula` | `set_formula` text that does not lex or has characters XML cannot carry. |
 | `NoSuchSheet`, `NotAWorksheet` | `worksheet_by_name`/`by_index` miss, or name a chartsheet/macro/dialog sheet. |
 | `Poisoned` | An earlier edit failed while applying. |
-| `MergedCell` | The cell is in a merged range, top-left cell included. |
+| `MergedCell` | A value or formula write to a non-anchor cell of a merged range (the anchor, the top-left cell, is writable: ADR-0014 §3). |
 | `TableHeaderCell` | The cell is in a table's header row (`headerRowCount` rows from the top of `ref`). |
 | `RichValueCell` | The cell has a `vm` attribute (image in cell, data type), or a dependent has one. |
 | `OutOfOrder`, `InvalidReference`, `OutOfRange` | Rows/cells not ascending; a `c/@r` naming another row; indices beyond 1,048,576 × 16,384. A `c/@r` naming another row than its `row/@r` **anywhere in any sheet** refuses **every edit** of the workbook (`InvalidReference("<part>: B2 in row 1")`, also from `edit_refusal()`): the formula census keys cells by `c/@r` and the row index by row, so they would disagree about the cell, and a write to it would add a second `c` with the same reference (fuzz finding F-8). Reads keep their behaviour. |

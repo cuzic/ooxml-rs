@@ -4,7 +4,7 @@
 //! sandbox has no PowerPoint).
 //!
 //! ```text
-//! cargo run -p ooxml-pptx --example manual_check -- <outdir>
+//! cargo run -p ooxml-pptx --example pptx_manual_check -- <outdir>
 //! ```
 //!
 //! Inputs are the third-party fixtures in `reference/fixtures/pptx/`; the
@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use ooxml_core::Package;
-use ooxml_pptx::{Presentation, ShapeKind, TextItem};
+use ooxml_pptx::{CellFill, Edge, Line, Presentation, ShapeKind, TableColor, TextItem};
 
 type R<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -435,6 +435,66 @@ fn main() -> R {
         });
     }
 
+    // SA1–SA4. Phase 1b SmartArt text (ADR-0013 §4, owner question Q1:
+    // does PowerPoint re-lay out SmartArt from the data model?)
+    {
+        const NODE: &str = "{EC0D1448-4AB9-47C0-A4EF-4E8640283403}";
+        let mut p = Presentation::open(fixture("poi/SmartArt.pptx"))?;
+        p.smart_art_mut(0, 4)?.set_text(NODE, "Hello SmartArt\nSecond line")?;
+        items.push(Item {
+            file: save(&out, "SA1-smartart-data-and-cache", &p)?,
+            source: "poi/SmartArt.pptx, slide 1",
+            edit: "set_text on the first node: data model and drawing cache both get \"Hello SmartArt\" / \"Second line\"".into(),
+            observe: vec![
+                "Opens without a repair prompt; the first box shows the two lines.",
+                "Text Pane (SmartArt Design > Text Pane) shows the same two lines; the other boxes still show [Text].",
+            ],
+        });
+        // the fake cache: the data says DATA-TEXT, the cache CACHE-ONLY
+        let mut p = Presentation::open(fixture("poi/SmartArt.pptx"))?;
+        p.smart_art_mut(0, 4)?.set_text(NODE, "DATA-TEXT")?;
+        let bytes = rewrite(&p.to_bytes()?, "ppt/diagrams/drawing1.xml", |d| d.replace(">DATA-TEXT<", ">CACHE-ONLY<"))?;
+        let file = "SA2-smartart-fake-cache.pptx".to_owned();
+        std::fs::write(out.join(&file), bytes)?;
+        items.push(Item {
+            file,
+            source: "poi/SmartArt.pptx, slide 1",
+            edit: "data model node = DATA-TEXT; the drawing cache's copy of it rewritten by hand to CACHE-ONLY (a deliberately inconsistent file)".into(),
+            observe: vec![
+                "Which text does the first box show right after opening: DATA-TEXT (PowerPoint re-lays out from the data) or CACHE-ONLY (it trusts the cache)?",
+                "Close without saving, reopen, then save: what does the box show, and does the saved drawing1.xml still say CACHE-ONLY?",
+                "If possible also on macOS, the web and iOS (ADR-0013 Q1).",
+            ],
+        });
+        // Q2: does PowerPoint re-fit cached sizes after a longer text?
+        let mut p = Presentation::open(fixture("poi/SmartArt.pptx"))?;
+        p.smart_art_mut(0, 4)?.set_text(NODE, "A much longer text than the box was laid out for, to see whether the sizes are re-fitted")?;
+        items.push(Item {
+            file: save(&out, "SA4-smartart-long-text", &p)?,
+            source: "poi/SmartArt.pptx, slide 1",
+            edit: "set_text on the first node with a long text (data and cache)".into(),
+            observe: vec![
+                "Right after opening: does the first box shrink its font to fit (re-fit), or does the text overflow until you click into it?",
+                "Do the sibling boxes change font size to match (ADR-0013 Q2)?",
+            ],
+        });
+        let mut p = Presentation::open(fixture("poi/SmartArt.pptx"))?;
+        {
+            let mut sa = p.smart_art_mut(0, 4)?;
+            sa.set_text(NODE, "No cache")?;
+            sa.drop_drawing_cache()?;
+        }
+        items.push(Item {
+            file: save(&out, "SA3-smartart-cache-dropped", &p)?,
+            source: "poi/SmartArt.pptx, slide 1",
+            edit: "set_text(\"No cache\") then drop_drawing_cache: drawing part, its relationship and the dataModelExt reference removed".into(),
+            observe: vec![
+                "Opens without a repair prompt; the SmartArt is laid out and the first box shows \"No cache\".",
+                "After saving, PowerPoint has written a new drawing part (ppt/diagrams/drawing*.xml).",
+            ],
+        });
+    }
+
     // 17–22: ADR-0008 manual checks M1–M3, M5–M7 (inheritance rules the
     // corpus cannot settle). Each deck is poi/sample.pptx with documented
     // XML edits; the checklist states what ooxml-pptx resolves so the owner
@@ -540,9 +600,205 @@ fn main() -> R {
         }
     }
 
+    // 23–25. Phase 1b tables (ADR-0013 §7 "Manual")
+    {
+        let mut p = Presentation::open(fixture("poi/table_test2.pptx"))?;
+        {
+            let mut s = p.slide_mut(0)?;
+            let mut sh = s.shape_mut_by_id(4)?;
+            let mut t = sh.table_mut()?;
+            t.insert_row(4)?; // inside the rowSpan=3 block (columns 4–6) and the rowSpan=2 cell (column 1)
+            t.insert_column(2)?; // inside the gridSpan=2 merges of column 2–3
+        }
+        items.push(Item {
+            file: save(&out, "23-table-insert-inside-merges", &p)?,
+            source: "poi/table_test2.pptx, slide 1",
+            edit: "insert_row(4) inside the vertical merges; insert_column(2) inside the horizontal merges".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "The merged cells grew by one row / one column (Q3); no cell is split or duplicated.",
+                "The new cells look like their neighbours above / left (fill, margins, text direction).",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("poi/table_test2.pptx"))?;
+        {
+            let mut s = p.slide_mut(0)?;
+            let mut sh = s.shape_mut_by_id(4)?;
+            for (r, c, txt) in [(3, 1, "one"), (3, 2, "two"), (4, 1, "three"), (4, 2, "")] {
+                sh.table_cell_mut(r, c)?.set_text(txt)?;
+            }
+            let mut t = sh.table_mut()?;
+            t.merge(3, 1, 4, 2)?;
+            t.set_border(3, 1, Edge::Left, &Line::Solid { width: 38100, color: TableColor::Rgb([0xC0, 0, 0]) })?;
+            t.set_border(3, 1, Edge::Bottom, &Line::Solid { width: 38100, color: TableColor::Scheme("accent2".into()) })?;
+            t.set_fill(3, 1, &CellFill::Solid(TableColor::Rgb([0xFF, 0xF2, 0xCC])))?;
+        }
+        items.push(Item {
+            file: save(&out, "24-table-merge-borders-fill", &p)?,
+            source: "poi/table_test2.pptx, slide 1",
+            edit: "merge(3,1)-(4,2) (texts one/two/three moved into the merged cell), thick red left border and accent-2 bottom border on the merged range, light yellow fill".into(),
+            observe: vec![
+                "Opens without a repair prompt; the 2×2 merged cell reads one / two / three on three lines.",
+                "The red line runs along the whole left side of the merged cell, the accent line along its bottom; the neighbouring cells show the same lines (no double or missing line).",
+                "Table Design > Merge/Split: Split Cells on it works as in a PowerPoint-made merge.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("poi/table_test2.pptx"))?;
+        {
+            let mut s = p.slide_mut(0)?;
+            let mut sh = s.shape_mut_by_id(4)?;
+            let mut t = sh.table_mut()?;
+            t.delete_row(6)?;
+            t.delete_column(5)?;
+            t.set_style(Some("{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}"))?; // a built-in style id
+        }
+        items.push(Item {
+            file: save(&out, "25-table-delete-and-built-in-style", &p)?,
+            source: "poi/table_test2.pptx, slide 1",
+            edit: "delete_row(6), delete_column(5), table style set to a built-in id ({073A0DAA-…}) that tableStyles.xml does not define".into(),
+            observe: vec![
+                "Opens without a repair prompt; the table frame fits the remaining rows and columns.",
+                "The table shows a built-in style (Table Design shows it selected), not plain cells.",
+            ],
+        });
+    }
 
-    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4), inheritance (17–22, ADR-0008 §7 M1–M7) — manual check in Microsoft 365 PowerPoint\n\n");
-    md.push_str("Generated by `cargo run -p ooxml-pptx --example manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
+    // 26–31. Phase 2 (ADR-0012 §10 "Manual"): slides as units
+    {
+        let mut p = Presentation::new_with(ooxml_pptx::NewOptions { created: std::time::UNIX_EPOCH })?;
+        for l in p.layouts()? {
+            p.add_slide(&l, None)?;
+        }
+        items.push(Item {
+            file: save(&out, "26-new-all-layouts", &p)?,
+            source: "Presentation::new() (built-in template)",
+            edit: "one slide per layout, in layout order (11 slides, nothing typed)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Slide i uses layout i: Title Slide, Title and Content, Section Header, Two Content, Comparison, Title Only, Blank, Content with Caption, Picture with Caption, Title and Vertical Text, Vertical Title and Text.",
+                "Empty placeholders show PowerPoint's own prompt text (\"Click to add title\", …); no footer, date or slide number on the slides (Q5).",
+                "File > Info shows 11 slides; the notes page view shows a slide image and a notes box.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("poi/sample.pptx"))?;
+        let l = p.layouts()?.into_iter().find(|l| l.name.as_deref() == Some("Title and Content")).ok_or("layout")?;
+        p.add_slide(&l, Some(1))?;
+        p.duplicate_slide(0, None)?;
+        let n = p.slide_count();
+        p.move_slide(n - 1, 0)?;
+        items.push(Item {
+            file: save(&out, "27-add-duplicate-move", &p)?,
+            source: "poi/sample.pptx",
+            edit: "add_slide(Title and Content, at 1); duplicate_slide(0) (copy after it); move_slide(last, 0)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Order: original slide 2, original slide 1, its copy (identical), the new empty Title and Content slide.",
+                "The copy is independent: editing it does not change the original.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("libreoffice/slide-sections.pptx"))?;
+        let l = p.layouts()?.into_iter().next().ok_or("layout")?;
+        p.add_slide(&l, Some(1))?;
+        p.add_slide(&l, Some(0))?;
+        p.delete_slide(4)?;
+        p.move_slide(0, 5)?;
+        items.push(Item {
+            file: save(&out, "28-sections", &p)?,
+            source: "libreoffice/slide-sections.pptx",
+            edit: "add_slide at 1 (joins slide 1's section), add_slide at 0 (joins the first slide's section), delete_slide(4), move_slide(0, 5) (joins the section of its new predecessor)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "The section panel shows every slide in a section; the new slides sit in the sections described in the edit (owner decision Q1).",
+                "Sections emptied by the delete (if any) are still listed.",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("libreoffice/airplane-transition.pptx"))?;
+        let l = p.layouts()?.into_iter().next().ok_or("layout")?;
+        p.add_slide(&l, None)?;
+        p.duplicate_slide(0, None)?;
+        items.push(Item {
+            file: save(&out, "29-only-slide2-part", &p)?,
+            source: "libreoffice/airplane-transition.pptx (its only slide part is slide2.xml)",
+            edit: "duplicate_slide(0), add_slide at the end: new parts are slide3.xml and slide4.xml (largest number + 1), nothing renamed".into(),
+            observe: vec!["Opens without a repair prompt.", "The copy keeps the slide transition of the original."],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("python-pptx/sld-notes.pptx"))?;
+        p.duplicate_slide(0, None)?;
+        p.delete_slide(2)?;
+        items.push(Item {
+            file: save(&out, "30-notes-duplicate-delete", &p)?,
+            source: "python-pptx/sld-notes.pptx",
+            edit: "duplicate_slide(0) (its notes slide is copied); delete_slide(2) (the original second slide and its notes)".into(),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Slides 1 and 2 have the same speaker notes; editing the notes of one does not change the other.",
+                "File > Info: 2 slides (app.xml counts); the stale slide-title list in File > Properties, if visible, is accepted (owner decision Q2).",
+            ],
+        });
+    }
+    {
+        let mut p = Presentation::open(fixture("poi/layouts.pptx"))?;
+        let i = (0..p.slide_count())
+            .find(|&i| {
+                p.slide(i).ok().is_some_and(|s| s.shapes().iter().any(|x| *x.kind() == ShapeKind::Picture))
+            })
+            .ok_or("a slide with a picture")?;
+        p.delete_slide(i)?;
+        items.push(Item {
+            file: save(&out, "31-delete-with-picture", &p)?,
+            source: "poi/layouts.pptx",
+            edit: format!("delete_slide({i}): the slide with a picture; its image part goes with it when nothing else uses it"),
+            observe: vec!["Opens without a repair prompt.", "The other slides are unchanged."],
+        });
+    }
+
+    // 32. ADR-0008 manual check M4: a notes edit with a formatted
+    // multi-line body (§2), plus a find/replace in notes (§4 notes scope)
+    {
+        let mut pkg = Package::open(fixture("poi/sample.pptx"))?;
+        const NOTES: &str = "ppt/notesSlides/notesSlide1.xml";
+        let x = String::from_utf8(pkg.read_part(NOTES)?)?;
+        let empty = "<a:p><a:endParaRPr lang=\"en-US\"/></a:p>";
+        if !x.contains(empty) {
+            return Err("sample.pptx notes body changed".into());
+        }
+        let y = x.replacen(empty, "<a:p><a:r><a:rPr lang=\"en-US\" b=\"1\"><a:solidFill><a:srgbClr val=\"C00000\"/></a:solidFill></a:rPr><a:t>Bold red notes</a:t></a:r><a:r><a:rPr lang=\"en-US\"/><a:t> and plain text</a:t></a:r></a:p>", 1);
+        pkg.set_part(NOTES, y.into_bytes())?;
+        let mut p = Presentation::from_bytes(pkg.to_bytes()?)?;
+        {
+            let mut n = p.notes_mut(0)?;
+            n.body_mut()?.set_text("Bold red notes, edited\nSecond paragraph\u{b}after a line break\nThird paragraph")?;
+        }
+        let o = ooxml_pptx::ReplaceOptions::default().find(ooxml_pptx::FindOptions::default().scope(ooxml_pptx::Scope::Notes(0)));
+        let rep = p.replace_all("Third", "3rd", &o)?;
+        let text = p.notes(0)?.map(|n| n.text()).unwrap_or_default();
+        items.push(Item {
+            file: save(&out, "32-M4-notes-edit", &p)?,
+            source: "poi/sample.pptx (SYNTHETIC notes text)",
+            edit: format!("slide 1 notes: body set_text over a bold red first run (3 paragraphs, one line break), then replace_all(\"Third\" → \"3rd\") in notes ({} match); notes text now {text:?}", rep.replaced.len()),
+            observe: vec![
+                "Opens without a repair prompt.",
+                "Notes pane of slide 1 shows three paragraphs; the second has a line break (Shift+Enter) before \"after a line break\".",
+                "All three paragraphs are bold red (new paragraphs copy the format of the first run of the last paragraph, Phase 0 set_text).",
+                "The slide itself and slide 2's notes are unchanged.",
+            ],
+        });
+    }
+
+    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4), inheritance (17–22, ADR-0008 §7 M1–M7), tables (23–25, ADR-0013), slides as units (26–31, ADR-0012), notes (32, ADR-0008 M4), and SmartArt text (SA1–SA4, ADR-0013) — manual check in Microsoft 365 PowerPoint\n\n");
+    md.push_str("Generated by `cargo run -p ooxml-pptx --example pptx_manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
     md.push_str("For each file: open it in current Microsoft 365 PowerPoint (desktop), tick what holds, and write notes for anything else.\n");
     md.push_str("Inputs are third-party fixtures from `reference/fixtures/pptx/` (see its README for licences); do not redistribute the outputs.\n\n");
     md.push_str("PowerPoint version / build: ______________________\n\n");
@@ -560,4 +816,24 @@ fn main() -> R {
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     println!("{} files and CHECKLIST.md written to {}", items.len(), out.display());
     Ok(())
+}
+
+/// A copy of a package with one part's text rewritten (manual-check
+/// fixtures that the library deliberately cannot produce).
+fn rewrite(bytes: &[u8], name: &str, f: impl Fn(String) -> String) -> R<Vec<u8>> {
+    use std::io::{Read as _, Write as _};
+    let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes))?;
+    let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for i in 0..z.len() {
+        let mut e = z.by_index(i)?;
+        let n = e.name()?.into_owned();
+        let mut v = Vec::new();
+        e.read_to_end(&mut v)?;
+        if n == name {
+            v = f(String::from_utf8(v)?).into_bytes();
+        }
+        w.start_file(n, zip::write::SimpleFileOptions::default())?;
+        w.write_all(&v)?;
+    }
+    Ok(w.finish()?.into_inner())
 }

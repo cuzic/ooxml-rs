@@ -1,5 +1,6 @@
 //! `Presentation`: open/save, the slide list, lazy slide access (ADR-0005 §2).
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use ooxml_core::{ElementSpec, Lens, Package, QName, XmlDocument};
@@ -10,15 +11,24 @@ use crate::names::MODERN_COMMENTS_REL;
 use crate::read::{Slide, SlideInfo};
 use crate::refs::SlideRefs;
 use crate::replace::{self, BodyCtx, FindOptions, Match, OnRefusal, ParaPlan, ReplaceOptions, ReplaceReport, Scope, TextLocation};
-use crate::write::{SlideMut, node_at};
+use crate::notes::{NotesMut, NotesRef};
+use crate::write::{Guard, SlideMut, node_at};
+
+/// A part searched by `find`/`replace_all`: a slide or its notes slide.
+#[derive(Clone, Debug)]
+struct Unit {
+    slide: usize,
+    part: String,
+    notes: bool,
+}
 
 /// (text body path, paragraph child index, location, plan) of one paragraph.
 type PlannedParagraph = (Vec<usize>, usize, TextLocation, ParaPlan);
 
 #[derive(Clone, Debug)]
-struct SlideEntry {
-    slide_id: u32,
-    part: Option<String>,
+pub(crate) struct SlideEntry {
+    pub(crate) slide_id: u32,
+    pub(crate) part: Option<String>,
 }
 
 /// An open PowerPoint package (`.pptx`, `.pptm`, `.ppsx`, `.potx`).
@@ -50,8 +60,17 @@ struct SlideEntry {
 /// A complete, runnable version is `examples/replace_text.rs`.
 #[derive(Debug)]
 pub struct Presentation {
-    pkg: Package,
-    slides: Vec<SlideEntry>,
+    pub(crate) pkg: Package,
+    pub(crate) slides: Vec<SlideEntry>,
+    /// The presentation part (`ppt/presentation.xml`).
+    pub(crate) main: String,
+    /// Session high-water mark of `p:sldId@id`: the largest id seen,
+    /// allocated or removed while this value lives (ADR-0012 §3, review
+    /// m2/N6). Lost when the `Presentation` is dropped.
+    pub(crate) slide_id_high_water: u32,
+    /// Table edit state that outlives one `SlideMut` (deleted `a16` ids),
+    /// by slide part (ADR-0013 §2: the session is the `Presentation`).
+    tables: std::collections::BTreeMap<String, crate::write::TableSession>,
 }
 
 impl Presentation {
@@ -65,36 +84,21 @@ impl Presentation {
         Self::from_package(Package::from_bytes(bytes)?)
     }
 
-    fn from_package(mut pkg: Package) -> Result<Self> {
+    pub(crate) fn from_package(mut pkg: Package) -> Result<Self> {
         let main = pkg.main_document_part().ok_or_else(|| Error::NotAPresentation("no officeDocument relationship".into()))?;
         if !pkg.contains(&main) {
             return Err(Error::NotAPresentation(format!("officeDocument target {main:?} does not exist")));
         }
-        let rels = pkg.relationships(&main)?;
-        let doc = pkg.xml_part(&main)?;
-        let pres = Lens::<pml::Presentation>::root(doc.root())
-            .map_err(|_| Error::NotAPresentation(format!("{main:?} is not a p:presentation")))?;
-        if pres.attr(QName::new("", "conformance")) == Some("strict") {
-            return Err(Error::StrictConformance);
-        }
-        let mut ids = Vec::new();
-        if let Some(list) = pres.child::<SlideIdList>() {
-            for sld in list.children::<SlideId>() {
-                let v = SlideIdView(sld);
-                let slide_id = v.id()?.ok_or_else(|| Error::NotAPresentation("p:sldId without @id".into()))?;
-                ids.push((slide_id, v.relationship_id().map(String::from)));
-            }
-        }
-        let slides = ids
-            .into_iter()
-            .map(|(slide_id, rid)| SlideEntry {
-                slide_id,
-                part: rid
-                    .and_then(|r| rels.by_id(&r).and_then(|r| rels.resolve(r)))
-                    .filter(|p| pkg.contains(p)),
-            })
-            .collect();
-        Ok(Presentation { pkg, slides })
+        let slides = scan_slides(&mut pkg, &main)?;
+        let slide_id_high_water = slides.iter().map(|e| e.slide_id).max().unwrap_or(0);
+        Ok(Presentation { pkg, slides, main, slide_id_high_water, tables: Default::default() })
+    }
+
+    /// Re-reads the slide list after a structural edit.
+    pub(crate) fn rescan(&mut self) -> Result<()> {
+        self.slides = scan_slides(&mut self.pkg, &self.main)?;
+        self.tables.retain(|part, _| self.pkg.contains(part));
+        Ok(())
     }
 
     /// Saves to `path` (temp file + rename; the same path is safe).
@@ -117,7 +121,7 @@ impl Presentation {
         self.slides.len()
     }
 
-    fn entry(&self, index: usize) -> Result<(SlideInfo, String)> {
+    pub(crate) fn entry(&self, index: usize) -> Result<(SlideInfo, String)> {
         let e = self.slides.get(index).ok_or(Error::SlideIndexOutOfRange { index, count: self.slides.len() })?;
         let part = e.part.clone().ok_or(Error::DanglingSlide { slide_id: e.slide_id })?;
         Ok((SlideInfo { index, slide_id: e.slide_id, part_name: part.clone() }, part))
@@ -142,8 +146,22 @@ impl Presentation {
     /// of referenced text can be refused (ADR-0005 §6).
     pub fn slide_mut(&mut self, index: usize) -> Result<SlideMut<'_>> {
         let (info, part) = self.entry(index)?;
+        let mut refs = self.comment_refs(&part)?;
+        let table_styles = self.table_style_ids();
+        let tables = self.tables.entry(part.clone()).or_default();
+        let doc = self.pkg.xml_part_mut(&part)?;
+        if !doc.root().is(pml::Slide::QNAME) {
+            return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
+        }
+        refs.scan_timing(doc.root());
+        Ok(SlideMut { doc, info, refs, table_styles, tables })
+    }
+
+    /// The modern comment anchors of a slide part (ADR-0005 §6), scanned
+    /// read-only; unreadable comment parts lock everything.
+    pub(crate) fn comment_refs(&self, part: &str) -> Result<SlideRefs> {
         let mut refs = SlideRefs::default();
-        let rels = self.pkg.relationships(&part)?;
+        let rels = self.pkg.relationships(part)?;
         for r in rels.by_type(MODERN_COMMENTS_REL) {
             // Fail closed: a comment part that cannot be located, read or
             // parsed — for whatever reason, including resource limits of the
@@ -161,12 +179,24 @@ impl Presentation {
             };
             refs.scan_comments(doc.as_ref());
         }
-        let doc = self.pkg.xml_part_mut(&part)?;
-        if !doc.root().is(pml::Slide::QNAME) {
-            return Err(Lens::<pml::Slide>::root(doc.root()).unwrap_err().into());
-        }
-        refs.scan_timing(doc.root());
-        Ok(SlideMut { doc, info, refs })
+        Ok(refs)
+    }
+
+    /// `a:tblStyle@styleId`s defined in the presentation's `tableStyles`
+    /// part (found by relationship); empty when absent or unreadable.
+    fn table_style_ids(&self) -> Vec<String> {
+        const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
+        let Some(main) = self.pkg.main_document_part() else { return Vec::new() };
+        let Ok(rels) = self.pkg.relationships(&main) else { return Vec::new() };
+        let Some(part) = rels.by_type(REL).filter_map(|r| rels.resolve(r)).find(|p| self.pkg.contains(p)) else {
+            return Vec::new();
+        };
+        let Some(doc) = self.pkg.read_part(&part).ok().and_then(|b| XmlDocument::parse(&b).ok()) else { return Vec::new() };
+        doc.root()
+            .elements()
+            .filter(|e| e.is(QName::new(crate::names::A_NS, "tblStyle")))
+            .filter_map(|e| e.attr(QName::new("", "styleId")).map(str::to_owned))
+            .collect()
     }
 
     /// Parses the whole deck once — every slide's layout, master and theme,
@@ -175,46 +205,125 @@ impl Presentation {
     pub fn deck(&mut self) -> Result<crate::Deck<'_>> {
         let main = self.pkg.main_document_part().ok_or_else(|| Error::NotAPresentation("no officeDocument relationship".into()))?;
         let entries: Vec<(u32, Option<String>)> = self.slides.iter().map(|e| (e.slide_id, e.part.clone())).collect();
-        let (slides, rels) = crate::deck::load(&mut self.pkg, &main, &entries)?;
+        let crate::deck::Loaded { slides, rels, masters, layouts } = crate::deck::load(&mut self.pkg, &main, &entries)?;
         let pkg = &self.pkg;
         let pres_part = pkg.part_names().find(|n| *n == main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
         let pres = pkg.parsed_part(&main).ok_or_else(|| Error::NotAPresentation(main.clone()))?;
-        Ok(crate::Deck { pkg, pres_part, pres, slides, rels })
+        Ok(crate::Deck { pkg, pres_part, pres, slides, rels, masters, layouts })
     }
 
-    fn scope_indices(&self, scope: Scope) -> Result<Vec<usize>> {
-        match scope {
-            Scope::Slides => Ok((0..self.slides.len()).collect()),
-            Scope::Slide(i) => {
-                self.entry(i)?;
-                Ok(vec![i])
+    /// The notes slide part of slide `index` (`None` if it has none).
+    fn notes_part_of(&self, index: usize) -> Result<(SlideInfo, Option<String>)> {
+        let (info, part) = self.entry(index)?;
+        let notes = crate::notes::notes_part(&self.pkg, &part)?;
+        Ok((info, notes))
+    }
+
+    /// The notes slide of slide `index`, read-only (`None` if the slide has
+    /// none; ADR-0008 §2). Never marks anything dirty.
+    pub fn notes(&mut self, index: usize) -> Result<Option<NotesRef<'_>>> {
+        let (slide, Some(part)) = self.notes_part_of(index)? else { return Ok(None) };
+        let doc = self.pkg.xml_part(&part)?;
+        Lens::<pml::NotesSlide>::root(doc.root())?;
+        Ok(Some(NotesRef { doc, slide, part }))
+    }
+
+    /// The notes slide of slide `index` for editing ([`NotesMut::body_mut`]
+    /// gives the Phase 0 text API on the notes body). Only the notes part
+    /// becomes dirty.
+    ///
+    /// Errors: [`Error::NoNotesSlide`] (creating notes is not part of
+    /// Phase 1), [`Error::SlideIndexOutOfRange`], [`Error::DanglingSlide`],
+    /// parse errors.
+    pub fn notes_mut(&mut self, index: usize) -> Result<NotesMut<'_>> {
+        let (slide, part) = self.notes_part_of(index)?;
+        let part = part.ok_or(Error::NoNotesSlide { slide_id: slide.slide_id })?;
+        // parse read-only first: a part that is not p:notes stays clean
+        Lens::<pml::NotesSlide>::root(self.pkg.xml_part(&part)?.root())?;
+        let doc = self.pkg.xml_part_mut(&part)?;
+        Ok(NotesMut { doc, slide, part })
+    }
+
+    /// The units searched by `scope`: slides, and notes bodies.
+    fn scope_units(&self, scope: Scope) -> Result<Vec<Unit>> {
+        let slide = |i: usize| -> Result<Unit> { Ok(Unit { slide: i, part: self.entry(i)?.1, notes: false }) };
+        let notes = |i: usize, required: bool| -> Result<Option<Unit>> {
+            let (info, part) = self.notes_part_of(i)?;
+            match part {
+                Some(part) => Ok(Some(Unit { slide: i, part, notes: true })),
+                None if required => Err(Error::NoNotesSlide { slide_id: info.slide_id }),
+                None => Ok(None),
             }
+        };
+        let mut out = Vec::new();
+        match scope {
+            Scope::Slides => {
+                for i in 0..self.slides.len() {
+                    out.push(slide(i)?);
+                }
+            }
+            Scope::Slide(i) => out.push(slide(i)?),
+            Scope::SlidesAndNotes => {
+                let mut seen_notes = BTreeSet::new();
+                for i in 0..self.slides.len() {
+                    out.push(slide(i)?);
+                    if let Some(unit) = notes(i, false)?
+                        && seen_notes.insert(unit.part.clone())
+                    {
+                        out.push(unit);
+                    }
+                }
+            }
+            Scope::Notes(i) => out.extend(notes(i, true)?),
+        }
+        Ok(out)
+    }
+
+    /// The text bodies of a unit: every target of a slide; the notes body
+    /// of a notes slide (none if it has no body, unless `required`).
+    fn unit_targets(&mut self, u: &Unit, required: bool) -> Result<Vec<(replace::Target, Option<u32>)>> {
+        let doc = self.pkg.xml_part(&u.part)?;
+        if !u.notes {
+            Lens::<pml::Slide>::root(doc.root())?;
+            return Ok(replace::targets(doc).into_iter().map(|t| (t, None)).collect());
+        }
+        Lens::<pml::NotesSlide>::root(doc.root())?;
+        match crate::notes::body_loc(doc) {
+            Ok(l) => {
+                let t = replace::Target { shape: l.shape, cell: None, body: l.body };
+                // Some(id) marks an editable notes body; None one inside mc:AlternateContent
+                Ok(vec![(t, (!l.in_ac).then_some(l.shape_id))])
+            }
+            Err(e) if required => Err(e),
+            Err(_) => Ok(Vec::new()),
         }
     }
 
     /// Every literal match of `pattern` in the paragraphs of the slides in
     /// scope (ADR-0008 §4): text bodies of `p:sp` (groups included), table
     /// cells (merged ones too) and the representative shape of an
-    /// `mc:AlternateContent`. Matches never cross paragraphs; byte ranges
-    /// refer to [`crate::ParagraphRef::text`]. Never marks anything dirty.
+    /// `mc:AlternateContent`; with [`Scope::SlidesAndNotes`] /
+    /// [`Scope::Notes`] also the notes body (§2). Matches never cross
+    /// paragraphs; byte ranges refer to [`crate::ParagraphRef::text`].
+    /// Never marks anything dirty.
     ///
     /// Errors: [`Error::InvalidPattern`], [`Error::DanglingSlide`],
-    /// [`Error::SlideIndexOutOfRange`], parse errors.
+    /// [`Error::SlideIndexOutOfRange`], [`Error::NoNotesSlide`] and
+    /// [`Error::NoNotesBody`] for [`Scope::Notes`], parse errors.
     pub fn find(&mut self, pattern: &str, opts: &FindOptions) -> Result<Vec<Match>> {
         replace::check_pattern(pattern)?;
+        let required = matches!(opts.scope, Scope::Notes(_));
         let mut out = Vec::new();
-        for i in self.scope_indices(opts.scope)? {
-            let slide = self.slide(i)?;
-            let root = slide.doc.root();
-            for t in replace::targets(slide.doc) {
+        for u in self.scope_units(opts.scope)? {
+            let targets = self.unit_targets(&u, required)?;
+            let doc = self.pkg.xml_part(&u.part)?;
+            let root = doc.root();
+            for (t, _) in targets {
                 let body = node_at(root, &t.body).expect("target path");
                 for (k, pc) in replace::paragraphs(body).into_iter().enumerate() {
                     let text = replace::paragraph_text(node_at(body, &[pc]).expect("paragraph"));
                     for range in replace::find_in(&text, pattern, opts.ascii_case_insensitive) {
-                        out.push(Match {
-                            location: TextLocation { slide: i, shape: t.shape.clone(), cell: t.cell, paragraph: k },
-                            range,
-                        });
+                        out.push(Match { location: TextLocation { slide: u.slide, notes: u.notes, shape: t.shape.clone(), cell: t.cell, paragraph: k }, range });
                     }
                 }
             }
@@ -234,24 +343,39 @@ impl Presentation {
     /// Errors (nothing changed): [`Error::InvalidPattern`],
     /// [`Error::LineBreakInParagraph`] and [`Error::InvalidXmlChar`] for the
     /// replacement, [`Error::DanglingSlide`], [`Error::SlideIndexOutOfRange`],
-    /// parse errors.
+    /// [`Error::NoNotesSlide`] and [`Error::NoNotesBody`] for
+    /// [`Scope::Notes`], parse errors.
     pub fn replace_all(&mut self, pattern: &str, replacement: &str, opts: &ReplaceOptions) -> Result<ReplaceReport> {
         replace::check_pattern(pattern)?;
         let segs: Vec<String> = replace::segments(replacement)?.into_iter().map(String::from).collect();
         let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
-        let indices = self.scope_indices(opts.find.scope)?;
+        let required = matches!(opts.find.scope, Scope::Notes(_));
+        let units = self.scope_units(opts.find.scope)?;
         let mut report = ReplaceReport::default();
-        // (slide, [(body path, paragraph child, location, plan)])
-        let mut plans: Vec<(usize, Vec<PlannedParagraph>)> = Vec::new();
-        for &i in &indices {
-            let mut slide = self.slide_mut(i)?;
-            let mut slide_plans = Vec::new();
-            for t in replace::targets(slide.doc) {
-                let body_ctx: std::result::Result<_, Error> = slide.shape_mut(&t.shape).and_then(|mut sh| match t.cell {
-                    None => sh.text_body_mut().map(|b| b.guard().clone()),
-                    Some((r, c)) => sh.table_cell_mut(r, c).map(|b| b.guard().clone()),
-                });
-                let root = slide.doc.root();
+        // (unit, [(body path, paragraph child, location, plan)])
+        let mut plans: Vec<(Unit, Vec<PlannedParagraph>)> = Vec::new();
+        for u in units {
+            let mut unit_plans = Vec::new();
+            let targets = self.unit_targets(&u, required)?;
+            // guards: a slide's from its references (ADR-0005 §6); a notes
+            // body has none (ADR-0008 §2)
+            let guards: Vec<std::result::Result<Guard, Error>> = if u.notes {
+                targets.iter().map(|(_, id)| id.map(Guard::unlocked).ok_or(Error::InsideAlternateContent)).collect()
+            } else {
+                let mut slide = self.slide_mut(u.slide)?;
+                targets
+                    .iter()
+                    .map(|(t, _)| {
+                        slide.shape_mut(&t.shape).and_then(|mut sh| match t.cell {
+                            None => sh.text_body_mut().map(|b| b.guard().clone()),
+                            Some((r, c)) => sh.table_cell_mut(r, c).map(|b| b.guard().clone()),
+                        })
+                    })
+                    .collect()
+            };
+            let doc = self.pkg.xml_part(&u.part)?;
+            let root = doc.root();
+            for ((t, _), body_ctx) in targets.iter().zip(&guards) {
                 let body = node_at(root, &t.body).expect("target path");
                 let blocked_err = body_ctx.as_ref().err();
                 let blocked = || blocked_err.expect("blocked").duplicate();
@@ -261,15 +385,15 @@ impl Presentation {
                         guard: body_ctx.as_ref().ok(),
                     };
                     let para_path = [t.body.as_slice(), &[pc]].concat();
-                    let plan = replace::plan_paragraph(slide.doc, &para_path, pattern, &segs, opts, &ctx);
+                    let plan = replace::plan_paragraph(doc, &para_path, pattern, &segs, opts, &ctx);
                     if plan.accepted.is_empty() && plan.refused.is_empty() {
                         continue;
                     }
-                    let loc = TextLocation { slide: i, shape: t.shape.clone(), cell: t.cell, paragraph: k };
-                    slide_plans.push((t.body.clone(), pc, loc, plan));
+                    let loc = TextLocation { slide: u.slide, notes: u.notes, shape: t.shape.clone(), cell: t.cell, paragraph: k };
+                    unit_plans.push((t.body.clone(), pc, loc, plan));
                 }
             }
-            plans.push((i, slide_plans));
+            plans.push((u, unit_plans));
         }
         for (_, ps) in &mut plans {
             for (_, _, loc, plan) in ps.iter_mut() {
@@ -283,38 +407,31 @@ impl Presentation {
             return Ok(report);
         }
         // Apply. Every check ran above, so a failure here is a bug; it is
-        // still made harmless (review #48 m4): each slide's tree is cloned
-        // before it is changed, and on any error every changed slide is
+        // still made harmless (review #48 m4): each part's tree is cloned
+        // before it is changed, and on any error every changed part is
         // restored, so `Err` leaves the package byte-identical.
         let mut backups: Vec<(String, XmlDocument)> = Vec::new();
         let mut failure = None;
-        'apply: for (i, ps) in plans {
+        'apply: for (u, ps) in plans {
             if !ps.iter().any(|(_, _, _, p)| p.changes()) {
                 continue;
             }
-            let part = match self.entry(i) {
-                Ok((_, part)) => part,
-                Err(e) => {
-                    failure = Some(e);
-                    break 'apply;
-                }
-            };
-            match self.pkg.xml_part(&part) {
-                Ok(doc) => backups.push((part, doc.clone())),
+            match self.pkg.xml_part(&u.part) {
+                Ok(doc) => backups.push((u.part.clone(), doc.clone())),
                 Err(e) => {
                     failure = Some(e.into());
                     break 'apply;
                 }
             }
-            let mut slide = match self.slide_mut(i) {
-                Ok(s) => s,
+            let doc = match self.pkg.xml_part_mut(&u.part) {
+                Ok(d) => d,
                 Err(e) => {
-                    failure = Some(e);
+                    failure = Some(e.into());
                     break 'apply;
                 }
             };
             for (body, pc, loc, plan) in ps {
-                if let Err(e) = replace::apply_plan(&mut slide, &body, pc, &plan) {
+                if let Err(e) = replace::apply_plan(doc, &body, pc, &plan) {
                     failure = Some(e);
                     break 'apply;
                 }
@@ -323,15 +440,15 @@ impl Presentation {
                 }
             }
             #[cfg(test)]
-            if fault::FAIL_AFTER_SLIDE.get() == Some(i) {
+            if fault::FAIL_AFTER_SLIDE.get() == Some(u.slide) {
                 failure = Some(Error::UnsupportedContent("injected fault (test)".into()));
                 break 'apply;
             }
         }
         if let Some(e) = failure {
-            // restore every slide even if one restore fails (review #48 r2
-            // nit); the first error of all is returned
-            for (part, doc) in backups {
+            // Restore in reverse order so a shared part ends with its
+            // original tree. Attempt every restore and return the apply error.
+            for (part, doc) in backups.into_iter().rev() {
                 match self.pkg.xml_part_mut(&part) {
                     Ok(d) => *d = doc,
                     Err(_) => core::hint::cold_path(),
@@ -341,6 +458,35 @@ impl Presentation {
         }
         Ok(report)
     }
+}
+
+/// The slide list of the presentation part (`p:sldIdLst`, `r:id`s resolved).
+pub(crate) fn scan_slides(pkg: &mut Package, main: &str) -> Result<Vec<SlideEntry>> {
+    let rels = pkg.relationships(main)?;
+    let doc = pkg.xml_part(main)?;
+    let pres = Lens::<pml::Presentation>::root(doc.root())
+        .map_err(|_| Error::NotAPresentation(format!("{main:?} is not a p:presentation")))?;
+    if pres.attr(QName::new("", "conformance")) == Some("strict") {
+        return Err(Error::StrictConformance);
+    }
+    let mut ids = Vec::new();
+    if let Some(list) = pres.child::<SlideIdList>() {
+        for sld in list.children::<SlideId>() {
+            let v = SlideIdView(sld);
+            let slide_id = v.id()?.ok_or_else(|| Error::NotAPresentation("p:sldId without @id".into()))?;
+            ids.push((slide_id, v.relationship_id().map(String::from)));
+        }
+    }
+    let slides = ids
+        .into_iter()
+        .map(|(slide_id, rid)| SlideEntry {
+            slide_id,
+            part: rid
+                .and_then(|r| rels.by_id(&r).and_then(|r| rels.resolve(r)))
+                .filter(|p| pkg.contains(p)),
+        })
+        .collect();
+    Ok(slides)
 }
 
 #[cfg(test)]
@@ -367,5 +513,59 @@ pub(crate) mod fault {
         // and without the fault the same call changes both slides
         let rep = pres.replace_all("e", "E", &crate::ReplaceOptions::default()).unwrap();
         assert!(rep.replaced.iter().any(|m| m.location.slide == 0) && rep.replaced.iter().any(|m| m.location.slide == 1));
+    }
+
+    #[test]
+    fn a_failure_restores_notes_too() {
+        // ADR-0008 §2: notes parts changed by the same call are restored
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/sample.pptx");
+        let mut pkg = ooxml_core::Package::from_bytes(std::fs::read(path).unwrap()).unwrap();
+        const NOTES: &str = "ppt/notesSlides/notesSlide1.xml";
+        let x = String::from_utf8(pkg.read_part(NOTES).unwrap()).unwrap();
+        let y = x.replacen("<a:p><a:endParaRPr lang=\"en-US\"/></a:p>", "<a:p><a:r><a:rPr lang=\"en-US\"/><a:t>see the notes</a:t></a:r></a:p>", 1);
+        assert_ne!(x, y);
+        pkg.set_part(NOTES, y.into_bytes()).unwrap();
+        let mut pres = super::Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let before = pres.to_bytes().unwrap();
+        let o = crate::ReplaceOptions::default().find(crate::FindOptions::default().scope(crate::Scope::SlidesAndNotes));
+        FAIL_AFTER_SLIDE.set(Some(1));
+        let r = pres.replace_all("e", "E", &o);
+        FAIL_AFTER_SLIDE.set(None);
+        assert!(r.is_err());
+        assert_eq!(pres.to_bytes().unwrap(), before);
+        let rep = pres.replace_all("e", "E", &o).unwrap();
+        assert!(rep.replaced.iter().any(|m| m.location.notes));
+        assert_eq!(pres.notes(0).unwrap().unwrap().text(), "sEE thE notEs");
+    }
+
+    #[test]
+    fn a_failure_restores_a_notes_part_shared_by_two_slides() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/fixtures/pptx/poi/sample.pptx");
+        let mut pkg = ooxml_core::Package::from_bytes(std::fs::read(path).unwrap()).unwrap();
+        for (part, original, replacement) in [
+            ("ppt/slides/_rels/slide2.xml.rels", "../notesSlides/notesSlide2.xml", "../notesSlides/notesSlide1.xml"),
+            (
+                "ppt/notesSlides/notesSlide1.xml",
+                r#"<a:p><a:endParaRPr lang="en-US"/></a:p>"#,
+                "<a:p><a:r><a:t>shared notes marker</a:t></a:r></a:p>",
+            ),
+        ] {
+            let xml = String::from_utf8(pkg.read_part(part).unwrap()).unwrap();
+            assert!(xml.contains(original));
+            pkg.set_part(part, xml.replacen(original, replacement, 1).into_bytes()).unwrap();
+        }
+        let mut pres = super::Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let before = pres.to_bytes().unwrap();
+        let find = crate::FindOptions::default().scope(crate::Scope::SlidesAndNotes);
+        let matches = pres.find("shared notes marker", &find).unwrap();
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].location.notes);
+        assert_eq!(matches[0].location.slide, 0);
+
+        FAIL_AFTER_SLIDE.set(Some(0));
+        let result = pres.replace_all("shared notes marker", "shared notes edited", &crate::ReplaceOptions::default().find(find));
+        FAIL_AFTER_SLIDE.set(None);
+        assert!(result.is_err());
+        assert_eq!(pres.to_bytes().unwrap(), before);
     }
 }

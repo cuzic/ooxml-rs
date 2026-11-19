@@ -139,6 +139,180 @@ pub enum Error {
     #[error("no such story")]
     NoSuchStory,
 
+    /// A property element to write occurs twice in one `w:rPr`/`w:pPr`
+    /// (or `w:updateFields` twice in `w:settings`): which copy wins is not
+    /// specified, so nothing is written (ADR-0007 §4, fail closed).
+    #[error("{name} occurs more than once in its parent")]
+    DuplicateProperty {
+        /// The element, e.g. `w:sz`.
+        name: String,
+    },
+
+    /// A value outside what Phase1 writes (an empty font name, …).
+    #[error("invalid {what}: {value:?}")]
+    InvalidValue {
+        /// What was invalid.
+        what: &'static str,
+        /// The value.
+        value: String,
+    },
+
+    /// The run's `w:rPr` (or the paragraph's `w:pPr`, or its mark's `w:rPr`)
+    /// records a tracked property change; a direct write would overwrite
+    /// the state rejecting the change must restore (ADR-0007 §4 targets).
+    #[error("the target carries a tracked property change ({element})")]
+    TrackedPropertyChange {
+        /// `w:rPrChange` or `w:pPrChange`.
+        element: &'static str,
+    },
+
+    /// The paragraph's style chain (`w:basedOn`) loops or is deeper than 32
+    /// levels (ADR-0007 §4, fail closed).
+    #[error("the style chain is cyclic or deeper than 32 levels")]
+    StyleChainTooDeep,
+
+    /// No `w:style` with this exact `w:styleId` (or no styles part).
+    /// `latent_only`: Word knows a built-in style by that name
+    /// (`w:latentStyles/w:lsdException`), but the document does not define
+    /// it; creating one is Phase2 (ADR-0007 §5).
+    #[error("no style with id {id:?}{}", if *latent_only { " (latent only)" } else { "" })]
+    UnknownStyle {
+        /// The id asked for.
+        id: String,
+        /// A latent-style entry has that name.
+        latent_only: bool,
+    },
+
+    /// The style exists with another `w:type`.
+    #[error("style {id:?} is a {found} style, not a {expected} style")]
+    StyleTypeMismatch {
+        /// The id.
+        id: String,
+        /// `paragraph` or `character`.
+        expected: &'static str,
+        /// The type found, as written (an absent type is `paragraph`).
+        found: String,
+        /// The linked style (`w:link`), if any: the usual fix when a
+        /// paragraph style id is given as a run style.
+        linked: Option<String>,
+    },
+
+    /// Two `w:style` elements have this id, exactly or ignoring case.
+    #[error("style id {id:?} is defined more than once")]
+    AmbiguousStyle {
+        /// The id.
+        id: String,
+    },
+
+    /// The main part has more than one styles relationship: which one Word
+    /// reads is not specified, so the style setters refuse (fail closed).
+    #[error("the document has more than one styles part")]
+    AmbiguousStylesPart,
+
+    /// `enable_update_fields_on_open` on a package without a settings part
+    /// (creating one is Phase2).
+    #[error("the document has no settings part")]
+    NoSettingsPart,
+
+    /// The main part has more than one settings relationship.
+    #[error("the document has more than one settings part")]
+    AmbiguousSettings,
+
+    /// `w:settings` has two `w:updateFields` elements.
+    #[error("w:settings has {name} more than once")]
+    DuplicateSetting {
+        /// The element.
+        name: &'static str,
+    },
+
+    /// The paragraph is already the last paragraph of its section (ADR-0011 §6).
+    #[error("the paragraph already ends a section")]
+    AlreadySectionEnd,
+
+    /// No `w:sectPr` ends the section that holds the paragraph.
+    #[error("the section has no w:sectPr")]
+    NoSectionProperties,
+
+    /// A relationship id ooxml-docx would write is already used by an `r:`
+    /// attribute of the part without being one of its relationships
+    /// (ADR-0011 §1 item 4, review N4), or a reference to copy names an id
+    /// the part does not have.
+    #[error("relationship id {id:?} is referenced but not defined")]
+    RelIdReferenced {
+        /// The id.
+        id: String,
+    },
+
+    /// No bookmark of the document has that name (ignoring case).
+    #[error("no bookmark named {name:?}")]
+    UnknownBookmark {
+        /// The name asked for.
+        name: String,
+    },
+
+    /// A hyperlink would be inserted inside an existing `w:hyperlink`.
+    #[error("hyperlinks cannot be nested")]
+    NestedHyperlink,
+
+    /// A table operation needs a consistent grid: for every row,
+    /// `gridBefore`, the cells' `gridSpan`s and `gridAfter` add up to the
+    /// number of `w:gridCol`, and the table has a `w:tblGrid` (ADR-0011 §7).
+    #[error("the table's grid is inconsistent or missing")]
+    InconsistentGrid,
+
+    /// No table with that index in the story.
+    #[error("no table {0}")]
+    NoSuchTable(usize),
+
+    /// Removed content holds a footnote or endnote reference (ADR-0011 §7,
+    /// review M6).
+    #[error("the removed content holds a note reference")]
+    WouldRemoveNote,
+
+    /// Removed content holds a revision element (ADR-0011 §7, review M6).
+    #[error("the removed content holds a revision ({element})")]
+    RevisionInRange {
+        /// The element, e.g. `w:ins`.
+        element: String,
+    },
+
+    /// Removed rows hold a range marker whose partner stays, or a comment
+    /// anchor or reference (ADR-0011 §7.2).
+    #[error("removing the rows would break {marker}")]
+    AnchorWouldBreak {
+        /// The marker, e.g. `w:bookmarkStart`.
+        marker: String,
+    },
+
+    /// The table would be left without rows or grid columns.
+    #[error("the table would be empty")]
+    TableWouldBeEmpty,
+
+    /// A row would be left without a cell (ADR-0011 §7.3).
+    #[error("a row would be left without cells")]
+    RowWouldBeEmpty,
+
+    /// A cell to remove is not empty (one paragraph, nothing but `w:pPr`).
+    #[error("the cell is not empty")]
+    CellNotEmpty,
+
+    /// A merge rectangle's edge cuts a cell span or a vertical merge.
+    #[error("the merge rectangle cuts an existing span or merge")]
+    MergeOverlaps,
+
+    /// A cell to merge (other than the top-left one) is not empty.
+    #[error("a cell to merge is not empty")]
+    MergeNonEmpty,
+
+    /// The bytes are not a PNG, JPEG or GIF image whose header gives a pixel
+    /// size (ADR-0011 §3; SVG is Phase4).
+    #[error("unsupported image (PNG, JPEG and GIF are supported)")]
+    UnsupportedImage,
+
+    /// The next drawing id would exceed 2³¹ − 1 (ADR-0011 §2).
+    #[error("no drawing id is left")]
+    DrawingIdsExhausted,
+
     /// No paragraph with that index.
     #[error("no paragraph {0}")]
     NoSuchParagraph(usize),

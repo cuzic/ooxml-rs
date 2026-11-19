@@ -294,3 +294,40 @@ fn f6_zip64_declared_size_does_not_abort() {
     );
     assert!(stdout.contains("test result: ok. 1 passed"), "child process did not pass the test:\n{stdout}");
 }
+
+/// F-8 (Low, found by `xlsx_formula_edit`; fixed by PR #67): a cell
+/// inside a row whose number differs from its reference
+/// (`<row r="1"><c r="B2">…`, or the reverse `<row r="2"><c r="B1">…`). The
+/// formula census keys cells by `c/@r` and counts B2 as a formula cell; the
+/// row index looks B2 up in row 2 and does not find it. `set_formula`,
+/// `set_number` and `remove_formula` on B2 then wrote a second `c r="B2"`
+/// in a new row 2, leaving the formula in row 1 even after `remove_formula`.
+/// Replacing the formula also kept `calcChain.xml`. Expected (PR #67):
+/// every edit of such a workbook refused with `InvalidReference`, also
+/// reported by `edit_refusal`.
+#[test]
+fn f8_formula_cell_in_another_row_is_not_duplicated() {
+    use ooxml_xlsx::{Error, Workbook};
+    use std::assert_matches;
+    for (input, at) in [
+        (ooxml_robustness::xlsx_formula::wrong_row_formula_book(), (1, 1)),
+        (ooxml_robustness::xlsx_formula::wrong_row_formula_book_reversed(), (0, 1)),
+    ] {
+        let mut wb = Workbook::from_bytes(input.clone()).expect("opens");
+        assert_matches!(wb.edit_refusal(), Some(Error::InvalidReference(_)));
+        for (row, col) in [at, (5, 5)] {
+            for kind in 0..4 {
+                let mut ws = wb.worksheet().unwrap();
+                let cell = ws.cell_mut(row, col).unwrap();
+                let result = match kind {
+                    0 => cell.set_formula("A1*3"),
+                    1 => cell.set_number(7.0),
+                    2 => cell.set_string("text"),
+                    _ => cell.remove_formula(),
+                };
+                assert_matches!(result, Err(Error::InvalidReference(_)), "edit {kind} at ({row},{col})");
+                assert_eq!(wb.to_bytes().unwrap(), input, "edit {kind} at ({row},{col}) changed the package");
+            }
+        }
+    }
+}

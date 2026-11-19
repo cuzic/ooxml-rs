@@ -17,21 +17,76 @@ names = [
     "w:CT_Text/w:t",
     "w:CT_Empty/w:tab",
     "w:CT_Br/w:br",
+    # Word Phase1 (ADR-0007 §4, §5, §6.3): property containers, the direct
+    # formatting subset, style references, the updateFields opt-in.
+    "w:CT_OnOff/w:b",
+    "w:CT_OnOff/w:bCs",
+    "w:CT_OnOff/w:i",
+    "w:CT_OnOff/w:iCs",
+    "w:CT_OnOff/w:strike",
+    "w:CT_Underline/w:u",
+    "w:CT_Color/w:color",
+    "w:CT_HpsMeasure/w:sz",
+    "w:CT_HpsMeasure/w:szCs",
+    "w:CT_Highlight/w:highlight",
+    "w:CT_VerticalAlignRun/w:vertAlign",
+    "w:CT_Fonts/w:rFonts",
+    "w:CT_Jc/w:jc",
+    "w:CT_Spacing/w:spacing",
+    "w:CT_Ind/w:ind",
+    "w:CT_OnOff/w:keepNext",
+    "w:CT_OnOff/w:keepLines",
+    "w:CT_String/w:pStyle",
+    "w:CT_String253/w:rStyle",
+    # Word Phase2 (ADR-0011 §4, §6, §9.1): hyperlinks, section breaks,
+    # inserted paragraphs.
+    "w:CT_Hyperlink/w:hyperlink",
+    "w:CT_SectPr/w:sectPr",
+    "w:CT_SectType/w:type",
+    "w:CT_HdrFtrRef/w:headerReference",
+    "w:CT_HdrFtrRef/w:footerReference",
+    "w:CT_PageNumber/w:pgNumType",
+    "w:CT_LineNumber/w:lnNumType",
+    # Word Phase2 part 2 (ADR-0011 §7): tables.
+    "w:CT_Tbl/w:tbl",
+    "w:CT_Row/w:tr",
+    "w:CT_Tc/w:tc",
+    "w:CT_TblGrid/w:tblGrid",
+    "w:CT_TblGridCol/w:gridCol",
+    "w:CT_TcPr/w:tcPr",
+    "w:CT_VMerge/w:vMerge",
+    "w:CT_DecimalNumber/w:gridSpan",
+    "w:CT_TblWidth/w:tcW",
+    "w:CT_TrPr/w:trPr",
+    "w:CT_TblPrEx/w:tblPrEx",
+    "w:CT_DecimalNumber/w:gridBefore",
+    "w:CT_DecimalNumber/w:gridAfter",
+    # Word Phase2 part 2 (ADR-0011 §3, §11): inline images. The wp and pic
+    # entries are listed here rather than in a new wpd.toml group (Q7): the
+    # generator's groups are features, and only ooxml-docx uses them.
+    "w:CT_Drawing/w:drawing",
+    "wp:CT_Inline/wp:inline",
+    "a:CT_PositiveSize2D/wp:extent",
+    "wp:CT_EffectExtent/wp:effectExtent",
+    "a:CT_NonVisualDrawingProps/wp:docPr",
+    "a:CT_NonVisualGraphicFrameProperties/wp:cNvGraphicFramePr",
+    "pic:CT_Picture/pic:pic",
+    "pic:CT_PictureNonVisual/pic:nvPicPr",
+    "a:CT_NonVisualDrawingProps/pic:cNvPr",
+    "a:CT_NonVisualPictureProperties/pic:cNvPicPr",
+    "a:CT_BlipFillProperties/pic:blipFill",
+    "a:CT_ShapeProperties/pic:spPr",
 ]
 
+# (ADR-0011 §7 reads w:hMerge raw.)
 # Word Phase0 read-only: navigation to runs (document, tables, hyperlinks),
 # run content classification, field markers, revisions, and the settings
 # flags behind the document-level write gates.
 [read]
 names = [
     "w:CT_Document/w:document",
-    "w:CT_SectPr/w:sectPr",
     "w:CT_PPr/w:pPr",
     "w:CT_RPr/w:rPr",
-    "w:CT_Hyperlink/w:hyperlink",
-    "w:CT_Tbl/w:tbl",
-    "w:CT_Row/w:tr",
-    "w:CT_Tc/w:tc",
     "w:CT_Empty/w:cr",
     "w:CT_Empty/w:noBreakHyphen",
     "w:CT_Empty/w:softHyphen",
@@ -59,4 +114,25 @@ names = [
     "w:CT_FtnEdn/w:endnote",
     "w:CT_Comments/w:comments",
     "w:CT_Comment/w:comment",
+    # Word Phase1 (ADR-0007 §5): style lookup.
+    "w:CT_Styles/w:styles",
+    "w:CT_Style/w:style",
+    "w:CT_StyleName/w:name",
+]
+
+# Word Phase2 (ADR-0011 §11): copied by detach_as. pPr is copied without
+# sectPr and pPrChange (skipped); a paragraph mark holding revision elements
+# (w:id) is refused before copying. sectPr is copied without its header and
+# footer references (r:id), which are written again with typed setters.
+[detach]
+names = [
+    "w:CT_PPr/w:pPr",
+    "w:CT_SectPr/w:sectPr",
+    # ADR-0011 §7: row and cell properties of template rows; the revision
+    # children (ins/del/trPrChange, tcPrChange/cellIns/cellDel/cellMerge,
+    # tblPrExChange) are refused before copying, tblHeader, gridSpan,
+    # vMerge, hMerge and tcW are skipped where §7 says so.
+    "w:CT_TrPr/w:trPr",
+    "w:CT_TcPr/w:tcPr",
+    "w:CT_TblPrEx/w:tblPrEx",
 ]

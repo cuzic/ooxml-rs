@@ -20,6 +20,25 @@ names = [
     # Phase1 (ADR-0003 §6): formula writes and calcPr/@fullCalcOnLoad.
     "x:CT_CellFormula/x:f",
     "x:CT_CalcPr/x:calcPr",
+    # Phase3 (ADR-0009): sheet operations edit workbook.xml (sheets, names,
+    # views) and sheet parts (tab colour, tabSelected, hyperlink locations).
+    "x:CT_Workbook/x:workbook",
+    "x:CT_Sheets/x:sheets",
+    "x:CT_Sheet/x:sheet",
+    "x:CT_DefinedNames/x:definedNames",
+    "x:CT_DefinedName/x:definedName",
+    "x:CT_BookViews/x:bookViews",
+    "x:CT_BookView/x:workbookView",
+    "x:CT_SheetPr/x:sheetPr",
+    "x:CT_Color/x:tabColor",
+    "x:CT_SheetViews/x:sheetViews",
+    "x:CT_SheetView/x:sheetView",
+    "x:CT_Hyperlinks/x:hyperlinks",
+    "x:CT_Hyperlink/x:hyperlink",
+    # Phase3 rename: a pivot cache's worksheetSource/@sheet (a raw sheet name).
+    "x:CT_PivotCacheDefinition/x:pivotCacheDefinition",
+    "x:CT_CacheSource/x:cacheSource",
+    "x:CT_WorksheetSource/x:worksheetSource",
     # Phase2 (ADR-0006): shared-string and style registries append entries.
     "x:CT_Sst/x:sst",
     "x:CT_Rst/x:si",
@@ -57,25 +76,75 @@ names = [
     "x:CT_Xf/x:xf",
     "x:CT_CellAlignment/x:alignment",
     "x:CT_CellProtection/x:protection",
+    # Phase2 part 2 (ADR-0006 §4.2, §5.8): rich strings (si/r/rPr, is/r) and dxfs.
+    "x:CT_RElt/x:r",
+    "x:CT_RPrElt/x:rPr",
+    "x:CT_FontName/x:rFont",
+    "x:CT_IntProperty/x:family",
+    "x:CT_IntProperty/x:charset",
+    "x:CT_Dxfs/x:dxfs",
+    "x:CT_Dxf/x:dxf",
+
+    # Phase4 part 1 (ADR-0014 §3, §7, §11): merged cells, autofilter and its
+    # _xlnm._FilterDatabase name, sheet protection, sheetPr/@filterMode.
+    "x:CT_MergeCells/x:mergeCells",
+    "x:CT_MergeCell/x:mergeCell",
+    "x:CT_AutoFilter/x:autoFilter",
+    "x:CT_SheetProtection/x:sheetProtection",
+    # Phase4 part 2 (ADR-0014 §4–§6, §8–§11): hyperlinks, data validation,
+    # conditional formatting, views, columns, page setup, workbook protection.
+    "x:CT_DataValidations/x:dataValidations",
+    "x:CT_DataValidation/x:dataValidation",
+    "x:CT_Xstring/x:formula1",
+    "x:CT_Xstring/x:formula2",
+    "x:CT_ConditionalFormatting/x:conditionalFormatting",
+    "x:CT_CfRule/x:cfRule",
+    "x:CT_Xstring/x:formula",
+    "x:CT_Cfvo/x:cfvo",
+    "x:CT_ColorScale/x:colorScale",
+    "x:CT_DataBar/x:dataBar",
+    "x:CT_IconSet/x:iconSet",
+    "x:CT_Pane/x:pane",
+    "x:CT_Selection/x:selection",
+    "x:CT_Cols/x:cols",
+    "x:CT_Col/x:col",
+    "x:CT_SheetFormatPr/x:sheetFormatPr",
+    "x:CT_PageSetup/x:pageSetup",
+    "x:CT_PageMargins/x:pageMargins",
+    "x:CT_PrintOptions/x:printOptions",
+    "x:CT_HeaderFooter/x:headerFooter",
+    "x:CT_Xstring/x:oddHeader",
+    "x:CT_Xstring/x:oddFooter",
+    "x:CT_Xstring/x:evenHeader",
+    "x:CT_Xstring/x:evenFooter",
+    "x:CT_Xstring/x:firstHeader",
+    "x:CT_Xstring/x:firstFooter",
+    "x:CT_PageBreak/x:rowBreaks",
+    "x:CT_PageBreak/x:colBreaks",
+    "x:CT_Break/x:brk",
+    "x:CT_PageSetUpPr/x:pageSetUpPr",
+    "x:CT_WorkbookProtection/x:workbookProtection",
+    "x:CT_WorksheetExtensionList/x:extLst",
+    "x:CT_CfRuleExtensionList/x:extLst",
+    "x:CT_CfRuleExtension/x:ext",
+    "x:CT_WorksheetExtension/x:ext",
 ]
 
 # Phase0 read-only: formulas (writes are refused by ADR-0001), locating the
 # first sheet, shared/rich strings, merged ranges, table header rows.
 [read]
 names = [
-    "x:CT_Workbook/x:workbook",
-    "x:CT_Sheets/x:sheets",
-    "x:CT_Sheet/x:sheet",
-    "x:CT_RElt/x:r",
-    "x:CT_MergeCells/x:mergeCells",
-    "x:CT_MergeCell/x:mergeCell",
+    # Phase4 part 1 (ADR-0014 §7): an autofilter with criteria or a sort is
+    # refused, so these are only detected.
+    "x:CT_FilterColumn/x:filterColumn",
+    "x:CT_SortState/x:sortState",
     # Table header guard (roadmap Q5): tableParts -> table part -> ref/headerRowCount.
     "x:CT_TableParts/x:tableParts",
     "x:CT_TablePart/x:tablePart",
     "x:CT_Table/x:table",
-    # Phase1 (ADR-0003 §6): defined names for dependency analysis.
-    "x:CT_DefinedNames/x:definedNames",
-    "x:CT_DefinedName/x:definedName",
+    # Phase3 (ADR-0009): views keyed by sheetId, VBA code names.
+    "x:CT_CustomWorkbookViews/x:customWorkbookViews",
+    "x:CT_CustomWorkbookView/x:customWorkbookView",
     # Phase2 (ADR-0006): the default style, named styles, the date system.
     "x:CT_CellStyleXfs/x:cellStyleXfs",
     "x:CT_CellStyles/x:cellStyles",

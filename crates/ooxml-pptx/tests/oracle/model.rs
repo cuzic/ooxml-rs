@@ -2,7 +2,8 @@
 //! `p:sldIdLst` order, every `p:sp` with a `p:txBody` and every table cell,
 //! depth-first, outside `mc:AlternateContent`; per paragraph the **format
 //! form** of `a:pPr` / `a:endParaRPr` and the items (`["r", text, rPr
-//! form]`, `["br"]`, `["fld", text]`). `tests/oracle/readback.py` produces
+//! form]`, `["br"]`, `["fld", text]`); per slide also the paragraphs of
+//! its notes body (`notes`, `null` without one; ADR-0008 §2). `tests/oracle/readback.py` produces
 //! the same JSON with python-pptx; `apply` in `tests/oracle.rs` computes the
 //! expected model after a list of edits (`tests/oracle/check.py` computes it
 //! independently, by editing python-pptx's own tree).
@@ -125,8 +126,10 @@ pub fn dump(pres: &mut Presentation) -> Value {
                 _ => {}
             }
         }
-        let info = slide.info();
-        slides.push(json!({"slide_id": info.slide_id, "partname": format!("/{}", info.part_name), "shapes": shapes}));
+        let info = slide.info().clone();
+        // the notes body (ADR-0008 §2): python-pptx `notes_placeholder`
+        let notes = pres.notes(i).expect("notes").and_then(|n| n.body().map(body)).unwrap_or(Value::Null);
+        slides.push(json!({"slide_id": info.slide_id, "partname": format!("/{}", info.part_name), "shapes": shapes, "notes": notes}));
     }
     json!({ "slides": slides })
 }

@@ -887,6 +887,95 @@ what this revision specifies, pending the owner's confirmation.
    *Proposed default:* not in Phase2. W3 keeps refusing; the opt-in goes to the later
    document-settings ADR. The corpora have 4 protected POI files.
 
+## Implementation notes (post-acceptance)
+
+### Part 1 (§4, §6, §9.1, §10)
+
+Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
+
+- **Generations.** A paragraph insert moves later paragraphs: they get fresh
+  `Document::generation` values, so a `Match` found before the insert is stale (ADR-0007 §7).
+  Generations are now values never used before in the `Document`, not counters per
+  paragraph.
+- **`insert_paragraph`.**
+  - The neighbour must pass ADR-0007 §4's paragraph checks. A neighbour in a block-level
+    content control or custom XML is `UnsupportedContext`.
+  - The new run has no `w:rPr`. Copying the paragraph mark's run properties needs ADR-0007
+    §8.2's `SameType` rule, which comes with Phase1 part 3; it will be added then.
+  - `ParagraphSpec::Plain` writes no `w:pPr`.
+- **Section breaks.**
+  - Only paragraphs that are direct children of the main body can end a section. A section
+    break inside a table between the paragraph and S is refused.
+  - A missing `w:sectPr` is `NoSectionProperties`.
+  - A `w:sectPrChange` is `TrackedPropertyChange`.
+  - A reference whose `r:id` is not a relationship of the part is `RelIdReferenced`.
+  - `w:printerSettings r:id` makes the copy `NotDetachable`.
+- **A2 lifted.** `append_paragraph` moves the `w:sectPr` by copy and remove. The old
+  paragraph keeps an empty `w:pPr`. Inside a content control, A2 still refuses.
+- **Hyperlinks.**
+  - `w:history="1"` is written, as Word does.
+  - Core's relationship-id allocation already skips ids used by the source part's
+    attributes (PR #38, M7), so ooxml-docx's `RelIdReferenced` check is a safety net that
+    the tests cannot reach (equivalent mutant).
+  - The URI check accepts `scheme:` as RFC 3986 defines it, with any rest; core refuses
+    whitespace and control characters.
+- **Corpus cross-check (throwaway, 821 files).**
+  - Gate and per-run outputs are byte-identical to `main`.
+  - The sweep ran, per file: a paragraph after each of the first 60 paragraphs of every
+    story; up to 3 section breaks; a hyperlink at the end of each of the first 60 body
+    paragraphs; then an append.
+  - Results: 13,565 paragraphs, 1,997 breaks, 14,143 hyperlinks and 774 appends written.
+    After saving and reopening there was no panic, no reopen failure and no text mismatch.
+
+### Part 2 (§3, §7)
+
+- **Addressing.** A table is a `TableRef`: its index among a story's `w:tbl` in document order,
+  nested tables and tables in content controls included. A table inside a content control is
+  refused.
+- **Paragraph marks of copied rows.** §7.1 says a copied paragraph mark drops its revision
+  elements. `detach_as` can skip only direct children, and the mark's `w:rPr` sits below
+  `w:pPr`, so a template paragraph whose mark carries a revision element is refused
+  (`RevisionInRange`) instead. The same applies to new cells of `insert_column`.
+- **Copied row properties.** A `w:trPr` holding `ins`, `del` or `trPrChange`, or a `w:tcPr`
+  holding `tcPrChange`, `cellIns`, `cellDel` or `cellMerge`, is `TrackedPropertyChange`.
+- **`delete_rows` and fields.** It refuses any `w:fldChar`/`w:fldSimple` in the removed rows
+  (`InsideField`), even when the field is complete inside them. This is stricter than §7.2 and
+  fails closed.
+- **"Empty" for `delete_column` and `merge_cells`:** exactly one paragraph holding nothing but
+  `w:pPr`. That is stricter than "no runs with text, no anchors", and fails closed.
+- **Widths.** `merge_cells` writes `w:tcW` = the sum of the merged grid columns (dxa), when
+  every one of them has a numeric width and the sum is representable. `insert_column`'s new
+  cell gets `w:tcW` = the width (dxa). When a column edit changes a cell span and every grid
+  column in the original span has a numeric width, the operation adds or subtracts the edited
+  column's width from an existing numeric dxa `w:tcW`. When the width cannot be calculated,
+  the existing `w:tcW` is preserved. Column edits also preserve non-dxa widths.
+- **Tracked changes (PR #66, round 2).** Column edits and merges refuse row-property revisions anywhere in the table, and a structural edit refuses revisions in any retained cell it rewrites.
+- **Revisions in removed cells.** `delete_column` and `merge_cells` share the removal checks
+  of `delete_rows` for revisions, notes, fields and comment anchors. All three use
+  `RevisionInRange` for revision elements.
+- **Generations.** After a table edit, every paragraph from the table on gets a fresh
+  generation.
+- **Images.**
+  - **Extent.** A PNG density rounding to zero on either axis falls back to 96 DPI.
+    Both automatic and explicit dimensions must be in 1–27273042316900 EMU.
+  - **Allowlist.** The `wp` and `pic` entries are in `wml.toml`, not a new `wpd.toml` group
+    (Q7): the generator's groups are cargo features, and only ooxml-docx uses these entries.
+    The shared `a:` entries are in `dml.toml`, where `a:graphic` and `a:graphicData` move from
+    read to write. ADR-0005's owner should review them.
+  - **Media reuse** compares content type and bytes directly; there is no SHA-256 index
+    (§3's hash is an optimisation).
+  - **Part names.** Core numbers media per name pattern, so after `image1.png` a GIF is
+    `image1.gif`.
+  - **DPI.** A PNG `pHYs` value is rounded to whole dots per inch (5670 px/m → 144 dpi).
+  - **Drawing ids** are scanned at call time over every story part's tree, which includes the
+    session's own insertions.
+- **Corpus cross-check (821 files).**
+  - Gate outputs are byte-identical to `main`.
+  - Per table: a row inserted at 1 and deleted again (510 times), and a grid column inserted
+    at 1 and deleted again (508 times). All undos succeeded.
+  - One image per story: 2,192 inserted.
+  - After saving and reopening there was no panic, no reopen failure and no text mismatch.
+
 ## Sources
 
 - Spike: `spikes/docx-phase2/README.md`, `registries.py`, `needs.py` and, since revision 2,
@@ -917,3 +1006,20 @@ what this revision specifies, pending the owner's confirmation.
   §17.13.6; numbering §17.9). Section numbers are from memory and marked *(u)* where a rule
   depends on them. ECMA-376 Part 2 (OPC: part-name equivalence, content types,
   relationships).
+
+### Post-acceptance note (PR #62, round 1)
+
+- **M1:** In an ADR-0004 A2 document, inserting after the last body-flow
+  paragraph moves its final `w:sectPr` to the new paragraph, as append
+  does. The requested paragraph style or copied properties still apply.
+  If the final paragraph is in a wrapper or table, the insertion returns
+  `SectionBreakAtEnd`. Inserting after an earlier section-ending paragraph
+  places the new paragraph in the following section.
+- **M2:** A paragraph that starts inside a complex field is an
+  `InsideField` target for paragraph, hyperlink and section-break insertion
+  even when it has no runs.
+- **m1–m3:** Splitting after the last paragraph of a section returns
+  `AlreadySectionEnd`. Paragraph and hyperlink insertion refuse separator,
+  continuation separator and continuation notice notes. A section split
+  invalidates the generation of each paragraph whose section properties it
+  changes.

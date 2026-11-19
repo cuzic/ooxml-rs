@@ -40,6 +40,18 @@
 //! / [`Document::replace_at`] / [`Document::replace_matches`] with
 //! child-local edits and typed refusals ([`RefusalReason`]), and the
 //! per-operation `StaleFieldRisk` gate ([`Document::write_gate_for`]).
+//! Part 2: direct formatting ([`Document::format_run`],
+//! [`Document::format_paragraph`]), existing styles by id
+//! ([`Document::set_paragraph_style`], [`Document::style_ids_by_name`]) and
+//! the `updateFields` opt-in ([`Document::enable_update_fields_on_open`]).
+//!
+//! Word Phase2 ([ADR-0011](https://github.com/cuzic/ooxml-rs/blob/main/docs/adr/0011-docx-phase2-structure.md)),
+//! part 1: new paragraphs ([`Document::insert_paragraph`]), section breaks
+//! ([`Document::insert_section_break`], and `append_paragraph` moving the
+//! last section's `w:sectPr`), hyperlinks ([`Document::insert_hyperlink`]).
+//! Part 2: tables ([`Document::insert_rows`], [`Document::delete_rows`],
+//! [`Document::insert_column`], [`Document::delete_column`],
+//! [`Document::merge_cells`]) and inline images ([`Document::insert_image`]).
 //!
 //! ```no_run
 //! use ooxml_docx::{Document, ReplaceOptions};
@@ -57,14 +69,27 @@ mod body;
 mod document;
 mod error;
 pub mod fields;
+mod format;
+mod images;
 mod names;
 mod replace;
 mod story;
+mod structure;
+mod styles;
+mod tables;
 mod text;
 
 pub use document::{Document, Paragraph, Run};
 pub use error::{Error, Result};
 pub use fields::Operation;
+pub use format::{
+    Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,
+    Underline, VertAlign,
+};
+pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
+pub use images::{DrawingId, ImageSize};
+pub use styles::{StyleInfo, StyleKind};
+pub use tables::{RowTemplate, TableRef};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
     Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,

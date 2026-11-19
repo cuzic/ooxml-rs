@@ -235,6 +235,224 @@ fn phase1(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::E
         "Synthetic: line 1 `<w:t> unpreserved edges </w:t>` (not edited), line 2 the same with xml:space=\"preserve\", line 3 edited by set_run_text (which adds preserve)".into(),
         "Open question 2: does line 1 show spaces inside the brackets (\"[ unpreserved edges ]\") like line 2, or not (\"[unpreserved edges]\")? Line 3 must look like line 2.",
     );
+    phase1_part2(out, &mut push)?;
+    phase2_part1(out, &mut push)?;
+    phase2_part2(out, &mut push)?;
+    Ok(())
+}
+
+/// Word Phase1 part 2 items (ADR-0007 §4, §5, §6.3).
+fn phase1_part2(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, String, &'static str)) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{Alignment, Color, FirstLine, HalfPoints, Highlight, LineSpacing, ParaRef, ParagraphFormat, Prop, RunFormat, RunRef, StoryIndex, Underline, VertAlign};
+    let p = |i| ParaRef::new(StoryIndex::MAIN, i);
+    // 17: every run setter, one per line
+    let lines = ["bold", "bold_cs", "italic", "italic_cs", "strike", "underline double", "color C00000", "size 32", "size_cs 32", "highlight yellow", "superscript", "font Courier New (all slots)"];
+    let body: String = lines.iter().map(|l| format!("<w:p><w:r><w:t xml:space=\"preserve\">{l}: Sample עברית 日本語</w:t></w:r></w:p>")).collect();
+    let mut doc = synthetic(&body)?;
+    let fonts = |v: &str| ooxml_docx::FontSlots { ascii: Prop::Set(v.into()), h_ansi: Prop::Set(v.into()), east_asia: Prop::Set(v.into()), cs: Prop::Set(v.into()) };
+    let formats = [
+        RunFormat { bold: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { bold_cs: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { italic: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { italic_cs: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { strike: Prop::Set(true), ..RunFormat::default() },
+        RunFormat { underline: Prop::Set(Underline::Double), ..RunFormat::default() },
+        RunFormat { color: Prop::Set(Color::Rgb(0xC0, 0, 0)), ..RunFormat::default() },
+        RunFormat { size: Prop::Set(HalfPoints::new(32).ok_or("size")?), ..RunFormat::default() },
+        RunFormat { size_cs: Prop::Set(HalfPoints::new(32).ok_or("size")?), ..RunFormat::default() },
+        RunFormat { highlight: Prop::Set(Highlight::Yellow), ..RunFormat::default() },
+        RunFormat { vert_align: Prop::Set(VertAlign::Superscript), ..RunFormat::default() },
+        RunFormat { fonts: fonts("Courier New"), ..RunFormat::default() },
+    ];
+    for (i, f) in formats.iter().enumerate() {
+        doc.format_run(RunRef::new(p(i), 0), f)?;
+    }
+    let base = lines.len();
+    let paras = ["alignment center", "space before 480 / after 480", "line spacing exact 480", "indent left 1440 / right 1440", "hanging 720", "keep with next", "keep lines together"];
+    for (k, l) in paras.iter().enumerate() {
+        doc.append_paragraph(&format!("{l}: The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."))?;
+        let pf = match k {
+            0 => ParagraphFormat { alignment: Prop::Set(Alignment::Center), ..ParagraphFormat::default() },
+            1 => ParagraphFormat { space_before: Prop::Set(480), space_after: Prop::Set(480), ..ParagraphFormat::default() },
+            2 => ParagraphFormat { line_spacing: Prop::Set(LineSpacing::Exact(480)), ..ParagraphFormat::default() },
+            3 => ParagraphFormat { indent_left: Prop::Set(1440), indent_right: Prop::Set(1440), ..ParagraphFormat::default() },
+            4 => ParagraphFormat { first_line: Prop::Set(FirstLine::Hanging(720)), indent_left: Prop::Set(720), ..ParagraphFormat::default() },
+            5 => ParagraphFormat { keep_next: Prop::Set(true), ..ParagraphFormat::default() },
+            _ => ParagraphFormat { keep_lines: Prop::Set(true), ..ParagraphFormat::default() },
+        };
+        doc.format_paragraph(p(base + k), &pf)?;
+    }
+    save(&doc, out, "17-formatting-setters.docx")?;
+    push(
+        "17-formatting-setters.docx",
+        "",
+        "Synthetic: one line per run setter (Latin, Hebrew and Japanese text), then one paragraph per paragraph setter".into(),
+        "Each line shows exactly what its label says (the _cs setters affect only the Hebrew text); the other lines are plain. Paragraph lines: centred, spacing, exact line height, indents, hanging indent, keep with next / keep lines (Paragraph dialog shows the boxes ticked).",
+    );
+    // 18: a style by id in a localized document (Swedish ids, English names)
+    let styles = r#"<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Rubrik1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>"#;
+    let mut doc = synthetic_with_styles("<w:p><w:r><w:t>Heading set by style id Rubrik1</w:t></w:r></w:p><w:p><w:r><w:t>Body text</w:t></w:r></w:p>", Some(styles))?;
+    let id = doc.style_ids_by_name("Heading 1").first().map(|s| (*s).to_owned()).ok_or("no heading 1")?;
+    doc.set_paragraph_style(p(0), Some(&id))?;
+    save(&doc, out, "18-localized-style-by-id.docx")?;
+    push(
+        "18-localized-style-by-id.docx",
+        "",
+        format!("Synthetic: style id {id:?} found by the built-in name \"heading 1\" and applied to the first paragraph"),
+        "The first paragraph is shown as Heading 1 (bold, larger; the Styles pane highlights the heading style, named \"Rubrik 1\" in a Swedish UI); it appears in the Navigation pane.",
+    );
+    // 19: style-level firstLineChars plus a direct first_line (review m3)
+    let styles = r#"<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:ind w:firstLineChars="200"/></w:pPr></w:style>"#;
+    let text = "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.";
+    let mut doc = synthetic_with_styles(&format!("<w:p><w:r><w:t>Style indent (2 characters): {text}</w:t></w:r></w:p><w:p><w:r><w:t>Direct first line 1 inch: {text}</w:t></w:r></w:p>"), Some(styles))?;
+    doc.format_paragraph(p(1), &ParagraphFormat { first_line: Prop::Set(FirstLine::Indent(1440)), ..ParagraphFormat::default() })?;
+    save(&doc, out, "19-style-firstLineChars-and-first-line.docx")?;
+    push(
+        "19-style-firstLineChars-and-first-line.docx",
+        "",
+        "Synthetic: the default style indents the first line by 2 characters (firstLineChars); paragraph 2 gets first_line 1440 twips, written with firstLineChars=\"0\"".into(),
+        "Paragraph 1's first line is indented by about two characters; paragraph 2's by one inch (not two characters).",
+    );
+    // 20: the updateFields opt-in on sdk-TOC2
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join("sdk-TOC2.docx"))?;
+    doc.enable_update_fields_on_open()?;
+    doc.append_paragraph("APPENDED after the opt-in")?;
+    save_ungated(&doc, out, "20-update-fields-toc.docx")?;
+    push(
+        "20-update-fields-toc.docx",
+        "sdk-TOC2",
+        "enable_update_fields_on_open (settings w:updateFields=true), then a paragraph appended".into(),
+        "Open question 5: note the prompt Word shows on open (text), whether the TOC page numbers and fields in headers/footers are updated, and after saving in Word whether settings.xml still has w:updateFields. Repeat in Word for Mac and Word Online if available.",
+    );
+    Ok(())
+}
+
+/// Word Phase2 part 1 items (ADR-0011 §4, §6, §9.1, §12 "Manual").
+fn phase2_part1(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, String, &'static str)) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{HyperlinkTarget, ParaRef, ParagraphSpec, Place, RunPosition, SectionBreak, StoryIndex};
+    let p = |i| ParaRef::new(StoryIndex::MAIN, i);
+    let para = |t: &str| format!("<w:p><w:r><w:t>{t}</w:t></w:r></w:p>");
+    let body = |n: usize| (1..=n).map(|i| para(&format!("Paragraph {i}. The quick brown fox jumps over the lazy dog."))).collect::<String>();
+    // 21/22: nextPage and continuous breaks in a landscape section with page numbering starting at 5
+    for (file, kind, label) in [
+        ("21-section-break-next-page.docx", SectionBreak::NextPage, "nextPage"),
+        ("22-section-break-continuous.docx", SectionBreak::Continuous, "continuous"),
+    ] {
+        let sect = r#"<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/><w:pgNumType w:start="5"/><w:cols w:num="2"/></w:sectPr>"#;
+        let mut doc = synthetic_with_sect(&body(6), sect)?;
+        doc.insert_section_break(p(2), kind)?;
+        save(&doc, out, file)?;
+        push(
+            file,
+            "",
+            format!("Synthetic: a landscape two-column section with page numbers starting at 5; a {label} break after paragraph 3"),
+            "Paragraphs 1–3 and 4–6 are separate sections, both landscape and two columns (Layout > Breaks shows the break kind). Page numbers start at 5 in the first section and continue (not restart) in the second; Word may show the restart only in the first section's Page Number Format dialog.",
+        );
+    }
+    // 23: inserted paragraphs (list continuation, table cell) and an append that moves the last sectPr
+    let sect_last = r#"<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="2880" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:pPr><w:r><w:t>Last paragraph, holding the section properties (top margin 2 inches).</w:t></w:r></w:p>"#;
+    let list = r#"<w:p><w:pPr><w:ind w:left="720" w:hanging="360"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>Item one</w:t></w:r></w:p><w:tbl><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+    let mut doc = synthetic(&format!("{list}{sect_last}"))?;
+    doc.insert_paragraph(Place::After(p(0)), "Item two (inserted, same pPr)", &ParagraphSpec::LikeNeighbour)?;
+    doc.insert_paragraph(Place::After(p(2)), "Second paragraph in the cell (inserted)", &ParagraphSpec::Plain)?;
+    doc.append_paragraph("APPENDED: still in the same section (2-inch top margin)")?;
+    save(&doc, out, "23-insert-paragraphs-and-append-moving-sectPr.docx")?;
+    push(
+        "23-insert-paragraphs-and-append-moving-sectPr.docx",
+        "",
+        "Synthetic: a paragraph inserted after a list item with the same properties, one in a table cell, and an append after a paragraph holding the last section's sectPr (the sectPr moves to the new paragraph)".into(),
+        "The inserted list item shows the same indentation as item one (no numbering definition exists in this file, so no number is shown); the cell has two paragraphs; the appended paragraph is on the same page, in the same section (no section break, 2-inch top margin unchanged).",
+    );
+    // 24: hyperlinks, external and to a bookmark, in a document whose root lacks xmlns:r
+    let body = r#"<w:p><w:r><w:t xml:space="preserve">External link: </w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">Internal link: </w:t></w:r></w:p><w:p><w:bookmarkStart w:id="0" w:name="Target"/><w:r><w:t>Bookmark target</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p>"#;
+    let mut doc = synthetic(body)?;
+    doc.insert_hyperlink(RunPosition::EndOf(p(0)), "example.com", &HyperlinkTarget::External("https://example.com/".into()))?;
+    doc.insert_hyperlink(RunPosition::EndOf(p(1)), "go to the bookmark", &HyperlinkTarget::Bookmark("Target".into()))?;
+    save(&doc, out, "24-hyperlinks.docx")?;
+    push(
+        "24-hyperlinks.docx",
+        "",
+        "Synthetic (root without xmlns:r): an external hyperlink and one to a bookmark".into(),
+        "Ctrl+click opens https://example.com/ and jumps to \"Bookmark target\" respectively; no repair dialog (the first hyperlink declares xmlns:r itself).",
+    );
+    Ok(())
+}
+
+/// Word Phase2 part 2 items (ADR-0011 §3, §7, §12 "Manual").
+fn phase2_part2(out: &Path, push: &mut dyn FnMut(&'static str, &'static str, String, &'static str)) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{ImageSize, ParaRef, RowTemplate, RunPosition, StoryIndex, StoryKind, TableRef};
+    // a 4×2 PNG (red pixels are not needed: Word shows the frame and the size)
+    let png = {
+        // a real 1×1 red PNG, scaled to 2 × 1 cm
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x02\0\0\0\x90wS\xde".to_vec();
+        b.extend(b"\0\0\0\x0cIDATx\x9cc\xf8\xcf\xc0\0\0\x03\x01\x01\0\xc9\xfe\x92\xef\0\0\0\0IEND\xaeB`\x82");
+        b
+    };
+    // 25: an image in the body and in a header (header from a fixture)
+    let mut doc = Document::open(PathBuf::from(FIXTURES).join("poi-PageSpecificHeadFoot.docx"))?;
+    let size = ImageSize::Emu { cx: 720_000, cy: 360_000 };
+    let mut done = Vec::new();
+    for kind in [StoryKind::Main, StoryKind::Header] {
+        let target = doc.stories().filter(|s| s.id().kind() == kind).flat_map(|s| s.paragraphs().map(|p| p.para_ref()).collect::<Vec<_>>()).collect::<Vec<_>>();
+        for p in target {
+            if doc.insert_image(RunPosition::EndOf(p), &png, size, "red rectangle").is_ok() {
+                done.push(format!("{kind:?} paragraph {}", p.index()));
+                break;
+            }
+        }
+    }
+    save(&doc, out, "25-image-body-and-header.docx")?;
+    push(
+        "25-image-body-and-header.docx",
+        "poi-PageSpecificHeadFoot",
+        format!("A 2 × 1 cm red image at the end of: {}", done.join(", ")),
+        "The red rectangle shows in the body and in the header, 2 cm wide; Alt Text shows \"red rectangle\". The header image appears on every page that uses that header.",
+    );
+    // 26: rows and columns
+    let tbl = |rows: usize, cols: usize| {
+        let grid: String = (0..cols).map(|_| r#"<w:gridCol w:w="2000"/>"#).collect();
+        let tr: String = (0..rows)
+            .map(|r| {
+                let cells: String = (0..cols).map(|c| format!(r#"<w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>r{r}c{c}</w:t></w:r></w:p></w:tc>"#)).collect();
+                if r == 0 { format!("<w:tr><w:trPr><w:tblHeader/></w:trPr>{cells}</w:tr>") } else { format!("<w:tr>{cells}</w:tr>") }
+            })
+            .collect();
+        format!(r#"<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{tr}</w:tbl><w:p/>"#)
+    };
+    let mut doc = synthetic(&tbl(3, 3))?;
+    let t = TableRef::new(StoryIndex::MAIN, 0);
+    doc.insert_rows(t, 1, 2, RowTemplate::Above)?;
+    doc.insert_column(t, 3, 1500)?;
+    save(&doc, out, "26-table-rows-and-column.docx")?;
+    push(
+        "26-table-rows-and-column.docx",
+        "",
+        "Synthetic: a 3 × 3 bordered table with a repeating header row; two empty rows inserted after the header (template: the header, without tblHeader), a 1500-twip column appended".into(),
+        "The table has 5 rows and 4 columns, all bordered; only the first row repeats as a header (Table Properties > Row); the new cells are empty and editable.",
+    );
+    // 27: merges
+    let mut doc = synthetic(&tbl(4, 4).replace("r1c2</w:t>", "</w:t>").replace("r1c3</w:t>", "</w:t>").replace("r2c2</w:t>", "</w:t>").replace("r2c3</w:t>", "</w:t>").replace("<w:r><w:t></w:t></w:r>", ""))?;
+    doc.merge_cells(TableRef::new(StoryIndex::MAIN, 0), 1..3, 2..4)?;
+    save(&doc, out, "27-merge-cells.docx")?;
+    push(
+        "27-merge-cells.docx",
+        "",
+        "Synthetic: a 4 × 4 table; the 2 × 2 block rows 2–3, columns 3–4 merged (gridSpan + vMerge)".into(),
+        "The block shows as one cell spanning two rows and two columns (Table Design: Select > Cell shows it as one cell); the other cells are unchanged.",
+    );
+    let _ = ParaRef::new(StoryIndex::MAIN, 0);
+    Ok(())
+}
+
+/// [`synthetic`] with a body-level `w:sectPr`.
+fn synthetic_with_sect(body: &str, sect: &str) -> Result<Document, Box<dyn std::error::Error>> {
+    synthetic(&format!("{body}{sect}"))
+}
+
+/// [`save`] without the reopen-through-the-gates check (the opt-in is per
+/// `Document`, so a reopened copy is gated again).
+fn save_ungated(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    doc.save(out.join(file))?;
     Ok(())
 }
 
@@ -246,8 +464,13 @@ fn save(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error
 
 /// A minimal package with `body` as the body's inner XML.
 fn synthetic(body: &str) -> Result<Document, Box<dyn std::error::Error>> {
+    synthetic_with_styles(body, None)
+}
+
+/// [`synthetic`] with `word/styles.xml` holding `styles` (inner XML of `w:styles`).
+fn synthetic_with_styles(body: &str, styles: Option<&str>) -> Result<Document, Box<dyn std::error::Error>> {
     const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-    let parts = [
+    let mut parts = vec![
         (
             "[Content_Types].xml",
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#.to_owned(),
@@ -258,9 +481,20 @@ fn synthetic(body: &str) -> Result<Document, Box<dyn std::error::Error>> {
         ),
         (
             "word/document.xml",
-            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}<w:sectPr/></w:body></w:document>"#),
+            {
+                // a body that brings its own section properties gets no default one
+                let sect = if body.contains("<w:sectPr") { "" } else { "<w:sectPr/>" };
+                format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{W}"><w:body>{body}{sect}</w:body></w:document>"#)
+            },
         ),
     ];
+    if let Some(st) = styles {
+        parts.push((
+            "word/_rels/document.xml.rels",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#.to_owned(),
+        ));
+        parts.push(("word/styles.xml", format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="{W}">{st}</w:styles>"#)));
+    }
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for (name, content) in parts {
         z.start_file(name, zip::write::SimpleFileOptions::default())?;
@@ -340,6 +574,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(md, "2. **lastRenderedPageBreak** (`03`): any visible effect of dropping it from the edited run?")?;
     writeln!(md, "3. **Typographic quotes** (`11`): after F9, do the fields written with “…” show the word count (Word reads them as quotes) or an error?")?;
     writeln!(md, "4. **Unpreserved edge whitespace** (`16`, ADR-0007 open question 2): does Word show the edge spaces of a `w:t` without `xml:space=\"preserve\"`? If yes, `UnpreservedWhitespace` can be lifted.")?;
+    writeln!(md, "5. **updateFields** (`20`, ADR-0007 open question 5): the prompt text; are TOC page numbers and header/footer fields updated; does `w:updateFields` survive Word's save; Word for Mac / Word Online.")?;
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     for c in &cases {
         println!("{}  ({})", out.join(c.file).display(), if c.fixture.is_empty() { "synthetic" } else { c.fixture });

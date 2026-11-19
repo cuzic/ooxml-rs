@@ -1,18 +1,24 @@
 //! quick-xml based parser that records element spans.
 
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::sync::Arc;
 
 use quick_xml::XmlVersion;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use super::{ElementSpan, ParseOptions, MarkupKind, RawAttr, RawItem, RawMarkup, RawNode, RawText, XmlDocument};
+use super::interner::Interner;
+use super::node::MAX_SPAN_OFFSET;
+use super::{MarkupKind, ParseOptions, RawAttr, RawItem, RawMarkup, RawNode, RawText, SStr, XmlDocument};
 use crate::error::{Error, Result, WellFormedness};
-use crate::name::{XML_NS, XMLNS_NS, XName};
+use crate::name::{XML_NS, XMLNS_NS};
 
 fn xml_err(position: usize, message: impl Into<String>) -> Error {
-    Error::Xml { position, message: message.into() }
+    Error::Xml {
+        position,
+        message: message.into(),
+    }
 }
 
 fn not_wf(position: usize, reason: WellFormedness) -> Error {
@@ -21,18 +27,31 @@ fn not_wf(position: usize, reason: WellFormedness) -> Error {
 }
 
 /// Namespace bindings in scope, innermost last.
-struct Scope {
-    bindings: Vec<(Option<Box<str>>, Arc<str>)>,
+struct Scope<'s> {
+    bindings: Vec<(Option<&'s str>, Arc<str>)>,
     interned: BTreeMap<Box<str>, Arc<str>>,
     empty: Arc<str>,
+    xml: Arc<str>,
+    xmlns: Arc<str>,
 }
 
-impl Scope {
+impl Scope<'_> {
     fn new() -> Self {
         let empty: Arc<str> = Arc::from("");
-        let mut s = Scope { bindings: Vec::new(), interned: BTreeMap::new(), empty: empty.clone() };
-        s.interned.insert("".into(), empty);
-        s
+        let xml = Arc::<str>::from(XML_NS);
+        let xmlns = Arc::<str>::from(XMLNS_NS);
+        let interned = BTreeMap::from([
+            ("".into(), empty.clone()),
+            (XML_NS.into(), xml.clone()),
+            (XMLNS_NS.into(), xmlns.clone()),
+        ]);
+        Self {
+            bindings: Vec::new(),
+            interned,
+            empty,
+            xml,
+            xmlns,
+        }
     }
     fn intern(&mut self, uri: &str) -> Arc<str> {
         if let Some(a) = self.interned.get(uri) {
@@ -42,8 +61,8 @@ impl Scope {
         self.interned.insert(uri.into(), a.clone());
         a
     }
-    fn lookup(&self, prefix: Option<&str>) -> Option<Arc<str>> {
-        self.bindings.iter().rev().find(|(p, _)| p.as_deref() == prefix).map(|(_, u)| u.clone())
+    fn lookup(&self, prefix: Option<&str>) -> Option<&Arc<str>> {
+        self.bindings.iter().rev().find(|(p, _)| *p == prefix).map(|(_, u)| u)
     }
 }
 
@@ -59,9 +78,8 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
     if bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xFF, 0xFE]) {
         return Err(Error::UnsupportedEncoding("UTF-16 (byte order mark)".into()));
     }
-    let source: Box<str> = std::str::from_utf8(bytes)
-        .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?
-        .into();
+    let source = std::str::from_utf8(bytes)
+        .map_err(|e| Error::UnsupportedEncoding(format!("not valid UTF-8: {e}")))?;
     // Only a BOM at byte 0 is a BOM. quick-xml silently skips one at the
     // start of what it is given without counting it in its positions, so a
     // second one would shift every span by 3 bytes (fuzz finding F-1).
@@ -72,25 +90,45 @@ pub(super) fn parse(bytes: &[u8], options: &ParseOptions) -> Result<XmlDocument>
     if let Some(p) = source.find('\0') {
         return Err(not_wf(p, WellFormedness::NullCharacter));
     }
+    check_span_limit(source.len())?;
+    let source = Arc::from(source);
     let root = Parser::new(&source, options.max_depth).run()?;
-    Ok(XmlDocument { source, root, max_depth: options.max_depth, token: super::DocToken::new() })
+    Ok(XmlDocument {
+        source,
+        root,
+        max_depth: options.max_depth,
+        token: super::DocToken::new(),
+    })
+}
+
+fn check_span_limit(len: usize) -> Result<()> {
+    if len > MAX_SPAN_OFFSET as usize {
+        return Err(Error::XmlPartTooLarge { len });
+    }
+    Ok(())
 }
 
 struct Parser<'s> {
-    src: &'s str,
+    src: &'s Arc<str>,
     reader: Reader<&'s [u8]>,
     /// Length of a UTF-8 BOM the reader does not see (positions are offset by it).
     base: usize,
-    scope: Scope,
+    scope: Scope<'s>,
+    names: Interner<'s>,
     /// Open elements with the scope length to restore on close.
     stack: Vec<(RawNode, usize)>,
     root: Option<RawNode>,
+    // Keep growing buffers by depth, and transfer only their occupied
+    // entries into completed nodes.
+    children: Vec<Vec<RawItem>>,
+    merged_text: Option<(String, Range<usize>)>,
+    attrs: Vec<(Option<&'s str>, &'s str, SStr)>,
     /// Maximum element depth (the root is depth 1).
     max_depth: usize,
 }
 
 impl<'s> Parser<'s> {
-    fn new(src: &'s str, max_depth: usize) -> Self {
+    fn new(src: &'s Arc<str>, max_depth: usize) -> Self {
         // The BOM stays in the verbatim prolog; the reader starts after it.
         let base = if src.starts_with('\u{feff}') { 3 } else { 0 };
         let mut reader = Reader::from_str(&src[base..]);
@@ -98,7 +136,19 @@ impl<'s> Parser<'s> {
         cfg.trim_text(false);
         cfg.expand_empty_elements = false;
         cfg.check_end_names = true;
-        Parser { src, reader, base, scope: Scope::new(), stack: Vec::new(), root: None, max_depth }
+        Parser {
+            src,
+            reader,
+            base,
+            scope: Scope::new(),
+            names: Interner::default(),
+            stack: Vec::new(),
+            root: None,
+            children: Vec::new(),
+            merged_text: None,
+            attrs: Vec::new(),
+            max_depth,
+        }
     }
 
     fn run(mut self) -> Result<RawNode> {
@@ -109,6 +159,9 @@ impl<'s> Parser<'s> {
                 .read_event()
                 .map_err(|e| xml_err(self.base + self.reader.error_position() as usize, e.to_string()))?;
             let after = self.base + self.reader.buffer_position() as usize;
+            if !matches!(event, Event::Text(_) | Event::GeneralRef(_)) {
+                self.flush_text();
+            }
             match event {
                 Event::Eof => break,
                 Event::Decl(d) => {
@@ -126,13 +179,16 @@ impl<'s> Parser<'s> {
                     }
                 }
                 Event::Start(e) => {
-                    let node = self.open(&e, before, after, false)?;
-                    let mark = self.scope_len_before_push(&node);
+                    let mark = self.scope.bindings.len();
+                    let node = self.open(&e, before, after)?;
                     self.stack.push((node, mark));
+                    if self.children.len() < self.stack.len() {
+                        self.children.push(Vec::new());
+                    }
                 }
                 Event::Empty(e) => {
-                    let node = self.open(&e, before, after, true)?;
-                    let mark = self.scope_len_before_push(&node);
+                    let mark = self.scope.bindings.len();
+                    let node = self.open(&e, before, after)?;
                     self.scope.bindings.truncate(mark);
                     self.attach(RawItem::Element(node), before)?;
                 }
@@ -140,12 +196,13 @@ impl<'s> Parser<'s> {
                     if !self.src.get(before..after).is_some_and(|t| t.starts_with("</")) {
                         return Err(not_wf(before, WellFormedness::PositionMismatch));
                     }
-                    let (mut node, mark) =
-                        self.stack.pop().ok_or_else(|| xml_err(before, "unmatched close tag"))?;
+                    let (mut node, mark) = self.stack.pop().ok_or_else(|| xml_err(before, "unmatched close tag"))?;
                     self.scope.bindings.truncate(mark);
-                    if let Some(span) = &mut node.span {
-                        span.close = Some((before, after));
-                    }
+                    node.close(before, after);
+                    let scratch = &mut self.children[self.stack.len()];
+                    let mut children = Vec::with_capacity(scratch.len());
+                    children.append(scratch);
+                    node.set_children(children);
                     self.attach(RawItem::Element(node), before)?;
                 }
                 Event::Text(t) => {
@@ -167,12 +224,10 @@ impl<'s> Parser<'s> {
                     self.push_text(ch.encode_utf8(&mut [0; 4]), before..after);
                 }
                 Event::CData(c) => {
-                    if let Some((parent, _)) = self.stack.last_mut() {
-                        parent.children.push(RawItem::Text(RawText {
-                            value: c.xml_content(XmlVersion::Implicit1_0).into_owned(),
-                            span: Some(before..after),
-                            cdata: true,
-                        }));
+                    if !self.stack.is_empty() {
+                        let index = self.stack.len() - 1;
+                        let value = SStr::from_decoded(self.src, &c.xml_content(XmlVersion::Implicit1_0));
+                        self.children[index].push(RawItem::Text(RawText::parsed(value, before..after, true)));
                     }
                 }
                 Event::Comment(_) => self.push_markup(MarkupKind::Comment, before, after),
@@ -188,36 +243,64 @@ impl<'s> Parser<'s> {
         self.root.ok_or_else(|| xml_err(0, "no root element"))
     }
 
-    /// Scope length before this node's own declarations were pushed.
-    fn scope_len_before_push(&self, node: &RawNode) -> usize {
-        self.scope.bindings.len() - node.attrs.iter().filter(|a| a.name.is_namespace_declaration()).count()
+    fn current_children(&mut self) -> Option<&mut Vec<RawItem>> {
+        self.stack.len().checked_sub(1).map(|depth| &mut self.children[depth])
     }
 
-    fn push_text(&mut self, value: &str, range: std::ops::Range<usize>) {
-        let Some((parent, _)) = self.stack.last_mut() else {
+    fn flush_text(&mut self) {
+        if let Some((value, range)) = self.merged_text.take() {
+            self.current_children()
+                .expect("merged text is inside an element")
+                .push(RawItem::Text(RawText::parsed(value.as_str().into(), range, false)));
+        }
+    }
+
+    fn push_text(&mut self, value: &str, range: Range<usize>) {
+        if self.stack.is_empty() {
             return; // outside the root: part of the verbatim prolog/epilog
-        };
-        if let Some(RawItem::Text(prev)) = parent.children.last_mut()
-            && !prev.cdata
-            && let Some(span) = &mut prev.span
+        }
+        if let Some((text, span)) = &mut self.merged_text
             && span.end == range.start
         {
-            prev.value.push_str(value);
+            text.push_str(value);
             span.end = range.end;
             return;
         }
-        parent.children.push(RawItem::Text(RawText { value: value.into(), span: Some(range), cdata: false }));
+        self.flush_text();
+        let source = self.src;
+        let children = self.current_children().expect("inside an element");
+        if let Some(RawItem::Text(prev)) = children.last()
+            && !prev.cdata
+            && let Some(span) = prev.span()
+            && span.end == range.start
+        {
+            let mut text = prev.value().to_owned();
+            text.push_str(value);
+            let start = span.start;
+            children.pop();
+            self.merged_text = Some((text, start..range.end));
+            return;
+        }
+        children.push(RawItem::Text(RawText::parsed(
+            SStr::from_decoded(source, value),
+            range,
+            false,
+        )));
     }
 
     fn push_markup(&mut self, kind: MarkupKind, before: usize, after: usize) {
-        if let Some((parent, _)) = self.stack.last_mut() {
-            parent.children.push(RawItem::Markup(RawMarkup { kind, raw: self.src[before..after].into() }));
+        let source = self.src;
+        if let Some(children) = self.current_children() {
+            children.push(RawItem::Markup(RawMarkup {
+                kind,
+                raw: SStr::span(source, before, after),
+            }));
         }
     }
 
     fn attach(&mut self, item: RawItem, at: usize) -> Result<()> {
-        match self.stack.last_mut() {
-            Some((parent, _)) => parent.children.push(item),
+        match self.current_children() {
+            Some(children) => children.push(item),
             None => {
                 if self.root.is_some() {
                     return Err(xml_err(at, "more than one root element"));
@@ -231,11 +314,14 @@ impl<'s> Parser<'s> {
 
     /// Builds a node from a start tag, pushing its namespace declarations
     /// onto the scope.
-    fn open(&mut self, e: &BytesStart<'_>, before: usize, after: usize, empty: bool) -> Result<RawNode> {
+    fn open(&mut self, e: &BytesStart<'s>, before: usize, after: usize) -> Result<RawNode> {
         // Checked before anything is allocated for the element: the depth
         // of the new element is the number of open ancestors plus one.
         if self.stack.len() >= self.max_depth {
-            return Err(Error::TooDeep { limit: self.max_depth, position: before });
+            return Err(Error::TooDeep {
+                limit: self.max_depth,
+                position: before,
+            });
         }
         if self.root.is_some() && self.stack.is_empty() {
             return Err(xml_err(before, "more than one root element"));
@@ -247,22 +333,24 @@ impl<'s> Parser<'s> {
         if start != before || !self.src.get(before..after).is_some_and(|t| t.starts_with('<')) {
             return Err(not_wf(before, WellFormedness::PositionMismatch));
         }
-        let xmlns: Arc<str> = self.scope.intern(XMLNS_NS);
-        let mut raw_attrs: Vec<(Option<&str>, &str, String)> = Vec::new();
         for a in e.attributes().with_checks(true) {
             let a = a.map_err(|err| xml_err(before, err.to_string()))?;
-            let value = a.normalized_value(XmlVersion::Implicit1_0).map_err(|err| xml_err(before, err.to_string()))?;
-            let (prefix, local) = split_qname(a.key.into_inner());
+            let value = a
+                .normalized_value(XmlVersion::Implicit1_0)
+                .map_err(|err| xml_err(before, err.to_string()))?;
+            let key = a.key.into_inner();
+            let key = self.src.substr_range(key).expect("attribute name borrows the input");
+            let (prefix, local) = split_qname(&self.src[key.start..key.end]);
             if local.is_empty() || prefix == Some("") {
                 return Err(not_wf(before, WellFormedness::EmptyName));
             }
             if prefix == Some("xmlns") && value.is_empty() {
                 return Err(not_wf(before, WellFormedness::EmptyPrefixBinding));
             }
-            raw_attrs.push((prefix, local, value.into_owned()));
+            self.attrs.push((prefix, local, SStr::from_decoded(self.src, &value)));
         }
         // Declarations first, so they apply to this element's own names.
-        for (prefix, local, value) in &raw_attrs {
+        for (prefix, local, value) in &self.attrs {
             match (prefix, *local) {
                 (None, "xmlns") => {
                     let uri = self.scope.intern(value);
@@ -270,45 +358,55 @@ impl<'s> Parser<'s> {
                 }
                 (Some("xmlns"), p) => {
                     let uri = self.scope.intern(value);
-                    self.scope.bindings.push((Some(p.into()), uri));
+                    self.scope.bindings.push((Some(p), uri));
                 }
                 _ => {}
             }
         }
-        let mut attrs = Vec::with_capacity(raw_attrs.len());
-        for (prefix, local, value) in raw_attrs {
+        let mut attrs = Vec::with_capacity(self.attrs.len());
+        for (prefix, local, value) in self.attrs.drain(..) {
             let ns = match (prefix, local) {
-                (None, "xmlns") | (Some("xmlns"), _) => xmlns.clone(),
-                (None, _) => self.scope.empty.clone(),
-                (Some("xml"), _) => self.scope.intern(XML_NS),
+                (None, "xmlns") | (Some("xmlns"), _) => &self.scope.xmlns,
+                (None, _) => &self.scope.empty,
+                (Some("xml"), _) => &self.scope.xml,
                 (Some(p), _) => self
                     .scope
                     .lookup(Some(p))
                     .filter(|u| !u.is_empty())
                     .ok_or_else(|| xml_err(before, format!("unbound prefix {p:?}")))?,
             };
-            attrs.push(RawAttr { name: XName::new(ns, local, prefix), value });
+            attrs.push(RawAttr {
+                name: self.names.get(ns, local, prefix),
+                value,
+            });
         }
-        let (prefix, local) = split_qname(e.name().into_inner());
+        let name_len = e.name().into_inner().len();
+        let (prefix, local) = split_qname(&self.src[start + 1..start + 1 + name_len]);
         if local.is_empty() || prefix == Some("") {
             return Err(not_wf(before, WellFormedness::EmptyName));
         }
         let ns = match prefix {
-            None => self.scope.lookup(None).unwrap_or_else(|| self.scope.empty.clone()),
-            Some("xml") => self.scope.intern(XML_NS),
+            None => self.scope.lookup(None).unwrap_or(&self.scope.empty),
+            Some("xml") => &self.scope.xml,
             Some(p) => self
                 .scope
                 .lookup(Some(p))
                 .filter(|u| !u.is_empty())
                 .ok_or_else(|| xml_err(before, format!("unbound prefix {p:?}")))?,
         };
-        Ok(RawNode {
-            name: XName::new(ns, local, prefix),
-            attrs,
-            children: Vec::new(),
-            span: Some(ElementSpan { start, open_end: after, close: if empty { None } else { Some((after, after)) } }),
-            own_dirty: false,
-            subtree_dirty: false,
-        })
+        Ok(RawNode::parsed(
+            self.names.get(ns, local, prefix),
+            attrs.into_boxed_slice(),
+            start,
+            after,
+        ))
     }
+}
+
+#[cfg(test)]
+#[test]
+fn compact_span_limit_is_checked_before_narrowing() {
+    let limit = 2_147_483_647_usize;
+    assert!(check_span_limit(limit).is_ok());
+    std::assert_matches!(check_span_limit(limit + 1), Err(Error::XmlPartTooLarge { len }) if len == limit + 1);
 }

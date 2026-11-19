@@ -4,12 +4,158 @@
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 /// `x`: `http://schemas.openxmlformats.org/spreadsheetml/2006/main`
 pub const NS_X: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+/// `x12ac`: `http://schemas.microsoft.com/office/spreadsheetml/2011/1/ac`
+pub const NS_X12AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2011/1/ac";
+/// `x14`: `http://schemas.microsoft.com/office/spreadsheetml/2009/9/main`
+pub const NS_X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
 /// `x14ac`: `http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac`
 pub const NS_X14AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac";
+/// `x15`: `http://schemas.microsoft.com/office/spreadsheetml/2010/11/main`
+pub const NS_X15: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
 /// `x15ac`: `http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac`
 pub const NS_X15AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+/// `x:ST_IconSetType` — Icon Set Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum IconSetValues {
+    /// `3Arrows`
+    ThreeArrows,
+    /// `3ArrowsGray`
+    ThreeArrowsGray,
+    /// `3Flags`
+    ThreeFlags,
+    /// `3TrafficLights1`
+    ThreeTrafficLights1,
+    /// `3TrafficLights2`
+    ThreeTrafficLights2,
+    /// `3Signs`
+    ThreeSigns,
+    /// `3Symbols`
+    ThreeSymbols,
+    /// `3Symbols2`
+    ThreeSymbols2,
+    /// `4Arrows`
+    FourArrows,
+    /// `4ArrowsGray`
+    FourArrowsGray,
+    /// `4RedToBlack`
+    FourRedToBlack,
+    /// `4Rating`
+    FourRating,
+    /// `4TrafficLights`
+    FourTrafficLights,
+    /// `5Arrows`
+    FiveArrows,
+    /// `5ArrowsGray`
+    FiveArrowsGray,
+    /// `5Rating`
+    FiveRating,
+    /// `5Quarters`
+    FiveQuarters,
+}
+impl ooxml_core::EnumType for IconSetValues {
+    const VALUES: &'static [&'static str] = &[
+        "3Arrows",
+        "3ArrowsGray",
+        "3Flags",
+        "3TrafficLights1",
+        "3TrafficLights2",
+        "3Signs",
+        "3Symbols",
+        "3Symbols2",
+        "4Arrows",
+        "4ArrowsGray",
+        "4RedToBlack",
+        "4Rating",
+        "4TrafficLights",
+        "5Arrows",
+        "5ArrowsGray",
+        "5Rating",
+        "5Quarters",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::ThreeArrows),
+            1 => Some(Self::ThreeArrowsGray),
+            2 => Some(Self::ThreeFlags),
+            3 => Some(Self::ThreeTrafficLights1),
+            4 => Some(Self::ThreeTrafficLights2),
+            5 => Some(Self::ThreeSigns),
+            6 => Some(Self::ThreeSymbols),
+            7 => Some(Self::ThreeSymbols2),
+            8 => Some(Self::FourArrows),
+            9 => Some(Self::FourArrowsGray),
+            10 => Some(Self::FourRedToBlack),
+            11 => Some(Self::FourRating),
+            12 => Some(Self::FourTrafficLights),
+            13 => Some(Self::FiveArrows),
+            14 => Some(Self::FiveArrowsGray),
+            15 => Some(Self::FiveRating),
+            16 => Some(Self::FiveQuarters),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_SortMethod` — Sort Method.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SortMethodValues {
+    /// `stroke`
+    Stroke,
+    /// `pinYin`
+    PinYin,
+    /// `none`
+    None,
+}
+impl ooxml_core::EnumType for SortMethodValues {
+    const VALUES: &'static [&'static str] = &["stroke", "pinYin", "none"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Stroke),
+            1 => Some(Self::PinYin),
+            2 => Some(Self::None),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_SourceType` — PivotCache Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SourceValues {
+    /// `worksheet`
+    Worksheet,
+    /// `external`
+    External,
+    /// `consolidation`
+    Consolidation,
+    /// `scenario`
+    Scenario,
+}
+impl ooxml_core::EnumType for SourceValues {
+    const VALUES: &'static [&'static str] = &[
+        "worksheet",
+        "external",
+        "consolidation",
+        "scenario",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Worksheet),
+            1 => Some(Self::External),
+            2 => Some(Self::Consolidation),
+            3 => Some(Self::Scenario),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_CellFormulaType` — Formula Type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CellFormulaValues {
@@ -30,6 +176,614 @@ impl ooxml_core::EnumType for CellFormulaValues {
             1 => Some(Self::Array),
             2 => Some(Self::DataTable),
             3 => Some(Self::Shared),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_Pane` — Pane Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PaneValues {
+    /// `bottomRight`
+    BottomRight,
+    /// `topRight`
+    TopRight,
+    /// `bottomLeft`
+    BottomLeft,
+    /// `topLeft`
+    TopLeft,
+}
+impl ooxml_core::EnumType for PaneValues {
+    const VALUES: &'static [&'static str] = &[
+        "bottomRight",
+        "topRight",
+        "bottomLeft",
+        "topLeft",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::BottomRight),
+            1 => Some(Self::TopRight),
+            2 => Some(Self::BottomLeft),
+            3 => Some(Self::TopLeft),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_SheetViewType` — Sheet View Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SheetViewValues {
+    /// `normal`
+    Normal,
+    /// `pageBreakPreview`
+    PageBreakPreview,
+    /// `pageLayout`
+    PageLayout,
+}
+impl ooxml_core::EnumType for SheetViewValues {
+    const VALUES: &'static [&'static str] = &[
+        "normal",
+        "pageBreakPreview",
+        "pageLayout",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Normal),
+            1 => Some(Self::PageBreakPreview),
+            2 => Some(Self::PageLayout),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_DataValidationType` — Data Validation Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DataValidationValues {
+    /// `none`
+    None,
+    /// `whole`
+    Whole,
+    /// `decimal`
+    Decimal,
+    /// `list`
+    List,
+    /// `date`
+    Date,
+    /// `time`
+    Time,
+    /// `textLength`
+    TextLength,
+    /// `custom`
+    Custom,
+}
+impl ooxml_core::EnumType for DataValidationValues {
+    const VALUES: &'static [&'static str] = &[
+        "none",
+        "whole",
+        "decimal",
+        "list",
+        "date",
+        "time",
+        "textLength",
+        "custom",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::Whole),
+            2 => Some(Self::Decimal),
+            3 => Some(Self::List),
+            4 => Some(Self::Date),
+            5 => Some(Self::Time),
+            6 => Some(Self::TextLength),
+            7 => Some(Self::Custom),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_DataValidationOperator` — Data Validation Operator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DataValidationOperatorValues {
+    /// `between`
+    Between,
+    /// `notBetween`
+    NotBetween,
+    /// `equal`
+    Equal,
+    /// `notEqual`
+    NotEqual,
+    /// `lessThan`
+    LessThan,
+    /// `lessThanOrEqual`
+    LessThanOrEqual,
+    /// `greaterThan`
+    GreaterThan,
+    /// `greaterThanOrEqual`
+    GreaterThanOrEqual,
+}
+impl ooxml_core::EnumType for DataValidationOperatorValues {
+    const VALUES: &'static [&'static str] = &[
+        "between",
+        "notBetween",
+        "equal",
+        "notEqual",
+        "lessThan",
+        "lessThanOrEqual",
+        "greaterThan",
+        "greaterThanOrEqual",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Between),
+            1 => Some(Self::NotBetween),
+            2 => Some(Self::Equal),
+            3 => Some(Self::NotEqual),
+            4 => Some(Self::LessThan),
+            5 => Some(Self::LessThanOrEqual),
+            6 => Some(Self::GreaterThan),
+            7 => Some(Self::GreaterThanOrEqual),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_DataValidationErrorStyle` — Data Validation Error Styles.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DataValidationErrorStyleValues {
+    /// `stop`
+    Stop,
+    /// `warning`
+    Warning,
+    /// `information`
+    Information,
+}
+impl ooxml_core::EnumType for DataValidationErrorStyleValues {
+    const VALUES: &'static [&'static str] = &["stop", "warning", "information"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Stop),
+            1 => Some(Self::Warning),
+            2 => Some(Self::Information),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_DataValidationImeMode` — Data Validation IME Mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DataValidationImeModeValues {
+    /// `noControl`
+    NoControl,
+    /// `off`
+    Off,
+    /// `on`
+    On,
+    /// `disabled`
+    Disabled,
+    /// `hiragana`
+    Hiragana,
+    /// `fullKatakana`
+    FullKatakana,
+    /// `halfKatakana`
+    HalfKatakana,
+    /// `fullAlpha`
+    FullAlpha,
+    /// `halfAlpha`
+    HalfAlpha,
+    /// `fullHangul`
+    FullHangul,
+    /// `halfHangul`
+    HalfHangul,
+}
+impl ooxml_core::EnumType for DataValidationImeModeValues {
+    const VALUES: &'static [&'static str] = &[
+        "noControl",
+        "off",
+        "on",
+        "disabled",
+        "hiragana",
+        "fullKatakana",
+        "halfKatakana",
+        "fullAlpha",
+        "halfAlpha",
+        "fullHangul",
+        "halfHangul",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::NoControl),
+            1 => Some(Self::Off),
+            2 => Some(Self::On),
+            3 => Some(Self::Disabled),
+            4 => Some(Self::Hiragana),
+            5 => Some(Self::FullKatakana),
+            6 => Some(Self::HalfKatakana),
+            7 => Some(Self::FullAlpha),
+            8 => Some(Self::HalfAlpha),
+            9 => Some(Self::FullHangul),
+            10 => Some(Self::HalfHangul),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_CfType` — Conditional Format Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConditionalFormatValues {
+    /// `expression`
+    Expression,
+    /// `cellIs`
+    CellIs,
+    /// `colorScale`
+    ColorScale,
+    /// `dataBar`
+    DataBar,
+    /// `iconSet`
+    IconSet,
+    /// `top10`
+    Top10,
+    /// `uniqueValues`
+    UniqueValues,
+    /// `duplicateValues`
+    DuplicateValues,
+    /// `containsText`
+    ContainsText,
+    /// `notContainsText`
+    NotContainsText,
+    /// `beginsWith`
+    BeginsWith,
+    /// `endsWith`
+    EndsWith,
+    /// `containsBlanks`
+    ContainsBlanks,
+    /// `notContainsBlanks`
+    NotContainsBlanks,
+    /// `containsErrors`
+    ContainsErrors,
+    /// `notContainsErrors`
+    NotContainsErrors,
+    /// `timePeriod`
+    TimePeriod,
+    /// `aboveAverage`
+    AboveAverage,
+}
+impl ooxml_core::EnumType for ConditionalFormatValues {
+    const VALUES: &'static [&'static str] = &[
+        "expression",
+        "cellIs",
+        "colorScale",
+        "dataBar",
+        "iconSet",
+        "top10",
+        "uniqueValues",
+        "duplicateValues",
+        "containsText",
+        "notContainsText",
+        "beginsWith",
+        "endsWith",
+        "containsBlanks",
+        "notContainsBlanks",
+        "containsErrors",
+        "notContainsErrors",
+        "timePeriod",
+        "aboveAverage",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Expression),
+            1 => Some(Self::CellIs),
+            2 => Some(Self::ColorScale),
+            3 => Some(Self::DataBar),
+            4 => Some(Self::IconSet),
+            5 => Some(Self::Top10),
+            6 => Some(Self::UniqueValues),
+            7 => Some(Self::DuplicateValues),
+            8 => Some(Self::ContainsText),
+            9 => Some(Self::NotContainsText),
+            10 => Some(Self::BeginsWith),
+            11 => Some(Self::EndsWith),
+            12 => Some(Self::ContainsBlanks),
+            13 => Some(Self::NotContainsBlanks),
+            14 => Some(Self::ContainsErrors),
+            15 => Some(Self::NotContainsErrors),
+            16 => Some(Self::TimePeriod),
+            17 => Some(Self::AboveAverage),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_TimePeriod` — Time Period Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimePeriodValues {
+    /// `today`
+    Today,
+    /// `yesterday`
+    Yesterday,
+    /// `tomorrow`
+    Tomorrow,
+    /// `last7Days`
+    Last7Days,
+    /// `thisMonth`
+    ThisMonth,
+    /// `lastMonth`
+    LastMonth,
+    /// `nextMonth`
+    NextMonth,
+    /// `thisWeek`
+    ThisWeek,
+    /// `lastWeek`
+    LastWeek,
+    /// `nextWeek`
+    NextWeek,
+}
+impl ooxml_core::EnumType for TimePeriodValues {
+    const VALUES: &'static [&'static str] = &[
+        "today",
+        "yesterday",
+        "tomorrow",
+        "last7Days",
+        "thisMonth",
+        "lastMonth",
+        "nextMonth",
+        "thisWeek",
+        "lastWeek",
+        "nextWeek",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Today),
+            1 => Some(Self::Yesterday),
+            2 => Some(Self::Tomorrow),
+            3 => Some(Self::Last7Days),
+            4 => Some(Self::ThisMonth),
+            5 => Some(Self::LastMonth),
+            6 => Some(Self::NextMonth),
+            7 => Some(Self::ThisWeek),
+            8 => Some(Self::LastWeek),
+            9 => Some(Self::NextWeek),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_ConditionalFormattingOperator` — Conditional Format Operators.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConditionalFormattingOperatorValues {
+    /// `lessThan`
+    LessThan,
+    /// `lessThanOrEqual`
+    LessThanOrEqual,
+    /// `equal`
+    Equal,
+    /// `notEqual`
+    NotEqual,
+    /// `greaterThanOrEqual`
+    GreaterThanOrEqual,
+    /// `greaterThan`
+    GreaterThan,
+    /// `between`
+    Between,
+    /// `notBetween`
+    NotBetween,
+    /// `containsText`
+    ContainsText,
+    /// `notContains`
+    NotContains,
+    /// `beginsWith`
+    BeginsWith,
+    /// `endsWith`
+    EndsWith,
+}
+impl ooxml_core::EnumType for ConditionalFormattingOperatorValues {
+    const VALUES: &'static [&'static str] = &[
+        "lessThan",
+        "lessThanOrEqual",
+        "equal",
+        "notEqual",
+        "greaterThanOrEqual",
+        "greaterThan",
+        "between",
+        "notBetween",
+        "containsText",
+        "notContains",
+        "beginsWith",
+        "endsWith",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::LessThan),
+            1 => Some(Self::LessThanOrEqual),
+            2 => Some(Self::Equal),
+            3 => Some(Self::NotEqual),
+            4 => Some(Self::GreaterThanOrEqual),
+            5 => Some(Self::GreaterThan),
+            6 => Some(Self::Between),
+            7 => Some(Self::NotBetween),
+            8 => Some(Self::ContainsText),
+            9 => Some(Self::NotContains),
+            10 => Some(Self::BeginsWith),
+            11 => Some(Self::EndsWith),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_CfvoType` — Conditional Format Value Object Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConditionalFormatValueObjectValues {
+    /// `num`
+    Number,
+    /// `percent`
+    Percent,
+    /// `max`
+    Max,
+    /// `min`
+    Min,
+    /// `formula`
+    Formula,
+    /// `percentile`
+    Percentile,
+}
+impl ooxml_core::EnumType for ConditionalFormatValueObjectValues {
+    const VALUES: &'static [&'static str] = &[
+        "num",
+        "percent",
+        "max",
+        "min",
+        "formula",
+        "percentile",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Number),
+            1 => Some(Self::Percent),
+            2 => Some(Self::Max),
+            3 => Some(Self::Min),
+            4 => Some(Self::Formula),
+            5 => Some(Self::Percentile),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_PageOrder` — Page Order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PageOrderValues {
+    /// `downThenOver`
+    DownThenOver,
+    /// `overThenDown`
+    OverThenDown,
+}
+impl ooxml_core::EnumType for PageOrderValues {
+    const VALUES: &'static [&'static str] = &["downThenOver", "overThenDown"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::DownThenOver),
+            1 => Some(Self::OverThenDown),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_Orientation` — Orientation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum OrientationValues {
+    /// `default`
+    Default,
+    /// `portrait`
+    Portrait,
+    /// `landscape`
+    Landscape,
+}
+impl ooxml_core::EnumType for OrientationValues {
+    const VALUES: &'static [&'static str] = &["default", "portrait", "landscape"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Default),
+            1 => Some(Self::Portrait),
+            2 => Some(Self::Landscape),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_CellComments` — Cell Comments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CellCommentsValues {
+    /// `none`
+    None,
+    /// `asDisplayed`
+    AsDisplayed,
+    /// `atEnd`
+    AtEnd,
+}
+impl ooxml_core::EnumType for CellCommentsValues {
+    const VALUES: &'static [&'static str] = &["none", "asDisplayed", "atEnd"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::None),
+            1 => Some(Self::AsDisplayed),
+            2 => Some(Self::AtEnd),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_PrintError` — Print Errors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PrintErrorValues {
+    /// `displayed`
+    Displayed,
+    /// `blank`
+    Blank,
+    /// `dash`
+    Dash,
+    /// `NA`
+    NA,
+}
+impl ooxml_core::EnumType for PrintErrorValues {
+    const VALUES: &'static [&'static str] = &["displayed", "blank", "dash", "NA"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Displayed),
+            1 => Some(Self::Blank),
+            2 => Some(Self::Dash),
+            3 => Some(Self::NA),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_PaneState` — Pane State.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PaneStateValues {
+    /// `split`
+    Split,
+    /// `frozen`
+    Frozen,
+    /// `frozenSplit`
+    FrozenSplit,
+}
+impl ooxml_core::EnumType for PaneStateValues {
+    const VALUES: &'static [&'static str] = &["split", "frozen", "frozenSplit"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Split),
+            1 => Some(Self::Frozen),
+            2 => Some(Self::FrozenSplit),
             _ => None,
         }
     }
@@ -393,6 +1147,58 @@ impl ooxml_core::EnumType for TableValues {
         self as usize
     }
 }
+/// `x:ST_Visibility` — Visibility Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VisibilityValues {
+    /// `visible`
+    Visible,
+    /// `hidden`
+    Hidden,
+    /// `veryHidden`
+    VeryHidden,
+}
+impl ooxml_core::EnumType for VisibilityValues {
+    const VALUES: &'static [&'static str] = &["visible", "hidden", "veryHidden"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Visible),
+            1 => Some(Self::Hidden),
+            2 => Some(Self::VeryHidden),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `x:ST_Comments` — Comment Display Types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CommentsValues {
+    /// `commNone`
+    CommentNone,
+    /// `commIndicator`
+    CommentIndicator,
+    /// `commIndAndComment`
+    CommentIndicatorAndComment,
+}
+impl ooxml_core::EnumType for CommentsValues {
+    const VALUES: &'static [&'static str] = &[
+        "commNone",
+        "commIndicator",
+        "commIndAndComment",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::CommentNone),
+            1 => Some(Self::CommentIndicator),
+            2 => Some(Self::CommentIndicatorAndComment),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `x:ST_Objects` — Object Display Types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ObjectDisplayValues {
@@ -594,6 +1400,588 @@ impl ooxml_core::EnumType for SpaceProcessingModeValues {
     }
     fn index(self) -> usize {
         self as usize
+    }
+}
+/// `x:CT_AutoFilter/x:autoFilter` — AutoFilter Settings.
+#[derive(Debug)]
+pub enum AutoFilter {}
+impl AutoFilter {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+}
+impl ooxml_core::ElementSpec for AutoFilter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "autoFilter");
+    const SDK_NAME: &'static str = "x:CT_AutoFilter/x:autoFilter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: AutoFilter::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "filterColumn")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "sortState")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<AutoFilter> for FilterColumn {}
+impl ooxml_core::ChildOf<AutoFilter> for SortState {}
+/// Read-only view of [`AutoFilter`].
+#[derive(Clone, Debug)]
+pub struct AutoFilterView<'a>(pub ooxml_core::Lens<'a, AutoFilter>);
+impl<'a> AutoFilterView<'a> {
+    /// `ref` — Cell or Range Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(AutoFilter::ATTR_REF)
+    }
+    /// `x:filterColumn` children in document order.
+    pub fn filter_column_iter(&self) -> impl Iterator<Item = FilterColumnView<'a>> {
+        self.0.children::<FilterColumn>().map(FilterColumnView)
+    }
+    /// First `x:sortState` child.
+    pub fn sort_state(&self) -> Option<SortStateView<'a>> {
+        self.0.child::<SortState>().map(SortStateView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AutoFilter`]. Reads go through [`AutoFilterViewMut::as_view`].
+#[derive(Debug)]
+pub struct AutoFilterViewMut<'a>(pub ooxml_core::LensMut<'a, AutoFilter>);
+impl<'a> AutoFilterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AutoFilterView<'_> {
+        AutoFilterView(self.0.as_lens())
+    }
+    /// Sets `ref` — Cell or Range Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(AutoFilter::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(AutoFilter::ATTR_REF)
+    }
+}
+/// `x:CT_BookView/x:workbookView` — Workbook View.
+#[derive(Debug)]
+pub enum WorkbookViewElement {}
+impl WorkbookViewElement {
+    /// `visibility`
+    pub const ATTR_VISIBILITY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "visibility",
+    );
+    /// `minimized`
+    pub const ATTR_MINIMIZED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minimized",
+    );
+    /// `showHorizontalScroll`
+    pub const ATTR_SHOW_HORIZONTAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showHorizontalScroll",
+    );
+    /// `showVerticalScroll`
+    pub const ATTR_SHOW_VERTICAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showVerticalScroll",
+    );
+    /// `showSheetTabs`
+    pub const ATTR_SHOW_SHEET_TABS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showSheetTabs",
+    );
+    /// `xWindow`
+    pub const ATTR_X_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "xWindow");
+    /// `yWindow`
+    pub const ATTR_Y_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "yWindow");
+    /// `windowWidth`
+    pub const ATTR_WINDOW_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowWidth",
+    );
+    /// `windowHeight`
+    pub const ATTR_WINDOW_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowHeight",
+    );
+    /// `tabRatio`
+    pub const ATTR_TAB_RATIO: ooxml_core::QName = ooxml_core::QName::new("", "tabRatio");
+    /// `firstSheet`
+    pub const ATTR_FIRST_SHEET: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "firstSheet",
+    );
+    /// `activeTab`
+    pub const ATTR_ACTIVE_TAB: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activeTab",
+    );
+    /// `autoFilterDateGrouping`
+    pub const ATTR_AUTO_FILTER_DATE_GROUPING: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoFilterDateGrouping",
+    );
+}
+impl ooxml_core::ElementSpec for WorkbookViewElement {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "workbookView");
+    const SDK_NAME: &'static str = "x:CT_BookView/x:workbookView";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_VISIBILITY,
+            ty: ooxml_core::SimpleType::Enum(
+                <VisibilityValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("visible"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_MINIMIZED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_SHOW_SHEET_TABS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_X_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_Y_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_WINDOW_WIDTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_WINDOW_HEIGHT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_TAB_RATIO,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("600"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_FIRST_SHEET,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_ACTIVE_TAB,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`WorkbookViewElement`].
+#[derive(Clone, Debug)]
+pub struct WorkbookViewElementView<'a>(pub ooxml_core::Lens<'a, WorkbookViewElement>);
+impl<'a> WorkbookViewElementView<'a> {
+    /// `visibility` — Visibility (default `visible`)
+    pub fn visibility(&self) -> ooxml_core::EnumValue<'a, VisibilityValues> {
+        self.0.attr_enum_or(WorkbookViewElement::ATTR_VISIBILITY, "visible")
+    }
+    /// `minimized` — Minimized (default `false`)
+    pub fn minimized(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_MINIMIZED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showHorizontalScroll` — Show Horizontal Scroll (default `true`)
+    pub fn show_horizontal_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showVerticalScroll` — Show Vertical Scroll (default `true`)
+    pub fn show_vertical_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showSheetTabs` — Show Sheet Tabs (default `true`)
+    pub fn show_sheet_tabs(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_SHOW_SHEET_TABS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xWindow` — Upper Left Corner (X Coordinate)
+    pub fn x_window(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_X_WINDOW,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `yWindow` — Upper Left Corner (Y Coordinate)
+    pub fn y_window(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_Y_WINDOW,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `windowWidth` — Window Width
+    pub fn window_width(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_WINDOW_WIDTH,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `windowHeight` — Window Height
+    pub fn window_height(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookViewElement::ATTR_WINDOW_HEIGHT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `tabRatio` — Sheet Tab Ratio (default `600`)
+    pub fn tab_ratio(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_TAB_RATIO,
+                "600",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `firstSheet` — First Sheet (default `0`)
+    pub fn first_sheet(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_FIRST_SHEET,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `activeTab` — Active Sheet Index (default `0`)
+    pub fn active_tab(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_ACTIVE_TAB,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `autoFilterDateGrouping` — AutoFilter Date Grouping (default `true`)
+    pub fn auto_filter_date_grouping(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorkbookViewElement`]. Reads go through [`WorkbookViewElementViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorkbookViewElementViewMut<'a>(
+    pub ooxml_core::LensMut<'a, WorkbookViewElement>,
+);
+impl<'a> WorkbookViewElementViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorkbookViewElementView<'_> {
+        WorkbookViewElementView(self.0.as_lens())
+    }
+    /// Sets `visibility` — Visibility (default `visible`)
+    pub fn set_visibility(
+        &mut self,
+        v: VisibilityValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_VISIBILITY,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `visibility`.
+    pub fn remove_visibility(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_VISIBILITY)
+    }
+    /// Sets `minimized` — Minimized (default `false`)
+    pub fn set_minimized(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_MINIMIZED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `minimized`.
+    pub fn remove_minimized(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_MINIMIZED)
+    }
+    /// Sets `showHorizontalScroll` — Show Horizontal Scroll (default `true`)
+    pub fn set_show_horizontal_scroll(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showHorizontalScroll`.
+    pub fn remove_show_horizontal_scroll(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_SHOW_HORIZONTAL_SCROLL)
+    }
+    /// Sets `showVerticalScroll` — Show Vertical Scroll (default `true`)
+    pub fn set_show_vertical_scroll(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showVerticalScroll`.
+    pub fn remove_show_vertical_scroll(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_SHOW_VERTICAL_SCROLL)
+    }
+    /// Sets `showSheetTabs` — Show Sheet Tabs (default `true`)
+    pub fn set_show_sheet_tabs(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_SHOW_SHEET_TABS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showSheetTabs`.
+    pub fn remove_show_sheet_tabs(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_SHOW_SHEET_TABS)
+    }
+    /// Sets `xWindow` — Upper Left Corner (X Coordinate)
+    pub fn set_x_window(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_X_WINDOW, s),
+        )
+    }
+    /// Removes `xWindow`.
+    pub fn remove_x_window(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_X_WINDOW)
+    }
+    /// Sets `yWindow` — Upper Left Corner (Y Coordinate)
+    pub fn set_y_window(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_Y_WINDOW, s),
+        )
+    }
+    /// Removes `yWindow`.
+    pub fn remove_y_window(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_Y_WINDOW)
+    }
+    /// Sets `windowWidth` — Window Width
+    pub fn set_window_width(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_WINDOW_WIDTH, s),
+        )
+    }
+    /// Removes `windowWidth`.
+    pub fn remove_window_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_WINDOW_WIDTH)
+    }
+    /// Sets `windowHeight` — Window Height
+    pub fn set_window_height(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_WINDOW_HEIGHT, s),
+        )
+    }
+    /// Removes `windowHeight`.
+    pub fn remove_window_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_WINDOW_HEIGHT)
+    }
+    /// Sets `tabRatio` — Sheet Tab Ratio (default `600`)
+    pub fn set_tab_ratio(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_TAB_RATIO, s),
+        )
+    }
+    /// Removes `tabRatio`.
+    pub fn remove_tab_ratio(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_TAB_RATIO)
+    }
+    /// Sets `firstSheet` — First Sheet (default `0`)
+    pub fn set_first_sheet(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_FIRST_SHEET, s),
+        )
+    }
+    /// Removes `firstSheet`.
+    pub fn remove_first_sheet(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_FIRST_SHEET)
+    }
+    /// Sets `activeTab` — Active Sheet Index (default `0`)
+    pub fn set_active_tab(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookViewElement::ATTR_ACTIVE_TAB, s),
+        )
+    }
+    /// Removes `activeTab`.
+    pub fn remove_active_tab(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_ACTIVE_TAB)
+    }
+    /// Sets `autoFilterDateGrouping` — AutoFilter Date Grouping (default `true`)
+    pub fn set_auto_filter_date_grouping(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `autoFilterDateGrouping`.
+    pub fn remove_auto_filter_date_grouping(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookViewElement::ATTR_AUTO_FILTER_DATE_GROUPING)
+    }
+}
+/// `x:CT_BookViews/x:bookViews` — Defines the BookViews Class.
+#[derive(Debug)]
+pub enum BookViews {}
+impl ooxml_core::ElementSpec for BookViews {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "bookViews");
+    const SDK_NAME: &'static str = "x:CT_BookViews/x:bookViews";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "workbookView")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BookViews> for WorkbookViewElement {}
+/// Read-only view of [`BookViews`].
+#[derive(Clone, Debug)]
+pub struct BookViewsView<'a>(pub ooxml_core::Lens<'a, BookViews>);
+impl<'a> BookViewsView<'a> {
+    /// `x:workbookView` children in document order.
+    pub fn workbook_view_iter(
+        &self,
+    ) -> impl Iterator<Item = WorkbookViewElementView<'a>> {
+        self.0.children::<WorkbookViewElement>().map(WorkbookViewElementView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BookViews`]. Reads go through [`BookViewsViewMut::as_view`].
+#[derive(Debug)]
+pub struct BookViewsViewMut<'a>(pub ooxml_core::LensMut<'a, BookViews>);
+impl<'a> BookViewsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BookViewsView<'_> {
+        BookViewsView(self.0.as_lens())
+    }
+    /// First `x:workbookView` child matching `pred`, mutably.
+    pub fn workbook_view_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<WorkbookViewElementViewMut<'_>> {
+        self.0.child_mut_by::<WorkbookViewElement>(pred).map(WorkbookViewElementViewMut)
+    }
+    /// Inserts a `x:workbookView` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_workbook_view_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<WorkbookViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<WorkbookViewElement>(before).map(WorkbookViewElementViewMut)
+    }
+    /// Appends a `x:workbookView` at the end of its slot.
+    pub fn insert_workbook_view(
+        &mut self,
+    ) -> Result<WorkbookViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<WorkbookViewElement>().map(WorkbookViewElementViewMut)
+    }
+    /// Removes the first `x:workbookView` child.
+    pub fn remove_workbook_view(&mut self) -> bool {
+        self.0.remove::<WorkbookViewElement>()
     }
 }
 /// `x:CT_BooleanProperty/x:b` — Bold.
@@ -1567,6 +2955,134 @@ impl<'a> BordersViewMut<'a> {
         self.0.remove::<Border>()
     }
 }
+/// `x:CT_Break/x:brk` — Break.
+#[derive(Debug)]
+pub enum Break {}
+impl Break {
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `min`
+    pub const ATTR_MIN: ooxml_core::QName = ooxml_core::QName::new("", "min");
+    /// `max`
+    pub const ATTR_MAX: ooxml_core::QName = ooxml_core::QName::new("", "max");
+    /// `man`
+    pub const ATTR_MAN: ooxml_core::QName = ooxml_core::QName::new("", "man");
+    /// `pt`
+    pub const ATTR_PT: ooxml_core::QName = ooxml_core::QName::new("", "pt");
+}
+impl ooxml_core::ElementSpec for Break {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "brk");
+    const SDK_NAME: &'static str = "x:CT_Break/x:brk";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Break::ATTR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Break::ATTR_MIN,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Break::ATTR_MAX,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Break::ATTR_MAN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Break::ATTR_PT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Break`].
+#[derive(Clone, Debug)]
+pub struct BreakView<'a>(pub ooxml_core::Lens<'a, Break>);
+impl<'a> BreakView<'a> {
+    /// `id` — Id (default `0`)
+    pub fn id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Break::ATTR_ID, "0", ooxml_core::value::parse_u32)
+    }
+    /// `min` — Minimum (default `0`)
+    pub fn min(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Break::ATTR_MIN, "0", ooxml_core::value::parse_u32)
+    }
+    /// `max` — Maximum (default `0`)
+    pub fn max(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Break::ATTR_MAX, "0", ooxml_core::value::parse_u32)
+    }
+    /// `man` — Manual Page Break (default `false`)
+    pub fn manual_page_break(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Break::ATTR_MAN, "false", ooxml_core::value::parse_bool)
+    }
+    /// `pt` — Pivot-Created Page Break (default `false`)
+    pub fn pivot_table_page_break(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Break::ATTR_PT, "false", ooxml_core::value::parse_bool)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Break`]. Reads go through [`BreakViewMut::as_view`].
+#[derive(Debug)]
+pub struct BreakViewMut<'a>(pub ooxml_core::LensMut<'a, Break>);
+impl<'a> BreakViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BreakView<'_> {
+        BreakView(self.0.as_lens())
+    }
+    /// Sets `id` — Id (default `0`)
+    pub fn set_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Break::ATTR_ID, s))
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Break::ATTR_ID)
+    }
+    /// Sets `min` — Minimum (default `0`)
+    pub fn set_min(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Break::ATTR_MIN, s))
+    }
+    /// Removes `min`.
+    pub fn remove_min(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Break::ATTR_MIN)
+    }
+    /// Sets `max` — Maximum (default `0`)
+    pub fn set_max(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Break::ATTR_MAX, s))
+    }
+    /// Removes `max`.
+    pub fn remove_max(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Break::ATTR_MAX)
+    }
+    /// Sets `man` — Manual Page Break (default `false`)
+    pub fn set_manual_page_break(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Break::ATTR_MAN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `man`.
+    pub fn remove_manual_page_break(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Break::ATTR_MAN)
+    }
+    /// Sets `pt` — Pivot-Created Page Break (default `false`)
+    pub fn set_pivot_table_page_break(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Break::ATTR_PT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `pt`.
+    pub fn remove_pivot_table_page_break(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Break::ATTR_PT)
+    }
+}
 /// `x:CT_ByteProperty/x:charset` — Character Set.
 #[derive(Debug)]
 pub enum FontCharSet {}
@@ -1614,6 +3130,119 @@ impl<'a> FontCharSetViewMut<'a> {
     /// Removes `val`.
     pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(FontCharSet::ATTR_VAL)
+    }
+}
+/// `x:CT_CacheSource/x:cacheSource` — Defines the CacheSource Class.
+#[derive(Debug)]
+pub enum CacheSource {}
+impl CacheSource {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `connectionId`
+    pub const ATTR_CONNECTION_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "connectionId",
+    );
+}
+impl ooxml_core::ElementSpec for CacheSource {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "cacheSource");
+    const SDK_NAME: &'static str = "x:CT_CacheSource/x:cacheSource";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CacheSource::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SourceValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CacheSource::ATTR_CONNECTION_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X, "worksheetSource"),
+                    ooxml_core::QName::new(NS_X, "consolidation"),
+                    ooxml_core::QName::new(NS_X, "extLst"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CacheSource> for WorksheetSource {}
+/// Read-only view of [`CacheSource`].
+#[derive(Clone, Debug)]
+pub struct CacheSourceView<'a>(pub ooxml_core::Lens<'a, CacheSource>);
+impl<'a> CacheSourceView<'a> {
+    /// `type` — type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, SourceValues>> {
+        self.0.attr_enum(CacheSource::ATTR_TYPE)
+    }
+    /// `connectionId` — connectionId (default `0`)
+    pub fn connection_id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CacheSource::ATTR_CONNECTION_ID,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// First `x:worksheetSource` child.
+    pub fn worksheet_source(&self) -> Option<WorksheetSourceView<'a>> {
+        self.0.child::<WorksheetSource>().map(WorksheetSourceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CacheSource`]. Reads go through [`CacheSourceViewMut::as_view`].
+#[derive(Debug)]
+pub struct CacheSourceViewMut<'a>(pub ooxml_core::LensMut<'a, CacheSource>);
+impl<'a> CacheSourceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CacheSourceView<'_> {
+        CacheSourceView(self.0.as_lens())
+    }
+    /// Sets `type` — type
+    pub fn set_type(&mut self, v: SourceValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CacheSource::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CacheSource::ATTR_TYPE)
+    }
+    /// Sets `connectionId` — connectionId (default `0`)
+    pub fn set_connection_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(CacheSource::ATTR_CONNECTION_ID, s),
+        )
+    }
+    /// Removes `connectionId`.
+    pub fn remove_connection_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CacheSource::ATTR_CONNECTION_ID)
+    }
+    /// First `x:worksheetSource` child, mutably.
+    pub fn worksheet_source_mut(&mut self) -> Option<WorksheetSourceViewMut<'_>> {
+        self.0.child_mut::<WorksheetSource>().map(WorksheetSourceViewMut)
+    }
+    /// Existing `x:worksheetSource` child, or a new one in schema position.
+    pub fn get_or_insert_worksheet_source(
+        &mut self,
+    ) -> Result<WorksheetSourceViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<WorksheetSource>().map(WorksheetSourceViewMut)
+    }
+    /// Removes the first `x:worksheetSource` child.
+    pub fn remove_worksheet_source(&mut self) -> bool {
+        self.0.remove::<WorksheetSource>()
     }
 }
 /// `x:CT_CalcPr/x:calcPr` — Defines the CalculationProperties Class.
@@ -3231,6 +4860,1064 @@ impl<'a> CellFormatsViewMut<'a> {
         self.0.remove::<CellFormat>()
     }
 }
+/// `x:CT_CfRule/x:cfRule` — Conditional Formatting Rule.
+#[derive(Debug)]
+pub enum ConditionalFormattingRule {}
+impl ConditionalFormattingRule {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `dxfId`
+    pub const ATTR_DXF_ID: ooxml_core::QName = ooxml_core::QName::new("", "dxfId");
+    /// `priority`
+    pub const ATTR_PRIORITY: ooxml_core::QName = ooxml_core::QName::new("", "priority");
+    /// `stopIfTrue`
+    pub const ATTR_STOP_IF_TRUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "stopIfTrue",
+    );
+    /// `aboveAverage`
+    pub const ATTR_ABOVE_AVERAGE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "aboveAverage",
+    );
+    /// `percent`
+    pub const ATTR_PERCENT: ooxml_core::QName = ooxml_core::QName::new("", "percent");
+    /// `bottom`
+    pub const ATTR_BOTTOM: ooxml_core::QName = ooxml_core::QName::new("", "bottom");
+    /// `operator`
+    pub const ATTR_OPERATOR: ooxml_core::QName = ooxml_core::QName::new("", "operator");
+    /// `text`
+    pub const ATTR_TEXT: ooxml_core::QName = ooxml_core::QName::new("", "text");
+    /// `timePeriod`
+    pub const ATTR_TIME_PERIOD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "timePeriod",
+    );
+    /// `rank`
+    pub const ATTR_RANK: ooxml_core::QName = ooxml_core::QName::new("", "rank");
+    /// `stdDev`
+    pub const ATTR_STD_DEV: ooxml_core::QName = ooxml_core::QName::new("", "stdDev");
+    /// `equalAverage`
+    pub const ATTR_EQUAL_AVERAGE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "equalAverage",
+    );
+}
+impl ooxml_core::ElementSpec for ConditionalFormattingRule {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "cfRule");
+    const SDK_NAME: &'static str = "x:CT_CfRule/x:cfRule";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <ConditionalFormatValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_DXF_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_PRIORITY,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_STOP_IF_TRUE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_ABOVE_AVERAGE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_PERCENT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_BOTTOM,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_OPERATOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <ConditionalFormattingOperatorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_TEXT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_TIME_PERIOD,
+            ty: ooxml_core::SimpleType::Enum(
+                <TimePeriodValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_RANK,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_STD_DEV,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRule::ATTR_EQUAL_AVERAGE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "formula")],
+                wildcard: None,
+                max_each: Some(3),
+                max_total: Some(3),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "colorScale")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "dataBar")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "iconSet")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ConditionalFormattingRule>
+for ConditionalFormattingRuleExtensionList {}
+impl ooxml_core::ChildOf<ConditionalFormattingRule> for ColorScale {}
+impl ooxml_core::ChildOf<ConditionalFormattingRule> for DataBar {}
+impl ooxml_core::ChildOf<ConditionalFormattingRule> for IconSet {}
+impl ooxml_core::ChildOf<ConditionalFormattingRule> for Formula {}
+/// Read-only view of [`ConditionalFormattingRule`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormattingRuleView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormattingRule>,
+);
+impl<'a> ConditionalFormattingRuleView<'a> {
+    /// `type` — Type
+    pub fn type_(&self) -> Option<ooxml_core::EnumValue<'a, ConditionalFormatValues>> {
+        self.0.attr_enum(ConditionalFormattingRule::ATTR_TYPE)
+    }
+    /// `dxfId` — Differential Formatting Id
+    pub fn format_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                ConditionalFormattingRule::ATTR_DXF_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `priority` — Priority
+    pub fn priority(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                ConditionalFormattingRule::ATTR_PRIORITY,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `stopIfTrue` — Stop If True (default `false`)
+    pub fn stop_if_true(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormattingRule::ATTR_STOP_IF_TRUE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `aboveAverage` — Above Or Below Average (default `true`)
+    pub fn above_average(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormattingRule::ATTR_ABOVE_AVERAGE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `percent` — Top 10 Percent (default `false`)
+    pub fn percent(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormattingRule::ATTR_PERCENT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `bottom` — Bottom N (default `false`)
+    pub fn bottom(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormattingRule::ATTR_BOTTOM,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `operator` — Operator
+    pub fn operator(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ConditionalFormattingOperatorValues>> {
+        self.0.attr_enum(ConditionalFormattingRule::ATTR_OPERATOR)
+    }
+    /// `text` — Text
+    pub fn text(&self) -> Option<&'a str> {
+        self.0.attr(ConditionalFormattingRule::ATTR_TEXT)
+    }
+    /// `timePeriod` — Time Period
+    pub fn time_period(&self) -> Option<ooxml_core::EnumValue<'a, TimePeriodValues>> {
+        self.0.attr_enum(ConditionalFormattingRule::ATTR_TIME_PERIOD)
+    }
+    /// `rank` — Rank
+    pub fn rank(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                ConditionalFormattingRule::ATTR_RANK,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `stdDev` — StdDev
+    pub fn std_dev(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                ConditionalFormattingRule::ATTR_STD_DEV,
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `equalAverage` — Equal Average (default `false`)
+    pub fn equal_average(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormattingRule::ATTR_EQUAL_AVERAGE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `x:extLst` child.
+    pub fn conditional_formatting_rule_extension_list(
+        &self,
+    ) -> Option<ConditionalFormattingRuleExtensionListView<'a>> {
+        self.0
+            .child::<ConditionalFormattingRuleExtensionList>()
+            .map(ConditionalFormattingRuleExtensionListView)
+    }
+    /// First `x:colorScale` child.
+    pub fn color_scale(&self) -> Option<ColorScaleView<'a>> {
+        self.0.child::<ColorScale>().map(ColorScaleView)
+    }
+    /// First `x:dataBar` child.
+    pub fn data_bar(&self) -> Option<DataBarView<'a>> {
+        self.0.child::<DataBar>().map(DataBarView)
+    }
+    /// First `x:iconSet` child.
+    pub fn icon_set(&self) -> Option<IconSetView<'a>> {
+        self.0.child::<IconSet>().map(IconSetView)
+    }
+    /// `x:formula` children in document order.
+    pub fn formula_iter(&self) -> impl Iterator<Item = FormulaView<'a>> {
+        self.0.children::<Formula>().map(FormulaView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormattingRule`]. Reads go through [`ConditionalFormattingRuleViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormattingRuleViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormattingRule>,
+);
+impl<'a> ConditionalFormattingRuleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormattingRuleView<'_> {
+        ConditionalFormattingRuleView(self.0.as_lens())
+    }
+    /// Sets `type` — Type
+    pub fn set_type(
+        &mut self,
+        v: ConditionalFormatValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_TYPE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_TYPE)
+    }
+    /// Sets `dxfId` — Differential Formatting Id
+    pub fn set_format_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(ConditionalFormattingRule::ATTR_DXF_ID, s),
+        )
+    }
+    /// Removes `dxfId`.
+    pub fn remove_format_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_DXF_ID)
+    }
+    /// Sets `priority` — Priority
+    pub fn set_priority(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ConditionalFormattingRule::ATTR_PRIORITY, s),
+        )
+    }
+    /// Removes `priority`.
+    pub fn remove_priority(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_PRIORITY)
+    }
+    /// Sets `stopIfTrue` — Stop If True (default `false`)
+    pub fn set_stop_if_true(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_STOP_IF_TRUE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `stopIfTrue`.
+    pub fn remove_stop_if_true(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_STOP_IF_TRUE)
+    }
+    /// Sets `aboveAverage` — Above Or Below Average (default `true`)
+    pub fn set_above_average(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_ABOVE_AVERAGE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `aboveAverage`.
+    pub fn remove_above_average(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_ABOVE_AVERAGE)
+    }
+    /// Sets `percent` — Top 10 Percent (default `false`)
+    pub fn set_percent(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_PERCENT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `percent`.
+    pub fn remove_percent(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_PERCENT)
+    }
+    /// Sets `bottom` — Bottom N (default `false`)
+    pub fn set_bottom(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_BOTTOM,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `bottom`.
+    pub fn remove_bottom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_BOTTOM)
+    }
+    /// Sets `operator` — Operator
+    pub fn set_operator(
+        &mut self,
+        v: ConditionalFormattingOperatorValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_OPERATOR,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `operator`.
+    pub fn remove_operator(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_OPERATOR)
+    }
+    /// Sets `text` — Text
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ConditionalFormattingRule::ATTR_TEXT, v)
+    }
+    /// Removes `text`.
+    pub fn remove_text(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_TEXT)
+    }
+    /// Sets `timePeriod` — Time Period
+    pub fn set_time_period(
+        &mut self,
+        v: TimePeriodValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_TIME_PERIOD,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `timePeriod`.
+    pub fn remove_time_period(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_TIME_PERIOD)
+    }
+    /// Sets `rank` — Rank
+    pub fn set_rank(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(ConditionalFormattingRule::ATTR_RANK, s),
+        )
+    }
+    /// Removes `rank`.
+    pub fn remove_rank(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_RANK)
+    }
+    /// Sets `stdDev` — StdDev
+    pub fn set_std_dev(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(ConditionalFormattingRule::ATTR_STD_DEV, s),
+        )
+    }
+    /// Removes `stdDev`.
+    pub fn remove_std_dev(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_STD_DEV)
+    }
+    /// Sets `equalAverage` — Equal Average (default `false`)
+    pub fn set_equal_average(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormattingRule::ATTR_EQUAL_AVERAGE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `equalAverage`.
+    pub fn remove_equal_average(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRule::ATTR_EQUAL_AVERAGE)
+    }
+    /// First `x:extLst` child, mutably.
+    pub fn conditional_formatting_rule_extension_list_mut(
+        &mut self,
+    ) -> Option<ConditionalFormattingRuleExtensionListViewMut<'_>> {
+        self.0
+            .child_mut::<ConditionalFormattingRuleExtensionList>()
+            .map(ConditionalFormattingRuleExtensionListViewMut)
+    }
+    /// Existing `x:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_conditional_formatting_rule_extension_list(
+        &mut self,
+    ) -> Result<ConditionalFormattingRuleExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<ConditionalFormattingRuleExtensionList>()
+            .map(ConditionalFormattingRuleExtensionListViewMut)
+    }
+    /// Removes the first `x:extLst` child.
+    pub fn remove_conditional_formatting_rule_extension_list(&mut self) -> bool {
+        self.0.remove::<ConditionalFormattingRuleExtensionList>()
+    }
+    /// First `x:colorScale` child, mutably.
+    pub fn color_scale_mut(&mut self) -> Option<ColorScaleViewMut<'_>> {
+        self.0.child_mut::<ColorScale>().map(ColorScaleViewMut)
+    }
+    /// Existing `x:colorScale` child, or a new one in schema position.
+    pub fn get_or_insert_color_scale(
+        &mut self,
+    ) -> Result<ColorScaleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ColorScale>().map(ColorScaleViewMut)
+    }
+    /// Removes the first `x:colorScale` child.
+    pub fn remove_color_scale(&mut self) -> bool {
+        self.0.remove::<ColorScale>()
+    }
+    /// First `x:dataBar` child, mutably.
+    pub fn data_bar_mut(&mut self) -> Option<DataBarViewMut<'_>> {
+        self.0.child_mut::<DataBar>().map(DataBarViewMut)
+    }
+    /// Existing `x:dataBar` child, or a new one in schema position.
+    pub fn get_or_insert_data_bar(
+        &mut self,
+    ) -> Result<DataBarViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DataBar>().map(DataBarViewMut)
+    }
+    /// Removes the first `x:dataBar` child.
+    pub fn remove_data_bar(&mut self) -> bool {
+        self.0.remove::<DataBar>()
+    }
+    /// First `x:iconSet` child, mutably.
+    pub fn icon_set_mut(&mut self) -> Option<IconSetViewMut<'_>> {
+        self.0.child_mut::<IconSet>().map(IconSetViewMut)
+    }
+    /// Existing `x:iconSet` child, or a new one in schema position.
+    pub fn get_or_insert_icon_set(
+        &mut self,
+    ) -> Result<IconSetViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<IconSet>().map(IconSetViewMut)
+    }
+    /// Removes the first `x:iconSet` child.
+    pub fn remove_icon_set(&mut self) -> bool {
+        self.0.remove::<IconSet>()
+    }
+    /// First `x:formula` child matching `pred`, mutably.
+    pub fn formula_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FormulaViewMut<'_>> {
+        self.0.child_mut_by::<Formula>(pred).map(FormulaViewMut)
+    }
+    /// Inserts a `x:formula` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_formula_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FormulaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Formula>(before).map(FormulaViewMut)
+    }
+    /// Appends a `x:formula` at the end of its slot.
+    pub fn insert_formula(&mut self) -> Result<FormulaViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Formula>().map(FormulaViewMut)
+    }
+    /// Removes the first `x:formula` child.
+    pub fn remove_formula(&mut self) -> bool {
+        self.0.remove::<Formula>()
+    }
+}
+/// `x:CT_CfRuleExtension/x:ext` — Defines the ConditionalFormattingRuleExtension Class.
+#[derive(Debug)]
+pub enum ConditionalFormattingRuleExtension {}
+impl ConditionalFormattingRuleExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for ConditionalFormattingRuleExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "ext");
+    const SDK_NAME: &'static str = "x:CT_CfRuleExtension/x:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ConditionalFormattingRuleExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X14, "id")],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`ConditionalFormattingRuleExtension`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormattingRuleExtensionView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormattingRuleExtension>,
+);
+impl<'a> ConditionalFormattingRuleExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(ConditionalFormattingRuleExtension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormattingRuleExtension`]. Reads go through [`ConditionalFormattingRuleExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormattingRuleExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormattingRuleExtension>,
+);
+impl<'a> ConditionalFormattingRuleExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormattingRuleExtensionView<'_> {
+        ConditionalFormattingRuleExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ConditionalFormattingRuleExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormattingRuleExtension::ATTR_URI)
+    }
+}
+/// `x:CT_CfRuleExtensionList/x:extLst` — Defines the ConditionalFormattingRuleExtensionList Class.
+#[derive(Debug)]
+pub enum ConditionalFormattingRuleExtensionList {}
+impl ooxml_core::ElementSpec for ConditionalFormattingRuleExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extLst");
+    const SDK_NAME: &'static str = "x:CT_CfRuleExtensionList/x:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ConditionalFormattingRuleExtensionList>
+for ConditionalFormattingRuleExtension {}
+/// Read-only view of [`ConditionalFormattingRuleExtensionList`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormattingRuleExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormattingRuleExtensionList>,
+);
+impl<'a> ConditionalFormattingRuleExtensionListView<'a> {
+    /// `x:ext` children in document order.
+    pub fn conditional_formatting_rule_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormattingRuleExtensionView<'a>> {
+        self.0
+            .children::<ConditionalFormattingRuleExtension>()
+            .map(ConditionalFormattingRuleExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormattingRuleExtensionList`]. Reads go through [`ConditionalFormattingRuleExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormattingRuleExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormattingRuleExtensionList>,
+);
+impl<'a> ConditionalFormattingRuleExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormattingRuleExtensionListView<'_> {
+        ConditionalFormattingRuleExtensionListView(self.0.as_lens())
+    }
+    /// First `x:ext` child matching `pred`, mutably.
+    pub fn conditional_formatting_rule_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormattingRuleExtensionViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormattingRuleExtension>(pred)
+            .map(ConditionalFormattingRuleExtensionViewMut)
+    }
+    /// Inserts a `x:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_formatting_rule_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormattingRuleExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormattingRuleExtension>(before)
+            .map(ConditionalFormattingRuleExtensionViewMut)
+    }
+    /// Appends a `x:ext` at the end of its slot.
+    pub fn insert_conditional_formatting_rule_extension(
+        &mut self,
+    ) -> Result<ConditionalFormattingRuleExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<ConditionalFormattingRuleExtension>()
+            .map(ConditionalFormattingRuleExtensionViewMut)
+    }
+    /// Removes the first `x:ext` child.
+    pub fn remove_conditional_formatting_rule_extension(&mut self) -> bool {
+        self.0.remove::<ConditionalFormattingRuleExtension>()
+    }
+}
+/// `x:CT_Cfvo/x:cfvo` — Conditional Format Value Object.
+#[derive(Debug)]
+pub enum ConditionalFormatValueObject {}
+impl ConditionalFormatValueObject {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+    /// `gte`
+    pub const ATTR_GTE: ooxml_core::QName = ooxml_core::QName::new("", "gte");
+}
+impl ooxml_core::ElementSpec for ConditionalFormatValueObject {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "cfvo");
+    const SDK_NAME: &'static str = "x:CT_Cfvo/x:cfvo";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ConditionalFormatValueObject::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <ConditionalFormatValueObjectValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormatValueObject::ATTR_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormatValueObject::ATTR_GTE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`ConditionalFormatValueObject`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormatValueObjectView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormatValueObject>,
+);
+impl<'a> ConditionalFormatValueObjectView<'a> {
+    /// `type` — Type
+    pub fn type_(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, ConditionalFormatValueObjectValues>> {
+        self.0.attr_enum(ConditionalFormatValueObject::ATTR_TYPE)
+    }
+    /// `val` — Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(ConditionalFormatValueObject::ATTR_VAL)
+    }
+    /// `gte` — Greater Than Or Equal (default `true`)
+    pub fn greater_than_or_equal(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormatValueObject::ATTR_GTE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormatValueObject`]. Reads go through [`ConditionalFormatValueObjectViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormatValueObjectViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormatValueObject>,
+);
+impl<'a> ConditionalFormatValueObjectViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormatValueObjectView<'_> {
+        ConditionalFormatValueObjectView(self.0.as_lens())
+    }
+    /// Sets `type` — Type
+    pub fn set_type(
+        &mut self,
+        v: ConditionalFormatValueObjectValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormatValueObject::ATTR_TYPE,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormatValueObject::ATTR_TYPE)
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ConditionalFormatValueObject::ATTR_VAL, v)
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormatValueObject::ATTR_VAL)
+    }
+    /// Sets `gte` — Greater Than Or Equal (default `true`)
+    pub fn set_greater_than_or_equal(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormatValueObject::ATTR_GTE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `gte`.
+    pub fn remove_greater_than_or_equal(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormatValueObject::ATTR_GTE)
+    }
+}
+/// `x:CT_Col/x:col` — Column Width and Formatting.
+#[derive(Debug)]
+pub enum Column {}
+impl Column {
+    /// `min`
+    pub const ATTR_MIN: ooxml_core::QName = ooxml_core::QName::new("", "min");
+    /// `max`
+    pub const ATTR_MAX: ooxml_core::QName = ooxml_core::QName::new("", "max");
+    /// `width`
+    pub const ATTR_WIDTH: ooxml_core::QName = ooxml_core::QName::new("", "width");
+    /// `style`
+    pub const ATTR_STYLE: ooxml_core::QName = ooxml_core::QName::new("", "style");
+    /// `hidden`
+    pub const ATTR_HIDDEN: ooxml_core::QName = ooxml_core::QName::new("", "hidden");
+    /// `bestFit`
+    pub const ATTR_BEST_FIT: ooxml_core::QName = ooxml_core::QName::new("", "bestFit");
+    /// `customWidth`
+    pub const ATTR_CUSTOM_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "customWidth",
+    );
+    /// `phonetic`
+    pub const ATTR_PHONETIC: ooxml_core::QName = ooxml_core::QName::new("", "phonetic");
+    /// `outlineLevel`
+    pub const ATTR_OUTLINE_LEVEL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "outlineLevel",
+    );
+    /// `collapsed`
+    pub const ATTR_COLLAPSED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "collapsed",
+    );
+}
+impl ooxml_core::ElementSpec for Column {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "col");
+    const SDK_NAME: &'static str = "x:CT_Col/x:col";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_MIN,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_MAX,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_WIDTH,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_STYLE,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_HIDDEN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_BEST_FIT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_CUSTOM_WIDTH,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_PHONETIC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_OUTLINE_LEVEL,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Column::ATTR_COLLAPSED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Column`].
+#[derive(Clone, Debug)]
+pub struct ColumnView<'a>(pub ooxml_core::Lens<'a, Column>);
+impl<'a> ColumnView<'a> {
+    /// `min` — Minimum Column
+    pub fn min(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Column::ATTR_MIN, ooxml_core::value::parse_u32)
+    }
+    /// `max` — Maximum Column
+    pub fn max(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Column::ATTR_MAX, ooxml_core::value::parse_u32)
+    }
+    /// `width` — Column Width
+    pub fn width(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Column::ATTR_WIDTH, ooxml_core::value::parse_f64)
+    }
+    /// `style` — Style (default `0`)
+    pub fn style(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Column::ATTR_STYLE, "0", ooxml_core::value::parse_u32)
+    }
+    /// `hidden` — Hidden Columns (default `false`)
+    pub fn hidden(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(Column::ATTR_HIDDEN, "false", ooxml_core::value::parse_bool)
+    }
+    /// `bestFit` — Best Fit Column Width (default `false`)
+    pub fn best_fit(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Column::ATTR_BEST_FIT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `customWidth` — Custom Width (default `false`)
+    pub fn custom_width(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Column::ATTR_CUSTOM_WIDTH,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `phonetic` — Show Phonetic Information (default `false`)
+    pub fn phonetic(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Column::ATTR_PHONETIC,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `outlineLevel` — Outline Level (default `0`)
+    pub fn outline_level(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(Column::ATTR_OUTLINE_LEVEL, "0", ooxml_core::value::parse_u8)
+    }
+    /// `collapsed` — Collapsed (default `false`)
+    pub fn collapsed(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Column::ATTR_COLLAPSED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Column`]. Reads go through [`ColumnViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColumnViewMut<'a>(pub ooxml_core::LensMut<'a, Column>);
+impl<'a> ColumnViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColumnView<'_> {
+        ColumnView(self.0.as_lens())
+    }
+    /// Sets `min` — Minimum Column
+    pub fn set_min(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Column::ATTR_MIN, s))
+    }
+    /// Removes `min`.
+    pub fn remove_min(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_MIN)
+    }
+    /// Sets `max` — Maximum Column
+    pub fn set_max(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Column::ATTR_MAX, s))
+    }
+    /// Removes `max`.
+    pub fn remove_max(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_MAX)
+    }
+    /// Sets `width` — Column Width
+    pub fn set_width(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Column::ATTR_WIDTH, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `width`.
+    pub fn remove_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_WIDTH)
+    }
+    /// Sets `style` — Style (default `0`)
+    pub fn set_style(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Column::ATTR_STYLE, s))
+    }
+    /// Removes `style`.
+    pub fn remove_style(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_STYLE)
+    }
+    /// Sets `hidden` — Hidden Columns (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Column::ATTR_HIDDEN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_HIDDEN)
+    }
+    /// Sets `bestFit` — Best Fit Column Width (default `false`)
+    pub fn set_best_fit(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Column::ATTR_BEST_FIT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `bestFit`.
+    pub fn remove_best_fit(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_BEST_FIT)
+    }
+    /// Sets `customWidth` — Custom Width (default `false`)
+    pub fn set_custom_width(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Column::ATTR_CUSTOM_WIDTH, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `customWidth`.
+    pub fn remove_custom_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_CUSTOM_WIDTH)
+    }
+    /// Sets `phonetic` — Show Phonetic Information (default `false`)
+    pub fn set_phonetic(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Column::ATTR_PHONETIC, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `phonetic`.
+    pub fn remove_phonetic(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_PHONETIC)
+    }
+    /// Sets `outlineLevel` — Outline Level (default `0`)
+    pub fn set_outline_level(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(v, |s| self.0.set_attr(Column::ATTR_OUTLINE_LEVEL, s))
+    }
+    /// Removes `outlineLevel`.
+    pub fn remove_outline_level(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_OUTLINE_LEVEL)
+    }
+    /// Sets `collapsed` — Collapsed (default `false`)
+    pub fn set_collapsed(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Column::ATTR_COLLAPSED, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `collapsed`.
+    pub fn remove_collapsed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Column::ATTR_COLLAPSED)
+    }
+}
 /// `x:CT_Color/x:bgColor` — Background Color.
 #[derive(Debug)]
 pub enum BackgroundColor {}
@@ -3628,6 +6315,1683 @@ impl<'a> ForegroundColorViewMut<'a> {
         self.0.remove_attr(ForegroundColor::ATTR_TINT)
     }
 }
+/// `x:CT_Color/x:tabColor` — Sheet Tab Color.
+#[derive(Debug)]
+pub enum TabColor {}
+impl TabColor {
+    /// `auto`
+    pub const ATTR_AUTO: ooxml_core::QName = ooxml_core::QName::new("", "auto");
+    /// `indexed`
+    pub const ATTR_INDEXED: ooxml_core::QName = ooxml_core::QName::new("", "indexed");
+    /// `rgb`
+    pub const ATTR_RGB: ooxml_core::QName = ooxml_core::QName::new("", "rgb");
+    /// `theme`
+    pub const ATTR_THEME: ooxml_core::QName = ooxml_core::QName::new("", "theme");
+    /// `tint`
+    pub const ATTR_TINT: ooxml_core::QName = ooxml_core::QName::new("", "tint");
+}
+impl ooxml_core::ElementSpec for TabColor {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "tabColor");
+    const SDK_NAME: &'static str = "x:CT_Color/x:tabColor";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_AUTO,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_INDEXED,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_RGB,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_THEME,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TabColor::ATTR_TINT,
+            ty: ooxml_core::SimpleType::Double,
+            default: Some("0.0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`TabColor`].
+#[derive(Clone, Debug)]
+pub struct TabColorView<'a>(pub ooxml_core::Lens<'a, TabColor>);
+impl<'a> TabColorView<'a> {
+    /// `auto` — Automatic
+    pub fn auto(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabColor::ATTR_AUTO, ooxml_core::value::parse_bool)
+    }
+    /// `indexed` — Index
+    pub fn indexed(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabColor::ATTR_INDEXED, ooxml_core::value::parse_u32)
+    }
+    /// `rgb` — Alpha Red Green Blue Color Value
+    pub fn rgb(&self) -> Option<&'a str> {
+        self.0.attr(TabColor::ATTR_RGB)
+    }
+    /// `theme` — Theme Color
+    pub fn theme(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(TabColor::ATTR_THEME, ooxml_core::value::parse_u32)
+    }
+    /// `tint` — Tint (default `0.0`)
+    pub fn tint(&self) -> Result<f64, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(TabColor::ATTR_TINT, "0.0", ooxml_core::value::parse_f64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TabColor`]. Reads go through [`TabColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct TabColorViewMut<'a>(pub ooxml_core::LensMut<'a, TabColor>);
+impl<'a> TabColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TabColorView<'_> {
+        TabColorView(self.0.as_lens())
+    }
+    /// Sets `auto` — Automatic
+    pub fn set_auto(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabColor::ATTR_AUTO, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `auto`.
+    pub fn remove_auto(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_AUTO)
+    }
+    /// Sets `indexed` — Index
+    pub fn set_indexed(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(TabColor::ATTR_INDEXED, s))
+    }
+    /// Removes `indexed`.
+    pub fn remove_indexed(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_INDEXED)
+    }
+    /// Sets `rgb` — Alpha Red Green Blue Color Value
+    pub fn set_rgb(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabColor::ATTR_RGB, v)
+    }
+    /// Removes `rgb`.
+    pub fn remove_rgb(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_RGB)
+    }
+    /// Sets `theme` — Theme Color
+    pub fn set_theme(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(TabColor::ATTR_THEME, s))
+    }
+    /// Removes `theme`.
+    pub fn remove_theme(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_THEME)
+    }
+    /// Sets `tint` — Tint (default `0.0`)
+    pub fn set_tint(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TabColor::ATTR_TINT, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `tint`.
+    pub fn remove_tint(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TabColor::ATTR_TINT)
+    }
+}
+/// `x:CT_ColorScale/x:colorScale` — Color Scale.
+#[derive(Debug)]
+pub enum ColorScale {}
+impl ooxml_core::ElementSpec for ColorScale {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "colorScale");
+    const SDK_NAME: &'static str = "x:CT_ColorScale/x:colorScale";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cfvo")],
+                wildcard: None,
+                max_each: Some(3),
+                max_total: Some(3),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "color")],
+                wildcard: None,
+                max_each: Some(3),
+                max_total: Some(3),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ColorScale> for ConditionalFormatValueObject {}
+impl ooxml_core::ChildOf<ColorScale> for Color {}
+/// Read-only view of [`ColorScale`].
+#[derive(Clone, Debug)]
+pub struct ColorScaleView<'a>(pub ooxml_core::Lens<'a, ColorScale>);
+impl<'a> ColorScaleView<'a> {
+    /// `x:cfvo` children in document order.
+    pub fn conditional_format_value_object_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormatValueObjectView<'a>> {
+        self.0
+            .children::<ConditionalFormatValueObject>()
+            .map(ConditionalFormatValueObjectView)
+    }
+    /// `x:color` children in document order.
+    pub fn color_iter(&self) -> impl Iterator<Item = ColorView<'a>> {
+        self.0.children::<Color>().map(ColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ColorScale`]. Reads go through [`ColorScaleViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColorScaleViewMut<'a>(pub ooxml_core::LensMut<'a, ColorScale>);
+impl<'a> ColorScaleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColorScaleView<'_> {
+        ColorScaleView(self.0.as_lens())
+    }
+    /// First `x:cfvo` child matching `pred`, mutably.
+    pub fn conditional_format_value_object_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormatValueObjectViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormatValueObject>(pred)
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Inserts a `x:cfvo` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_format_value_object_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormatValueObjectViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormatValueObject>(before)
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Appends a `x:cfvo` at the end of its slot.
+    pub fn insert_conditional_format_value_object(
+        &mut self,
+    ) -> Result<ConditionalFormatValueObjectViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<ConditionalFormatValueObject>()
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Removes the first `x:cfvo` child.
+    pub fn remove_conditional_format_value_object(&mut self) -> bool {
+        self.0.remove::<ConditionalFormatValueObject>()
+    }
+    /// First `x:color` child matching `pred`, mutably.
+    pub fn color_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ColorViewMut<'_>> {
+        self.0.child_mut_by::<Color>(pred).map(ColorViewMut)
+    }
+    /// Inserts a `x:color` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_color_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Color>(before).map(ColorViewMut)
+    }
+    /// Appends a `x:color` at the end of its slot.
+    pub fn insert_color(&mut self) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Color>().map(ColorViewMut)
+    }
+    /// Removes the first `x:color` child.
+    pub fn remove_color(&mut self) -> bool {
+        self.0.remove::<Color>()
+    }
+}
+/// `x:CT_Cols/x:cols` — Column Information.
+#[derive(Debug)]
+pub enum Columns {}
+impl ooxml_core::ElementSpec for Columns {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "cols");
+    const SDK_NAME: &'static str = "x:CT_Cols/x:cols";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "col")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Columns> for Column {}
+/// Read-only view of [`Columns`].
+#[derive(Clone, Debug)]
+pub struct ColumnsView<'a>(pub ooxml_core::Lens<'a, Columns>);
+impl<'a> ColumnsView<'a> {
+    /// `x:col` children in document order.
+    pub fn column_iter(&self) -> impl Iterator<Item = ColumnView<'a>> {
+        self.0.children::<Column>().map(ColumnView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Columns`]. Reads go through [`ColumnsViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColumnsViewMut<'a>(pub ooxml_core::LensMut<'a, Columns>);
+impl<'a> ColumnsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColumnsView<'_> {
+        ColumnsView(self.0.as_lens())
+    }
+    /// First `x:col` child matching `pred`, mutably.
+    pub fn column_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ColumnViewMut<'_>> {
+        self.0.child_mut_by::<Column>(pred).map(ColumnViewMut)
+    }
+    /// Inserts a `x:col` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_column_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Column>(before).map(ColumnViewMut)
+    }
+    /// Appends a `x:col` at the end of its slot.
+    pub fn insert_column(&mut self) -> Result<ColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Column>().map(ColumnViewMut)
+    }
+    /// Removes the first `x:col` child.
+    pub fn remove_column(&mut self) -> bool {
+        self.0.remove::<Column>()
+    }
+}
+/// `x:CT_ConditionalFormatting/x:conditionalFormatting` — Conditional Formatting.
+#[derive(Debug)]
+pub enum ConditionalFormatting {}
+impl ConditionalFormatting {
+    /// `pivot`
+    pub const ATTR_PIVOT: ooxml_core::QName = ooxml_core::QName::new("", "pivot");
+    /// `sqref`
+    pub const ATTR_SQREF: ooxml_core::QName = ooxml_core::QName::new("", "sqref");
+}
+impl ooxml_core::ElementSpec for ConditionalFormatting {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_X,
+        "conditionalFormatting",
+    );
+    const SDK_NAME: &'static str = "x:CT_ConditionalFormatting/x:conditionalFormatting";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ConditionalFormatting::ATTR_PIVOT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: ConditionalFormatting::ATTR_SQREF,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cfRule")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ConditionalFormatting> for ConditionalFormattingRule {}
+/// Read-only view of [`ConditionalFormatting`].
+#[derive(Clone, Debug)]
+pub struct ConditionalFormattingView<'a>(
+    pub ooxml_core::Lens<'a, ConditionalFormatting>,
+);
+impl<'a> ConditionalFormattingView<'a> {
+    /// `pivot` — PivotTable Conditional Formatting (default `false`)
+    pub fn pivot(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ConditionalFormatting::ATTR_PIVOT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `sqref` — Sequence of References
+    pub fn sequence_of_references(&self) -> Option<&'a str> {
+        self.0.attr(ConditionalFormatting::ATTR_SQREF)
+    }
+    /// `x:cfRule` children in document order.
+    pub fn conditional_formatting_rule_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormattingRuleView<'a>> {
+        self.0.children::<ConditionalFormattingRule>().map(ConditionalFormattingRuleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ConditionalFormatting`]. Reads go through [`ConditionalFormattingViewMut::as_view`].
+#[derive(Debug)]
+pub struct ConditionalFormattingViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ConditionalFormatting>,
+);
+impl<'a> ConditionalFormattingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ConditionalFormattingView<'_> {
+        ConditionalFormattingView(self.0.as_lens())
+    }
+    /// Sets `pivot` — PivotTable Conditional Formatting (default `false`)
+    pub fn set_pivot(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                ConditionalFormatting::ATTR_PIVOT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `pivot`.
+    pub fn remove_pivot(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormatting::ATTR_PIVOT)
+    }
+    /// Sets `sqref` — Sequence of References
+    pub fn set_sequence_of_references(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ConditionalFormatting::ATTR_SQREF, v)
+    }
+    /// Removes `sqref`.
+    pub fn remove_sequence_of_references(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ConditionalFormatting::ATTR_SQREF)
+    }
+    /// First `x:cfRule` child matching `pred`, mutably.
+    pub fn conditional_formatting_rule_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormattingRuleViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormattingRule>(pred)
+            .map(ConditionalFormattingRuleViewMut)
+    }
+    /// Inserts a `x:cfRule` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_formatting_rule_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormattingRuleViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormattingRule>(before)
+            .map(ConditionalFormattingRuleViewMut)
+    }
+    /// Appends a `x:cfRule` at the end of its slot.
+    pub fn insert_conditional_formatting_rule(
+        &mut self,
+    ) -> Result<ConditionalFormattingRuleViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<ConditionalFormattingRule>()
+            .map(ConditionalFormattingRuleViewMut)
+    }
+    /// Removes the first `x:cfRule` child.
+    pub fn remove_conditional_formatting_rule(&mut self) -> bool {
+        self.0.remove::<ConditionalFormattingRule>()
+    }
+}
+/// `x:CT_CustomWorkbookView/x:customWorkbookView` — Custom Workbook View.
+#[derive(Debug)]
+pub enum CustomWorkbookView {}
+impl CustomWorkbookView {
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `guid`
+    pub const ATTR_GUID: ooxml_core::QName = ooxml_core::QName::new("", "guid");
+    /// `autoUpdate`
+    pub const ATTR_AUTO_UPDATE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoUpdate",
+    );
+    /// `mergeInterval`
+    pub const ATTR_MERGE_INTERVAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "mergeInterval",
+    );
+    /// `changesSavedWin`
+    pub const ATTR_CHANGES_SAVED_WIN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "changesSavedWin",
+    );
+    /// `onlySync`
+    pub const ATTR_ONLY_SYNC: ooxml_core::QName = ooxml_core::QName::new("", "onlySync");
+    /// `personalView`
+    pub const ATTR_PERSONAL_VIEW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "personalView",
+    );
+    /// `includePrintSettings`
+    pub const ATTR_INCLUDE_PRINT_SETTINGS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "includePrintSettings",
+    );
+    /// `includeHiddenRowCol`
+    pub const ATTR_INCLUDE_HIDDEN_ROW_COL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "includeHiddenRowCol",
+    );
+    /// `maximized`
+    pub const ATTR_MAXIMIZED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "maximized",
+    );
+    /// `minimized`
+    pub const ATTR_MINIMIZED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minimized",
+    );
+    /// `showHorizontalScroll`
+    pub const ATTR_SHOW_HORIZONTAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showHorizontalScroll",
+    );
+    /// `showVerticalScroll`
+    pub const ATTR_SHOW_VERTICAL_SCROLL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showVerticalScroll",
+    );
+    /// `showSheetTabs`
+    pub const ATTR_SHOW_SHEET_TABS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showSheetTabs",
+    );
+    /// `xWindow`
+    pub const ATTR_X_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "xWindow");
+    /// `yWindow`
+    pub const ATTR_Y_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "yWindow");
+    /// `windowWidth`
+    pub const ATTR_WINDOW_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowWidth",
+    );
+    /// `windowHeight`
+    pub const ATTR_WINDOW_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowHeight",
+    );
+    /// `tabRatio`
+    pub const ATTR_TAB_RATIO: ooxml_core::QName = ooxml_core::QName::new("", "tabRatio");
+    /// `activeSheetId`
+    pub const ATTR_ACTIVE_SHEET_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activeSheetId",
+    );
+    /// `showFormulaBar`
+    pub const ATTR_SHOW_FORMULA_BAR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showFormulaBar",
+    );
+    /// `showStatusbar`
+    pub const ATTR_SHOW_STATUSBAR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showStatusbar",
+    );
+    /// `showComments`
+    pub const ATTR_SHOW_COMMENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showComments",
+    );
+    /// `showObjects`
+    pub const ATTR_SHOW_OBJECTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showObjects",
+    );
+}
+impl ooxml_core::ElementSpec for CustomWorkbookView {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "customWorkbookView");
+    const SDK_NAME: &'static str = "x:CT_CustomWorkbookView/x:customWorkbookView";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_GUID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_AUTO_UPDATE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_MERGE_INTERVAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_CHANGES_SAVED_WIN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_ONLY_SYNC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_PERSONAL_VIEW,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_INCLUDE_PRINT_SETTINGS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_INCLUDE_HIDDEN_ROW_COL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_MAXIMIZED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_MINIMIZED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_HORIZONTAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_VERTICAL_SCROLL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_SHEET_TABS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_X_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_Y_WINDOW,
+            ty: ooxml_core::SimpleType::Int32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_WINDOW_WIDTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_WINDOW_HEIGHT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_TAB_RATIO,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("600"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_ACTIVE_SHEET_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_FORMULA_BAR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_STATUSBAR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_COMMENTS,
+            ty: ooxml_core::SimpleType::Enum(
+                <CommentsValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("commIndicator"),
+        },
+        ooxml_core::AttrSpec {
+            name: CustomWorkbookView::ATTR_SHOW_OBJECTS,
+            ty: ooxml_core::SimpleType::Enum(
+                <ObjectDisplayValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("all"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`CustomWorkbookView`].
+#[derive(Clone, Debug)]
+pub struct CustomWorkbookViewView<'a>(pub ooxml_core::Lens<'a, CustomWorkbookView>);
+impl<'a> CustomWorkbookViewView<'a> {
+    /// `name` — Custom View Name
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(CustomWorkbookView::ATTR_NAME)
+    }
+    /// `guid` — Custom View GUID
+    pub fn guid(&self) -> Option<&'a str> {
+        self.0.attr(CustomWorkbookView::ATTR_GUID)
+    }
+    /// `autoUpdate` — Auto Update (default `false`)
+    pub fn auto_update(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_AUTO_UPDATE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `mergeInterval` — Merge Interval
+    pub fn merge_interval(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_MERGE_INTERVAL,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `changesSavedWin` — Changes Saved Win (default `false`)
+    pub fn changes_saved_win(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_CHANGES_SAVED_WIN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `onlySync` — Only Synch (default `false`)
+    pub fn only_sync(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_ONLY_SYNC,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `personalView` — Personal View (default `false`)
+    pub fn personal_view(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_PERSONAL_VIEW,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `includePrintSettings` — Include Print Settings (default `true`)
+    pub fn include_print_settings(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_INCLUDE_PRINT_SETTINGS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `includeHiddenRowCol` — Include Hidden Rows and Columns (default `true`)
+    pub fn include_hidden_row_column(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_INCLUDE_HIDDEN_ROW_COL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `maximized` — Maximized (default `false`)
+    pub fn maximized(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_MAXIMIZED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `minimized` — Minimized (default `false`)
+    pub fn minimized(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_MINIMIZED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showHorizontalScroll` — Show Horizontal Scroll (default `true`)
+    pub fn show_horizontal_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_HORIZONTAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showVerticalScroll` — Show Vertical Scroll (default `true`)
+    pub fn show_vertical_scroll(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_VERTICAL_SCROLL,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showSheetTabs` — Show Sheet Tabs (default `true`)
+    pub fn show_sheet_tabs(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_SHEET_TABS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xWindow` — Top Left Corner (X Coordinate) (default `0`)
+    pub fn x_window(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_X_WINDOW,
+                "0",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `yWindow` — Top Left Corner (Y Coordinate) (default `0`)
+    pub fn y_window(&self) -> Result<i32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_Y_WINDOW,
+                "0",
+                ooxml_core::value::parse_i32,
+            )
+    }
+    /// `windowWidth` — Window Width
+    pub fn window_width(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_WINDOW_WIDTH,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `windowHeight` — Window Height
+    pub fn window_height(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_WINDOW_HEIGHT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `tabRatio` — Sheet Tab Ratio (default `600`)
+    pub fn tab_ratio(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_TAB_RATIO,
+                "600",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `activeSheetId` — Active Sheet in Book View
+    pub fn active_sheet_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CustomWorkbookView::ATTR_ACTIVE_SHEET_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `showFormulaBar` — Show Formula Bar (default `true`)
+    pub fn show_formula_bar(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_FORMULA_BAR,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showStatusbar` — Show Status Bar (default `true`)
+    pub fn show_statusbar(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                CustomWorkbookView::ATTR_SHOW_STATUSBAR,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showComments` — Show Comments (default `commIndicator`)
+    pub fn show_comments(&self) -> ooxml_core::EnumValue<'a, CommentsValues> {
+        self.0.attr_enum_or(CustomWorkbookView::ATTR_SHOW_COMMENTS, "commIndicator")
+    }
+    /// `showObjects` — Show Objects (default `all`)
+    pub fn show_objects(&self) -> ooxml_core::EnumValue<'a, ObjectDisplayValues> {
+        self.0.attr_enum_or(CustomWorkbookView::ATTR_SHOW_OBJECTS, "all")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_CustomWorkbookViews/x:customWorkbookViews` — Defines the CustomWorkbookViews Class.
+#[derive(Debug)]
+pub enum CustomWorkbookViews {}
+impl ooxml_core::ElementSpec for CustomWorkbookViews {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "customWorkbookViews");
+    const SDK_NAME: &'static str = "x:CT_CustomWorkbookViews/x:customWorkbookViews";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "customWorkbookView")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CustomWorkbookViews> for CustomWorkbookView {}
+/// Read-only view of [`CustomWorkbookViews`].
+#[derive(Clone, Debug)]
+pub struct CustomWorkbookViewsView<'a>(pub ooxml_core::Lens<'a, CustomWorkbookViews>);
+impl<'a> CustomWorkbookViewsView<'a> {
+    /// `x:customWorkbookView` children in document order.
+    pub fn custom_workbook_view_iter(
+        &self,
+    ) -> impl Iterator<Item = CustomWorkbookViewView<'a>> {
+        self.0.children::<CustomWorkbookView>().map(CustomWorkbookViewView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_DataBar/x:dataBar` — Data Bar.
+#[derive(Debug)]
+pub enum DataBar {}
+impl DataBar {
+    /// `minLength`
+    pub const ATTR_MIN_LENGTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minLength",
+    );
+    /// `maxLength`
+    pub const ATTR_MAX_LENGTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "maxLength",
+    );
+    /// `showValue`
+    pub const ATTR_SHOW_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showValue",
+    );
+}
+impl ooxml_core::ElementSpec for DataBar {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dataBar");
+    const SDK_NAME: &'static str = "x:CT_DataBar/x:dataBar";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DataBar::ATTR_MIN_LENGTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("10"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataBar::ATTR_MAX_LENGTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("90"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataBar::ATTR_SHOW_VALUE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cfvo")],
+                wildcard: None,
+                max_each: Some(2),
+                max_total: Some(2),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "color")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DataBar> for ConditionalFormatValueObject {}
+impl ooxml_core::ChildOf<DataBar> for Color {}
+/// Read-only view of [`DataBar`].
+#[derive(Clone, Debug)]
+pub struct DataBarView<'a>(pub ooxml_core::Lens<'a, DataBar>);
+impl<'a> DataBarView<'a> {
+    /// `minLength` — Minimum Length (default `10`)
+    pub fn min_length(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(DataBar::ATTR_MIN_LENGTH, "10", ooxml_core::value::parse_u32)
+    }
+    /// `maxLength` — Maximum Length (default `90`)
+    pub fn max_length(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(DataBar::ATTR_MAX_LENGTH, "90", ooxml_core::value::parse_u32)
+    }
+    /// `showValue` — Show Values (default `true`)
+    pub fn show_value(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DataBar::ATTR_SHOW_VALUE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `x:cfvo` children in document order.
+    pub fn conditional_format_value_object_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormatValueObjectView<'a>> {
+        self.0
+            .children::<ConditionalFormatValueObject>()
+            .map(ConditionalFormatValueObjectView)
+    }
+    /// First `x:color` child.
+    pub fn color(&self) -> Option<ColorView<'a>> {
+        self.0.child::<Color>().map(ColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DataBar`]. Reads go through [`DataBarViewMut::as_view`].
+#[derive(Debug)]
+pub struct DataBarViewMut<'a>(pub ooxml_core::LensMut<'a, DataBar>);
+impl<'a> DataBarViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DataBarView<'_> {
+        DataBarView(self.0.as_lens())
+    }
+    /// Sets `minLength` — Minimum Length (default `10`)
+    pub fn set_min_length(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(DataBar::ATTR_MIN_LENGTH, s))
+    }
+    /// Removes `minLength`.
+    pub fn remove_min_length(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataBar::ATTR_MIN_LENGTH)
+    }
+    /// Sets `maxLength` — Maximum Length (default `90`)
+    pub fn set_max_length(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(DataBar::ATTR_MAX_LENGTH, s))
+    }
+    /// Removes `maxLength`.
+    pub fn remove_max_length(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataBar::ATTR_MAX_LENGTH)
+    }
+    /// Sets `showValue` — Show Values (default `true`)
+    pub fn set_show_value(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataBar::ATTR_SHOW_VALUE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `showValue`.
+    pub fn remove_show_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataBar::ATTR_SHOW_VALUE)
+    }
+    /// First `x:cfvo` child matching `pred`, mutably.
+    pub fn conditional_format_value_object_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormatValueObjectViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormatValueObject>(pred)
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Inserts a `x:cfvo` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_format_value_object_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormatValueObjectViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormatValueObject>(before)
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Appends a `x:cfvo` at the end of its slot.
+    pub fn insert_conditional_format_value_object(
+        &mut self,
+    ) -> Result<ConditionalFormatValueObjectViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<ConditionalFormatValueObject>()
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Removes the first `x:cfvo` child.
+    pub fn remove_conditional_format_value_object(&mut self) -> bool {
+        self.0.remove::<ConditionalFormatValueObject>()
+    }
+    /// First `x:color` child, mutably.
+    pub fn color_mut(&mut self) -> Option<ColorViewMut<'_>> {
+        self.0.child_mut::<Color>().map(ColorViewMut)
+    }
+    /// Existing `x:color` child, or a new one in schema position.
+    pub fn get_or_insert_color(
+        &mut self,
+    ) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Color>().map(ColorViewMut)
+    }
+    /// Removes the first `x:color` child.
+    pub fn remove_color(&mut self) -> bool {
+        self.0.remove::<Color>()
+    }
+}
+/// `x:CT_DataValidation/x:dataValidation` — Data Validation.
+#[derive(Debug)]
+pub enum DataValidation {}
+impl DataValidation {
+    /// `type`
+    pub const ATTR_TYPE: ooxml_core::QName = ooxml_core::QName::new("", "type");
+    /// `errorStyle`
+    pub const ATTR_ERROR_STYLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "errorStyle",
+    );
+    /// `imeMode`
+    pub const ATTR_IME_MODE: ooxml_core::QName = ooxml_core::QName::new("", "imeMode");
+    /// `operator`
+    pub const ATTR_OPERATOR: ooxml_core::QName = ooxml_core::QName::new("", "operator");
+    /// `allowBlank`
+    pub const ATTR_ALLOW_BLANK: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "allowBlank",
+    );
+    /// `showDropDown`
+    pub const ATTR_SHOW_DROP_DOWN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showDropDown",
+    );
+    /// `showInputMessage`
+    pub const ATTR_SHOW_INPUT_MESSAGE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showInputMessage",
+    );
+    /// `showErrorMessage`
+    pub const ATTR_SHOW_ERROR_MESSAGE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showErrorMessage",
+    );
+    /// `errorTitle`
+    pub const ATTR_ERROR_TITLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "errorTitle",
+    );
+    /// `error`
+    pub const ATTR_ERROR: ooxml_core::QName = ooxml_core::QName::new("", "error");
+    /// `promptTitle`
+    pub const ATTR_PROMPT_TITLE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "promptTitle",
+    );
+    /// `prompt`
+    pub const ATTR_PROMPT: ooxml_core::QName = ooxml_core::QName::new("", "prompt");
+    /// `sqref`
+    pub const ATTR_SQREF: ooxml_core::QName = ooxml_core::QName::new("", "sqref");
+}
+impl ooxml_core::ElementSpec for DataValidation {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dataValidation");
+    const SDK_NAME: &'static str = "x:CT_DataValidation/x:dataValidation";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_TYPE,
+            ty: ooxml_core::SimpleType::Enum(
+                <DataValidationValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_ERROR_STYLE,
+            ty: ooxml_core::SimpleType::Enum(
+                <DataValidationErrorStyleValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("stop"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_IME_MODE,
+            ty: ooxml_core::SimpleType::Enum(
+                <DataValidationImeModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("noControl"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_OPERATOR,
+            ty: ooxml_core::SimpleType::Enum(
+                <DataValidationOperatorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("between"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_ALLOW_BLANK,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_SHOW_DROP_DOWN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_SHOW_INPUT_MESSAGE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_SHOW_ERROR_MESSAGE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_ERROR_TITLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_ERROR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_PROMPT_TITLE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_PROMPT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidation::ATTR_SQREF,
+            ty: ooxml_core::SimpleType::List,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X12AC, "list")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "formula1")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "formula2")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DataValidation> for Formula1 {}
+impl ooxml_core::ChildOf<DataValidation> for Formula2 {}
+/// Read-only view of [`DataValidation`].
+#[derive(Clone, Debug)]
+pub struct DataValidationView<'a>(pub ooxml_core::Lens<'a, DataValidation>);
+impl<'a> DataValidationView<'a> {
+    /// `type` — type (default `none`)
+    pub fn type_(&self) -> ooxml_core::EnumValue<'a, DataValidationValues> {
+        self.0.attr_enum_or(DataValidation::ATTR_TYPE, "none")
+    }
+    /// `errorStyle` — errorStyle (default `stop`)
+    pub fn error_style(
+        &self,
+    ) -> ooxml_core::EnumValue<'a, DataValidationErrorStyleValues> {
+        self.0.attr_enum_or(DataValidation::ATTR_ERROR_STYLE, "stop")
+    }
+    /// `imeMode` — imeMode (default `noControl`)
+    pub fn ime_mode(&self) -> ooxml_core::EnumValue<'a, DataValidationImeModeValues> {
+        self.0.attr_enum_or(DataValidation::ATTR_IME_MODE, "noControl")
+    }
+    /// `operator` — operator (default `between`)
+    pub fn operator(&self) -> ooxml_core::EnumValue<'a, DataValidationOperatorValues> {
+        self.0.attr_enum_or(DataValidation::ATTR_OPERATOR, "between")
+    }
+    /// `allowBlank` — allowBlank (default `false`)
+    pub fn allow_blank(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DataValidation::ATTR_ALLOW_BLANK,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showDropDown` — showDropDown (default `false`)
+    pub fn show_drop_down(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DataValidation::ATTR_SHOW_DROP_DOWN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showInputMessage` — showInputMessage (default `false`)
+    pub fn show_input_message(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DataValidation::ATTR_SHOW_INPUT_MESSAGE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showErrorMessage` — showErrorMessage (default `false`)
+    pub fn show_error_message(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DataValidation::ATTR_SHOW_ERROR_MESSAGE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `errorTitle` — errorTitle
+    pub fn error_title(&self) -> Option<&'a str> {
+        self.0.attr(DataValidation::ATTR_ERROR_TITLE)
+    }
+    /// `error` — error
+    pub fn error(&self) -> Option<&'a str> {
+        self.0.attr(DataValidation::ATTR_ERROR)
+    }
+    /// `promptTitle` — promptTitle
+    pub fn prompt_title(&self) -> Option<&'a str> {
+        self.0.attr(DataValidation::ATTR_PROMPT_TITLE)
+    }
+    /// `prompt` — prompt
+    pub fn prompt(&self) -> Option<&'a str> {
+        self.0.attr(DataValidation::ATTR_PROMPT)
+    }
+    /// `sqref` — sqref
+    pub fn sequence_of_references(&self) -> Option<&'a str> {
+        self.0.attr(DataValidation::ATTR_SQREF)
+    }
+    /// First `x:formula1` child.
+    pub fn formula1(&self) -> Option<Formula1View<'a>> {
+        self.0.child::<Formula1>().map(Formula1View)
+    }
+    /// First `x:formula2` child.
+    pub fn formula2(&self) -> Option<Formula2View<'a>> {
+        self.0.child::<Formula2>().map(Formula2View)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DataValidation`]. Reads go through [`DataValidationViewMut::as_view`].
+#[derive(Debug)]
+pub struct DataValidationViewMut<'a>(pub ooxml_core::LensMut<'a, DataValidation>);
+impl<'a> DataValidationViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DataValidationView<'_> {
+        DataValidationView(self.0.as_lens())
+    }
+    /// Sets `type` — type (default `none`)
+    pub fn set_type(
+        &mut self,
+        v: DataValidationValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `type`.
+    pub fn remove_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_TYPE)
+    }
+    /// Sets `errorStyle` — errorStyle (default `stop`)
+    pub fn set_error_style(
+        &mut self,
+        v: DataValidationErrorStyleValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(DataValidation::ATTR_ERROR_STYLE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `errorStyle`.
+    pub fn remove_error_style(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_ERROR_STYLE)
+    }
+    /// Sets `imeMode` — imeMode (default `noControl`)
+    pub fn set_ime_mode(
+        &mut self,
+        v: DataValidationImeModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_IME_MODE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `imeMode`.
+    pub fn remove_ime_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_IME_MODE)
+    }
+    /// Sets `operator` — operator (default `between`)
+    pub fn set_operator(
+        &mut self,
+        v: DataValidationOperatorValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_OPERATOR, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `operator`.
+    pub fn remove_operator(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_OPERATOR)
+    }
+    /// Sets `allowBlank` — allowBlank (default `false`)
+    pub fn set_allow_blank(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DataValidation::ATTR_ALLOW_BLANK,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `allowBlank`.
+    pub fn remove_allow_blank(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_ALLOW_BLANK)
+    }
+    /// Sets `showDropDown` — showDropDown (default `false`)
+    pub fn set_show_drop_down(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DataValidation::ATTR_SHOW_DROP_DOWN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showDropDown`.
+    pub fn remove_show_drop_down(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_SHOW_DROP_DOWN)
+    }
+    /// Sets `showInputMessage` — showInputMessage (default `false`)
+    pub fn set_show_input_message(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DataValidation::ATTR_SHOW_INPUT_MESSAGE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showInputMessage`.
+    pub fn remove_show_input_message(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_SHOW_INPUT_MESSAGE)
+    }
+    /// Sets `showErrorMessage` — showErrorMessage (default `false`)
+    pub fn set_show_error_message(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DataValidation::ATTR_SHOW_ERROR_MESSAGE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showErrorMessage`.
+    pub fn remove_show_error_message(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_SHOW_ERROR_MESSAGE)
+    }
+    /// Sets `errorTitle` — errorTitle
+    pub fn set_error_title(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_ERROR_TITLE, v)
+    }
+    /// Removes `errorTitle`.
+    pub fn remove_error_title(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_ERROR_TITLE)
+    }
+    /// Sets `error` — error
+    pub fn set_error(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_ERROR, v)
+    }
+    /// Removes `error`.
+    pub fn remove_error(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_ERROR)
+    }
+    /// Sets `promptTitle` — promptTitle
+    pub fn set_prompt_title(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_PROMPT_TITLE, v)
+    }
+    /// Removes `promptTitle`.
+    pub fn remove_prompt_title(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_PROMPT_TITLE)
+    }
+    /// Sets `prompt` — prompt
+    pub fn set_prompt(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_PROMPT, v)
+    }
+    /// Removes `prompt`.
+    pub fn remove_prompt(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_PROMPT)
+    }
+    /// Sets `sqref` — sqref
+    pub fn set_sequence_of_references(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataValidation::ATTR_SQREF, v)
+    }
+    /// Removes `sqref`.
+    pub fn remove_sequence_of_references(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidation::ATTR_SQREF)
+    }
+    /// First `x:formula1` child, mutably.
+    pub fn formula1_mut(&mut self) -> Option<Formula1ViewMut<'_>> {
+        self.0.child_mut::<Formula1>().map(Formula1ViewMut)
+    }
+    /// Existing `x:formula1` child, or a new one in schema position.
+    pub fn get_or_insert_formula1(
+        &mut self,
+    ) -> Result<Formula1ViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Formula1>().map(Formula1ViewMut)
+    }
+    /// Removes the first `x:formula1` child.
+    pub fn remove_formula1(&mut self) -> bool {
+        self.0.remove::<Formula1>()
+    }
+    /// First `x:formula2` child, mutably.
+    pub fn formula2_mut(&mut self) -> Option<Formula2ViewMut<'_>> {
+        self.0.child_mut::<Formula2>().map(Formula2ViewMut)
+    }
+    /// Existing `x:formula2` child, or a new one in schema position.
+    pub fn get_or_insert_formula2(
+        &mut self,
+    ) -> Result<Formula2ViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Formula2>().map(Formula2ViewMut)
+    }
+    /// Removes the first `x:formula2` child.
+    pub fn remove_formula2(&mut self) -> bool {
+        self.0.remove::<Formula2>()
+    }
+}
+/// `x:CT_DataValidations/x:dataValidations` — Defines the DataValidations Class.
+#[derive(Debug)]
+pub enum DataValidations {}
+impl DataValidations {
+    /// `disablePrompts`
+    pub const ATTR_DISABLE_PROMPTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "disablePrompts",
+    );
+    /// `xWindow`
+    pub const ATTR_X_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "xWindow");
+    /// `yWindow`
+    pub const ATTR_Y_WINDOW: ooxml_core::QName = ooxml_core::QName::new("", "yWindow");
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for DataValidations {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dataValidations");
+    const SDK_NAME: &'static str = "x:CT_DataValidations/x:dataValidations";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DataValidations::ATTR_DISABLE_PROMPTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidations::ATTR_X_WINDOW,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidations::ATTR_Y_WINDOW,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataValidations::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "dataValidation")],
+                wildcard: None,
+                max_each: Some(65534),
+                max_total: Some(65534),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DataValidations> for DataValidation {}
+/// Read-only view of [`DataValidations`].
+#[derive(Clone, Debug)]
+pub struct DataValidationsView<'a>(pub ooxml_core::Lens<'a, DataValidations>);
+impl<'a> DataValidationsView<'a> {
+    /// `disablePrompts` — Disable Prompts (default `false`)
+    pub fn disable_prompts(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                DataValidations::ATTR_DISABLE_PROMPTS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `xWindow` — Top Left Corner (X Coodrinate)
+    pub fn x_window(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DataValidations::ATTR_X_WINDOW, ooxml_core::value::parse_u32)
+    }
+    /// `yWindow` — Top Left Corner (Y Coordinate)
+    pub fn y_window(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DataValidations::ATTR_Y_WINDOW, ooxml_core::value::parse_u32)
+    }
+    /// `count` — Data Validation Item Count
+    pub fn count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DataValidations::ATTR_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `x:dataValidation` children in document order.
+    pub fn data_validation_iter(&self) -> impl Iterator<Item = DataValidationView<'a>> {
+        self.0.children::<DataValidation>().map(DataValidationView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DataValidations`]. Reads go through [`DataValidationsViewMut::as_view`].
+#[derive(Debug)]
+pub struct DataValidationsViewMut<'a>(pub ooxml_core::LensMut<'a, DataValidations>);
+impl<'a> DataValidationsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DataValidationsView<'_> {
+        DataValidationsView(self.0.as_lens())
+    }
+    /// Sets `disablePrompts` — Disable Prompts (default `false`)
+    pub fn set_disable_prompts(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DataValidations::ATTR_DISABLE_PROMPTS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `disablePrompts`.
+    pub fn remove_disable_prompts(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidations::ATTR_DISABLE_PROMPTS)
+    }
+    /// Sets `xWindow` — Top Left Corner (X Coodrinate)
+    pub fn set_x_window(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DataValidations::ATTR_X_WINDOW, s),
+        )
+    }
+    /// Removes `xWindow`.
+    pub fn remove_x_window(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidations::ATTR_X_WINDOW)
+    }
+    /// Sets `yWindow` — Top Left Corner (Y Coordinate)
+    pub fn set_y_window(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DataValidations::ATTR_Y_WINDOW, s),
+        )
+    }
+    /// Removes `yWindow`.
+    pub fn remove_y_window(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidations::ATTR_Y_WINDOW)
+    }
+    /// Sets `count` — Data Validation Item Count
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DataValidations::ATTR_COUNT, s),
+        )
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataValidations::ATTR_COUNT)
+    }
+    /// First `x:dataValidation` child matching `pred`, mutably.
+    pub fn data_validation_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DataValidationViewMut<'_>> {
+        self.0.child_mut_by::<DataValidation>(pred).map(DataValidationViewMut)
+    }
+    /// Inserts a `x:dataValidation` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_data_validation_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DataValidationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DataValidation>(before).map(DataValidationViewMut)
+    }
+    /// Appends a `x:dataValidation` at the end of its slot.
+    pub fn insert_data_validation(
+        &mut self,
+    ) -> Result<DataValidationViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DataValidation>().map(DataValidationViewMut)
+    }
+    /// Removes the first `x:dataValidation` child.
+    pub fn remove_data_validation(&mut self) -> bool {
+        self.0.remove::<DataValidation>()
+    }
+}
 /// `x:CT_DefinedName/x:definedName` — Defined Name.
 #[derive(Debug)]
 pub enum DefinedName {}
@@ -3882,6 +8246,154 @@ impl<'a> DefinedNameView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`DefinedName`]. Reads go through [`DefinedNameViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefinedNameViewMut<'a>(pub ooxml_core::LensMut<'a, DefinedName>);
+impl<'a> DefinedNameViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefinedNameView<'_> {
+        DefinedNameView(self.0.as_lens())
+    }
+    /// Sets `name` — Defined Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_NAME)
+    }
+    /// Sets `comment` — Comment
+    pub fn set_comment(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_COMMENT, v)
+    }
+    /// Removes `comment`.
+    pub fn remove_comment(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_COMMENT)
+    }
+    /// Sets `customMenu` — Custom Menu Text
+    pub fn set_custom_menu(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_CUSTOM_MENU, v)
+    }
+    /// Removes `customMenu`.
+    pub fn remove_custom_menu(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_CUSTOM_MENU)
+    }
+    /// Sets `description` — Description
+    pub fn set_description(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_DESCRIPTION, v)
+    }
+    /// Removes `description`.
+    pub fn remove_description(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_DESCRIPTION)
+    }
+    /// Sets `help` — Help
+    pub fn set_help(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_HELP, v)
+    }
+    /// Removes `help`.
+    pub fn remove_help(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_HELP)
+    }
+    /// Sets `statusBar` — Status Bar
+    pub fn set_status_bar(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_STATUS_BAR, v)
+    }
+    /// Removes `statusBar`.
+    pub fn remove_status_bar(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_STATUS_BAR)
+    }
+    /// Sets `localSheetId` — Local Name Sheet Id
+    pub fn set_local_sheet_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefinedName::ATTR_LOCAL_SHEET_ID, s),
+        )
+    }
+    /// Removes `localSheetId`.
+    pub fn remove_local_sheet_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_LOCAL_SHEET_ID)
+    }
+    /// Sets `hidden` — Hidden Name (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_HIDDEN, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_HIDDEN)
+    }
+    /// Sets `function` — Function (default `false`)
+    pub fn set_function(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_FUNCTION, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `function`.
+    pub fn remove_function(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_FUNCTION)
+    }
+    /// Sets `vbProcedure` — Procedure (default `false`)
+    pub fn set_vb_procedure(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(DefinedName::ATTR_VB_PROCEDURE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `vbProcedure`.
+    pub fn remove_vb_procedure(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_VB_PROCEDURE)
+    }
+    /// Sets `xlm` — External Function (default `false`)
+    pub fn set_xlm(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_XLM, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `xlm`.
+    pub fn remove_xlm(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_XLM)
+    }
+    /// Sets `functionGroupId` — Function Group Id
+    pub fn set_function_group_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DefinedName::ATTR_FUNCTION_GROUP_ID, s),
+        )
+    }
+    /// Removes `functionGroupId`.
+    pub fn remove_function_group_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_FUNCTION_GROUP_ID)
+    }
+    /// Sets `shortcutKey` — Shortcut Key
+    pub fn set_shortcut_key(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DefinedName::ATTR_SHORTCUT_KEY, v)
+    }
+    /// Removes `shortcutKey`.
+    pub fn remove_shortcut_key(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_SHORTCUT_KEY)
+    }
+    /// Sets `publishToServer` — Publish To Server (default `false`)
+    pub fn set_publish_to_server(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefinedName::ATTR_PUBLISH_TO_SERVER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `publishToServer`.
+    pub fn remove_publish_to_server(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_PUBLISH_TO_SERVER)
+    }
+    /// Sets `workbookParameter` — Workbook Parameter (Server) (default `false`)
+    pub fn set_workbook_parameter(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                DefinedName::ATTR_WORKBOOK_PARAMETER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `workbookParameter`.
+    pub fn remove_workbook_parameter(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DefinedName::ATTR_WORKBOOK_PARAMETER)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
 /// `x:CT_DefinedNames/x:definedNames` — Defines the DefinedNames Class.
 #[derive(Debug)]
 pub enum DefinedNames {}
@@ -3912,6 +8424,317 @@ impl<'a> DefinedNamesView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`DefinedNames`]. Reads go through [`DefinedNamesViewMut::as_view`].
+#[derive(Debug)]
+pub struct DefinedNamesViewMut<'a>(pub ooxml_core::LensMut<'a, DefinedNames>);
+impl<'a> DefinedNamesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DefinedNamesView<'_> {
+        DefinedNamesView(self.0.as_lens())
+    }
+    /// First `x:definedName` child matching `pred`, mutably.
+    pub fn defined_name_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DefinedNameViewMut<'_>> {
+        self.0.child_mut_by::<DefinedName>(pred).map(DefinedNameViewMut)
+    }
+    /// Inserts a `x:definedName` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_defined_name_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DefinedNameViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DefinedName>(before).map(DefinedNameViewMut)
+    }
+    /// Appends a `x:definedName` at the end of its slot.
+    pub fn insert_defined_name(
+        &mut self,
+    ) -> Result<DefinedNameViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DefinedName>().map(DefinedNameViewMut)
+    }
+    /// Removes the first `x:definedName` child.
+    pub fn remove_defined_name(&mut self) -> bool {
+        self.0.remove::<DefinedName>()
+    }
+}
+/// `x:CT_Dxf/x:dxf` — Formatting.
+#[derive(Debug)]
+pub enum DifferentialFormat {}
+impl ooxml_core::ElementSpec for DifferentialFormat {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dxf");
+    const SDK_NAME: &'static str = "x:CT_Dxf/x:dxf";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "font")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "numFmt")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "fill")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "alignment")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "border")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "protection")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DifferentialFormat> for Border {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Alignment {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Protection {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Fill {}
+impl ooxml_core::ChildOf<DifferentialFormat> for Font {}
+impl ooxml_core::ChildOf<DifferentialFormat> for NumberingFormat {}
+/// Read-only view of [`DifferentialFormat`].
+#[derive(Clone, Debug)]
+pub struct DifferentialFormatView<'a>(pub ooxml_core::Lens<'a, DifferentialFormat>);
+impl<'a> DifferentialFormatView<'a> {
+    /// First `x:border` child.
+    pub fn border(&self) -> Option<BorderView<'a>> {
+        self.0.child::<Border>().map(BorderView)
+    }
+    /// First `x:alignment` child.
+    pub fn alignment(&self) -> Option<AlignmentView<'a>> {
+        self.0.child::<Alignment>().map(AlignmentView)
+    }
+    /// First `x:protection` child.
+    pub fn protection(&self) -> Option<ProtectionView<'a>> {
+        self.0.child::<Protection>().map(ProtectionView)
+    }
+    /// First `x:fill` child.
+    pub fn fill(&self) -> Option<FillView<'a>> {
+        self.0.child::<Fill>().map(FillView)
+    }
+    /// First `x:font` child.
+    pub fn font(&self) -> Option<FontView<'a>> {
+        self.0.child::<Font>().map(FontView)
+    }
+    /// First `x:numFmt` child.
+    pub fn numbering_format(&self) -> Option<NumberingFormatView<'a>> {
+        self.0.child::<NumberingFormat>().map(NumberingFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DifferentialFormat`]. Reads go through [`DifferentialFormatViewMut::as_view`].
+#[derive(Debug)]
+pub struct DifferentialFormatViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DifferentialFormat>,
+);
+impl<'a> DifferentialFormatViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DifferentialFormatView<'_> {
+        DifferentialFormatView(self.0.as_lens())
+    }
+    /// First `x:border` child, mutably.
+    pub fn border_mut(&mut self) -> Option<BorderViewMut<'_>> {
+        self.0.child_mut::<Border>().map(BorderViewMut)
+    }
+    /// Existing `x:border` child, or a new one in schema position.
+    pub fn get_or_insert_border(
+        &mut self,
+    ) -> Result<BorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Border>().map(BorderViewMut)
+    }
+    /// Removes the first `x:border` child.
+    pub fn remove_border(&mut self) -> bool {
+        self.0.remove::<Border>()
+    }
+    /// First `x:alignment` child, mutably.
+    pub fn alignment_mut(&mut self) -> Option<AlignmentViewMut<'_>> {
+        self.0.child_mut::<Alignment>().map(AlignmentViewMut)
+    }
+    /// Existing `x:alignment` child, or a new one in schema position.
+    pub fn get_or_insert_alignment(
+        &mut self,
+    ) -> Result<AlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Alignment>().map(AlignmentViewMut)
+    }
+    /// Removes the first `x:alignment` child.
+    pub fn remove_alignment(&mut self) -> bool {
+        self.0.remove::<Alignment>()
+    }
+    /// First `x:protection` child, mutably.
+    pub fn protection_mut(&mut self) -> Option<ProtectionViewMut<'_>> {
+        self.0.child_mut::<Protection>().map(ProtectionViewMut)
+    }
+    /// Existing `x:protection` child, or a new one in schema position.
+    pub fn get_or_insert_protection(
+        &mut self,
+    ) -> Result<ProtectionViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Protection>().map(ProtectionViewMut)
+    }
+    /// Removes the first `x:protection` child.
+    pub fn remove_protection(&mut self) -> bool {
+        self.0.remove::<Protection>()
+    }
+    /// First `x:fill` child, mutably.
+    pub fn fill_mut(&mut self) -> Option<FillViewMut<'_>> {
+        self.0.child_mut::<Fill>().map(FillViewMut)
+    }
+    /// Existing `x:fill` child, or a new one in schema position.
+    pub fn get_or_insert_fill(&mut self) -> Result<FillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Fill>().map(FillViewMut)
+    }
+    /// Removes the first `x:fill` child.
+    pub fn remove_fill(&mut self) -> bool {
+        self.0.remove::<Fill>()
+    }
+    /// First `x:font` child, mutably.
+    pub fn font_mut(&mut self) -> Option<FontViewMut<'_>> {
+        self.0.child_mut::<Font>().map(FontViewMut)
+    }
+    /// Existing `x:font` child, or a new one in schema position.
+    pub fn get_or_insert_font(&mut self) -> Result<FontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Font>().map(FontViewMut)
+    }
+    /// Removes the first `x:font` child.
+    pub fn remove_font(&mut self) -> bool {
+        self.0.remove::<Font>()
+    }
+    /// First `x:numFmt` child, mutably.
+    pub fn numbering_format_mut(&mut self) -> Option<NumberingFormatViewMut<'_>> {
+        self.0.child_mut::<NumberingFormat>().map(NumberingFormatViewMut)
+    }
+    /// Existing `x:numFmt` child, or a new one in schema position.
+    pub fn get_or_insert_numbering_format(
+        &mut self,
+    ) -> Result<NumberingFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NumberingFormat>().map(NumberingFormatViewMut)
+    }
+    /// Removes the first `x:numFmt` child.
+    pub fn remove_numbering_format(&mut self) -> bool {
+        self.0.remove::<NumberingFormat>()
+    }
+}
+/// `x:CT_Dxfs/x:dxfs` — Defines the DifferentialFormats Class.
+#[derive(Debug)]
+pub enum DifferentialFormats {}
+impl DifferentialFormats {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for DifferentialFormats {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "dxfs");
+    const SDK_NAME: &'static str = "x:CT_Dxfs/x:dxfs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DifferentialFormats::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "dxf")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<DifferentialFormats> for DifferentialFormat {}
+/// Read-only view of [`DifferentialFormats`].
+#[derive(Clone, Debug)]
+pub struct DifferentialFormatsView<'a>(pub ooxml_core::Lens<'a, DifferentialFormats>);
+impl<'a> DifferentialFormatsView<'a> {
+    /// `count` — Format Count
+    pub fn count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(DifferentialFormats::ATTR_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `x:dxf` children in document order.
+    pub fn differential_format_iter(
+        &self,
+    ) -> impl Iterator<Item = DifferentialFormatView<'a>> {
+        self.0.children::<DifferentialFormat>().map(DifferentialFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DifferentialFormats`]. Reads go through [`DifferentialFormatsViewMut::as_view`].
+#[derive(Debug)]
+pub struct DifferentialFormatsViewMut<'a>(
+    pub ooxml_core::LensMut<'a, DifferentialFormats>,
+);
+impl<'a> DifferentialFormatsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DifferentialFormatsView<'_> {
+        DifferentialFormatsView(self.0.as_lens())
+    }
+    /// Sets `count` — Format Count
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(DifferentialFormats::ATTR_COUNT, s),
+        )
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DifferentialFormats::ATTR_COUNT)
+    }
+    /// First `x:dxf` child matching `pred`, mutably.
+    pub fn differential_format_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DifferentialFormatViewMut<'_>> {
+        self.0.child_mut_by::<DifferentialFormat>(pred).map(DifferentialFormatViewMut)
+    }
+    /// Inserts a `x:dxf` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_differential_format_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DifferentialFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DifferentialFormat>(before).map(DifferentialFormatViewMut)
+    }
+    /// Appends a `x:dxf` at the end of its slot.
+    pub fn insert_differential_format(
+        &mut self,
+    ) -> Result<DifferentialFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DifferentialFormat>().map(DifferentialFormatViewMut)
+    }
+    /// Removes the first `x:dxf` child.
+    pub fn remove_differential_format(&mut self) -> bool {
+        self.0.remove::<DifferentialFormat>()
     }
 }
 /// `x:CT_Fill/x:fill` — Fill.
@@ -4055,6 +8878,95 @@ impl<'a> FillsViewMut<'a> {
     /// Removes the first `x:fill` child.
     pub fn remove_fill(&mut self) -> bool {
         self.0.remove::<Fill>()
+    }
+}
+/// `x:CT_FilterColumn/x:filterColumn` — AutoFilter Column.
+#[derive(Debug)]
+pub enum FilterColumn {}
+impl FilterColumn {
+    /// `colId`
+    pub const ATTR_COL_ID: ooxml_core::QName = ooxml_core::QName::new("", "colId");
+    /// `hiddenButton`
+    pub const ATTR_HIDDEN_BUTTON: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hiddenButton",
+    );
+    /// `showButton`
+    pub const ATTR_SHOW_BUTTON: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showButton",
+    );
+}
+impl ooxml_core::ElementSpec for FilterColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "filterColumn");
+    const SDK_NAME: &'static str = "x:CT_FilterColumn/x:filterColumn";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FilterColumn::ATTR_COL_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FilterColumn::ATTR_HIDDEN_BUTTON,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: FilterColumn::ATTR_SHOW_BUTTON,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X, "filters"),
+                    ooxml_core::QName::new(NS_X, "top10"),
+                    ooxml_core::QName::new(NS_X14, "customFilters"),
+                    ooxml_core::QName::new(NS_X, "customFilters"),
+                    ooxml_core::QName::new(NS_X, "dynamicFilter"),
+                    ooxml_core::QName::new(NS_X, "colorFilter"),
+                    ooxml_core::QName::new(NS_X14, "iconFilter"),
+                    ooxml_core::QName::new(NS_X, "iconFilter"),
+                    ooxml_core::QName::new(NS_X, "extLst"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`FilterColumn`].
+#[derive(Clone, Debug)]
+pub struct FilterColumnView<'a>(pub ooxml_core::Lens<'a, FilterColumn>);
+impl<'a> FilterColumnView<'a> {
+    /// `colId` — Filter Column Data
+    pub fn column_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FilterColumn::ATTR_COL_ID, ooxml_core::value::parse_u32)
+    }
+    /// `hiddenButton` — Hidden AutoFilter Button (default `false`)
+    pub fn hidden_button(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                FilterColumn::ATTR_HIDDEN_BUTTON,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showButton` — Show Filter Button (default `true`)
+    pub fn show_button(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                FilterColumn::ATTR_SHOW_BUTTON,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
     }
 }
 /// `x:CT_Font/x:font` — Font Properties.
@@ -4480,6 +9392,55 @@ impl<'a> FontFamilyNumberingViewMut<'a> {
         self.0.remove_attr(FontFamilyNumbering::ATTR_VAL)
     }
 }
+/// `x:CT_FontName/x:rFont` — Font.
+#[derive(Debug)]
+pub enum RunFont {}
+impl RunFont {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RunFont {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "rFont");
+    const SDK_NAME: &'static str = "x:CT_FontName/x:rFont";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RunFont::ATTR_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RunFont`].
+#[derive(Clone, Debug)]
+pub struct RunFontView<'a>(pub ooxml_core::Lens<'a, RunFont>);
+impl<'a> RunFontView<'a> {
+    /// `val` — String Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(RunFont::ATTR_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunFont`]. Reads go through [`RunFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunFontViewMut<'a>(pub ooxml_core::LensMut<'a, RunFont>);
+impl<'a> RunFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunFontView<'_> {
+        RunFontView(self.0.as_lens())
+    }
+    /// Sets `val` — String Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(RunFont::ATTR_VAL, v)
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunFont::ATTR_VAL)
+    }
+}
 /// `x:CT_FontNameNonEmpty/x:name` — Font Name.
 #[derive(Debug)]
 pub enum FontName {}
@@ -4736,6 +9697,779 @@ impl<'a> FontsViewMut<'a> {
         self.0.remove::<Font>()
     }
 }
+/// `x:CT_HeaderFooter/x:headerFooter` — Header Footer Settings.
+#[derive(Debug)]
+pub enum HeaderFooter {}
+impl HeaderFooter {
+    /// `differentOddEven`
+    pub const ATTR_DIFFERENT_ODD_EVEN: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "differentOddEven",
+    );
+    /// `differentFirst`
+    pub const ATTR_DIFFERENT_FIRST: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "differentFirst",
+    );
+    /// `scaleWithDoc`
+    pub const ATTR_SCALE_WITH_DOC: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "scaleWithDoc",
+    );
+    /// `alignWithMargins`
+    pub const ATTR_ALIGN_WITH_MARGINS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "alignWithMargins",
+    );
+}
+impl ooxml_core::ElementSpec for HeaderFooter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "headerFooter");
+    const SDK_NAME: &'static str = "x:CT_HeaderFooter/x:headerFooter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: HeaderFooter::ATTR_DIFFERENT_ODD_EVEN,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: HeaderFooter::ATTR_DIFFERENT_FIRST,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: HeaderFooter::ATTR_SCALE_WITH_DOC,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: HeaderFooter::ATTR_ALIGN_WITH_MARGINS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "oddHeader")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "oddFooter")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "evenHeader")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "evenFooter")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "firstHeader")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "firstFooter")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<HeaderFooter> for EvenFooter {}
+impl ooxml_core::ChildOf<HeaderFooter> for EvenHeader {}
+impl ooxml_core::ChildOf<HeaderFooter> for FirstFooter {}
+impl ooxml_core::ChildOf<HeaderFooter> for FirstHeader {}
+impl ooxml_core::ChildOf<HeaderFooter> for OddFooter {}
+impl ooxml_core::ChildOf<HeaderFooter> for OddHeader {}
+/// Read-only view of [`HeaderFooter`].
+#[derive(Clone, Debug)]
+pub struct HeaderFooterView<'a>(pub ooxml_core::Lens<'a, HeaderFooter>);
+impl<'a> HeaderFooterView<'a> {
+    /// `differentOddEven` — Different Odd Even Header Footer (default `false`)
+    pub fn different_odd_even(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HeaderFooter::ATTR_DIFFERENT_ODD_EVEN,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `differentFirst` — Different First Page (default `false`)
+    pub fn different_first(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HeaderFooter::ATTR_DIFFERENT_FIRST,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `scaleWithDoc` — Scale Header and Footer With Document (default `true`)
+    pub fn scale_with_doc(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HeaderFooter::ATTR_SCALE_WITH_DOC,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `alignWithMargins` — Align Margins (default `true`)
+    pub fn align_with_margins(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                HeaderFooter::ATTR_ALIGN_WITH_MARGINS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `x:evenFooter` child.
+    pub fn even_footer(&self) -> Option<EvenFooterView<'a>> {
+        self.0.child::<EvenFooter>().map(EvenFooterView)
+    }
+    /// First `x:evenHeader` child.
+    pub fn even_header(&self) -> Option<EvenHeaderView<'a>> {
+        self.0.child::<EvenHeader>().map(EvenHeaderView)
+    }
+    /// First `x:firstFooter` child.
+    pub fn first_footer(&self) -> Option<FirstFooterView<'a>> {
+        self.0.child::<FirstFooter>().map(FirstFooterView)
+    }
+    /// First `x:firstHeader` child.
+    pub fn first_header(&self) -> Option<FirstHeaderView<'a>> {
+        self.0.child::<FirstHeader>().map(FirstHeaderView)
+    }
+    /// First `x:oddFooter` child.
+    pub fn odd_footer(&self) -> Option<OddFooterView<'a>> {
+        self.0.child::<OddFooter>().map(OddFooterView)
+    }
+    /// First `x:oddHeader` child.
+    pub fn odd_header(&self) -> Option<OddHeaderView<'a>> {
+        self.0.child::<OddHeader>().map(OddHeaderView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`HeaderFooter`]. Reads go through [`HeaderFooterViewMut::as_view`].
+#[derive(Debug)]
+pub struct HeaderFooterViewMut<'a>(pub ooxml_core::LensMut<'a, HeaderFooter>);
+impl<'a> HeaderFooterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HeaderFooterView<'_> {
+        HeaderFooterView(self.0.as_lens())
+    }
+    /// Sets `differentOddEven` — Different Odd Even Header Footer (default `false`)
+    pub fn set_different_odd_even(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HeaderFooter::ATTR_DIFFERENT_ODD_EVEN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `differentOddEven`.
+    pub fn remove_different_odd_even(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeaderFooter::ATTR_DIFFERENT_ODD_EVEN)
+    }
+    /// Sets `differentFirst` — Different First Page (default `false`)
+    pub fn set_different_first(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HeaderFooter::ATTR_DIFFERENT_FIRST,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `differentFirst`.
+    pub fn remove_different_first(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeaderFooter::ATTR_DIFFERENT_FIRST)
+    }
+    /// Sets `scaleWithDoc` — Scale Header and Footer With Document (default `true`)
+    pub fn set_scale_with_doc(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HeaderFooter::ATTR_SCALE_WITH_DOC,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `scaleWithDoc`.
+    pub fn remove_scale_with_doc(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeaderFooter::ATTR_SCALE_WITH_DOC)
+    }
+    /// Sets `alignWithMargins` — Align Margins (default `true`)
+    pub fn set_align_with_margins(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                HeaderFooter::ATTR_ALIGN_WITH_MARGINS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `alignWithMargins`.
+    pub fn remove_align_with_margins(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(HeaderFooter::ATTR_ALIGN_WITH_MARGINS)
+    }
+    /// First `x:evenFooter` child, mutably.
+    pub fn even_footer_mut(&mut self) -> Option<EvenFooterViewMut<'_>> {
+        self.0.child_mut::<EvenFooter>().map(EvenFooterViewMut)
+    }
+    /// Existing `x:evenFooter` child, or a new one in schema position.
+    pub fn get_or_insert_even_footer(
+        &mut self,
+    ) -> Result<EvenFooterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EvenFooter>().map(EvenFooterViewMut)
+    }
+    /// Removes the first `x:evenFooter` child.
+    pub fn remove_even_footer(&mut self) -> bool {
+        self.0.remove::<EvenFooter>()
+    }
+    /// First `x:evenHeader` child, mutably.
+    pub fn even_header_mut(&mut self) -> Option<EvenHeaderViewMut<'_>> {
+        self.0.child_mut::<EvenHeader>().map(EvenHeaderViewMut)
+    }
+    /// Existing `x:evenHeader` child, or a new one in schema position.
+    pub fn get_or_insert_even_header(
+        &mut self,
+    ) -> Result<EvenHeaderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EvenHeader>().map(EvenHeaderViewMut)
+    }
+    /// Removes the first `x:evenHeader` child.
+    pub fn remove_even_header(&mut self) -> bool {
+        self.0.remove::<EvenHeader>()
+    }
+    /// First `x:firstFooter` child, mutably.
+    pub fn first_footer_mut(&mut self) -> Option<FirstFooterViewMut<'_>> {
+        self.0.child_mut::<FirstFooter>().map(FirstFooterViewMut)
+    }
+    /// Existing `x:firstFooter` child, or a new one in schema position.
+    pub fn get_or_insert_first_footer(
+        &mut self,
+    ) -> Result<FirstFooterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FirstFooter>().map(FirstFooterViewMut)
+    }
+    /// Removes the first `x:firstFooter` child.
+    pub fn remove_first_footer(&mut self) -> bool {
+        self.0.remove::<FirstFooter>()
+    }
+    /// First `x:firstHeader` child, mutably.
+    pub fn first_header_mut(&mut self) -> Option<FirstHeaderViewMut<'_>> {
+        self.0.child_mut::<FirstHeader>().map(FirstHeaderViewMut)
+    }
+    /// Existing `x:firstHeader` child, or a new one in schema position.
+    pub fn get_or_insert_first_header(
+        &mut self,
+    ) -> Result<FirstHeaderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FirstHeader>().map(FirstHeaderViewMut)
+    }
+    /// Removes the first `x:firstHeader` child.
+    pub fn remove_first_header(&mut self) -> bool {
+        self.0.remove::<FirstHeader>()
+    }
+    /// First `x:oddFooter` child, mutably.
+    pub fn odd_footer_mut(&mut self) -> Option<OddFooterViewMut<'_>> {
+        self.0.child_mut::<OddFooter>().map(OddFooterViewMut)
+    }
+    /// Existing `x:oddFooter` child, or a new one in schema position.
+    pub fn get_or_insert_odd_footer(
+        &mut self,
+    ) -> Result<OddFooterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<OddFooter>().map(OddFooterViewMut)
+    }
+    /// Removes the first `x:oddFooter` child.
+    pub fn remove_odd_footer(&mut self) -> bool {
+        self.0.remove::<OddFooter>()
+    }
+    /// First `x:oddHeader` child, mutably.
+    pub fn odd_header_mut(&mut self) -> Option<OddHeaderViewMut<'_>> {
+        self.0.child_mut::<OddHeader>().map(OddHeaderViewMut)
+    }
+    /// Existing `x:oddHeader` child, or a new one in schema position.
+    pub fn get_or_insert_odd_header(
+        &mut self,
+    ) -> Result<OddHeaderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<OddHeader>().map(OddHeaderViewMut)
+    }
+    /// Removes the first `x:oddHeader` child.
+    pub fn remove_odd_header(&mut self) -> bool {
+        self.0.remove::<OddHeader>()
+    }
+}
+/// `x:CT_Hyperlink/x:hyperlink` — Hyperlink.
+#[derive(Debug)]
+pub enum Hyperlink {}
+impl Hyperlink {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `location`
+    pub const ATTR_LOCATION: ooxml_core::QName = ooxml_core::QName::new("", "location");
+    /// `tooltip`
+    pub const ATTR_TOOLTIP: ooxml_core::QName = ooxml_core::QName::new("", "tooltip");
+    /// `display`
+    pub const ATTR_DISPLAY: ooxml_core::QName = ooxml_core::QName::new("", "display");
+}
+impl ooxml_core::ElementSpec for Hyperlink {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "hyperlink");
+    const SDK_NAME: &'static str = "x:CT_Hyperlink/x:hyperlink";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_LOCATION,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_TOOLTIP,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Hyperlink::ATTR_DISPLAY,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Hyperlink`].
+#[derive(Clone, Debug)]
+pub struct HyperlinkView<'a>(pub ooxml_core::Lens<'a, Hyperlink>);
+impl<'a> HyperlinkView<'a> {
+    /// `ref` — Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_REF)
+    }
+    /// `r:id` — Relationship Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_R_ID)
+    }
+    /// `location` — Location
+    pub fn location(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_LOCATION)
+    }
+    /// `tooltip` — Tool Tip
+    pub fn tooltip(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_TOOLTIP)
+    }
+    /// `display` — Display String
+    pub fn display(&self) -> Option<&'a str> {
+        self.0.attr(Hyperlink::ATTR_DISPLAY)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Hyperlink`]. Reads go through [`HyperlinkViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkViewMut<'a>(pub ooxml_core::LensMut<'a, Hyperlink>);
+impl<'a> HyperlinkViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkView<'_> {
+        HyperlinkView(self.0.as_lens())
+    }
+    /// Sets `ref` — Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_REF)
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_R_ID)
+    }
+    /// Sets `location` — Location
+    pub fn set_location(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_LOCATION, v)
+    }
+    /// Removes `location`.
+    pub fn remove_location(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_LOCATION)
+    }
+    /// Sets `tooltip` — Tool Tip
+    pub fn set_tooltip(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_TOOLTIP, v)
+    }
+    /// Removes `tooltip`.
+    pub fn remove_tooltip(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_TOOLTIP)
+    }
+    /// Sets `display` — Display String
+    pub fn set_display(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Hyperlink::ATTR_DISPLAY, v)
+    }
+    /// Removes `display`.
+    pub fn remove_display(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Hyperlink::ATTR_DISPLAY)
+    }
+}
+/// `x:CT_Hyperlinks/x:hyperlinks` — Defines the Hyperlinks Class.
+#[derive(Debug)]
+pub enum Hyperlinks {}
+impl ooxml_core::ElementSpec for Hyperlinks {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "hyperlinks");
+    const SDK_NAME: &'static str = "x:CT_Hyperlinks/x:hyperlinks";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "hyperlink")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Hyperlinks> for Hyperlink {}
+/// Read-only view of [`Hyperlinks`].
+#[derive(Clone, Debug)]
+pub struct HyperlinksView<'a>(pub ooxml_core::Lens<'a, Hyperlinks>);
+impl<'a> HyperlinksView<'a> {
+    /// `x:hyperlink` children in document order.
+    pub fn hyperlink_iter(&self) -> impl Iterator<Item = HyperlinkView<'a>> {
+        self.0.children::<Hyperlink>().map(HyperlinkView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Hyperlinks`]. Reads go through [`HyperlinksViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinksViewMut<'a>(pub ooxml_core::LensMut<'a, Hyperlinks>);
+impl<'a> HyperlinksViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinksView<'_> {
+        HyperlinksView(self.0.as_lens())
+    }
+    /// First `x:hyperlink` child matching `pred`, mutably.
+    pub fn hyperlink_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HyperlinkViewMut<'_>> {
+        self.0.child_mut_by::<Hyperlink>(pred).map(HyperlinkViewMut)
+    }
+    /// Inserts a `x:hyperlink` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hyperlink_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hyperlink>(before).map(HyperlinkViewMut)
+    }
+    /// Appends a `x:hyperlink` at the end of its slot.
+    pub fn insert_hyperlink(
+        &mut self,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hyperlink>().map(HyperlinkViewMut)
+    }
+    /// Removes the first `x:hyperlink` child.
+    pub fn remove_hyperlink(&mut self) -> bool {
+        self.0.remove::<Hyperlink>()
+    }
+}
+/// `x:CT_IconSet/x:iconSet` — Icon Set.
+#[derive(Debug)]
+pub enum IconSet {}
+impl IconSet {
+    /// `iconSet`
+    pub const ATTR_ICON_SET: ooxml_core::QName = ooxml_core::QName::new("", "iconSet");
+    /// `showValue`
+    pub const ATTR_SHOW_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showValue",
+    );
+    /// `percent`
+    pub const ATTR_PERCENT: ooxml_core::QName = ooxml_core::QName::new("", "percent");
+    /// `reverse`
+    pub const ATTR_REVERSE: ooxml_core::QName = ooxml_core::QName::new("", "reverse");
+}
+impl ooxml_core::ElementSpec for IconSet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "iconSet");
+    const SDK_NAME: &'static str = "x:CT_IconSet/x:iconSet";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: IconSet::ATTR_ICON_SET,
+            ty: ooxml_core::SimpleType::Enum(
+                <IconSetValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("3TrafficLights1"),
+        },
+        ooxml_core::AttrSpec {
+            name: IconSet::ATTR_SHOW_VALUE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: IconSet::ATTR_PERCENT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: IconSet::ATTR_REVERSE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cfvo")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<IconSet> for ConditionalFormatValueObject {}
+/// Read-only view of [`IconSet`].
+#[derive(Clone, Debug)]
+pub struct IconSetView<'a>(pub ooxml_core::Lens<'a, IconSet>);
+impl<'a> IconSetView<'a> {
+    /// `iconSet` — Icon Set (default `3TrafficLights1`)
+    pub fn icon_set_value(&self) -> ooxml_core::EnumValue<'a, IconSetValues> {
+        self.0.attr_enum_or(IconSet::ATTR_ICON_SET, "3TrafficLights1")
+    }
+    /// `showValue` — Show Value (default `true`)
+    pub fn show_value(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                IconSet::ATTR_SHOW_VALUE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `percent` — Percent (default `true`)
+    pub fn percent(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(IconSet::ATTR_PERCENT, "true", ooxml_core::value::parse_bool)
+    }
+    /// `reverse` — Reverse Icons (default `false`)
+    pub fn reverse(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                IconSet::ATTR_REVERSE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `x:cfvo` children in document order.
+    pub fn conditional_format_value_object_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormatValueObjectView<'a>> {
+        self.0
+            .children::<ConditionalFormatValueObject>()
+            .map(ConditionalFormatValueObjectView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`IconSet`]. Reads go through [`IconSetViewMut::as_view`].
+#[derive(Debug)]
+pub struct IconSetViewMut<'a>(pub ooxml_core::LensMut<'a, IconSet>);
+impl<'a> IconSetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> IconSetView<'_> {
+        IconSetView(self.0.as_lens())
+    }
+    /// Sets `iconSet` — Icon Set (default `3TrafficLights1`)
+    pub fn set_icon_set_value(
+        &mut self,
+        v: IconSetValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(IconSet::ATTR_ICON_SET, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `iconSet`.
+    pub fn remove_icon_set_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(IconSet::ATTR_ICON_SET)
+    }
+    /// Sets `showValue` — Show Value (default `true`)
+    pub fn set_show_value(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(IconSet::ATTR_SHOW_VALUE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `showValue`.
+    pub fn remove_show_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(IconSet::ATTR_SHOW_VALUE)
+    }
+    /// Sets `percent` — Percent (default `true`)
+    pub fn set_percent(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(IconSet::ATTR_PERCENT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `percent`.
+    pub fn remove_percent(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(IconSet::ATTR_PERCENT)
+    }
+    /// Sets `reverse` — Reverse Icons (default `false`)
+    pub fn set_reverse(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(IconSet::ATTR_REVERSE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `reverse`.
+    pub fn remove_reverse(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(IconSet::ATTR_REVERSE)
+    }
+    /// First `x:cfvo` child matching `pred`, mutably.
+    pub fn conditional_format_value_object_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormatValueObjectViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormatValueObject>(pred)
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Inserts a `x:cfvo` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_format_value_object_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormatValueObjectViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormatValueObject>(before)
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Appends a `x:cfvo` at the end of its slot.
+    pub fn insert_conditional_format_value_object(
+        &mut self,
+    ) -> Result<ConditionalFormatValueObjectViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert::<ConditionalFormatValueObject>()
+            .map(ConditionalFormatValueObjectViewMut)
+    }
+    /// Removes the first `x:cfvo` child.
+    pub fn remove_conditional_format_value_object(&mut self) -> bool {
+        self.0.remove::<ConditionalFormatValueObject>()
+    }
+}
+/// `x:CT_IntProperty/x:charset` — Character Set.
+#[derive(Debug)]
+pub enum RunPropertyCharSet {}
+impl RunPropertyCharSet {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for RunPropertyCharSet {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "charset");
+    const SDK_NAME: &'static str = "x:CT_IntProperty/x:charset";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RunPropertyCharSet::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`RunPropertyCharSet`].
+#[derive(Clone, Debug)]
+pub struct RunPropertyCharSetView<'a>(pub ooxml_core::Lens<'a, RunPropertyCharSet>);
+impl<'a> RunPropertyCharSetView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(RunPropertyCharSet::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunPropertyCharSet`]. Reads go through [`RunPropertyCharSetViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunPropertyCharSetViewMut<'a>(
+    pub ooxml_core::LensMut<'a, RunPropertyCharSet>,
+);
+impl<'a> RunPropertyCharSetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunPropertyCharSetView<'_> {
+        RunPropertyCharSetView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(RunPropertyCharSet::ATTR_VAL, s),
+        )
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RunPropertyCharSet::ATTR_VAL)
+    }
+}
+/// `x:CT_IntProperty/x:family` — Font Family.
+#[derive(Debug)]
+pub enum FontFamily {}
+impl FontFamily {
+    /// `val`
+    pub const ATTR_VAL: ooxml_core::QName = ooxml_core::QName::new("", "val");
+}
+impl ooxml_core::ElementSpec for FontFamily {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "family");
+    const SDK_NAME: &'static str = "x:CT_IntProperty/x:family";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FontFamily::ATTR_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FontFamily`].
+#[derive(Clone, Debug)]
+pub struct FontFamilyView<'a>(pub ooxml_core::Lens<'a, FontFamily>);
+impl<'a> FontFamilyView<'a> {
+    /// `val` — Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FontFamily::ATTR_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FontFamily`]. Reads go through [`FontFamilyViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontFamilyViewMut<'a>(pub ooxml_core::LensMut<'a, FontFamily>);
+impl<'a> FontFamilyViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontFamilyView<'_> {
+        FontFamilyView(self.0.as_lens())
+    }
+    /// Sets `val` — Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(FontFamily::ATTR_VAL, s))
+    }
+    /// Removes `val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontFamily::ATTR_VAL)
+    }
+}
 /// `x:CT_MergeCell/x:mergeCell` — Merged Cell.
 #[derive(Debug)]
 pub enum MergeCell {}
@@ -4766,6 +10500,23 @@ impl<'a> MergeCellView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`MergeCell`]. Reads go through [`MergeCellViewMut::as_view`].
+#[derive(Debug)]
+pub struct MergeCellViewMut<'a>(pub ooxml_core::LensMut<'a, MergeCell>);
+impl<'a> MergeCellViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MergeCellView<'_> {
+        MergeCellView(self.0.as_lens())
+    }
+    /// Sets `ref` — Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(MergeCell::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(MergeCell::ATTR_REF)
     }
 }
 /// `x:CT_MergeCells/x:mergeCells` — Defines the MergeCells Class.
@@ -4812,6 +10563,47 @@ impl<'a> MergeCellsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`MergeCells`]. Reads go through [`MergeCellsViewMut::as_view`].
+#[derive(Debug)]
+pub struct MergeCellsViewMut<'a>(pub ooxml_core::LensMut<'a, MergeCells>);
+impl<'a> MergeCellsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MergeCellsView<'_> {
+        MergeCellsView(self.0.as_lens())
+    }
+    /// Sets `count` — Count
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(MergeCells::ATTR_COUNT, s))
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(MergeCells::ATTR_COUNT)
+    }
+    /// First `x:mergeCell` child matching `pred`, mutably.
+    pub fn merge_cell_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<MergeCellViewMut<'_>> {
+        self.0.child_mut_by::<MergeCell>(pred).map(MergeCellViewMut)
+    }
+    /// Inserts a `x:mergeCell` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_merge_cell_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<MergeCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<MergeCell>(before).map(MergeCellViewMut)
+    }
+    /// Appends a `x:mergeCell` at the end of its slot.
+    pub fn insert_merge_cell(
+        &mut self,
+    ) -> Result<MergeCellViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<MergeCell>().map(MergeCellViewMut)
+    }
+    /// Removes the first `x:mergeCell` child.
+    pub fn remove_merge_cell(&mut self) -> bool {
+        self.0.remove::<MergeCell>()
     }
 }
 /// `x:CT_NumFmt/x:numFmt` — Number Formats.
@@ -4984,6 +10776,1099 @@ impl<'a> NumberingFormatsViewMut<'a> {
         self.0.remove::<NumberingFormat>()
     }
 }
+/// `x:CT_PageBreak/x:colBreaks` — Vertical Page Breaks.
+#[derive(Debug)]
+pub enum ColumnBreaks {}
+impl ColumnBreaks {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+    /// `manualBreakCount`
+    pub const ATTR_MANUAL_BREAK_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "manualBreakCount",
+    );
+}
+impl ooxml_core::ElementSpec for ColumnBreaks {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "colBreaks");
+    const SDK_NAME: &'static str = "x:CT_PageBreak/x:colBreaks";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ColumnBreaks::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: ColumnBreaks::ATTR_MANUAL_BREAK_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "brk")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ColumnBreaks> for Break {}
+/// Read-only view of [`ColumnBreaks`].
+#[derive(Clone, Debug)]
+pub struct ColumnBreaksView<'a>(pub ooxml_core::Lens<'a, ColumnBreaks>);
+impl<'a> ColumnBreaksView<'a> {
+    /// `count` — Page Break Count (default `0`)
+    pub fn count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(ColumnBreaks::ATTR_COUNT, "0", ooxml_core::value::parse_u32)
+    }
+    /// `manualBreakCount` — Manual Break Count (default `0`)
+    pub fn manual_break_count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ColumnBreaks::ATTR_MANUAL_BREAK_COUNT,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `x:brk` children in document order.
+    pub fn break_iter(&self) -> impl Iterator<Item = BreakView<'a>> {
+        self.0.children::<Break>().map(BreakView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ColumnBreaks`]. Reads go through [`ColumnBreaksViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColumnBreaksViewMut<'a>(pub ooxml_core::LensMut<'a, ColumnBreaks>);
+impl<'a> ColumnBreaksViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColumnBreaksView<'_> {
+        ColumnBreaksView(self.0.as_lens())
+    }
+    /// Sets `count` — Page Break Count (default `0`)
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(ColumnBreaks::ATTR_COUNT, s))
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ColumnBreaks::ATTR_COUNT)
+    }
+    /// Sets `manualBreakCount` — Manual Break Count (default `0`)
+    pub fn set_manual_break_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(ColumnBreaks::ATTR_MANUAL_BREAK_COUNT, s),
+        )
+    }
+    /// Removes `manualBreakCount`.
+    pub fn remove_manual_break_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ColumnBreaks::ATTR_MANUAL_BREAK_COUNT)
+    }
+    /// First `x:brk` child matching `pred`, mutably.
+    pub fn break_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BreakViewMut<'_>> {
+        self.0.child_mut_by::<Break>(pred).map(BreakViewMut)
+    }
+    /// Inserts a `x:brk` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_break_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BreakViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Break>(before).map(BreakViewMut)
+    }
+    /// Appends a `x:brk` at the end of its slot.
+    pub fn insert_break(&mut self) -> Result<BreakViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Break>().map(BreakViewMut)
+    }
+    /// Removes the first `x:brk` child.
+    pub fn remove_break(&mut self) -> bool {
+        self.0.remove::<Break>()
+    }
+}
+/// `x:CT_PageBreak/x:rowBreaks` — Horizontal Page Breaks.
+#[derive(Debug)]
+pub enum RowBreaks {}
+impl RowBreaks {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+    /// `manualBreakCount`
+    pub const ATTR_MANUAL_BREAK_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "manualBreakCount",
+    );
+}
+impl ooxml_core::ElementSpec for RowBreaks {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "rowBreaks");
+    const SDK_NAME: &'static str = "x:CT_PageBreak/x:rowBreaks";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: RowBreaks::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: RowBreaks::ATTR_MANUAL_BREAK_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "brk")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<RowBreaks> for Break {}
+/// Read-only view of [`RowBreaks`].
+#[derive(Clone, Debug)]
+pub struct RowBreaksView<'a>(pub ooxml_core::Lens<'a, RowBreaks>);
+impl<'a> RowBreaksView<'a> {
+    /// `count` — Page Break Count (default `0`)
+    pub fn count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(RowBreaks::ATTR_COUNT, "0", ooxml_core::value::parse_u32)
+    }
+    /// `manualBreakCount` — Manual Break Count (default `0`)
+    pub fn manual_break_count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                RowBreaks::ATTR_MANUAL_BREAK_COUNT,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `x:brk` children in document order.
+    pub fn break_iter(&self) -> impl Iterator<Item = BreakView<'a>> {
+        self.0.children::<Break>().map(BreakView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RowBreaks`]. Reads go through [`RowBreaksViewMut::as_view`].
+#[derive(Debug)]
+pub struct RowBreaksViewMut<'a>(pub ooxml_core::LensMut<'a, RowBreaks>);
+impl<'a> RowBreaksViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RowBreaksView<'_> {
+        RowBreaksView(self.0.as_lens())
+    }
+    /// Sets `count` — Page Break Count (default `0`)
+    pub fn set_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(RowBreaks::ATTR_COUNT, s))
+    }
+    /// Removes `count`.
+    pub fn remove_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RowBreaks::ATTR_COUNT)
+    }
+    /// Sets `manualBreakCount` — Manual Break Count (default `0`)
+    pub fn set_manual_break_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(RowBreaks::ATTR_MANUAL_BREAK_COUNT, s),
+        )
+    }
+    /// Removes `manualBreakCount`.
+    pub fn remove_manual_break_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(RowBreaks::ATTR_MANUAL_BREAK_COUNT)
+    }
+    /// First `x:brk` child matching `pred`, mutably.
+    pub fn break_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BreakViewMut<'_>> {
+        self.0.child_mut_by::<Break>(pred).map(BreakViewMut)
+    }
+    /// Inserts a `x:brk` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_break_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BreakViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Break>(before).map(BreakViewMut)
+    }
+    /// Appends a `x:brk` at the end of its slot.
+    pub fn insert_break(&mut self) -> Result<BreakViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Break>().map(BreakViewMut)
+    }
+    /// Removes the first `x:brk` child.
+    pub fn remove_break(&mut self) -> bool {
+        self.0.remove::<Break>()
+    }
+}
+/// `x:CT_PageMargins/x:pageMargins` — Page Margins.
+#[derive(Debug)]
+pub enum PageMargins {}
+impl PageMargins {
+    /// `left`
+    pub const ATTR_LEFT: ooxml_core::QName = ooxml_core::QName::new("", "left");
+    /// `right`
+    pub const ATTR_RIGHT: ooxml_core::QName = ooxml_core::QName::new("", "right");
+    /// `top`
+    pub const ATTR_TOP: ooxml_core::QName = ooxml_core::QName::new("", "top");
+    /// `bottom`
+    pub const ATTR_BOTTOM: ooxml_core::QName = ooxml_core::QName::new("", "bottom");
+    /// `header`
+    pub const ATTR_HEADER: ooxml_core::QName = ooxml_core::QName::new("", "header");
+    /// `footer`
+    pub const ATTR_FOOTER: ooxml_core::QName = ooxml_core::QName::new("", "footer");
+}
+impl ooxml_core::ElementSpec for PageMargins {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "pageMargins");
+    const SDK_NAME: &'static str = "x:CT_PageMargins/x:pageMargins";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PageMargins::ATTR_LEFT,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PageMargins::ATTR_RIGHT,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PageMargins::ATTR_TOP,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PageMargins::ATTR_BOTTOM,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PageMargins::ATTR_HEADER,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PageMargins::ATTR_FOOTER,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PageMargins`].
+#[derive(Clone, Debug)]
+pub struct PageMarginsView<'a>(pub ooxml_core::Lens<'a, PageMargins>);
+impl<'a> PageMarginsView<'a> {
+    /// `left` — Left Page Margin
+    pub fn left(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PageMargins::ATTR_LEFT, ooxml_core::value::parse_f64)
+    }
+    /// `right` — Right Page Margin
+    pub fn right(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PageMargins::ATTR_RIGHT, ooxml_core::value::parse_f64)
+    }
+    /// `top` — Top Page Margin
+    pub fn top(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PageMargins::ATTR_TOP, ooxml_core::value::parse_f64)
+    }
+    /// `bottom` — Bottom Page Margin
+    pub fn bottom(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PageMargins::ATTR_BOTTOM, ooxml_core::value::parse_f64)
+    }
+    /// `header` — Header Page Margin
+    pub fn header(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PageMargins::ATTR_HEADER, ooxml_core::value::parse_f64)
+    }
+    /// `footer` — Footer Page Margin
+    pub fn footer(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(PageMargins::ATTR_FOOTER, ooxml_core::value::parse_f64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PageMargins`]. Reads go through [`PageMarginsViewMut::as_view`].
+#[derive(Debug)]
+pub struct PageMarginsViewMut<'a>(pub ooxml_core::LensMut<'a, PageMargins>);
+impl<'a> PageMarginsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PageMarginsView<'_> {
+        PageMarginsView(self.0.as_lens())
+    }
+    /// Sets `left` — Left Page Margin
+    pub fn set_left(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageMargins::ATTR_LEFT, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `left`.
+    pub fn remove_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageMargins::ATTR_LEFT)
+    }
+    /// Sets `right` — Right Page Margin
+    pub fn set_right(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageMargins::ATTR_RIGHT, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `right`.
+    pub fn remove_right(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageMargins::ATTR_RIGHT)
+    }
+    /// Sets `top` — Top Page Margin
+    pub fn set_top(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageMargins::ATTR_TOP, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `top`.
+    pub fn remove_top(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageMargins::ATTR_TOP)
+    }
+    /// Sets `bottom` — Bottom Page Margin
+    pub fn set_bottom(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageMargins::ATTR_BOTTOM, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `bottom`.
+    pub fn remove_bottom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageMargins::ATTR_BOTTOM)
+    }
+    /// Sets `header` — Header Page Margin
+    pub fn set_header(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageMargins::ATTR_HEADER, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `header`.
+    pub fn remove_header(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageMargins::ATTR_HEADER)
+    }
+    /// Sets `footer` — Footer Page Margin
+    pub fn set_footer(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageMargins::ATTR_FOOTER, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `footer`.
+    pub fn remove_footer(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageMargins::ATTR_FOOTER)
+    }
+}
+/// `x:CT_PageSetUpPr/x:pageSetUpPr` — Page Setup Properties.
+#[derive(Debug)]
+pub enum PageSetupProperties {}
+impl PageSetupProperties {
+    /// `autoPageBreaks`
+    pub const ATTR_AUTO_PAGE_BREAKS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoPageBreaks",
+    );
+    /// `fitToPage`
+    pub const ATTR_FIT_TO_PAGE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fitToPage",
+    );
+}
+impl ooxml_core::ElementSpec for PageSetupProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "pageSetUpPr");
+    const SDK_NAME: &'static str = "x:CT_PageSetUpPr/x:pageSetUpPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PageSetupProperties::ATTR_AUTO_PAGE_BREAKS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetupProperties::ATTR_FIT_TO_PAGE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PageSetupProperties`].
+#[derive(Clone, Debug)]
+pub struct PageSetupPropertiesView<'a>(pub ooxml_core::Lens<'a, PageSetupProperties>);
+impl<'a> PageSetupPropertiesView<'a> {
+    /// `autoPageBreaks` — Show Auto Page Breaks (default `true`)
+    pub fn auto_page_breaks(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetupProperties::ATTR_AUTO_PAGE_BREAKS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `fitToPage` — Fit To Page (default `false`)
+    pub fn fit_to_page(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetupProperties::ATTR_FIT_TO_PAGE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PageSetupProperties`]. Reads go through [`PageSetupPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct PageSetupPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, PageSetupProperties>,
+);
+impl<'a> PageSetupPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PageSetupPropertiesView<'_> {
+        PageSetupPropertiesView(self.0.as_lens())
+    }
+    /// Sets `autoPageBreaks` — Show Auto Page Breaks (default `true`)
+    pub fn set_auto_page_breaks(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PageSetupProperties::ATTR_AUTO_PAGE_BREAKS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `autoPageBreaks`.
+    pub fn remove_auto_page_breaks(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetupProperties::ATTR_AUTO_PAGE_BREAKS)
+    }
+    /// Sets `fitToPage` — Fit To Page (default `false`)
+    pub fn set_fit_to_page(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PageSetupProperties::ATTR_FIT_TO_PAGE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `fitToPage`.
+    pub fn remove_fit_to_page(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetupProperties::ATTR_FIT_TO_PAGE)
+    }
+}
+/// `x:CT_PageSetup/x:pageSetup` — Page Setup Settings.
+#[derive(Debug)]
+pub enum PageSetup {}
+impl PageSetup {
+    /// `paperSize`
+    pub const ATTR_PAPER_SIZE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "paperSize",
+    );
+    /// `scale`
+    pub const ATTR_SCALE: ooxml_core::QName = ooxml_core::QName::new("", "scale");
+    /// `firstPageNumber`
+    pub const ATTR_FIRST_PAGE_NUMBER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "firstPageNumber",
+    );
+    /// `fitToWidth`
+    pub const ATTR_FIT_TO_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fitToWidth",
+    );
+    /// `fitToHeight`
+    pub const ATTR_FIT_TO_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "fitToHeight",
+    );
+    /// `pageOrder`
+    pub const ATTR_PAGE_ORDER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pageOrder",
+    );
+    /// `orientation`
+    pub const ATTR_ORIENTATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "orientation",
+    );
+    /// `usePrinterDefaults`
+    pub const ATTR_USE_PRINTER_DEFAULTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "usePrinterDefaults",
+    );
+    /// `blackAndWhite`
+    pub const ATTR_BLACK_AND_WHITE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "blackAndWhite",
+    );
+    /// `draft`
+    pub const ATTR_DRAFT: ooxml_core::QName = ooxml_core::QName::new("", "draft");
+    /// `cellComments`
+    pub const ATTR_CELL_COMMENTS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "cellComments",
+    );
+    /// `useFirstPageNumber`
+    pub const ATTR_USE_FIRST_PAGE_NUMBER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "useFirstPageNumber",
+    );
+    /// `errors`
+    pub const ATTR_ERRORS: ooxml_core::QName = ooxml_core::QName::new("", "errors");
+    /// `horizontalDpi`
+    pub const ATTR_HORIZONTAL_DPI: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "horizontalDpi",
+    );
+    /// `verticalDpi`
+    pub const ATTR_VERTICAL_DPI: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "verticalDpi",
+    );
+    /// `copies`
+    pub const ATTR_COPIES: ooxml_core::QName = ooxml_core::QName::new("", "copies");
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for PageSetup {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "pageSetup");
+    const SDK_NAME: &'static str = "x:CT_PageSetup/x:pageSetup";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_PAPER_SIZE,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_SCALE,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("100"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_FIRST_PAGE_NUMBER,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_FIT_TO_WIDTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_FIT_TO_HEIGHT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_PAGE_ORDER,
+            ty: ooxml_core::SimpleType::Enum(
+                <PageOrderValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("downThenOver"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_ORIENTATION,
+            ty: ooxml_core::SimpleType::Enum(
+                <OrientationValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("default"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_USE_PRINTER_DEFAULTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_BLACK_AND_WHITE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_DRAFT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_CELL_COMMENTS,
+            ty: ooxml_core::SimpleType::Enum(
+                <CellCommentsValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_USE_FIRST_PAGE_NUMBER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_ERRORS,
+            ty: ooxml_core::SimpleType::Enum(
+                <PrintErrorValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("displayed"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_HORIZONTAL_DPI,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("600"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_VERTICAL_DPI,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("600"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_COPIES,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("1"),
+        },
+        ooxml_core::AttrSpec {
+            name: PageSetup::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PageSetup`].
+#[derive(Clone, Debug)]
+pub struct PageSetupView<'a>(pub ooxml_core::Lens<'a, PageSetup>);
+impl<'a> PageSetupView<'a> {
+    /// `paperSize` — Paper Size (default `1`)
+    pub fn paper_size(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_PAPER_SIZE,
+                "1",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `scale` — Print Scale (default `100`)
+    pub fn scale(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(PageSetup::ATTR_SCALE, "100", ooxml_core::value::parse_u32)
+    }
+    /// `firstPageNumber` — First Page Number (default `1`)
+    pub fn first_page_number(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_FIRST_PAGE_NUMBER,
+                "1",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `fitToWidth` — Fit To Width (default `1`)
+    pub fn fit_to_width(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_FIT_TO_WIDTH,
+                "1",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `fitToHeight` — Fit To Height (default `1`)
+    pub fn fit_to_height(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_FIT_TO_HEIGHT,
+                "1",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `pageOrder` — Page Order (default `downThenOver`)
+    pub fn page_order(&self) -> ooxml_core::EnumValue<'a, PageOrderValues> {
+        self.0.attr_enum_or(PageSetup::ATTR_PAGE_ORDER, "downThenOver")
+    }
+    /// `orientation` — Orientation (default `default`)
+    pub fn orientation(&self) -> ooxml_core::EnumValue<'a, OrientationValues> {
+        self.0.attr_enum_or(PageSetup::ATTR_ORIENTATION, "default")
+    }
+    /// `usePrinterDefaults` — Use Printer Defaults (default `true`)
+    pub fn use_printer_defaults(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_USE_PRINTER_DEFAULTS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `blackAndWhite` — Black And White (default `false`)
+    pub fn black_and_white(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_BLACK_AND_WHITE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `draft` — Draft (default `false`)
+    pub fn draft(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_DRAFT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `cellComments` — Print Cell Comments (default `none`)
+    pub fn cell_comments(&self) -> ooxml_core::EnumValue<'a, CellCommentsValues> {
+        self.0.attr_enum_or(PageSetup::ATTR_CELL_COMMENTS, "none")
+    }
+    /// `useFirstPageNumber` — Use First Page Number (default `false`)
+    pub fn use_first_page_number(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_USE_FIRST_PAGE_NUMBER,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `errors` — Print Error Handling (default `displayed`)
+    pub fn errors(&self) -> ooxml_core::EnumValue<'a, PrintErrorValues> {
+        self.0.attr_enum_or(PageSetup::ATTR_ERRORS, "displayed")
+    }
+    /// `horizontalDpi` — Horizontal DPI (default `600`)
+    pub fn horizontal_dpi(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_HORIZONTAL_DPI,
+                "600",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `verticalDpi` — Vertical DPI (default `600`)
+    pub fn vertical_dpi(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PageSetup::ATTR_VERTICAL_DPI,
+                "600",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `copies` — Number Of Copies (default `1`)
+    pub fn copies(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(PageSetup::ATTR_COPIES, "1", ooxml_core::value::parse_u32)
+    }
+    /// `r:id` — Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(PageSetup::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PageSetup`]. Reads go through [`PageSetupViewMut::as_view`].
+#[derive(Debug)]
+pub struct PageSetupViewMut<'a>(pub ooxml_core::LensMut<'a, PageSetup>);
+impl<'a> PageSetupViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PageSetupView<'_> {
+        PageSetupView(self.0.as_lens())
+    }
+    /// Sets `paperSize` — Paper Size (default `1`)
+    pub fn set_paper_size(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PageSetup::ATTR_PAPER_SIZE, s),
+        )
+    }
+    /// Removes `paperSize`.
+    pub fn remove_paper_size(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_PAPER_SIZE)
+    }
+    /// Sets `scale` — Print Scale (default `100`)
+    pub fn set_scale(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(PageSetup::ATTR_SCALE, s))
+    }
+    /// Removes `scale`.
+    pub fn remove_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_SCALE)
+    }
+    /// Sets `firstPageNumber` — First Page Number (default `1`)
+    pub fn set_first_page_number(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PageSetup::ATTR_FIRST_PAGE_NUMBER, s),
+        )
+    }
+    /// Removes `firstPageNumber`.
+    pub fn remove_first_page_number(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_FIRST_PAGE_NUMBER)
+    }
+    /// Sets `fitToWidth` — Fit To Width (default `1`)
+    pub fn set_fit_to_width(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PageSetup::ATTR_FIT_TO_WIDTH, s),
+        )
+    }
+    /// Removes `fitToWidth`.
+    pub fn remove_fit_to_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_FIT_TO_WIDTH)
+    }
+    /// Sets `fitToHeight` — Fit To Height (default `1`)
+    pub fn set_fit_to_height(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PageSetup::ATTR_FIT_TO_HEIGHT, s),
+        )
+    }
+    /// Removes `fitToHeight`.
+    pub fn remove_fit_to_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_FIT_TO_HEIGHT)
+    }
+    /// Sets `pageOrder` — Page Order (default `downThenOver`)
+    pub fn set_page_order(
+        &mut self,
+        v: PageOrderValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageSetup::ATTR_PAGE_ORDER, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `pageOrder`.
+    pub fn remove_page_order(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_PAGE_ORDER)
+    }
+    /// Sets `orientation` — Orientation (default `default`)
+    pub fn set_orientation(
+        &mut self,
+        v: OrientationValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageSetup::ATTR_ORIENTATION, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `orientation`.
+    pub fn remove_orientation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_ORIENTATION)
+    }
+    /// Sets `usePrinterDefaults` — Use Printer Defaults (default `true`)
+    pub fn set_use_printer_defaults(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PageSetup::ATTR_USE_PRINTER_DEFAULTS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `usePrinterDefaults`.
+    pub fn remove_use_printer_defaults(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_USE_PRINTER_DEFAULTS)
+    }
+    /// Sets `blackAndWhite` — Black And White (default `false`)
+    pub fn set_black_and_white(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(PageSetup::ATTR_BLACK_AND_WHITE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `blackAndWhite`.
+    pub fn remove_black_and_white(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_BLACK_AND_WHITE)
+    }
+    /// Sets `draft` — Draft (default `false`)
+    pub fn set_draft(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageSetup::ATTR_DRAFT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `draft`.
+    pub fn remove_draft(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_DRAFT)
+    }
+    /// Sets `cellComments` — Print Cell Comments (default `none`)
+    pub fn set_cell_comments(
+        &mut self,
+        v: CellCommentsValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageSetup::ATTR_CELL_COMMENTS, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `cellComments`.
+    pub fn remove_cell_comments(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_CELL_COMMENTS)
+    }
+    /// Sets `useFirstPageNumber` — Use First Page Number (default `false`)
+    pub fn set_use_first_page_number(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PageSetup::ATTR_USE_FIRST_PAGE_NUMBER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `useFirstPageNumber`.
+    pub fn remove_use_first_page_number(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_USE_FIRST_PAGE_NUMBER)
+    }
+    /// Sets `errors` — Print Error Handling (default `displayed`)
+    pub fn set_errors(&mut self, v: PrintErrorValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageSetup::ATTR_ERRORS, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `errors`.
+    pub fn remove_errors(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_ERRORS)
+    }
+    /// Sets `horizontalDpi` — Horizontal DPI (default `600`)
+    pub fn set_horizontal_dpi(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PageSetup::ATTR_HORIZONTAL_DPI, s),
+        )
+    }
+    /// Removes `horizontalDpi`.
+    pub fn remove_horizontal_dpi(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_HORIZONTAL_DPI)
+    }
+    /// Sets `verticalDpi` — Vertical DPI (default `600`)
+    pub fn set_vertical_dpi(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PageSetup::ATTR_VERTICAL_DPI, s),
+        )
+    }
+    /// Removes `verticalDpi`.
+    pub fn remove_vertical_dpi(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_VERTICAL_DPI)
+    }
+    /// Sets `copies` — Number Of Copies (default `1`)
+    pub fn set_copies(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(PageSetup::ATTR_COPIES, s))
+    }
+    /// Removes `copies`.
+    pub fn remove_copies(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_COPIES)
+    }
+    /// Sets `r:id` — Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PageSetup::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PageSetup::ATTR_R_ID)
+    }
+}
+/// `x:CT_Pane/x:pane` — View Pane.
+#[derive(Debug)]
+pub enum Pane {}
+impl Pane {
+    /// `xSplit`
+    pub const ATTR_X_SPLIT: ooxml_core::QName = ooxml_core::QName::new("", "xSplit");
+    /// `ySplit`
+    pub const ATTR_Y_SPLIT: ooxml_core::QName = ooxml_core::QName::new("", "ySplit");
+    /// `topLeftCell`
+    pub const ATTR_TOP_LEFT_CELL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "topLeftCell",
+    );
+    /// `activePane`
+    pub const ATTR_ACTIVE_PANE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activePane",
+    );
+    /// `state`
+    pub const ATTR_STATE: ooxml_core::QName = ooxml_core::QName::new("", "state");
+}
+impl ooxml_core::ElementSpec for Pane {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "pane");
+    const SDK_NAME: &'static str = "x:CT_Pane/x:pane";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Pane::ATTR_X_SPLIT,
+            ty: ooxml_core::SimpleType::Double,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Pane::ATTR_Y_SPLIT,
+            ty: ooxml_core::SimpleType::Double,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Pane::ATTR_TOP_LEFT_CELL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Pane::ATTR_ACTIVE_PANE,
+            ty: ooxml_core::SimpleType::Enum(
+                <PaneValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("topLeft"),
+        },
+        ooxml_core::AttrSpec {
+            name: Pane::ATTR_STATE,
+            ty: ooxml_core::SimpleType::Enum(
+                <PaneStateValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("split"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Pane`].
+#[derive(Clone, Debug)]
+pub struct PaneView<'a>(pub ooxml_core::Lens<'a, Pane>);
+impl<'a> PaneView<'a> {
+    /// `xSplit` — Horizontal Split Position (default `0`)
+    pub fn horizontal_split(&self) -> Result<f64, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Pane::ATTR_X_SPLIT, "0", ooxml_core::value::parse_f64)
+    }
+    /// `ySplit` — Vertical Split Position (default `0`)
+    pub fn vertical_split(&self) -> Result<f64, ooxml_core::AttrError> {
+        self.0.attr_parsed_or(Pane::ATTR_Y_SPLIT, "0", ooxml_core::value::parse_f64)
+    }
+    /// `topLeftCell` — Top Left Visible Cell
+    pub fn top_left_cell(&self) -> Option<&'a str> {
+        self.0.attr(Pane::ATTR_TOP_LEFT_CELL)
+    }
+    /// `activePane` — Active Pane (default `topLeft`)
+    pub fn active_pane(&self) -> ooxml_core::EnumValue<'a, PaneValues> {
+        self.0.attr_enum_or(Pane::ATTR_ACTIVE_PANE, "topLeft")
+    }
+    /// `state` — Split State (default `split`)
+    pub fn state(&self) -> ooxml_core::EnumValue<'a, PaneStateValues> {
+        self.0.attr_enum_or(Pane::ATTR_STATE, "split")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Pane`]. Reads go through [`PaneViewMut::as_view`].
+#[derive(Debug)]
+pub struct PaneViewMut<'a>(pub ooxml_core::LensMut<'a, Pane>);
+impl<'a> PaneViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PaneView<'_> {
+        PaneView(self.0.as_lens())
+    }
+    /// Sets `xSplit` — Horizontal Split Position (default `0`)
+    pub fn set_horizontal_split(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Pane::ATTR_X_SPLIT, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `xSplit`.
+    pub fn remove_horizontal_split(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Pane::ATTR_X_SPLIT)
+    }
+    /// Sets `ySplit` — Vertical Split Position (default `0`)
+    pub fn set_vertical_split(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Pane::ATTR_Y_SPLIT, &ooxml_core::value::format_f64(v))
+    }
+    /// Removes `ySplit`.
+    pub fn remove_vertical_split(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Pane::ATTR_Y_SPLIT)
+    }
+    /// Sets `topLeftCell` — Top Left Visible Cell
+    pub fn set_top_left_cell(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Pane::ATTR_TOP_LEFT_CELL, v)
+    }
+    /// Removes `topLeftCell`.
+    pub fn remove_top_left_cell(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Pane::ATTR_TOP_LEFT_CELL)
+    }
+    /// Sets `activePane` — Active Pane (default `topLeft`)
+    pub fn set_active_pane(&mut self, v: PaneValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Pane::ATTR_ACTIVE_PANE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `activePane`.
+    pub fn remove_active_pane(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Pane::ATTR_ACTIVE_PANE)
+    }
+    /// Sets `state` — Split State (default `split`)
+    pub fn set_state(&mut self, v: PaneStateValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Pane::ATTR_STATE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `state`.
+    pub fn remove_state(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Pane::ATTR_STATE)
+    }
+}
 /// `x:CT_PatternFill/x:patternFill` — Pattern.
 #[derive(Debug)]
 pub enum PatternFill {}
@@ -5094,6 +11979,857 @@ impl<'a> PatternFillViewMut<'a> {
         self.0.remove::<ForegroundColor>()
     }
 }
+/// `x:CT_PivotCacheDefinition/x:pivotCacheDefinition` — PivotCache Definition.
+#[derive(Debug)]
+pub enum PivotCacheDefinition {}
+impl PivotCacheDefinition {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+    /// `invalid`
+    pub const ATTR_INVALID: ooxml_core::QName = ooxml_core::QName::new("", "invalid");
+    /// `saveData`
+    pub const ATTR_SAVE_DATA: ooxml_core::QName = ooxml_core::QName::new("", "saveData");
+    /// `refreshOnLoad`
+    pub const ATTR_REFRESH_ON_LOAD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshOnLoad",
+    );
+    /// `optimizeMemory`
+    pub const ATTR_OPTIMIZE_MEMORY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "optimizeMemory",
+    );
+    /// `enableRefresh`
+    pub const ATTR_ENABLE_REFRESH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "enableRefresh",
+    );
+    /// `refreshedBy`
+    pub const ATTR_REFRESHED_BY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedBy",
+    );
+    /// `refreshedDateIso`
+    pub const ATTR_REFRESHED_DATE_ISO: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedDateIso",
+    );
+    /// `refreshedDate`
+    pub const ATTR_REFRESHED_DATE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedDate",
+    );
+    /// `backgroundQuery`
+    pub const ATTR_BACKGROUND_QUERY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "backgroundQuery",
+    );
+    /// `missingItemsLimit`
+    pub const ATTR_MISSING_ITEMS_LIMIT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "missingItemsLimit",
+    );
+    /// `createdVersion`
+    pub const ATTR_CREATED_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "createdVersion",
+    );
+    /// `refreshedVersion`
+    pub const ATTR_REFRESHED_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "refreshedVersion",
+    );
+    /// `minRefreshableVersion`
+    pub const ATTR_MIN_REFRESHABLE_VERSION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "minRefreshableVersion",
+    );
+    /// `recordCount`
+    pub const ATTR_RECORD_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "recordCount",
+    );
+    /// `upgradeOnRefresh`
+    pub const ATTR_UPGRADE_ON_REFRESH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "upgradeOnRefresh",
+    );
+    /// `tupleCache`
+    pub const ATTR_TUPLE_CACHE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "tupleCache",
+    );
+    /// `supportSubquery`
+    pub const ATTR_SUPPORT_SUBQUERY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "supportSubquery",
+    );
+    /// `supportAdvancedDrill`
+    pub const ATTR_SUPPORT_ADVANCED_DRILL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "supportAdvancedDrill",
+    );
+}
+impl ooxml_core::ElementSpec for PivotCacheDefinition {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_X,
+        "pivotCacheDefinition",
+    );
+    const SDK_NAME: &'static str = "x:CT_PivotCacheDefinition/x:pivotCacheDefinition";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_INVALID,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_SAVE_DATA,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESH_ON_LOAD,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_ENABLE_REFRESH,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_BY,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_DATE,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_BACKGROUND_QUERY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_CREATED_VERSION,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_REFRESHED_VERSION,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_RECORD_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_TUPLE_CACHE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cacheSource")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cacheFields")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "cacheHierarchies")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "kpis")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tupleCache")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "calculatedItems")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "calculatedMembers")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "dimensions")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "measureGroups")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "maps")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PivotCacheDefinition> for CacheSource {}
+/// Read-only view of [`PivotCacheDefinition`].
+#[derive(Clone, Debug)]
+pub struct PivotCacheDefinitionView<'a>(pub ooxml_core::Lens<'a, PivotCacheDefinition>);
+impl<'a> PivotCacheDefinitionView<'a> {
+    /// `r:id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(PivotCacheDefinition::ATTR_R_ID)
+    }
+    /// `invalid` — invalid (default `false`)
+    pub fn invalid(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_INVALID,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `saveData` — saveData (default `true`)
+    pub fn save_data(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_SAVE_DATA,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `refreshOnLoad` — refreshOnLoad (default `false`)
+    pub fn refresh_on_load(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_REFRESH_ON_LOAD,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `optimizeMemory` — optimizeMemory (default `false`)
+    pub fn optimize_memory(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `enableRefresh` — enableRefresh (default `true`)
+    pub fn enable_refresh(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_ENABLE_REFRESH,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `refreshedBy` — refreshedBy
+    pub fn refreshed_by(&self) -> Option<&'a str> {
+        self.0.attr(PivotCacheDefinition::ATTR_REFRESHED_BY)
+    }
+    /// `refreshedDateIso` — refreshedDateIso
+    pub fn last_refreshed_date_iso(&self) -> Option<&'a str> {
+        self.0.attr(PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO)
+    }
+    /// `refreshedDate` — refreshedDate
+    pub fn refreshed_date(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                PivotCacheDefinition::ATTR_REFRESHED_DATE,
+                ooxml_core::value::parse_f64,
+            )
+    }
+    /// `backgroundQuery` — backgroundQuery (default `false`)
+    pub fn background_query(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_BACKGROUND_QUERY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `missingItemsLimit` — missingItemsLimit
+    pub fn missing_items_limit(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `createdVersion` — createdVersion (default `0`)
+    pub fn created_version(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_CREATED_VERSION,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `refreshedVersion` — refreshedVersion (default `0`)
+    pub fn refreshed_version(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_REFRESHED_VERSION,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `minRefreshableVersion` — minRefreshableVersion (default `0`)
+    pub fn min_refreshable_version(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `recordCount` — recordCount
+    pub fn record_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                PivotCacheDefinition::ATTR_RECORD_COUNT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `upgradeOnRefresh` — upgradeOnRefresh (default `false`)
+    pub fn upgrade_on_refresh(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `tupleCache` — tupleCache (default `false`)
+    pub fn is_tuple_cache(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_TUPLE_CACHE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `supportSubquery` — supportSubquery (default `false`)
+    pub fn support_subquery(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `supportAdvancedDrill` — supportAdvancedDrill (default `false`)
+    pub fn support_advanced_drill(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `x:cacheSource` child.
+    pub fn cache_source(&self) -> Option<CacheSourceView<'a>> {
+        self.0.child::<CacheSource>().map(CacheSourceView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PivotCacheDefinition`]. Reads go through [`PivotCacheDefinitionViewMut::as_view`].
+#[derive(Debug)]
+pub struct PivotCacheDefinitionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, PivotCacheDefinition>,
+);
+impl<'a> PivotCacheDefinitionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PivotCacheDefinitionView<'_> {
+        PivotCacheDefinitionView(self.0.as_lens())
+    }
+    /// Sets `r:id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PivotCacheDefinition::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_R_ID)
+    }
+    /// Sets `invalid` — invalid (default `false`)
+    pub fn set_invalid(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_INVALID,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `invalid`.
+    pub fn remove_invalid(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_INVALID)
+    }
+    /// Sets `saveData` — saveData (default `true`)
+    pub fn set_save_data(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_SAVE_DATA,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `saveData`.
+    pub fn remove_save_data(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_SAVE_DATA)
+    }
+    /// Sets `refreshOnLoad` — refreshOnLoad (default `false`)
+    pub fn set_refresh_on_load(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_REFRESH_ON_LOAD,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `refreshOnLoad`.
+    pub fn remove_refresh_on_load(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESH_ON_LOAD)
+    }
+    /// Sets `optimizeMemory` — optimizeMemory (default `false`)
+    pub fn set_optimize_memory(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `optimizeMemory`.
+    pub fn remove_optimize_memory(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_OPTIMIZE_MEMORY)
+    }
+    /// Sets `enableRefresh` — enableRefresh (default `true`)
+    pub fn set_enable_refresh(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_ENABLE_REFRESH,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `enableRefresh`.
+    pub fn remove_enable_refresh(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_ENABLE_REFRESH)
+    }
+    /// Sets `refreshedBy` — refreshedBy
+    pub fn set_refreshed_by(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PivotCacheDefinition::ATTR_REFRESHED_BY, v)
+    }
+    /// Removes `refreshedBy`.
+    pub fn remove_refreshed_by(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_BY)
+    }
+    /// Sets `refreshedDateIso` — refreshedDateIso
+    pub fn set_last_refreshed_date_iso(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO, v)
+    }
+    /// Removes `refreshedDateIso`.
+    pub fn remove_last_refreshed_date_iso(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_DATE_ISO)
+    }
+    /// Sets `refreshedDate` — refreshedDate
+    pub fn set_refreshed_date(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_REFRESHED_DATE,
+                &ooxml_core::value::format_f64(v),
+            )
+    }
+    /// Removes `refreshedDate`.
+    pub fn remove_refreshed_date(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_DATE)
+    }
+    /// Sets `backgroundQuery` — backgroundQuery (default `false`)
+    pub fn set_background_query(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_BACKGROUND_QUERY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `backgroundQuery`.
+    pub fn remove_background_query(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_BACKGROUND_QUERY)
+    }
+    /// Sets `missingItemsLimit` — missingItemsLimit
+    pub fn set_missing_items_limit(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT, s),
+        )
+    }
+    /// Removes `missingItemsLimit`.
+    pub fn remove_missing_items_limit(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_MISSING_ITEMS_LIMIT)
+    }
+    /// Sets `createdVersion` — createdVersion (default `0`)
+    pub fn set_created_version(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_CREATED_VERSION, s),
+        )
+    }
+    /// Removes `createdVersion`.
+    pub fn remove_created_version(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_CREATED_VERSION)
+    }
+    /// Sets `refreshedVersion` — refreshedVersion (default `0`)
+    pub fn set_refreshed_version(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_REFRESHED_VERSION, s),
+        )
+    }
+    /// Removes `refreshedVersion`.
+    pub fn remove_refreshed_version(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_REFRESHED_VERSION)
+    }
+    /// Sets `minRefreshableVersion` — minRefreshableVersion (default `0`)
+    pub fn set_min_refreshable_version(
+        &mut self,
+        v: u8,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION, s),
+        )
+    }
+    /// Removes `minRefreshableVersion`.
+    pub fn remove_min_refreshable_version(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_MIN_REFRESHABLE_VERSION)
+    }
+    /// Sets `recordCount` — recordCount
+    pub fn set_record_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(PivotCacheDefinition::ATTR_RECORD_COUNT, s),
+        )
+    }
+    /// Removes `recordCount`.
+    pub fn remove_record_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_RECORD_COUNT)
+    }
+    /// Sets `upgradeOnRefresh` — upgradeOnRefresh (default `false`)
+    pub fn set_upgrade_on_refresh(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `upgradeOnRefresh`.
+    pub fn remove_upgrade_on_refresh(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_UPGRADE_ON_REFRESH)
+    }
+    /// Sets `tupleCache` — tupleCache (default `false`)
+    pub fn set_is_tuple_cache(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_TUPLE_CACHE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `tupleCache`.
+    pub fn remove_is_tuple_cache(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_TUPLE_CACHE)
+    }
+    /// Sets `supportSubquery` — supportSubquery (default `false`)
+    pub fn set_support_subquery(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `supportSubquery`.
+    pub fn remove_support_subquery(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_SUPPORT_SUBQUERY)
+    }
+    /// Sets `supportAdvancedDrill` — supportAdvancedDrill (default `false`)
+    pub fn set_support_advanced_drill(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `supportAdvancedDrill`.
+    pub fn remove_support_advanced_drill(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PivotCacheDefinition::ATTR_SUPPORT_ADVANCED_DRILL)
+    }
+    /// First `x:cacheSource` child, mutably.
+    pub fn cache_source_mut(&mut self) -> Option<CacheSourceViewMut<'_>> {
+        self.0.child_mut::<CacheSource>().map(CacheSourceViewMut)
+    }
+    /// Existing `x:cacheSource` child, or a new one in schema position.
+    pub fn get_or_insert_cache_source(
+        &mut self,
+    ) -> Result<CacheSourceViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CacheSource>().map(CacheSourceViewMut)
+    }
+    /// Removes the first `x:cacheSource` child.
+    pub fn remove_cache_source(&mut self) -> bool {
+        self.0.remove::<CacheSource>()
+    }
+}
+/// `x:CT_PrintOptions/x:printOptions` — Print Options.
+#[derive(Debug)]
+pub enum PrintOptions {}
+impl PrintOptions {
+    /// `horizontalCentered`
+    pub const ATTR_HORIZONTAL_CENTERED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "horizontalCentered",
+    );
+    /// `verticalCentered`
+    pub const ATTR_VERTICAL_CENTERED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "verticalCentered",
+    );
+    /// `headings`
+    pub const ATTR_HEADINGS: ooxml_core::QName = ooxml_core::QName::new("", "headings");
+    /// `gridLines`
+    pub const ATTR_GRID_LINES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "gridLines",
+    );
+    /// `gridLinesSet`
+    pub const ATTR_GRID_LINES_SET: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "gridLinesSet",
+    );
+}
+impl ooxml_core::ElementSpec for PrintOptions {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "printOptions");
+    const SDK_NAME: &'static str = "x:CT_PrintOptions/x:printOptions";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PrintOptions::ATTR_HORIZONTAL_CENTERED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PrintOptions::ATTR_VERTICAL_CENTERED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PrintOptions::ATTR_HEADINGS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PrintOptions::ATTR_GRID_LINES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: PrintOptions::ATTR_GRID_LINES_SET,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PrintOptions`].
+#[derive(Clone, Debug)]
+pub struct PrintOptionsView<'a>(pub ooxml_core::Lens<'a, PrintOptions>);
+impl<'a> PrintOptionsView<'a> {
+    /// `horizontalCentered` — Horizontal Centered (default `false`)
+    pub fn horizontal_centered(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PrintOptions::ATTR_HORIZONTAL_CENTERED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `verticalCentered` — Vertical Centered (default `false`)
+    pub fn vertical_centered(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PrintOptions::ATTR_VERTICAL_CENTERED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `headings` — Print Headings (default `false`)
+    pub fn headings(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PrintOptions::ATTR_HEADINGS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `gridLines` — Print Grid Lines (default `false`)
+    pub fn grid_lines(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PrintOptions::ATTR_GRID_LINES,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `gridLinesSet` — Grid Lines Set (default `true`)
+    pub fn grid_lines_set(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                PrintOptions::ATTR_GRID_LINES_SET,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PrintOptions`]. Reads go through [`PrintOptionsViewMut::as_view`].
+#[derive(Debug)]
+pub struct PrintOptionsViewMut<'a>(pub ooxml_core::LensMut<'a, PrintOptions>);
+impl<'a> PrintOptionsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PrintOptionsView<'_> {
+        PrintOptionsView(self.0.as_lens())
+    }
+    /// Sets `horizontalCentered` — Horizontal Centered (default `false`)
+    pub fn set_horizontal_centered(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PrintOptions::ATTR_HORIZONTAL_CENTERED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `horizontalCentered`.
+    pub fn remove_horizontal_centered(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PrintOptions::ATTR_HORIZONTAL_CENTERED)
+    }
+    /// Sets `verticalCentered` — Vertical Centered (default `false`)
+    pub fn set_vertical_centered(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PrintOptions::ATTR_VERTICAL_CENTERED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `verticalCentered`.
+    pub fn remove_vertical_centered(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PrintOptions::ATTR_VERTICAL_CENTERED)
+    }
+    /// Sets `headings` — Print Headings (default `false`)
+    pub fn set_headings(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PrintOptions::ATTR_HEADINGS, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `headings`.
+    pub fn remove_headings(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PrintOptions::ATTR_HEADINGS)
+    }
+    /// Sets `gridLines` — Print Grid Lines (default `false`)
+    pub fn set_grid_lines(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PrintOptions::ATTR_GRID_LINES, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `gridLines`.
+    pub fn remove_grid_lines(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PrintOptions::ATTR_GRID_LINES)
+    }
+    /// Sets `gridLinesSet` — Grid Lines Set (default `true`)
+    pub fn set_grid_lines_set(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                PrintOptions::ATTR_GRID_LINES_SET,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `gridLinesSet`.
+    pub fn remove_grid_lines_set(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PrintOptions::ATTR_GRID_LINES_SET)
+    }
+}
 /// `x:CT_RElt/x:r` — Rich Text Run.
 #[derive(Debug)]
 pub enum Run {}
@@ -5118,11 +12854,16 @@ impl ooxml_core::ElementSpec for Run {
         ],
     );
 }
+impl ooxml_core::ChildOf<Run> for RunProperties {}
 impl ooxml_core::ChildOf<Run> for Text {}
 /// Read-only view of [`Run`].
 #[derive(Clone, Debug)]
 pub struct RunView<'a>(pub ooxml_core::Lens<'a, Run>);
 impl<'a> RunView<'a> {
+    /// First `x:rPr` child.
+    pub fn run_properties(&self) -> Option<RunPropertiesView<'a>> {
+        self.0.child::<RunProperties>().map(RunPropertiesView)
+    }
     /// First `x:t` child.
     pub fn text(&self) -> Option<TextView<'a>> {
         self.0.child::<Text>().map(TextView)
@@ -5130,6 +12871,464 @@ impl<'a> RunView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Run`]. Reads go through [`RunViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunViewMut<'a>(pub ooxml_core::LensMut<'a, Run>);
+impl<'a> RunViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunView<'_> {
+        RunView(self.0.as_lens())
+    }
+    /// First `x:rPr` child, mutably.
+    pub fn run_properties_mut(&mut self) -> Option<RunPropertiesViewMut<'_>> {
+        self.0.child_mut::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Existing `x:rPr` child, or a new one in schema position.
+    pub fn get_or_insert_run_properties(
+        &mut self,
+    ) -> Result<RunPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RunProperties>().map(RunPropertiesViewMut)
+    }
+    /// Removes the first `x:rPr` child.
+    pub fn remove_run_properties(&mut self) -> bool {
+        self.0.remove::<RunProperties>()
+    }
+    /// First `x:t` child, mutably.
+    pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
+        self.0.child_mut::<Text>().map(TextViewMut)
+    }
+    /// Existing `x:t` child, or a new one in schema position.
+    pub fn get_or_insert_text(&mut self) -> Result<TextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Text>().map(TextViewMut)
+    }
+    /// Removes the first `x:t` child.
+    pub fn remove_text(&mut self) -> bool {
+        self.0.remove::<Text>()
+    }
+}
+/// `x:CT_RPrElt/x:rPr` — Run Properties.
+#[derive(Debug)]
+pub enum RunProperties {}
+impl ooxml_core::ElementSpec for RunProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "rPr");
+    const SDK_NAME: &'static str = "x:CT_RPrElt/x:rPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X, "b"),
+                    ooxml_core::QName::new(NS_X, "i"),
+                    ooxml_core::QName::new(NS_X, "strike"),
+                    ooxml_core::QName::new(NS_X, "condense"),
+                    ooxml_core::QName::new(NS_X, "extend"),
+                    ooxml_core::QName::new(NS_X, "outline"),
+                    ooxml_core::QName::new(NS_X, "shadow"),
+                    ooxml_core::QName::new(NS_X, "u"),
+                    ooxml_core::QName::new(NS_X, "vertAlign"),
+                    ooxml_core::QName::new(NS_X, "sz"),
+                    ooxml_core::QName::new(NS_X, "color"),
+                    ooxml_core::QName::new(NS_X, "rFont"),
+                    ooxml_core::QName::new(NS_X, "family"),
+                    ooxml_core::QName::new(NS_X, "charset"),
+                    ooxml_core::QName::new(NS_X, "scheme"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<RunProperties> for Bold {}
+impl ooxml_core::ChildOf<RunProperties> for Condense {}
+impl ooxml_core::ChildOf<RunProperties> for Extend {}
+impl ooxml_core::ChildOf<RunProperties> for Italic {}
+impl ooxml_core::ChildOf<RunProperties> for Strike {}
+impl ooxml_core::ChildOf<RunProperties> for Color {}
+impl ooxml_core::ChildOf<RunProperties> for RunFont {}
+impl ooxml_core::ChildOf<RunProperties> for FontScheme {}
+impl ooxml_core::ChildOf<RunProperties> for FontSize {}
+impl ooxml_core::ChildOf<RunProperties> for RunPropertyCharSet {}
+impl ooxml_core::ChildOf<RunProperties> for FontFamily {}
+impl ooxml_core::ChildOf<RunProperties> for Underline {}
+impl ooxml_core::ChildOf<RunProperties> for VerticalTextAlignment {}
+/// Read-only view of [`RunProperties`].
+#[derive(Clone, Debug)]
+pub struct RunPropertiesView<'a>(pub ooxml_core::Lens<'a, RunProperties>);
+impl<'a> RunPropertiesView<'a> {
+    /// `x:b` children in document order.
+    pub fn bold_iter(&self) -> impl Iterator<Item = BoldView<'a>> {
+        self.0.children::<Bold>().map(BoldView)
+    }
+    /// `x:condense` children in document order.
+    pub fn condense_iter(&self) -> impl Iterator<Item = CondenseView<'a>> {
+        self.0.children::<Condense>().map(CondenseView)
+    }
+    /// `x:extend` children in document order.
+    pub fn extend_iter(&self) -> impl Iterator<Item = ExtendView<'a>> {
+        self.0.children::<Extend>().map(ExtendView)
+    }
+    /// `x:i` children in document order.
+    pub fn italic_iter(&self) -> impl Iterator<Item = ItalicView<'a>> {
+        self.0.children::<Italic>().map(ItalicView)
+    }
+    /// `x:strike` children in document order.
+    pub fn strike_iter(&self) -> impl Iterator<Item = StrikeView<'a>> {
+        self.0.children::<Strike>().map(StrikeView)
+    }
+    /// `x:color` children in document order.
+    pub fn color_iter(&self) -> impl Iterator<Item = ColorView<'a>> {
+        self.0.children::<Color>().map(ColorView)
+    }
+    /// `x:rFont` children in document order.
+    pub fn run_font_iter(&self) -> impl Iterator<Item = RunFontView<'a>> {
+        self.0.children::<RunFont>().map(RunFontView)
+    }
+    /// `x:scheme` children in document order.
+    pub fn font_scheme_iter(&self) -> impl Iterator<Item = FontSchemeView<'a>> {
+        self.0.children::<FontScheme>().map(FontSchemeView)
+    }
+    /// `x:sz` children in document order.
+    pub fn font_size_iter(&self) -> impl Iterator<Item = FontSizeView<'a>> {
+        self.0.children::<FontSize>().map(FontSizeView)
+    }
+    /// `x:charset` children in document order.
+    pub fn run_property_char_set_iter(
+        &self,
+    ) -> impl Iterator<Item = RunPropertyCharSetView<'a>> {
+        self.0.children::<RunPropertyCharSet>().map(RunPropertyCharSetView)
+    }
+    /// `x:family` children in document order.
+    pub fn font_family_iter(&self) -> impl Iterator<Item = FontFamilyView<'a>> {
+        self.0.children::<FontFamily>().map(FontFamilyView)
+    }
+    /// `x:u` children in document order.
+    pub fn underline_iter(&self) -> impl Iterator<Item = UnderlineView<'a>> {
+        self.0.children::<Underline>().map(UnderlineView)
+    }
+    /// `x:vertAlign` children in document order.
+    pub fn vertical_text_alignment_iter(
+        &self,
+    ) -> impl Iterator<Item = VerticalTextAlignmentView<'a>> {
+        self.0.children::<VerticalTextAlignment>().map(VerticalTextAlignmentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RunProperties`]. Reads go through [`RunPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct RunPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, RunProperties>);
+impl<'a> RunPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RunPropertiesView<'_> {
+        RunPropertiesView(self.0.as_lens())
+    }
+    /// First `x:b` child matching `pred`, mutably.
+    pub fn bold_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BoldViewMut<'_>> {
+        self.0.child_mut_by::<Bold>(pred).map(BoldViewMut)
+    }
+    /// Inserts a `x:b` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bold_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BoldViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Bold>(before).map(BoldViewMut)
+    }
+    /// Appends a `x:b` at the end of its slot.
+    pub fn insert_bold(&mut self) -> Result<BoldViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Bold>().map(BoldViewMut)
+    }
+    /// Removes the first `x:b` child.
+    pub fn remove_bold(&mut self) -> bool {
+        self.0.remove::<Bold>()
+    }
+    /// First `x:condense` child matching `pred`, mutably.
+    pub fn condense_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CondenseViewMut<'_>> {
+        self.0.child_mut_by::<Condense>(pred).map(CondenseViewMut)
+    }
+    /// Inserts a `x:condense` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_condense_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CondenseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Condense>(before).map(CondenseViewMut)
+    }
+    /// Appends a `x:condense` at the end of its slot.
+    pub fn insert_condense(&mut self) -> Result<CondenseViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Condense>().map(CondenseViewMut)
+    }
+    /// Removes the first `x:condense` child.
+    pub fn remove_condense(&mut self) -> bool {
+        self.0.remove::<Condense>()
+    }
+    /// First `x:extend` child matching `pred`, mutably.
+    pub fn extend_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ExtendViewMut<'_>> {
+        self.0.child_mut_by::<Extend>(pred).map(ExtendViewMut)
+    }
+    /// Inserts a `x:extend` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_extend_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ExtendViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Extend>(before).map(ExtendViewMut)
+    }
+    /// Appends a `x:extend` at the end of its slot.
+    pub fn insert_extend(&mut self) -> Result<ExtendViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Extend>().map(ExtendViewMut)
+    }
+    /// Removes the first `x:extend` child.
+    pub fn remove_extend(&mut self) -> bool {
+        self.0.remove::<Extend>()
+    }
+    /// First `x:i` child matching `pred`, mutably.
+    pub fn italic_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ItalicViewMut<'_>> {
+        self.0.child_mut_by::<Italic>(pred).map(ItalicViewMut)
+    }
+    /// Inserts a `x:i` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_italic_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ItalicViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Italic>(before).map(ItalicViewMut)
+    }
+    /// Appends a `x:i` at the end of its slot.
+    pub fn insert_italic(&mut self) -> Result<ItalicViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Italic>().map(ItalicViewMut)
+    }
+    /// Removes the first `x:i` child.
+    pub fn remove_italic(&mut self) -> bool {
+        self.0.remove::<Italic>()
+    }
+    /// First `x:strike` child matching `pred`, mutably.
+    pub fn strike_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<StrikeViewMut<'_>> {
+        self.0.child_mut_by::<Strike>(pred).map(StrikeViewMut)
+    }
+    /// Inserts a `x:strike` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_strike_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<StrikeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Strike>(before).map(StrikeViewMut)
+    }
+    /// Appends a `x:strike` at the end of its slot.
+    pub fn insert_strike(&mut self) -> Result<StrikeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Strike>().map(StrikeViewMut)
+    }
+    /// Removes the first `x:strike` child.
+    pub fn remove_strike(&mut self) -> bool {
+        self.0.remove::<Strike>()
+    }
+    /// First `x:color` child matching `pred`, mutably.
+    pub fn color_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ColorViewMut<'_>> {
+        self.0.child_mut_by::<Color>(pred).map(ColorViewMut)
+    }
+    /// Inserts a `x:color` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_color_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Color>(before).map(ColorViewMut)
+    }
+    /// Appends a `x:color` at the end of its slot.
+    pub fn insert_color(&mut self) -> Result<ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Color>().map(ColorViewMut)
+    }
+    /// Removes the first `x:color` child.
+    pub fn remove_color(&mut self) -> bool {
+        self.0.remove::<Color>()
+    }
+    /// First `x:rFont` child matching `pred`, mutably.
+    pub fn run_font_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunFontViewMut<'_>> {
+        self.0.child_mut_by::<RunFont>(pred).map(RunFontViewMut)
+    }
+    /// Inserts a `x:rFont` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_font_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunFontViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RunFont>(before).map(RunFontViewMut)
+    }
+    /// Appends a `x:rFont` at the end of its slot.
+    pub fn insert_run_font(&mut self) -> Result<RunFontViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RunFont>().map(RunFontViewMut)
+    }
+    /// Removes the first `x:rFont` child.
+    pub fn remove_run_font(&mut self) -> bool {
+        self.0.remove::<RunFont>()
+    }
+    /// First `x:scheme` child matching `pred`, mutably.
+    pub fn font_scheme_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FontSchemeViewMut<'_>> {
+        self.0.child_mut_by::<FontScheme>(pred).map(FontSchemeViewMut)
+    }
+    /// Inserts a `x:scheme` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_font_scheme_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FontSchemeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FontScheme>(before).map(FontSchemeViewMut)
+    }
+    /// Appends a `x:scheme` at the end of its slot.
+    pub fn insert_font_scheme(
+        &mut self,
+    ) -> Result<FontSchemeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FontScheme>().map(FontSchemeViewMut)
+    }
+    /// Removes the first `x:scheme` child.
+    pub fn remove_font_scheme(&mut self) -> bool {
+        self.0.remove::<FontScheme>()
+    }
+    /// First `x:sz` child matching `pred`, mutably.
+    pub fn font_size_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FontSizeViewMut<'_>> {
+        self.0.child_mut_by::<FontSize>(pred).map(FontSizeViewMut)
+    }
+    /// Inserts a `x:sz` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_font_size_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FontSizeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FontSize>(before).map(FontSizeViewMut)
+    }
+    /// Appends a `x:sz` at the end of its slot.
+    pub fn insert_font_size(
+        &mut self,
+    ) -> Result<FontSizeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FontSize>().map(FontSizeViewMut)
+    }
+    /// Removes the first `x:sz` child.
+    pub fn remove_font_size(&mut self) -> bool {
+        self.0.remove::<FontSize>()
+    }
+    /// First `x:charset` child matching `pred`, mutably.
+    pub fn run_property_char_set_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunPropertyCharSetViewMut<'_>> {
+        self.0.child_mut_by::<RunPropertyCharSet>(pred).map(RunPropertyCharSetViewMut)
+    }
+    /// Inserts a `x:charset` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_property_char_set_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunPropertyCharSetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<RunPropertyCharSet>(before).map(RunPropertyCharSetViewMut)
+    }
+    /// Appends a `x:charset` at the end of its slot.
+    pub fn insert_run_property_char_set(
+        &mut self,
+    ) -> Result<RunPropertyCharSetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<RunPropertyCharSet>().map(RunPropertyCharSetViewMut)
+    }
+    /// Removes the first `x:charset` child.
+    pub fn remove_run_property_char_set(&mut self) -> bool {
+        self.0.remove::<RunPropertyCharSet>()
+    }
+    /// First `x:family` child matching `pred`, mutably.
+    pub fn font_family_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FontFamilyViewMut<'_>> {
+        self.0.child_mut_by::<FontFamily>(pred).map(FontFamilyViewMut)
+    }
+    /// Inserts a `x:family` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_font_family_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FontFamilyViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FontFamily>(before).map(FontFamilyViewMut)
+    }
+    /// Appends a `x:family` at the end of its slot.
+    pub fn insert_font_family(
+        &mut self,
+    ) -> Result<FontFamilyViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FontFamily>().map(FontFamilyViewMut)
+    }
+    /// Removes the first `x:family` child.
+    pub fn remove_font_family(&mut self) -> bool {
+        self.0.remove::<FontFamily>()
+    }
+    /// First `x:u` child matching `pred`, mutably.
+    pub fn underline_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<UnderlineViewMut<'_>> {
+        self.0.child_mut_by::<Underline>(pred).map(UnderlineViewMut)
+    }
+    /// Inserts a `x:u` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_underline_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Underline>(before).map(UnderlineViewMut)
+    }
+    /// Appends a `x:u` at the end of its slot.
+    pub fn insert_underline(
+        &mut self,
+    ) -> Result<UnderlineViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Underline>().map(UnderlineViewMut)
+    }
+    /// Removes the first `x:u` child.
+    pub fn remove_underline(&mut self) -> bool {
+        self.0.remove::<Underline>()
+    }
+    /// First `x:vertAlign` child matching `pred`, mutably.
+    pub fn vertical_text_alignment_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<VerticalTextAlignmentViewMut<'_>> {
+        self.0
+            .child_mut_by::<VerticalTextAlignment>(pred)
+            .map(VerticalTextAlignmentViewMut)
+    }
+    /// Inserts a `x:vertAlign` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_vertical_text_alignment_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<VerticalTextAlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<VerticalTextAlignment>(before)
+            .map(VerticalTextAlignmentViewMut)
+    }
+    /// Appends a `x:vertAlign` at the end of its slot.
+    pub fn insert_vertical_text_alignment(
+        &mut self,
+    ) -> Result<VerticalTextAlignmentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<VerticalTextAlignment>().map(VerticalTextAlignmentViewMut)
+    }
+    /// Removes the first `x:vertAlign` child.
+    pub fn remove_vertical_text_alignment(&mut self) -> bool {
+        self.0.remove::<VerticalTextAlignment>()
     }
 }
 /// `x:CT_Row/x:row` — Row.
@@ -5542,6 +13741,28 @@ impl<'a> InlineStringViewMut<'a> {
     pub fn as_view(&self) -> InlineStringView<'_> {
         InlineStringView(self.0.as_lens())
     }
+    /// First `x:r` child matching `pred`, mutably.
+    pub fn run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunViewMut<'_>> {
+        self.0.child_mut_by::<Run>(pred).map(RunViewMut)
+    }
+    /// Inserts a `x:r` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Run>(before).map(RunViewMut)
+    }
+    /// Appends a `x:r` at the end of its slot.
+    pub fn insert_run(&mut self) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Run>().map(RunViewMut)
+    }
+    /// Removes the first `x:r` child.
+    pub fn remove_run(&mut self) -> bool {
+        self.0.remove::<Run>()
+    }
     /// First `x:t` child, mutably.
     pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
         self.0.child_mut::<Text>().map(TextViewMut)
@@ -5618,6 +13839,28 @@ impl<'a> SharedStringItemViewMut<'a> {
     pub fn as_view(&self) -> SharedStringItemView<'_> {
         SharedStringItemView(self.0.as_lens())
     }
+    /// First `x:r` child matching `pred`, mutably.
+    pub fn run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunViewMut<'_>> {
+        self.0.child_mut_by::<Run>(pred).map(RunViewMut)
+    }
+    /// Inserts a `x:r` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Run>(before).map(RunViewMut)
+    }
+    /// Appends a `x:r` at the end of its slot.
+    pub fn insert_run(&mut self) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Run>().map(RunViewMut)
+    }
+    /// Removes the first `x:r` child.
+    pub fn remove_run(&mut self) -> bool {
+        self.0.remove::<Run>()
+    }
     /// First `x:t` child, mutably.
     pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
         self.0.child_mut::<Text>().map(TextViewMut)
@@ -5629,6 +13872,131 @@ impl<'a> SharedStringItemViewMut<'a> {
     /// Removes the first `x:t` child.
     pub fn remove_text(&mut self) -> bool {
         self.0.remove::<Text>()
+    }
+}
+/// `x:CT_Selection/x:selection` — Selection.
+#[derive(Debug)]
+pub enum Selection {}
+impl Selection {
+    /// `pane`
+    pub const ATTR_PANE: ooxml_core::QName = ooxml_core::QName::new("", "pane");
+    /// `activeCell`
+    pub const ATTR_ACTIVE_CELL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activeCell",
+    );
+    /// `activeCellId`
+    pub const ATTR_ACTIVE_CELL_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "activeCellId",
+    );
+    /// `sqref`
+    pub const ATTR_SQREF: ooxml_core::QName = ooxml_core::QName::new("", "sqref");
+}
+impl ooxml_core::ElementSpec for Selection {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "selection");
+    const SDK_NAME: &'static str = "x:CT_Selection/x:selection";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Selection::ATTR_PANE,
+            ty: ooxml_core::SimpleType::Enum(
+                <PaneValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("topLeft"),
+        },
+        ooxml_core::AttrSpec {
+            name: Selection::ATTR_ACTIVE_CELL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Selection::ATTR_ACTIVE_CELL_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: Selection::ATTR_SQREF,
+            ty: ooxml_core::SimpleType::List,
+            default: Some("A1"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Selection`].
+#[derive(Clone, Debug)]
+pub struct SelectionView<'a>(pub ooxml_core::Lens<'a, Selection>);
+impl<'a> SelectionView<'a> {
+    /// `pane` — Pane (default `topLeft`)
+    pub fn pane(&self) -> ooxml_core::EnumValue<'a, PaneValues> {
+        self.0.attr_enum_or(Selection::ATTR_PANE, "topLeft")
+    }
+    /// `activeCell` — Active Cell Location
+    pub fn active_cell(&self) -> Option<&'a str> {
+        self.0.attr(Selection::ATTR_ACTIVE_CELL)
+    }
+    /// `activeCellId` — Active Cell Index (default `0`)
+    pub fn active_cell_id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                Selection::ATTR_ACTIVE_CELL_ID,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `sqref` — Sequence of References (default `A1`)
+    pub fn sequence_of_references(&self) -> &'a str {
+        self.0.attr(Selection::ATTR_SQREF).unwrap_or("A1")
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Selection`]. Reads go through [`SelectionViewMut::as_view`].
+#[derive(Debug)]
+pub struct SelectionViewMut<'a>(pub ooxml_core::LensMut<'a, Selection>);
+impl<'a> SelectionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SelectionView<'_> {
+        SelectionView(self.0.as_lens())
+    }
+    /// Sets `pane` — Pane (default `topLeft`)
+    pub fn set_pane(&mut self, v: PaneValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Selection::ATTR_PANE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `pane`.
+    pub fn remove_pane(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Selection::ATTR_PANE)
+    }
+    /// Sets `activeCell` — Active Cell Location
+    pub fn set_active_cell(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Selection::ATTR_ACTIVE_CELL, v)
+    }
+    /// Removes `activeCell`.
+    pub fn remove_active_cell(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Selection::ATTR_ACTIVE_CELL)
+    }
+    /// Sets `activeCellId` — Active Cell Index (default `0`)
+    pub fn set_active_cell_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(Selection::ATTR_ACTIVE_CELL_ID, s),
+        )
+    }
+    /// Removes `activeCellId`.
+    pub fn remove_active_cell_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Selection::ATTR_ACTIVE_CELL_ID)
+    }
+    /// Sets `sqref` — Sequence of References (default `A1`)
+    pub fn set_sequence_of_references(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Selection::ATTR_SQREF, v)
+    }
+    /// Removes `sqref`.
+    pub fn remove_sequence_of_references(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Selection::ATTR_SQREF)
     }
 }
 /// `x:CT_Sheet/x:sheet` — Sheet Information.
@@ -5696,6 +14064,47 @@ impl<'a> SheetView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Sheet`]. Reads go through [`SheetViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetViewMut<'a>(pub ooxml_core::LensMut<'a, Sheet>);
+impl<'a> SheetViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetView<'_> {
+        SheetView(self.0.as_lens())
+    }
+    /// Sets `name` — Sheet Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Sheet::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_NAME)
+    }
+    /// Sets `sheetId` — Sheet Tab Id
+    pub fn set_sheet_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Sheet::ATTR_SHEET_ID, s))
+    }
+    /// Removes `sheetId`.
+    pub fn remove_sheet_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_SHEET_ID)
+    }
+    /// Sets `state` — Visible State (default `visible`)
+    pub fn set_state(&mut self, v: SheetStateValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Sheet::ATTR_STATE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `state`.
+    pub fn remove_state(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_STATE)
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Sheet::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Sheet::ATTR_R_ID)
     }
 }
 /// `x:CT_SheetData/x:sheetData` — Sheet Data.
@@ -5810,6 +14219,2060 @@ impl<'a> SheetDimensionViewMut<'a> {
         self.0.remove_attr(SheetDimension::ATTR_REF)
     }
 }
+/// `x:CT_SheetFormatPr/x:sheetFormatPr` — Dialog Sheet Format Properties.
+#[derive(Debug)]
+pub enum SheetFormatProperties {}
+impl SheetFormatProperties {
+    /// `baseColWidth`
+    pub const ATTR_BASE_COL_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "baseColWidth",
+    );
+    /// `defaultColWidth`
+    pub const ATTR_DEFAULT_COL_WIDTH: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defaultColWidth",
+    );
+    /// `defaultRowHeight`
+    pub const ATTR_DEFAULT_ROW_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defaultRowHeight",
+    );
+    /// `customHeight`
+    pub const ATTR_CUSTOM_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "customHeight",
+    );
+    /// `zeroHeight`
+    pub const ATTR_ZERO_HEIGHT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zeroHeight",
+    );
+    /// `thickTop`
+    pub const ATTR_THICK_TOP: ooxml_core::QName = ooxml_core::QName::new("", "thickTop");
+    /// `thickBottom`
+    pub const ATTR_THICK_BOTTOM: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "thickBottom",
+    );
+    /// `outlineLevelRow`
+    pub const ATTR_OUTLINE_LEVEL_ROW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "outlineLevelRow",
+    );
+    /// `outlineLevelCol`
+    pub const ATTR_OUTLINE_LEVEL_COL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "outlineLevelCol",
+    );
+    /// `x14ac:dyDescent`
+    pub const ATTR_X14AC_DY_DESCENT: ooxml_core::QName = ooxml_core::QName::new(
+        NS_X14AC,
+        "dyDescent",
+    );
+}
+impl ooxml_core::ElementSpec for SheetFormatProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetFormatPr");
+    const SDK_NAME: &'static str = "x:CT_SheetFormatPr/x:sheetFormatPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_BASE_COL_WIDTH,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("8"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_DEFAULT_COL_WIDTH,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_DEFAULT_ROW_HEIGHT,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_CUSTOM_HEIGHT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_ZERO_HEIGHT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_THICK_TOP,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_THICK_BOTTOM,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_OUTLINE_LEVEL_ROW,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_OUTLINE_LEVEL_COL,
+            ty: ooxml_core::SimpleType::UInt8,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetFormatProperties::ATTR_X14AC_DY_DESCENT,
+            ty: ooxml_core::SimpleType::Double,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SheetFormatProperties`].
+#[derive(Clone, Debug)]
+pub struct SheetFormatPropertiesView<'a>(
+    pub ooxml_core::Lens<'a, SheetFormatProperties>,
+);
+impl<'a> SheetFormatPropertiesView<'a> {
+    /// `baseColWidth` — Base Column Width (default `8`)
+    pub fn base_column_width(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_BASE_COL_WIDTH,
+                "8",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `defaultColWidth` — Default Column Width
+    pub fn default_column_width(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                SheetFormatProperties::ATTR_DEFAULT_COL_WIDTH,
+                ooxml_core::value::parse_f64,
+            )
+    }
+    /// `defaultRowHeight` — Default Row Height
+    pub fn default_row_height(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                SheetFormatProperties::ATTR_DEFAULT_ROW_HEIGHT,
+                ooxml_core::value::parse_f64,
+            )
+    }
+    /// `customHeight` — Custom Height (default `false`)
+    pub fn custom_height(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_CUSTOM_HEIGHT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `zeroHeight` — Hidden By Default (default `false`)
+    pub fn zero_height(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_ZERO_HEIGHT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `thickTop` — Thick Top Border (default `false`)
+    pub fn thick_top(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_THICK_TOP,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `thickBottom` — Thick Bottom Border (default `false`)
+    pub fn thick_bottom(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_THICK_BOTTOM,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `outlineLevelRow` — Maximum Outline Row (default `0`)
+    pub fn outline_level_row(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_OUTLINE_LEVEL_ROW,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `outlineLevelCol` — Column Outline Level (default `0`)
+    pub fn outline_level_column(&self) -> Result<u8, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetFormatProperties::ATTR_OUTLINE_LEVEL_COL,
+                "0",
+                ooxml_core::value::parse_u8,
+            )
+    }
+    /// `x14ac:dyDescent` — dyDescent
+    pub fn dy_descent(&self) -> Result<Option<f64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                SheetFormatProperties::ATTR_X14AC_DY_DESCENT,
+                ooxml_core::value::parse_f64,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetFormatProperties`]. Reads go through [`SheetFormatPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetFormatPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SheetFormatProperties>,
+);
+impl<'a> SheetFormatPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetFormatPropertiesView<'_> {
+        SheetFormatPropertiesView(self.0.as_lens())
+    }
+    /// Sets `baseColWidth` — Base Column Width (default `8`)
+    pub fn set_base_column_width(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetFormatProperties::ATTR_BASE_COL_WIDTH, s),
+        )
+    }
+    /// Removes `baseColWidth`.
+    pub fn remove_base_column_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_BASE_COL_WIDTH)
+    }
+    /// Sets `defaultColWidth` — Default Column Width
+    pub fn set_default_column_width(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_DEFAULT_COL_WIDTH,
+                &ooxml_core::value::format_f64(v),
+            )
+    }
+    /// Removes `defaultColWidth`.
+    pub fn remove_default_column_width(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_DEFAULT_COL_WIDTH)
+    }
+    /// Sets `defaultRowHeight` — Default Row Height
+    pub fn set_default_row_height(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_DEFAULT_ROW_HEIGHT,
+                &ooxml_core::value::format_f64(v),
+            )
+    }
+    /// Removes `defaultRowHeight`.
+    pub fn remove_default_row_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_DEFAULT_ROW_HEIGHT)
+    }
+    /// Sets `customHeight` — Custom Height (default `false`)
+    pub fn set_custom_height(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_CUSTOM_HEIGHT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `customHeight`.
+    pub fn remove_custom_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_CUSTOM_HEIGHT)
+    }
+    /// Sets `zeroHeight` — Hidden By Default (default `false`)
+    pub fn set_zero_height(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_ZERO_HEIGHT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `zeroHeight`.
+    pub fn remove_zero_height(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_ZERO_HEIGHT)
+    }
+    /// Sets `thickTop` — Thick Top Border (default `false`)
+    pub fn set_thick_top(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_THICK_TOP,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `thickTop`.
+    pub fn remove_thick_top(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_THICK_TOP)
+    }
+    /// Sets `thickBottom` — Thick Bottom Border (default `false`)
+    pub fn set_thick_bottom(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_THICK_BOTTOM,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `thickBottom`.
+    pub fn remove_thick_bottom(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_THICK_BOTTOM)
+    }
+    /// Sets `outlineLevelRow` — Maximum Outline Row (default `0`)
+    pub fn set_outline_level_row(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(SheetFormatProperties::ATTR_OUTLINE_LEVEL_ROW, s),
+        )
+    }
+    /// Removes `outlineLevelRow`.
+    pub fn remove_outline_level_row(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_OUTLINE_LEVEL_ROW)
+    }
+    /// Sets `outlineLevelCol` — Column Outline Level (default `0`)
+    pub fn set_outline_level_column(&mut self, v: u8) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u8(
+            v,
+            |s| self.0.set_attr(SheetFormatProperties::ATTR_OUTLINE_LEVEL_COL, s),
+        )
+    }
+    /// Removes `outlineLevelCol`.
+    pub fn remove_outline_level_column(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_OUTLINE_LEVEL_COL)
+    }
+    /// Sets `x14ac:dyDescent` — dyDescent
+    pub fn set_dy_descent(&mut self, v: f64) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetFormatProperties::ATTR_X14AC_DY_DESCENT,
+                &ooxml_core::value::format_f64(v),
+            )
+    }
+    /// Removes `x14ac:dyDescent`.
+    pub fn remove_dy_descent(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetFormatProperties::ATTR_X14AC_DY_DESCENT)
+    }
+}
+/// `x:CT_SheetPr/x:sheetPr` — Sheet Properties.
+#[derive(Debug)]
+pub enum SheetProperties {}
+impl SheetProperties {
+    /// `syncHorizontal`
+    pub const ATTR_SYNC_HORIZONTAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncHorizontal",
+    );
+    /// `syncVertical`
+    pub const ATTR_SYNC_VERTICAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "syncVertical",
+    );
+    /// `syncRef`
+    pub const ATTR_SYNC_REF: ooxml_core::QName = ooxml_core::QName::new("", "syncRef");
+    /// `transitionEvaluation`
+    pub const ATTR_TRANSITION_EVALUATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "transitionEvaluation",
+    );
+    /// `transitionEntry`
+    pub const ATTR_TRANSITION_ENTRY: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "transitionEntry",
+    );
+    /// `published`
+    pub const ATTR_PUBLISHED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "published",
+    );
+    /// `codeName`
+    pub const ATTR_CODE_NAME: ooxml_core::QName = ooxml_core::QName::new("", "codeName");
+    /// `filterMode`
+    pub const ATTR_FILTER_MODE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "filterMode",
+    );
+    /// `enableFormatConditionsCalculation`
+    pub const ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "enableFormatConditionsCalculation",
+    );
+}
+impl ooxml_core::ElementSpec for SheetProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetPr");
+    const SDK_NAME: &'static str = "x:CT_SheetPr/x:sheetPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_HORIZONTAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_VERTICAL,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_SYNC_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_TRANSITION_EVALUATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_TRANSITION_ENTRY,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_PUBLISHED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_CODE_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_FILTER_MODE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "tabColor")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "outlinePr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pageSetUpPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SheetProperties> for TabColor {}
+impl ooxml_core::ChildOf<SheetProperties> for PageSetupProperties {}
+/// Read-only view of [`SheetProperties`].
+#[derive(Clone, Debug)]
+pub struct SheetPropertiesView<'a>(pub ooxml_core::Lens<'a, SheetProperties>);
+impl<'a> SheetPropertiesView<'a> {
+    /// `syncHorizontal` — Synch Horizontal (default `false`)
+    pub fn sync_horizontal(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_SYNC_HORIZONTAL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `syncVertical` — Synch Vertical (default `false`)
+    pub fn sync_vertical(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_SYNC_VERTICAL,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `syncRef` — Synch Reference
+    pub fn sync_reference(&self) -> Option<&'a str> {
+        self.0.attr(SheetProperties::ATTR_SYNC_REF)
+    }
+    /// `transitionEvaluation` — Transition Formula Evaluation (default `false`)
+    pub fn transition_evaluation(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_TRANSITION_EVALUATION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `transitionEntry` — Transition Formula Entry (default `false`)
+    pub fn transition_entry(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_TRANSITION_ENTRY,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `published` — Published (default `true`)
+    pub fn published(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_PUBLISHED,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `codeName` — Code Name
+    pub fn code_name(&self) -> Option<&'a str> {
+        self.0.attr(SheetProperties::ATTR_CODE_NAME)
+    }
+    /// `filterMode` — Filter Mode (default `false`)
+    pub fn filter_mode(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_FILTER_MODE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `enableFormatConditionsCalculation` — Enable Conditional Formatting Calculations (default `true`)
+    pub fn enable_format_conditions_calculation(
+        &self,
+    ) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// First `x:tabColor` child.
+    pub fn tab_color(&self) -> Option<TabColorView<'a>> {
+        self.0.child::<TabColor>().map(TabColorView)
+    }
+    /// First `x:pageSetUpPr` child.
+    pub fn page_setup_properties(&self) -> Option<PageSetupPropertiesView<'a>> {
+        self.0.child::<PageSetupProperties>().map(PageSetupPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetProperties`]. Reads go through [`SheetPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, SheetProperties>);
+impl<'a> SheetPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetPropertiesView<'_> {
+        SheetPropertiesView(self.0.as_lens())
+    }
+    /// Sets `syncHorizontal` — Synch Horizontal (default `false`)
+    pub fn set_sync_horizontal(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_SYNC_HORIZONTAL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `syncHorizontal`.
+    pub fn remove_sync_horizontal(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_HORIZONTAL)
+    }
+    /// Sets `syncVertical` — Synch Vertical (default `false`)
+    pub fn set_sync_vertical(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_SYNC_VERTICAL,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `syncVertical`.
+    pub fn remove_sync_vertical(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_VERTICAL)
+    }
+    /// Sets `syncRef` — Synch Reference
+    pub fn set_sync_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProperties::ATTR_SYNC_REF, v)
+    }
+    /// Removes `syncRef`.
+    pub fn remove_sync_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_SYNC_REF)
+    }
+    /// Sets `transitionEvaluation` — Transition Formula Evaluation (default `false`)
+    pub fn set_transition_evaluation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_TRANSITION_EVALUATION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `transitionEvaluation`.
+    pub fn remove_transition_evaluation(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_TRANSITION_EVALUATION)
+    }
+    /// Sets `transitionEntry` — Transition Formula Entry (default `false`)
+    pub fn set_transition_entry(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_TRANSITION_ENTRY,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `transitionEntry`.
+    pub fn remove_transition_entry(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_TRANSITION_ENTRY)
+    }
+    /// Sets `published` — Published (default `true`)
+    pub fn set_published(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(SheetProperties::ATTR_PUBLISHED, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `published`.
+    pub fn remove_published(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_PUBLISHED)
+    }
+    /// Sets `codeName` — Code Name
+    pub fn set_code_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProperties::ATTR_CODE_NAME, v)
+    }
+    /// Removes `codeName`.
+    pub fn remove_code_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_CODE_NAME)
+    }
+    /// Sets `filterMode` — Filter Mode (default `false`)
+    pub fn set_filter_mode(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_FILTER_MODE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `filterMode`.
+    pub fn remove_filter_mode(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_FILTER_MODE)
+    }
+    /// Sets `enableFormatConditionsCalculation` — Enable Conditional Formatting Calculations (default `true`)
+    pub fn set_enable_format_conditions_calculation(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `enableFormatConditionsCalculation`.
+    pub fn remove_enable_format_conditions_calculation(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProperties::ATTR_ENABLE_FORMAT_CONDITIONS_CALCULATION)
+    }
+    /// First `x:tabColor` child, mutably.
+    pub fn tab_color_mut(&mut self) -> Option<TabColorViewMut<'_>> {
+        self.0.child_mut::<TabColor>().map(TabColorViewMut)
+    }
+    /// Existing `x:tabColor` child, or a new one in schema position.
+    pub fn get_or_insert_tab_color(
+        &mut self,
+    ) -> Result<TabColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TabColor>().map(TabColorViewMut)
+    }
+    /// Removes the first `x:tabColor` child.
+    pub fn remove_tab_color(&mut self) -> bool {
+        self.0.remove::<TabColor>()
+    }
+    /// First `x:pageSetUpPr` child, mutably.
+    pub fn page_setup_properties_mut(
+        &mut self,
+    ) -> Option<PageSetupPropertiesViewMut<'_>> {
+        self.0.child_mut::<PageSetupProperties>().map(PageSetupPropertiesViewMut)
+    }
+    /// Existing `x:pageSetUpPr` child, or a new one in schema position.
+    pub fn get_or_insert_page_setup_properties(
+        &mut self,
+    ) -> Result<PageSetupPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PageSetupProperties>().map(PageSetupPropertiesViewMut)
+    }
+    /// Removes the first `x:pageSetUpPr` child.
+    pub fn remove_page_setup_properties(&mut self) -> bool {
+        self.0.remove::<PageSetupProperties>()
+    }
+}
+/// `x:CT_SheetProtection/x:sheetProtection` — Sheet Protection.
+#[derive(Debug)]
+pub enum SheetProtection {}
+impl SheetProtection {
+    /// `password`
+    pub const ATTR_PASSWORD: ooxml_core::QName = ooxml_core::QName::new("", "password");
+    /// `algorithmName`
+    pub const ATTR_ALGORITHM_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "algorithmName",
+    );
+    /// `hashValue`
+    pub const ATTR_HASH_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "hashValue",
+    );
+    /// `saltValue`
+    pub const ATTR_SALT_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "saltValue",
+    );
+    /// `spinCount`
+    pub const ATTR_SPIN_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "spinCount",
+    );
+    /// `sheet`
+    pub const ATTR_SHEET: ooxml_core::QName = ooxml_core::QName::new("", "sheet");
+    /// `objects`
+    pub const ATTR_OBJECTS: ooxml_core::QName = ooxml_core::QName::new("", "objects");
+    /// `scenarios`
+    pub const ATTR_SCENARIOS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "scenarios",
+    );
+    /// `formatCells`
+    pub const ATTR_FORMAT_CELLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "formatCells",
+    );
+    /// `formatColumns`
+    pub const ATTR_FORMAT_COLUMNS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "formatColumns",
+    );
+    /// `formatRows`
+    pub const ATTR_FORMAT_ROWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "formatRows",
+    );
+    /// `insertColumns`
+    pub const ATTR_INSERT_COLUMNS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertColumns",
+    );
+    /// `insertRows`
+    pub const ATTR_INSERT_ROWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertRows",
+    );
+    /// `insertHyperlinks`
+    pub const ATTR_INSERT_HYPERLINKS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "insertHyperlinks",
+    );
+    /// `deleteColumns`
+    pub const ATTR_DELETE_COLUMNS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "deleteColumns",
+    );
+    /// `deleteRows`
+    pub const ATTR_DELETE_ROWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "deleteRows",
+    );
+    /// `selectLockedCells`
+    pub const ATTR_SELECT_LOCKED_CELLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "selectLockedCells",
+    );
+    /// `sort`
+    pub const ATTR_SORT: ooxml_core::QName = ooxml_core::QName::new("", "sort");
+    /// `autoFilter`
+    pub const ATTR_AUTO_FILTER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "autoFilter",
+    );
+    /// `pivotTables`
+    pub const ATTR_PIVOT_TABLES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "pivotTables",
+    );
+    /// `selectUnlockedCells`
+    pub const ATTR_SELECT_UNLOCKED_CELLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "selectUnlockedCells",
+    );
+}
+impl ooxml_core::ElementSpec for SheetProtection {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetProtection");
+    const SDK_NAME: &'static str = "x:CT_SheetProtection/x:sheetProtection";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_PASSWORD,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_ALGORITHM_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_HASH_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SALT_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SPIN_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SHEET,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_OBJECTS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SCENARIOS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_FORMAT_CELLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_FORMAT_COLUMNS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_FORMAT_ROWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_INSERT_COLUMNS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_INSERT_ROWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_INSERT_HYPERLINKS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_DELETE_COLUMNS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_DELETE_ROWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SELECT_LOCKED_CELLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SORT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_AUTO_FILTER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_PIVOT_TABLES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetProtection::ATTR_SELECT_UNLOCKED_CELLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SheetProtection`].
+#[derive(Clone, Debug)]
+pub struct SheetProtectionView<'a>(pub ooxml_core::Lens<'a, SheetProtection>);
+impl<'a> SheetProtectionView<'a> {
+    /// `password` — Password
+    pub fn password(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_PASSWORD)
+    }
+    /// `algorithmName` — Cryptographic Algorithm Name
+    pub fn algorithm_name(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_ALGORITHM_NAME)
+    }
+    /// `hashValue` — Password Hash Value
+    pub fn hash_value(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_HASH_VALUE)
+    }
+    /// `saltValue` — Salt Value for Password Verifier
+    pub fn salt_value(&self) -> Option<&'a str> {
+        self.0.attr(SheetProtection::ATTR_SALT_VALUE)
+    }
+    /// `spinCount` — Iterations to Run Hashing Algorithm
+    pub fn spin_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(SheetProtection::ATTR_SPIN_COUNT, ooxml_core::value::parse_u32)
+    }
+    /// `sheet` — Sheet Locked (default `false`)
+    pub fn sheet(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SHEET,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `objects` — Objects Locked (default `false`)
+    pub fn objects(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_OBJECTS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `scenarios` — Scenarios Locked (default `false`)
+    pub fn scenarios(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SCENARIOS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `formatCells` — Format Cells Locked (default `true`)
+    pub fn format_cells(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_FORMAT_CELLS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `formatColumns` — Format Columns Locked (default `true`)
+    pub fn format_columns(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_FORMAT_COLUMNS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `formatRows` — Format Rows Locked (default `true`)
+    pub fn format_rows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_FORMAT_ROWS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertColumns` — Insert Columns Locked (default `true`)
+    pub fn insert_columns(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_INSERT_COLUMNS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertRows` — Insert Rows Locked (default `true`)
+    pub fn insert_rows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_INSERT_ROWS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `insertHyperlinks` — Insert Hyperlinks Locked (default `true`)
+    pub fn insert_hyperlinks(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_INSERT_HYPERLINKS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `deleteColumns` — Delete Columns Locked (default `true`)
+    pub fn delete_columns(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_DELETE_COLUMNS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `deleteRows` — Delete Rows Locked (default `true`)
+    pub fn delete_rows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_DELETE_ROWS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `selectLockedCells` — Select Locked Cells Locked (default `false`)
+    pub fn select_locked_cells(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SELECT_LOCKED_CELLS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `sort` — Sort Locked (default `true`)
+    pub fn sort(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SORT,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `autoFilter` — AutoFilter Locked (default `true`)
+    pub fn auto_filter(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_AUTO_FILTER,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `pivotTables` — Pivot Tables Locked (default `true`)
+    pub fn pivot_tables(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_PIVOT_TABLES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `selectUnlockedCells` — Select Unlocked Cells Locked (default `false`)
+    pub fn select_unlocked_cells(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetProtection::ATTR_SELECT_UNLOCKED_CELLS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetProtection`]. Reads go through [`SheetProtectionViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetProtectionViewMut<'a>(pub ooxml_core::LensMut<'a, SheetProtection>);
+impl<'a> SheetProtectionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetProtectionView<'_> {
+        SheetProtectionView(self.0.as_lens())
+    }
+    /// Sets `password` — Password
+    pub fn set_password(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_PASSWORD, v)
+    }
+    /// Removes `password`.
+    pub fn remove_password(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_PASSWORD)
+    }
+    /// Sets `algorithmName` — Cryptographic Algorithm Name
+    pub fn set_algorithm_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_ALGORITHM_NAME, v)
+    }
+    /// Removes `algorithmName`.
+    pub fn remove_algorithm_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_ALGORITHM_NAME)
+    }
+    /// Sets `hashValue` — Password Hash Value
+    pub fn set_hash_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_HASH_VALUE, v)
+    }
+    /// Removes `hashValue`.
+    pub fn remove_hash_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_HASH_VALUE)
+    }
+    /// Sets `saltValue` — Salt Value for Password Verifier
+    pub fn set_salt_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_SALT_VALUE, v)
+    }
+    /// Removes `saltValue`.
+    pub fn remove_salt_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SALT_VALUE)
+    }
+    /// Sets `spinCount` — Iterations to Run Hashing Algorithm
+    pub fn set_spin_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetProtection::ATTR_SPIN_COUNT, s),
+        )
+    }
+    /// Removes `spinCount`.
+    pub fn remove_spin_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SPIN_COUNT)
+    }
+    /// Sets `sheet` — Sheet Locked (default `false`)
+    pub fn set_sheet(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_SHEET, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `sheet`.
+    pub fn remove_sheet(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SHEET)
+    }
+    /// Sets `objects` — Objects Locked (default `false`)
+    pub fn set_objects(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_OBJECTS, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `objects`.
+    pub fn remove_objects(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_OBJECTS)
+    }
+    /// Sets `scenarios` — Scenarios Locked (default `false`)
+    pub fn set_scenarios(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(SheetProtection::ATTR_SCENARIOS, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `scenarios`.
+    pub fn remove_scenarios(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SCENARIOS)
+    }
+    /// Sets `formatCells` — Format Cells Locked (default `true`)
+    pub fn set_format_cells(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_FORMAT_CELLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `formatCells`.
+    pub fn remove_format_cells(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_FORMAT_CELLS)
+    }
+    /// Sets `formatColumns` — Format Columns Locked (default `true`)
+    pub fn set_format_columns(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_FORMAT_COLUMNS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `formatColumns`.
+    pub fn remove_format_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_FORMAT_COLUMNS)
+    }
+    /// Sets `formatRows` — Format Rows Locked (default `true`)
+    pub fn set_format_rows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_FORMAT_ROWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `formatRows`.
+    pub fn remove_format_rows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_FORMAT_ROWS)
+    }
+    /// Sets `insertColumns` — Insert Columns Locked (default `true`)
+    pub fn set_insert_columns(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_INSERT_COLUMNS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `insertColumns`.
+    pub fn remove_insert_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_INSERT_COLUMNS)
+    }
+    /// Sets `insertRows` — Insert Rows Locked (default `true`)
+    pub fn set_insert_rows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_INSERT_ROWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `insertRows`.
+    pub fn remove_insert_rows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_INSERT_ROWS)
+    }
+    /// Sets `insertHyperlinks` — Insert Hyperlinks Locked (default `true`)
+    pub fn set_insert_hyperlinks(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_INSERT_HYPERLINKS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `insertHyperlinks`.
+    pub fn remove_insert_hyperlinks(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_INSERT_HYPERLINKS)
+    }
+    /// Sets `deleteColumns` — Delete Columns Locked (default `true`)
+    pub fn set_delete_columns(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_DELETE_COLUMNS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `deleteColumns`.
+    pub fn remove_delete_columns(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_DELETE_COLUMNS)
+    }
+    /// Sets `deleteRows` — Delete Rows Locked (default `true`)
+    pub fn set_delete_rows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_DELETE_ROWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `deleteRows`.
+    pub fn remove_delete_rows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_DELETE_ROWS)
+    }
+    /// Sets `selectLockedCells` — Select Locked Cells Locked (default `false`)
+    pub fn set_select_locked_cells(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_SELECT_LOCKED_CELLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `selectLockedCells`.
+    pub fn remove_select_locked_cells(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SELECT_LOCKED_CELLS)
+    }
+    /// Sets `sort` — Sort Locked (default `true`)
+    pub fn set_sort(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetProtection::ATTR_SORT, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `sort`.
+    pub fn remove_sort(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SORT)
+    }
+    /// Sets `autoFilter` — AutoFilter Locked (default `true`)
+    pub fn set_auto_filter(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_AUTO_FILTER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `autoFilter`.
+    pub fn remove_auto_filter(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_AUTO_FILTER)
+    }
+    /// Sets `pivotTables` — Pivot Tables Locked (default `true`)
+    pub fn set_pivot_tables(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_PIVOT_TABLES,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `pivotTables`.
+    pub fn remove_pivot_tables(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_PIVOT_TABLES)
+    }
+    /// Sets `selectUnlockedCells` — Select Unlocked Cells Locked (default `false`)
+    pub fn set_select_unlocked_cells(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetProtection::ATTR_SELECT_UNLOCKED_CELLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `selectUnlockedCells`.
+    pub fn remove_select_unlocked_cells(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetProtection::ATTR_SELECT_UNLOCKED_CELLS)
+    }
+}
+/// `x:CT_SheetView/x:sheetView` — Worksheet View.
+#[derive(Debug)]
+pub enum SheetViewElement {}
+impl SheetViewElement {
+    /// `windowProtection`
+    pub const ATTR_WINDOW_PROTECTION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "windowProtection",
+    );
+    /// `showFormulas`
+    pub const ATTR_SHOW_FORMULAS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showFormulas",
+    );
+    /// `showGridLines`
+    pub const ATTR_SHOW_GRID_LINES: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showGridLines",
+    );
+    /// `showRowColHeaders`
+    pub const ATTR_SHOW_ROW_COL_HEADERS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showRowColHeaders",
+    );
+    /// `showZeros`
+    pub const ATTR_SHOW_ZEROS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showZeros",
+    );
+    /// `rightToLeft`
+    pub const ATTR_RIGHT_TO_LEFT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "rightToLeft",
+    );
+    /// `tabSelected`
+    pub const ATTR_TAB_SELECTED: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "tabSelected",
+    );
+    /// `showRuler`
+    pub const ATTR_SHOW_RULER: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showRuler",
+    );
+    /// `showOutlineSymbols`
+    pub const ATTR_SHOW_OUTLINE_SYMBOLS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showOutlineSymbols",
+    );
+    /// `defaultGridColor`
+    pub const ATTR_DEFAULT_GRID_COLOR: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "defaultGridColor",
+    );
+    /// `showWhiteSpace`
+    pub const ATTR_SHOW_WHITE_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "showWhiteSpace",
+    );
+    /// `view`
+    pub const ATTR_VIEW: ooxml_core::QName = ooxml_core::QName::new("", "view");
+    /// `topLeftCell`
+    pub const ATTR_TOP_LEFT_CELL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "topLeftCell",
+    );
+    /// `colorId`
+    pub const ATTR_COLOR_ID: ooxml_core::QName = ooxml_core::QName::new("", "colorId");
+    /// `zoomScale`
+    pub const ATTR_ZOOM_SCALE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScale",
+    );
+    /// `zoomScaleNormal`
+    pub const ATTR_ZOOM_SCALE_NORMAL: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScaleNormal",
+    );
+    /// `zoomScaleSheetLayoutView`
+    pub const ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScaleSheetLayoutView",
+    );
+    /// `zoomScalePageLayoutView`
+    pub const ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "zoomScalePageLayoutView",
+    );
+    /// `workbookViewId`
+    pub const ATTR_WORKBOOK_VIEW_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookViewId",
+    );
+}
+impl ooxml_core::ElementSpec for SheetViewElement {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetView");
+    const SDK_NAME: &'static str = "x:CT_SheetView/x:sheetView";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_WINDOW_PROTECTION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_FORMULAS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_GRID_LINES,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_ZEROS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_RIGHT_TO_LEFT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_TAB_SELECTED,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_RULER,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_DEFAULT_GRID_COLOR,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_SHOW_WHITE_SPACE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("true"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_VIEW,
+            ty: ooxml_core::SimpleType::Enum(
+                <SheetViewValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("normal"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_TOP_LEFT_CELL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_COLOR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("64"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("100"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE_NORMAL,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+        ooxml_core::AttrSpec {
+            name: SheetViewElement::ATTR_WORKBOOK_VIEW_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pane")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "selection")],
+                wildcard: None,
+                max_each: Some(4),
+                max_total: Some(4),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "pivotSelection")],
+                wildcard: None,
+                max_each: Some(4),
+                max_total: Some(4),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SheetViewElement> for Pane {}
+impl ooxml_core::ChildOf<SheetViewElement> for Selection {}
+/// Read-only view of [`SheetViewElement`].
+#[derive(Clone, Debug)]
+pub struct SheetViewElementView<'a>(pub ooxml_core::Lens<'a, SheetViewElement>);
+impl<'a> SheetViewElementView<'a> {
+    /// `windowProtection` — Window Protection (default `false`)
+    pub fn window_protection(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_WINDOW_PROTECTION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showFormulas` — Show Formulas (default `false`)
+    pub fn show_formulas(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_FORMULAS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showGridLines` — Show Grid Lines (default `true`)
+    pub fn show_grid_lines(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_GRID_LINES,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showRowColHeaders` — Show Headers (default `true`)
+    pub fn show_row_col_headers(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showZeros` — Show Zero Values (default `true`)
+    pub fn show_zeros(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_ZEROS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `rightToLeft` — Right To Left (default `false`)
+    pub fn right_to_left(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_RIGHT_TO_LEFT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `tabSelected` — Sheet Tab Selected (default `false`)
+    pub fn tab_selected(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_TAB_SELECTED,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showRuler` — Show Ruler (default `true`)
+    pub fn show_ruler(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_RULER,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showOutlineSymbols` — Show Outline Symbols (default `true`)
+    pub fn show_outline_symbols(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `defaultGridColor` — Default Grid Color (default `true`)
+    pub fn default_grid_color(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_DEFAULT_GRID_COLOR,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `showWhiteSpace` — Show White Space (default `true`)
+    pub fn show_white_space(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_SHOW_WHITE_SPACE,
+                "true",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `view` — View Type (default `normal`)
+    pub fn view(&self) -> ooxml_core::EnumValue<'a, SheetViewValues> {
+        self.0.attr_enum_or(SheetViewElement::ATTR_VIEW, "normal")
+    }
+    /// `topLeftCell` — Top Left Visible Cell
+    pub fn top_left_cell(&self) -> Option<&'a str> {
+        self.0.attr(SheetViewElement::ATTR_TOP_LEFT_CELL)
+    }
+    /// `colorId` — Color Id (default `64`)
+    pub fn color_id(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_COLOR_ID,
+                "64",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScale` — Zoom Scale (default `100`)
+    pub fn zoom_scale(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE,
+                "100",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScaleNormal` — Zoom Scale Normal View (default `0`)
+    pub fn zoom_scale_normal(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE_NORMAL,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScaleSheetLayoutView` — Zoom Scale Page Break Preview (default `0`)
+    pub fn zoom_scale_sheet_layout_view(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `zoomScalePageLayoutView` — Zoom Scale Page Layout View (default `0`)
+    pub fn zoom_scale_page_layout_view(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW,
+                "0",
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `workbookViewId` — Workbook View Index
+    pub fn workbook_view_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                SheetViewElement::ATTR_WORKBOOK_VIEW_ID,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// First `x:pane` child.
+    pub fn pane(&self) -> Option<PaneView<'a>> {
+        self.0.child::<Pane>().map(PaneView)
+    }
+    /// `x:selection` children in document order.
+    pub fn selection_iter(&self) -> impl Iterator<Item = SelectionView<'a>> {
+        self.0.children::<Selection>().map(SelectionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetViewElement`]. Reads go through [`SheetViewElementViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetViewElementViewMut<'a>(pub ooxml_core::LensMut<'a, SheetViewElement>);
+impl<'a> SheetViewElementViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetViewElementView<'_> {
+        SheetViewElementView(self.0.as_lens())
+    }
+    /// Sets `windowProtection` — Window Protection (default `false`)
+    pub fn set_window_protection(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_WINDOW_PROTECTION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `windowProtection`.
+    pub fn remove_window_protection(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_WINDOW_PROTECTION)
+    }
+    /// Sets `showFormulas` — Show Formulas (default `false`)
+    pub fn set_show_formulas(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_FORMULAS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showFormulas`.
+    pub fn remove_show_formulas(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_FORMULAS)
+    }
+    /// Sets `showGridLines` — Show Grid Lines (default `true`)
+    pub fn set_show_grid_lines(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_GRID_LINES,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showGridLines`.
+    pub fn remove_show_grid_lines(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_GRID_LINES)
+    }
+    /// Sets `showRowColHeaders` — Show Headers (default `true`)
+    pub fn set_show_row_col_headers(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showRowColHeaders`.
+    pub fn remove_show_row_col_headers(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_ROW_COL_HEADERS)
+    }
+    /// Sets `showZeros` — Show Zero Values (default `true`)
+    pub fn set_show_zeros(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_ZEROS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showZeros`.
+    pub fn remove_show_zeros(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_ZEROS)
+    }
+    /// Sets `rightToLeft` — Right To Left (default `false`)
+    pub fn set_right_to_left(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_RIGHT_TO_LEFT,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `rightToLeft`.
+    pub fn remove_right_to_left(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_RIGHT_TO_LEFT)
+    }
+    /// Sets `tabSelected` — Sheet Tab Selected (default `false`)
+    pub fn set_tab_selected(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_TAB_SELECTED,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `tabSelected`.
+    pub fn remove_tab_selected(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_TAB_SELECTED)
+    }
+    /// Sets `showRuler` — Show Ruler (default `true`)
+    pub fn set_show_ruler(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_RULER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showRuler`.
+    pub fn remove_show_ruler(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_RULER)
+    }
+    /// Sets `showOutlineSymbols` — Show Outline Symbols (default `true`)
+    pub fn set_show_outline_symbols(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showOutlineSymbols`.
+    pub fn remove_show_outline_symbols(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_OUTLINE_SYMBOLS)
+    }
+    /// Sets `defaultGridColor` — Default Grid Color (default `true`)
+    pub fn set_default_grid_color(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_DEFAULT_GRID_COLOR,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `defaultGridColor`.
+    pub fn remove_default_grid_color(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_DEFAULT_GRID_COLOR)
+    }
+    /// Sets `showWhiteSpace` — Show White Space (default `true`)
+    pub fn set_show_white_space(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SheetViewElement::ATTR_SHOW_WHITE_SPACE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `showWhiteSpace`.
+    pub fn remove_show_white_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_SHOW_WHITE_SPACE)
+    }
+    /// Sets `view` — View Type (default `normal`)
+    pub fn set_view(&mut self, v: SheetViewValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetViewElement::ATTR_VIEW, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `view`.
+    pub fn remove_view(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_VIEW)
+    }
+    /// Sets `topLeftCell` — Top Left Visible Cell
+    pub fn set_top_left_cell(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SheetViewElement::ATTR_TOP_LEFT_CELL, v)
+    }
+    /// Removes `topLeftCell`.
+    pub fn remove_top_left_cell(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_TOP_LEFT_CELL)
+    }
+    /// Sets `colorId` — Color Id (default `64`)
+    pub fn set_color_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_COLOR_ID, s),
+        )
+    }
+    /// Removes `colorId`.
+    pub fn remove_color_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_COLOR_ID)
+    }
+    /// Sets `zoomScale` — Zoom Scale (default `100`)
+    pub fn set_zoom_scale(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE, s),
+        )
+    }
+    /// Removes `zoomScale`.
+    pub fn remove_zoom_scale(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE)
+    }
+    /// Sets `zoomScaleNormal` — Zoom Scale Normal View (default `0`)
+    pub fn set_zoom_scale_normal(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE_NORMAL, s),
+        )
+    }
+    /// Removes `zoomScaleNormal`.
+    pub fn remove_zoom_scale_normal(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE_NORMAL)
+    }
+    /// Sets `zoomScaleSheetLayoutView` — Zoom Scale Page Break Preview (default `0`)
+    pub fn set_zoom_scale_sheet_layout_view(
+        &mut self,
+        v: u32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW, s),
+        )
+    }
+    /// Removes `zoomScaleSheetLayoutView`.
+    pub fn remove_zoom_scale_sheet_layout_view(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE_SHEET_LAYOUT_VIEW)
+    }
+    /// Sets `zoomScalePageLayoutView` — Zoom Scale Page Layout View (default `0`)
+    pub fn set_zoom_scale_page_layout_view(
+        &mut self,
+        v: u32,
+    ) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW, s),
+        )
+    }
+    /// Removes `zoomScalePageLayoutView`.
+    pub fn remove_zoom_scale_page_layout_view(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_ZOOM_SCALE_PAGE_LAYOUT_VIEW)
+    }
+    /// Sets `workbookViewId` — Workbook View Index
+    pub fn set_workbook_view_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(SheetViewElement::ATTR_WORKBOOK_VIEW_ID, s),
+        )
+    }
+    /// Removes `workbookViewId`.
+    pub fn remove_workbook_view_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SheetViewElement::ATTR_WORKBOOK_VIEW_ID)
+    }
+    /// First `x:pane` child, mutably.
+    pub fn pane_mut(&mut self) -> Option<PaneViewMut<'_>> {
+        self.0.child_mut::<Pane>().map(PaneViewMut)
+    }
+    /// Existing `x:pane` child, or a new one in schema position.
+    pub fn get_or_insert_pane(&mut self) -> Result<PaneViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Pane>().map(PaneViewMut)
+    }
+    /// Removes the first `x:pane` child.
+    pub fn remove_pane(&mut self) -> bool {
+        self.0.remove::<Pane>()
+    }
+    /// First `x:selection` child matching `pred`, mutably.
+    pub fn selection_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SelectionViewMut<'_>> {
+        self.0.child_mut_by::<Selection>(pred).map(SelectionViewMut)
+    }
+    /// Inserts a `x:selection` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_selection_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SelectionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Selection>(before).map(SelectionViewMut)
+    }
+    /// Appends a `x:selection` at the end of its slot.
+    pub fn insert_selection(
+        &mut self,
+    ) -> Result<SelectionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Selection>().map(SelectionViewMut)
+    }
+    /// Removes the first `x:selection` child.
+    pub fn remove_selection(&mut self) -> bool {
+        self.0.remove::<Selection>()
+    }
+}
+/// `x:CT_SheetViews/x:sheetViews` — Dialog Sheet Views.
+#[derive(Debug)]
+pub enum SheetViews {}
+impl ooxml_core::ElementSpec for SheetViews {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sheetViews");
+    const SDK_NAME: &'static str = "x:CT_SheetViews/x:sheetViews";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "sheetView")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SheetViews> for SheetViewElement {}
+/// Read-only view of [`SheetViews`].
+#[derive(Clone, Debug)]
+pub struct SheetViewsView<'a>(pub ooxml_core::Lens<'a, SheetViews>);
+impl<'a> SheetViewsView<'a> {
+    /// `x:sheetView` children in document order.
+    pub fn sheet_view_iter(&self) -> impl Iterator<Item = SheetViewElementView<'a>> {
+        self.0.children::<SheetViewElement>().map(SheetViewElementView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SheetViews`]. Reads go through [`SheetViewsViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetViewsViewMut<'a>(pub ooxml_core::LensMut<'a, SheetViews>);
+impl<'a> SheetViewsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetViewsView<'_> {
+        SheetViewsView(self.0.as_lens())
+    }
+    /// First `x:sheetView` child matching `pred`, mutably.
+    pub fn sheet_view_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SheetViewElementViewMut<'_>> {
+        self.0.child_mut_by::<SheetViewElement>(pred).map(SheetViewElementViewMut)
+    }
+    /// Inserts a `x:sheetView` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sheet_view_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SheetViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SheetViewElement>(before).map(SheetViewElementViewMut)
+    }
+    /// Appends a `x:sheetView` at the end of its slot.
+    pub fn insert_sheet_view(
+        &mut self,
+    ) -> Result<SheetViewElementViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SheetViewElement>().map(SheetViewElementViewMut)
+    }
+    /// Removes the first `x:sheetView` child.
+    pub fn remove_sheet_view(&mut self) -> bool {
+        self.0.remove::<SheetViewElement>()
+    }
+}
 /// `x:CT_Sheets/x:sheets` — Defines the Sheets Class.
 #[derive(Debug)]
 pub enum Sheets {}
@@ -5836,6 +16299,131 @@ impl<'a> SheetsView<'a> {
     /// `x:sheet` children in document order.
     pub fn sheet_iter(&self) -> impl Iterator<Item = SheetView<'a>> {
         self.0.children::<Sheet>().map(SheetView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Sheets`]. Reads go through [`SheetsViewMut::as_view`].
+#[derive(Debug)]
+pub struct SheetsViewMut<'a>(pub ooxml_core::LensMut<'a, Sheets>);
+impl<'a> SheetsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SheetsView<'_> {
+        SheetsView(self.0.as_lens())
+    }
+    /// First `x:sheet` child matching `pred`, mutably.
+    pub fn sheet_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SheetViewMut<'_>> {
+        self.0.child_mut_by::<Sheet>(pred).map(SheetViewMut)
+    }
+    /// Inserts a `x:sheet` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sheet_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SheetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Sheet>(before).map(SheetViewMut)
+    }
+    /// Appends a `x:sheet` at the end of its slot.
+    pub fn insert_sheet(&mut self) -> Result<SheetViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Sheet>().map(SheetViewMut)
+    }
+    /// Removes the first `x:sheet` child.
+    pub fn remove_sheet(&mut self) -> bool {
+        self.0.remove::<Sheet>()
+    }
+}
+/// `x:CT_SortState/x:sortState` — Sort State for Auto Filter.
+///
+/// Content model unsupported for insertion (exclusive choice of repeating alternatives).
+#[derive(Debug)]
+pub enum SortState {}
+impl SortState {
+    /// `columnSort`
+    pub const ATTR_COLUMN_SORT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "columnSort",
+    );
+    /// `caseSensitive`
+    pub const ATTR_CASE_SENSITIVE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "caseSensitive",
+    );
+    /// `sortMethod`
+    pub const ATTR_SORT_METHOD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "sortMethod",
+    );
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+}
+impl ooxml_core::ElementSpec for SortState {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "sortState");
+    const SDK_NAME: &'static str = "x:CT_SortState/x:sortState";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_COLUMN_SORT,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_CASE_SENSITIVE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_SORT_METHOD,
+            ty: ooxml_core::SimpleType::Enum(
+                <SortMethodValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("none"),
+        },
+        ooxml_core::AttrSpec {
+            name: SortState::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Unsupported(
+        &[
+            ooxml_core::QName::new(NS_X14, "sortCondition"),
+            ooxml_core::QName::new(NS_X, "extLst"),
+            ooxml_core::QName::new(NS_X, "sortCondition"),
+        ],
+    );
+}
+/// Read-only view of [`SortState`].
+#[derive(Clone, Debug)]
+pub struct SortStateView<'a>(pub ooxml_core::Lens<'a, SortState>);
+impl<'a> SortStateView<'a> {
+    /// `columnSort` — Sort by Columns (default `false`)
+    pub fn column_sort(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SortState::ATTR_COLUMN_SORT,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `caseSensitive` — Case Sensitive (default `false`)
+    pub fn case_sensitive(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                SortState::ATTR_CASE_SENSITIVE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `sortMethod` — Sort Method (default `none`)
+    pub fn sort_method(&self) -> ooxml_core::EnumValue<'a, SortMethodValues> {
+        self.0.attr_enum_or(SortState::ATTR_SORT_METHOD, "none")
+    }
+    /// `ref` — Sort Range
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(SortState::ATTR_REF)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -6051,6 +16639,7 @@ impl ooxml_core::ChildOf<Stylesheet> for Borders {}
 impl ooxml_core::ChildOf<Stylesheet> for CellStyleFormats {}
 impl ooxml_core::ChildOf<Stylesheet> for CellStyles {}
 impl ooxml_core::ChildOf<Stylesheet> for CellFormats {}
+impl ooxml_core::ChildOf<Stylesheet> for DifferentialFormats {}
 impl ooxml_core::ChildOf<Stylesheet> for Fills {}
 impl ooxml_core::ChildOf<Stylesheet> for Fonts {}
 impl ooxml_core::ChildOf<Stylesheet> for NumberingFormats {}
@@ -6073,6 +16662,10 @@ impl<'a> StylesheetView<'a> {
     /// First `x:cellXfs` child.
     pub fn cell_formats(&self) -> Option<CellFormatsView<'a>> {
         self.0.child::<CellFormats>().map(CellFormatsView)
+    }
+    /// First `x:dxfs` child.
+    pub fn differential_formats(&self) -> Option<DifferentialFormatsView<'a>> {
+        self.0.child::<DifferentialFormats>().map(DifferentialFormatsView)
     }
     /// First `x:fills` child.
     pub fn fills(&self) -> Option<FillsView<'a>> {
@@ -6126,6 +16719,22 @@ impl<'a> StylesheetViewMut<'a> {
     /// Removes the first `x:cellXfs` child.
     pub fn remove_cell_formats(&mut self) -> bool {
         self.0.remove::<CellFormats>()
+    }
+    /// First `x:dxfs` child, mutably.
+    pub fn differential_formats_mut(
+        &mut self,
+    ) -> Option<DifferentialFormatsViewMut<'_>> {
+        self.0.child_mut::<DifferentialFormats>().map(DifferentialFormatsViewMut)
+    }
+    /// Existing `x:dxfs` child, or a new one in schema position.
+    pub fn get_or_insert_differential_formats(
+        &mut self,
+    ) -> Result<DifferentialFormatsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DifferentialFormats>().map(DifferentialFormatsViewMut)
+    }
+    /// Removes the first `x:dxfs` child.
+    pub fn remove_differential_formats(&mut self) -> bool {
+        self.0.remove::<DifferentialFormats>()
     }
     /// First `x:fills` child, mutably.
     pub fn fills_mut(&mut self) -> Option<FillsViewMut<'_>> {
@@ -6425,6 +17034,8 @@ impl ooxml_core::ElementSpec for Table {
         ],
     );
 }
+impl ooxml_core::ChildOf<Table> for AutoFilter {}
+impl ooxml_core::ChildOf<Table> for SortState {}
 /// Read-only view of [`Table`].
 #[derive(Clone, Debug)]
 pub struct TableView<'a>(pub ooxml_core::Lens<'a, Table>);
@@ -6558,6 +17169,14 @@ impl<'a> TableView<'a> {
     /// `connectionId` — Connection ID
     pub fn connection_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
         self.0.attr_parsed(Table::ATTR_CONNECTION_ID, ooxml_core::value::parse_u32)
+    }
+    /// First `x:autoFilter` child.
+    pub fn auto_filter(&self) -> Option<AutoFilterView<'a>> {
+        self.0.child::<AutoFilter>().map(AutoFilterView)
+    }
+    /// First `x:sortState` child.
+    pub fn sort_state(&self) -> Option<SortStateView<'a>> {
+        self.0.child::<SortState>().map(SortStateView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -6886,10 +17505,13 @@ impl ooxml_core::ElementSpec for Workbook {
         ],
     );
 }
+impl ooxml_core::ChildOf<Workbook> for BookViews {}
 impl ooxml_core::ChildOf<Workbook> for CalculationProperties {}
+impl ooxml_core::ChildOf<Workbook> for CustomWorkbookViews {}
 impl ooxml_core::ChildOf<Workbook> for DefinedNames {}
 impl ooxml_core::ChildOf<Workbook> for Sheets {}
 impl ooxml_core::ChildOf<Workbook> for WorkbookProperties {}
+impl ooxml_core::ChildOf<Workbook> for WorkbookProtection {}
 /// Read-only view of [`Workbook`].
 #[derive(Clone, Debug)]
 pub struct WorkbookView<'a>(pub ooxml_core::Lens<'a, Workbook>);
@@ -6898,9 +17520,17 @@ impl<'a> WorkbookView<'a> {
     pub fn conformance(&self) -> Option<ooxml_core::EnumValue<'a, ConformanceClass>> {
         self.0.attr_enum(Workbook::ATTR_CONFORMANCE)
     }
+    /// First `x:bookViews` child.
+    pub fn book_views(&self) -> Option<BookViewsView<'a>> {
+        self.0.child::<BookViews>().map(BookViewsView)
+    }
     /// First `x:calcPr` child.
     pub fn calculation_properties(&self) -> Option<CalculationPropertiesView<'a>> {
         self.0.child::<CalculationProperties>().map(CalculationPropertiesView)
+    }
+    /// First `x:customWorkbookViews` child.
+    pub fn custom_workbook_views(&self) -> Option<CustomWorkbookViewsView<'a>> {
+        self.0.child::<CustomWorkbookViews>().map(CustomWorkbookViewsView)
     }
     /// First `x:definedNames` child.
     pub fn defined_names(&self) -> Option<DefinedNamesView<'a>> {
@@ -6914,9 +17544,105 @@ impl<'a> WorkbookView<'a> {
     pub fn workbook_properties(&self) -> Option<WorkbookPropertiesView<'a>> {
         self.0.child::<WorkbookProperties>().map(WorkbookPropertiesView)
     }
+    /// First `x:workbookProtection` child.
+    pub fn workbook_protection(&self) -> Option<WorkbookProtectionView<'a>> {
+        self.0.child::<WorkbookProtection>().map(WorkbookProtectionView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Workbook`]. Reads go through [`WorkbookViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorkbookViewMut<'a>(pub ooxml_core::LensMut<'a, Workbook>);
+impl<'a> WorkbookViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorkbookView<'_> {
+        WorkbookView(self.0.as_lens())
+    }
+    /// Sets `conformance` — conformance
+    pub fn set_conformance(
+        &mut self,
+        v: ConformanceClass,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Workbook::ATTR_CONFORMANCE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `conformance`.
+    pub fn remove_conformance(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Workbook::ATTR_CONFORMANCE)
+    }
+    /// First `x:bookViews` child, mutably.
+    pub fn book_views_mut(&mut self) -> Option<BookViewsViewMut<'_>> {
+        self.0.child_mut::<BookViews>().map(BookViewsViewMut)
+    }
+    /// Existing `x:bookViews` child, or a new one in schema position.
+    pub fn get_or_insert_book_views(
+        &mut self,
+    ) -> Result<BookViewsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BookViews>().map(BookViewsViewMut)
+    }
+    /// Removes the first `x:bookViews` child.
+    pub fn remove_book_views(&mut self) -> bool {
+        self.0.remove::<BookViews>()
+    }
+    /// First `x:calcPr` child, mutably.
+    pub fn calculation_properties_mut(
+        &mut self,
+    ) -> Option<CalculationPropertiesViewMut<'_>> {
+        self.0.child_mut::<CalculationProperties>().map(CalculationPropertiesViewMut)
+    }
+    /// Existing `x:calcPr` child, or a new one in schema position.
+    pub fn get_or_insert_calculation_properties(
+        &mut self,
+    ) -> Result<CalculationPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CalculationProperties>().map(CalculationPropertiesViewMut)
+    }
+    /// Removes the first `x:calcPr` child.
+    pub fn remove_calculation_properties(&mut self) -> bool {
+        self.0.remove::<CalculationProperties>()
+    }
+    /// First `x:definedNames` child, mutably.
+    pub fn defined_names_mut(&mut self) -> Option<DefinedNamesViewMut<'_>> {
+        self.0.child_mut::<DefinedNames>().map(DefinedNamesViewMut)
+    }
+    /// Existing `x:definedNames` child, or a new one in schema position.
+    pub fn get_or_insert_defined_names(
+        &mut self,
+    ) -> Result<DefinedNamesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DefinedNames>().map(DefinedNamesViewMut)
+    }
+    /// Removes the first `x:definedNames` child.
+    pub fn remove_defined_names(&mut self) -> bool {
+        self.0.remove::<DefinedNames>()
+    }
+    /// First `x:sheets` child, mutably.
+    pub fn sheets_mut(&mut self) -> Option<SheetsViewMut<'_>> {
+        self.0.child_mut::<Sheets>().map(SheetsViewMut)
+    }
+    /// Existing `x:sheets` child, or a new one in schema position.
+    pub fn get_or_insert_sheets(
+        &mut self,
+    ) -> Result<SheetsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Sheets>().map(SheetsViewMut)
+    }
+    /// Removes the first `x:sheets` child.
+    pub fn remove_sheets(&mut self) -> bool {
+        self.0.remove::<Sheets>()
+    }
+    /// First `x:workbookProtection` child, mutably.
+    pub fn workbook_protection_mut(&mut self) -> Option<WorkbookProtectionViewMut<'_>> {
+        self.0.child_mut::<WorkbookProtection>().map(WorkbookProtectionViewMut)
+    }
+    /// Existing `x:workbookProtection` child, or a new one in schema position.
+    pub fn get_or_insert_workbook_protection(
+        &mut self,
+    ) -> Result<WorkbookProtectionViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<WorkbookProtection>().map(WorkbookProtectionViewMut)
+    }
+    /// Removes the first `x:workbookProtection` child.
+    pub fn remove_workbook_protection(&mut self) -> bool {
+        self.0.remove::<WorkbookProtection>()
     }
 }
 /// `x:CT_WorkbookPr/x:workbookPr` — Defines the WorkbookProperties Class.
@@ -7282,6 +18008,379 @@ impl<'a> WorkbookPropertiesView<'a> {
         self.0.raw()
     }
 }
+/// `x:CT_WorkbookProtection/x:workbookProtection` — Defines the WorkbookProtection Class.
+#[derive(Debug)]
+pub enum WorkbookProtection {}
+impl WorkbookProtection {
+    /// `workbookPassword`
+    pub const ATTR_WORKBOOK_PASSWORD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookPassword",
+    );
+    /// `revisionsPassword`
+    pub const ATTR_REVISIONS_PASSWORD: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "revisionsPassword",
+    );
+    /// `lockStructure`
+    pub const ATTR_LOCK_STRUCTURE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "lockStructure",
+    );
+    /// `lockWindows`
+    pub const ATTR_LOCK_WINDOWS: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "lockWindows",
+    );
+    /// `lockRevision`
+    pub const ATTR_LOCK_REVISION: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "lockRevision",
+    );
+    /// `revisionsAlgorithmName`
+    pub const ATTR_REVISIONS_ALGORITHM_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "revisionsAlgorithmName",
+    );
+    /// `revisionsHashValue`
+    pub const ATTR_REVISIONS_HASH_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "revisionsHashValue",
+    );
+    /// `revisionsSaltValue`
+    pub const ATTR_REVISIONS_SALT_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "revisionsSaltValue",
+    );
+    /// `revisionsSpinCount`
+    pub const ATTR_REVISIONS_SPIN_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "revisionsSpinCount",
+    );
+    /// `workbookAlgorithmName`
+    pub const ATTR_WORKBOOK_ALGORITHM_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookAlgorithmName",
+    );
+    /// `workbookHashValue`
+    pub const ATTR_WORKBOOK_HASH_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookHashValue",
+    );
+    /// `workbookSaltValue`
+    pub const ATTR_WORKBOOK_SALT_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookSaltValue",
+    );
+    /// `workbookSpinCount`
+    pub const ATTR_WORKBOOK_SPIN_COUNT: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "workbookSpinCount",
+    );
+}
+impl ooxml_core::ElementSpec for WorkbookProtection {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "workbookProtection");
+    const SDK_NAME: &'static str = "x:CT_WorkbookProtection/x:workbookProtection";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_WORKBOOK_PASSWORD,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_REVISIONS_PASSWORD,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_LOCK_STRUCTURE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_LOCK_WINDOWS,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_LOCK_REVISION,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: Some("false"),
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_REVISIONS_ALGORITHM_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_REVISIONS_HASH_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_REVISIONS_SALT_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_REVISIONS_SPIN_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_WORKBOOK_ALGORITHM_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_WORKBOOK_HASH_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_WORKBOOK_SALT_VALUE,
+            ty: ooxml_core::SimpleType::Base64Binary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorkbookProtection::ATTR_WORKBOOK_SPIN_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`WorkbookProtection`].
+#[derive(Clone, Debug)]
+pub struct WorkbookProtectionView<'a>(pub ooxml_core::Lens<'a, WorkbookProtection>);
+impl<'a> WorkbookProtectionView<'a> {
+    /// `workbookPassword` — Workbook Password
+    pub fn workbook_password(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_WORKBOOK_PASSWORD)
+    }
+    /// `revisionsPassword` — Revisions Password
+    pub fn revisions_password(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_REVISIONS_PASSWORD)
+    }
+    /// `lockStructure` — Lock Structure (default `false`)
+    pub fn lock_structure(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProtection::ATTR_LOCK_STRUCTURE,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `lockWindows` — Lock Windows (default `false`)
+    pub fn lock_windows(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProtection::ATTR_LOCK_WINDOWS,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `lockRevision` — Lock Revisions (default `false`)
+    pub fn lock_revision(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                WorkbookProtection::ATTR_LOCK_REVISION,
+                "false",
+                ooxml_core::value::parse_bool,
+            )
+    }
+    /// `revisionsAlgorithmName` — Cryptographic Algorithm Name
+    pub fn revisions_algorithm_name(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_REVISIONS_ALGORITHM_NAME)
+    }
+    /// `revisionsHashValue` — Password Hash Value
+    pub fn revisions_hash_value(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_REVISIONS_HASH_VALUE)
+    }
+    /// `revisionsSaltValue` — Salt Value for Password Verifier
+    pub fn revisions_salt_value(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_REVISIONS_SALT_VALUE)
+    }
+    /// `revisionsSpinCount` — Iterations to Run Hashing Algorithm
+    pub fn revisions_spin_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookProtection::ATTR_REVISIONS_SPIN_COUNT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// `workbookAlgorithmName` — Cryptographic Algorithm Name
+    pub fn workbook_algorithm_name(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_WORKBOOK_ALGORITHM_NAME)
+    }
+    /// `workbookHashValue` — Password Hash Value
+    pub fn workbook_hash_value(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_WORKBOOK_HASH_VALUE)
+    }
+    /// `workbookSaltValue` — Salt Value for Password Verifier
+    pub fn workbook_salt_value(&self) -> Option<&'a str> {
+        self.0.attr(WorkbookProtection::ATTR_WORKBOOK_SALT_VALUE)
+    }
+    /// `workbookSpinCount` — Iterations to Run Hashing Algorithm
+    pub fn workbook_spin_count(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                WorkbookProtection::ATTR_WORKBOOK_SPIN_COUNT,
+                ooxml_core::value::parse_u32,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorkbookProtection`]. Reads go through [`WorkbookProtectionViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorkbookProtectionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, WorkbookProtection>,
+);
+impl<'a> WorkbookProtectionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorkbookProtectionView<'_> {
+        WorkbookProtectionView(self.0.as_lens())
+    }
+    /// Sets `workbookPassword` — Workbook Password
+    pub fn set_workbook_password(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_WORKBOOK_PASSWORD, v)
+    }
+    /// Removes `workbookPassword`.
+    pub fn remove_workbook_password(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_WORKBOOK_PASSWORD)
+    }
+    /// Sets `revisionsPassword` — Revisions Password
+    pub fn set_revisions_password(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_REVISIONS_PASSWORD, v)
+    }
+    /// Removes `revisionsPassword`.
+    pub fn remove_revisions_password(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_REVISIONS_PASSWORD)
+    }
+    /// Sets `lockStructure` — Lock Structure (default `false`)
+    pub fn set_lock_structure(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookProtection::ATTR_LOCK_STRUCTURE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `lockStructure`.
+    pub fn remove_lock_structure(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_LOCK_STRUCTURE)
+    }
+    /// Sets `lockWindows` — Lock Windows (default `false`)
+    pub fn set_lock_windows(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookProtection::ATTR_LOCK_WINDOWS,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `lockWindows`.
+    pub fn remove_lock_windows(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_LOCK_WINDOWS)
+    }
+    /// Sets `lockRevision` — Lock Revisions (default `false`)
+    pub fn set_lock_revision(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                WorkbookProtection::ATTR_LOCK_REVISION,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `lockRevision`.
+    pub fn remove_lock_revision(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_LOCK_REVISION)
+    }
+    /// Sets `revisionsAlgorithmName` — Cryptographic Algorithm Name
+    pub fn set_revisions_algorithm_name(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_REVISIONS_ALGORITHM_NAME, v)
+    }
+    /// Removes `revisionsAlgorithmName`.
+    pub fn remove_revisions_algorithm_name(
+        &mut self,
+    ) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_REVISIONS_ALGORITHM_NAME)
+    }
+    /// Sets `revisionsHashValue` — Password Hash Value
+    pub fn set_revisions_hash_value(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_REVISIONS_HASH_VALUE, v)
+    }
+    /// Removes `revisionsHashValue`.
+    pub fn remove_revisions_hash_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_REVISIONS_HASH_VALUE)
+    }
+    /// Sets `revisionsSaltValue` — Salt Value for Password Verifier
+    pub fn set_revisions_salt_value(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_REVISIONS_SALT_VALUE, v)
+    }
+    /// Removes `revisionsSaltValue`.
+    pub fn remove_revisions_salt_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_REVISIONS_SALT_VALUE)
+    }
+    /// Sets `revisionsSpinCount` — Iterations to Run Hashing Algorithm
+    pub fn set_revisions_spin_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookProtection::ATTR_REVISIONS_SPIN_COUNT, s),
+        )
+    }
+    /// Removes `revisionsSpinCount`.
+    pub fn remove_revisions_spin_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_REVISIONS_SPIN_COUNT)
+    }
+    /// Sets `workbookAlgorithmName` — Cryptographic Algorithm Name
+    pub fn set_workbook_algorithm_name(
+        &mut self,
+        v: &str,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_WORKBOOK_ALGORITHM_NAME, v)
+    }
+    /// Removes `workbookAlgorithmName`.
+    pub fn remove_workbook_algorithm_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_WORKBOOK_ALGORITHM_NAME)
+    }
+    /// Sets `workbookHashValue` — Password Hash Value
+    pub fn set_workbook_hash_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_WORKBOOK_HASH_VALUE, v)
+    }
+    /// Removes `workbookHashValue`.
+    pub fn remove_workbook_hash_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_WORKBOOK_HASH_VALUE)
+    }
+    /// Sets `workbookSaltValue` — Salt Value for Password Verifier
+    pub fn set_workbook_salt_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorkbookProtection::ATTR_WORKBOOK_SALT_VALUE, v)
+    }
+    /// Removes `workbookSaltValue`.
+    pub fn remove_workbook_salt_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_WORKBOOK_SALT_VALUE)
+    }
+    /// Sets `workbookSpinCount` — Iterations to Run Hashing Algorithm
+    pub fn set_workbook_spin_count(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(WorkbookProtection::ATTR_WORKBOOK_SPIN_COUNT, s),
+        )
+    }
+    /// Removes `workbookSpinCount`.
+    pub fn remove_workbook_spin_count(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorkbookProtection::ATTR_WORKBOOK_SPIN_COUNT)
+    }
+}
 /// `x:CT_Worksheet/x:worksheet` — Worksheet.
 #[derive(Debug)]
 pub enum Worksheet {}
@@ -7522,17 +18621,80 @@ impl ooxml_core::ElementSpec for Worksheet {
         ],
     );
 }
+impl ooxml_core::ChildOf<Worksheet> for AutoFilter {}
+impl ooxml_core::ChildOf<Worksheet> for Columns {}
+impl ooxml_core::ChildOf<Worksheet> for ConditionalFormatting {}
+impl ooxml_core::ChildOf<Worksheet> for DataValidations {}
+impl ooxml_core::ChildOf<Worksheet> for HeaderFooter {}
+impl ooxml_core::ChildOf<Worksheet> for Hyperlinks {}
 impl ooxml_core::ChildOf<Worksheet> for MergeCells {}
+impl ooxml_core::ChildOf<Worksheet> for ColumnBreaks {}
+impl ooxml_core::ChildOf<Worksheet> for RowBreaks {}
+impl ooxml_core::ChildOf<Worksheet> for PageMargins {}
+impl ooxml_core::ChildOf<Worksheet> for PageSetup {}
+impl ooxml_core::ChildOf<Worksheet> for PrintOptions {}
 impl ooxml_core::ChildOf<Worksheet> for SheetData {}
 impl ooxml_core::ChildOf<Worksheet> for SheetDimension {}
+impl ooxml_core::ChildOf<Worksheet> for SheetFormatProperties {}
+impl ooxml_core::ChildOf<Worksheet> for SheetProperties {}
+impl ooxml_core::ChildOf<Worksheet> for SheetProtection {}
+impl ooxml_core::ChildOf<Worksheet> for SheetViews {}
+impl ooxml_core::ChildOf<Worksheet> for SortState {}
 impl ooxml_core::ChildOf<Worksheet> for TableParts {}
+impl ooxml_core::ChildOf<Worksheet> for WorksheetExtensionList {}
 /// Read-only view of [`Worksheet`].
 #[derive(Clone, Debug)]
 pub struct WorksheetView<'a>(pub ooxml_core::Lens<'a, Worksheet>);
 impl<'a> WorksheetView<'a> {
+    /// First `x:autoFilter` child.
+    pub fn auto_filter(&self) -> Option<AutoFilterView<'a>> {
+        self.0.child::<AutoFilter>().map(AutoFilterView)
+    }
+    /// `x:cols` children in document order.
+    pub fn columns_iter(&self) -> impl Iterator<Item = ColumnsView<'a>> {
+        self.0.children::<Columns>().map(ColumnsView)
+    }
+    /// `x:conditionalFormatting` children in document order.
+    pub fn conditional_formatting_iter(
+        &self,
+    ) -> impl Iterator<Item = ConditionalFormattingView<'a>> {
+        self.0.children::<ConditionalFormatting>().map(ConditionalFormattingView)
+    }
+    /// First `x:dataValidations` child.
+    pub fn data_validations(&self) -> Option<DataValidationsView<'a>> {
+        self.0.child::<DataValidations>().map(DataValidationsView)
+    }
+    /// First `x:headerFooter` child.
+    pub fn header_footer(&self) -> Option<HeaderFooterView<'a>> {
+        self.0.child::<HeaderFooter>().map(HeaderFooterView)
+    }
+    /// First `x:hyperlinks` child.
+    pub fn hyperlinks(&self) -> Option<HyperlinksView<'a>> {
+        self.0.child::<Hyperlinks>().map(HyperlinksView)
+    }
     /// First `x:mergeCells` child.
     pub fn merge_cells(&self) -> Option<MergeCellsView<'a>> {
         self.0.child::<MergeCells>().map(MergeCellsView)
+    }
+    /// First `x:colBreaks` child.
+    pub fn column_breaks(&self) -> Option<ColumnBreaksView<'a>> {
+        self.0.child::<ColumnBreaks>().map(ColumnBreaksView)
+    }
+    /// First `x:rowBreaks` child.
+    pub fn row_breaks(&self) -> Option<RowBreaksView<'a>> {
+        self.0.child::<RowBreaks>().map(RowBreaksView)
+    }
+    /// First `x:pageMargins` child.
+    pub fn page_margins(&self) -> Option<PageMarginsView<'a>> {
+        self.0.child::<PageMargins>().map(PageMarginsView)
+    }
+    /// First `x:pageSetup` child.
+    pub fn page_setup(&self) -> Option<PageSetupView<'a>> {
+        self.0.child::<PageSetup>().map(PageSetupView)
+    }
+    /// First `x:printOptions` child.
+    pub fn print_options(&self) -> Option<PrintOptionsView<'a>> {
+        self.0.child::<PrintOptions>().map(PrintOptionsView)
     }
     /// First `x:sheetData` child.
     pub fn sheet_data(&self) -> Option<SheetDataView<'a>> {
@@ -7542,9 +18704,33 @@ impl<'a> WorksheetView<'a> {
     pub fn sheet_dimension(&self) -> Option<SheetDimensionView<'a>> {
         self.0.child::<SheetDimension>().map(SheetDimensionView)
     }
+    /// First `x:sheetFormatPr` child.
+    pub fn sheet_format_properties(&self) -> Option<SheetFormatPropertiesView<'a>> {
+        self.0.child::<SheetFormatProperties>().map(SheetFormatPropertiesView)
+    }
+    /// First `x:sheetPr` child.
+    pub fn sheet_properties(&self) -> Option<SheetPropertiesView<'a>> {
+        self.0.child::<SheetProperties>().map(SheetPropertiesView)
+    }
+    /// First `x:sheetProtection` child.
+    pub fn sheet_protection(&self) -> Option<SheetProtectionView<'a>> {
+        self.0.child::<SheetProtection>().map(SheetProtectionView)
+    }
+    /// First `x:sheetViews` child.
+    pub fn sheet_views(&self) -> Option<SheetViewsView<'a>> {
+        self.0.child::<SheetViews>().map(SheetViewsView)
+    }
+    /// First `x:sortState` child.
+    pub fn sort_state(&self) -> Option<SortStateView<'a>> {
+        self.0.child::<SortState>().map(SortStateView)
+    }
     /// First `x:tableParts` child.
     pub fn table_parts(&self) -> Option<TablePartsView<'a>> {
         self.0.child::<TableParts>().map(TablePartsView)
+    }
+    /// First `x:extLst` child.
+    pub fn worksheet_extension_list(&self) -> Option<WorksheetExtensionListView<'a>> {
+        self.0.child::<WorksheetExtensionList>().map(WorksheetExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7558,6 +18744,196 @@ impl<'a> WorksheetViewMut<'a> {
     /// Read-only view of the same node.
     pub fn as_view(&self) -> WorksheetView<'_> {
         WorksheetView(self.0.as_lens())
+    }
+    /// First `x:autoFilter` child, mutably.
+    pub fn auto_filter_mut(&mut self) -> Option<AutoFilterViewMut<'_>> {
+        self.0.child_mut::<AutoFilter>().map(AutoFilterViewMut)
+    }
+    /// Existing `x:autoFilter` child, or a new one in schema position.
+    pub fn get_or_insert_auto_filter(
+        &mut self,
+    ) -> Result<AutoFilterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<AutoFilter>().map(AutoFilterViewMut)
+    }
+    /// Removes the first `x:autoFilter` child.
+    pub fn remove_auto_filter(&mut self) -> bool {
+        self.0.remove::<AutoFilter>()
+    }
+    /// First `x:cols` child matching `pred`, mutably.
+    pub fn columns_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ColumnsViewMut<'_>> {
+        self.0.child_mut_by::<Columns>(pred).map(ColumnsViewMut)
+    }
+    /// Inserts a `x:cols` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_columns_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ColumnsViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Columns>(before).map(ColumnsViewMut)
+    }
+    /// Appends a `x:cols` at the end of its slot.
+    pub fn insert_columns(&mut self) -> Result<ColumnsViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Columns>().map(ColumnsViewMut)
+    }
+    /// Removes the first `x:cols` child.
+    pub fn remove_columns(&mut self) -> bool {
+        self.0.remove::<Columns>()
+    }
+    /// First `x:conditionalFormatting` child matching `pred`, mutably.
+    pub fn conditional_formatting_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ConditionalFormattingViewMut<'_>> {
+        self.0
+            .child_mut_by::<ConditionalFormatting>(pred)
+            .map(ConditionalFormattingViewMut)
+    }
+    /// Inserts a `x:conditionalFormatting` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_conditional_formatting_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ConditionalFormattingViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<ConditionalFormatting>(before)
+            .map(ConditionalFormattingViewMut)
+    }
+    /// Appends a `x:conditionalFormatting` at the end of its slot.
+    pub fn insert_conditional_formatting(
+        &mut self,
+    ) -> Result<ConditionalFormattingViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<ConditionalFormatting>().map(ConditionalFormattingViewMut)
+    }
+    /// Removes the first `x:conditionalFormatting` child.
+    pub fn remove_conditional_formatting(&mut self) -> bool {
+        self.0.remove::<ConditionalFormatting>()
+    }
+    /// First `x:dataValidations` child, mutably.
+    pub fn data_validations_mut(&mut self) -> Option<DataValidationsViewMut<'_>> {
+        self.0.child_mut::<DataValidations>().map(DataValidationsViewMut)
+    }
+    /// Existing `x:dataValidations` child, or a new one in schema position.
+    pub fn get_or_insert_data_validations(
+        &mut self,
+    ) -> Result<DataValidationsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DataValidations>().map(DataValidationsViewMut)
+    }
+    /// Removes the first `x:dataValidations` child.
+    pub fn remove_data_validations(&mut self) -> bool {
+        self.0.remove::<DataValidations>()
+    }
+    /// First `x:headerFooter` child, mutably.
+    pub fn header_footer_mut(&mut self) -> Option<HeaderFooterViewMut<'_>> {
+        self.0.child_mut::<HeaderFooter>().map(HeaderFooterViewMut)
+    }
+    /// Existing `x:headerFooter` child, or a new one in schema position.
+    pub fn get_or_insert_header_footer(
+        &mut self,
+    ) -> Result<HeaderFooterViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<HeaderFooter>().map(HeaderFooterViewMut)
+    }
+    /// Removes the first `x:headerFooter` child.
+    pub fn remove_header_footer(&mut self) -> bool {
+        self.0.remove::<HeaderFooter>()
+    }
+    /// First `x:hyperlinks` child, mutably.
+    pub fn hyperlinks_mut(&mut self) -> Option<HyperlinksViewMut<'_>> {
+        self.0.child_mut::<Hyperlinks>().map(HyperlinksViewMut)
+    }
+    /// Existing `x:hyperlinks` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlinks(
+        &mut self,
+    ) -> Result<HyperlinksViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Hyperlinks>().map(HyperlinksViewMut)
+    }
+    /// Removes the first `x:hyperlinks` child.
+    pub fn remove_hyperlinks(&mut self) -> bool {
+        self.0.remove::<Hyperlinks>()
+    }
+    /// First `x:mergeCells` child, mutably.
+    pub fn merge_cells_mut(&mut self) -> Option<MergeCellsViewMut<'_>> {
+        self.0.child_mut::<MergeCells>().map(MergeCellsViewMut)
+    }
+    /// Existing `x:mergeCells` child, or a new one in schema position.
+    pub fn get_or_insert_merge_cells(
+        &mut self,
+    ) -> Result<MergeCellsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<MergeCells>().map(MergeCellsViewMut)
+    }
+    /// Removes the first `x:mergeCells` child.
+    pub fn remove_merge_cells(&mut self) -> bool {
+        self.0.remove::<MergeCells>()
+    }
+    /// First `x:colBreaks` child, mutably.
+    pub fn column_breaks_mut(&mut self) -> Option<ColumnBreaksViewMut<'_>> {
+        self.0.child_mut::<ColumnBreaks>().map(ColumnBreaksViewMut)
+    }
+    /// Existing `x:colBreaks` child, or a new one in schema position.
+    pub fn get_or_insert_column_breaks(
+        &mut self,
+    ) -> Result<ColumnBreaksViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ColumnBreaks>().map(ColumnBreaksViewMut)
+    }
+    /// Removes the first `x:colBreaks` child.
+    pub fn remove_column_breaks(&mut self) -> bool {
+        self.0.remove::<ColumnBreaks>()
+    }
+    /// First `x:rowBreaks` child, mutably.
+    pub fn row_breaks_mut(&mut self) -> Option<RowBreaksViewMut<'_>> {
+        self.0.child_mut::<RowBreaks>().map(RowBreaksViewMut)
+    }
+    /// Existing `x:rowBreaks` child, or a new one in schema position.
+    pub fn get_or_insert_row_breaks(
+        &mut self,
+    ) -> Result<RowBreaksViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RowBreaks>().map(RowBreaksViewMut)
+    }
+    /// Removes the first `x:rowBreaks` child.
+    pub fn remove_row_breaks(&mut self) -> bool {
+        self.0.remove::<RowBreaks>()
+    }
+    /// First `x:pageMargins` child, mutably.
+    pub fn page_margins_mut(&mut self) -> Option<PageMarginsViewMut<'_>> {
+        self.0.child_mut::<PageMargins>().map(PageMarginsViewMut)
+    }
+    /// Existing `x:pageMargins` child, or a new one in schema position.
+    pub fn get_or_insert_page_margins(
+        &mut self,
+    ) -> Result<PageMarginsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PageMargins>().map(PageMarginsViewMut)
+    }
+    /// Removes the first `x:pageMargins` child.
+    pub fn remove_page_margins(&mut self) -> bool {
+        self.0.remove::<PageMargins>()
+    }
+    /// First `x:pageSetup` child, mutably.
+    pub fn page_setup_mut(&mut self) -> Option<PageSetupViewMut<'_>> {
+        self.0.child_mut::<PageSetup>().map(PageSetupViewMut)
+    }
+    /// Existing `x:pageSetup` child, or a new one in schema position.
+    pub fn get_or_insert_page_setup(
+        &mut self,
+    ) -> Result<PageSetupViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PageSetup>().map(PageSetupViewMut)
+    }
+    /// Removes the first `x:pageSetup` child.
+    pub fn remove_page_setup(&mut self) -> bool {
+        self.0.remove::<PageSetup>()
+    }
+    /// First `x:printOptions` child, mutably.
+    pub fn print_options_mut(&mut self) -> Option<PrintOptionsViewMut<'_>> {
+        self.0.child_mut::<PrintOptions>().map(PrintOptionsViewMut)
+    }
+    /// Existing `x:printOptions` child, or a new one in schema position.
+    pub fn get_or_insert_print_options(
+        &mut self,
+    ) -> Result<PrintOptionsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PrintOptions>().map(PrintOptionsViewMut)
+    }
+    /// Removes the first `x:printOptions` child.
+    pub fn remove_print_options(&mut self) -> bool {
+        self.0.remove::<PrintOptions>()
     }
     /// First `x:sheetData` child, mutably.
     pub fn sheet_data_mut(&mut self) -> Option<SheetDataViewMut<'_>> {
@@ -7586,6 +18962,328 @@ impl<'a> WorksheetViewMut<'a> {
     /// Removes the first `x:dimension` child.
     pub fn remove_sheet_dimension(&mut self) -> bool {
         self.0.remove::<SheetDimension>()
+    }
+    /// First `x:sheetFormatPr` child, mutably.
+    pub fn sheet_format_properties_mut(
+        &mut self,
+    ) -> Option<SheetFormatPropertiesViewMut<'_>> {
+        self.0.child_mut::<SheetFormatProperties>().map(SheetFormatPropertiesViewMut)
+    }
+    /// Existing `x:sheetFormatPr` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_format_properties(
+        &mut self,
+    ) -> Result<SheetFormatPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetFormatProperties>().map(SheetFormatPropertiesViewMut)
+    }
+    /// Removes the first `x:sheetFormatPr` child.
+    pub fn remove_sheet_format_properties(&mut self) -> bool {
+        self.0.remove::<SheetFormatProperties>()
+    }
+    /// First `x:sheetPr` child, mutably.
+    pub fn sheet_properties_mut(&mut self) -> Option<SheetPropertiesViewMut<'_>> {
+        self.0.child_mut::<SheetProperties>().map(SheetPropertiesViewMut)
+    }
+    /// Existing `x:sheetPr` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_properties(
+        &mut self,
+    ) -> Result<SheetPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetProperties>().map(SheetPropertiesViewMut)
+    }
+    /// Removes the first `x:sheetPr` child.
+    pub fn remove_sheet_properties(&mut self) -> bool {
+        self.0.remove::<SheetProperties>()
+    }
+    /// First `x:sheetProtection` child, mutably.
+    pub fn sheet_protection_mut(&mut self) -> Option<SheetProtectionViewMut<'_>> {
+        self.0.child_mut::<SheetProtection>().map(SheetProtectionViewMut)
+    }
+    /// Existing `x:sheetProtection` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_protection(
+        &mut self,
+    ) -> Result<SheetProtectionViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetProtection>().map(SheetProtectionViewMut)
+    }
+    /// Removes the first `x:sheetProtection` child.
+    pub fn remove_sheet_protection(&mut self) -> bool {
+        self.0.remove::<SheetProtection>()
+    }
+    /// First `x:sheetViews` child, mutably.
+    pub fn sheet_views_mut(&mut self) -> Option<SheetViewsViewMut<'_>> {
+        self.0.child_mut::<SheetViews>().map(SheetViewsViewMut)
+    }
+    /// Existing `x:sheetViews` child, or a new one in schema position.
+    pub fn get_or_insert_sheet_views(
+        &mut self,
+    ) -> Result<SheetViewsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SheetViews>().map(SheetViewsViewMut)
+    }
+    /// Removes the first `x:sheetViews` child.
+    pub fn remove_sheet_views(&mut self) -> bool {
+        self.0.remove::<SheetViews>()
+    }
+    /// First `x:extLst` child, mutably.
+    pub fn worksheet_extension_list_mut(
+        &mut self,
+    ) -> Option<WorksheetExtensionListViewMut<'_>> {
+        self.0.child_mut::<WorksheetExtensionList>().map(WorksheetExtensionListViewMut)
+    }
+    /// Existing `x:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_worksheet_extension_list(
+        &mut self,
+    ) -> Result<WorksheetExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<WorksheetExtensionList>()
+            .map(WorksheetExtensionListViewMut)
+    }
+    /// Removes the first `x:extLst` child.
+    pub fn remove_worksheet_extension_list(&mut self) -> bool {
+        self.0.remove::<WorksheetExtensionList>()
+    }
+}
+/// `x:CT_WorksheetExtension/x:ext` — Defines the WorksheetExtension Class.
+#[derive(Debug)]
+pub enum WorksheetExtension {}
+impl WorksheetExtension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for WorksheetExtension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "ext");
+    const SDK_NAME: &'static str = "x:CT_WorksheetExtension/x:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorksheetExtension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_X14, "conditionalFormattings"),
+                    ooxml_core::QName::new(NS_X14, "dataValidations"),
+                    ooxml_core::QName::new(NS_X14, "sparklineGroups"),
+                    ooxml_core::QName::new(NS_X14, "slicerList"),
+                    ooxml_core::QName::new(NS_X14, "protectedRanges"),
+                    ooxml_core::QName::new(NS_X14, "ignoredErrors"),
+                    ooxml_core::QName::new(NS_X15, "webExtensions"),
+                    ooxml_core::QName::new(NS_X15, "timelineRefs"),
+                ],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`WorksheetExtension`].
+#[derive(Clone, Debug)]
+pub struct WorksheetExtensionView<'a>(pub ooxml_core::Lens<'a, WorksheetExtension>);
+impl<'a> WorksheetExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetExtension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorksheetExtension`]. Reads go through [`WorksheetExtensionViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorksheetExtensionViewMut<'a>(
+    pub ooxml_core::LensMut<'a, WorksheetExtension>,
+);
+impl<'a> WorksheetExtensionViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorksheetExtensionView<'_> {
+        WorksheetExtensionView(self.0.as_lens())
+    }
+    /// Sets `uri` — URI
+    pub fn set_uri(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetExtension::ATTR_URI, v)
+    }
+    /// Removes `uri`.
+    pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetExtension::ATTR_URI)
+    }
+}
+/// `x:CT_WorksheetExtensionList/x:extLst` — Defines the WorksheetExtensionList Class.
+#[derive(Debug)]
+pub enum WorksheetExtensionList {}
+impl ooxml_core::ElementSpec for WorksheetExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extLst");
+    const SDK_NAME: &'static str = "x:CT_WorksheetExtensionList/x:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<WorksheetExtensionList> for WorksheetExtension {}
+/// Read-only view of [`WorksheetExtensionList`].
+#[derive(Clone, Debug)]
+pub struct WorksheetExtensionListView<'a>(
+    pub ooxml_core::Lens<'a, WorksheetExtensionList>,
+);
+impl<'a> WorksheetExtensionListView<'a> {
+    /// `x:ext` children in document order.
+    pub fn worksheet_extension_iter(
+        &self,
+    ) -> impl Iterator<Item = WorksheetExtensionView<'a>> {
+        self.0.children::<WorksheetExtension>().map(WorksheetExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorksheetExtensionList`]. Reads go through [`WorksheetExtensionListViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorksheetExtensionListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, WorksheetExtensionList>,
+);
+impl<'a> WorksheetExtensionListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorksheetExtensionListView<'_> {
+        WorksheetExtensionListView(self.0.as_lens())
+    }
+    /// First `x:ext` child matching `pred`, mutably.
+    pub fn worksheet_extension_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<WorksheetExtensionViewMut<'_>> {
+        self.0.child_mut_by::<WorksheetExtension>(pred).map(WorksheetExtensionViewMut)
+    }
+    /// Inserts a `x:ext` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_worksheet_extension_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<WorksheetExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<WorksheetExtension>(before).map(WorksheetExtensionViewMut)
+    }
+    /// Appends a `x:ext` at the end of its slot.
+    pub fn insert_worksheet_extension(
+        &mut self,
+    ) -> Result<WorksheetExtensionViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<WorksheetExtension>().map(WorksheetExtensionViewMut)
+    }
+    /// Removes the first `x:ext` child.
+    pub fn remove_worksheet_extension(&mut self) -> bool {
+        self.0.remove::<WorksheetExtension>()
+    }
+}
+/// `x:CT_WorksheetSource/x:worksheetSource` — Defines the WorksheetSource Class.
+#[derive(Debug)]
+pub enum WorksheetSource {}
+impl WorksheetSource {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `name`
+    pub const ATTR_NAME: ooxml_core::QName = ooxml_core::QName::new("", "name");
+    /// `sheet`
+    pub const ATTR_SHEET: ooxml_core::QName = ooxml_core::QName::new("", "sheet");
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for WorksheetSource {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "worksheetSource");
+    const SDK_NAME: &'static str = "x:CT_WorksheetSource/x:worksheetSource";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_SHEET,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: WorksheetSource::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`WorksheetSource`].
+#[derive(Clone, Debug)]
+pub struct WorksheetSourceView<'a>(pub ooxml_core::Lens<'a, WorksheetSource>);
+impl<'a> WorksheetSourceView<'a> {
+    /// `ref` — Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_REF)
+    }
+    /// `name` — Named Range
+    pub fn name(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_NAME)
+    }
+    /// `sheet` — Sheet Name
+    pub fn sheet(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_SHEET)
+    }
+    /// `r:id` — Relationship Id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(WorksheetSource::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WorksheetSource`]. Reads go through [`WorksheetSourceViewMut::as_view`].
+#[derive(Debug)]
+pub struct WorksheetSourceViewMut<'a>(pub ooxml_core::LensMut<'a, WorksheetSource>);
+impl<'a> WorksheetSourceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WorksheetSourceView<'_> {
+        WorksheetSourceView(self.0.as_lens())
+    }
+    /// Sets `ref` — Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_REF)
+    }
+    /// Sets `name` — Named Range
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_NAME)
+    }
+    /// Sets `sheet` — Sheet Name
+    pub fn set_sheet(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_SHEET, v)
+    }
+    /// Removes `sheet`.
+    pub fn remove_sheet(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_SHEET)
+    }
+    /// Sets `r:id` — Relationship Id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(WorksheetSource::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(WorksheetSource::ATTR_R_ID)
     }
 }
 /// `x:CT_Xf/x:xf` — Formatting Elements.
@@ -7988,6 +19686,609 @@ impl<'a> CellFormatViewMut<'a> {
         self.0.remove::<Protection>()
     }
 }
+/// `x:CT_Xstring/x:evenFooter` — Even Page Footer.
+#[derive(Debug)]
+pub enum EvenFooter {}
+impl EvenFooter {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for EvenFooter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "evenFooter");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:evenFooter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: EvenFooter::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`EvenFooter`].
+#[derive(Clone, Debug)]
+pub struct EvenFooterView<'a>(pub ooxml_core::Lens<'a, EvenFooter>);
+impl<'a> EvenFooterView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(EvenFooter::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`EvenFooter`]. Reads go through [`EvenFooterViewMut::as_view`].
+#[derive(Debug)]
+pub struct EvenFooterViewMut<'a>(pub ooxml_core::LensMut<'a, EvenFooter>);
+impl<'a> EvenFooterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> EvenFooterView<'_> {
+        EvenFooterView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EvenFooter::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EvenFooter::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:evenHeader` — Even Page Header.
+#[derive(Debug)]
+pub enum EvenHeader {}
+impl EvenHeader {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for EvenHeader {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "evenHeader");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:evenHeader";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: EvenHeader::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`EvenHeader`].
+#[derive(Clone, Debug)]
+pub struct EvenHeaderView<'a>(pub ooxml_core::Lens<'a, EvenHeader>);
+impl<'a> EvenHeaderView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(EvenHeader::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`EvenHeader`]. Reads go through [`EvenHeaderViewMut::as_view`].
+#[derive(Debug)]
+pub struct EvenHeaderViewMut<'a>(pub ooxml_core::LensMut<'a, EvenHeader>);
+impl<'a> EvenHeaderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> EvenHeaderView<'_> {
+        EvenHeaderView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(EvenHeader::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(EvenHeader::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:firstFooter` — First Page Footer.
+#[derive(Debug)]
+pub enum FirstFooter {}
+impl FirstFooter {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for FirstFooter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "firstFooter");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:firstFooter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FirstFooter::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`FirstFooter`].
+#[derive(Clone, Debug)]
+pub struct FirstFooterView<'a>(pub ooxml_core::Lens<'a, FirstFooter>);
+impl<'a> FirstFooterView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(FirstFooter::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FirstFooter`]. Reads go through [`FirstFooterViewMut::as_view`].
+#[derive(Debug)]
+pub struct FirstFooterViewMut<'a>(pub ooxml_core::LensMut<'a, FirstFooter>);
+impl<'a> FirstFooterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FirstFooterView<'_> {
+        FirstFooterView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FirstFooter::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FirstFooter::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:firstHeader` — First Page Header.
+#[derive(Debug)]
+pub enum FirstHeader {}
+impl FirstHeader {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for FirstHeader {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "firstHeader");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:firstHeader";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FirstHeader::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`FirstHeader`].
+#[derive(Clone, Debug)]
+pub struct FirstHeaderView<'a>(pub ooxml_core::Lens<'a, FirstHeader>);
+impl<'a> FirstHeaderView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(FirstHeader::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FirstHeader`]. Reads go through [`FirstHeaderViewMut::as_view`].
+#[derive(Debug)]
+pub struct FirstHeaderViewMut<'a>(pub ooxml_core::LensMut<'a, FirstHeader>);
+impl<'a> FirstHeaderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FirstHeaderView<'_> {
+        FirstHeaderView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FirstHeader::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FirstHeader::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:formula` — Formula.
+#[derive(Debug)]
+pub enum Formula {}
+impl Formula {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for Formula {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "formula");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:formula";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Formula::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`Formula`].
+#[derive(Clone, Debug)]
+pub struct FormulaView<'a>(pub ooxml_core::Lens<'a, Formula>);
+impl<'a> FormulaView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(Formula::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Formula`]. Reads go through [`FormulaViewMut::as_view`].
+#[derive(Debug)]
+pub struct FormulaViewMut<'a>(pub ooxml_core::LensMut<'a, Formula>);
+impl<'a> FormulaViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FormulaView<'_> {
+        FormulaView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Formula::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Formula::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:formula1` — Defines the Formula1 Class.
+#[derive(Debug)]
+pub enum Formula1 {}
+impl Formula1 {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for Formula1 {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "formula1");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:formula1";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Formula1::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`Formula1`].
+#[derive(Clone, Debug)]
+pub struct Formula1View<'a>(pub ooxml_core::Lens<'a, Formula1>);
+impl<'a> Formula1View<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(Formula1::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Formula1`]. Reads go through [`Formula1ViewMut::as_view`].
+#[derive(Debug)]
+pub struct Formula1ViewMut<'a>(pub ooxml_core::LensMut<'a, Formula1>);
+impl<'a> Formula1ViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Formula1View<'_> {
+        Formula1View(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Formula1::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Formula1::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:formula2` — Defines the Formula2 Class.
+#[derive(Debug)]
+pub enum Formula2 {}
+impl Formula2 {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for Formula2 {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "formula2");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:formula2";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Formula2::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`Formula2`].
+#[derive(Clone, Debug)]
+pub struct Formula2View<'a>(pub ooxml_core::Lens<'a, Formula2>);
+impl<'a> Formula2View<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(Formula2::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Formula2`]. Reads go through [`Formula2ViewMut::as_view`].
+#[derive(Debug)]
+pub struct Formula2ViewMut<'a>(pub ooxml_core::LensMut<'a, Formula2>);
+impl<'a> Formula2ViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Formula2View<'_> {
+        Formula2View(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Formula2::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Formula2::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:oddFooter` — Odd Page Footer.
+#[derive(Debug)]
+pub enum OddFooter {}
+impl OddFooter {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for OddFooter {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "oddFooter");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:oddFooter";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: OddFooter::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`OddFooter`].
+#[derive(Clone, Debug)]
+pub struct OddFooterView<'a>(pub ooxml_core::Lens<'a, OddFooter>);
+impl<'a> OddFooterView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(OddFooter::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`OddFooter`]. Reads go through [`OddFooterViewMut::as_view`].
+#[derive(Debug)]
+pub struct OddFooterViewMut<'a>(pub ooxml_core::LensMut<'a, OddFooter>);
+impl<'a> OddFooterViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OddFooterView<'_> {
+        OddFooterView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(OddFooter::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(OddFooter::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
+/// `x:CT_Xstring/x:oddHeader` — Odd Header.
+#[derive(Debug)]
+pub enum OddHeader {}
+impl OddHeader {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for OddHeader {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "oddHeader");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:oddHeader";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: OddHeader::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`OddHeader`].
+#[derive(Clone, Debug)]
+pub struct OddHeaderView<'a>(pub ooxml_core::Lens<'a, OddHeader>);
+impl<'a> OddHeaderView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(OddHeader::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`OddHeader`]. Reads go through [`OddHeaderViewMut::as_view`].
+#[derive(Debug)]
+pub struct OddHeaderViewMut<'a>(pub ooxml_core::LensMut<'a, OddHeader>);
+impl<'a> OddHeaderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> OddHeaderView<'_> {
+        OddHeaderView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(OddHeader::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(OddHeader::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
 /// `x:CT_Xstring/x:t` — Text.
 #[derive(Debug)]
 pub enum Text {}
@@ -8122,6 +20423,12 @@ impl<'a> CellValueViewMut<'a> {
         self.0.set_text(v)
     }
 }
+const _: () = ooxml_core::schema::assert_spec::<AutoFilter>();
+const _: () = ooxml_core::schema::assert_child::<AutoFilter, FilterColumn>();
+const _: () = ooxml_core::schema::assert_child::<AutoFilter, SortState>();
+const _: () = ooxml_core::schema::assert_spec::<WorkbookViewElement>();
+const _: () = ooxml_core::schema::assert_spec::<BookViews>();
+const _: () = ooxml_core::schema::assert_child::<BookViews, WorkbookViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<Bold>();
 const _: () = ooxml_core::schema::assert_spec::<Condense>();
 const _: () = ooxml_core::schema::assert_spec::<Extend>();
@@ -8145,7 +20452,10 @@ const _: () = ooxml_core::schema::assert_spec::<TopBorder>();
 const _: () = ooxml_core::schema::assert_child::<TopBorder, Color>();
 const _: () = ooxml_core::schema::assert_spec::<Borders>();
 const _: () = ooxml_core::schema::assert_child::<Borders, Border>();
+const _: () = ooxml_core::schema::assert_spec::<Break>();
 const _: () = ooxml_core::schema::assert_spec::<FontCharSet>();
+const _: () = ooxml_core::schema::assert_spec::<CacheSource>();
+const _: () = ooxml_core::schema::assert_child::<CacheSource, WorksheetSource>();
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
@@ -8161,16 +20471,82 @@ const _: () = ooxml_core::schema::assert_spec::<CellStyles>();
 const _: () = ooxml_core::schema::assert_child::<CellStyles, CellStyle>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormats>();
 const _: () = ooxml_core::schema::assert_child::<CellFormats, CellFormat>();
+const _: () = ooxml_core::schema::assert_spec::<ConditionalFormattingRule>();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormattingRule,
+    ConditionalFormattingRuleExtensionList,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormattingRule,
+    ColorScale,
+>();
+const _: () = ooxml_core::schema::assert_child::<ConditionalFormattingRule, DataBar>();
+const _: () = ooxml_core::schema::assert_child::<ConditionalFormattingRule, IconSet>();
+const _: () = ooxml_core::schema::assert_child::<ConditionalFormattingRule, Formula>();
+const _: () = ooxml_core::schema::assert_spec::<ConditionalFormattingRuleExtension>();
+const _: () = ooxml_core::schema::assert_spec::<
+    ConditionalFormattingRuleExtensionList,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormattingRuleExtensionList,
+    ConditionalFormattingRuleExtension,
+>();
+const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatValueObject>();
+const _: () = ooxml_core::schema::assert_spec::<Column>();
 const _: () = ooxml_core::schema::assert_spec::<BackgroundColor>();
 const _: () = ooxml_core::schema::assert_spec::<Color>();
 const _: () = ooxml_core::schema::assert_spec::<ForegroundColor>();
+const _: () = ooxml_core::schema::assert_spec::<TabColor>();
+const _: () = ooxml_core::schema::assert_spec::<ColorScale>();
+const _: () = ooxml_core::schema::assert_child::<
+    ColorScale,
+    ConditionalFormatValueObject,
+>();
+const _: () = ooxml_core::schema::assert_child::<ColorScale, Color>();
+const _: () = ooxml_core::schema::assert_spec::<Columns>();
+const _: () = ooxml_core::schema::assert_child::<Columns, Column>();
+const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatting>();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormatting,
+    ConditionalFormattingRule,
+>();
+const _: () = ooxml_core::schema::assert_spec::<CustomWorkbookView>();
+const _: () = ooxml_core::schema::assert_spec::<CustomWorkbookViews>();
+const _: () = ooxml_core::schema::assert_child::<
+    CustomWorkbookViews,
+    CustomWorkbookView,
+>();
+const _: () = ooxml_core::schema::assert_spec::<DataBar>();
+const _: () = ooxml_core::schema::assert_child::<
+    DataBar,
+    ConditionalFormatValueObject,
+>();
+const _: () = ooxml_core::schema::assert_child::<DataBar, Color>();
+const _: () = ooxml_core::schema::assert_spec::<DataValidation>();
+const _: () = ooxml_core::schema::assert_child::<DataValidation, Formula1>();
+const _: () = ooxml_core::schema::assert_child::<DataValidation, Formula2>();
+const _: () = ooxml_core::schema::assert_spec::<DataValidations>();
+const _: () = ooxml_core::schema::assert_child::<DataValidations, DataValidation>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedName>();
 const _: () = ooxml_core::schema::assert_spec::<DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<DefinedNames, DefinedName>();
+const _: () = ooxml_core::schema::assert_spec::<DifferentialFormat>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Border>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Alignment>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Protection>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Fill>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Font>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, NumberingFormat>();
+const _: () = ooxml_core::schema::assert_spec::<DifferentialFormats>();
+const _: () = ooxml_core::schema::assert_child::<
+    DifferentialFormats,
+    DifferentialFormat,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Fill>();
 const _: () = ooxml_core::schema::assert_child::<Fill, PatternFill>();
 const _: () = ooxml_core::schema::assert_spec::<Fills>();
 const _: () = ooxml_core::schema::assert_child::<Fills, Fill>();
+const _: () = ooxml_core::schema::assert_spec::<FilterColumn>();
 const _: () = ooxml_core::schema::assert_spec::<Font>();
 const _: () = ooxml_core::schema::assert_child::<Font, Bold>();
 const _: () = ooxml_core::schema::assert_child::<Font, Condense>();
@@ -8186,22 +20562,66 @@ const _: () = ooxml_core::schema::assert_child::<Font, FontSize>();
 const _: () = ooxml_core::schema::assert_child::<Font, Underline>();
 const _: () = ooxml_core::schema::assert_child::<Font, VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<FontFamilyNumbering>();
+const _: () = ooxml_core::schema::assert_spec::<RunFont>();
 const _: () = ooxml_core::schema::assert_spec::<FontName>();
 const _: () = ooxml_core::schema::assert_spec::<FontScheme>();
 const _: () = ooxml_core::schema::assert_spec::<FontSize>();
 const _: () = ooxml_core::schema::assert_spec::<Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Fonts, Font>();
+const _: () = ooxml_core::schema::assert_spec::<HeaderFooter>();
+const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenFooter>();
+const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenHeader>();
+const _: () = ooxml_core::schema::assert_child::<HeaderFooter, FirstFooter>();
+const _: () = ooxml_core::schema::assert_child::<HeaderFooter, FirstHeader>();
+const _: () = ooxml_core::schema::assert_child::<HeaderFooter, OddFooter>();
+const _: () = ooxml_core::schema::assert_child::<HeaderFooter, OddHeader>();
+const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
+const _: () = ooxml_core::schema::assert_spec::<Hyperlinks>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlinks, Hyperlink>();
+const _: () = ooxml_core::schema::assert_spec::<IconSet>();
+const _: () = ooxml_core::schema::assert_child::<
+    IconSet,
+    ConditionalFormatValueObject,
+>();
+const _: () = ooxml_core::schema::assert_spec::<RunPropertyCharSet>();
+const _: () = ooxml_core::schema::assert_spec::<FontFamily>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<NumberingFormat>();
 const _: () = ooxml_core::schema::assert_spec::<NumberingFormats>();
 const _: () = ooxml_core::schema::assert_child::<NumberingFormats, NumberingFormat>();
+const _: () = ooxml_core::schema::assert_spec::<ColumnBreaks>();
+const _: () = ooxml_core::schema::assert_child::<ColumnBreaks, Break>();
+const _: () = ooxml_core::schema::assert_spec::<RowBreaks>();
+const _: () = ooxml_core::schema::assert_child::<RowBreaks, Break>();
+const _: () = ooxml_core::schema::assert_spec::<PageMargins>();
+const _: () = ooxml_core::schema::assert_spec::<PageSetupProperties>();
+const _: () = ooxml_core::schema::assert_spec::<PageSetup>();
+const _: () = ooxml_core::schema::assert_spec::<Pane>();
 const _: () = ooxml_core::schema::assert_spec::<PatternFill>();
 const _: () = ooxml_core::schema::assert_child::<PatternFill, BackgroundColor>();
 const _: () = ooxml_core::schema::assert_child::<PatternFill, ForegroundColor>();
+const _: () = ooxml_core::schema::assert_spec::<PivotCacheDefinition>();
+const _: () = ooxml_core::schema::assert_child::<PivotCacheDefinition, CacheSource>();
+const _: () = ooxml_core::schema::assert_spec::<PrintOptions>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
+const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, Text>();
+const _: () = ooxml_core::schema::assert_spec::<RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Bold>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Condense>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Extend>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Italic>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Strike>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Color>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, RunFont>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontScheme>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontSize>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, RunPropertyCharSet>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, FontFamily>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
+const _: () = ooxml_core::schema::assert_child::<RunProperties, VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<Row>();
 const _: () = ooxml_core::schema::assert_child::<Row, Cell>();
 const _: () = ooxml_core::schema::assert_spec::<InlineString>();
@@ -8210,12 +20630,24 @@ const _: () = ooxml_core::schema::assert_child::<InlineString, Text>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringItem>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringItem, Run>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringItem, Text>();
+const _: () = ooxml_core::schema::assert_spec::<Selection>();
 const _: () = ooxml_core::schema::assert_spec::<Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SheetData>();
 const _: () = ooxml_core::schema::assert_child::<SheetData, Row>();
 const _: () = ooxml_core::schema::assert_spec::<SheetDimension>();
+const _: () = ooxml_core::schema::assert_spec::<SheetFormatProperties>();
+const _: () = ooxml_core::schema::assert_spec::<SheetProperties>();
+const _: () = ooxml_core::schema::assert_child::<SheetProperties, TabColor>();
+const _: () = ooxml_core::schema::assert_child::<SheetProperties, PageSetupProperties>();
+const _: () = ooxml_core::schema::assert_spec::<SheetProtection>();
+const _: () = ooxml_core::schema::assert_spec::<SheetViewElement>();
+const _: () = ooxml_core::schema::assert_child::<SheetViewElement, Pane>();
+const _: () = ooxml_core::schema::assert_child::<SheetViewElement, Selection>();
+const _: () = ooxml_core::schema::assert_spec::<SheetViews>();
+const _: () = ooxml_core::schema::assert_child::<SheetViews, SheetViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Sheets, Sheet>();
+const _: () = ooxml_core::schema::assert_spec::<SortState>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringTable>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringTable, SharedStringItem>();
 const _: () = ooxml_core::schema::assert_spec::<Stylesheet>();
@@ -8223,28 +20655,68 @@ const _: () = ooxml_core::schema::assert_child::<Stylesheet, Borders>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, CellStyleFormats>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, CellStyles>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, CellFormats>();
+const _: () = ooxml_core::schema::assert_child::<Stylesheet, DifferentialFormats>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, Fills>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, NumberingFormats>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
+const _: () = ooxml_core::schema::assert_child::<Table, AutoFilter>();
+const _: () = ooxml_core::schema::assert_child::<Table, SortState>();
 const _: () = ooxml_core::schema::assert_spec::<TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<TableParts>();
 const _: () = ooxml_core::schema::assert_child::<TableParts, TablePart>();
 const _: () = ooxml_core::schema::assert_spec::<Underline>();
 const _: () = ooxml_core::schema::assert_spec::<VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<Workbook>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, BookViews>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, CalculationProperties>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, CustomWorkbookViews>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, DefinedNames>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Workbook, WorkbookProperties>();
+const _: () = ooxml_core::schema::assert_child::<Workbook, WorkbookProtection>();
 const _: () = ooxml_core::schema::assert_spec::<WorkbookProperties>();
+const _: () = ooxml_core::schema::assert_spec::<WorkbookProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Worksheet>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, AutoFilter>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, Columns>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, ConditionalFormatting>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, DataValidations>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, HeaderFooter>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, Hyperlinks>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, MergeCells>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, ColumnBreaks>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, RowBreaks>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, PageMargins>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, PageSetup>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, PrintOptions>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetData>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetDimension>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetFormatProperties>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProperties>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetProtection>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SheetViews>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, SortState>();
 const _: () = ooxml_core::schema::assert_child::<Worksheet, TableParts>();
+const _: () = ooxml_core::schema::assert_child::<Worksheet, WorksheetExtensionList>();
+const _: () = ooxml_core::schema::assert_spec::<WorksheetExtension>();
+const _: () = ooxml_core::schema::assert_spec::<WorksheetExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<
+    WorksheetExtensionList,
+    WorksheetExtension,
+>();
+const _: () = ooxml_core::schema::assert_spec::<WorksheetSource>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormat>();
 const _: () = ooxml_core::schema::assert_child::<CellFormat, Alignment>();
 const _: () = ooxml_core::schema::assert_child::<CellFormat, Protection>();
+const _: () = ooxml_core::schema::assert_spec::<EvenFooter>();
+const _: () = ooxml_core::schema::assert_spec::<EvenHeader>();
+const _: () = ooxml_core::schema::assert_spec::<FirstFooter>();
+const _: () = ooxml_core::schema::assert_spec::<FirstHeader>();
+const _: () = ooxml_core::schema::assert_spec::<Formula>();
+const _: () = ooxml_core::schema::assert_spec::<Formula1>();
+const _: () = ooxml_core::schema::assert_spec::<Formula2>();
+const _: () = ooxml_core::schema::assert_spec::<OddFooter>();
+const _: () = ooxml_core::schema::assert_spec::<OddHeader>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
 const _: () = ooxml_core::schema::assert_spec::<CellValue>();
