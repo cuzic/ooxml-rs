@@ -5,9 +5,10 @@
 
 use std::ops::Range;
 
-use ooxml_core::{LensMut, QName, RawItem, RawNode};
+use ooxml_core::{LensMut, QName, RawItem, RawNode, XmlDocument};
+use ooxml_core::lens::Detached;
 use ooxml_schema::wml::{
-    GridAfter, GridBefore, GridColumn, GridSpan, NS_W, Paragraph as P, ParagraphProperties, TableCell,
+    Deleted, Inserted, GridAfter, GridBefore, GridColumn, GridSpan, NS_W, Paragraph as P, ParagraphProperties, TableCell,
     TableCellProperties, TableCellWidth, TableGrid, TablePropertyExceptions, TableRow, TableRowProperties,
     VerticalMerge,
 };
@@ -17,6 +18,7 @@ use crate::error::{Error, Result};
 use crate::fields::Operation;
 use crate::names::is;
 use crate::story::StoryIndex;
+use crate::revisions::{Marks, TrackedChanges, check_deletable_paragraph, check_path, delete_paragraph_runs, mark_paragraph};
 
 const fn w(local: &'static str) -> QName {
     QName::new(NS_W, local)
@@ -274,6 +276,60 @@ fn cell_is_empty(tc: &RawNode) -> bool {
         && tc.children().iter().all(|c| !matches!(c, RawItem::Text(t) if !t.is_whitespace()))
 }
 
+struct RowInsertion {
+    path: Vec<usize>,
+    pos: usize,
+    trpr: Option<Detached<TableRowProperties>>,
+    tblprex: Option<Detached<TablePropertyExceptions>>,
+    cells: Vec<InsertedCell>,
+}
+
+struct InsertedCell {
+    tcpr: Option<Detached<TableCellProperties>>,
+    continue_merge: bool,
+    ppr: Option<Detached<ParagraphProperties>>,
+}
+
+impl RowInsertion {
+    fn write(&self, xml: &mut XmlDocument, count: usize, mut marks: Option<&mut Marks<'_>>) -> Result<()> {
+        let mut table = xml.lens_mut_at::<ooxml_schema::wml::Table>(&self.path)?;
+        table.check_insert_at::<TableRow>(self.pos)?;
+        for offset in 0..count {
+            let mut row = table.insert_at::<TableRow>(self.pos + offset)?;
+            if let Some(copy) = &self.tblprex {
+                row.insert_detached(copy)?;
+            }
+            if let Some(copy) = &self.trpr {
+                row.insert_detached(copy)?;
+            }
+            if let Some(marks) = marks.as_deref_mut() {
+                let mut trpr = row.get_or_insert::<TableRowProperties>()?;
+                marks.write(trpr.insert::<Inserted>()?)?;
+            }
+            for cell in &self.cells {
+                let mut tc = row.insert::<TableCell>()?;
+                if cell.tcpr.is_some() || cell.continue_merge {
+                    let mut pr = match &cell.tcpr {
+                        Some(copy) => tc.insert_detached(copy)?,
+                        None => tc.insert::<TableCellProperties>()?,
+                    };
+                    if cell.continue_merge {
+                        pr.insert::<VerticalMerge>()?;
+                    }
+                }
+                let mut p = tc.insert::<P>()?;
+                if let Some(copy) = &cell.ppr {
+                    p.insert_detached(copy)?;
+                }
+                if let Some(marks) = marks.as_deref_mut() {
+                    mark_paragraph::<Inserted>(&mut p, marks)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Document {
     /// Paths (from the story root) of the story's tables in document order,
     /// nested ones included, and the story's paragraph index of each
@@ -339,6 +395,9 @@ impl Document {
                 return Err(Error::UnsupportedContext { ancestor: "w:sdt" });
             }
         }
+        for property in n.elements().filter(|n| n.is(w("tblPr")) || n.is(w("tblGrid"))) {
+            check_revisions(property)?;
+        }
         let grid = read_grid(n)?;
         if check_all_row_revisions {
             for tr in n.elements().filter(|x| is::<TableRow>(x)) {
@@ -390,6 +449,14 @@ impl Document {
     /// failures.
     pub fn insert_rows(&mut self, t: TableRef, at: usize, count: usize, template: RowTemplate) -> Result<()> {
         self.table_gate()?;
+        let plan = self.plan_insert_rows(t, at, count, template, false)?;
+        let part = &self.stories[t.story.0].id.part;
+        plan.write(self.pkg.xml_part_mut(part)?, count, None)?;
+        self.table_changed(t.story, &plan.path);
+        Ok(())
+    }
+
+    fn plan_insert_rows(&self, t: TableRef, at: usize, count: usize, template: RowTemplate, tracked: bool) -> Result<RowInsertion> {
         let (path, grid) = self.locate_table(t, false)?;
         let n = grid.rows.len();
         if at > n || count == 0 || n == 0 {
@@ -399,7 +466,6 @@ impl Document {
             RowTemplate::Above => at.saturating_sub(1),
             RowTemplate::Below => at.min(n - 1),
         };
-        let kind = self.stories[t.story.0].id.kind;
         let part = self.stories[t.story.0].id.part.clone();
         let doc = self.pkg.parsed_part(&part).expect("story parts are parsed");
         let tbl = node_at(doc.root(), &path);
@@ -410,6 +476,10 @@ impl Document {
         }
         let mut tpath = path.clone();
         tpath.push(trow.item);
+        if tracked {
+            check_path(doc.root(), &tpath)?;
+            check_revisions(tr)?;
+        }
         let copy_child = |i: usize, base: &[usize]| -> Vec<usize> { base.iter().copied().chain([i]).collect() };
         let trpr = match tr.indexed_elements().find(|(_, e)| is::<TableRowProperties>(e)) {
             Some((i, _)) => {
@@ -466,42 +536,10 @@ impl Document {
                 },
                 None => None,
             };
-            cells.push((tcpr, continue_merge, ppr));
+            cells.push(InsertedCell { tcpr, continue_merge, ppr });
         }
         let pos = grid.rows.get(at).map_or_else(|| tbl.children().len(), |r| r.item);
-        // dry run
-        let xml = self.pkg.xml_part_mut(&part)?;
-        let tl = crate::structure::table_lens(xml, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;
-        tl.check_insert_at::<TableRow>(pos)?;
-        // write
-        let mut tl = crate::structure::table_lens(xml, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;
-        for k in 0..count {
-            let mut row = tl.insert_at::<TableRow>(pos + k)?;
-            if let Some(d) = &tblprex {
-                row.insert_detached(d)?;
-            }
-            if let Some(d) = &trpr {
-                row.insert_detached(d)?;
-            }
-            for (tcpr, cont, ppr) in &cells {
-                let mut tc = row.insert::<TableCell>()?;
-                if tcpr.is_some() || *cont {
-                    let mut pr = match tcpr {
-                        Some(d) => tc.insert_detached(d)?,
-                        None => tc.insert::<TableCellProperties>()?,
-                    };
-                    if *cont {
-                        pr.insert::<VerticalMerge>()?;
-                    }
-                }
-                let mut p = tc.insert::<P>()?;
-                if let Some(d) = ppr {
-                    p.insert_detached(d)?;
-                }
-            }
-        }
-        self.table_changed(t.story, &path);
-        Ok(())
+        Ok(RowInsertion { path, pos, trpr, tblprex, cells })
     }
 
     /// Deletes the rows `range` (ADR-0011 §7.2). A vertical merge whose
@@ -928,5 +966,99 @@ impl Document {
         }
         self.table_changed(t.story, &path);
         Ok(())
+    }
+}
+
+
+impl TrackedChanges<'_> {
+    /// Inserts template rows with row and paragraph-mark insertion revisions.
+    pub fn insert_rows(&mut self, t: TableRef, at: usize, count: usize, template: RowTemplate) -> Result<()> {
+        self.doc.tracked_write_gate(Operation::Structure)?;
+        let plan = self.doc.plan_insert_rows(t, at, count, template, true)?;
+        self.edit(t.story, |xml, marks| plan.write(xml, count, Some(marks)))?;
+        self.doc.table_changed(t.story, &plan.path);
+        Ok(())
+    }
+
+    /// Marks rows and their cell content as deleted. They remain in the table's read view.
+    pub fn delete_rows(&mut self, t: TableRef, range: Range<usize>) -> Result<()> {
+        self.doc.tracked_write_gate(Operation::Structure)?;
+        let (path, grid) = self.doc.locate_table(t, false)?;
+        let n = grid.rows.len();
+        if range.is_empty() || range.end > n {
+            return Err(Error::InvalidValue { what: "row range", value: format!("{range:?} of {n}") });
+        }
+        if range.len() == n {
+            return Err(Error::TableWouldBeEmpty);
+        }
+        let root = self.doc.story_root_node(t.story);
+        check_path(root, &path)?;
+        let table = node_at(root, &path);
+        let rows: Vec<_> = grid.rows[range].iter().map(|row| {
+            (row.item, table.children()[row.item].as_element().expect("row"))
+        }).collect();
+        let removed: Vec<_> = rows.iter().map(|&(_, row)| row).collect();
+        check_anchor_pairs(&removed)?;
+        let mut paragraphs = Vec::new();
+        for &(ri, row) in &rows {
+            check_removable(row)?;
+            let mut nodes = vec![([path.as_slice(), &[ri]].concat(), row)];
+            while let Some((path, node)) = nodes.pop() {
+                for (i, child) in node.indexed_elements() {
+                    let child_path = [path.as_slice(), &[i]].concat();
+                    match child.name().local() {
+                        "p" if is::<P>(child) => {
+                            check_deletable_paragraph(child)?;
+                            paragraphs.push(child_path);
+                        }
+                        "tbl" | "tr" | "tc" if child.name().ns() == NS_W => {
+                            nodes.push((child_path, child));
+                        }
+                        "tcPr" | "trPr" | "tblPrEx" | "tblPr" | "tblGrid" if child.name().ns() == NS_W => {}
+                        _ => return Err(Error::UnsupportedContext { ancestor: "non-paragraph table cell content" }),
+                    }
+                }
+            }
+        }
+        let rows: Vec<_> = rows.into_iter().map(|(i, _)| i).collect();
+        self.edit(t.story, |xml, marks| {
+            for path in &paragraphs {
+                delete_paragraph_runs(xml, path, marks)?;
+                mark_paragraph::<Deleted>(&mut xml.lens_mut_at::<P>(path)?, marks)?;
+            }
+            for &item in &rows {
+                let row_path = [path.as_slice(), &[item]].concat();
+                let mut row = xml.lens_mut_at::<TableRow>(&row_path)?;
+                marks.write(row.get_or_insert::<TableRowProperties>()?.insert::<Deleted>()?)?;
+            }
+            Ok(())
+        })?;
+        self.doc.table_changed(t.story, &path);
+        Ok(())
+    }
+}
+
+/// A row retained in a table's read view, including rows marked as deleted.
+#[derive(Clone, Copy, Debug)]
+pub struct Row<'a> {
+    node: &'a RawNode,
+}
+
+impl Row<'_> {
+    /// Whether this row carries a deletion revision.
+    pub fn is_deleted(&self) -> bool {
+        self.node.elements().filter(|n| is::<TableRowProperties>(n))
+            .flat_map(RawNode::elements).any(is::<Deleted>)
+    }
+}
+
+impl Document {
+    /// Looks up a direct row of a table by its stored index.
+    pub fn table_row(&self, table: TableRef, row: usize) -> Option<Row<'_>> {
+        let paths = self.table_paths(table.story);
+        let path = paths.get(table.index)?;
+        let node = node_at(self.story_root_node(table.story), path)
+            .elements().filter(|n| is::<TableRow>(n)).nth(row)?;
+        Some(Row { node })
     }
 }

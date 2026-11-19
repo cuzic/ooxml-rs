@@ -281,7 +281,7 @@ impl Document {
                     offset = past;
                     continue;
                 }
-                run.check_settable()?;
+                crate::text::check_text_only(run.raw())?;
                 let path = index.path(run.info.frame);
                 let child = *path.last().expect("run path");
                 if is_start {

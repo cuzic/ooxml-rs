@@ -107,6 +107,7 @@ pub struct Document {
     pub(crate) update_fields: Option<bool>,
     write_protection: Option<WriteProtection>,
     comment_protection: Option<String>,
+    tracked_protection: Option<String>,
     marked_final: bool,
 }
 
@@ -227,6 +228,7 @@ impl Document {
         let mut track_revisions = false;
         let mut protected_edit = None;
         let mut comment_protection = None;
+        let mut tracked_protection = None;
         let mut even_and_odd = false;
         for name in settings {
             let view = SettingsView(pkg.xml_part(&name)?.lens::<Settings>()?);
@@ -241,6 +243,9 @@ impl Document {
                 (enforced && restricted).then(|| edit.map(|e| e.as_str().to_owned()).unwrap_or_default())
             });
             for edit in restrictions {
+                if edit != "trackedChanges" && tracked_protection.is_none() {
+                    tracked_protection = Some(edit.clone());
+                }
                 if edit != "comments" && comment_protection.is_none() {
                     comment_protection = Some(edit.clone());
                 }
@@ -293,6 +298,7 @@ impl Document {
             update_fields,
             write_protection,
             comment_protection,
+            tracked_protection,
             marked_final: custom.marked_final,
             settings_parts,
             styles_part,
@@ -354,6 +360,20 @@ impl Document {
         self.gates
             .iter()
             .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
+            .find_map(|g| g.error_for(op))
+            .map_or(Ok(()), Err)
+    }
+
+    pub(crate) fn tracked_protection_gate(&self) -> Result<()> {
+        self.tracked_protection.as_ref().map_or(Ok(()), |edit| {
+            Err(Error::DocumentProtected { edit: edit.clone() })
+        })
+    }
+
+    pub(crate) fn tracked_write_gate(&self, op: Operation) -> Result<()> {
+        self.tracked_protection_gate()?;
+        self.gates.iter()
+            .filter(|g| !self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_)))
             .find_map(|g| g.error_for(op))
             .map_or(Ok(()), Err)
     }
@@ -823,7 +843,7 @@ pub(crate) fn node_at<'a>(root: &'a RawNode, path: &[usize]) -> &'a RawNode {
 pub struct Paragraph<'d> {
     pub(crate) doc: &'d Document,
     story: StoryIndex,
-    data: &'d StoryData,
+    pub(crate) data: &'d StoryData,
     root: &'d RawNode,
     pub(crate) info: &'d ParaInfo,
     index: usize,
@@ -997,9 +1017,7 @@ impl<'d> Run<'d> {
         if self.info.in_field || ws.contains(&Wrapper::SimpleField) {
             return Err(Error::InsideField);
         }
-        if let Some(w) = ws.iter().find(|w| w.is_revision()) {
-            return Err(Error::InsideRevision { context: w.context() });
-        }
+        crate::revisions::check_run_revision(self)?;
         if self.paragraph.in_separator_note() {
             let ancestor = if self.paragraph.data.id.kind == StoryKind::Endnotes { "w:endnote (separator)" } else { "w:footnote (separator)" };
             return Err(Error::UnsupportedContext { ancestor });

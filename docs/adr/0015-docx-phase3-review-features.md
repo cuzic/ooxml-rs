@@ -1099,3 +1099,36 @@ chain is refused. New commentsExtensible entries require a commentsIds
 mapping staged in the same edit. Comment dates require local and UTC years
 in 0000–9999. Replies to block-level range starts return
 `UnsupportedContext`.
+
+## Post-acceptance note (D3c, Issue #98)
+
+`Document::track_changes(Author, Option<LocalDateTime>)` borrows the document
+for a tracked editing session. It exposes run replacement, insertion at a
+`RunPosition`, UTF-8 text-range deletion, paragraph and row edits, and
+direct formatting of runs and paragraphs. The session allows
+`trackedChanges` protection and lifts W1 while applying the usual W2
+operation column. Revision dates use the comment date writer when supplied.
+Each edit stages a story tree, then commits the tree and its annotation id
+high-water mark together after successful validation.
+
+`Run::revision()` reads the nearest enclosing content revision, falling
+back to the run's own formatting change. `Document::table_row` returns a row view whose `Row::is_deleted` reports
+a row deletion without changing table indices. Text edits,
+including Phase0's `set_run_text`, check the enclosing property revisions
+as well as revisions on the run. The story walk records active move and
+custom XML revision ranges.
+
+For N1, the same-part move transfers the original `pPr` from the preceding
+paragraph to the new paragraph, including any section references. The
+preceding paragraph receives a detached copy without `sectPr` and with
+the inserted mark first in its `rPr`. A tracked paragraph deletion uses a
+deleted paragraph mark and deleted runs and requires a following paragraph
+in the same container. Inserting empty table rows uses the Phase2 row
+template, so the inserted row and its paragraph marks carry revisions.
+Deleted rows retain their direct cell content and marks in the stored XML.
+
+The SDK names the child of `pPrChange` `CT_PPrExtended`. The snapshot
+writes the paragraph properties without section, paragraph-mark, or
+previous-revision properties. The generator emits `SameType` only for
+identical complex types. D3c uses local typed projections for detaching
+the two snapshots. Existing generated public names are preserved.

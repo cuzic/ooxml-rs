@@ -71,10 +71,10 @@ pub struct NewComment {
 /// A nonempty text range within one story, possibly crossing paragraphs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TextRange {
-    first: RunRef,
-    last: RunRef,
-    start_byte: Option<usize>,
-    end_byte: Option<usize>,
+    pub(crate) first: RunRef,
+    pub(crate) last: RunRef,
+    pub(crate) start_byte: Option<usize>,
+    pub(crate) end_byte: Option<usize>,
 }
 
 impl TextRange {
@@ -349,7 +349,7 @@ fn random_hex(used: &mut BTreeSet<u32>) -> Result<String> {
     }
 }
 
-fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
+pub(crate) fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
     let (local, utc) = if let Some(date) = date {
         let utc = date
             .wall_clock

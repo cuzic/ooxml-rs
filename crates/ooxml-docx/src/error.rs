@@ -10,6 +10,12 @@ use crate::replace::Refusal;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// A tracked mark at this position has no paragraph to merge with.
+    #[error("no following paragraph for the tracked paragraph mark")]
+    NoFollowingParagraph,
+    /// Tracked insertion inherits the previous paragraph's mark.
+    #[error("tracked insertion does not accept explicit paragraph formatting")]
+    TrackedParagraphFormatting,
     /// A bookmark range crosses a story or block container boundary.
     #[error("bookmark spans containers")]
     BookmarkSpansContainers,

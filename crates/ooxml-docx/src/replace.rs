@@ -325,10 +325,6 @@ fn classify_inline(parent: &RawNode, i: usize, c: &RawNode) -> Class {
     Class::Boundary
 }
 
-fn has_rpr_change(run: &RawNode) -> bool {
-    rpr(run).is_some_and(|p| p.elements().any(|e| e.is(crate::names::RPR_CHANGE)))
-}
-
 fn rpr(run: &RawNode) -> Option<&RawNode> {
     run.elements().find(|e| is::<RunProperties>(e))
 }
@@ -405,8 +401,10 @@ impl<'d> Flow<'d> {
         let text = if run.is_removed() { String::new() } else { run_text(run.node) };
         let start = self.text.len();
         let status = match run.check_settable() {
+            Err(Error::InsideRevision { context: RunContext::Direct }) if run.has_formatting_change() => {
+                Err(RefusalReason::InsideRevision { context: None })
+            }
             Err(e) => Err(RefusalReason::of_run_error(e)),
-            Ok(()) if has_rpr_change(run.node) => Err(RefusalReason::InsideRevision { context: None }),
             Ok(()) => Ok(()),
         };
         let mut children = Vec::new();
