@@ -154,14 +154,21 @@
       ["ppt/slides/slide1.xml", ".//a:bodyPr/a:spAutoFit", 1]
     ]
   },
-  "pptx/p3b-shape-properties.pptx": {"text": [], "pages": 6,
+  "pptx/p3b-shape-properties.pptx": {"text": ["Learning PPTX"], "pages": 6,
     "xml": [
-      ["ppt/slides/slide3.xml", ".//p:grpSp/p:grpSpPr/a:xfrm[a:off/@x='800000'][a:chOff/@y='1100000']/a:chExt[@cx='4000600'][@cy='2204032']", 1],
-      ["ppt/slides/slide3.xml", ".//p:spPr/a:xfrm[@rot='1800000'][@flipH='1'][a:off/@x='800000']/a:ext[@cx='2000000'][@cy='850000']", 1],
+      ["ppt/slides/slide3.xml", ".//p:grpSp/p:grpSpPr/a:xfrm/a:off[@x='800000'][@y='1100000']", 1],
+      ["ppt/slides/slide3.xml", ".//p:grpSp/p:grpSpPr/a:xfrm/a:chOff[@x='800000'][@y='1100000']", 1],
+      ["ppt/slides/slide3.xml", ".//p:grpSp/p:grpSpPr/a:xfrm/a:chExt[@cx='4000600'][@cy='2204032']", 1],
+      ["ppt/slides/slide3.xml", ".//p:spPr/a:xfrm[@rot='1800000'][@flipH='1']/a:off[@x='800000'][@y='1100000']", 1],
+      ["ppt/slides/slide3.xml", ".//p:spPr/a:xfrm[@rot='1800000'][@flipH='1']/a:ext[@cx='2000000'][@cy='850000']", 1],
       ["ppt/slides/slide3.xml", ".//a:prstGeom[@prst='upArrow']/a:avLst/a:gd[@name='adj1'][@fmla='val 35000']", 1],
-      ["ppt/slides/slide3.xml", ".//p:spPr[a:prstGeom/@prst='upArrow']/a:solidFill/a:srgbClr[@val='123456']", 1],
-      ["ppt/slides/slide3.xml", ".//a:ln[@w='38100'][@cap='rnd'][@cmpd='dbl'][a:solidFill/a:srgbClr/@val='C05028'][a:prstDash/@val='dash'][a:tailEnd/@type='oval']/a:headEnd[@type='triangle'][@w='lg'][@len='sm']", 1],
-      ["ppt/slides/slide3.xml", ".//p:spPr[a:prstGeom/@prst='ellipse']/a:gradFill[a:lin/@ang='5400000']/a:gsLst/a:gs[@pos='100000']/a:srgbClr[@val='008080']", 1]
+      ["ppt/slides/slide3.xml", ".//p:spPr/a:solidFill/a:srgbClr[@val='123456']", 1],
+      ["ppt/slides/slide3.xml", ".//a:ln[@w='38100'][@cap='rnd'][@cmpd='dbl']/a:solidFill/a:srgbClr[@val='C05028']", 1],
+      ["ppt/slides/slide3.xml", ".//a:ln[@w='38100']/a:prstDash[@val='dash']", 1],
+      ["ppt/slides/slide3.xml", ".//a:ln[@w='38100']/a:headEnd[@type='triangle'][@w='lg'][@len='sm']", 1],
+      ["ppt/slides/slide3.xml", ".//a:ln[@w='38100']/a:tailEnd[@type='oval']", 1],
+      ["ppt/slides/slide3.xml", ".//a:gradFill/a:lin[@ang='5400000']", 1],
+      ["ppt/slides/slide3.xml", ".//a:gradFill/a:gsLst/a:gs[@pos='100000']/a:srgbClr[@val='008080']", 1]
     ]
   },
   "xlsx/01-minimal.xlsx": {"sheets": {"Sheet1": {"A1": "Name (edited)", "A2": "  padded ", "B2": 91.0, "C2": 0.0, "D2": 7.0, "F5": "new"}}},
