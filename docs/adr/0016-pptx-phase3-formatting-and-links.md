@@ -781,3 +781,23 @@ and removes its image relationship only if the staged part has no
 remaining reference. The media part is retained. `ValueOutOfRange`
 reuses the existing pptx error with its `what` field. No generated
 public names were changed.
+
+### Post-acceptance question — P3b group fitting at integer EMU precision
+
+Section 6 calls for fitting the group to its members while preserving
+their slide rectangles. For some scaled groups no integer group
+transform can satisfy both requirements with the child bounds as
+`chOff`/`chExt`. Consider a group on the slide with horizontal
+`off = chOff = 0`, `ext = 2`, and `chExt = 4`. Its children have
+`(x, cx)` of `(1, 1)` and `(2, 2)` in group coordinates. The resolver
+rounds each child's slide rectangle to `(1, 1)`.
+
+The child bounds require `chOff = 1` and `chExt = 3`. Preserving the
+first child's slide x requires `off = 1`. The first child's width rounds
+to 1 only if the new `ext` is at least 2, while the second child's x
+rounds to 1 only if the new `ext` is at most 1.
+
+The owner needs to decide whether to preserve the transform by allowing
+bounds larger than the child box, allow changes to the resolved child
+rectangles with a specified rounding rule, or refuse a fit that cannot
+preserve the rectangles.
