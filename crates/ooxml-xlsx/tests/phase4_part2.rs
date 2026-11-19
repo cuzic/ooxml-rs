@@ -505,9 +505,6 @@ fn conditional_format_review_refusals_are_atomic() {
         let (_, result) = try_on(&input, |ws| ws.add_conditional_format("A1", &rule));
         assert_matches!(result, Err(Error::InvalidSetting { .. }));
     }
-    let zero = sheet_with("", r#"<conditionalFormatting sqref="A1"><cfRule type="uniqueValues" priority="0"/></conditionalFormatting>"#, "");
-    let (_, result) = try_on(&zero, |ws| ws.add_conditional_format_first("A2", &Rule::new(RuleKind::UniqueValues)));
-    assert_matches!(result, Err(Error::InvalidSetting { .. }));
 }
 
 #[test]
@@ -565,6 +562,37 @@ fn workbook_edit_refusal_covers_part2() {
     let result = wb.unprotect_workbook();
     assert_matches!(result, Err(Error::InvalidReference(ref reason)) if reason.contains("B2 in row 1"));
     assert_unchanged(&wb, &input);
+}
+
+#[test]
+fn prepending_conditional_format_rejects_invalid_priorities_atomically() {
+    use ooxml_xlsx::{Rule, RuleKind};
+
+    let rule = Rule::new(RuleKind::UniqueValues);
+    for attr in ["", r#" priority="0""#, r#" priority="-1""#, r#" priority="x""#, r#" priority="1.0""#] {
+        let legacy = format!(r#"<conditionalFormatting sqref="A1"><cfRule type="uniqueValues"{attr}/></conditionalFormatting>"#);
+        let x14 = format!(r#"<extLst><ext uri="{{78C0D931-6437-407d-A8EE-F0AAD7539E65}}"><x14:conditionalFormattings xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:conditionalFormatting><x14:cfRule type="iconSet" id="{{23404A22-2791-4FFE-B3BF-645D3DA783FE}}"{attr}/></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>"#);
+        for existing in [legacy, x14] {
+            let input = sheet_with("", &existing, "");
+            let (_, result) = try_on(&input, |ws| ws.add_conditional_format_first("A2", &rule));
+            assert_matches!(result, Err(Error::InvalidSetting { .. }));
+            let (wb, result) = try_on(&input, |ws| ws.add_conditional_format("A2", &rule));
+            result.unwrap();
+            assert!(out_xml(&wb).contains(&existing));
+        }
+    }
+}
+
+#[test]
+fn comparison_validation_refuses_list_and_custom_atomically() {
+    use ooxml_xlsx::{Validation, ValidationOperator, ValidationType};
+
+    let input = sheet_with("", "", "");
+    for kind in [ValidationType::List, ValidationType::Custom] {
+        let validation = Validation::compare(kind, ValidationOperator::Between, "1", Some("2"));
+        let (_, result) = try_on(&input, |ws| ws.add_validation("A1", &validation));
+        assert_matches!(result, Err(Error::InvalidSetting { .. }));
+    }
 }
 
 #[test]

@@ -949,7 +949,13 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   column in the original span has a numeric width, the operation adds or subtracts the edited
   column's width from an existing numeric dxa `w:tcW`. When the width cannot be calculated,
   the existing `w:tcW` is preserved. Column edits also preserve non-dxa widths.
-- **Tracked changes (PR #66, round 2).** Column edits and merges refuse row-property revisions anywhere in the table, and a structural edit refuses revisions in any retained cell it rewrites.
+- **Tracked changes (PR #66 and issue #78).** Column edits and merges refuse row-property
+  revisions anywhere in the table. `delete_rows` also refuses row-property revisions
+  (`ins`, `del`, `trPrChange`) in a row where it repairs a vertical merge. For retained
+  cells whose properties are rewritten, the cell-level check covers `tcPrChange`,
+  `cellIns`, `cellDel` and `cellMerge` directly under `w:tcPr`. Tracked paragraph
+  text in those cells is preserved. A retained merge continuation must have an empty
+  paragraph with revision-free paragraph properties.
 - **Revisions in removed cells.** `delete_column` and `merge_cells` share the removal checks
   of `delete_rows` for revisions, notes, fields and comment anchors. All three use
   `RevisionInRange` for revision elements.

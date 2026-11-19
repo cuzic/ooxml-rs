@@ -8,6 +8,32 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// The object container cannot be edited safely.
+    #[error("cannot edit {part}: {reason}")]
+    PartNotEditable {
+        /// OPC part name.
+        part: String,
+        /// Why it cannot be edited.
+        reason: String,
+    },
+    /// Unsupported image format.
+    #[error("unrecognized image format")]
+    ImageFormat,
+    /// Missing or out-of-range image dimensions.
+    #[error("invalid image dimensions")]
+    ImageSize,
+    /// The anchor is outside the worksheet or the OOXML coordinate range.
+    #[error("invalid image anchor")]
+    ImageAnchor,
+    /// The id does not identify exactly one removable picture.
+    #[error("no uniquely removable image with id {0}")]
+    NoSuchImage(u32),
+    /// A cell's rich-value data could not be resolved.
+    #[error("unresolved rich value at {step}")]
+    UnresolvedRichValue {
+        /// The failed resolution step.
+        step: &'static str,
+    },
     /// An error from the package or XML layer (`ooxml-core`), including
     /// [`ooxml_core::Error::EncryptedPackage`],
     /// [`ooxml_core::Error::StrictNotSupported`] and

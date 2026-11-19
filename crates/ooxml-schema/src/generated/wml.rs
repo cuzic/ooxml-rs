@@ -1984,6 +1984,9 @@ impl ooxml_core::ElementSpec for NonVisualPictureDrawingProperties {
         ],
     );
 }
+#[cfg(all(feature = "wml", feature = "dml"))]
+impl ooxml_core::ChildOf<NonVisualPictureDrawingProperties>
+for super::dml::PictureLocks {}
 /// Read-only view of [`NonVisualPictureDrawingProperties`].
 #[derive(Clone, Debug)]
 pub struct NonVisualPictureDrawingPropertiesView<'a>(
@@ -1998,6 +2001,11 @@ impl<'a> NonVisualPictureDrawingPropertiesView<'a> {
                 "true",
                 ooxml_core::value::parse_bool,
             )
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:picLocks` child.
+    pub fn picture_locks(&self) -> Option<super::dml::PictureLocksView<'a>> {
+        self.0.child::<super::dml::PictureLocks>().map(super::dml::PictureLocksView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -2029,6 +2037,27 @@ impl<'a> NonVisualPictureDrawingPropertiesViewMut<'a> {
     pub fn remove_prefer_relative_resize(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0
             .remove_attr(NonVisualPictureDrawingProperties::ATTR_PREFER_RELATIVE_RESIZE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:picLocks` child, mutably.
+    pub fn picture_locks_mut(&mut self) -> Option<super::dml::PictureLocksViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::PictureLocks>()
+            .map(super::dml::PictureLocksViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:picLocks` child, or a new one in schema position.
+    pub fn get_or_insert_picture_locks(
+        &mut self,
+    ) -> Result<super::dml::PictureLocksViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::PictureLocks>()
+            .map(super::dml::PictureLocksViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:picLocks` child.
+    pub fn remove_picture_locks(&mut self) -> bool {
+        self.0.remove::<super::dml::PictureLocks>()
     }
 }
 /// `a:CT_PositiveSize2D/wp:extent` — Inline Drawing Object Extents.
@@ -16148,6 +16177,11 @@ const _: () = ooxml_core::schema::assert_child::<
     super::dml::ExtensionList,
 >();
 const _: () = ooxml_core::schema::assert_spec::<NonVisualPictureDrawingProperties>();
+#[cfg(all(feature = "wml", feature = "dml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    NonVisualPictureDrawingProperties,
+    super::dml::PictureLocks,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Extent>();
 const _: () = ooxml_core::schema::assert_spec::<ShapeProperties>();
 #[cfg(all(feature = "wml", feature = "dml"))]

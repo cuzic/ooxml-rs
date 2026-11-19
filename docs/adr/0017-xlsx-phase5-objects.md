@@ -465,6 +465,23 @@ entry → relationship → media bytes; alt text from key `Text` when present. A
 not resolve gives `Err(UnresolvedRichValue { step })`; a structure other than `_localImage`
 gives `Ok(None)` (data types, web images). Writes to `vm` cells stay refused.
 
+**Post-acceptance note (P5a).** The public XLSX API is `Worksheet::{insert_image,
+images, remove_image}`, `Image::{from_bytes, from_svg}` and `CellRef::image`.
+Insertion returns the allocated shape ID. Anchor positions use zero-based `CellIndex`
+values and signed EMU offsets. SVG natural dimensions come from the caller's PNG
+fallback. Listing uses explicit EMU extents for existing one-cell anchors and reports
+`Unresolved` for compatibility-wrapped pictures or unreadable anchor coordinates.
+External and missing media have no embedded bytes in the result. Removal refuses a
+missing, grouped, compatibility-wrapped or ambiguous ID with `NoSuchImage`.
+
+The worksheet drawing reference uses the generated worksheet slot. The drawing root
+is an unordered choice for schema purposes, so its anchor is appended at the root's
+closing span, including when the preceding anchor is in `mc:AlternateContent`. Removal
+cuts only the selected anchor's original span. Both paths parse and stage the edited
+drawing before applying the registry transaction. The shared shape scan includes
+VML and worksheet control numbers. VML block allocation itself is exercised by note
+creation in P5c.
+
 ### 4. Notes (legacy comments)
 
 #### 4.1 API and rules
