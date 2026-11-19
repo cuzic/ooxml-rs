@@ -350,6 +350,7 @@ fn split_boundary(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> 
     let mut run_path = path.to_vec();
     run_path.push(child);
     let run = xml.lens_at::<Run>(&run_path)?;
+    let xml_space = run.attr(ooxml_core::name::XML_SPACE).map(str::to_owned);
     let rpr = run
         .child::<RunProperties>()
         .map(|n| {
@@ -380,6 +381,9 @@ fn split_boundary(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> 
 
     let mut p = xml.lens_mut_at::<Paragraph>(path)?;
     let mut suffix = p.insert_at_with_ns::<Run>(child + 1, W)?;
+    if let Some(value) = xml_space {
+        suffix.set_attr(ooxml_core::name::XML_SPACE, &value)?;
+    }
     if let Some(rpr) = rpr {
         suffix.insert_detached(&rpr)?;
     }

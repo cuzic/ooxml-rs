@@ -1051,7 +1051,8 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   complex-field instruction fragments and also checks simple fields. Ambiguous
   marker pairs refuse, as do markers that the editable story tree cannot reach.
 - Bookmark splits move intact run children within the story XML. The move
-  checks namespace and inherited whitespace context. A `w:t` that straddles
+  checks namespace and inherited whitespace context. The suffix run copies
+  the original run’s `xml:space` attribute before moving children. A `w:t` that straddles
   the split is divided. The allowlist includes `w:CT_RPr/w:rPr` for
   copying the run formatting (§11). A run containing `w:rPrChange` is refused
   before the copy, so its annotation id cannot be duplicated. Bookmark markers
@@ -1063,7 +1064,8 @@ Recorded with the implementation (`impl/docx-phase2`); additive or clarifying.
   of the numbering part and registration of a new one use the main part's
   relationships. `restart_list` takes an explicit start value and copies
   all level overrides and updates only the restart level’s `w:startOverride`.
-  It checks every affected paragraph before
+  Duplicate overrides for the same numeric level in the source instance
+  return `InvalidNumbering`. It checks every affected paragraph before
   applying the new instance. `remove_from_list` follows the paragraph's style
   chain when deciding whether to suppress inherited numbering.
 - `add_style` writes paragraph and character styles using the Phase1 formatting

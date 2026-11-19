@@ -236,6 +236,19 @@ fn list_slots_and_restart_copy() {
 }
 
 #[test]
+fn restart_list_refuses_duplicate_level_overrides() {
+    let body = r#"<w:p><w:pPr><w:numPr><w:numId w:val="3"/></w:numPr></w:pPr></w:p>"#;
+    for (level, alias) in [("0", "00"), ("1", "01")] {
+        let numbering = story_xml(
+            "numbering",
+            &format!(r#"<w:num w:numId="3"><w:abstractNumId w:val="7"/><w:lvlOverride w:ilvl="{level}"><w:startOverride w:val="4"/></w:lvlOverride><w:lvlOverride w:ilvl="{alias}"><w:startOverride w:val="9"/></w:lvlOverride></w:num>"#),
+        );
+        let mut doc = open(body, &[("numbering", "n.xml", &numbering)]);
+        assert_matches!(refusals(&mut doc, |d| d.restart_list(p(0), 3)), Error::InvalidNumbering);
+    }
+}
+
+#[test]
 fn numbering_refuses_exhausted_and_ambiguous_inputs() {
     let body = r#"<w:p><w:pPr><w:numPr><w:numId w:val="2147483647"/></w:numPr></w:pPr></w:p>"#;
     let mut doc = open(body, &[]);
@@ -415,6 +428,19 @@ fn bookmark_split_preserves_run_children_in_order() {
         .map(|n| &output[n.range()]).collect();
     assert_eq!(joined, children);
     assert_eq!(doc.paragraph(0).unwrap().text(), format!("a{needle}"));
+}
+
+#[test]
+fn bookmark_split_copies_run_xml_space() {
+    for space in ["preserve", "default"] {
+        let body = format!(r#"<w:p xml:space="preserve"><w:r xml:space="{space}"><w:t>ab</w:t><w:tab/><w:t>cd</w:t></w:r></w:p>"#);
+        let mut doc = open(&body, &[]);
+        let m = doc.find("cd", &ReplaceOptions::default()).unwrap().remove(0);
+        doc.add_bookmark("Mark", BookmarkRange::Match(&m)).unwrap();
+        let output = xml(&doc, MAIN);
+        assert!(output.contains(&format!(r#"<w:r xml:space="{space}"><w:t>ab</w:t><w:tab/></w:r>"#)));
+        assert!(output.contains(&format!(r#"<w:r xml:space="{space}"><w:t>cd</w:t></w:r>"#)));
+    }
 }
 
 #[test]

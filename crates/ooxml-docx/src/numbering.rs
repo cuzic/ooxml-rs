@@ -213,6 +213,7 @@ impl Document {
     /// Create a fresh instance starting at `start` and reassign this
     /// paragraph and later paragraphs in its story with the same direct id.
     /// Numbering inherited solely from styles keeps its original instance.
+    /// Duplicate level overrides in the source instance return `InvalidNumbering`.
     pub fn restart_list(&mut self, para: ParaRef, start: u32) -> Result<NumId> {
         self.write_gate_for(Operation::Structure)?;
         self.check_list_target(para)?;
@@ -238,10 +239,16 @@ impl Document {
             .children::<NumberingInstance>()
             .find(|n| numeric(n.attr(w("numId"))) == Some(id))
             .expect("checked");
-        let overrides = old
-            .children::<LevelOverride>()
-            .map(|n| n.detach_as::<LevelOverride>(&[]))
-            .collect::<ooxml_core::Result<Vec<_>>>()?;
+        let mut levels = BTreeSet::new();
+        let mut overrides = Vec::new();
+        for node in old.children::<LevelOverride>() {
+            if let Some(level) = numeric(node.attr(w("ilvl")))
+                && !levels.insert(level)
+            {
+                return Err(Error::InvalidNumbering);
+            }
+            overrides.push(node.detach_as::<LevelOverride>(&[])?);
+        }
         let mut numbering = xml.lens_mut::<Numbering>()?;
         let mut instance = append_num(&mut numbering, new_num, abstract_id)?;
         for old in overrides {
