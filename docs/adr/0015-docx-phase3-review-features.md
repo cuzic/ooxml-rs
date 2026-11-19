@@ -1057,3 +1057,9 @@ definitions under the portable built-in names (§3.5), with superscript for
 new reference styles. The new note-related elements stay in the `[read]`
 allowlist because it already generates the `ChildOf` edges used for typed
 insertion and dedicated mutable views are unnecessary.
+
+## Post-acceptance note (D3b, Issue #94)
+
+The SDK input under `reference/openxml-sdk-data/schemas` includes the 2010
+`wordml`, 2012 `wordml`, 2016 `wordml_cid`, and 2018 `wordml_cex` schemas.
+D3b uses the existing WML allowlist group and requires no schema overrides.

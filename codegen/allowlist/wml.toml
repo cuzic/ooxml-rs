@@ -11,6 +11,22 @@
 # Word Phase0 write path: append a paragraph to the body; replace run content.
 [write]
 names = [
+    # Word Phase3b (ADR-0015 §3 and §10).
+    "w:CT_Comments/w:comments",
+    "w:CT_Comment/w:comment",
+    "w:CT_Markup/w:commentReference",
+    "w:CT_MarkupRange/w:commentRangeStart",
+    "w:CT_MarkupRange/w:commentRangeEnd",
+    "w:CT_Empty/w:annotationRef",
+    "w15:CT_CommentsEx/w15:commentsEx",
+    "w15:CT_CommentEx/w15:commentEx",
+    "w15:CT_People/w15:people",
+    "w15:CT_Person/w15:person",
+    "w15:CT_PresenceInfo/w15:presenceInfo",
+    "w16cid:CT_CommentsIds/w16cid:commentsIds",
+    "w16cid:CT_CommentId/w16cid:commentId",
+    "w16cex:CT_CommentsExtensible/w16cex:commentsExtensible",
+    "w16cex:CT_CommentExtensible/w16cex:commentExtensible",
     "w:CT_Body/w:body",
     "w:CT_P/w:p",
     "w:CT_R/w:r",
@@ -151,8 +167,6 @@ names = [
     "w:CT_EdnDocProps/w:endnotePr",
     "w:CT_FtnEdnSepRef/w:footnote",
     "w:CT_FtnEdnSepRef/w:endnote",
-    "w:CT_Comments/w:comments",
-    "w:CT_Comment/w:comment",
     # Word Phase1 (ADR-0007 §5): style lookup.
 ]
 

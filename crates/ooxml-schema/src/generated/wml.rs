@@ -20,6 +20,10 @@ pub const NS_W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/
 pub const NS_W14: &str = "http://schemas.microsoft.com/office/word/2010/wordml";
 /// `w15`: `http://schemas.microsoft.com/office/word/2012/wordml`
 pub const NS_W15: &str = "http://schemas.microsoft.com/office/word/2012/wordml";
+/// `w16cex`: `http://schemas.microsoft.com/office/word/2018/wordml/cex`
+pub const NS_W16CEX: &str = "http://schemas.microsoft.com/office/word/2018/wordml/cex";
+/// `w16cid`: `http://schemas.microsoft.com/office/word/2016/wordml/cid`
+pub const NS_W16CID: &str = "http://schemas.microsoft.com/office/word/2016/wordml/cid";
 /// `w16du`: `http://schemas.microsoft.com/office/word/2023/wordml/word16du`
 pub const NS_W16DU: &str = "http://schemas.microsoft.com/office/word/2023/wordml/word16du";
 /// `wp`: `http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing`
@@ -2587,6 +2591,719 @@ impl<'a> NonVisualPicturePropertiesViewMut<'a> {
         self.0.remove::<NonVisualPictureDrawingProperties>()
     }
 }
+/// `w15:CT_CommentEx/w15:commentEx` — Defines the CommentEx Class.
+#[derive(Debug)]
+pub enum CommentEx {}
+impl CommentEx {
+    /// `w15:paraId`
+    pub const ATTR_W15_PARA_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W15,
+        "paraId",
+    );
+    /// `w15:paraIdParent`
+    pub const ATTR_W15_PARA_ID_PARENT: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W15,
+        "paraIdParent",
+    );
+    /// `w15:done`
+    pub const ATTR_W15_DONE: ooxml_core::QName = ooxml_core::QName::new(NS_W15, "done");
+}
+impl ooxml_core::ElementSpec for CommentEx {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W15, "commentEx");
+    const SDK_NAME: &'static str = "w15:CT_CommentEx/w15:commentEx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentEx::ATTR_W15_PARA_ID,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentEx::ATTR_W15_PARA_ID_PARENT,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentEx::ATTR_W15_DONE,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CommentEx`].
+#[derive(Clone, Debug)]
+pub struct CommentExView<'a>(pub ooxml_core::Lens<'a, CommentEx>);
+impl<'a> CommentExView<'a> {
+    /// `w15:paraId` — paraId
+    pub fn para_id(&self) -> Option<&'a str> {
+        self.0.attr(CommentEx::ATTR_W15_PARA_ID)
+    }
+    /// `w15:paraIdParent` — paraIdParent
+    pub fn para_id_parent(&self) -> Option<&'a str> {
+        self.0.attr(CommentEx::ATTR_W15_PARA_ID_PARENT)
+    }
+    /// `w15:done` — done
+    pub fn done(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(CommentEx::ATTR_W15_DONE, ooxml_core::value::parse_on_off)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentEx`]. Reads go through [`CommentExViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentExViewMut<'a>(pub ooxml_core::LensMut<'a, CommentEx>);
+impl<'a> CommentExViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentExView<'_> {
+        CommentExView(self.0.as_lens())
+    }
+    /// Sets `w15:paraId` — paraId
+    pub fn set_para_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentEx::ATTR_W15_PARA_ID, v)
+    }
+    /// Removes `w15:paraId`.
+    pub fn remove_para_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentEx::ATTR_W15_PARA_ID)
+    }
+    /// Sets `w15:paraIdParent` — paraIdParent
+    pub fn set_para_id_parent(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentEx::ATTR_W15_PARA_ID_PARENT, v)
+    }
+    /// Removes `w15:paraIdParent`.
+    pub fn remove_para_id_parent(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentEx::ATTR_W15_PARA_ID_PARENT)
+    }
+    /// Sets `w15:done` — done
+    pub fn set_done(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentEx::ATTR_W15_DONE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w15:done`.
+    pub fn remove_done(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentEx::ATTR_W15_DONE)
+    }
+}
+/// `w15:CT_CommentsEx/w15:commentsEx` — Defines the CommentsEx Class.
+#[derive(Debug)]
+pub enum CommentsEx {}
+impl ooxml_core::ElementSpec for CommentsEx {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W15, "commentsEx");
+    const SDK_NAME: &'static str = "w15:CT_CommentsEx/w15:commentsEx";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W15, "commentEx")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentsEx> for CommentEx {}
+/// Read-only view of [`CommentsEx`].
+#[derive(Clone, Debug)]
+pub struct CommentsExView<'a>(pub ooxml_core::Lens<'a, CommentsEx>);
+impl<'a> CommentsExView<'a> {
+    /// `w15:commentEx` children in document order.
+    pub fn comment_ex_iter(&self) -> impl Iterator<Item = CommentExView<'a>> {
+        self.0.children::<CommentEx>().map(CommentExView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentsEx`]. Reads go through [`CommentsExViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentsExViewMut<'a>(pub ooxml_core::LensMut<'a, CommentsEx>);
+impl<'a> CommentsExViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentsExView<'_> {
+        CommentsExView(self.0.as_lens())
+    }
+    /// First `w15:commentEx` child matching `pred`, mutably.
+    pub fn comment_ex_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentExViewMut<'_>> {
+        self.0.child_mut_by::<CommentEx>(pred).map(CommentExViewMut)
+    }
+    /// Inserts a `w15:commentEx` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_ex_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentExViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentEx>(before).map(CommentExViewMut)
+    }
+    /// Appends a `w15:commentEx` at the end of its slot.
+    pub fn insert_comment_ex(
+        &mut self,
+    ) -> Result<CommentExViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentEx>().map(CommentExViewMut)
+    }
+    /// Removes the first `w15:commentEx` child.
+    pub fn remove_comment_ex(&mut self) -> bool {
+        self.0.remove::<CommentEx>()
+    }
+}
+/// `w15:CT_People/w15:people` — Defines the People Class.
+#[derive(Debug)]
+pub enum People {}
+impl ooxml_core::ElementSpec for People {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W15, "people");
+    const SDK_NAME: &'static str = "w15:CT_People/w15:people";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W15, "person")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<People> for Person {}
+/// Read-only view of [`People`].
+#[derive(Clone, Debug)]
+pub struct PeopleView<'a>(pub ooxml_core::Lens<'a, People>);
+impl<'a> PeopleView<'a> {
+    /// `w15:person` children in document order.
+    pub fn person_iter(&self) -> impl Iterator<Item = PersonView<'a>> {
+        self.0.children::<Person>().map(PersonView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`People`]. Reads go through [`PeopleViewMut::as_view`].
+#[derive(Debug)]
+pub struct PeopleViewMut<'a>(pub ooxml_core::LensMut<'a, People>);
+impl<'a> PeopleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PeopleView<'_> {
+        PeopleView(self.0.as_lens())
+    }
+    /// First `w15:person` child matching `pred`, mutably.
+    pub fn person_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<PersonViewMut<'_>> {
+        self.0.child_mut_by::<Person>(pred).map(PersonViewMut)
+    }
+    /// Inserts a `w15:person` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_person_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<PersonViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Person>(before).map(PersonViewMut)
+    }
+    /// Appends a `w15:person` at the end of its slot.
+    pub fn insert_person(&mut self) -> Result<PersonViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Person>().map(PersonViewMut)
+    }
+    /// Removes the first `w15:person` child.
+    pub fn remove_person(&mut self) -> bool {
+        self.0.remove::<Person>()
+    }
+}
+/// `w15:CT_Person/w15:person` — Defines the Person Class.
+#[derive(Debug)]
+pub enum Person {}
+impl Person {
+    /// `w15:author`
+    pub const ATTR_W15_AUTHOR: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W15,
+        "author",
+    );
+}
+impl ooxml_core::ElementSpec for Person {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W15, "person");
+    const SDK_NAME: &'static str = "w15:CT_Person/w15:person";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Person::ATTR_W15_AUTHOR,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W15, "presenceInfo")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Person> for PresenceInfo {}
+/// Read-only view of [`Person`].
+#[derive(Clone, Debug)]
+pub struct PersonView<'a>(pub ooxml_core::Lens<'a, Person>);
+impl<'a> PersonView<'a> {
+    /// `w15:author` — author
+    pub fn author(&self) -> Option<&'a str> {
+        self.0.attr(Person::ATTR_W15_AUTHOR)
+    }
+    /// First `w15:presenceInfo` child.
+    pub fn presence_info(&self) -> Option<PresenceInfoView<'a>> {
+        self.0.child::<PresenceInfo>().map(PresenceInfoView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Person`]. Reads go through [`PersonViewMut::as_view`].
+#[derive(Debug)]
+pub struct PersonViewMut<'a>(pub ooxml_core::LensMut<'a, Person>);
+impl<'a> PersonViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PersonView<'_> {
+        PersonView(self.0.as_lens())
+    }
+    /// Sets `w15:author` — author
+    pub fn set_author(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Person::ATTR_W15_AUTHOR, v)
+    }
+    /// Removes `w15:author`.
+    pub fn remove_author(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Person::ATTR_W15_AUTHOR)
+    }
+    /// First `w15:presenceInfo` child, mutably.
+    pub fn presence_info_mut(&mut self) -> Option<PresenceInfoViewMut<'_>> {
+        self.0.child_mut::<PresenceInfo>().map(PresenceInfoViewMut)
+    }
+    /// Existing `w15:presenceInfo` child, or a new one in schema position.
+    pub fn get_or_insert_presence_info(
+        &mut self,
+    ) -> Result<PresenceInfoViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresenceInfo>().map(PresenceInfoViewMut)
+    }
+    /// Removes the first `w15:presenceInfo` child.
+    pub fn remove_presence_info(&mut self) -> bool {
+        self.0.remove::<PresenceInfo>()
+    }
+}
+/// `w15:CT_PresenceInfo/w15:presenceInfo` — Defines the PresenceInfo Class.
+#[derive(Debug)]
+pub enum PresenceInfo {}
+impl PresenceInfo {
+    /// `w15:providerId`
+    pub const ATTR_W15_PROVIDER_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W15,
+        "providerId",
+    );
+    /// `w15:userId`
+    pub const ATTR_W15_USER_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W15,
+        "userId",
+    );
+}
+impl ooxml_core::ElementSpec for PresenceInfo {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W15, "presenceInfo");
+    const SDK_NAME: &'static str = "w15:CT_PresenceInfo/w15:presenceInfo";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: PresenceInfo::ATTR_W15_PROVIDER_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: PresenceInfo::ATTR_W15_USER_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`PresenceInfo`].
+#[derive(Clone, Debug)]
+pub struct PresenceInfoView<'a>(pub ooxml_core::Lens<'a, PresenceInfo>);
+impl<'a> PresenceInfoView<'a> {
+    /// `w15:providerId` — providerId
+    pub fn provider_id(&self) -> Option<&'a str> {
+        self.0.attr(PresenceInfo::ATTR_W15_PROVIDER_ID)
+    }
+    /// `w15:userId` — userId
+    pub fn user_id(&self) -> Option<&'a str> {
+        self.0.attr(PresenceInfo::ATTR_W15_USER_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PresenceInfo`]. Reads go through [`PresenceInfoViewMut::as_view`].
+#[derive(Debug)]
+pub struct PresenceInfoViewMut<'a>(pub ooxml_core::LensMut<'a, PresenceInfo>);
+impl<'a> PresenceInfoViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PresenceInfoView<'_> {
+        PresenceInfoView(self.0.as_lens())
+    }
+    /// Sets `w15:providerId` — providerId
+    pub fn set_provider_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresenceInfo::ATTR_W15_PROVIDER_ID, v)
+    }
+    /// Removes `w15:providerId`.
+    pub fn remove_provider_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresenceInfo::ATTR_W15_PROVIDER_ID)
+    }
+    /// Sets `w15:userId` — userId
+    pub fn set_user_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(PresenceInfo::ATTR_W15_USER_ID, v)
+    }
+    /// Removes `w15:userId`.
+    pub fn remove_user_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(PresenceInfo::ATTR_W15_USER_ID)
+    }
+}
+/// `w16cex:CT_CommentExtensible/w16cex:commentExtensible` — Defines the CommentExtensible Class.
+#[derive(Debug)]
+pub enum CommentExtensible {}
+impl CommentExtensible {
+    /// `w16cex:durableId`
+    pub const ATTR_W16CEX_DURABLE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CEX,
+        "durableId",
+    );
+    /// `w16cex:dateUtc`
+    pub const ATTR_W16CEX_DATE_UTC: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CEX,
+        "dateUtc",
+    );
+    /// `w16cex:intelligentPlaceholder`
+    pub const ATTR_W16CEX_INTELLIGENT_PLACEHOLDER: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CEX,
+        "intelligentPlaceholder",
+    );
+}
+impl ooxml_core::ElementSpec for CommentExtensible {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CEX,
+        "commentExtensible",
+    );
+    const SDK_NAME: &'static str = "w16cex:CT_CommentExtensible/w16cex:commentExtensible";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentExtensible::ATTR_W16CEX_DURABLE_ID,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentExtensible::ATTR_W16CEX_DATE_UTC,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentExtensible::ATTR_W16CEX_INTELLIGENT_PLACEHOLDER,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W16CEX, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`CommentExtensible`].
+#[derive(Clone, Debug)]
+pub struct CommentExtensibleView<'a>(pub ooxml_core::Lens<'a, CommentExtensible>);
+impl<'a> CommentExtensibleView<'a> {
+    /// `w16cex:durableId` — durableId
+    pub fn durable_id(&self) -> Option<&'a str> {
+        self.0.attr(CommentExtensible::ATTR_W16CEX_DURABLE_ID)
+    }
+    /// `w16cex:dateUtc` — dateUtc
+    pub fn date_utc(&self) -> Option<&'a str> {
+        self.0.attr(CommentExtensible::ATTR_W16CEX_DATE_UTC)
+    }
+    /// `w16cex:intelligentPlaceholder` — intelligentPlaceholder
+    pub fn intelligent_placeholder(
+        &self,
+    ) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                CommentExtensible::ATTR_W16CEX_INTELLIGENT_PLACEHOLDER,
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentExtensible`]. Reads go through [`CommentExtensibleViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentExtensibleViewMut<'a>(pub ooxml_core::LensMut<'a, CommentExtensible>);
+impl<'a> CommentExtensibleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentExtensibleView<'_> {
+        CommentExtensibleView(self.0.as_lens())
+    }
+    /// Sets `w16cex:durableId` — durableId
+    pub fn set_durable_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentExtensible::ATTR_W16CEX_DURABLE_ID, v)
+    }
+    /// Removes `w16cex:durableId`.
+    pub fn remove_durable_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentExtensible::ATTR_W16CEX_DURABLE_ID)
+    }
+    /// Sets `w16cex:dateUtc` — dateUtc
+    pub fn set_date_utc(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentExtensible::ATTR_W16CEX_DATE_UTC, v)
+    }
+    /// Removes `w16cex:dateUtc`.
+    pub fn remove_date_utc(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentExtensible::ATTR_W16CEX_DATE_UTC)
+    }
+    /// Sets `w16cex:intelligentPlaceholder` — intelligentPlaceholder
+    pub fn set_intelligent_placeholder(
+        &mut self,
+        v: bool,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CommentExtensible::ATTR_W16CEX_INTELLIGENT_PLACEHOLDER,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `w16cex:intelligentPlaceholder`.
+    pub fn remove_intelligent_placeholder(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentExtensible::ATTR_W16CEX_INTELLIGENT_PLACEHOLDER)
+    }
+}
+/// `w16cex:CT_CommentsExtensible/w16cex:commentsExtensible` — Defines the CommentsExtensible Class.
+#[derive(Debug)]
+pub enum CommentsExtensible {}
+impl ooxml_core::ElementSpec for CommentsExtensible {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CEX,
+        "commentsExtensible",
+    );
+    const SDK_NAME: &'static str = "w16cex:CT_CommentsExtensible/w16cex:commentsExtensible";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W16CEX, "commentExtensible")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W16CEX, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentsExtensible> for CommentExtensible {}
+/// Read-only view of [`CommentsExtensible`].
+#[derive(Clone, Debug)]
+pub struct CommentsExtensibleView<'a>(pub ooxml_core::Lens<'a, CommentsExtensible>);
+impl<'a> CommentsExtensibleView<'a> {
+    /// `w16cex:commentExtensible` children in document order.
+    pub fn comment_extensible_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentExtensibleView<'a>> {
+        self.0.children::<CommentExtensible>().map(CommentExtensibleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentsExtensible`]. Reads go through [`CommentsExtensibleViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentsExtensibleViewMut<'a>(
+    pub ooxml_core::LensMut<'a, CommentsExtensible>,
+);
+impl<'a> CommentsExtensibleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentsExtensibleView<'_> {
+        CommentsExtensibleView(self.0.as_lens())
+    }
+    /// First `w16cex:commentExtensible` child matching `pred`, mutably.
+    pub fn comment_extensible_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentExtensibleViewMut<'_>> {
+        self.0.child_mut_by::<CommentExtensible>(pred).map(CommentExtensibleViewMut)
+    }
+    /// Inserts a `w16cex:commentExtensible` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_extensible_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentExtensibleViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentExtensible>(before).map(CommentExtensibleViewMut)
+    }
+    /// Appends a `w16cex:commentExtensible` at the end of its slot.
+    pub fn insert_comment_extensible(
+        &mut self,
+    ) -> Result<CommentExtensibleViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentExtensible>().map(CommentExtensibleViewMut)
+    }
+    /// Removes the first `w16cex:commentExtensible` child.
+    pub fn remove_comment_extensible(&mut self) -> bool {
+        self.0.remove::<CommentExtensible>()
+    }
+}
+/// `w16cid:CT_CommentId/w16cid:commentId` — Defines the CommentId Class.
+#[derive(Debug)]
+pub enum CommentId {}
+impl CommentId {
+    /// `w16cid:paraId`
+    pub const ATTR_W16CID_PARA_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CID,
+        "paraId",
+    );
+    /// `w16cid:durableId`
+    pub const ATTR_W16CID_DURABLE_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W16CID,
+        "durableId",
+    );
+}
+impl ooxml_core::ElementSpec for CommentId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W16CID, "commentId");
+    const SDK_NAME: &'static str = "w16cid:CT_CommentId/w16cid:commentId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentId::ATTR_W16CID_PARA_ID,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentId::ATTR_W16CID_DURABLE_ID,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CommentId`].
+#[derive(Clone, Debug)]
+pub struct CommentIdView<'a>(pub ooxml_core::Lens<'a, CommentId>);
+impl<'a> CommentIdView<'a> {
+    /// `w16cid:paraId` — paraId
+    pub fn para_id(&self) -> Option<&'a str> {
+        self.0.attr(CommentId::ATTR_W16CID_PARA_ID)
+    }
+    /// `w16cid:durableId` — durableId
+    pub fn durable_id(&self) -> Option<&'a str> {
+        self.0.attr(CommentId::ATTR_W16CID_DURABLE_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentId`]. Reads go through [`CommentIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentIdViewMut<'a>(pub ooxml_core::LensMut<'a, CommentId>);
+impl<'a> CommentIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentIdView<'_> {
+        CommentIdView(self.0.as_lens())
+    }
+    /// Sets `w16cid:paraId` — paraId
+    pub fn set_para_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentId::ATTR_W16CID_PARA_ID, v)
+    }
+    /// Removes `w16cid:paraId`.
+    pub fn remove_para_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentId::ATTR_W16CID_PARA_ID)
+    }
+    /// Sets `w16cid:durableId` — durableId
+    pub fn set_durable_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentId::ATTR_W16CID_DURABLE_ID, v)
+    }
+    /// Removes `w16cid:durableId`.
+    pub fn remove_durable_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentId::ATTR_W16CID_DURABLE_ID)
+    }
+}
+/// `w16cid:CT_CommentsIds/w16cid:commentsIds` — Defines the CommentsIds Class.
+#[derive(Debug)]
+pub enum CommentsIds {}
+impl ooxml_core::ElementSpec for CommentsIds {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W16CID, "commentsIds");
+    const SDK_NAME: &'static str = "w16cid:CT_CommentsIds/w16cid:commentsIds";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W16CID, "commentId")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentsIds> for CommentId {}
+/// Read-only view of [`CommentsIds`].
+#[derive(Clone, Debug)]
+pub struct CommentsIdsView<'a>(pub ooxml_core::Lens<'a, CommentsIds>);
+impl<'a> CommentsIdsView<'a> {
+    /// `w16cid:commentId` children in document order.
+    pub fn comment_id_iter(&self) -> impl Iterator<Item = CommentIdView<'a>> {
+        self.0.children::<CommentId>().map(CommentIdView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentsIds`]. Reads go through [`CommentsIdsViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentsIdsViewMut<'a>(pub ooxml_core::LensMut<'a, CommentsIds>);
+impl<'a> CommentsIdsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentsIdsView<'_> {
+        CommentsIdsView(self.0.as_lens())
+    }
+    /// First `w16cid:commentId` child matching `pred`, mutably.
+    pub fn comment_id_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentIdViewMut<'_>> {
+        self.0.child_mut_by::<CommentId>(pred).map(CommentIdViewMut)
+    }
+    /// Inserts a `w16cid:commentId` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_id_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentIdViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentId>(before).map(CommentIdViewMut)
+    }
+    /// Appends a `w16cid:commentId` at the end of its slot.
+    pub fn insert_comment_id(
+        &mut self,
+    ) -> Result<CommentIdViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentId>().map(CommentIdViewMut)
+    }
+    /// Removes the first `w16cid:commentId` child.
+    pub fn remove_comment_id(&mut self) -> bool {
+        self.0.remove::<CommentId>()
+    }
+}
 /// `w:CT_AbstractNum/w:abstractNum` — Abstract Numbering Definition.
 #[derive(Debug)]
 pub enum AbstractNum {}
@@ -2816,6 +3533,8 @@ impl ooxml_core::ElementSpec for Body {
 }
 impl ooxml_core::ChildOf<Body> for BookmarkStart {}
 impl ooxml_core::ChildOf<Body> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Body> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Body> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Body> for Paragraph {}
 impl ooxml_core::ChildOf<Body> for DeletedRun {}
 impl ooxml_core::ChildOf<Body> for InsertedRun {}
@@ -2834,6 +3553,18 @@ impl<'a> BodyView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -2923,6 +3654,54 @@ impl<'a> BodyViewMut<'a> {
     /// Removes the first `w:bookmarkEnd` child.
     pub fn remove_bookmark_end(&mut self) -> bool {
         self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
     }
     /// First `w:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
@@ -3410,6 +4189,8 @@ impl ooxml_core::ElementSpec for Comment {
 }
 impl ooxml_core::ChildOf<Comment> for BookmarkStart {}
 impl ooxml_core::ChildOf<Comment> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Comment> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Comment> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Comment> for Paragraph {}
 impl ooxml_core::ChildOf<Comment> for Table {}
 /// Read-only view of [`Comment`].
@@ -3444,6 +4225,18 @@ impl<'a> CommentView<'a> {
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
     }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
+    }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
@@ -3455,6 +4248,197 @@ impl<'a> CommentView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Comment`]. Reads go through [`CommentViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentViewMut<'a>(pub ooxml_core::LensMut<'a, Comment>);
+impl<'a> CommentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentView<'_> {
+        CommentView(self.0.as_lens())
+    }
+    /// Sets `w:initials` — initials
+    pub fn set_initials(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_W_INITIALS, v)
+    }
+    /// Removes `w:initials`.
+    pub fn remove_initials(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_W_INITIALS)
+    }
+    /// Sets `w:author` — author
+    pub fn set_author(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_W_AUTHOR, v)
+    }
+    /// Removes `w:author`.
+    pub fn remove_author(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_W_AUTHOR)
+    }
+    /// Sets `w:date` — date
+    pub fn set_date(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_W_DATE, v)
+    }
+    /// Removes `w:date`.
+    pub fn remove_date(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_W_DATE)
+    }
+    /// Sets `w16du:dateUtc` — dateUtc
+    pub fn set_date_utc(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_W16DU_DATE_UTC, v)
+    }
+    /// Removes `w16du:dateUtc`.
+    pub fn remove_date_utc(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_W16DU_DATE_UTC)
+    }
+    /// Sets `w:id` — Annotation Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_W_ID, v)
+    }
+    /// Removes `w:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_W_ID)
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
+    }
+    /// First `w:p` child matching `pred`, mutably.
+    pub fn paragraph_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ParagraphViewMut<'_>> {
+        self.0.child_mut_by::<Paragraph>(pred).map(ParagraphViewMut)
+    }
+    /// Inserts a `w:p` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_paragraph_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Paragraph>(before).map(ParagraphViewMut)
+    }
+    /// Appends a `w:p` at the end of its slot.
+    pub fn insert_paragraph(
+        &mut self,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Paragraph>().map(ParagraphViewMut)
+    }
+    /// Removes the first `w:p` child.
+    pub fn remove_paragraph(&mut self) -> bool {
+        self.0.remove::<Paragraph>()
+    }
+    /// First `w:tbl` child matching `pred`, mutably.
+    pub fn table_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableViewMut<'_>> {
+        self.0.child_mut_by::<Table>(pred).map(TableViewMut)
+    }
+    /// Inserts a `w:tbl` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Table>(before).map(TableViewMut)
+    }
+    /// Appends a `w:tbl` at the end of its slot.
+    pub fn insert_table(&mut self) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Table>().map(TableViewMut)
+    }
+    /// Removes the first `w:tbl` child.
+    pub fn remove_table(&mut self) -> bool {
+        self.0.remove::<Table>()
     }
 }
 /// `w:CT_Comments/w:comments` — Comments Collection.
@@ -3487,6 +4471,37 @@ impl<'a> CommentsView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Comments`]. Reads go through [`CommentsViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentsViewMut<'a>(pub ooxml_core::LensMut<'a, Comments>);
+impl<'a> CommentsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentsView<'_> {
+        CommentsView(self.0.as_lens())
+    }
+    /// First `w:comment` child matching `pred`, mutably.
+    pub fn comment_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentViewMut<'_>> {
+        self.0.child_mut_by::<Comment>(pred).map(CommentViewMut)
+    }
+    /// Inserts a `w:comment` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Comment>(before).map(CommentViewMut)
+    }
+    /// Appends a `w:comment` at the end of its slot.
+    pub fn insert_comment(&mut self) -> Result<CommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Comment>().map(CommentViewMut)
+    }
+    /// Removes the first `w:comment` child.
+    pub fn remove_comment(&mut self) -> bool {
+        self.0.remove::<Comment>()
     }
 }
 /// `w:CT_DecimalNumber/w:gridAfter` — Defines the GridAfter Class.
@@ -4192,6 +5207,37 @@ impl<'a> EndnoteDocumentWidePropertiesView<'a> {
         self.0.raw()
     }
 }
+/// `w:CT_Empty/w:annotationRef` — Comment Information Block.
+#[derive(Debug)]
+pub enum AnnotationReferenceMark {}
+impl ooxml_core::ElementSpec for AnnotationReferenceMark {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "annotationRef");
+    const SDK_NAME: &'static str = "w:CT_Empty/w:annotationRef";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`AnnotationReferenceMark`].
+#[derive(Clone, Debug)]
+pub struct AnnotationReferenceMarkView<'a>(
+    pub ooxml_core::Lens<'a, AnnotationReferenceMark>,
+);
+impl<'a> AnnotationReferenceMarkView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`AnnotationReferenceMark`]. Reads go through [`AnnotationReferenceMarkViewMut::as_view`].
+#[derive(Debug)]
+pub struct AnnotationReferenceMarkViewMut<'a>(
+    pub ooxml_core::LensMut<'a, AnnotationReferenceMark>,
+);
+impl<'a> AnnotationReferenceMarkViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AnnotationReferenceMarkView<'_> {
+        AnnotationReferenceMarkView(self.0.as_lens())
+    }
+}
 /// `w:CT_Empty/w:continuationSeparator` — Continuation Separator Mark.
 #[derive(Debug)]
 pub enum ContinuationSeparatorMark {}
@@ -4895,6 +5941,8 @@ impl ooxml_core::ElementSpec for Endnote {
 }
 impl ooxml_core::ChildOf<Endnote> for BookmarkStart {}
 impl ooxml_core::ChildOf<Endnote> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Endnote> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Endnote> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Endnote> for Paragraph {}
 impl ooxml_core::ChildOf<Endnote> for DeletedRun {}
 impl ooxml_core::ChildOf<Endnote> for InsertedRun {}
@@ -4920,6 +5968,18 @@ impl<'a> EndnoteView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -5025,6 +6085,8 @@ impl ooxml_core::ElementSpec for Footnote {
 }
 impl ooxml_core::ChildOf<Footnote> for BookmarkStart {}
 impl ooxml_core::ChildOf<Footnote> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Footnote> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Footnote> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Footnote> for Paragraph {}
 impl ooxml_core::ChildOf<Footnote> for DeletedRun {}
 impl ooxml_core::ChildOf<Footnote> for InsertedRun {}
@@ -5050,6 +6112,18 @@ impl<'a> FootnoteView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -5312,6 +6386,8 @@ impl ooxml_core::ElementSpec for Footer {
 }
 impl ooxml_core::ChildOf<Footer> for BookmarkStart {}
 impl ooxml_core::ChildOf<Footer> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Footer> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Footer> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Footer> for Paragraph {}
 impl ooxml_core::ChildOf<Footer> for DeletedRun {}
 impl ooxml_core::ChildOf<Footer> for InsertedRun {}
@@ -5329,6 +6405,18 @@ impl<'a> FooterView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -5415,6 +6503,8 @@ impl ooxml_core::ElementSpec for Header {
 }
 impl ooxml_core::ChildOf<Header> for BookmarkStart {}
 impl ooxml_core::ChildOf<Header> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Header> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Header> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Header> for Paragraph {}
 impl ooxml_core::ChildOf<Header> for DeletedRun {}
 impl ooxml_core::ChildOf<Header> for InsertedRun {}
@@ -5432,6 +6522,18 @@ impl<'a> HeaderView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -5894,6 +6996,8 @@ impl ooxml_core::ElementSpec for Hyperlink {
 impl ooxml_core::ChildOf<Hyperlink> for BookmarkStart {}
 impl ooxml_core::ChildOf<Hyperlink> for Hyperlink {}
 impl ooxml_core::ChildOf<Hyperlink> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Hyperlink> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Hyperlink> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Hyperlink> for Run {}
 impl ooxml_core::ChildOf<Hyperlink> for DeletedRun {}
 impl ooxml_core::ChildOf<Hyperlink> for InsertedRun {}
@@ -5939,6 +7043,18 @@ impl<'a> HyperlinkView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -6096,6 +7212,54 @@ impl<'a> HyperlinkViewMut<'a> {
     /// Removes the first `w:bookmarkEnd` child.
     pub fn remove_bookmark_end(&mut self) -> bool {
         self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
     }
     /// First `w:r` child matching `pred`, mutably.
     pub fn run_mut_by(
@@ -7052,6 +8216,55 @@ impl<'a> LevelViewMut<'a> {
         self.0.remove::<PreviousParagraphProperties>()
     }
 }
+/// `w:CT_Markup/w:commentReference` — Comment Content Reference Mark.
+#[derive(Debug)]
+pub enum CommentReference {}
+impl CommentReference {
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for CommentReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "commentReference");
+    const SDK_NAME: &'static str = "w:CT_Markup/w:commentReference";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentReference::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CommentReference`].
+#[derive(Clone, Debug)]
+pub struct CommentReferenceView<'a>(pub ooxml_core::Lens<'a, CommentReference>);
+impl<'a> CommentReferenceView<'a> {
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(CommentReference::ATTR_W_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentReference`]. Reads go through [`CommentReferenceViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentReferenceViewMut<'a>(pub ooxml_core::LensMut<'a, CommentReference>);
+impl<'a> CommentReferenceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentReferenceView<'_> {
+        CommentReferenceView(self.0.as_lens())
+    }
+    /// Sets `w:id` — Annotation Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReference::ATTR_W_ID, v)
+    }
+    /// Removes `w:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReference::ATTR_W_ID)
+    }
+}
 /// `w:CT_MarkupRange/w:bookmarkEnd` — Defines the BookmarkEnd Class.
 #[derive(Debug)]
 pub enum BookmarkEnd {}
@@ -7132,6 +8345,170 @@ impl<'a> BookmarkEndViewMut<'a> {
     /// Removes `w:id`.
     pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(BookmarkEnd::ATTR_W_ID)
+    }
+}
+/// `w:CT_MarkupRange/w:commentRangeEnd` — Defines the CommentRangeEnd Class.
+#[derive(Debug)]
+pub enum CommentRangeEnd {}
+impl CommentRangeEnd {
+    /// `w:displacedByCustomXml`
+    pub const ATTR_W_DISPLACED_BY_CUSTOM_XML: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "displacedByCustomXml",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for CommentRangeEnd {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "commentRangeEnd");
+    const SDK_NAME: &'static str = "w:CT_MarkupRange/w:commentRangeEnd";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentRangeEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+            ty: ooxml_core::SimpleType::Enum(
+                <DisplacedByCustomXmlValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentRangeEnd::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CommentRangeEnd`].
+#[derive(Clone, Debug)]
+pub struct CommentRangeEndView<'a>(pub ooxml_core::Lens<'a, CommentRangeEnd>);
+impl<'a> CommentRangeEndView<'a> {
+    /// `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn displaced_by_custom_xml(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, DisplacedByCustomXmlValues>> {
+        self.0.attr_enum(CommentRangeEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(CommentRangeEnd::ATTR_W_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentRangeEnd`]. Reads go through [`CommentRangeEndViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentRangeEndViewMut<'a>(pub ooxml_core::LensMut<'a, CommentRangeEnd>);
+impl<'a> CommentRangeEndViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentRangeEndView<'_> {
+        CommentRangeEndView(self.0.as_lens())
+    }
+    /// Sets `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn set_displaced_by_custom_xml(
+        &mut self,
+        v: DisplacedByCustomXmlValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CommentRangeEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `w:displacedByCustomXml`.
+    pub fn remove_displaced_by_custom_xml(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentRangeEnd::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// Sets `w:id` — Annotation Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentRangeEnd::ATTR_W_ID, v)
+    }
+    /// Removes `w:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentRangeEnd::ATTR_W_ID)
+    }
+}
+/// `w:CT_MarkupRange/w:commentRangeStart` — Defines the CommentRangeStart Class.
+#[derive(Debug)]
+pub enum CommentRangeStart {}
+impl CommentRangeStart {
+    /// `w:displacedByCustomXml`
+    pub const ATTR_W_DISPLACED_BY_CUSTOM_XML: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "displacedByCustomXml",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for CommentRangeStart {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "commentRangeStart");
+    const SDK_NAME: &'static str = "w:CT_MarkupRange/w:commentRangeStart";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentRangeStart::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+            ty: ooxml_core::SimpleType::Enum(
+                <DisplacedByCustomXmlValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CommentRangeStart::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CommentRangeStart`].
+#[derive(Clone, Debug)]
+pub struct CommentRangeStartView<'a>(pub ooxml_core::Lens<'a, CommentRangeStart>);
+impl<'a> CommentRangeStartView<'a> {
+    /// `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn displaced_by_custom_xml(
+        &self,
+    ) -> Option<ooxml_core::EnumValue<'a, DisplacedByCustomXmlValues>> {
+        self.0.attr_enum(CommentRangeStart::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// `w:id` — Annotation Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(CommentRangeStart::ATTR_W_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentRangeStart`]. Reads go through [`CommentRangeStartViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentRangeStartViewMut<'a>(pub ooxml_core::LensMut<'a, CommentRangeStart>);
+impl<'a> CommentRangeStartViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentRangeStartView<'_> {
+        CommentRangeStartView(self.0.as_lens())
+    }
+    /// Sets `w:displacedByCustomXml` — displacedByCustomXml
+    pub fn set_displaced_by_custom_xml(
+        &mut self,
+        v: DisplacedByCustomXmlValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                CommentRangeStart::ATTR_W_DISPLACED_BY_CUSTOM_XML,
+                ooxml_core::EnumType::as_str(v),
+            )
+    }
+    /// Removes `w:displacedByCustomXml`.
+    pub fn remove_displaced_by_custom_xml(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentRangeStart::ATTR_W_DISPLACED_BY_CUSTOM_XML)
+    }
+    /// Sets `w:id` — Annotation Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentRangeStart::ATTR_W_ID, v)
+    }
+    /// Removes `w:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentRangeStart::ATTR_W_ID)
     }
 }
 /// `w:CT_MultiLevelType/w:multiLevelType` — Abstract Numbering Definition Type.
@@ -8632,6 +10009,8 @@ impl ooxml_core::ElementSpec for Paragraph {
 impl ooxml_core::ChildOf<Paragraph> for BookmarkStart {}
 impl ooxml_core::ChildOf<Paragraph> for Hyperlink {}
 impl ooxml_core::ChildOf<Paragraph> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Paragraph> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Paragraph> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Paragraph> for ParagraphProperties {}
 impl ooxml_core::ChildOf<Paragraph> for Run {}
 impl ooxml_core::ChildOf<Paragraph> for DeletedRun {}
@@ -8690,6 +10069,18 @@ impl<'a> ParagraphView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// First `w:pPr` child.
     pub fn paragraph_properties(&self) -> Option<ParagraphPropertiesView<'a>> {
@@ -8892,6 +10283,54 @@ impl<'a> ParagraphViewMut<'a> {
     /// Removes the first `w:bookmarkEnd` child.
     pub fn remove_bookmark_end(&mut self) -> bool {
         self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
     }
     /// First `w:r` child matching `pred`, mutably.
     pub fn run_mut_by(
@@ -10143,6 +11582,7 @@ impl ooxml_core::ElementSpec for Run {
 }
 impl ooxml_core::ChildOf<Run> for Break {}
 impl ooxml_core::ChildOf<Run> for Drawing {}
+impl ooxml_core::ChildOf<Run> for AnnotationReferenceMark {}
 impl ooxml_core::ChildOf<Run> for ContinuationSeparatorMark {}
 impl ooxml_core::ChildOf<Run> for CarriageReturn {}
 impl ooxml_core::ChildOf<Run> for EndnoteReferenceMark {}
@@ -10155,6 +11595,7 @@ impl ooxml_core::ChildOf<Run> for TabChar {}
 impl ooxml_core::ChildOf<Run> for FieldChar {}
 impl ooxml_core::ChildOf<Run> for EndnoteReference {}
 impl ooxml_core::ChildOf<Run> for FootnoteReference {}
+impl ooxml_core::ChildOf<Run> for CommentReference {}
 impl ooxml_core::ChildOf<Run> for RunProperties {}
 impl ooxml_core::ChildOf<Run> for DeletedFieldCode {}
 impl ooxml_core::ChildOf<Run> for DeletedText {}
@@ -10183,6 +11624,12 @@ impl<'a> RunView<'a> {
     /// `w:drawing` children in document order.
     pub fn drawing_iter(&self) -> impl Iterator<Item = DrawingView<'a>> {
         self.0.children::<Drawing>().map(DrawingView)
+    }
+    /// `w:annotationRef` children in document order.
+    pub fn annotation_reference_mark_iter(
+        &self,
+    ) -> impl Iterator<Item = AnnotationReferenceMarkView<'a>> {
+        self.0.children::<AnnotationReferenceMark>().map(AnnotationReferenceMarkView)
     }
     /// `w:continuationSeparator` children in document order.
     pub fn continuation_separator_mark_iter(
@@ -10243,6 +11690,12 @@ impl<'a> RunView<'a> {
         &self,
     ) -> impl Iterator<Item = FootnoteReferenceView<'a>> {
         self.0.children::<FootnoteReference>().map(FootnoteReferenceView)
+    }
+    /// `w:commentReference` children in document order.
+    pub fn comment_reference_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentReferenceView<'a>> {
+        self.0.children::<CommentReference>().map(CommentReferenceView)
     }
     /// First `w:rPr` child.
     pub fn run_properties(&self) -> Option<RunPropertiesView<'a>> {
@@ -10347,6 +11800,34 @@ impl<'a> RunViewMut<'a> {
     pub fn remove_drawing(&mut self) -> bool {
         self.0.remove::<Drawing>()
     }
+    /// First `w:annotationRef` child matching `pred`, mutably.
+    pub fn annotation_reference_mark_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AnnotationReferenceMarkViewMut<'_>> {
+        self.0
+            .child_mut_by::<AnnotationReferenceMark>(pred)
+            .map(AnnotationReferenceMarkViewMut)
+    }
+    /// Inserts a `w:annotationRef` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_annotation_reference_mark_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AnnotationReferenceMarkViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<AnnotationReferenceMark>(before)
+            .map(AnnotationReferenceMarkViewMut)
+    }
+    /// Appends a `w:annotationRef` at the end of its slot.
+    pub fn insert_annotation_reference_mark(
+        &mut self,
+    ) -> Result<AnnotationReferenceMarkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<AnnotationReferenceMark>().map(AnnotationReferenceMarkViewMut)
+    }
+    /// Removes the first `w:annotationRef` child.
+    pub fn remove_annotation_reference_mark(&mut self) -> bool {
+        self.0.remove::<AnnotationReferenceMark>()
+    }
     /// First `w:tab` child matching `pred`, mutably.
     pub fn tab_char_mut_by(
         &mut self,
@@ -10368,6 +11849,30 @@ impl<'a> RunViewMut<'a> {
     /// Removes the first `w:tab` child.
     pub fn remove_tab_char(&mut self) -> bool {
         self.0.remove::<TabChar>()
+    }
+    /// First `w:commentReference` child matching `pred`, mutably.
+    pub fn comment_reference_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentReferenceViewMut<'_>> {
+        self.0.child_mut_by::<CommentReference>(pred).map(CommentReferenceViewMut)
+    }
+    /// Inserts a `w:commentReference` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_reference_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentReferenceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentReference>(before).map(CommentReferenceViewMut)
+    }
+    /// Appends a `w:commentReference` at the end of its slot.
+    pub fn insert_comment_reference(
+        &mut self,
+    ) -> Result<CommentReferenceViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentReference>().map(CommentReferenceViewMut)
+    }
+    /// Removes the first `w:commentReference` child.
+    pub fn remove_comment_reference(&mut self) -> bool {
+        self.0.remove::<CommentReference>()
     }
     /// First `w:t` child matching `pred`, mutably.
     pub fn text_mut_by(
@@ -11397,6 +12902,8 @@ impl ooxml_core::ElementSpec for TableRow {
 }
 impl ooxml_core::ChildOf<TableRow> for BookmarkStart {}
 impl ooxml_core::ChildOf<TableRow> for BookmarkEnd {}
+impl ooxml_core::ChildOf<TableRow> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<TableRow> for CommentRangeStart {}
 impl ooxml_core::ChildOf<TableRow> for DeletedRun {}
 impl ooxml_core::ChildOf<TableRow> for InsertedRun {}
 impl ooxml_core::ChildOf<TableRow> for MoveFromRun {}
@@ -11439,6 +12946,18 @@ impl<'a> TableRowView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:del` children in document order.
     pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
@@ -11592,6 +13111,54 @@ impl<'a> TableRowViewMut<'a> {
     /// Removes the first `w:bookmarkEnd` child.
     pub fn remove_bookmark_end(&mut self) -> bool {
         self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
     }
     /// First `w:tblPrEx` child, mutably.
     pub fn table_property_exceptions_mut(
@@ -11761,6 +13328,8 @@ impl ooxml_core::ElementSpec for DeletedRun {
 }
 impl ooxml_core::ChildOf<DeletedRun> for BookmarkStart {}
 impl ooxml_core::ChildOf<DeletedRun> for BookmarkEnd {}
+impl ooxml_core::ChildOf<DeletedRun> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<DeletedRun> for CommentRangeStart {}
 impl ooxml_core::ChildOf<DeletedRun> for Run {}
 impl ooxml_core::ChildOf<DeletedRun> for DeletedRun {}
 impl ooxml_core::ChildOf<DeletedRun> for InsertedRun {}
@@ -11793,6 +13362,18 @@ impl<'a> DeletedRunView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -11930,6 +13511,8 @@ impl ooxml_core::ElementSpec for InsertedRun {
 }
 impl ooxml_core::ChildOf<InsertedRun> for BookmarkStart {}
 impl ooxml_core::ChildOf<InsertedRun> for BookmarkEnd {}
+impl ooxml_core::ChildOf<InsertedRun> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<InsertedRun> for CommentRangeStart {}
 impl ooxml_core::ChildOf<InsertedRun> for Run {}
 impl ooxml_core::ChildOf<InsertedRun> for DeletedRun {}
 impl ooxml_core::ChildOf<InsertedRun> for InsertedRun {}
@@ -11962,6 +13545,18 @@ impl<'a> InsertedRunView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -12099,6 +13694,8 @@ impl ooxml_core::ElementSpec for MoveFromRun {
 }
 impl ooxml_core::ChildOf<MoveFromRun> for BookmarkStart {}
 impl ooxml_core::ChildOf<MoveFromRun> for BookmarkEnd {}
+impl ooxml_core::ChildOf<MoveFromRun> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<MoveFromRun> for CommentRangeStart {}
 impl ooxml_core::ChildOf<MoveFromRun> for Run {}
 impl ooxml_core::ChildOf<MoveFromRun> for DeletedRun {}
 impl ooxml_core::ChildOf<MoveFromRun> for InsertedRun {}
@@ -12131,6 +13728,18 @@ impl<'a> MoveFromRunView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -12268,6 +13877,8 @@ impl ooxml_core::ElementSpec for MoveToRun {
 }
 impl ooxml_core::ChildOf<MoveToRun> for BookmarkStart {}
 impl ooxml_core::ChildOf<MoveToRun> for BookmarkEnd {}
+impl ooxml_core::ChildOf<MoveToRun> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<MoveToRun> for CommentRangeStart {}
 impl ooxml_core::ChildOf<MoveToRun> for Run {}
 impl ooxml_core::ChildOf<MoveToRun> for DeletedRun {}
 impl ooxml_core::ChildOf<MoveToRun> for InsertedRun {}
@@ -12300,6 +13911,18 @@ impl<'a> MoveToRunView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -13577,6 +15200,8 @@ impl ooxml_core::ElementSpec for SimpleField {
 impl ooxml_core::ChildOf<SimpleField> for BookmarkStart {}
 impl ooxml_core::ChildOf<SimpleField> for Hyperlink {}
 impl ooxml_core::ChildOf<SimpleField> for BookmarkEnd {}
+impl ooxml_core::ChildOf<SimpleField> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<SimpleField> for CommentRangeStart {}
 impl ooxml_core::ChildOf<SimpleField> for Run {}
 impl ooxml_core::ChildOf<SimpleField> for DeletedRun {}
 impl ooxml_core::ChildOf<SimpleField> for InsertedRun {}
@@ -13610,6 +15235,18 @@ impl<'a> SimpleFieldView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:r` children in document order.
     pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
@@ -14673,6 +16310,8 @@ impl ooxml_core::ElementSpec for Table {
 }
 impl ooxml_core::ChildOf<Table> for BookmarkStart {}
 impl ooxml_core::ChildOf<Table> for BookmarkEnd {}
+impl ooxml_core::ChildOf<Table> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<Table> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Table> for TableRow {}
 impl ooxml_core::ChildOf<Table> for DeletedRun {}
 impl ooxml_core::ChildOf<Table> for InsertedRun {}
@@ -14690,6 +16329,18 @@ impl<'a> TableView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:tr` children in document order.
     pub fn table_row_iter(&self) -> impl Iterator<Item = TableRowView<'a>> {
@@ -14749,6 +16400,28 @@ impl<'a> TableViewMut<'a> {
     /// Removes the first `w:bookmarkEnd` child.
     pub fn remove_bookmark_end(&mut self) -> bool {
         self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
     }
     /// First `w:tr` child matching `pred`, mutably.
     pub fn table_row_mut_by(
@@ -15173,6 +16846,8 @@ impl ooxml_core::ElementSpec for TableCell {
 }
 impl ooxml_core::ChildOf<TableCell> for BookmarkStart {}
 impl ooxml_core::ChildOf<TableCell> for BookmarkEnd {}
+impl ooxml_core::ChildOf<TableCell> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<TableCell> for CommentRangeStart {}
 impl ooxml_core::ChildOf<TableCell> for Paragraph {}
 impl ooxml_core::ChildOf<TableCell> for DeletedRun {}
 impl ooxml_core::ChildOf<TableCell> for InsertedRun {}
@@ -15191,6 +16866,18 @@ impl<'a> TableCellView<'a> {
     /// `w:bookmarkEnd` children in document order.
     pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
         self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
     }
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
@@ -15280,6 +16967,54 @@ impl<'a> TableCellViewMut<'a> {
     /// Removes the first `w:bookmarkEnd` child.
     pub fn remove_bookmark_end(&mut self) -> bool {
         self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
     }
     /// First `w:p` child matching `pred`, mutably.
     pub fn paragraph_mut_by(
@@ -16662,6 +18397,23 @@ const _: () = ooxml_core::schema::assert_child::<
     NonVisualPictureProperties,
     NonVisualPictureDrawingProperties,
 >();
+const _: () = ooxml_core::schema::assert_spec::<CommentEx>();
+const _: () = ooxml_core::schema::assert_spec::<CommentsEx>();
+const _: () = ooxml_core::schema::assert_child::<CommentsEx, CommentEx>();
+const _: () = ooxml_core::schema::assert_spec::<People>();
+const _: () = ooxml_core::schema::assert_child::<People, Person>();
+const _: () = ooxml_core::schema::assert_spec::<Person>();
+const _: () = ooxml_core::schema::assert_child::<Person, PresenceInfo>();
+const _: () = ooxml_core::schema::assert_spec::<PresenceInfo>();
+const _: () = ooxml_core::schema::assert_spec::<CommentExtensible>();
+const _: () = ooxml_core::schema::assert_spec::<CommentsExtensible>();
+const _: () = ooxml_core::schema::assert_child::<
+    CommentsExtensible,
+    CommentExtensible,
+>();
+const _: () = ooxml_core::schema::assert_spec::<CommentId>();
+const _: () = ooxml_core::schema::assert_spec::<CommentsIds>();
+const _: () = ooxml_core::schema::assert_child::<CommentsIds, CommentId>();
 const _: () = ooxml_core::schema::assert_spec::<AbstractNum>();
 const _: () = ooxml_core::schema::assert_child::<AbstractNum, Nsid>();
 const _: () = ooxml_core::schema::assert_child::<AbstractNum, Level>();
@@ -16669,6 +18421,8 @@ const _: () = ooxml_core::schema::assert_child::<AbstractNum, MultiLevelType>();
 const _: () = ooxml_core::schema::assert_spec::<Body>();
 const _: () = ooxml_core::schema::assert_child::<Body, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Body, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Body, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Body, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Body, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Body, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, InsertedRun>();
@@ -16682,6 +18436,8 @@ const _: () = ooxml_core::schema::assert_spec::<Color>();
 const _: () = ooxml_core::schema::assert_spec::<Comment>();
 const _: () = ooxml_core::schema::assert_child::<Comment, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Comment, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Comment, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Comment, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Comments>();
@@ -16704,6 +18460,7 @@ const _: () = ooxml_core::schema::assert_child::<
     EndnoteDocumentWideProperties,
     NumberingFormat,
 >();
+const _: () = ooxml_core::schema::assert_spec::<AnnotationReferenceMark>();
 const _: () = ooxml_core::schema::assert_spec::<ContinuationSeparatorMark>();
 const _: () = ooxml_core::schema::assert_spec::<CarriageReturn>();
 const _: () = ooxml_core::schema::assert_spec::<EndnoteReferenceMark>();
@@ -16731,6 +18488,8 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_spec::<Endnote>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, InsertedRun>();
@@ -16740,6 +18499,8 @@ const _: () = ooxml_core::schema::assert_child::<Endnote, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Footnote>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, InsertedRun>();
@@ -16753,6 +18514,8 @@ const _: () = ooxml_core::schema::assert_spec::<FootnoteSpecialReference>();
 const _: () = ooxml_core::schema::assert_spec::<Footer>();
 const _: () = ooxml_core::schema::assert_child::<Footer, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Footer, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Footer, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Footer, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Footer, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Footer, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, InsertedRun>();
@@ -16762,6 +18525,8 @@ const _: () = ooxml_core::schema::assert_child::<Footer, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Header>();
 const _: () = ooxml_core::schema::assert_child::<Header, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Header, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Header, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Header, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Header, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Header, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Header, InsertedRun>();
@@ -16777,6 +18542,8 @@ const _: () = ooxml_core::schema::assert_spec::<Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, Run>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, InsertedRun>();
@@ -16795,7 +18562,10 @@ const _: () = ooxml_core::schema::assert_child::<Level, LevelText>();
 const _: () = ooxml_core::schema::assert_child::<Level, StartNumberingValue>();
 const _: () = ooxml_core::schema::assert_child::<Level, NumberingFormat>();
 const _: () = ooxml_core::schema::assert_child::<Level, PreviousParagraphProperties>();
+const _: () = ooxml_core::schema::assert_spec::<CommentReference>();
 const _: () = ooxml_core::schema::assert_spec::<BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_spec::<CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_spec::<CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_spec::<MultiLevelType>();
 const _: () = ooxml_core::schema::assert_spec::<AbstractNumId>();
 const _: () = ooxml_core::schema::assert_spec::<NumberingId>();
@@ -16834,6 +18604,8 @@ const _: () = ooxml_core::schema::assert_spec::<Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Paragraph, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Paragraph, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, Run>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, DeletedRun>();
@@ -16914,6 +18686,7 @@ const _: () = ooxml_core::schema::assert_spec::<PageNumberType>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, Break>();
 const _: () = ooxml_core::schema::assert_child::<Run, Drawing>();
+const _: () = ooxml_core::schema::assert_child::<Run, AnnotationReferenceMark>();
 const _: () = ooxml_core::schema::assert_child::<Run, ContinuationSeparatorMark>();
 const _: () = ooxml_core::schema::assert_child::<Run, CarriageReturn>();
 const _: () = ooxml_core::schema::assert_child::<Run, EndnoteReferenceMark>();
@@ -16926,6 +18699,7 @@ const _: () = ooxml_core::schema::assert_child::<Run, TabChar>();
 const _: () = ooxml_core::schema::assert_child::<Run, FieldChar>();
 const _: () = ooxml_core::schema::assert_child::<Run, EndnoteReference>();
 const _: () = ooxml_core::schema::assert_child::<Run, FootnoteReference>();
+const _: () = ooxml_core::schema::assert_child::<Run, CommentReference>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, DeletedFieldCode>();
 const _: () = ooxml_core::schema::assert_child::<Run, DeletedText>();
@@ -16972,6 +18746,8 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_spec::<TableRow>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<TableRow, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, MoveFromRun>();
@@ -16982,6 +18758,8 @@ const _: () = ooxml_core::schema::assert_child::<TableRow, TableRowProperties>()
 const _: () = ooxml_core::schema::assert_spec::<DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<DeletedRun, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<DeletedRun, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, InsertedRun>();
@@ -16990,6 +18768,8 @@ const _: () = ooxml_core::schema::assert_child::<DeletedRun, MoveToRun>();
 const _: () = ooxml_core::schema::assert_spec::<InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<InsertedRun, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<InsertedRun, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, InsertedRun>();
@@ -16998,6 +18778,8 @@ const _: () = ooxml_core::schema::assert_child::<InsertedRun, MoveToRun>();
 const _: () = ooxml_core::schema::assert_spec::<MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<MoveFromRun, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<MoveFromRun, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, InsertedRun>();
@@ -17006,6 +18788,8 @@ const _: () = ooxml_core::schema::assert_child::<MoveFromRun, MoveToRun>();
 const _: () = ooxml_core::schema::assert_spec::<MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<MoveToRun, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<MoveToRun, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, Run>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, InsertedRun>();
@@ -17034,6 +18818,8 @@ const _: () = ooxml_core::schema::assert_spec::<SimpleField>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, Hyperlink>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<SimpleField, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<SimpleField, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, Run>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, InsertedRun>();
@@ -17058,6 +18844,8 @@ const _: () = ooxml_core::schema::assert_child::<Styles, Style>();
 const _: () = ooxml_core::schema::assert_spec::<Table>();
 const _: () = ooxml_core::schema::assert_child::<Table, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Table, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<Table, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<Table, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableRow>();
 const _: () = ooxml_core::schema::assert_child::<Table, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Table, InsertedRun>();
@@ -17072,6 +18860,8 @@ const _: () = ooxml_core::schema::assert_spec::<TableCellWidth>();
 const _: () = ooxml_core::schema::assert_spec::<TableCell>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, Paragraph>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, InsertedRun>();

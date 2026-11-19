@@ -5412,6 +5412,10 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::ViewProperties {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Picture {}
 #[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::CommentsEx {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::People {}
+#[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Comments {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Document {}
@@ -5588,6 +5592,18 @@ impl<'a> GraphicDataView<'a> {
     /// `pic:pic` children in document order.
     pub fn picture_iter(&self) -> impl Iterator<Item = super::wml::PictureView<'a>> {
         self.0.children::<super::wml::Picture>().map(super::wml::PictureView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w15:commentsEx` children in document order.
+    pub fn comments_ex_iter(
+        &self,
+    ) -> impl Iterator<Item = super::wml::CommentsExView<'a>> {
+        self.0.children::<super::wml::CommentsEx>().map(super::wml::CommentsExView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w15:people` children in document order.
+    pub fn people_iter(&self) -> impl Iterator<Item = super::wml::PeopleView<'a>> {
+        self.0.children::<super::wml::People>().map(super::wml::PeopleView)
     }
     #[cfg(feature = "wml")]
     /// `w:comments` children in document order.
@@ -5854,6 +5870,49 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `pic:pic` child.
     pub fn remove_picture(&mut self) -> bool {
         self.0.remove::<super::wml::Picture>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w15:commentsEx` child matching `pred`, mutably.
+    pub fn comments_ex_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::CommentsExViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::wml::CommentsEx>(pred)
+            .map(super::wml::CommentsExViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w15:commentsEx` child.
+    pub fn remove_comments_ex(&mut self) -> bool {
+        self.0.remove::<super::wml::CommentsEx>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w15:people` child matching `pred`, mutably.
+    pub fn people_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::PeopleViewMut<'_>> {
+        self.0.child_mut_by::<super::wml::People>(pred).map(super::wml::PeopleViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w15:people` child.
+    pub fn remove_people(&mut self) -> bool {
+        self.0.remove::<super::wml::People>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w:comments` child matching `pred`, mutably.
+    pub fn comments_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::CommentsViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::wml::Comments>(pred)
+            .map(super::wml::CommentsViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w:comments` child.
+    pub fn remove_comments(&mut self) -> bool {
+        self.0.remove::<super::wml::Comments>()
     }
     #[cfg(feature = "wml")]
     /// First `w:numbering` child matching `pred`, mutably.
@@ -30928,6 +30987,10 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Picture>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::CommentsEx>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::People>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Comments>();
 #[cfg(all(feature = "dml", feature = "wml"))]
