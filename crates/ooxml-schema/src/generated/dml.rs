@@ -4903,6 +4903,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::wml::Footer {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Header {}
 #[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::Numbering {}
+#[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Settings {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Styles {}
@@ -5095,6 +5097,11 @@ impl<'a> GraphicDataView<'a> {
     /// `w:hdr` children in document order.
     pub fn header_iter(&self) -> impl Iterator<Item = super::wml::HeaderView<'a>> {
         self.0.children::<super::wml::Header>().map(super::wml::HeaderView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w:numbering` children in document order.
+    pub fn numbering_iter(&self) -> impl Iterator<Item = super::wml::NumberingView<'a>> {
+        self.0.children::<super::wml::Numbering>().map(super::wml::NumberingView)
     }
     #[cfg(feature = "wml")]
     /// `w:settings` children in document order.
@@ -5326,6 +5333,34 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `pic:pic` child.
     pub fn remove_picture(&mut self) -> bool {
         self.0.remove::<super::wml::Picture>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w:numbering` child matching `pred`, mutably.
+    pub fn numbering_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::NumberingViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::wml::Numbering>(pred)
+            .map(super::wml::NumberingViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w:numbering` child.
+    pub fn remove_numbering(&mut self) -> bool {
+        self.0.remove::<super::wml::Numbering>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w:styles` child matching `pred`, mutably.
+    pub fn styles_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::StylesViewMut<'_>> {
+        self.0.child_mut_by::<super::wml::Styles>(pred).map(super::wml::StylesViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w:styles` child.
+    pub fn remove_styles(&mut self) -> bool {
+        self.0.remove::<super::wml::Styles>()
     }
     #[cfg(feature = "wml")]
     /// First `wp:inline` child matching `pred`, mutably.
@@ -22350,6 +22385,8 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Footno
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Footer>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Header>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Numbering>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Settings>();
 #[cfg(all(feature = "dml", feature = "wml"))]

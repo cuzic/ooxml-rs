@@ -1,6 +1,8 @@
 //! Run content: reading it as text, the text-only check (R4), and the
 //! mapping from a Rust string to run content (ADR-0004 §3, rev 2).
 
+use std::borrow::Cow;
+
 use ooxml_core::{RawItem, RawNode};
 use ooxml_schema::wml::{
     Break, CarriageReturn, DeletedText, LastRenderedPageBreak, NoBreakHyphen, RunProperties, SoftHyphen, TabChar,
@@ -75,16 +77,20 @@ fn is_text_wrapping_br(node: &RawNode) -> bool {
 pub(crate) fn run_text(run: &RawNode) -> String {
     let mut s = String::new();
     for c in run.elements() {
-        match () {
-            () if is::<Text>(c) || is::<DeletedText>(c) => s.push_str(&c.text()),
-            () if is::<TabChar>(c) => s.push('\t'),
-            () if is::<Break>(c) || is::<CarriageReturn>(c) => s.push('\n'),
-            () if is::<NoBreakHyphen>(c) => s.push('\u{2011}'),
-            () if is::<SoftHyphen>(c) => s.push('\u{AD}'),
-            () => {}
-        }
+        s.push_str(&run_child_text(c));
     }
     s
+}
+
+pub(crate) fn run_child_text(node: &RawNode) -> Cow<'_, str> {
+    Cow::Borrowed(match () {
+        () if is::<Text>(node) || is::<DeletedText>(node) => return node.text(),
+        () if is::<TabChar>(node) => "\t",
+        () if is::<Break>(node) || is::<CarriageReturn>(node) => "\n",
+        () if is::<NoBreakHyphen>(node) => "\u{2011}",
+        () if is::<SoftHyphen>(node) => "\u{AD}",
+        () => "",
+    })
 }
 
 /// R4: is the run text-only? Whitespace-only text between children (pretty
