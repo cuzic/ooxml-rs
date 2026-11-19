@@ -491,6 +491,28 @@ def check_text_formatting(outdir):
     print('P3a python-pptx: direct text formatting read back')
 
 
+def check_notes_creation(outdir):
+    from pptx import Presentation
+    from pptx.enum.shapes import PP_PLACEHOLDER
+
+    path = os.path.join(outdir, '33-p3d-create-notes-a4.pptx')
+    prs = Presentation(path)
+    slide, next_slide = prs.slides
+    assert slide.has_notes_slide
+    assert not next_slide.has_notes_slide
+    notes = slide.notes_slide
+    assert notes.notes_text_frame.text == (
+        'Speaker notes for an A4 page.\nCentred 16:10 slide image.'
+    )
+    assert prs.notes_master is notes.part.notes_master
+    master_image = next(ph for ph in prs.notes_master.placeholders
+                        if ph.placeholder_format.type == PP_PLACEHOLDER.SLIDE_IMAGE)
+    assert (master_image.left, master_image.top, master_image.width, master_image.height) == (
+        893160, 1336500, 5773680, 3608550
+    )
+    print('P3d python-pptx: notes text and scaled notes master read back')
+
+
 def main():
     args = sys.argv[1:]
     site = None
@@ -522,6 +544,7 @@ def main():
     print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {replaces} replaced matches, {failures} failures')
     check_text_formatting(outdir)
     check_shape_properties(outdir)
+    check_notes_creation(outdir)
     sys.exit(1 if failures else 0)
 
 

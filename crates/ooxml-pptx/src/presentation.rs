@@ -233,9 +233,9 @@ impl Presentation {
     /// gives the Phase 0 text API on the notes body). Only the notes part
     /// becomes dirty.
     ///
-    /// Errors: [`Error::NoNotesSlide`] (creating notes is not part of
-    /// Phase 1), [`Error::SlideIndexOutOfRange`], [`Error::DanglingSlide`],
-    /// parse errors.
+    /// Returns [`Error::NoNotesSlide`] when notes are absent. Use
+    /// [`Self::notes_mut_or_create`] to create them. Invalid slide indices,
+    /// dangling slides and parse errors are also reported.
     pub fn notes_mut(&mut self, index: usize) -> Result<NotesMut<'_>> {
         let (slide, part) = self.notes_part_of(index)?;
         let part = part.ok_or(Error::NoNotesSlide { slide_id: slide.slide_id })?;

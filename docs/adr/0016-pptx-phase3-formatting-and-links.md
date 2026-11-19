@@ -854,3 +854,22 @@ as an explicit child offset or extent.
 Group fit uses `ValueOutOfRange { what: "exact group fit" }` for
 unrepresentable affine fits. A fit that changes the box of a rotated or
 flipped group returns `TransformedGroup` before exactness is checked.
+
+### Post-acceptance note — P3d notes creation
+
+`Presentation::ensure_notes_slide(index)` implements §8. `notes_mut_or_create`
+runs the same registry transaction and returns an editable `NotesMut`.
+The relationship identifies the master. A missing list is inserted in schema
+order, and an existing list entry is updated if its relationship ID disagrees.
+With existing notes and no master relationship, both entry points return
+`NotesWithoutMaster`. The Notes count is updated with the existing §7 policy
+of ADR-0012 for readable, present counters.
+
+The new master uses the embedded notes-master/theme pair. Its placeholder
+coordinates are scaled independently on each axis, rounded to the nearest
+EMU. The slide image's fitted extent rounds down to stay inside the scaled
+box, and positioning rounds down when centering lands on half an EMU.
+Absent or unusable dimensions use the template dimensions for that size.
+Each new notes slide uses the master's placeholder order and inherits its
+geometry. A master without a body placeholder still gets an editable body
+on the new notes slide. Manual case 33 uses an A4 page and a 16:10 slide.

@@ -301,6 +301,9 @@ pub enum Error {
         /// `p:sldId@id`.
         slide_id: u32,
     },
+    /// Existing notes slides have no presentation-level notes master relationship.
+    #[error("the presentation has notes slides but no notes master relationship")]
+    NotesWithoutMaster,
     /// The notes slide has no body placeholder (`p:ph@type="body"`).
     #[error("the notes slide has no body placeholder")]
     NoNotesBody,

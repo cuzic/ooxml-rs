@@ -246,6 +246,8 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [pml] Read p:CT_IndexRange/p:charRg -> CharRange (empty, 2 attrs)
   [pml] Read p:CT_IndexRange/p:pRg -> ParagraphIndexRange (empty, 2 attrs)
   [pml] Read p:CT_NotesMaster/p:notesMaster -> NotesMaster (5 slots, 0 attrs)
+  [pml] Write p:CT_NotesMasterIdList/p:notesMasterIdLst -> NotesMasterIdList (1 slots, 0 attrs)
+  [pml] Write p:CT_NotesMasterIdListEntry/p:notesMasterId -> NotesMasterId (1 slots, 1 attrs)
   [pml] Write p:CT_NotesSlide/p:notes -> NotesSlide (3 slots, 2 attrs)
   [pml] Write p:CT_OutlineViewProperties/p:outlineViewPr -> OutlineViewProperties (3 slots, 0 attrs)
   [pml] Write p:CT_OutlineViewSlideEntry/p:sld -> OutlineViewSlideListEntry (empty, 2 attrs)

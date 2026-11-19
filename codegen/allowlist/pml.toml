@@ -27,6 +27,9 @@ names = [
     "p:CT_CommonSlideDataExtensionList/p:extLst",
     "p:CT_CommonSlideDataExtension/p:ext",
     "p:CT_NotesSlide/p:notes",
+    # Phase 3d (ADR-0016 §8): link the presentation to its notes master.
+    "p:CT_NotesMasterIdList/p:notesMasterIdLst",
+    "p:CT_NotesMasterIdListEntry/p:notesMasterId",
     "p14:CT_RandomId/p14:creationId",
     "p:CT_SlideExtensionList/p:extLst",
     "p:CT_SlideExtension/p:ext",
