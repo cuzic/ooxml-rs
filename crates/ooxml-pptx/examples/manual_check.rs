@@ -18,6 +18,8 @@ use ooxml_pptx::{CellFill, Edge, Line, Presentation, ShapeKind, TableColor, Text
 
 #[path = "../tests/oracle/shape_properties_case.rs"]
 mod shape_properties_case;
+#[path = "../tests/oracle/links_case.rs"]
+mod links_case;
 
 type R<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -845,6 +847,22 @@ fn main() -> R {
                 "The blue up arrow and its orange outline appear above and left of the other members.",
                 "Oval 2 has a white-to-teal gradient.",
                 "Selecting Group 4 shows a bounding box around all three shapes. Compare Oval 2 and Right Arrow 3 against the source to check that fitting preserved their positions and sizes.",
+            ],
+        });
+    }
+
+    {
+        let source = links_case::FIXTURE;
+        let mut deck = Presentation::open(fixture(source))?;
+        links_case::edit(&mut deck)?;
+        items.push(Item {
+            file: save(&out, links_case::NAME, &deck)?,
+            source,
+            edit: "Link the title text to example.com, the title shape to slide 2, and the body shape to the last slide.".into(),
+            observe: vec![
+                "The title text points to https://example.com/slides?x=1&y=2.",
+                "In Slide Show, clicking the title shape outside the linked text jumps to slide 2.",
+                "In Slide Show, clicking the body shape runs the Last Slide action.",
             ],
         });
     }

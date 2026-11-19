@@ -200,6 +200,17 @@
       ["ppt/slides/slide3.xml", ".//a:gradFill/a:gsLst/a:gs[@pos='100000']/a:srgbClr[@val='008080']", 1]
     ]
   },
+  "pptx/p3c-links.pptx": {"text": ["Lorem ipsum dolor sit amet"], "pages": 2,
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//a:rPr/a:hlinkClick[@r:id='rId3']", 1],
+      ["ppt/slides/slide1.xml", ".//p:cNvPr/a:hlinkClick[@action='ppaction://hlinksldjump'][@r:id='rId4']", 1],
+      ["ppt/slides/slide1.xml", ".//p:cNvPr/a:hlinkClick[@action='ppaction://hlinkshowjump?jump=lastslide'][@r:id='']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId3'][@Target='https://example.com/slides?x=1&y=2'][@TargetMode='External']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Target='slide2.xml']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Target='slide2.xml'][@TargetMode='External']", 0]
+    ]
+  },
   "xlsx/01-minimal.xlsx": {"sheets": {"Sheet1": {"A1": "Name (edited)", "A2": "  padded ", "B2": 91.0, "C2": 0.0, "D2": 7.0, "F5": "new"}}},
   "xlsx/02-61605-cyrillic-x14ac.xlsx": {"sheets": {"Лист1": {"B2": 2.0, "B5": "edited", "A20": "new row"}}},
   "xlsx/03-fillwithoutcolor-row2.xlsx": {"sheets": {"LPH": {"B2": 5.0, "K61": "x"}, "User Guide": {"B5": "MARKETING REPORT UPDATE"}}},
