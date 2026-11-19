@@ -782,7 +782,7 @@ remaining reference. The media part is retained. `ValueOutOfRange`
 reuses the existing pptx error with its `what` field. No generated
 public names were changed.
 
-### Post-acceptance question — P3b group fitting at integer EMU precision
+### Post-acceptance decision — P3b group fitting at integer EMU precision
 
 Section 6 calls for fitting the group to its members while preserving
 their slide rectangles. For some scaled groups no integer group
@@ -797,7 +797,22 @@ first child's slide x requires `off = 1`. The first child's width rounds
 to 1 only if the new `ext` is at least 2, while the second child's x
 rounds to 1 only if the new `ext` is at most 1.
 
-The owner needs to decide whether to preserve the transform by allowing
-bounds larger than the child box, allow changes to the resolved child
-rectangles with a specified rounding rule, or refuse a fit that cannot
-preserve the rectangles.
+The fit uses the bounds of the immediate children's `a:off` and `a:ext`
+in group coordinates. For each axis, set `chOff'` to the minimum and
+`chExt'` to the difference between the maximum and minimum. Preserve the
+old affine map by computing these values with exact rational arithmetic:
+
+- `off' = off + (chOff' - chOff) * ext / chExt`
+- `ext' = chExt' * ext / chExt`
+
+Reject without changing bytes if either result is fractional, either
+child extent in the calculation is zero, or arithmetic overflows. The
+counterexample above is rejected because both new values are fractional
+(`off' = 1/2` and `ext' = 3/2`). A successful fit preserves every
+descendant's `slide_rect()`, regardless of resolver rounding.
+
+For a group with nonzero rotation or either flip, only an unchanged box
+is accepted. With valid nonzero extents, unit scaling (`ext == chExt`)
+always admits an exact fit for an unrotated, unflipped group. For a
+group without `a:xfrm`, create the identity transform using the child
+bounds for both coordinate spaces.
