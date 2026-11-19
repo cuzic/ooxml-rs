@@ -196,6 +196,18 @@ fn check_revisions(n: &RawNode) -> Result<()> {
     Ok(())
 }
 
+/// Rewriting cell properties leaves the cell's paragraph content untouched.
+fn check_cell_property_revisions(tc: &RawNode) -> Result<()> {
+    let revision = tc.elements()
+        .filter(|x| is::<TableCellProperties>(x))
+        .flat_map(RawNode::elements)
+        .find(|x| ["tcPrChange", "cellIns", "cellDel", "cellMerge"].iter().any(|l| x.is(w(l))));
+    if let Some(x) = revision {
+        return Err(Error::RevisionInRange { element: format!("w:{}", x.name().local()) });
+    }
+    Ok(())
+}
+
 /// Refusals for content a delete or merge would remove (ADR-0011 §7, M6).
 fn check_removable(n: &RawNode) -> Result<()> {
     if find_desc(n, &|x| x.is(w("footnoteReference")) || x.is(w("endnoteReference"))).is_some() {
@@ -536,8 +548,11 @@ impl Document {
                 }).find(|&merge| merge != Some(VMerge::Continue));
                 if boundary == Some(Some(VMerge::Restart)) {
                     let tr = tbl.children()[next.item].as_element().expect("row");
+                    if let Some(revision) = row_revision(tr) {
+                        return Err(Error::RevisionInRange { element: format!("w:{}", revision.name().local()) });
+                    }
                     let tc = tr.children()[c.item].as_element().expect("cell");
-                    check_revisions(tc)?;
+                    check_cell_property_revisions(tc)?;
                     repairs.push((next.item, c.item));
                 }
             }
@@ -597,7 +612,7 @@ impl Document {
                 RowEdit::Before(row.before + 1)
             } else if let Some(c) = row.cells.iter().find(|c| c.start < at_grid_col && at_grid_col < c.start + c.span) {
                 let tc = tr.children()[c.item].as_element().expect("cell");
-                check_revisions(tc)?;
+                check_cell_property_revisions(tc)?;
                 let width = span_width(tc, &grid.cols[c.start..c.start + c.span])
                     .and_then(|old| old.checked_add(u64::from(width)));
                 RowEdit::Widen { cell: c.item, span: c.span + 1, width }
@@ -755,7 +770,7 @@ impl Document {
                 let c = row.cell_at(at_grid_col).expect("consistent grid");
                 let tc = tr.children()[c.item].as_element().expect("cell");
                 if c.span > 1 {
-                    check_revisions(tc)?;
+                    check_cell_property_revisions(tc)?;
                     let width = span_width(tc, &grid.cols[c.start..c.start + c.span])
                         .zip(grid_width(&grid.cols[at_grid_col]))
                         .and_then(|(old, removed)| old.checked_sub(removed));
@@ -864,7 +879,12 @@ impl Document {
                 if j > 0 {
                     check_removable(tc)?;
                 } else {
-                    check_revisions(tc)?;
+                    check_cell_property_revisions(tc)?;
+                    if k > 0 {
+                        for ppr in tc.elements().filter(|p| is::<P>(p)).flat_map(RawNode::elements).filter(|ppr| is::<ParagraphProperties>(ppr)) {
+                            check_revisions(ppr)?;
+                        }
+                    }
                 }
                 if (k, j) != (0, 0) && !cell_is_empty(tc) {
                     return Err(Error::MergeNonEmpty);
