@@ -15,6 +15,21 @@ use crate::workbook::Workbook;
 /// reach other sheets, `workbook.xml` and the package (ADR-0003 §6).
 ///
 /// Rows and columns are 0-based (`A1` = `(0, 0)`).
+///
+/// # Wrapped worksheet grids
+///
+/// Cell reads (including iteration), cell writes (including batches and
+/// style changes), row-property setters, merges, and hyperlinks that write
+/// cell text can return [`Error::Core`] with
+/// [`UnresolvedSibling`](ooxml_core::Error::UnresolvedSibling) for `sheetData`.
+/// This occurs when a SpreadsheetML `sheetData`, `row`, or `c` appears
+/// outside its expected parent (`worksheet`, `sheetData`, or `row`,
+/// respectively), including inside markup compatibility wrappers, or when
+/// the worksheet has multiple direct `sheetData` children.
+/// `mc:AlternateContent` directly under `sheetData` or `row` is handled by
+/// the existing position-specific checks.
+/// Edits that need to strip dependent formula caches on an affected sheet
+/// can return the same error even when the edit targets a different sheet.
 #[derive(Debug)]
 pub struct Worksheet<'wb> {
     pub(crate) wb: &'wb mut Workbook,
@@ -575,7 +590,8 @@ impl<'wb> Worksheet<'wb> {
 }
 
 /// A write handle for one cell (ADR-0001: like `HashMap::entry`, nothing
-/// happens until a value is set).
+/// happens until a value is set). See [`Worksheet`] for the wrapped-grid
+/// refusal shared by cell edits.
 #[derive(Debug)]
 pub struct CellMut<'s, 'wb> {
     pub(crate) ws: &'s mut Worksheet<'wb>,

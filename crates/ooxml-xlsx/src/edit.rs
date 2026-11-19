@@ -793,6 +793,7 @@ fn strip_positions(
     let mut out = Vec::new();
     let mut shared = 0i64;
     let mut found = HashSet::new();
+    index.check_edit()?;
     let rows = index.rows(part)?;
     let sd = sheet_data(doc);
     // The rows to visit: those of wanted formula cells and those inside the

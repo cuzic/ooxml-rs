@@ -158,6 +158,9 @@ pub(crate) type ApplyStepHook = ApplyStep;
 /// ```
 ///
 /// A complete, runnable version is `examples/edit_cells.rs`.
+///
+/// Sheet operations that strip dependent formula caches can return the
+/// [wrapped-grid error described on `Worksheet`](Worksheet#wrapped-worksheet-grids).
 #[derive(Debug)]
 pub struct Workbook {
     pub(crate) pkg: Package,
