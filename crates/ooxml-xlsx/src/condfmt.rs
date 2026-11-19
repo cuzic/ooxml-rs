@@ -156,19 +156,34 @@ fn argb_ok(s: &str) -> bool {
     s.len() == 8 && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// Every priority of the sheet's rules, 2007 and x14, and whether a pivot
-/// block exists.
-fn priorities(ws: &RawNode) -> (Vec<u32>, bool) {
+fn rule_priority(rule: &RawNode) -> Option<u32> {
+    rule.attr(q("priority"))?.trim().parse().ok()
+}
+
+/// Priorities and pivot blocks are inspected before any renumbering.
+fn priorities(ws: &RawNode) -> (Vec<Option<u32>>, bool) {
     let mut out = Vec::new();
     let mut pivot = false;
+    let mut linked_ids = Vec::new();
     for b in ws.elements().filter(|e| e.is(sml::ConditionalFormatting::QNAME)) {
         pivot |= matches!(b.attr(q("pivot")), Some("1" | "true"));
-        out.extend(b.elements().filter(|r| r.is(sml::ConditionalFormattingRule::QNAME)).filter_map(|r| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok())));
+        for rule in b.elements().filter(|r| r.is(sml::ConditionalFormattingRule::QNAME)) {
+            out.push(rule_priority(rule));
+            linked_ids.extend(x14_id(rule));
+        }
     }
     for (_, ext) in x14::exts(ws, x14::URI_CF) {
-        for cfs in ext.elements() {
-            for cf in cfs.elements() {
-                out.extend(cf.elements().filter(|r| r.is(x14::CfRule::QNAME)).filter_map(|r| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok())));
+        for cfs in ext.elements().filter(|e| e.is(x14::ConditionalFormattings::QNAME)) {
+            for cf in cfs.elements().filter(|e| e.is(x14::ConditionalFormatting::QNAME)) {
+                for rule in cf.elements().filter(|r| r.is(x14::CfRule::QNAME)) {
+                    // Linked extensions can inherit the priority of their 2007 rule.
+                    if rule.attr(q("priority")).is_none()
+                        && rule.attr(q("id")).is_some_and(|id| linked_ids.iter().any(|linked| linked.eq_ignore_ascii_case(id)))
+                    {
+                        continue;
+                    }
+                    out.push(rule_priority(rule));
+                }
             }
         }
     }
@@ -283,13 +298,13 @@ impl Workbook {
         if first && pivot {
             return Err(Error::PivotConditionalFormat(sqref));
         }
-        if first && prios.contains(&0) {
+        if first && prios.iter().any(|p| p.is_none_or(|p| p == 0)) {
             return Err(Error::InvalidSetting {
                 what: "conditional formatting priority".into(),
-                reason: "cannot insert first when an existing priority is zero".into(),
+                reason: "cannot insert first when an existing rule lacks a positive integer priority".into(),
             });
         }
-        let max_priority = prios.into_iter().max().unwrap_or(0);
+        let max_priority = prios.into_iter().flatten().max().unwrap_or(0);
         if max_priority >= i32::MAX as u32 {
             return Err(Error::InvalidSetting {
                 what: "conditional formatting priority".into(),
@@ -303,7 +318,7 @@ impl Workbook {
             ws.check_insert::<sml::ConditionalFormatting>()?;
         }
         let rule = rule.clone();
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if first {
@@ -333,7 +348,7 @@ impl Workbook {
                 let rules: Vec<(usize, &RawNode)> = b
                     .indexed_elements()
                     .filter(|(_, r)| r.is(sml::ConditionalFormattingRule::QNAME))
-                    .filter(|(_, r)| priority.is_none_or(|p| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok()) == Some(p)))
+                    .filter(|(_, r)| priority.is_none_or(|p| rule_priority(r) == Some(p)))
                     .collect();
                 if rules.is_empty() {
                     continue;
@@ -371,7 +386,7 @@ impl Workbook {
         }
         let broken = found < ids.len();
         let removed = plan.iter().map(|p| p.1.len()).sum();
-        self.poisoning_layout(|wb| {
+        self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             // x14 side first (higher item indices in the worksheet: extLst is last)
@@ -446,7 +461,7 @@ fn renumber(ws: &mut LensMut<'_, sml::Worksheet>) -> Result<()> {
             .node()
             .indexed_elements()
             .filter(|(_, r)| r.is(sml::ConditionalFormattingRule::QNAME))
-            .filter_map(|(i, r)| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok()).map(|p| (i, p)))
+            .filter_map(|(i, r)| rule_priority(r).map(|p| (i, p)))
             .collect();
         for (ri, p) in rules {
             x14::child_at::<_, sml::ConditionalFormattingRule>(&mut b, ri).set_attr(q("priority"), &(p + 1).to_string())?;
@@ -466,7 +481,7 @@ fn renumber(ws: &mut LensMut<'_, sml::Worksheet>) -> Result<()> {
                     .node()
                     .indexed_elements()
                     .filter(|(_, r)| r.is(x14::CfRule::QNAME))
-                    .filter_map(|(i, r)| r.attr(q("priority")).and_then(|v| v.trim().parse::<u32>().ok()).map(|p| (i, p)))
+                    .filter_map(|(i, r)| rule_priority(r).map(|p| (i, p)))
                     .collect();
                 for (ri, p) in rules {
                     x14::child_at::<_, x14::CfRule>(&mut cf, ri).set_attr(q("priority"), &(p + 1).to_string())?;
@@ -597,7 +612,8 @@ impl Worksheet<'_> {
     /// As [`Self::add_conditional_format`], but with priority 1: every
     /// other rule's priority, x14 included, goes up by one (a documented
     /// widening, ADR-0014 §6). Refused on a sheet with PivotTable blocks
-    /// ([`Error::PivotConditionalFormat`]), which are never renumbered.
+    /// ([`Error::PivotConditionalFormat`]) or when a rule to be renumbered
+    /// lacks a positive integer priority ([`Error::InvalidSetting`]).
     pub fn add_conditional_format_first(&mut self, sqref: &str, rule: &Rule) -> Result<()> {
         self.wb.add_conditional_format(self.sheet, sqref, rule, true)
     }

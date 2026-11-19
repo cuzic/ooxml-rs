@@ -247,10 +247,14 @@ read APIs are deferred to a follow-up after Part 2. For new rules, opaque refere
 sheet-qualified calls are refused with `InvalidFormula`. Between and notBetween comparisons
 require two formulas. Conditional formatting uses the 2007 `IconSetValues` enum and requires
 one threshold per icon, finite numbers, percentages and percentiles in 0–100, and positive
-top10 ranks (at most 100 for a percentage). Invalid settings, including insertion at priority
-1 when priority 0 exists, return `InvalidSetting`. An unparseable existing validation or
-hyperlink range returns its respective overlap error. External hyperlinks declare the
-relationship namespace on the new hyperlink if needed.
+top10 ranks (at most 100 for a percentage). Invalid settings return `InvalidSetting`.
+An unparseable existing validation or hyperlink range returns its respective overlap error.
+External hyperlinks declare the relationship namespace on the new hyperlink if needed.
+
+**Post-acceptance note (issue #78).** When inserting at priority 1, each rule to be
+renumbered requires a positive integer priority. An x14 rule without its own priority
+inherits the priority of its linked 2007 rule. Comparison operators on List or Custom
+validations also return `InvalidSetting`.
 
 ### 2. Locality: the allowed changes, per feature (revision 2, review M5)
 
