@@ -94,7 +94,10 @@ impl Destination {
                 }) {
                     return Err(Error::UnsafeLinkScheme);
                 }
-                if url.is_empty() || IriReferenceStr::new(url).is_err() {
+                if url.is_empty()
+                    || url.chars().any(|c| c.is_whitespace() || c.is_control())
+                    || IriReferenceStr::new(url).is_err()
+                {
                     return Err(Error::InvalidLinkUrl);
                 }
                 (Some((REL_HYPERLINK, Target::External(url.clone()))), None)

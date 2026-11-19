@@ -854,3 +854,27 @@ as an explicit child offset or extent.
 Group fit uses `ValueOutOfRange { what: "exact group fit" }` for
 unrepresentable affine fits. A fit that changes the box of a rotated or
 flipped group returns `TransformedGroup` before exactness is checked.
+
+### Post-acceptance note — P3c hyperlinks and actions
+
+- `RunMut::set_link`, `FieldMut::set_link` and `ShapeMut::set_action`
+  take a click or hover event and an optional `LinkSpec`. Passing
+  `None` clears that event. Reapplying the same settings preserves the
+  existing link element and its relationship.
+- `Presentation::slide_link_target(sldId)` creates the write target
+  `LinkTarget::SlideId`, scoped to the open presentation. The existing
+  read variant `LinkTarget::Slide { slide_id, index }` continues to
+  describe the resolved destination. The setter returns
+  `ForeignLinkSlide` for a target from another session and
+  `LinkSlideNotFound` for a missing slide id.
+- URL writes accept a nonempty IRI reference. Supply spaces as
+  `%20`. The setter returns `InvalidLinkUrl` for malformed references
+  and `UnsafeLinkScheme` for the three schemes listed in §7.
+- The staged registry removal uses core's any-attribute scan. A
+  `StillReferenced` result keeps the old relationship and allows the
+  edit to commit. Relationships of other types remain owned by their
+  respective features.
+- Q3 uses the §7 default. A text link writes the colour extension when
+  `text_color` is true. Replacing or clearing an anchored link returns
+  `CommentAnchoredText`. Unsupported action targets return
+  `UnsupportedAction`.

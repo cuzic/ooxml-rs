@@ -13,10 +13,7 @@
 
 use std::path::PathBuf;
 
-use ooxml_pptx::{
-    Error, FindOptions, Match, MixedFormat, Presentation, ReplaceOptions, Scope, ShapeKind,
-    TextBodyMut, TextItem,
-};
+use ooxml_pptx::{Error, FindOptions, Match, MixedFormat, Presentation, ReplaceOptions, Scope, ShapeKind, TextBodyMut, TextItem};
 use serde_json::{Value, json};
 
 pub fn fixtures_dir() -> PathBuf {
@@ -80,9 +77,7 @@ pub struct Edit {
 impl Edit {
     pub fn to_json(&self) -> Value {
         let (name, args) = match &self.op {
-            Op::RunSetText { p, r, text } => {
-                ("run_set_text", json!({"p": p, "r": r, "text": text}))
-            }
+            Op::RunSetText { p, r, text } => ("run_set_text", json!({"p": p, "r": r, "text": text})),
             Op::ParaSetText { p, text } => ("para_set_text", json!({"p": p, "text": text})),
             Op::AddRun { p, text } => ("add_run", json!({"p": p, "text": text})),
             Op::AddBreak { p } => ("add_break", json!({"p": p})),
@@ -143,14 +138,8 @@ fn summary(b: ooxml_pptx::TextBodyRef<'_>) -> (usize, Vec<(usize, usize)>) {
         .map(|p| {
             let items = p.items();
             (
-                items
-                    .iter()
-                    .filter(|i| matches!(i, TextItem::Run(_)))
-                    .count(),
-                items
-                    .iter()
-                    .filter(|i| matches!(i, TextItem::Field(_)))
-                    .count(),
+                items.iter().filter(|i| matches!(i, TextItem::Run(_))).count(),
+                items.iter().filter(|i| matches!(i, TextItem::Field(_))).count(),
             )
         })
         .collect();
@@ -162,37 +151,17 @@ fn reread(pres: &mut Presentation, t: &Target) -> Target {
     if t.notes {
         let n = pres.notes(t.slide).expect("notes").expect("notes slide");
         let (paragraphs, shape) = summary(n.body().expect("notes body"));
-        return Target {
-            slide: t.slide,
-            shape_id: t.shape_id,
-            cell: None,
-            notes: true,
-            paragraphs,
-            shape,
-        };
+        return Target { slide: t.slide, shape_id: t.shape_id, cell: None, notes: true, paragraphs, shape };
     }
     let slide = pres.slide(t.slide).expect("slide");
-    let s = slide
-        .shape_by_id(t.shape_id)
-        .expect("unique id")
-        .expect("shape");
+    let s = slide.shape_by_id(t.shape_id).expect("unique id").expect("shape");
     let b = match t.cell {
         None => s.text_body(),
-        Some((r, c)) => s
-            .table()
-            .and_then(|tb| tb.cell(r, c))
-            .and_then(|c| c.text_body()),
+        Some((r, c)) => s.table().and_then(|tb| tb.cell(r, c)).and_then(|c| c.text_body()),
     }
     .expect("body");
     let (paragraphs, shape) = summary(b);
-    Target {
-        slide: t.slide,
-        shape_id: t.shape_id,
-        cell: t.cell,
-        notes: false,
-        paragraphs,
-        shape,
-    }
+    Target { slide: t.slide, shape_id: t.shape_id, cell: t.cell, notes: false, paragraphs, shape }
 }
 
 fn targets(pres: &mut Presentation) -> Vec<Target> {
@@ -208,14 +177,7 @@ fn targets(pres: &mut Presentation) -> Vec<Target> {
             }
             let mut push = |cell, b: ooxml_pptx::TextBodyRef<'_>| {
                 let (paragraphs, shape) = summary(b);
-                out.push(Target {
-                    slide: si,
-                    shape_id: id,
-                    cell,
-                    notes: false,
-                    paragraphs,
-                    shape,
-                });
+                out.push(Target { slide: si, shape_id: id, cell, notes: false, paragraphs, shape });
             };
             match s.kind() {
                 ShapeKind::Shape => {
@@ -238,19 +200,10 @@ fn targets(pres: &mut Presentation) -> Vec<Target> {
     }
     // notes bodies last, so that the slide targets keep their operations
     for si in 0..pres.slide_count() {
-        let Some(n) = pres.notes(si).expect("notes") else {
-            continue;
-        };
+        let Some(n) = pres.notes(si).expect("notes") else { continue };
         if let (Some(sh), Some(b)) = (n.body_shape(), n.body()) {
             let (paragraphs, shape) = summary(b);
-            out.push(Target {
-                slide: si,
-                shape_id: sh.id().unwrap_or(0),
-                cell: None,
-                notes: true,
-                paragraphs,
-                shape,
-            });
+            out.push(Target { slide: si, shape_id: sh.id().unwrap_or(0), cell: None, notes: true, paragraphs, shape });
         }
     }
     out
@@ -261,30 +214,13 @@ fn op_for(k: usize, t: &Target) -> Op {
     let last = t.paragraphs.saturating_sub(1);
     match k % 9 {
         0 => match first_with_run {
-            Some(p) => Op::RunSetText {
-                p,
-                r: 0,
-                text: format!("run «{k}» ✓ 日本語 & <x>"),
-            },
-            None => Op::ParaSetText {
-                p: 0,
-                text: format!("filled {k}"),
-            },
+            Some(p) => Op::RunSetText { p, r: 0, text: format!("run «{k}» ✓ 日本語 & <x>") },
+            None => Op::ParaSetText { p: 0, text: format!("filled {k}") },
         },
-        1 => Op::ParaSetText {
-            p: 0,
-            text: format!("para {k}"),
-        },
-        2 => Op::BodySetText {
-            text: format!("line one {k}\r\nline two\u{b}after break\n"),
-        },
-        3 => Op::AddParagraph {
-            text: format!("added {k}\u{b}second"),
-        },
-        4 => Op::AddRun {
-            p: last,
-            text: format!(" +run{k} "),
-        },
+        1 => Op::ParaSetText { p: 0, text: format!("para {k}") },
+        2 => Op::BodySetText { text: format!("line one {k}\r\nline two\u{b}after break\n") },
+        3 => Op::AddParagraph { text: format!("added {k}\u{b}second") },
+        4 => Op::AddRun { p: last, text: format!(" +run{k} ") },
         5 => Op::AddBreak { p: last },
         6 => {
             if t.paragraphs > 1 {
@@ -292,21 +228,14 @@ fn op_for(k: usize, t: &Target) -> Op {
             } else if t.shape[0].0 > 1 {
                 Op::RemoveRun { p: 0, r: 1 }
             } else {
-                Op::BodySetText {
-                    text: String::new(),
-                }
+                Op::BodySetText { text: String::new() }
             }
         }
         7 => match t.shape.iter().position(|&(_, f)| f > 0) {
             Some(p) => Op::RemoveField { p, f: 0 },
-            None => Op::ParaSetText {
-                p: 0,
-                text: format!("a{k}\u{b}b\u{b}"),
-            },
+            None => Op::ParaSetText { p: 0, text: format!("a{k}\u{b}b\u{b}") },
         },
-        _ => Op::BodySetText {
-            text: format!("single {k}"),
-        },
+        _ => Op::BodySetText { text: format!("single {k}") },
     }
 }
 
@@ -318,38 +247,15 @@ fn op_multi(k: usize, j: usize, t: &Target) -> Op {
     let with_runs: Vec<usize> = (0..t.paragraphs).filter(|&p| t.shape[p].0 > 0).collect();
     match (k + 3 * j) % 8 {
         0 => match with_runs.last() {
-            Some(&p) => Op::RunSetText {
-                p,
-                r: t.shape[p].0 - 1,
-                text: format!("m{k}.{j} last run"),
-            },
-            None => Op::ParaSetText {
-                p: last,
-                text: format!("m{k}.{j} filled"),
-            },
+            Some(&p) => Op::RunSetText { p, r: t.shape[p].0 - 1, text: format!("m{k}.{j} last run") },
+            None => Op::ParaSetText { p: last, text: format!("m{k}.{j} filled") },
         },
-        1 => Op::ParaSetText {
-            p: last,
-            text: format!("m{k}.{j}\u{b}tail{j}"),
-        },
-        2 => Op::BodySetText {
-            text: (0..=t.paragraphs)
-                .map(|i| format!("m{k}.{j} line {i}"))
-                .collect::<Vec<_>>()
-                .join("\n"),
-        },
-        3 => Op::AddParagraph {
-            text: format!("m{k}.{j} added"),
-        },
+        1 => Op::ParaSetText { p: last, text: format!("m{k}.{j}\u{b}tail{j}") },
+        2 => Op::BodySetText { text: (0..=t.paragraphs).map(|i| format!("m{k}.{j} line {i}")).collect::<Vec<_>>().join("\n") },
+        3 => Op::AddParagraph { text: format!("m{k}.{j} added") },
         4 => match with_runs.iter().rev().find(|&&p| t.shape[p].0 > 1) {
-            Some(&p) => Op::RemoveRun {
-                p,
-                r: t.shape[p].0 - 1,
-            },
-            None => Op::AddRun {
-                p: last,
-                text: format!(" m{k}.{j}"),
-            },
+            Some(&p) => Op::RemoveRun { p, r: t.shape[p].0 - 1 },
+            None => Op::AddRun { p: last, text: format!(" m{k}.{j}") },
         },
         5 => {
             if t.paragraphs > 1 {
@@ -358,14 +264,8 @@ fn op_multi(k: usize, j: usize, t: &Target) -> Op {
                 Op::AddBreak { p: 0 }
             }
         }
-        6 => Op::AddRun {
-            p: last / 2,
-            text: format!(" mid{k}.{j}"),
-        },
-        _ => Op::ParaSetText {
-            p: last / 2,
-            text: format!("m{k}.{j} middle"),
-        },
+        6 => Op::AddRun { p: last / 2, text: format!(" mid{k}.{j}") },
+        _ => Op::ParaSetText { p: last / 2, text: format!("m{k}.{j} middle") },
     }
 }
 
@@ -382,11 +282,7 @@ pub struct Case {
     pub replaces: Vec<Value>,
 }
 
-pub fn run_case(
-    name: String,
-    fixture: &str,
-    plan: impl FnOnce(&mut Presentation) -> Vec<Edit>,
-) -> Case {
+pub fn run_case(name: String, fixture: &str, plan: impl FnOnce(&mut Presentation) -> Vec<Edit>) -> Case {
     let mut pres = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
     let planned = plan(&mut pres);
     let (mut edits, mut refused) = (Vec::new(), Vec::new());
@@ -397,14 +293,7 @@ pub fn run_case(
         }
     }
     let output = pres.to_bytes().expect("save");
-    Case {
-        name,
-        fixture: fixture.to_owned(),
-        edits,
-        refused,
-        output,
-        replaces: Vec::new(),
-    }
+    Case { name, fixture: fixture.to_owned(), edits, refused, output, replaces: Vec::new() }
 }
 
 /// The "edit everything" case of one fixture.
@@ -414,13 +303,7 @@ pub fn sweep_case(fixture: &str) -> Case {
         targets(pres)
             .iter()
             .enumerate()
-            .map(|(k, t)| Edit {
-                slide: t.slide,
-                shape_id: t.shape_id,
-                cell: t.cell,
-                notes: t.notes,
-                op: op_for(k, t),
-            })
+            .map(|(k, t)| Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, notes: t.notes, op: op_for(k, t) })
             .collect()
     })
 }
@@ -434,13 +317,7 @@ pub fn multi_case(fixture: &str) -> Case {
     for (k, t0) in targets(&mut pres).iter().enumerate() {
         for j in 0..3 {
             let t = reread(&mut pres, t0);
-            let e = Edit {
-                slide: t.slide,
-                shape_id: t.shape_id,
-                cell: t.cell,
-                notes: t.notes,
-                op: op_multi(k, j, &t),
-            };
+            let e = Edit { slide: t.slide, shape_id: t.shape_id, cell: t.cell, notes: t.notes, op: op_multi(k, j, &t) };
             match apply_edit(&mut pres, &e) {
                 Ok(()) => edits.push(e),
                 Err(err) => refused.push((e, format!("{err:?}"))),
@@ -448,84 +325,35 @@ pub fn multi_case(fixture: &str) -> Case {
         }
     }
     let output = pres.to_bytes().expect("save");
-    Case {
-        name,
-        fixture: fixture.to_owned(),
-        edits,
-        refused,
-        output,
-        replaces: Vec::new(),
-    }
+    Case { name, fixture: fixture.to_owned(), edits, refused, output, replaces: Vec::new() }
 }
 
 /// Named cases with hand-picked targets (ids from the fixtures).
 pub fn named_cases() -> Vec<Case> {
-    let e = |slide, shape_id, cell, op| Edit {
-        slide,
-        shape_id,
-        cell,
-        notes: false,
-        op,
-    };
+    let e = |slide, shape_id, cell, op| Edit { slide, shape_id, cell, notes: false, op };
     vec![
         run_case("title-and-body".into(), "poi/sample.pptx", |pres| {
             let ph = pres.slide(0).unwrap().placeholders();
             let (title, body) = (ph[0].id().unwrap(), ph[1].id().unwrap());
             vec![
-                e(
-                    0,
-                    title,
-                    None,
-                    Op::BodySetText {
-                        text: "New title".into(),
-                    },
-                ),
-                e(
-                    0,
-                    body,
-                    None,
-                    Op::BodySetText {
-                        text: "first\nsecond\nthird\u{b}continued\nfourth".into(),
-                    },
-                ),
+                e(0, title, None, Op::BodySetText { text: "New title".into() }),
+                e(0, body, None, Op::BodySetText { text: "first\nsecond\nthird\u{b}continued\nfourth".into() }),
             ]
         }),
         run_case("japanese-table".into(), "poi/with_japanese.pptx", |pres| {
             let slide = pres.slide(0).unwrap();
-            let t = slide
-                .shapes()
-                .into_iter()
-                .find(|s| *s.kind() == ShapeKind::Table)
-                .expect("table");
+            let t = slide.shapes().into_iter().find(|s| *s.kind() == ShapeKind::Table).expect("table");
             let id = t.id().unwrap();
             vec![
-                e(
-                    0,
-                    id,
-                    Some((0, 0)),
-                    Op::BodySetText {
-                        text: "見出し".into(),
-                    },
-                ),
-                e(
-                    0,
-                    id,
-                    Some((1, 1)),
-                    Op::BodySetText {
-                        text: "セル\n二行目".into(),
-                    },
-                ),
+                e(0, id, Some((0, 0)), Op::BodySetText { text: "見出し".into() }),
+                e(0, id, Some((1, 1)), Op::BodySetText { text: "セル\n二行目".into() }),
             ]
         }),
         // Phase 0.1: runs whose a:rPr has a:hlinkClick (shapes.pptx slide 5
         // table): new runs/paragraphs copy the format without the link.
         run_case("hyperlink-cells".into(), "poi/shapes.pptx", |pres| {
             let slide = pres.slide(4).unwrap();
-            let t = slide
-                .shapes()
-                .into_iter()
-                .find(|s| *s.kind() == ShapeKind::Table)
-                .expect("table");
+            let t = slide.shapes().into_iter().find(|s| *s.kind() == ShapeKind::Table).expect("table");
             let id = t.id().unwrap();
             let linked: Vec<(usize, usize)> = t
                 .table()
@@ -536,49 +364,16 @@ pub fn named_cases() -> Vec<Case> {
                 .flat_map(|(r, row)| {
                     row.iter()
                         .enumerate()
-                        .filter(|(_, c)| {
-                            c.text_body().is_some_and(|b| {
-                                b.paragraphs().iter().any(|q| {
-                                    q.raw().elements().any(|r| {
-                                        r.elements().any(|p| {
-                                            p.elements().any(|l| l.name().local() == "hlinkClick")
-                                        })
-                                    })
-                                })
-                            })
-                        })
+                        .filter(|(_, c)| c.text_body().is_some_and(|b| b.paragraphs().iter().any(|q| q.raw().elements().any(|r| r.elements().any(|p| p.elements().any(|l| l.name().local() == "hlinkClick"))))))
                         .map(move |(c, _)| (r, c))
                         .collect::<Vec<_>>()
                 })
                 .collect();
             assert_eq!(linked.len(), 3);
             vec![
-                e(
-                    4,
-                    id,
-                    Some(linked[0]),
-                    Op::ParaSetText {
-                        p: 0,
-                        text: "link\u{b}plain".into(),
-                    },
-                ),
-                e(
-                    4,
-                    id,
-                    Some(linked[1]),
-                    Op::BodySetText {
-                        text: "link\nplain\n".into(),
-                    },
-                ),
-                e(
-                    4,
-                    id,
-                    Some(linked[2]),
-                    Op::ParaSetText {
-                        p: 0,
-                        text: "\u{b}after".into(),
-                    },
-                ),
+                e(4, id, Some(linked[0]), Op::ParaSetText { p: 0, text: "link\u{b}plain".into() }),
+                e(4, id, Some(linked[1]), Op::BodySetText { text: "link\nplain\n".into() }),
+                e(4, id, Some(linked[2]), Op::ParaSetText { p: 0, text: "\u{b}after".into() }),
             ]
         }),
     ]
@@ -631,13 +426,11 @@ fn cross_run_phrase(pres: &mut Presentation) -> Option<String> {
             for p in b.paragraphs() {
                 for w in p.runs().windows(2) {
                     let (a, c) = (w[0].text(), w[1].text());
-                    let differ = match (w[0].raw().elements().next(), w[1].raw().elements().next())
-                    {
+                    let differ = match (w[0].raw().elements().next(), w[1].raw().elements().next()) {
                         (Some(x), Some(y)) => !x.structurally_eq(y),
                         _ => true,
                     };
-                    let (ta, tc): (Vec<char>, Vec<char>) =
-                        (a.chars().collect(), c.chars().collect());
+                    let (ta, tc): (Vec<char>, Vec<char>) = (a.chars().collect(), c.chars().collect());
                     if differ && ta.len() >= 2 && tc.len() >= 2 {
                         let phrase: String = ta[ta.len() - 2..].iter().chain(&tc[..2]).collect();
                         if !phrase.contains(['\n', '\r', '\u{b}']) {
@@ -686,12 +479,7 @@ fn whole_run_text(pres: &mut Presentation) -> Option<String> {
         for sh in s.shapes() {
             let Some(b) = sh.text_body() else { continue };
             for p in b.paragraphs() {
-                let runs: Vec<String> = p
-                    .runs()
-                    .iter()
-                    .map(|r| r.text().into_owned())
-                    .filter(|t| !t.is_empty())
-                    .collect();
+                let runs: Vec<String> = p.runs().iter().map(|r| r.text().into_owned()).filter(|t| !t.is_empty()).collect();
                 if runs.len() >= 2 && !runs[1].contains(['\n', '\r', '\u{b}']) {
                     return Some(runs[1].clone());
                 }
@@ -703,19 +491,9 @@ fn whole_run_text(pres: &mut Presentation) -> Option<String> {
 
 fn location(input: &mut Presentation, m: &Match) -> Value {
     let id = if m.location.notes {
-        input.notes(m.location.slide).ok().flatten().and_then(|n| {
-            n.shapes()
-                .into_iter()
-                .find(|x| x.path() == m.location.shape)
-                .and_then(|x| x.id().ok())
-        })
+        input.notes(m.location.slide).ok().flatten().and_then(|n| n.shapes().into_iter().find(|x| x.path() == m.location.shape).and_then(|x| x.id().ok()))
     } else {
-        input.slide(m.location.slide).ok().and_then(|s| {
-            s.shapes()
-                .into_iter()
-                .find(|x| x.path() == m.location.shape)
-                .and_then(|x| x.id().ok())
-        })
+        input.slide(m.location.slide).ok().and_then(|s| s.shapes().into_iter().find(|x| x.path() == m.location.shape).and_then(|x| x.id().ok()))
     };
     json!({
         "slide": m.location.slide,
@@ -729,37 +507,16 @@ fn location(input: &mut Presentation, m: &Match) -> Value {
 }
 
 /// `notes`: search notes bodies too ([`Scope::SlidesAndNotes`], ADR-0008 §2).
-pub fn replace_case(
-    name: String,
-    fixture: &str,
-    pattern: &str,
-    replacement: &str,
-    refuse_mixed: bool,
-    notes: bool,
-) -> Case {
+pub fn replace_case(name: String, fixture: &str, pattern: &str, replacement: &str, refuse_mixed: bool, notes: bool) -> Case {
     let mut pres = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
-    let scope = if notes {
-        Scope::SlidesAndNotes
-    } else {
-        Scope::Slides
-    };
+    let scope = if notes { Scope::SlidesAndNotes } else { Scope::Slides };
     let o = ReplaceOptions::default()
         .find(FindOptions::default().scope(scope))
-        .mixed_format(if refuse_mixed {
-            MixedFormat::Refuse
-        } else {
-            MixedFormat::Allow
-        });
-    let rep = pres
-        .replace_all(pattern, replacement, &o)
-        .expect("replace_all");
+        .mixed_format(if refuse_mixed { MixedFormat::Refuse } else { MixedFormat::Allow });
+    let rep = pres.replace_all(pattern, replacement, &o).expect("replace_all");
     let output = pres.to_bytes().expect("save");
     let mut input = Presentation::from_bytes(read_fixture(fixture)).expect(fixture);
-    let replaced: Vec<Value> = rep
-        .replaced
-        .iter()
-        .map(|m| location(&mut input, m))
-        .collect();
+    let replaced: Vec<Value> = rep.replaced.iter().map(|m| location(&mut input, m)).collect();
     let refused: Vec<Value> = rep
         .skipped
         .iter()
@@ -770,14 +527,7 @@ pub fn replace_case(
         })
         .collect();
     let spec = json!({"pattern": pattern, "replacement": replacement, "refuse_mixed": refuse_mixed, "notes": notes, "replaced": replaced, "refused": refused});
-    Case {
-        name,
-        fixture: fixture.to_owned(),
-        edits: Vec::new(),
-        refused: Vec::new(),
-        output,
-        replaces: vec![spec],
-    }
+    Case { name, fixture: fixture.to_owned(), edits: Vec::new(), refused: Vec::new(), output, replaces: vec![spec] }
 }
 
 /// Per fixture: a frequent letter replaced by text with a line break
@@ -787,64 +537,23 @@ pub fn replace_cases() -> Vec<Case> {
     let mut out = Vec::new();
     for f in FIXTURES {
         let tag = f.replace(['/', '.'], "-");
-        out.push(replace_case(
-            format!("replace-e-{tag}"),
-            f,
-            "e",
-            "\u{1E8C}\u{b}Q",
-            false,
-            true,
-        ));
-        out.push(replace_case(
-            format!("replace-the-{tag}"),
-            f,
-            "the",
-            "",
-            false,
-            true,
-        ));
+        out.push(replace_case(format!("replace-e-{tag}"), f, "e", "\u{1E8C}\u{b}Q", false, true));
+        out.push(replace_case(format!("replace-the-{tag}"), f, "the", "", false, true));
         let mut pres = Presentation::from_bytes(read_fixture(f)).expect(f);
         if let Some(whole) = whole_run_text(&mut pres) {
             // deletes a whole run of a multi-run paragraph (rule 4)
-            out.push(replace_case(
-                format!("replace-whole-run-{tag}"),
-                f,
-                &whole,
-                "",
-                false,
-                false,
-            ));
+            out.push(replace_case(format!("replace-whole-run-{tag}"), f, &whole, "", false, false));
         }
         if let Some(phrase) = field_phrase(&mut pres) {
-            out.push(replace_case(
-                format!("replace-field-{tag}"),
-                f,
-                &phrase,
-                "F",
-                false,
-                false,
-            ));
+            out.push(replace_case(format!("replace-field-{tag}"), f, &phrase, "F", false, false));
         }
         if let Some(phrase) = cross_run_phrase(&mut pres) {
-            out.push(replace_case(
-                format!("replace-cross-{tag}"),
-                f,
-                &phrase,
-                "置換",
-                false,
-                false,
-            ));
+            out.push(replace_case(format!("replace-cross-{tag}"), f, &phrase, "置換", false, false));
             if matches!(*f, "poi/with_japanese.pptx" | "poi/shapes.pptx") {
-                out.push(replace_case(
-                    format!("replace-cross-refuse-{tag}"),
-                    f,
-                    &phrase,
-                    "置換\u{b}X",
-                    true,
-                    false,
-                ));
+                out.push(replace_case(format!("replace-cross-refuse-{tag}"), f, &phrase, "置換\u{b}X", true, false));
             }
         }
     }
     out
 }
+

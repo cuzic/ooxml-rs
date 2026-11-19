@@ -96,6 +96,7 @@ fn xml(p: &Presentation, part: &str) -> String {
 fn replacement_allocates_before_removing_and_preserves_unedited_bytes() {
     let mut p = open();
     let input = xml(&p, PART);
+    let original = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
     let properties_start = input.find("<a:rPr lang=\"en-US\"><a:sym").unwrap();
     let properties_end =
         properties_start + input[properties_start..].find("</a:rPr>").unwrap() + "</a:rPr>".len();
@@ -109,6 +110,17 @@ fn replacement_allocates_before_removing_and_preserves_unedited_bytes() {
     run(&mut p, LinkEvent::Click, Some(&link)).unwrap();
     let first = link_ids(&p);
     assert_eq!(first.len(), 1);
+    let edited = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
+    assert_eq!(original.part_names().count(), edited.part_names().count());
+    for name in original.part_names() {
+        if ![PART, "ppt/slides/_rels/slide1.xml.rels"].contains(&name) {
+            assert_eq!(
+                original.read_part(name).unwrap(),
+                edited.read_part(name).unwrap(),
+                "{name}"
+            );
+        }
+    }
     let after = xml(&p, PART);
     assert!(after.starts_with(&input[..properties_start]));
     assert!(after.ends_with(&input[properties_end..]));
@@ -189,6 +201,7 @@ fn supported_actions_and_slide_target_survive_reordering() {
     let target_id = p.slides().nth(1).unwrap().unwrap().slide_id;
     let target_part = p.slides().nth(1).unwrap().unwrap().part_name;
     let target = LinkSpec::new(p.slide_link_target(target_id));
+    p.duplicate_slide(0, Some(2)).unwrap();
     p.move_slide(1, 2).unwrap();
     action(&mut p, LinkEvent::Click, Some(&target)).unwrap();
     let rels = p.package().relationships(PART).unwrap();
@@ -303,7 +316,13 @@ fn refusals_preserve_original_bytes() {
             Error::UnsafeLinkScheme
         );
     }
-    for invalid in ["bad space", "https://host/%xy", "http://host/\u{7f}", ""] {
+    for invalid in [
+        "bad space",
+        "https://host/%xy",
+        "http://host/\u{7f}",
+        "https://host/a\u{a0}b",
+        "",
+    ] {
         assert_matches!(
             refused(&mut p, |p| run(p, LinkEvent::Click, Some(&url(invalid)))),
             Error::InvalidLinkUrl

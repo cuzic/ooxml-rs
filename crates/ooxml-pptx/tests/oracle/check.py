@@ -491,6 +491,20 @@ def check_text_formatting(outdir):
     print('P3a python-pptx: direct text formatting read back')
 
 
+def check_links(outdir):
+    from pptx import Presentation
+    from pptx.enum.action import PP_ACTION
+
+    prs = Presentation(os.path.join(outdir, 'p3c-links.pptx'))
+    title, body, *_ = [shape for shape in prs.slides[0].shapes if shape.has_text_frame]
+    run = title.text_frame.paragraphs[0].runs[0]
+    assert run.hyperlink.address == 'https://example.com/slides?x=1&y=2'
+    assert title.click_action.action == PP_ACTION.NAMED_SLIDE
+    assert title.click_action.target_slide.slide_id == prs.slides[1].slide_id
+    assert body.click_action.action == PP_ACTION.LAST_SLIDE
+    print('P3c python-pptx: URL, named slide and show jump read back')
+
+
 def main():
     args = sys.argv[1:]
     site = None
@@ -522,6 +536,7 @@ def main():
     print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {replaces} replaced matches, {failures} failures')
     check_text_formatting(outdir)
     check_shape_properties(outdir)
+    check_links(outdir)
     sys.exit(1 if failures else 0)
 
 
