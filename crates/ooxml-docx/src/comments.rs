@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::NumBuffer;
 
-use chrono::{Local, NaiveDateTime, TimeDelta};
+use chrono::{Datelike, Local, NaiveDateTime, TimeDelta};
 use ooxml_core::{
     ChildOf, ElementSpec, NsDecl, QName, RawItem, RawNode, RegistryPlan, XmlDocument, name::MC_NS,
 };
@@ -210,6 +210,22 @@ fn definition<'a>(defs: &[Definition<'a>], id: CommentId) -> Result<Definition<'
     Ok(def)
 }
 
+fn thread_root<'a>(defs: &[Definition<'a>], id: CommentId) -> Result<Definition<'a>> {
+    let mut current = definition(defs, id)?;
+    let mut visited = BTreeSet::new();
+    while let Some(parent_para) = current.parent_para {
+        if !visited.insert(current.id) {
+            return Err(Error::InvalidCommentPart);
+        }
+        let parent = defs
+            .iter()
+            .find(|def| def.para == Some(parent_para))
+            .ok_or(Error::InvalidCommentPart)?;
+        current = definition(defs, parent.id)?;
+    }
+    Ok(current)
+}
+
 fn thread(defs: &[Definition<'_>], root: Definition<'_>) -> BTreeSet<CommentId> {
     let mut ids = BTreeSet::from([root.id]);
     let mut paras: BTreeSet<_> = root.para.into_iter().collect();
@@ -348,6 +364,14 @@ fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
         let now = Local::now();
         (now.naive_local(), now.naive_utc())
     };
+    for date in [local, utc] {
+        if !(0..=9999).contains(&date.year()) {
+            return Err(Error::InvalidValue {
+                what: "comment date year",
+                value: date.year().to_string(),
+            });
+        }
+    }
     let format = |date: NaiveDateTime| date.format("%Y-%m-%dT%H:%M:%SZ").to_string();
     Ok((format(local), format(utc)))
 }
@@ -379,6 +403,9 @@ impl Document {
     }
 
     /// Reads comment definitions in part order, including legacy threads and point anchors.
+    ///
+    /// Returns an empty iterator if the comments part is missing, unreadable,
+    /// or cannot be identified unambiguously. Unreadable extended metadata is ignored.
     pub fn comments(&self) -> impl Iterator<Item = CommentRef<'_>> {
         let comments = self
             .comment_part(COMMENTS_REL)
@@ -661,6 +688,17 @@ fn check_revision(root: &RawNode, path: &[usize]) -> Result<()> {
     Ok(())
 }
 
+fn check_alternate_content(root: &RawNode, path: &[usize]) -> Result<()> {
+    if (0..path.len())
+        .any(|depth| node_at(root, &path[..depth]).is(QName::new(MC_NS, "AlternateContent")))
+    {
+        return Err(Error::UnsupportedContext {
+            ancestor: "mc:AlternateContent",
+        });
+    }
+    Ok(())
+}
+
 fn anchor_paths(
     root: &RawNode,
     ids: &BTreeSet<CommentId>,
@@ -719,11 +757,18 @@ impl Document {
             paragraph: at.para().index(),
             run: at.index(),
         })?;
-        run.check_settable()?;
         let index = &self.stories[at.para().story().get()].index;
         let mut path = index.path(run.info.frame);
+        let root = self.story_root_node(at.para().story());
+        check_alternate_content(root, &path)?;
+        if (0..path.len()).any(|depth| node_at(root, &path[..depth]).is(w("txbxContent"))) {
+            return Err(Error::UnsupportedContext {
+                ancestor: "w:txbxContent",
+            });
+        }
+        run.check_settable()?;
         let child = path.pop().ok_or(Error::InvalidTextRange)?;
-        if !can_hold_comment_anchor(node_at(self.story_root_node(at.para().story()), &path)) {
+        if !can_hold_comment_anchor(node_at(root, &path)) {
             return Err(Error::InvalidTextRange);
         }
         let text = run.text();
@@ -748,22 +793,26 @@ impl Document {
         self.comment_write_gate()?;
         let story = range.first.para().story();
         if story != range.last.para().story()
-            || self
-                .stories
-                .get(story.get())
-                .is_none_or(|s| s.id.kind == StoryKind::Comments)
+            || self.stories.get(story.get()).is_none()
             || (range.first.para().index(), range.first.index())
                 > (range.last.para().index(), range.last.index())
         {
             return Err(Error::InvalidTextRange);
         }
+        let ancestor = match self.stories[story.get()].id.kind {
+            StoryKind::Main => None,
+            StoryKind::Header => Some("w:hdr"),
+            StoryKind::Footer => Some("w:ftr"),
+            StoryKind::Footnotes => Some("w:footnotes"),
+            StoryKind::Endnotes => Some("w:endnotes"),
+            StoryKind::Comments => Some("w:comments"),
+        };
+        if let Some(ancestor) = ancestor {
+            return Err(Error::UnsupportedContext { ancestor });
+        }
         let (start_path, start, from) = self.range_boundary(range.first, range.start_byte, true)?;
         let (end_path, end, to) = self.range_boundary(range.last, range.end_byte, false)?;
-        let distinct_notes = matches!(
-            self.stories[story.get()].id.kind,
-            StoryKind::Footnotes | StoryKind::Endnotes
-        ) && start_path.first() != end_path.first();
-        if distinct_notes || (range.first == range.last && from >= to) {
+        if range.first == range.last && from >= to {
             return Err(Error::InvalidTextRange);
         }
         let part = self.stories[story.get()].id.part.clone();
@@ -795,11 +844,18 @@ impl Document {
     }
 
     fn reply_location(&self, parent: CommentId, ids: &BTreeSet<CommentId>) -> Result<Location> {
+        let mut location = None;
         for story in self
             .stories()
             .filter(|story| story.id().kind() != StoryKind::Comments)
         {
             let anchors = anchor_paths(story.raw(), ids).collect::<Vec<_>>();
+            for (path, _, _) in &anchors {
+                check_alternate_content(story.raw(), path)?;
+            }
+            if location.is_some() {
+                continue;
+            }
             let Some((parent_ref, _, _)) = anchors
                 .iter()
                 .find(|(_, kind, id)| *kind == 2 && *id == parent)
@@ -838,7 +894,9 @@ impl Document {
                     path.split_last().ok_or(Error::InvalidCommentPart)?;
                 let paragraph = node_at(story.raw(), start_path);
                 if !can_hold_comment_anchor(paragraph) {
-                    return Err(Error::InvalidCommentPart);
+                    return Err(Error::UnsupportedContext {
+                        ancestor: "a block-level comment range",
+                    });
                 }
                 let mut after = start_index + 1;
                 for (index, node) in paragraph
@@ -862,14 +920,14 @@ impl Document {
                 }
                 None
             };
-            return Ok(Location {
+            location = Some(Location {
                 part: story.id().part().to_owned(),
                 has_range: start.is_some(),
                 start,
                 end: (end_path.to_vec(), Boundary::Between(reference_index + 1)),
             });
         }
-        Err(Error::InvalidCommentPart)
+        location.ok_or(Error::InvalidCommentPart)
     }
 
     fn insert_comment(
@@ -1019,19 +1077,18 @@ impl Document {
         author: &str,
         utc: &str,
     ) -> Result<()> {
-        if parts.ids.is_some() || parts.extensible.is_some() {
+        if let Some(name) = &parts.ids
+            && self.pkg.xml_part(name)?.root().is(CommentsIds::QNAME)
+        {
             let durable = random_hex(used)?;
-            if let Some(name) = &parts.ids {
-                let mut xml = self.pkg.xml_part(name)?.clone();
-                if xml.root().is(CommentsIds::QNAME) {
-                    require_ignorable(xml.root(), &[], NS_W16CID)?;
-                    let mut root = xml.lens_mut::<CommentsIds>()?;
-                    let mut entry = root.insert::<schema::CommentId>()?;
-                    entry.set_attr(CID_PARA, para)?;
-                    entry.set_attr(CID_DURABLE, &durable)?;
-                    plan.stage_part(&self.pkg, name, xml)?;
-                }
-            }
+            let mut xml = self.pkg.xml_part(name)?.clone();
+            require_ignorable(xml.root(), &[], NS_W16CID)?;
+            let mut root = xml.lens_mut::<CommentsIds>()?;
+            let mut entry = root.insert::<schema::CommentId>()?;
+            entry.set_attr(CID_PARA, para)?;
+            entry.set_attr(CID_DURABLE, &durable)?;
+            plan.stage_part(&self.pkg, name, xml)?;
+
             if let Some(name) = &parts.extensible {
                 let mut xml = self.pkg.xml_part(name)?.clone();
                 if xml.root().is(CommentsExtensible::QNAME) {
@@ -1120,7 +1177,7 @@ fn remove_entries(
 }
 
 impl Document {
-    /// Sets the resolution state of a comment and its descendants.
+    /// Sets the resolution state of the whole thread containing the given comment.
     pub fn set_resolved(&mut self, thread_id: CommentId, done: bool) -> Result<()> {
         self.comment_write_gate()?;
         let parts = self.comment_parts()?;
@@ -1132,7 +1189,7 @@ impl Document {
         let mut extended = self.load_extended(&parts, false)?.expect("legacy refused");
         let before = extended.clone();
         let defs = definitions(original.root(), Some(before.root()));
-        let thread = thread(&defs, definition(&defs, thread_id)?);
+        let thread = thread(&defs, thread_root(&defs, thread_id)?);
         let (_, mut para_ids, _) = self.comment_ids(&parts)?;
         for id in thread {
             let para = make_addressable(&mut comments, definition(&defs, id)?, &mut para_ids)?;

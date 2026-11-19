@@ -92,7 +92,19 @@
       ["word/comments.xml", "./w:comment[@w:author='Ada Lovelace']/w:p/w:r/w:t[.='D3b review comment.']", 1],
       ["word/comments.xml", "./w:comment[@w:author='Grace Hopper']/w:p/w:r/w:t[.='D3b review reply.']", 1],
       ["word/document.xml", "./w:body/w:p/w:r/w:t[.='this phrase']", 1],
-      ["word/document.xml", "./w:body/w:p/w:commentRangeStart", 2]
+      ["word/document.xml", "./w:body/w:p/w:commentRangeStart", 2],
+      ["word/document.xml", "./w:body/w:p/w:commentRangeEnd", 2],
+      ["word/document.xml", "./w:body/w:p/w:r/w:commentReference", 2],
+      ["word/commentsExtended.xml", "./{http://schemas.microsoft.com/office/word/2012/wordml}commentEx[@{http://schemas.microsoft.com/office/word/2012/wordml}done='1']", 2],
+      ["word/commentsExtended.xml", "./{http://schemas.microsoft.com/office/word/2012/wordml}commentEx[@{http://schemas.microsoft.com/office/word/2012/wordml}paraIdParent]", 1]
+    ]
+  },
+  "docx/32-comment-local-ignorable.docx": {
+    "text": ["Existing anchor.", "New anchor."],
+    "comments": ["Existing comment.", "D3b paragraph-local ignorable comment."],
+    "xml": [
+      ["word/comments.xml", "./w:comment[@w:author='Ada Lovelace']/w:p[@{http://schemas.openxmlformats.org/markup-compatibility/2006}Ignorable='w14'][@{http://schemas.microsoft.com/office/word/2010/wordml}paraId]", 1],
+      ["word/comments.xml", ".[@{http://schemas.openxmlformats.org/markup-compatibility/2006}Ignorable]", 0]
     ]
   },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},

@@ -18,6 +18,11 @@ def check(directory):
     check_registries(doc)
     check_notes(read(Path(directory) / "30-insert-footnote-endnote.docx"))
     check_comments(read(Path(directory) / "31-comment-thread.docx"))
+    doc = read(Path(directory) / "32-comment-local-ignorable.docx")
+    assert [comment.text for comment in doc.comments] == [
+        "Existing comment.", "D3b paragraph-local ignorable comment."
+    ]
+    print("python-docx paragraph-local mc:Ignorable read-back passed")
 
 
 def read(path):

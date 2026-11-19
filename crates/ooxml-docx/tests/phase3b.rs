@@ -3,7 +3,7 @@ mod common;
 use common::{W_NS, document_xml, docx, fixture, openable, package, part, part_names, with_part};
 use ooxml_docx::{
     CommentId, Document, Error, LocalDateTime, NaiveDateTime, NewComment, RunContext, RunRef,
-    TextRange,
+    StoryKind, TextRange,
 };
 use std::{assert_matches, collections::BTreeSet};
 
@@ -114,7 +114,7 @@ fn modern_companions_match_and_nested_reply_is_atomic() {
     let root = d.add_comment(range(&d), comment("new parent")).unwrap();
     let reply = d.reply(root, comment("new reply")).unwrap();
     let next = d.reply(root, comment("second reply")).unwrap();
-    d.set_resolved(root, true).unwrap();
+    d.set_resolved(reply, true).unwrap();
     let bytes = d.to_bytes().unwrap();
     d = Document::from_bytes(bytes.clone()).unwrap();
     assert_matches!(d.reply(reply, comment("nested")), Err(Error::NestedReply));
@@ -156,6 +156,38 @@ fn modern_companions_match_and_nested_reply_is_atomic() {
             xml(&deleted, &format!("word/{name}")),
             xml(&fixture("poi-testComment"), &format!("word/{name}"))
         );
+    }
+}
+
+#[test]
+fn resolving_a_reply_with_a_missing_or_cyclic_parent_is_atomic() {
+    let mut doc = Document::from_bytes(docx(RUN, None, None)).unwrap();
+    let parent = doc.add_comment(range(&doc), comment("parent")).unwrap();
+    let reply = doc.reply(parent, comment("reply")).unwrap();
+    let bytes = doc.to_bytes().unwrap();
+    let name = "word/commentsExtended.xml";
+    let extended = xml(&bytes, name);
+    let parsed = roxmltree::Document::parse(&extended).unwrap();
+    let reply_entry = parsed
+        .root_element()
+        .children()
+        .find(|n| n.attribute((W15, "paraIdParent")).is_some())
+        .unwrap();
+    let parent_attr = reply_entry
+        .attributes()
+        .find(|attr| attr.namespace() == Some(W15) && attr.name() == "paraIdParent")
+        .unwrap();
+    let reply_para = reply_entry.attribute((W15, "paraId")).unwrap();
+    for replacement in ["00000000", reply_para] {
+        let mut modified = extended.clone();
+        modified.replace_range(parent_attr.range_value(), replacement);
+        let input = with_part(&bytes, name, modified.as_bytes());
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.set_resolved(reply, true),
+            Err(Error::InvalidCommentPart)
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
     }
 }
 
@@ -257,6 +289,127 @@ fn existing(body: &str, declarations: &str) -> Vec<u8> {
         &document_xml(body),
         &[("comments", "comments.xml", &comments)],
     )
+}
+
+#[test]
+fn reply_refuses_alternate_content_and_block_level_starts_atomically() {
+    let start = "<w:commentRangeStart w:id='7'/>";
+    let tail = "<w:r><w:t>Anchor</w:t></w:r><w:commentRangeEnd w:id='7'/><w:r><w:commentReference w:id='7'/></w:r>";
+    let textbox = format!("<w:txbxContent><w:p>{start}{tail}</w:p></w:txbxContent>");
+    let alternate = format!(
+        "<w:p><w:r><compat:AlternateContent xmlns:compat='{MC}'><compat:Choice Requires='w'>{textbox}</compat:Choice><compat:Fallback>{textbox}</compat:Fallback></compat:AlternateContent></w:r></w:p>"
+    );
+    for (body, expected) in [
+        (alternate.clone(), "mc:AlternateContent"),
+        (
+            format!("<w:p>{start}{tail}</w:p>{alternate}"),
+            "mc:AlternateContent",
+        ),
+        (
+            format!("{start}<w:p>{tail}</w:p>"),
+            "a block-level comment range",
+        ),
+    ] {
+        let input = existing(&body, "");
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.reply(CommentId(7), comment("reply")),
+            Err(Error::UnsupportedContext { ancestor }) if ancestor == expected
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+}
+
+#[test]
+fn add_comment_accepts_table_cells_and_refuses_other_stories_atomically() {
+    let header = docx(RUN, None, Some(RUN));
+    let footer = common::story_xml("ftr", RUN);
+    let footnotes = common::story_xml(
+        "footnotes",
+        &format!("<w:footnote w:id='1'>{RUN}</w:footnote>"),
+    );
+    let endnotes = common::story_xml(
+        "endnotes",
+        &format!("<w:endnote w:id='1'>{RUN}</w:endnote>"),
+    );
+    let notes = package(
+        &document_xml(RUN),
+        &[
+            ("footer", "footer1.xml", &footer),
+            ("footnotes", "footnotes.xml", &footnotes),
+            ("endnotes", "endnotes.xml", &endnotes),
+        ],
+    );
+    for (input, kind) in [
+        (&header, StoryKind::Header),
+        (&notes, StoryKind::Footer),
+        (&notes, StoryKind::Footnotes),
+        (&notes, StoryKind::Endnotes),
+    ] {
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let at = doc
+            .stories()
+            .find(|story| story.id().kind() == kind)
+            .unwrap()
+            .paragraphs()
+            .next()
+            .unwrap()
+            .run(0)
+            .unwrap()
+            .run_ref();
+        assert_matches!(
+            doc.add_comment(TextRange::new(at, at), comment("outside body")),
+            Err(Error::UnsupportedContext { .. })
+        );
+        assert_eq!(&doc.to_bytes().unwrap(), input);
+    }
+
+    let body = format!("<w:tbl><w:tr><w:tc>{RUN}</w:tc></w:tr></w:tbl>");
+    let mut doc = Document::from_bytes(docx(&body, None, None)).unwrap();
+    doc.add_comment(range(&doc), comment("table cell")).unwrap();
+}
+
+#[test]
+fn extensible_entries_require_a_comments_ids_mapping() {
+    let original = fixture("poi-testComment");
+    let ids = "word/commentsIds.xml";
+    let rels = "word/_rels/document.xml.rels";
+    let extensible = "word/commentsExtensible.xml";
+    let inactive =
+        xml(&original, rels).replace("/relationships/commentsIds", "/relationships/other");
+    for input in [
+        with_part(&original, rels, inactive.as_bytes()),
+        with_part(&original, ids, b"<unknown/>"),
+    ] {
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        doc.add_comment(range(&doc), comment("without mapping"))
+            .unwrap();
+        assert_eq!(
+            part(&doc.to_bytes().unwrap(), extensible),
+            part(&input, extensible)
+        );
+    }
+}
+
+#[test]
+fn out_of_range_comment_years_are_rejected_atomically() {
+    let input = docx(RUN, None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    for (date, offset) in [("+10000-01-01T00:00:00", 0), ("9999-12-31T23:59:00", -1)] {
+        let mut new = comment("bad date");
+        new.date = Some(LocalDateTime {
+            wall_clock: date.parse().unwrap(),
+            utc_offset_minutes: offset,
+        });
+        assert_matches!(
+            doc.add_comment(range(&doc), new),
+            Err(Error::InvalidValue {
+                what: "comment date year",
+                ..
+            })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
 }
 
 #[test]
@@ -428,7 +581,7 @@ fn corpus_comment_edits_round_trip_without_new_inconsistencies() {
         let existing = d.comments().next().map(|c| c.id);
         let first = d
             .stories()
-            .filter(|story| story.id().kind() != ooxml_docx::StoryKind::Comments)
+            .filter(|story| story.id().kind() == StoryKind::Main)
             .flat_map(|story| story.paragraphs())
             .flat_map(|p| p.runs())
             .find(|r| r.check_settable().is_ok() && !r.text().trim().is_empty())
