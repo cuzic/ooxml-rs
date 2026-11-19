@@ -29,6 +29,15 @@ FILTERS = {
     ".docx": "Office Open XML Text",
     ".pptx": "Impress MS PowerPoint 2007 XML",
 }
+UNTAGGED_WRITER_CASES = {"10-footnotes-endnotes.docx", "14a-footnote.docx"}
+XML_NAMESPACES = {
+    "x": SML[1:-1],
+    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+    "p14": "http://schemas.microsoft.com/office/powerpoint/2010/main",
+}
 SPREADSHEETS = {".xlsx", ".xlsm"}
 CHECKS = {
     "a": "PDF export",
@@ -168,7 +177,23 @@ def sheet_csv(profile, source, outdir, names):
                 f"missing CSV for sheet {name!r}: {output}")
 
 
-def check_content(source, expected, profile, scratch):
+def check_xml(source, expected):
+    if not expected:
+        return
+    with zipfile.ZipFile(source) as archive:
+        parts = {}
+        for part, xpath, count in expected:
+            if part not in parts:
+                parts[part] = ET.fromstring(archive.read(part))
+            actual = len(parts[part].findall(xpath, XML_NAMESPACES))
+            require(actual == count, f"{part} {xpath}: expected {count} matches, got {actual}")
+
+
+def check_content(source, expected, profile, scratch, resaved):
+    check_xml(source, expected.get("xml", []))
+    if any(key in expected for key in ("resaved_text", "notes", "comments")):
+        require(resaved is not None, "resaved document unavailable")
+        check_resaved_content(resaved, expected)
     if source.suffix in SPREADSHEETS:
         sheets = workbook(source)
         require(list(sheets) == list(expected["sheets"]), f"sheet names/order: {list(sheets)!r}")
@@ -216,11 +241,13 @@ def check_recalculation(source, resaved, expected):
                 continue
             key = f"{name}!{address}"
             seen.add(key)
-            if cached is None:
-                if key not in overrides:
-                    errors.append(f"{key}: no cache or manifest formula expectation")
-                    continue
+            if key in overrides:
+                if cached is not None:
+                    errors.append(f"{key}: unexpected input formula cache {cached!r}")
                 kind, cached = overrides[key]
+            elif cached is None:
+                errors.append(f"{key}: no cache or manifest formula expectation")
+                continue
             checked += 1
             got_kind, value, still_formula = actual.get(name, {}).get(address, (None, None, False))
             if not (still_formula and got_kind == kind and same_value(kind, cached, value)):
@@ -229,6 +256,34 @@ def check_recalculation(source, resaved, expected):
     errors.extend(f"{key}: expected formula missing from input" for key in sorted(overrides.keys() - seen))
     require(not errors, "\n".join(errors))
     return checked
+
+
+def check_resaved_content(path, expected):
+    preflight(path)
+    if "comments" in expected:
+        comments = Document(path).comments
+        require_text("\n".join(comment.text for comment in comments), expected["comments"])
+        return
+
+    deck = Presentation(path)
+    if "resaved_text" in expected:
+        def shape_text(shapes):
+            for shape in shapes:
+                if shape.has_text_frame:
+                    yield shape.text_frame.text
+                elif shape.has_table:
+                    yield from (cell.text for cell in shape.table.iter_cells())
+                elif hasattr(shape, "shapes"):
+                    yield from shape_text(shape.shapes)
+
+        require_text("\n".join(text for slide in deck.slides for text in shape_text(slide.shapes)),
+                     expected["resaved_text"])
+    for index, needles in expected.get("notes", {}).items():
+        slide = deck.slides[int(index) - 1]
+        require(slide.has_notes_slide, f"slide {index}: no notes")
+        frame = slide.notes_slide.notes_text_frame
+        require(frame is not None, f"slide {index}: no notes text frame")
+        require_text(frame.text, needles)
 
 
 def read_back(path, calamine):
@@ -262,12 +317,12 @@ def verify(source, expected, calamine, scratch):
         results[key] = None
         return result
 
-    pdf_filter = WRITER_PDF if source.suffix == ".docx" else "pdf"
+    pdf_filter = WRITER_PDF if source.name in UNTAGGED_WRITER_CASES else "pdf"
     attempt("a", lambda: convert(profile, source, scratch / "pdf", pdf_filter))
-    attempt("b", lambda: check_content(source, expected, profile, scratch))
     resaved = attempt("d", lambda: convert(
         profile, source, scratch / "resaved", f"{source.suffix[1:]}:{FILTERS[source.suffix]}"
     ))
+    attempt("b", lambda: check_content(source, expected, profile, scratch, resaved))
     if resaved:
         attempt("d", lambda: read_back(resaved, calamine))
     if source.suffix in SPREADSHEETS:

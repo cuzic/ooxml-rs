@@ -13,20 +13,55 @@
   "docx/12-cross-run-placeholder.docx": {"text": ["Dear Ada Lovelace, thank you."]},
   "docx/13-header-footer.docx": {"text": ["HEADING TEXT"], "pdf_text": ["EDITED Header", "EDITED Footer"]},
   "docx/14a-footnote.docx": {"text": ["This is a test paragraph with footnotes"], "pdf_text": ["EDITED Footnotes text"]},
-  "docx/14b-comment.docx": {"text": ["this is a comment paragraph!"]},
+  "docx/14b-comment.docx": {"text": ["this is a comment paragraph!"], "comments": ["EDITED Comments text"]},
   "docx/15-no-break-hyphen.docx": {"text": ["ISO‑2026"]},
   "docx/16-unpreserved-edge-whitespace.docx": {"text": ["[ set_run_text ]"]},
-  "docx/17-formatting-setters.docx": {"text": ["bold: Sample עברית 日本語"]},
-  "docx/18-localized-style-by-id.docx": {"text": ["Heading set by style id Rubrik1"]},
-  "docx/19-style-firstLineChars-and-first-line.docx": {"text": ["Style indent (2 characters)"]},
+  "docx/17-formatting-setters.docx": {"text": ["bold: Sample עברית 日本語"],
+    "xml": [
+      ["word/document.xml", ".//w:r[w:rPr]/w:rPr/w:b", 1]
+    ]
+  },
+  "docx/18-localized-style-by-id.docx": {"text": ["Heading set by style id Rubrik1"],
+    "xml": [
+      ["word/document.xml", ".//w:pPr/w:pStyle[@w:val='Rubrik1']", 1]
+    ]
+  },
+  "docx/19-style-firstLineChars-and-first-line.docx": {"text": ["Style indent (2 characters)"],
+    "xml": [
+      ["word/document.xml", ".//w:pPr/w:ind[@w:firstLine='1440'][@w:firstLineChars='0']", 1]
+    ]
+  },
   "docx/20-update-fields-toc.docx": {"text": ["APPENDED after the opt-in"]},
-  "docx/21-section-break-next-page.docx": {"text": ["Paragraph 3.", "Paragraph 4."]},
-  "docx/22-section-break-continuous.docx": {"text": ["Paragraph 3.", "Paragraph 4."]},
+  "docx/21-section-break-next-page.docx": {"text": ["Paragraph 3.", "Paragraph 4."],
+    "xml": [
+      ["word/document.xml", ".//w:pPr/w:sectPr/w:type[@w:val='nextPage']", 1]
+    ]
+  },
+  "docx/22-section-break-continuous.docx": {"text": ["Paragraph 3.", "Paragraph 4."],
+    "xml": [
+      ["word/document.xml", ".//w:pPr/w:sectPr/w:type[@w:val='continuous']", 1]
+    ]
+  },
   "docx/23-insert-paragraphs-and-append-moving-sectPr.docx": {"text": ["Item two (inserted, same pPr)", "Second paragraph in the cell (inserted)", "APPENDED: still in the same section"]},
   "docx/24-hyperlinks.docx": {"text": ["External link: example.com", "Internal link: go to the bookmark", "Bookmark target"]},
-  "docx/25-image-body-and-header.docx": {"text": ["This is a sample word document."]},
-  "docx/26-table-rows-and-column.docx": {"text": ["r0c0 r0c1 r0c2", "r2c0 r2c1 r2c2"]},
-  "docx/27-merge-cells.docx": {"text": ["r0c0 r0c1 r0c2 r0c3", "r3c0 r3c1 r3c2 r3c3"]},
+  "docx/25-image-body-and-header.docx": {"text": ["This is a sample word document."],
+    "xml": [
+      ["word/document.xml", ".//wp:docPr[@descr='red rectangle']", 1],
+      ["word/header2.xml", ".//wp:docPr[@descr='red rectangle']", 1]
+    ]
+  },
+  "docx/26-table-rows-and-column.docx": {"text": ["r0c0 r0c1 r0c2", "r2c0 r2c1 r2c2"],
+    "xml": [
+      ["word/document.xml", ".//w:tbl/w:tr", 5],
+      ["word/document.xml", ".//w:tblGrid/w:gridCol[@w:w='1500']", 1]
+    ]
+  },
+  "docx/27-merge-cells.docx": {"text": ["r0c0 r0c1 r0c2 r0c3", "r3c0 r3c1 r3c2 r3c3"],
+    "xml": [
+      ["word/document.xml", ".//w:tcPr/w:gridSpan[@w:val='2']", 2],
+      ["word/document.xml", ".//w:tcPr/w:vMerge", 2]
+    ]
+  },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},
@@ -42,23 +77,54 @@
   "pptx/13-hyperlink-run.pptx": {"text": ["Linked text", "plain text after a break"]},
   "pptx/14-replace-across-runs.pptx": {"text": ["【置換】"]},
   "pptx/15-replace-with-line-break.pptx": {"text": ["Lorem ipsum (new line)"]},
-  "pptx/16-replace-in-hyperlink.pptx": {"text": ["Subject is here"]},
+  "pptx/16-replace-in-hyperlink.pptx": {"text": ["Subject is here"], "resaved_text": ["[hyperlink]"]},
   "pptx/17-M1-text-box-shape-styles.pptx": {"text": ["Text box", "Shape"]},
-  "pptx/18-M2-explicit-idx-missing.pptx": {"text": ["Lorem ipsum dolor sit amet", "Aenean non ante."]},
-  "pptx/19-M3-layout-transition.pptx": {"text": ["Lorem ipsum dolor sit amet"]},
-  "pptx/20-M5-paragraph-defRPr.pptx": {"text": ["Lorem ipsum dolor sit amet"]},
-  "pptx/21-M6-layout-color-map.pptx": {"text": ["Lorem ipsum dolor sit amet"]},
-  "pptx/22-M7-autofit-and-link-colour.pptx": {"text": ["Lorem ipsum dolor sit amet"]},
-  "pptx/23-table-insert-inside-merges.pptx": {"text": ["Header2"]},
+  "pptx/18-M2-explicit-idx-missing.pptx": {"text": ["Lorem ipsum dolor sit amet", "Aenean non ante."],
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//p:ph[@type='subTitle'][@idx='4294967295']", 1]
+    ]
+  },
+  "pptx/19-M3-layout-transition.pptx": {"text": ["Lorem ipsum dolor sit amet"],
+    "xml": [
+      ["ppt/slideLayouts/slideLayout1.xml", ".//p:transition/p:fade", 1]
+    ]
+  },
+  "pptx/20-M5-paragraph-defRPr.pptx": {"text": ["Lorem ipsum dolor sit amet"],
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//a:pPr/a:defRPr[@sz='6000']", 1]
+    ]
+  },
+  "pptx/21-M6-layout-color-map.pptx": {"text": ["Lorem ipsum dolor sit amet"],
+    "xml": [
+      ["ppt/slideLayouts/slideLayout1.xml", ".//a:overrideClrMapping[@tx1='lt1']", 1]
+    ]
+  },
+  "pptx/22-M7-autofit-and-link-colour.pptx": {"text": ["Lorem ipsum dolor sit amet"],
+    "xml": [
+      ["ppt/slideLayouts/slideLayout1.xml", ".//a:bodyPr/a:normAutofit[@fontScale='50000']", 1]
+    ]
+  },
+  "pptx/23-table-insert-inside-merges.pptx": {"text": ["Header2"],
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//a:tbl/a:tr", 8],
+      ["ppt/slides/slide1.xml", ".//a:tblGrid/a:gridCol", 7]
+    ]
+  },
   "pptx/24-table-merge-borders-fill.pptx": {"text": ["one two three"]},
-  "pptx/25-table-delete-and-built-in-style.pptx": {"text": ["Header2"]},
+  "pptx/25-table-delete-and-built-in-style.pptx": {"text": ["Header2"],
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//a:tbl/a:tr", 6],
+      ["ppt/slides/slide1.xml", ".//a:tblGrid/a:gridCol", 5],
+      ["ppt/slides/slide1.xml", ".//a:tableStyleId[.='{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}']", 1]
+    ]
+  },
   "pptx/26-new-all-layouts.pptx": {"text": [], "pages": 11},
-  "pptx/27-add-duplicate-move.pptx": {"text": ["Lorem ipsum dolor sit amet"]},
-  "pptx/28-sections.pptx": {"text": ["Triple Set Numbers"]},
+  "pptx/27-add-duplicate-move.pptx": {"text": ["Lorem ipsum dolor sit amet"], "pages": 4},
+  "pptx/28-sections.pptx": {"text": ["Triple Set Numbers"], "pages": 8},
   "pptx/29-only-slide2-part.pptx": {"text": [], "pages": 3},
-  "pptx/30-notes-duplicate-delete.pptx": {"text": [], "pages": 2},
-  "pptx/31-delete-with-picture.pptx": {"text": ["Centered Title"]},
-  "pptx/32-M4-notes-edit.pptx": {"text": ["Lorem ipsum dolor sit amet"]},
+  "pptx/30-notes-duplicate-delete.pptx": {"text": [], "pages": 2, "notes": {"1": ["Notes"], "2": ["Notes"]}},
+  "pptx/31-delete-with-picture.pptx": {"text": ["Centered Title"], "pages": 9},
+  "pptx/32-M4-notes-edit.pptx": {"text": ["Lorem ipsum dolor sit amet"], "notes": {"1": ["Bold red notes, edited", "3rd paragraph"]}},
   "pptx/SA1-smartart-data-and-cache.pptx": {"text": ["Smart Art", "Secon d line"]},
   "pptx/SA2-smartart-fake-cache.pptx": {"text": ["CACH EONLY"]},
   "pptx/SA3-smartart-cache-dropped.pptx": {"text": ["No cache"]},
@@ -145,7 +211,10 @@
     "formulas": {
       "Sheet2!C1": ["n", "1"],
       "Sheet3!A1": ["n", "2"]
-    }
+    },
+    "xml": [
+      ["xl/worksheets/sheet2.xml", ".//x:c[@r='B1']/x:f", 0]
+    ]
   },
   "xlsx/20-shared-master-not-top-left.xlsx": {"sheets": {"Sheet2": {"D2": 99.0}}},
   "xlsx/21-lookup-short-result-vector.xlsx": {"sheets": {"Sheet1": {"E2": 222.0, "F1": 111.0}},
@@ -154,31 +223,74 @@
       "Sheet1!D1": ["n", "112"]
     }
   },
-  "xlsx/22-merge.xlsx": {"sheets": {"Лист1": {"G1": "MERGED"}}},
+  "xlsx/22-merge.xlsx": {"sheets": {"Лист1": {"G1": "MERGED"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:mergeCell[@ref='G1:H2']", 1]
+    ]
+  },
   "xlsx/22-p2-format-matrix.xlsx": {"sheets": {"Sheet1": {"A1": "default (Calibri 11)", "B1": 1234.5678, "C1": "text"}}},
   "xlsx/22b-p2-format-matrix-rx.xlsx": {"sheets": {"Sheet1": {"A1": "default (Calibri 11)", "B1": 1234.5678, "C1": "text"}}},
   "xlsx/23-merge-clearing.xlsx": {"sheets": {"Sheet1": {"A1": 5.0, "B1": ""}, "Sheet2": {"A1": 10.0}, "Sheet3": {}, "Defines": {"A1": 1.0}},
     "formulas": {
       "Sheet3!J1": ["n", "0"]
-    }
+    },
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:mergeCell[@ref='A1:B1']", 1]
+    ]
   },
   "xlsx/23-p2-62272-arial-inherit.xlsx": {"sheets": {"Tabelle1": {"A40": 1234.5678, "B40": 1234.5678, "C40": 1234.5678}}},
   "xlsx/24-p2-dates-1904.xlsx": {"sheets": {"Sheet1": {"A1": "1904-01-01", "B1": "01/01/1904", "A2": "1904-01-02", "B2": "01/02/1904"}}},
-  "xlsx/24-unmerge.xlsx": {"sheets": {"Лист1": {"B5": "http://belinvestles.by/GIS.html"}}},
-  "xlsx/25-autofilter.xlsx": {"sheets": {"Main": {"A1": "Symbol", "B1": "Exchange"}}},
+  "xlsx/24-unmerge.xlsx": {"sheets": {"Лист1": {"B5": "http://belinvestles.by/GIS.html"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:mergeCell", 5]
+    ]
+  },
+  "xlsx/25-autofilter.xlsx": {"sheets": {"Main": {"A1": "Symbol", "B1": "Exchange"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", "./x:autoFilter[@ref='A1:B20']", 1]
+    ]
+  },
   "xlsx/25-p2-dates-1900.xlsx": {"sheets": {"Sheet1": {"A2": "1900-02-28", "B2": "02/27/1900", "A3": "1900-03-01", "B3": "03/01/1900"}}},
-  "xlsx/26-autofilter-removed.xlsx": {"sheets": {"Main": {"A1": "Symbol", "B1": "Exchange"}}},
+  "xlsx/26-autofilter-removed.xlsx": {"sheets": {"Main": {"A1": "Symbol", "B1": "Exchange"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", "./x:autoFilter", 0],
+      ["xl/worksheets/sheet1.xml", "./x:sortState[@ref='A2:J276']", 1]
+    ]
+  },
   "xlsx/26-p2-numfmts-inserted.xlsx": {"sheets": {"Sheet1": {"A7": "25%"}}},
   "xlsx/27-p2-knownfonts-new-font-row.xlsx": {"sheets": {"Лист1": {"A25": "new font, new row", "B25": 2.0}}},
-  "xlsx/27-protected-sha512.xlsx": {"sheets": {"Лист1": {"B5": "http://belinvestles.by/GIS.html"}}},
-  "xlsx/28-autofilter-sheet-true.xlsx": {"sheets": {"TRUE": {"A1": 1.0, "B2": 4.0}}},
+  "xlsx/27-protected-sha512.xlsx": {"sheets": {"Лист1": {"B5": "http://belinvestles.by/GIS.html"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", "./x:sheetProtection[@algorithmName='SHA-512'][@spinCount='100000'][@sheet='1']", 1]
+    ]
+  },
+  "xlsx/28-autofilter-sheet-true.xlsx": {"sheets": {"TRUE": {"A1": 1.0, "B2": 4.0}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", "./x:autoFilter[@ref='A1:B2']", 1]
+    ]
+  },
   "xlsx/28-p2-sst-count-was-wrong.xlsx": {"sheets": {"Sheet1": {"A1": "a", "A2": "b", "A3": "c", "A4": "a"}}},
   "xlsx/29-p2-empty-sst.xlsx": {"sheets": {"Sheet1": {"A1": 1.0, "A2": 2.0}}},
-  "xlsx/30-p2-limit-300-fills.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses fills[299] (300 entries)"}}},
+  "xlsx/30-p2-limit-300-fills.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses fills[299] (300 entries)"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='A1'][@s='1']", 1],
+      ["xl/styles.xml", "./x:cellXfs/x:xf[2][@fillId='299']", 1]
+    ]
+  },
   "xlsx/30-rename-51850.xlsx": {"sheets": {"comments": {"A1": "Foo"}, "Mehr Kommentare 2026": {"A1": "Alice", "B2": "Dave"}}},
   "xlsx/31-delete-hidden-sheet.xlsx": {"sheets": {"Sheet2": {"A1": "Sheet2A1"}}},
-  "xlsx/31-p2-limit-300-borders.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses borders[299] (300 entries)"}}},
-  "xlsx/32-p2-limit-600-fonts.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses fonts[599] (600 entries)"}}},
+  "xlsx/31-p2-limit-300-borders.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses borders[299] (300 entries)"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='A1'][@s='1']", 1],
+      ["xl/styles.xml", "./x:cellXfs/x:xf[2][@borderId='299']", 1]
+    ]
+  },
+  "xlsx/32-p2-limit-600-fonts.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses fonts[599] (600 entries)"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='A1'][@s='1']", 1],
+      ["xl/styles.xml", "./x:cellXfs/x:xf[2][@fontId='599']", 1]
+    ]
+  },
   "xlsx/32-reverse-reordered.xlsx": {"sheets": {"Sheet1": {}, "Sheet3": {"A1": "sheet3"}, "Sheet2": {"A1": "sheet2"}, "Sheet4": {}}},
   "xlsx/33-delete-ref-errors-3d.xlsx": {"sheets": {"Sheet1": {"A1": 5.0}, "Sheet3": {}, "Defines": {"A1": 1.0}},
     "formulas": {
@@ -190,8 +302,18 @@
       "Sheet3!I1": ["e", "#REF!"]
     }
   },
-  "xlsx/33-p2-limit-260-numfmts.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses numFmts[259] (260 entries)"}}},
-  "xlsx/34-p2-named-style-and-preserving.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5, "E1": 1234.5}}},
+  "xlsx/33-p2-limit-260-numfmts.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5678, "A2": "A1 uses numFmts[259] (260 entries)"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='A1'][@s='1']", 1],
+      ["xl/styles.xml", "./x:cellXfs/x:xf[2][@numFmtId='423']", 1]
+    ]
+  },
+  "xlsx/34-p2-named-style-and-preserving.xlsx": {"sheets": {"Sheet1": {"A1": 1234.5, "E1": 1234.5}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='A1'][@s='2']", 1],
+      ["xl/styles.xml", "./x:cellXfs/x:xf[3][@xfId='1']", 1]
+    ]
+  },
   "xlsx/34-rename-chart-source.xlsx": {"sheets": {"Daten 1": {"A1": "Column1", "B1": "Column 2"}}},
   "xlsx/35-add-hide-tab-colour.xlsx": {"sheets": {"New 1": {}, "Sheet1": {"A1": 5.0}, "Sheet2": {"A1": 10.0}, "Sheet3": {}, "Defines": {"A1": 1.0}},
     "formulas": {
@@ -201,6 +323,14 @@
   },
   "xlsx/35-p2-japanese-default-font.xlsx": {"sheets": {"Sheet1": {"A1": "既定のフォント", "A2": "太字（既定フォントのまま）", "B1": 1234.5678}}},
   "xlsx/36-p2-rich-strings-shared.xlsx": {"sheets": {"Sheet1": {"A1": "plain, bold and red italic", "A2": "same runs", "A3": "same runs", "A4": "E = mc2"}}},
-  "xlsx/37-p2-rich-strings-inline.xlsx": {"sheets": {"balance": {"B11": "", "R11": ""}}},
-  "xlsx/38-p2-dxf.xlsx": {"sheets": {"Sheet1": {"A1": 1.0, "B1": 9.0}}}
+  "xlsx/37-p2-rich-strings-inline.xlsx": {"sheets": {"balance": {"A40": "inline rich"}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='A40'][@t='inlineStr']/x:is/x:r", 2]
+    ]
+  },
+  "xlsx/38-p2-dxf.xlsx": {"sheets": {"Sheet1": {"A1": 1.0, "B1": 9.0}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:conditionalFormatting[@sqref='B1']/x:cfRule[@dxfId='1']", 1]
+    ]
+  }
 }

@@ -59,8 +59,8 @@ jobs:
       - name: Install read-back oracles
         run: |
           python3 -m venv "$RUNNER_TEMP/lo-venv"
-          "$RUNNER_TEMP/lo-venv/bin/python" -I -m pip install -r tools/lo-check/requirements.txt
-          cargo build --manifest-path tools/lo-check/Cargo.toml --target-dir "$RUNNER_TEMP/lo-oracle"
+          "$RUNNER_TEMP/lo-venv/bin/python" -I -m pip install --require-hashes -r tools/lo-check/requirements.txt
+          cargo build --locked --manifest-path tools/lo-check/Cargo.toml --target-dir "$RUNNER_TEMP/lo-oracle"
       - name: Generate manual-check bundle
         run: cargo xtask manual-check "$RUNNER_TEMP/manual-check"
       - name: Verify the bundle
