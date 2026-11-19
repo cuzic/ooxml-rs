@@ -985,6 +985,10 @@ impl Document {
     /// Parts to scan for registry references. Content types also find glossary
     /// and auxiliary parts that are outside the public story index.
     pub(crate) fn registry_parts(&self, additional: &[&str]) -> Result<Vec<String>> {
+        self.registry_parts_with_glossary(additional, true)
+    }
+
+    pub(crate) fn registry_parts_with_glossary(&self, additional: &[&str], glossary: bool) -> Result<Vec<String>> {
         const TYPE_PREFIX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.";
         const REL_PREFIX: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
         const EFFECTS_TYPE: &str = "application/vnd.ms-word.stylesWithEffects+xml";
@@ -997,11 +1001,11 @@ impl Document {
             (include_effects && content_type == Some(EFFECTS_TYPE))
                 || content_type.and_then(|t| t.strip_prefix(TYPE_PREFIX))
                 .and_then(|t| t.strip_suffix("+xml"))
-                .is_some_and(|kind| story_kind(kind) || kind == "document.glossary" || additional.contains(&kind))
+                .is_some_and(|kind| story_kind(kind) || (glossary && kind == "document.glossary") || additional.contains(&kind))
         }).map(str::to_owned));
         let rels = self.pkg.relationships(self.main_part_name())?;
         parts.extend(rels.iter().filter(|r| (include_effects && r.rel_type == EFFECTS_REL) || r.rel_type.strip_prefix(REL_PREFIX)
-            .is_some_and(|kind| story_kind(kind) || kind == "glossaryDocument" || additional.contains(&kind)))
+            .is_some_and(|kind| story_kind(kind) || (glossary && kind == "glossaryDocument") || additional.contains(&kind)))
             .filter_map(|r| rels.resolve(r)).filter(|name| self.pkg.contains(name)));
         Ok(parts.into_iter().collect())
     }

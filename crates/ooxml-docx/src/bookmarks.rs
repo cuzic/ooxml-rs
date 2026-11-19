@@ -4,14 +4,15 @@ use std::fmt::NumBuffer;
 
 use ooxml_core::{ElementSpec, NsDecl, RawNode, RegistryPlan, XmlDocument};
 use ooxml_schema::wml::{
+    Break, CarriageReturn, FieldChar, LastRenderedPageBreak, NoBreakHyphen, SimpleField, SoftHyphen, TabChar, Text,
     Body, BookmarkEnd, BookmarkStart, Comment, Endnote, Footer, Footnote, Header, Hyperlink, NS_W, Paragraph, ParagraphProperties, Run,
     RunProperties, Table, TableCell, TableRow,
 };
 
-use crate::document::{node_at, write_pieces};
+use crate::document::node_at;
 use crate::fields::FieldScan;
 use crate::names::{ANCHORS, BOOKMARK_END, BOOKMARK_START, NAME, W_ID, bookmark_key, descendants, is, w};
-use crate::text::{Piece, map_text};
+use crate::text::run_child_text;
 use crate::{Document, Error, Match, Operation, ParaRef, Result, RunContext};
 
 const W: &[NsDecl<'_>] = &[NsDecl { prefix: "w", uri: NS_W }];
@@ -48,6 +49,13 @@ struct BookmarkScope {
 
 impl Document {
     /// Mark a range with a fresh name and id. Text boundaries within a run split that run.
+    ///
+    /// Each split shifts later run indices in that paragraph by one. A range
+    /// containing a field boundary or with a marker inside a field is refused
+    /// to keep field instructions and results intact. The markers must be
+    /// direct paragraph children, so endpoints inside hyperlinks are refused.
+    /// A split also requires the moved children to keep their namespace and
+    /// whitespace context in the new run.
     pub fn add_bookmark(&mut self, name: &str, range: BookmarkRange<'_>) -> Result<BookmarkId> {
         self.write_gate_w1_w3()?;
         let mut chars = name.chars();
@@ -107,10 +115,36 @@ impl Document {
         if first.story() != last.story() || first_parent != last_parent || first.index() > last.index() {
             return Err(Error::BookmarkSpansContainers);
         }
-        self.check_structure_neighbour(first)?;
-        self.check_structure_neighbour(last)?;
         let part = self.stories[first.story().get()].id.part.clone();
         let mut xml = self.pkg.xml_part(&part)?.clone();
+        let first_p = self.paragraph_at(first).expect("checked paragraph");
+        let last_p = self.paragraph_at(last).expect("checked paragraph");
+        self.check_paragraph_mark(first, &first_p, false)?;
+        self.check_paragraph_mark(last, &last_p, false)?;
+        let crosses_field = |items: &[ooxml_core::RawItem]| {
+            items.iter().filter_map(ooxml_core::RawItem::as_element).any(|n| {
+                descendants(n).any(|c| is::<FieldChar>(c) || is::<SimpleField>(c))
+            })
+        };
+        let start_item = match start {
+            Boundary::Between(i) | Boundary::Inside { child: i, .. } => i,
+        };
+        let end_item = match end {
+            Boundary::Between(i) => i,
+            Boundary::Inside { child, .. } => child + 1,
+        };
+        let contains_field = if first == last {
+            crosses_field(&first_p.raw().children()[start_item..end_item])
+        } else {
+            crosses_field(&first_p.raw().children()[start_item..])
+                || crosses_field(&node_at(xml.root(), &first_parent).children()[first_item + 1..last_item])
+                || crosses_field(&last_p.raw().children()[..end_item])
+        };
+        if contains_field
+            || (matches!(range, BookmarkRange::Paragraphs { .. }) && self.stories[first.story().get()].index.paragraphs[first.index()].starts_in_field)
+        {
+            return Err(Error::InsideField);
+        }
         let mut end_path = last_parent;
         end_path.push(last_item);
         let index = split_boundary(&mut xml, &end_path, end)?;
@@ -152,7 +186,7 @@ impl Document {
 
         let folded = bookmark_key(name);
         let invalid = || Error::InvalidBookmark { name: name.into() };
-        for part in self.registry_parts(&[])? {
+        for part in self.registry_parts_with_glossary(&[], false)? {
             let story = self.stories().find(|s| s.id().part() == part).map(|s| s.index());
             let xml = self.pkg.xml_part(&part)?;
             let markers = marker_paths(xml.root());
@@ -205,9 +239,11 @@ impl Document {
             field: false,
             anchor: false,
         };
+        let story_parts = self.registry_parts_with_glossary(&[], false)?;
         for part in self.registry_parts(&[])? {
+            let in_story = story_parts.binary_search(&part).is_ok();
             let root = self.pkg.xml_part(&part)?.root();
-            used.field |= FieldScan::bookmark_targets(root).contains(&name);
+            used.field |= in_story && FieldScan::bookmark_targets(root).contains(&name);
             for node in descendants(root).filter(|n| n.name().ns() == NS_W) {
                 let local = node.name().local();
                 if (ANCHORS.contains(&local)
@@ -235,10 +271,10 @@ impl Document {
                 {
                     used.max = used.max.max(BookmarkId::try_from(id).unwrap_or(BookmarkId::MAX));
                 }
-                if node.is(BOOKMARK_START) && node.attr(NAME).is_some_and(|n| bookmark_key(n) == name) {
+                if in_story && node.is(BOOKMARK_START) && node.attr(NAME).is_some_and(|n| bookmark_key(n) == name) {
                     used.starts += 1;
                 }
-                used.anchor |= is::<Hyperlink>(node) && node.attr(w("anchor")).is_some_and(|n| bookmark_key(n) == name);
+                used.anchor |= in_story && is::<Hyperlink>(node) && node.attr(w("anchor")).is_some_and(|n| bookmark_key(n) == name);
             }
         }
         Ok(used)
@@ -253,15 +289,25 @@ impl Document {
         for run in p.runs().filter(|r| !r.is_removed()) {
             let past = offset + run.text().len();
             if m.range.start < past && m.range.end > offset {
-                if run.context() != RunContext::Direct {
+                if run.in_field() || run.context() == RunContext::SimpleField {
+                    return Err(Error::InsideField);
+                }
+                let is_start = start.is_none();
+                let is_end = m.range.end <= past;
+                let context = run.context();
+                if context != RunContext::Direct && (is_start || is_end || context != RunContext::Hyperlink) {
                     return Err(Error::UnsupportedContext {
                         ancestor: run.wrappers()[0].qname(),
                     });
                 }
+                if !is_start && !is_end {
+                    offset = past;
+                    continue;
+                }
                 run.check_settable()?;
                 let path = index.path(run.info.frame);
                 let child = *path.last().expect("run path");
-                if start.is_none() {
+                if is_start {
                     start = Some(if offset == m.range.start {
                         Boundary::Between(child)
                     } else {
@@ -271,7 +317,7 @@ impl Document {
                         }
                     });
                 }
-                if m.range.end <= past {
+                if is_end {
                     end = Some(if past == m.range.end {
                         Boundary::Between(child + 1)
                     } else {
@@ -304,13 +350,6 @@ fn split_boundary(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> 
     let mut run_path = path.to_vec();
     run_path.push(child);
     let run = xml.lens_at::<Run>(&run_path)?;
-    let text = crate::text::run_text(run.raw());
-    // A literal CR in a text node would be normalized by the run writer.
-    if text.contains('\r') {
-        return Err(Error::RunNotTextOnly {
-            child: "literal carriage return".into(),
-        });
-    }
     let rpr = run
         .child::<RunProperties>()
         .map(|n| {
@@ -320,30 +359,62 @@ fn split_boundary(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> 
             Ok(n.detach_as::<RunProperties>(&[])?)
         })
         .transpose()?;
-    let mut prefix = xml.lens_mut_at::<Run>(&run_path)?;
-    write_pieces(&mut prefix, &split_text_pieces(&text[..byte])?)?;
+    let mut offset = 0;
+    let mut split_text = None;
+    let mut moved = Vec::new();
+    for (index, element) in run.raw().indexed_elements().filter(|(_, e)| !is::<RunProperties>(e)) {
+        let text = run_child_text(element);
+        let past = offset + text.len();
+        if offset >= byte {
+            moved.push((index, element.name().local().to_owned()));
+        } else if past > byte {
+            debug_assert!(is::<Text>(element), "a text boundary cannot bisect a single character");
+            if text.contains('\r') {
+                return Err(Error::RunNotTextOnly { child: "literal carriage return".into() });
+            }
+            let (left, right) = text.split_at(byte - offset);
+            split_text = Some((index, left.to_owned(), right.to_owned(), element.xml_space_preserve() == Some(true)));
+        }
+        offset = past;
+    }
+
     let mut p = xml.lens_mut_at::<Paragraph>(path)?;
     let mut suffix = p.insert_at_with_ns::<Run>(child + 1, W)?;
     if let Some(rpr) = rpr {
         suffix.insert_detached(&rpr)?;
     }
-    write_pieces(&mut suffix, &split_text_pieces(&text[byte..])?)?;
-    Ok(child + 1)
-}
-
-fn split_text_pieces(text: &str) -> Result<Vec<Piece>> {
-    let mut pieces = Vec::new();
-    for segment in text.split_inclusive('\r') {
-        // CR in a run's read model comes from a literal text character.
-        // Leave it as text, so the XML writer escapes it as &#13;.
-        if let Some(prefix) = segment.strip_suffix('\r') {
-            pieces.extend(map_text(prefix)?);
-            pieces.push(Piece::Text("\r".into()));
-        } else {
-            pieces.extend(map_text(segment)?);
+    let mut suffix_path = path.to_vec();
+    suffix_path.push(child + 1);
+    let mut element_path = run_path.clone();
+    element_path.push(0);
+    // Move from right to left to keep source indices stable. Each move
+    // prepends to the shared run-content slot, after the copied properties.
+    for (index, local) in moved.into_iter().rev() {
+        *element_path.last_mut().expect("child index") = index;
+        macro_rules! move_child {
+            ($($typ:ty),*) => {
+                match local.as_str() {
+                    $(local if local == <$typ>::QNAME.local => {
+                        let source = xml.lens_at::<$typ>(&element_path)?.move_source();
+                        xml.lens_mut_at::<Run>(&suffix_path)?.move_in_by::<$typ>(&source, |_, _| true)?;
+                    })*
+                    _ => unreachable!("checked text-only run"),
+                }
+            };
         }
+        move_child!(Text, TabChar, Break, CarriageReturn, NoBreakHyphen, SoftHyphen, LastRenderedPageBreak);
     }
-    Ok(pieces)
+    if let Some((index, left, right, preserve)) = split_text {
+        *element_path.last_mut().expect("child index") = index;
+        xml.lens_mut_at::<Text>(&element_path)?.set_text(&left)?;
+        let mut suffix = xml.lens_mut_at::<Run>(&suffix_path)?;
+        let mut text = suffix.insert_by::<Text>(|_, _| true)?;
+        if preserve {
+            text.set_attr(ooxml_core::name::XML_SPACE, "preserve")?;
+        }
+        text.set_text(&right)?;
+    }
+    Ok(child + 1)
 }
 
 fn marker_paths(root: &RawNode) -> Vec<(Vec<usize>, &RawNode)> {

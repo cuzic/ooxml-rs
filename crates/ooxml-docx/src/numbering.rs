@@ -240,7 +240,6 @@ impl Document {
             .expect("checked");
         let overrides = old
             .children::<LevelOverride>()
-            .filter(|n| numeric(n.attr(w("ilvl"))) != Some(u32::from(level)))
             .map(|n| n.detach_as::<LevelOverride>(&[]))
             .collect::<ooxml_core::Result<Vec<_>>>()?;
         let mut numbering = xml.lens_mut::<Numbering>()?;
@@ -248,10 +247,16 @@ impl Document {
         for old in overrides {
             instance.insert_detached(&old)?;
         }
-        let mut restart = instance.insert::<LevelOverride>()?;
-        restart.set_attr(w("ilvl"), level.format_into(&mut NumBuffer::new()))?;
+        let mut restart = match instance.child_mut_by::<LevelOverride>(|n| numeric(n.attr(w("ilvl"))) == Some(u32::from(level))) {
+            Some(existing) => existing,
+            None => {
+                let mut added = instance.insert::<LevelOverride>()?;
+                added.set_attr(w("ilvl"), level.format_into(&mut NumBuffer::new()))?;
+                added
+            }
+        };
         restart
-            .insert::<StartOverrideNumberingValue>()?
+            .get_or_insert::<StartOverrideNumberingValue>()?
             .set_attr(VAL, start.format_into(&mut NumBuffer::new()))?;
 
         let affected: Vec<_> = self

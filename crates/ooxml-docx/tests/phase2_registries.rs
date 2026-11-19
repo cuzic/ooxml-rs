@@ -203,7 +203,7 @@ fn list_creation_and_style_suppression() {
 
 #[test]
 fn list_slots_and_restart_copy() {
-    let old = r#"<w:num w:numId='3'><w:abstractNumId w:val='7'/><w:lvlOverride w:ilvl='0'><w:startOverride w:val='4'/></w:lvlOverride><w:lvlOverride w:ilvl='1'><w:startOverride w:val='17'/></w:lvlOverride></w:num>"#;
+    let old = r#"<w:num w:numId='3'><w:abstractNumId w:val='7'/><w:lvlOverride w:ilvl='0'><w:startOverride w:val='4'/><w:lvl w:ilvl='0'><w:numFmt w:val='upperRoman'/></w:lvl></w:lvlOverride><w:lvlOverride w:ilvl='1'><w:startOverride w:val='17'/></w:lvlOverride></w:num>"#;
     let cleanup = r#"<w:numIdMacAtCleanup w:val='21'/>"#;
     let numbering = story_xml("numbering", &format!("{old}{cleanup}"));
     let item = r#"<w:p><w:pPr><w:numPr><w:ilvl w:val='0'/><w:numId w:val='3'/></w:numPr></w:pPr></w:p>"#;
@@ -229,7 +229,7 @@ fn list_slots_and_restart_copy() {
     assert!(output.contains(&old_abstract));
     assert!(output.contains(old));
     assert!(output.contains(cleanup));
-    assert!(output.contains(r#"<w:num w:numId="23"><w:abstractNumId w:val="7"/><w:lvlOverride w:ilvl="1"><w:startOverride w:val="17"/></w:lvlOverride><w:lvlOverride w:ilvl="0"><w:startOverride w:val="7"/></w:lvlOverride></w:num>"#), "{output}");
+    assert!(output.contains(r#"<w:num w:numId="23"><w:abstractNumId w:val="7"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="7"/><w:lvl w:ilvl="0"><w:numFmt w:val="upperRoman"/></w:lvl></w:lvlOverride><w:lvlOverride w:ilvl="1"><w:startOverride w:val="17"/></w:lvlOverride></w:num>"#), "{output}");
     let output = xml(&doc, MAIN);
     assert!(output.contains(item));
     assert_eq!(output.matches(r#"<w:numId w:val="23"/>"#).count(), 2, "{output}");
@@ -397,4 +397,261 @@ fn numbering_name_fallback_and_opc_delta() {
         restored.replace_range(entry.range(), "");
         assert_eq!(restored.as_bytes(), part(&before, part_name));
     }
+}
+
+#[test]
+fn bookmark_split_preserves_run_children_in_order() {
+    let children = r#"<w:t>a</w:t><w:noBreakHyphen/><w:softHyphen /><w:cr/><w:lastRenderedPageBreak /><w:t>b</w:t><w:tab/><w:br /><w:t>c</w:t>"#;
+    let mut doc = open(&format!("<w:p><w:r>{children}</w:r></w:p>"), &[]);
+    let needle = "\u{2011}\u{AD}\nb\t\nc";
+    let m = doc.find(needle, &ReplaceOptions::default()).unwrap().remove(0);
+    doc.add_bookmark("Keep", BookmarkRange::Match(&m)).unwrap();
+    let output = xml(&doc, MAIN);
+    let parsed = roxmltree::Document::parse(&output).unwrap();
+    let runs: Vec<_> = parsed.descendants().filter(|n| n.has_tag_name((W_NS, "r"))).collect();
+    assert_eq!(runs.len(), 2);
+    assert_eq!(runs[0].children().filter(roxmltree::Node::is_element).count(), 1);
+    let joined: String = runs.iter().flat_map(|r| r.children().filter(roxmltree::Node::is_element))
+        .map(|n| &output[n.range()]).collect();
+    assert_eq!(joined, children);
+    assert_eq!(doc.paragraph(0).unwrap().text(), format!("a{needle}"));
+}
+
+#[test]
+fn bookmark_range_checks_fields_and_hyperlink_endpoints() {
+    let field = r#"<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>PAGE</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>"#;
+    let hyperlink = r#"<w:hyperlink w:anchor="other"><w:r><w:t>middle</w:t></w:r></w:hyperlink>"#;
+    let properties = r#"<w:pPr><w:pPrChange w:id="2"><w:pPr/></w:pPrChange></w:pPr>"#;
+    let body = format!("<w:p>{properties}<w:r><w:t>before</w:t></w:r>{field}<w:r><w:t>left</w:t></w:r>{hyperlink}<w:r><w:t>right</w:t></w:r></w:p>");
+    let mut doc = open(&body, &[]);
+    for needle in ["before1left", "1"] {
+        let m = doc.find(needle, &ReplaceOptions::default()).unwrap().remove(0);
+        assert_matches!(refusals(&mut doc, |d| d.add_bookmark("Mark", BookmarkRange::Match(&m))), Error::InsideField);
+    }
+    assert_matches!(refusals(&mut doc, |d| d.add_bookmark("Mark", whole(0))), Error::InsideField);
+    for needle in ["leftmid", "dleright"] {
+        let m = doc.find(needle, &ReplaceOptions::default()).unwrap().remove(0);
+        assert_matches!(refusals(&mut doc, |d| d.add_bookmark("Mark", BookmarkRange::Match(&m))), Error::UnsupportedContext { .. });
+    }
+    let m = doc.find("leftmiddleright", &ReplaceOptions::default()).unwrap().remove(0);
+    doc.add_bookmark("Mark", BookmarkRange::Match(&m)).unwrap();
+    let output = xml(&doc, MAIN);
+    assert!(output.contains(properties));
+    assert!(output.contains(field));
+    assert!(output.contains(&format!(r#"<w:bookmarkStart w:id="3" w:name="Mark"/><w:r><w:t>left</w:t></w:r>{hyperlink}<w:r><w:t>right</w:t></w:r><w:bookmarkEnd w:id="3"/>"#)));
+}
+
+#[test]
+fn bookmark_split_refuses_to_move_a_child_out_of_its_namespace_scope() {
+    let body = format!(r#"<w:p><w:r xmlns:alias="{W_NS}"><w:t>before</w:t><alias:t>target</alias:t></w:r></w:p>"#);
+    let mut doc = open(&body, &[]);
+    let m = doc.find("target", &ReplaceOptions::default()).unwrap().remove(0);
+    assert_matches!(
+        refusals(&mut doc, |d| d.add_bookmark("Mark", BookmarkRange::Match(&m))),
+        Error::Core(ooxml_core::Error::NotMovable { .. })
+    );
+}
+
+#[test]
+fn glossary_only_contributes_to_annotation_high_water() {
+    let gloss = story_xml("glossaryDocument", r#"<w:docParts><w:docPart><w:docPartBody><w:p><w:bookmarkStart w:id="41" w:name="Mark"/><w:hyperlink w:anchor="Mark"/><w:bookmarkEnd w:id="41"/></w:p></w:docPartBody></w:docPart></w:docParts>"#);
+    let mut doc = open("<w:p/>", &[("glossaryDocument", "glossary/document.xml", &gloss)]);
+    let before = doc.to_bytes().unwrap();
+    assert_matches!(refusals(&mut doc, |d| d.remove_bookmark("Mark")), Error::UnknownBookmark { .. });
+    assert_eq!(doc.add_bookmark("Mark", whole(0)).unwrap(), 42);
+    doc.remove_bookmark("Mark").unwrap();
+    unchanged_parts(&doc, &before, &[MAIN]);
+    assert!(!xml(&doc, MAIN).contains("bookmark"));
+}
+
+#[test]
+fn settings_references_reserve_style_ids() {
+    let settings = story_xml("settings", r#"<w:clickAndTypeStyle w:val="ClickStyle"/><w:defaultTableStyle w:val="TableStyle"/>"#);
+    let styles = story_xml("styles", "");
+    let mut doc = open("<w:p/>", &[("styles", "styles.xml", &styles), ("settings", "settings.xml", &settings)]);
+    for id in ["clickstyle", "TABLESTYLE"] {
+        let mut spec = style("Custom");
+        spec.id = Some(id);
+        assert_matches!(refusals(&mut doc, |d| d.add_style(&spec)), Error::StyleIdInUse { .. });
+    }
+    let before = doc.to_bytes().unwrap();
+    assert_eq!(doc.add_style(&style("Click Style")).unwrap(), "ClickStyle0");
+    assert_eq!(doc.add_style(&style("Table Style")).unwrap(), "TableStyle0");
+    unchanged_parts(&doc, &before, &["word/styles.xml"]);
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
+struct FixtureRegistry {
+    definitions: std::collections::BTreeMap<(&'static str, String), usize>,
+    occupied: std::collections::BTreeSet<(&'static str, String)>,
+}
+
+impl FixtureRegistry {
+    fn read(bytes: &[u8]) -> Self {
+        let mut registry = Self::default();
+        for name in part_names(bytes).iter().filter(|n| n.starts_with("word/") && n.ends_with(".xml")) {
+            let content = part(bytes, name);
+            let Ok(content) = std::str::from_utf8(&content) else { continue };
+            // The independent parser has DTD support disabled.
+            let Ok(xml) = roxmltree::Document::parse(content) else { continue };
+            for node in xml.descendants().filter(|n| n.tag_name().namespace() == Some(W_NS)) {
+                let (kind, attr, definition) = match node.tag_name().name() {
+                    "num" => ("num", "numId", true),
+                    "numId" | "numIdMacAtCleanup" => ("num", "val", false),
+                    "abstractNum" => ("abstract", "abstractNumId", true),
+                    "abstractNumId" => ("abstract", "val", false),
+                    "nsid" if node.parent().is_some_and(|p| p.has_tag_name((W_NS, "abstractNum"))) => ("nsid", "val", true),
+                    "style" => ("style", "styleId", true),
+                    "pStyle" | "rStyle" | "tblStyle" | "basedOn" | "next" | "link" | "styleLink"
+                    | "numStyleLink" | "clickAndTypeStyle" | "defaultTableStyle" => ("style", "val", false),
+                    "bookmarkStart" => ("annotation", "id", true),
+                    "bookmarkEnd" | "commentRangeStart" | "commentRangeEnd" | "commentReference" | "comment"
+                    | "ins" | "del" | "moveFrom" | "moveTo" | "rPrChange" | "pPrChange" | "sectPrChange"
+                    | "tblPrChange" | "trPrChange" | "tcPrChange" | "tblGridChange" | "numberingChange"
+                    | "cellIns" | "cellDel" | "cellMerge" | "moveFromRangeStart" | "moveFromRangeEnd"
+                    | "moveToRangeStart" | "moveToRangeEnd" | "customXmlInsRangeStart" | "customXmlInsRangeEnd"
+                    | "customXmlDelRangeStart" | "customXmlDelRangeEnd" | "customXmlMoveFromRangeStart"
+                    | "customXmlMoveFromRangeEnd" | "customXmlMoveToRangeStart" | "customXmlMoveToRangeEnd"
+                    | "permStart" | "permEnd" => ("annotation", "id", false),
+                    _ => continue,
+                };
+                let Some(value) = node.attribute((W_NS, attr)) else { continue };
+                let value = match kind {
+                    "style" => value.to_lowercase(),
+                    "nsid" => match u32::from_str_radix(value.trim(), 16) {
+                        Ok(value) => value.to_string(),
+                        Err(_) => continue,
+                    },
+                    _ => match value.trim().parse::<u64>() {
+                        Ok(value) => value.to_string(),
+                        Err(_) => continue,
+                    },
+                };
+                let key = (kind, value);
+                if definition {
+                    *registry.definitions.entry(key.clone()).or_default() += 1;
+                }
+                registry.occupied.insert(key);
+            }
+        }
+        registry
+    }
+
+    fn check_additions(&self, after: &Self, mut kinds: Vec<&str>) {
+        let mut added = Vec::new();
+        for (key, count) in &after.definitions {
+            if !self.definitions.contains_key(key) {
+                assert!(!self.occupied.contains(key), "allocated a referenced id: {key:?}");
+                assert_eq!(*count, 1, "duplicate new id: {key:?}");
+                added.push(key.0);
+            }
+        }
+        for (key, count) in &self.definitions {
+            assert_eq!(after.definitions.get(key), Some(count), "{key:?}");
+        }
+        added.sort_unstable();
+        kinds.sort_unstable();
+        assert_eq!(added, kinds);
+    }
+}
+
+fn fixture_edit<T>(
+    doc: &mut Document,
+    allowed_parts: &[&str],
+    edit: impl FnOnce(&mut Document) -> Result<T, Error>,
+) -> Option<T> {
+    let before = doc.to_bytes().unwrap();
+    let result = edit(doc);
+    let after = doc.to_bytes().unwrap();
+    match result {
+        Ok(value) => {
+            unchanged_parts(doc, &before, allowed_parts);
+            let old = part_names(&before);
+            let new = part_names(&after);
+            assert!(old.iter().all(|p| new.contains(p)));
+            assert!(new.iter().all(|p| old.contains(p) || allowed_parts.contains(&p.as_str())));
+            Some(value)
+        }
+        Err(err) => {
+            assert_eq!(before, after, "{err}: fixture refusal changed ZIP bytes");
+            None
+        }
+    }
+}
+
+fn related_part(doc: &Document, relationship: &str) -> Option<String> {
+    let rels = doc.package().relationships(doc.main_part_name()).unwrap();
+    let rel_type = format!("http://schemas.openxmlformats.org/officeDocument/2006/relationships/{relationship}");
+    rels.by_type(&rel_type).find_map(|r| rels.resolve(r))
+}
+
+#[test]
+fn fixture_sweep() {
+    let mut successes = [0; 7];
+    let story_texts = |doc: &Document| {
+        doc.stories().map(|s| s.paragraphs().map(|p| p.text()).collect::<Vec<_>>()).collect::<Vec<_>>()
+    };
+    for stem in writable() {
+        let mut doc = Document::from_bytes(fixture(stem)).unwrap();
+        let texts = story_texts(&doc);
+        let main = doc.main_part_name().to_owned();
+        let registry = |doc: &Document| FixtureRegistry::read(&doc.to_bytes().unwrap());
+        let initial = registry(&doc);
+        let existing_numbering = related_part(&doc, "numbering");
+        let mut allowed: Vec<&str> = existing_numbering.iter().map(String::as_str).collect();
+        let added_numbering;
+        let relationships;
+        if existing_numbering.is_none() {
+            let (dir, file) = main.rsplit_once('/').unwrap();
+            added_numbering = format!("{dir}/numbering.xml");
+            relationships = format!("{dir}/_rels/{file}.rels");
+            allowed.extend([added_numbering.as_str(), relationships.as_str(), "[Content_Types].xml"]);
+        }
+        if let Some(num) = fixture_edit(&mut doc, &allowed, |d| d.create_list(ListTemplate::Decimal)) {
+            successes[0] += 1;
+            let created = registry(&doc);
+            initial.check_additions(&created, vec!["num", "abstract", "nsid"]);
+            let numbering = related_part(&doc, "numbering").unwrap();
+            for i in 0..texts[0].len() {
+                if fixture_edit(&mut doc, &[&main], |d| d.apply_list(p(i), num, 0)).is_none() {
+                    continue;
+                }
+                successes[1] += 1;
+                created.check_additions(&registry(&doc), vec![]);
+                let before = registry(&doc);
+                if fixture_edit(&mut doc, &[&main, &numbering], |d| d.restart_list(p(i), 3)).is_some() {
+                    successes[2] += 1;
+                    before.check_additions(&registry(&doc), vec!["num"]);
+                }
+                let before = registry(&doc);
+                if fixture_edit(&mut doc, &[&main], |d| d.remove_from_list(p(i))).is_some() {
+                    successes[3] += 1;
+                    before.check_additions(&registry(&doc), vec![]);
+                }
+                break;
+            }
+        }
+        let before = registry(&doc);
+        for i in 0..texts[0].len() {
+            if fixture_edit(&mut doc, &[&main], |d| d.add_bookmark("RegistrySweepBookmark", whole(i))).is_some() {
+                successes[4] += 1;
+                before.check_additions(&registry(&doc), vec!["annotation"]);
+                if fixture_edit(&mut doc, &[&main], |d| d.remove_bookmark("RegistrySweepBookmark")).is_some() {
+                    successes[5] += 1;
+                    before.check_additions(&registry(&doc), vec![]);
+                }
+                break;
+            }
+        }
+        let before = registry(&doc);
+        let styles_part = related_part(&doc, "styles");
+        let allowed: Vec<_> = styles_part.as_deref().into_iter().collect();
+        if fixture_edit(&mut doc, &allowed, |d| d.add_style(&style("Registry Sweep Style"))).is_some() {
+            successes[6] += 1;
+            before.check_additions(&registry(&doc), vec!["style"]);
+        }
+        let reopened = Document::from_bytes(doc.to_bytes().unwrap()).unwrap();
+        assert_eq!(story_texts(&reopened), texts, "{stem}");
+    }
+    assert!(successes.iter().all(|&count| count > 0), "{successes:?}");
 }

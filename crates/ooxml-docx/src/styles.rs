@@ -360,12 +360,12 @@ impl Document {
             self.resolve_style(id, spec.kind)?;
         }
         let mut used = BTreeSet::new();
-        for part in self.registry_parts(&["styles", "stylesWithEffects", "numbering"])? {
+        for part in self.registry_parts(&["styles", "stylesWithEffects", "numbering", "settings"])? {
             let xml = self.pkg.xml_part(&part)?;
             for n in descendants(xml.root()).filter(|n| n.name().ns() == NS_W) {
                 let attr = match n.name().local() {
                     "style" => "styleId",
-                    "pStyle" | "rStyle" | "tblStyle" | "basedOn" | "next" | "link" | "styleLink" | "numStyleLink" => "val",
+                    "pStyle" | "rStyle" | "tblStyle" | "basedOn" | "next" | "link" | "styleLink" | "numStyleLink" | "clickAndTypeStyle" | "defaultTableStyle" => "val",
                     _ => continue,
                 };
                 used.extend(n.attr(w(attr)).map(fold));
