@@ -370,6 +370,7 @@ SDK attribute entries 8510, joined to an XSD default 1511, dropped as DefaultMis
   [wml] Read w:CT_RunTrackChange/w:ins -> InsertedRun (1 slots, 4 attrs)
   [wml] Read w:CT_RunTrackChange/w:moveFrom -> MoveFromRun (1 slots, 4 attrs)
   [wml] Read w:CT_RunTrackChange/w:moveTo -> MoveToRun (1 slots, 4 attrs)
+  [wml] Read w:CT_SdtContentRun/w:sdtContent -> SdtContentRun (1 slots, 0 attrs)
   [wml] Write w:CT_SectPr/w:sectPr -> SectionProperties (22 slots, 4 attrs)
   [wml] Write w:CT_SectType/w:type -> SectionType (empty, 1 attrs)
   [wml] Read w:CT_Settings/w:settings -> Settings (103 slots, 0 attrs)

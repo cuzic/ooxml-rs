@@ -13949,6 +13949,153 @@ impl<'a> MoveToRunView<'a> {
         self.0.raw()
     }
 }
+/// `w:CT_SdtContentRun/w:sdtContent` — Inline-Level Structured Document Tag Content.
+#[derive(Debug)]
+pub enum SdtContentRun {}
+impl ooxml_core::ElementSpec for SdtContentRun {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "sdtContent");
+    const SDK_NAME: &'static str = "w:CT_SdtContentRun/w:sdtContent";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_M, "r"),
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "fldSimple"),
+                    ooxml_core::QName::new(NS_W, "hyperlink"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                    ooxml_core::QName::new(NS_M, "oMathPara"),
+                    ooxml_core::QName::new(NS_M, "oMath"),
+                    ooxml_core::QName::new(NS_M, "acc"),
+                    ooxml_core::QName::new(NS_M, "bar"),
+                    ooxml_core::QName::new(NS_M, "box"),
+                    ooxml_core::QName::new(NS_M, "borderBox"),
+                    ooxml_core::QName::new(NS_M, "d"),
+                    ooxml_core::QName::new(NS_M, "eqArr"),
+                    ooxml_core::QName::new(NS_M, "f"),
+                    ooxml_core::QName::new(NS_M, "func"),
+                    ooxml_core::QName::new(NS_M, "groupChr"),
+                    ooxml_core::QName::new(NS_M, "limLow"),
+                    ooxml_core::QName::new(NS_M, "limUpp"),
+                    ooxml_core::QName::new(NS_M, "m"),
+                    ooxml_core::QName::new(NS_M, "nary"),
+                    ooxml_core::QName::new(NS_M, "phant"),
+                    ooxml_core::QName::new(NS_M, "rad"),
+                    ooxml_core::QName::new(NS_M, "sPre"),
+                    ooxml_core::QName::new(NS_M, "sSub"),
+                    ooxml_core::QName::new(NS_M, "sSubSup"),
+                    ooxml_core::QName::new(NS_M, "sSup"),
+                    ooxml_core::QName::new(NS_W, "r"),
+                    ooxml_core::QName::new(NS_W, "bdo"),
+                    ooxml_core::QName::new(NS_W, "dir"),
+                    ooxml_core::QName::new(NS_W, "subDoc"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtContentRun> for BookmarkStart {}
+impl ooxml_core::ChildOf<SdtContentRun> for Hyperlink {}
+impl ooxml_core::ChildOf<SdtContentRun> for BookmarkEnd {}
+impl ooxml_core::ChildOf<SdtContentRun> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<SdtContentRun> for CommentRangeStart {}
+impl ooxml_core::ChildOf<SdtContentRun> for Run {}
+impl ooxml_core::ChildOf<SdtContentRun> for DeletedRun {}
+impl ooxml_core::ChildOf<SdtContentRun> for InsertedRun {}
+impl ooxml_core::ChildOf<SdtContentRun> for MoveFromRun {}
+impl ooxml_core::ChildOf<SdtContentRun> for MoveToRun {}
+impl ooxml_core::ChildOf<SdtContentRun> for SimpleField {}
+/// Read-only view of [`SdtContentRun`].
+#[derive(Clone, Debug)]
+pub struct SdtContentRunView<'a>(pub ooxml_core::Lens<'a, SdtContentRun>);
+impl<'a> SdtContentRunView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:hyperlink` children in document order.
+    pub fn hyperlink_iter(&self) -> impl Iterator<Item = HyperlinkView<'a>> {
+        self.0.children::<Hyperlink>().map(HyperlinkView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
+    }
+    /// `w:r` children in document order.
+    pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
+        self.0.children::<Run>().map(RunView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:fldSimple` children in document order.
+    pub fn simple_field_iter(&self) -> impl Iterator<Item = SimpleFieldView<'a>> {
+        self.0.children::<SimpleField>().map(SimpleFieldView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `w:CT_SectPr/w:sectPr` — Section Properties.
 #[derive(Debug)]
 pub enum SectionProperties {}
@@ -18795,6 +18942,18 @@ const _: () = ooxml_core::schema::assert_child::<MoveToRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, Hyperlink>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, CommentRangeStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, Run>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<SectionProperties>();
 const _: () = ooxml_core::schema::assert_child::<SectionProperties, FooterReference>();
 const _: () = ooxml_core::schema::assert_child::<SectionProperties, HeaderReference>();

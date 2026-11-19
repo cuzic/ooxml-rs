@@ -700,6 +700,7 @@ fn remove_at(xml: &mut XmlDocument, path: &[usize]) -> Result<()> {
         CommentsIds,
         CommentsExtensible,
         Hyperlink,
+        SdtContentRun,
         SimpleField
     );
     Err(Error::UnsupportedContext {

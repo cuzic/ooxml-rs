@@ -128,6 +128,8 @@ names = [
 # flags behind the document-level write gates.
 [read]
 names = [
+    # Comment anchors can appear in existing content controls (ADR-0015 §3.3).
+    "w:CT_SdtContentRun/w:sdtContent",
     "w:CT_Document/w:document",
     "w:CT_PPr/w:pPr",
     "w:CT_RPr/w:rPr",

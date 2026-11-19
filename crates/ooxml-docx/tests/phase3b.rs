@@ -588,3 +588,16 @@ fn range_can_split_a_hyperlink_run_without_changing_link_text() {
     assert_eq!(doc.paragraph(0).unwrap().text(), "Link target");
     assert!(doc.comments().next().is_none());
 }
+
+#[test]
+fn deletion_removes_anchors_in_existing_content_controls() {
+    let body = "<w:sdt><w:sdtPr/><w:sdtContent><w:commentRangeStart w:id='7'/><w:p><w:r><w:t>Keep this</w:t></w:r><w:commentRangeEnd w:id='7'/><w:r><w:commentReference w:id='7'/></w:r></w:p></w:sdtContent></w:sdt>";
+    let input = existing(body, "");
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    doc.delete_comment(CommentId(7)).unwrap();
+    let expected = xml(&input, "word/document.xml")
+        .replace("<w:commentRangeStart w:id='7'/>", "")
+        .replace("<w:commentRangeEnd w:id='7'/>", "")
+        .replace("<w:r><w:commentReference w:id='7'/></w:r>", "");
+    assert_eq!(xml(&doc.to_bytes().unwrap(), "word/document.xml"), expected);
+}
