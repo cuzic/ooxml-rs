@@ -761,7 +761,10 @@ fn every_run_property_has_direct_and_inherited_provenance() {
     use ooxml_schema::dml::{TextCapsValues, TextStrikeValues};
 
     let mut pres = patch(
-        "<a:lstStyle/>",
+        concat!(
+            "<a:lstStyle/><a:p><a:pPr hangingPunct=\"1\"/><a:r>",
+            "<a:rPr lang=\"en-US\"><a:sym typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/></a:rPr>"
+        ),
         concat!(
             "<a:lstStyle><a:lvl1pPr>",
             "<a:defRPr sz='2100' b='0' i='0' u='none' strike='noStrike' baseline='0' ",
@@ -769,7 +772,7 @@ fn every_run_property_has_direct_and_inherited_provenance() {
             "<a:noFill/><a:highlight><a:srgbClr val='040506'/></a:highlight>",
             "<a:uLnTx/><a:uFillTx/><a:latin typeface='Latin default'/>",
             "<a:ea typeface='EA default'/><a:cs typeface='CS default'/><a:sym typeface='Symbol default'/>",
-            "</a:defRPr></a:lvl1pPr></a:lstStyle>"
+            "</a:defRPr></a:lvl1pPr></a:lstStyle><a:p><a:pPr hangingPunct='1'/><a:r>"
         ),
     );
     let color = WriteColor::Rgb([1, 2, 3]);
@@ -781,8 +784,10 @@ fn every_run_property_has_direct_and_inherited_provenance() {
             let clear = RunFormat {
                 $($format_field: Some(FormatChange::Clear),)*
             };
-            for (format, direct) in [(&set, true), (&clear, false)] {
-                edit(&mut pres, |body| body.paragraph_mut(0)?.run_mut(0)?.format(format)).unwrap();
+            for (format, direct) in [(None, false), (Some(&set), true), (Some(&clear), false)] {
+                if let Some(format) = format {
+                    edit(&mut pres, |body| body.paragraph_mut(0)?.run_mut(0)?.format(format)).unwrap();
+                }
                 let deck = pres.deck().unwrap();
                 let slide = deck.slide(0).unwrap();
                 let shape = slide.slide().shapes().into_iter().find(|s| s.text_body().is_some()).unwrap();
@@ -856,16 +861,19 @@ fn every_paragraph_property_has_direct_and_inherited_provenance() {
     let raw_name = |v: &&ooxml_core::RawNode| v.name().local().to_owned();
     macro_rules! para_cases {
         ($($set:ident($input:expr) => $clear:ident;)* @ $($lookup:ident: $project:expr, $direct:expr, $inherited:expr;)*) => {{
-            for direct in [true, false] {
-                edit(&mut pres, |body| {
-                    let mut paragraph = body.paragraph_mut(0)?;
-                    if direct {
-                        $(paragraph.$set($input)?;)*
-                    } else {
-                        $(paragraph.$clear()?;)*
-                    }
-                    Ok(())
-                }).unwrap();
+            for phase in [None, Some(true), Some(false)] {
+                if let Some(direct) = phase {
+                    edit(&mut pres, |body| {
+                        let mut paragraph = body.paragraph_mut(0)?;
+                        if direct {
+                            $(paragraph.$set($input)?;)*
+                        } else {
+                            $(paragraph.$clear()?;)*
+                        }
+                        Ok(())
+                    }).unwrap();
+                }
+                let direct = phase == Some(true);
                 let deck = pres.deck().unwrap();
                 let slide = deck.slide(0).unwrap();
                 let shape = slide.slide().shapes().into_iter().find(|s| s.text_body().is_some()).unwrap();
