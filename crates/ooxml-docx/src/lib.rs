@@ -66,12 +66,14 @@
 //! Phase1.
 
 mod body;
+mod bookmarks;
 mod document;
 mod error;
 pub mod fields;
 mod format;
 mod images;
 mod names;
+mod numbering;
 mod replace;
 mod story;
 mod structure;
@@ -79,16 +81,18 @@ mod styles;
 mod tables;
 mod text;
 
+pub use bookmarks::{BookmarkId, BookmarkRange};
 pub use document::{Document, Paragraph, Run};
 pub use error::{Error, Result};
 pub use fields::Operation;
+pub use numbering::{ListTemplate, NumId};
 pub use format::{
     Alignment, Color, FirstLine, FontSlots, HalfPoints, Highlight, LineSpacing, ParagraphFormat, Prop, RunFormat,
     Underline, VertAlign,
 };
 pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
 pub use images::{DrawingId, ImageSize};
-pub use styles::{StyleInfo, StyleKind};
+pub use styles::{StyleInfo, StyleKind, StyleSpec};
 pub use tables::{RowTemplate, TableRef};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
