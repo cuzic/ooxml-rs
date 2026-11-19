@@ -242,8 +242,12 @@ impl Presentation {
         let part = part.ok_or(Error::NoNotesSlide { slide_id: slide.slide_id })?;
         // parse read-only first: a part that is not p:notes stays clean
         Lens::<pml::NotesSlide>::root(self.pkg.xml_part(&part)?.root())?;
+        Ok(self.notes_handle(slide, part))
+    }
+
+    pub(crate) fn notes_handle(&mut self, slide: SlideInfo, part: String) -> NotesMut<'_> {
         let doc = EditPart::Package { package: &mut self.pkg, name: part.clone(), slides: &self.slides, link_identity: &self.link_identity };
-        Ok(NotesMut { doc, slide, part })
+        NotesMut { doc, slide, part }
     }
 
     /// The units searched by `scope`: slides, and notes bodies.

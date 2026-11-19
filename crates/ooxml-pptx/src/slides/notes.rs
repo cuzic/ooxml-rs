@@ -14,7 +14,6 @@ use crate::error::{Error, Result};
 use crate::names::{
     A_NS, CT_NOTES_SLIDE, P_NS, R_NS, REL_NOTES_MASTER, REL_NOTES_SLIDE, REL_SLIDE,
 };
-use crate::write::EditPart;
 use crate::{NotesMut, Rect, SlideInfo};
 
 const MASTER: &[u8] = include_bytes!("../../template/parts/ppt/notesMasters/notesMaster1.xml");
@@ -45,14 +44,7 @@ impl crate::Presentation {
     /// Uses the same transaction as [`Self::ensure_notes_slide`].
     pub fn notes_mut_or_create(&mut self, index: usize) -> Result<NotesMut<'_>> {
         let (slide, part) = self.ensure_notes(index)?;
-        Ok(NotesMut {
-            doc: EditPart::Package {
-                package: &mut self.pkg,
-                name: part.clone(),
-            },
-            slide,
-            part,
-        })
+        Ok(self.notes_handle(slide, part))
     }
 
     fn ensure_notes(&mut self, index: usize) -> Result<(SlideInfo, String)> {
@@ -347,11 +339,7 @@ fn set_coordinate<E: ElementSpec>(
 
 #[cfg(test)]
 mod tests {
-    use super::{Counts, xml_escape};
-    use crate::error::{Error, Result};
-    use crate::names::{
-        A_NS, CT_NOTES_SLIDE, P_NS, R_NS, REL_NOTES_MASTER, REL_NOTES_SLIDE, REL_SLIDE,
-    };
+    use super::*;
 
     #[test]
     fn notes_master_transforms_follow_page_size_and_slide_aspect_ratio() {
