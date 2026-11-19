@@ -120,6 +120,10 @@ pub enum Error {
     #[error("the body ends with a section break in its last paragraph; appending would start a new section")]
     SectionBreakAtEnd,
 
+    /// Deleting the tracked paragraph mark would also delete a section break.
+    #[error("tracked paragraph deletion would remove a section break")]
+    TrackedSectionBreakDeletion,
+
     /// W1: `w:trackRevisions` is on in `settings.xml`. An untracked edit
     /// would break the author's expectation that every change is recorded.
     #[error("track changes is on (settings w:trackRevisions); untracked edits are refused")]

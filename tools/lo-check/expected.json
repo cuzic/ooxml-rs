@@ -112,6 +112,8 @@
     "xml": [
       ["word/document.xml", "./w:body/w:p/w:ins[@w:author='Ada Lovelace'][@w:date='2026-11-19T12:00:00Z']/w:r/w:t", 1],
       ["word/document.xml", "./w:body/w:p/w:del[@w:author='Ada Lovelace'][@w:id]/w:r/w:delText", 1],
+      ["word/document.xml", "./w:body/w:p/w:ins/w:r/w:rPr/w:i", 1],
+      ["word/document.xml", "./w:body/w:p/w:r/w:rPr/w:b", 1],
       ["word/document.xml", "./w:body/w:p/w:r/w:rPr/w:rPrChange[@w:author='Ada Lovelace'][@w:id]/w:rPr", 1]
     ]
   },
@@ -122,6 +124,7 @@
       ["word/document.xml", "./w:body/w:p/w:ins[@w:author='Ada Lovelace'][@w:id]", 2],
       ["word/document.xml", "./w:body/w:p/w:pPr/w:pStyle[@w:val='Heading1']", 2],
       ["word/document.xml", "./w:body/w:p/w:pPr/w:sectPr", 1],
+      ["word/document.xml", "./w:body/w:p[w:ins]/w:pPr/w:sectPr", 1],
       ["word/styles.xml", "./w:style[@w:styleId='Heading1']/w:next[@w:val='Normal']", 1]
     ]
   },
@@ -132,6 +135,14 @@
       ["word/document.xml", "./w:body/w:tbl/w:tr/w:trPr/w:del[@w:author='Ada Lovelace'][@w:id]", 1],
       ["word/document.xml", "./w:body/w:tbl/w:tr/w:tc/w:p/w:del[@w:author='Ada Lovelace'][@w:id]/w:r/w:delText", 1],
       ["word/document.xml", "./w:body/w:tbl/w:tr/w:tc/w:p/w:pPr/w:rPr/w:del[@w:author='Ada Lovelace'][@w:id]", 1]
+    ]
+  },
+  "docx/36-tracked-mid-document-section.docx": {
+    "text": ["First section.", "New end of first section.", "Second section."],
+    "xml": [
+      ["word/document.xml", "./w:body/w:p/w:pPr/w:sectPr", 1],
+      ["word/document.xml", "./w:body/w:p[w:ins]/w:pPr/w:sectPr/w:type[@w:val='continuous']", 1],
+      ["word/document.xml", "./w:body/w:sectPr", 1]
     ]
   },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},

@@ -18,7 +18,7 @@ use crate::error::{Error, Result};
 use crate::fields::Operation;
 use crate::names::is;
 use crate::story::StoryIndex;
-use crate::revisions::{Marks, REVISION_NS, TrackedChanges, check_deletable_paragraph, check_path, delete_paragraph_runs, mark_paragraph};
+use crate::revisions::{Marks, REVISION_NS, TrackedChanges, check_deletable_paragraph, check_path, delete_paragraph_runs, mark_paragraph, range_marker};
 
 const fn w(local: &'static str) -> QName {
     QName::new(NS_W, local)
@@ -469,6 +469,7 @@ impl Document {
         let part = self.stories[t.story.0].id.part.clone();
         let doc = self.pkg.parsed_part(&part).expect("story parts are parsed");
         let tbl = node_at(doc.root(), &path);
+        let pos = grid.rows.get(at).map_or_else(|| tbl.children().len(), |r| r.item);
         let trow = &grid.rows[ti];
         let tr = tbl.children()[trow.item].as_element().expect("row");
         if row_revision(tr).is_some() {
@@ -477,8 +478,14 @@ impl Document {
         let mut tpath = path.clone();
         tpath.push(trow.item);
         if tracked {
+            let index = &self.stories[t.story.0].index;
+            index.check_row_revision_range(&tpath)?;
+            index.check_row_revision_range(&[path.as_slice(), &[pos]].concat())?;
             check_path(doc.root(), &tpath)?;
             check_revisions(tr)?;
+            if find_desc(tr, &|node| range_marker(node).is_some()).is_some() {
+                return Err(Error::InsideRevision { context: crate::RunContext::Direct });
+            }
         }
         let copy_child = |i: usize, base: &[usize]| -> Vec<usize> { base.iter().copied().chain([i]).collect() };
         let trpr = match tr.indexed_elements().find(|(_, e)| is::<TableRowProperties>(e)) {
@@ -538,7 +545,6 @@ impl Document {
             };
             cells.push(InsertedCell { tcpr, continue_merge, ppr });
         }
-        let pos = grid.rows.get(at).map_or_else(|| tbl.children().len(), |r| r.item);
         Ok(RowInsertion { path, pos, trpr, tblprex, cells })
     }
 
@@ -988,21 +994,25 @@ impl TrackedChanges<'_> {
         if range.is_empty() || range.end > n {
             return Err(Error::InvalidValue { what: "row range", value: format!("{range:?} of {n}") });
         }
-        if range.len() == n {
-            return Err(Error::TableWouldBeEmpty);
-        }
         let root = self.doc.story_root_node(t.story);
         check_path(root, &path)?;
         let table = node_at(root, &path);
-        let rows: Vec<_> = grid.rows[range].iter().map(|row| {
-            (row.item, table.children()[row.item].as_element().expect("row"))
-        }).collect();
-        let removed: Vec<_> = rows.iter().map(|&(_, row)| row).collect();
+        let row_node = |row: &RowModel| table.children()[row.item].as_element().expect("row");
+        if !grid.rows.iter().enumerate().any(|(i, row)| {
+            !range.contains(&i) && !(Row { node: row_node(row) }).is_deleted()
+        }) {
+            return Err(Error::TableWouldBeEmpty);
+        }
+        let rows = &grid.rows[range];
+        let removed: Vec<_> = rows.iter().map(row_node).collect();
         check_anchor_pairs(&removed)?;
+        let index = &self.doc.stories[t.story.get()].index;
         let mut paragraphs = Vec::new();
-        for &(ri, row) in &rows {
+        let mut row_paths = Vec::new();
+        for (grid_row, row) in rows.iter().zip(removed) {
+            let row_path = [path.as_slice(), &[grid_row.item]].concat();
             check_removable(row)?;
-            let mut nodes = vec![([path.as_slice(), &[ri]].concat(), row)];
+            let mut nodes = vec![(row_path, row)];
             while let Some((path, node)) = nodes.pop() {
                 for (i, child) in node.indexed_elements() {
                     let child_path = [path.as_slice(), &[i]].concat();
@@ -1018,17 +1028,20 @@ impl TrackedChanges<'_> {
                         _ => return Err(Error::UnsupportedContext { ancestor: "non-paragraph table cell content" }),
                     }
                 }
+                if is::<TableRow>(node) {
+                    index.check_row_revision_range(&path)?;
+                    row_paths.push(path);
+                }
             }
         }
-        let rows: Vec<_> = rows.into_iter().map(|(i, _)| i).collect();
         self.edit(t.story, |xml, marks| {
             for path in &paragraphs {
                 delete_paragraph_runs(xml, path, marks)?;
                 mark_paragraph::<Deleted>(&mut xml.lens_mut_at::<P>(path)?, marks)?;
             }
-            for &item in &rows {
-                let row_path = [path.as_slice(), &[item]].concat();
-                let mut row = xml.lens_mut_at::<TableRow>(&row_path)?;
+            // Adding an outer trPr shifts the paths into its cells.
+            for row_path in row_paths.iter().rev() {
+                let mut row = xml.lens_mut_at::<TableRow>(row_path)?;
                 marks.write(row.get_or_insert::<TableRowProperties>()?.insert_with_ns::<Deleted>(REVISION_NS)?)?;
             }
             Ok(())

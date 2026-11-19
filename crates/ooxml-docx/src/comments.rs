@@ -356,7 +356,7 @@ pub(crate) fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
             .checked_sub_signed(TimeDelta::minutes(i64::from(date.utc_offset_minutes)))
             .filter(|_| (-1439..=1439).contains(&date.utc_offset_minutes))
             .ok_or_else(|| Error::InvalidValue {
-                what: "comment UTC offset",
+                what: "UTC offset",
                 value: format!("{}", date.utc_offset_minutes),
             })?;
         (date.wall_clock, utc)
@@ -367,7 +367,7 @@ pub(crate) fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
     for date in [local, utc] {
         if !(0..=9999).contains(&date.year()) {
             return Err(Error::InvalidValue {
-                what: "comment date year",
+                what: "date year",
                 value: date.year().to_string(),
             });
         }

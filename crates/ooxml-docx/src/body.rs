@@ -160,10 +160,19 @@ pub(crate) struct BodyIndex {
     pub notes: Vec<NoteInfo>,
     /// Complex fields still open after the last run of the body.
     pub open_fields_at_end: usize,
+    // Positions immediately before ranged rows, or at a table’s end.
+    row_positions_in_revision_ranges: std::collections::BTreeSet<Vec<usize>>,
     frames: Vec<Frame>,
 }
 
 impl BodyIndex {
+    pub(crate) fn check_row_revision_range(&self, path: &[usize]) -> crate::Result<()> {
+        if self.row_positions_in_revision_ranges.contains(path) {
+            return Err(crate::Error::InsideRevision { context: crate::RunContext::Direct });
+        }
+        Ok(())
+    }
+
     /// Child indices from the part root (`w:document`) to the element of
     /// `frame`.
     pub(crate) fn path(&self, frame: u32) -> Vec<usize> {
@@ -292,6 +301,11 @@ fn walk(top: &RawNode, top_index: Option<usize>, top_mode: Mode) -> BodyIndex {
     while let Some((node, frame, mode, next)) = stack.last_mut() {
         let (node, frame, mode) = (*node, *frame, *mode);
         let Some((i, child)) = next_element(node, *next) else {
+            if !revision_ranges.is_empty() && is::<Table>(node) {
+                let mut path = out.path(frame);
+                path.push(node.children().len());
+                out.row_positions_in_revision_ranges.insert(path);
+            }
             stack.pop();
             continue;
         };
@@ -306,6 +320,10 @@ fn walk(top: &RawNode, top_index: Option<usize>, top_mode: Mode) -> BodyIndex {
         let in_revision_range = !revision_ranges.is_empty();
         let Some((child_mode, wrapper)) = descend(mode, child) else { continue };
         let f = new_frame(&mut out, frame, i, wrapper);
+        if in_revision_range && is::<TableRow>(child) {
+            let path = out.path(f);
+            out.row_positions_in_revision_ranges.insert(path);
+        }
         if mode == Mode::Notes {
             revision_ranges.clear();
             let id = u32::try_from(out.notes.len()).expect("fewer than 2^32 notes");

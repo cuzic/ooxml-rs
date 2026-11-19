@@ -611,6 +611,23 @@ fn tracked_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::e
         done: "Marked the first row and its text deleted, and inserted an empty last row".into(),
         check: "Accept All keeps the second row and the new empty row. Reject All restores only the two original rows, including Remove this row.",
     });
+    let mut doc = synthetic(concat!(
+        "<w:p><w:pPr><w:sectPr><w:type w:val='continuous'/></w:sectPr></w:pPr>",
+        "<w:r><w:t>First section.</w:t></w:r></w:p>",
+        "<w:p><w:r><w:t>Second section.</w:t></w:r></w:p><w:sectPr/>",
+    ))?;
+    doc.track_changes(author(), Some(date))?.insert_paragraph(
+        Place::After(p(0)),
+        "New end of first section.",
+        &ParagraphSpec::Plain,
+    )?;
+    let file = "36-tracked-mid-document-section.docx";
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file, fixture: "",
+        done: "Inserted a tracked paragraph at the end of the first of two sections".into(),
+        check: "Accept All should leave the continuous section break after New end of first section. Reject All should restore the break after First section. Second section should remain in both views.",
+    });
     Ok(())
 }
 

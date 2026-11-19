@@ -40,6 +40,72 @@ fn w(node: Node<'_, '_>, local: &str) -> bool {
     node.has_tag_name((W_NS, local))
 }
 
+fn assert_local(before: &str, after: &str, allowed: std::ops::Range<usize>) {
+    if allowed.is_empty() {
+        // An insertion can share bytes with the original following tag.
+        assert!(after.len() > before.len());
+        assert!(after.starts_with(&before[..allowed.start]));
+        assert!(after.ends_with(&before[allowed.end..]));
+        return;
+    }
+    let (start, end, _) = diff_range(before.as_bytes(), after.as_bytes()).unwrap();
+    assert!(
+        allowed.start <= start && end <= allowed.end,
+        "changed {start}..{end} outside {allowed:?}",
+    );
+}
+
+fn span(xml: &str, tag: &str, index: usize) -> std::ops::Range<usize> {
+    roxmltree::Document::parse(xml)
+        .unwrap()
+        .descendants()
+        .filter(|n| w(*n, tag))
+        .nth(index)
+        .unwrap()
+        .range()
+}
+
+fn format_view(
+    xml: &str,
+    accept: bool,
+    element: &str,
+    prop: &str,
+    change: &str,
+) -> Vec<Vec<String>> {
+    let tree = roxmltree::Document::parse(xml).unwrap();
+    tree.descendants()
+        .filter(|n| w(*n, element))
+        .map(|n| {
+            let Some(live) = n.children().find(|n| w(*n, prop)) else {
+                return Vec::new();
+            };
+            let snapshot = live.children().find(|n| w(*n, change));
+            let previous = snapshot.and_then(|n| n.children().find(|n| w(*n, prop)));
+            let mut result: Vec<_> = if let Some(previous) = previous.filter(|_| !accept) {
+                previous.children().filter(Node::is_element).collect()
+            } else {
+                live.children()
+                    .filter(|n| n.is_element() && !w(*n, change))
+                    .collect()
+            };
+            if !accept && previous.is_some() && prop == "pPr" {
+                result.extend(live.children().filter(|n| w(*n, "rPr") || w(*n, "sectPr")));
+            }
+            result
+                .iter()
+                .map(|n| {
+                    let mut attrs: Vec<_> = n
+                        .attributes()
+                        .map(|a| (a.namespace(), a.name(), a.value()))
+                        .collect();
+                    attrs.sort_unstable();
+                    format!("{:?}:{attrs:?}", n.tag_name())
+                })
+                .collect()
+        })
+        .collect()
+}
+
 fn text_view(p: Node<'_, '_>, accept: bool) -> String {
     p.descendants()
         .filter(|n| w(*n, "t") || w(*n, "delText") || w(*n, "tab") || w(*n, "br"))
@@ -142,16 +208,26 @@ fn text_views_w1_attributes_id_union_and_locality() {
 
 #[test]
 fn insert_and_split_delete_text() {
-    let mut doc = Document::from_bytes(docx(&format!("{A}{B}"), None, None)).unwrap();
-    let mut session = doc.track_changes(author(), None).unwrap();
-    session
+    let input = docx(&format!("{A}<!-- separator -->{B}"), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    doc.track_changes(author(), None)
+        .unwrap()
         .delete_text(TextRange::with_offsets(r(0, 0), 7, r(0, 0), 11))
         .unwrap();
-    session
+    let before = xml(&input);
+    let deleted = xml(&doc.to_bytes().unwrap());
+    assert_local(&before, &deleted, span(&before, "r", 0));
+    doc.track_changes(author(), None)
+        .unwrap()
         .insert_text(RunPosition::EndOf(p(1)), " Inserted")
         .unwrap();
     let after = xml(&doc.to_bytes().unwrap());
     let tree = roxmltree::Document::parse(&after).unwrap();
+    let end = span(&deleted, "r", 3).end;
+    assert_local(&deleted, &after, end..end);
+    let revision = tree.descendants().find(|n| w(*n, "ins")).unwrap();
+    let date = revision.attribute((W_NS, "date")).unwrap();
+    chrono::NaiveDateTime::parse_from_str(date, "%Y-%m-%dT%H:%M:%SZ").unwrap();
     let views: Vec<_> = tree
         .descendants()
         .filter(|n| w(*n, "p"))
@@ -180,6 +256,8 @@ fn n1_moves_original_mark_and_places_ins_before_formatting() {
         .append_paragraph("New")
         .unwrap();
     let edited = xml(&doc.to_bytes().unwrap());
+    let before = xml(&input);
+    assert_local(&before, &edited, span(&before, "p", 0));
     let tree = roxmltree::Document::parse(&edited).unwrap();
     let paragraphs: Vec<_> = tree.descendants().filter(|n| w(*n, "p")).collect();
     assert_eq!(paragraphs.len(), 2);
@@ -225,6 +303,9 @@ fn paragraph_insertion_and_deletion_marks() {
         .insert_paragraph(Place::Before(p(0)), "First", &ParagraphSpec::Plain)
         .unwrap();
     let before = doc.to_bytes().unwrap();
+    let original = xml(&input);
+    let start = span(&original, "p", 0).start;
+    assert_local(&original, &xml(&before), start..start);
     assert_matches!(
         doc.track_changes(author(), None).unwrap().insert_paragraph(
             Place::Before(p(0)),
@@ -239,6 +320,8 @@ fn paragraph_insertion_and_deletion_marks() {
         .delete_paragraph(p(1))
         .unwrap();
     let after = xml(&doc.to_bytes().unwrap());
+    let before_delete = xml(&before);
+    assert_local(&before_delete, &after, span(&before_delete, "p", 1));
     let tree = roxmltree::Document::parse(&after).unwrap();
     let paragraphs: Vec<_> = tree.descendants().filter(|n| w(*n, "p")).collect();
     assert_eq!(text_view(paragraphs[0], false), "");
@@ -269,29 +352,51 @@ fn paragraph_insertion_and_deletion_marks() {
 fn formatting_snapshots_and_r2_refusals() {
     use ooxml_docx::Alignment;
     let a = "<w:p><w:pPr><w:jc w:val='left'/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>First</w:t></w:r></w:p>";
-    let mut doc = Document::from_bytes(docx(&format!("{a}{B}"), None, None)).unwrap();
+    let b = B.replace("<w:r>", "<w:pPr><w:jc w:val='right'/></w:pPr><w:r>");
+    let input = docx(&format!("{a}<!-- separator -->{b}"), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
     let pf = ParagraphFormat {
         alignment: Prop::Set(Alignment::Center),
         ..ParagraphFormat::default()
     };
-    let mut session = doc.track_changes(author(), None).unwrap();
-    session.set_run_properties(r(0, 0), &bold()).unwrap();
-    session.set_paragraph_properties(p(1), &pf).unwrap();
+    let original = xml(&input);
+    doc.track_changes(author(), None)
+        .unwrap()
+        .set_run_properties(r(0, 0), &bold())
+        .unwrap();
+    let run_edited = xml(&doc.to_bytes().unwrap());
+    assert_local(&original, &run_edited, span(&original, "rPr", 0));
+    doc.track_changes(author(), None)
+        .unwrap()
+        .set_paragraph_properties(p(1), &pf)
+        .unwrap();
     let before = doc.to_bytes().unwrap();
     let edited = xml(&before);
+    assert_local(&run_edited, &edited, span(&run_edited, "pPr", 1));
+
+    let mut baseline = Document::from_bytes(input).unwrap();
+    baseline.format_run(r(0, 0), &bold()).unwrap();
+    baseline.format_paragraph(p(1), &pf).unwrap();
+    let untracked = xml(&baseline.to_bytes().unwrap());
+    for (element, prop, change) in [("r", "rPr", "rPrChange"), ("p", "pPr", "pPrChange")] {
+        assert_eq!(
+            format_view(&edited, true, element, prop, change),
+            format_view(&untracked, true, element, prop, change),
+        );
+        assert_eq!(
+            format_view(&edited, false, element, prop, change),
+            format_view(&original, true, element, prop, change),
+        );
+    }
     let tree = roxmltree::Document::parse(&edited).unwrap();
     let rpr = tree.descendants().find(|n| w(*n, "rPrChange")).unwrap();
     assert!(rpr.descendants().any(|n| w(n, "i")));
     assert!(!rpr.descendants().any(|n| w(n, "b")));
     assert!(rpr.parent().unwrap().children().any(|n| w(n, "b")));
     let ppr = tree.descendants().find(|n| w(*n, "pPrChange")).unwrap();
-    assert_eq!(
-        ppr.first_element_child()
-            .unwrap()
-            .children()
-            .filter(Node::is_element)
-            .count(),
-        0
+    assert!(
+        ppr.descendants()
+            .any(|n| w(n, "jc") && n.attribute((W_NS, "val")) == Some("right"))
     );
     assert!(
         ppr.parent()
@@ -345,12 +450,20 @@ fn row_views_and_last_block_refusal() {
         .insert_rows(table, 2, 1, RowTemplate::Above)
         .unwrap();
     baseline.delete_rows(table, 0..1).unwrap();
-    let mut session = doc.track_changes(author(), None).unwrap();
-    session
+    doc.track_changes(author(), None)
+        .unwrap()
         .insert_rows(table, 2, 1, RowTemplate::Above)
         .unwrap();
-    session.delete_rows(table, 0..1).unwrap();
+    let original = xml(&input);
+    let inserted = xml(&doc.to_bytes().unwrap());
+    let end = span(&original, "tr", 1).end;
+    assert_local(&original, &inserted, end..end);
+    doc.track_changes(author(), None)
+        .unwrap()
+        .delete_rows(table, 0..1)
+        .unwrap();
     let output = xml(&doc.to_bytes().unwrap());
+    assert_local(&inserted, &output, span(&inserted, "tr", 0));
     assert!(doc.table_row(table, 0).unwrap().is_deleted());
     assert_eq!(doc.table_row_count(table), Some(3));
     assert_eq!(
@@ -612,4 +725,191 @@ fn revision_attributes_get_a_safe_prefix_in_default_wml() {
     let ins = tree.descendants().find(|n| w(*n, "ins")).unwrap();
     assert_eq!(ins.attribute((W_NS, "author")), Some("Ada & Grace"));
     assert!(after.contains("xmlns:w='urn:reserved'"));
+}
+
+#[test]
+fn append_inside_cell_moves_the_cell_paragraph_mark() {
+    let input = docx(&format!("{}{B}", table()), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let original = xml(&input);
+    doc.track_changes(author(), None)
+        .unwrap()
+        .insert_paragraph(Place::After(p(0)), "Cell append", &ParagraphSpec::Plain)
+        .unwrap();
+    let edited = xml(&doc.to_bytes().unwrap());
+    assert_local(&original, &edited, span(&original, "p", 0));
+    let tree = roxmltree::Document::parse(&edited).unwrap();
+    let cell = tree.descendants().find(|n| w(*n, "tc")).unwrap();
+    let paragraphs: Vec<_> = cell.children().filter(|n| w(*n, "p")).collect();
+    assert_eq!(paragraphs.len(), 2);
+    assert!(
+        paragraphs[0]
+            .descendants()
+            .any(|n| w(n, "ins") && w(n.parent().unwrap(), "rPr"))
+    );
+    assert!(paragraphs[1].children().any(|n| w(n, "ins")));
+
+    let mut baseline = Document::from_bytes(input).unwrap();
+    baseline
+        .insert_paragraph(
+            Place::After(p(0)),
+            "Cell append",
+            &ParagraphSpec::LikeNeighbour,
+        )
+        .unwrap();
+    assert_eq!(
+        paragraph_view(&edited, true),
+        paragraph_view(&xml(&baseline.to_bytes().unwrap()), true)
+    );
+    assert_eq!(
+        paragraph_view(&edited, false),
+        paragraph_view(&original, true)
+    );
+}
+
+#[test]
+fn paragraph_deletion_refuses_a_section_break() {
+    let with_break = A.replace(
+        "<w:p>",
+        "<w:p><w:pPr><w:sectPr><w:type w:val='nextPage'/></w:sectPr></w:pPr>",
+    );
+    let input = docx(&format!("{with_break}{B}<w:sectPr/>"), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    assert_matches!(
+        doc.track_changes(author(), None)
+            .unwrap()
+            .delete_paragraph(p(0)),
+        Err(Error::TrackedSectionBreakDeletion)
+    );
+    assert_eq!(doc.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn row_deletion_refuses_nested_run_content() {
+    let table_ref = TableRef::new(StoryIndex::MAIN, 0);
+    for (content, expected) in [
+        (
+            "<w:ruby><w:rt><w:r><w:t>かん</w:t></w:r></w:rt><w:rubyBase><w:r><w:t>漢</w:t></w:r></w:rubyBase></w:ruby>",
+            "ruby",
+        ),
+        (
+            "<mc:AlternateContent><mc:Choice Requires='w'><w:t>Choice</w:t></mc:Choice><mc:Fallback><w:t>Fallback</w:t></mc:Fallback></mc:AlternateContent>",
+            "AlternateContent",
+        ),
+    ] {
+        let body = table().replace("<w:t>Before αβ after</w:t>", content);
+        let input = docx(&body, None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.track_changes(author(), None).unwrap().delete_rows(table_ref, 0..1),
+            Err(Error::RunNotTextOnly { child }) if child.ends_with(expected)
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+}
+
+#[test]
+fn successive_deletions_preserve_a_live_row() {
+    let input = docx(&table(), None, None);
+    let table = TableRef::new(StoryIndex::MAIN, 0);
+    let mut doc = Document::from_bytes(input).unwrap();
+    doc.track_changes(author(), None)
+        .unwrap()
+        .delete_rows(table, 0..1)
+        .unwrap();
+    let before = doc.to_bytes().unwrap();
+    let mut reopened = Document::from_bytes(before.clone()).unwrap();
+    assert_matches!(
+        reopened
+            .track_changes(author(), None)
+            .unwrap()
+            .delete_rows(table, 1..2),
+        Err(Error::TableWouldBeEmpty)
+    );
+    assert_eq!(reopened.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn outer_row_deletion_marks_nested_rows() {
+    let nested = table();
+    let body = table().replacen("<w:tc>", &format!("<w:tc>{nested}"), 1);
+    let input = docx(&body, None, None);
+    let mut doc = Document::from_bytes(input).unwrap();
+    let table = TableRef::new(StoryIndex::MAIN, 0);
+    doc.track_changes(author(), None)
+        .unwrap()
+        .delete_rows(table, 0..1)
+        .unwrap();
+    let edited = xml(&doc.to_bytes().unwrap());
+    let tree = roxmltree::Document::parse(&edited).unwrap();
+    let deleted: Vec<_> = tree
+        .descendants()
+        .filter(|n| w(*n, "tr"))
+        .map(|row| {
+            row.children()
+                .filter(|n| w(*n, "trPr"))
+                .flat_map(|n| n.children())
+                .any(|n| w(n, "del"))
+        })
+        .collect();
+    assert_eq!(deleted, [true, true, true, false]);
+}
+
+#[test]
+fn tracked_structure_refuses_move_and_custom_xml_ranges() {
+    let table_ref = TableRef::new(StoryIndex::MAIN, 0);
+    for kind in [
+        "moveFrom",
+        "moveTo",
+        "customXmlIns",
+        "customXmlDel",
+        "customXmlMoveFrom",
+        "customXmlMoveTo",
+    ] {
+        let start = format!("<w:{kind}RangeStart w:id='11' w:name='range'/>");
+        let end = format!("<w:{kind}RangeEnd w:id='11'/>");
+        let rows = table()
+            .replacen("<w:tr>", &format!("{start}<w:tr>"), 1)
+            .replacen("</w:tr>", &format!("</w:tr>{end}"), 1);
+        let input = docx(&rows, None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.track_changes(author(), None)
+                .unwrap()
+                .delete_rows(table_ref, 0..1),
+            Err(Error::InsideRevision { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+        assert_matches!(
+            doc.track_changes(author(), None).unwrap().insert_rows(
+                table_ref,
+                1,
+                1,
+                RowTemplate::Above
+            ),
+            Err(Error::InsideRevision { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+
+        let input = docx(&format!("{start}{A}{end}{B}"), None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.track_changes(author(), None).unwrap().insert_paragraph(
+                Place::Before(p(0)),
+                "Refused",
+                &ParagraphSpec::Plain
+            ),
+            Err(Error::InsideRevision { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+        let input = docx(&format!("{start}{A}{B}<w:sectPr/>{end}"), None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.track_changes(author(), None)
+                .unwrap()
+                .append_paragraph("Refused"),
+            Err(Error::InsideRevision { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
 }

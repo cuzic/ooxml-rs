@@ -18,7 +18,7 @@ use crate::format::{apply_ppr, apply_rpr, plan_paragraph, plan_run};
 use crate::names::{VAL, descendants};
 use crate::story::{ParaRef, RunRef, StoryIndex};
 use crate::structure::{Container, container_at, next_slot_sibling, on_container};
-use crate::text::{Piece, current_pieces, lacks_needed_preserve, map_text};
+use crate::text::{Piece, current_pieces, lacks_needed_preserve, map_text, check_text_only};
 use crate::{
     Document, Error, Operation, ParagraphFormat, ParagraphSpec, Place, Result, Run, RunContext,
     RunFormat, RunPosition, TextRange,
@@ -57,6 +57,7 @@ pub enum RevisionKind {
 
 /// Metadata from an enclosing revision or the run's own formatting change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Revision<'a> {
     pub kind: RevisionKind,
     pub id: Option<&'a str>,
@@ -210,12 +211,12 @@ impl<'a> Run<'a> {
 pub struct TrackedChanges<'a> {
     pub(crate) doc: &'a mut Document,
     author: Author,
-    date: Option<String>,
+    date: String,
 }
 
 pub(crate) struct Marks<'a> {
     author: &'a str,
-    date: Option<&'a str>,
+    date: &'a str,
     high: u32,
 }
 
@@ -234,9 +235,7 @@ impl Marks<'_> {
             self.high.format_into(&mut core::fmt::NumBuffer::new()),
         )?;
         mark.set_attr(w("author"), self.author)?;
-        if let Some(date) = self.date {
-            mark.set_attr(w("date"), date)?;
-        }
+        mark.set_attr(w("date"), self.date)?;
         Ok(mark)
     }
 }
@@ -276,7 +275,8 @@ property_snapshot!(
 
 impl Document {
     /// Starts a tracked editing session, also when the document has W1 enabled.
-    /// The optional date is written as local wall-clock time with a Z suffix.
+    /// Dates are written as local wall-clock time with a Z suffix.
+    /// When no date is supplied, the session uses the process-local time.
     pub fn track_changes(
         &mut self,
         author: Author,
@@ -290,9 +290,7 @@ impl Document {
             });
         }
         map_text(&author.0)?;
-        let date = date
-            .map(|date| dates(Some(date)).map(|(local, _)| local))
-            .transpose()?;
+        let (date, _) = dates(date)?;
         Ok(TrackedChanges {
             doc: self,
             author,
@@ -326,7 +324,7 @@ impl TrackedChanges<'_> {
         let mut marks = Marks {
             high,
             author: &self.author.0,
-            date: self.date.as_deref(),
+            date: &self.date,
         };
         let result = f(&mut xml, &mut marks)?;
         let mut plan = RegistryPlan::new(&self.doc.pkg);
@@ -775,6 +773,9 @@ impl TrackedChanges<'_> {
     }
 
     /// Inserts a paragraph with the previous paragraph's mark properties.
+    /// Pass [`ParagraphSpec::Plain`] to let the inserted paragraph take over
+    /// the preceding paragraph’s mark, including its properties. At the start
+    /// of a container or after a table, the new paragraph gets an inserted mark.
     /// A second insertion at the start of the container touches the first
     /// insertion's revision and is refused.
     pub fn insert_paragraph(
@@ -827,6 +828,8 @@ impl TrackedChanges<'_> {
         let previous_path = previous.map(|previous| [parent, &[previous]].concat());
         if let Some(path) = &previous_path {
             check_path(root, path)?;
+            // Also checks active revision ranges on the preceding paragraph,
+            // including the final body paragraph selected by append_paragraph.
             let prev = ParaRef::new(story, at.index - 1);
             self.doc.check_structure_neighbour(prev)?;
         } else if !container
@@ -929,10 +932,20 @@ pub(crate) fn mark_paragraph<E: ChildOf<ParagraphMarkRunProperties>>(
 
 pub(crate) fn check_deletable_paragraph(p: &RawNode) -> Result<()> {
     for child in p.elements() {
-        if child.is(ParagraphProperties::QNAME) || child.is(R::QNAME) {
+        if child.is(ParagraphProperties::QNAME) {
+            if child.elements().any(|n| n.is(SectionProperties::QNAME)) {
+                return Err(Error::TrackedSectionBreakDeletion);
+            }
+            continue;
+        }
+        if child.is(R::QNAME) {
+            check_text_only(child)?;
             continue;
         }
         if child.is(Hyperlink::QNAME) && child.elements().all(|run| run.is(R::QNAME)) {
+            for run in child.elements() {
+                check_text_only(run)?;
+            }
             continue;
         }
         return Err(Error::RunNotTextOnly {
