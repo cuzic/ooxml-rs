@@ -360,13 +360,20 @@ pub(crate) fn lex(text: &str) -> Result<Vec<Token>, LexError> {
             '[' => {
                 // `[n]` external prefix, or a structured reference `[…]`.
                 let digits = b[i + 1..].iter().take_while(|b| b.is_ascii_digit()).count();
-                let external_end = (digits > 0 && b.get(i + 1 + digits) == Some(&b']'))
-                    .then(|| {
-                        let j = i + 2 + digits;
-                        text[j..].find(|ch: char| !(is_name_char(ch) || ch == ':'))
-                            .map_or(text.len(), |k| j + k)
-                    })
-                    .filter(|&k| b.get(k) == Some(&b'!'));
+                let external_end = if digits > 0 && b.get(i + 1 + digits) == Some(&b']') {
+                    let after_bracket = i + 2 + digits;
+                    let k = text[after_bracket..].find(|ch: char| !(is_name_char(ch) || ch == ':'))
+                        .map_or(text.len(), |k| after_bracket + k);
+                    if b.get(k) == Some(&b'!') {
+                        Some(k)
+                    } else if text[after_bracket..].starts_with(is_name_char) {
+                        return Err(err(k, "external reference without '!'"));
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
                 if let Some(k) = external_end {
                     let j = k + 1;
                     let (kind, n) = after_bang(text, j, Prefix::External, start)?;
