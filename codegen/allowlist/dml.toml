@@ -3,6 +3,26 @@
 # Phase0 write path: text in shapes and table cells.
 [write]
 names = [
+    # ADR-0017 §3, ECMA-376 §20.5 and MS-XLSX rich values.
+    "asvg:CT_SVGBlip/asvg:svgBlip",
+    "xdr:CT_TwoCellAnchor/xdr:twoCellAnchor",
+    "xdr:CT_OneCellAnchor/xdr:oneCellAnchor",
+    "xdr:CT_AbsoluteAnchor/xdr:absoluteAnchor",
+    "xdr:CT_GroupShape/xdr:grpSp",
+    "xdr:CT_GraphicalObjectFrame/xdr:graphicFrame",
+    "xdr:CT_Picture/xdr:pic",
+    "xdr:CT_Drawing/xdr:wsDr",
+    "a:CT_ShapeProperties/xdr:spPr",
+    "xdr:CT_PictureNonVisual/xdr:nvPicPr",
+    "a:CT_BlipFillProperties2/xdr:blipFill",
+    "xdr:CT_Marker/xdr:from",
+    "xdr:CT_Marker/xdr:to",
+    "xdr:CT_AnchorClientData/xdr:clientData",
+    "a:CT_PositiveSize2D/xdr:ext",
+    "a:CT_Point2D/xdr:pos",
+    "a:CT_SpreadSheetNonVisualDrawingProps/xdr:cNvPr",
+    "a:CT_NonVisualPictureProperties/xdr:cNvPicPr",
+    "a:CT_PictureLocking/a:picLocks",
     "a:CT_TextBody/a:txBody",
     "a:CT_TextParagraph/a:p",
     "a:CT_RegularTextRun/a:r",
@@ -68,6 +88,16 @@ names = [
 # wildcard (ADR-0002 post-acceptance note "wildcard parents").
 [read]
 names = [
+    # ADR-0017 §3.3, MS-XLSX rich values.
+    "xlrd:CT_RichValueBlock/xlrd:rvb",
+    "xlrd:CT_RichValueData/xlrd:rvData",
+    "xlrd:CT_RichValueStructures/xlrd:rvStructures",
+    "xlrd:CT_RichValue/xlrd:rv",
+    "xlrd:CT_Value/xlrd:v",
+    "xlrd:CT_RichValueStructure/xlrd:s",
+    "xlrd:CT_Key/xlrd:k",
+    "xlrvrel:CT_RichValueRels/xlrvrel:richValueRels",
+    "xlrvrel:CT_RichValueRelRelationship/xlrvrel:rel",
     # ADR-0008 (Phase 1 deck reading), §6
     "a:CT_TextParagraphProperties/a:defPPr",
     "a:CT_TextParagraphProperties/a:lvl1pPr",

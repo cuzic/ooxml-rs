@@ -407,6 +407,7 @@ impl<'s> Parser<'s> {
 #[test]
 fn compact_span_limit_is_checked_before_narrowing() {
     let limit = 2_147_483_647_usize;
+    assert_eq!(limit, MAX_SPAN_OFFSET as usize);
     assert!(check_span_limit(limit).is_ok());
     std::assert_matches!(check_span_limit(limit + 1), Err(Error::XmlPartTooLarge { len }) if len == limit + 1);
 }

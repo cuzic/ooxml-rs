@@ -465,6 +465,15 @@ impl Workbook {
         if let Some(p) = &plan.chain {
             registry.remove_parts(&self.pkg, &[p.as_str()], &[REL_CALC_CHAIN])?;
         }
+        self.apply_registry_edit(registry, |wb| wb.apply_steps(plan, true))
+    }
+
+    /// Applies a validated registry transaction before the checked in-place edits.
+    pub(crate) fn apply_registry_edit(
+        &mut self,
+        registry: ooxml_core::RegistryPlan,
+        in_place: impl FnOnce(&mut Self) -> Result<()>,
+    ) -> Result<()> {
         use crate::workbook::ApplyStepHook as Step;
         self.poisoned = Some("an edit was interrupted while being applied".into());
         #[cfg(feature = "fault-injection")]
@@ -482,7 +491,7 @@ impl Workbook {
             self.poisoned = None;
             return Err(e.into());
         }
-        let result = self.apply_steps(plan, true);
+        let result = in_place(self);
         self.finish_apply(result)
     }
 
