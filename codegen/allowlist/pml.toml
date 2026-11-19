@@ -6,6 +6,7 @@
 # Phase0 write path: paragraphs are inserted into / removed from shape text.
 [write]
 names = [
+    # Phase 0 text and Phase 3a formatting share this write path.
     "a:CT_TextBody/p:txBody",
     # Phase 2 (ADR-0012 §11): the slide list, sections, creationId,
     # viewProps outline entries and docProps/app.xml counts.

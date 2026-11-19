@@ -752,3 +752,32 @@ vs. largest + 1 part number) is settled by the core ADR-0001 note
   (`core/detach-same-part`, head `397bd86`: `detach_same_part_as`,
   `SamePartOptions`, `insert_same_part_by`, ADR-0002 note "same-part
   copy").
+
+### Post-acceptance note — P3a direct text formatting
+
+P3a implements §§2–5 on `RunMut`, `ParagraphMut` and `TextBodyMut`.
+The write inputs `WriteColor`, `BulletSpec` and `AutoFitMode` coexist
+with the Phase 1 resolver's `Color`, `Bullet` and `Autofit` results.
+`RunFormat` supplies one optional `FormatChange` per property, including
+one per font slot, and is also the input to `ParagraphMut::end_format`.
+The resolver exposes the winning highlight, underline appearance,
+paragraph font alignment, tab list and bullet appearance with their source.
+Run ranges address Unicode scalar values, preserve field contents and
+breaks, and split regular runs only where the direct properties change.
+A covered field or break receives direct formatting in its own `a:rPr`
+and stays intact. A boundary inside cached field text is rejected.
+Formatting setters and clears, including attribute-only edits and
+autofit reset, reject `mc:AlternateContent` inside the edited property
+element with `InsideAlternateContent`. Replacing an explicit underline
+line removes properties outside the requested `LineSpec`, including
+custom dashes, joins, alignment and extensions.
+Clearing underline also removes the direct underline appearance. A
+`RunFormat` that clears underline and sets its appearance at the same
+time is rejected before editing.
+
+Single-part edits use a cloned tree when writing can fail after an
+insertion. Replacing a picture bullet stages the slide or notes part
+and removes its image relationship only if the staged part has no
+remaining reference. The media part is retained. `ValueOutOfRange`
+reuses the existing pptx error with its `what` field. No generated
+public names were changed.

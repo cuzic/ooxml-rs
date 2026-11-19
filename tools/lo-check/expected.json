@@ -153,6 +153,15 @@
   "pptx/SA2-smartart-fake-cache.pptx": {"text": ["CACH EONLY"]},
   "pptx/SA3-smartart-cache-dropped.pptx": {"text": ["No cache"]},
   "pptx/SA4-smartart-long-text.pptx": {"text": ["box was laid out"]},
+  "pptx/p3a-text-formatting.pptx": {"text": ["ipsum dolor sit amet"],
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//a:r[a:t='Lorem']/a:rPr[@b='1'][@sz='2800']/a:solidFill/a:srgbClr[@val='123456']", 1],
+      ["ppt/slides/slide1.xml", ".//a:r[a:t='Lorem']/a:rPr/a:latin[@typeface='Arial']", 1],
+      ["ppt/slides/slide1.xml", ".//a:r[a:t=' ipsum dolor sit amet']/a:rPr[@b]", 0],
+      ["ppt/slides/slide1.xml", ".//a:pPr[@algn='ctr']", 1],
+      ["ppt/slides/slide1.xml", ".//a:bodyPr/a:spAutoFit", 1]
+    ]
+  },
   "xlsx/01-minimal.xlsx": {"sheets": {"Sheet1": {"A1": "Name (edited)", "A2": "  padded ", "B2": 91.0, "C2": 0.0, "D2": 7.0, "F5": "new"}}},
   "xlsx/02-61605-cyrillic-x14ac.xlsx": {"sheets": {"Лист1": {"B2": 2.0, "B5": "edited", "A20": "new row"}}},
   "xlsx/03-fillwithoutcolor-row2.xlsx": {"sheets": {"LPH": {"B2": 5.0, "K61": "x"}, "User Guide": {"B5": "MARKETING REPORT UPDATE"}}},

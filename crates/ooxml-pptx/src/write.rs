@@ -17,6 +17,9 @@ use crate::read::{self, ShapePath, Slide, SlideInfo, TextBodyRef, find_by_id, ra
 use crate::refs::SlideRefs;
 use crate::text;
 
+mod part;
+pub(crate) use part::EditPart;
+
 mod table;
 pub use table::{CellFill, Edge, Line, Side, TableColor, TableFlag, TableMut};
 pub(crate) use table::TableSession;
@@ -135,6 +138,9 @@ macro_rules! with_body {
     };
 }
 
+mod formatting;
+pub use formatting::{AutoFitMode, BulletSize, BulletSpec, ColorSpec, ColorTransform, FontRef, FormatChange, LineEnd, LineSpec, PresetColor, RunFill, RunFormat, SchemeColor, Script, SystemColor, TabStop, ThemeFont, UnderlineFill, UnderlineLine, WriteColor};
+
 /// The cursor at the root of a part this crate edits text in: a slide, a
 /// notes slide, a SmartArt data model or a SmartArt drawing.
 fn root_cursor(doc: &mut XmlDocument) -> Result<Cursor<'_>> {
@@ -198,16 +204,16 @@ const fn a(local: &'static str) -> QName {
 
 fn ordered(n: &RawNode, ranks: &[(QName, u8, bool)], what: &str) -> Result<()> {
     let mut cur = 0u8;
-    let mut seen = [0u8; 8];
+    let mut seen = [false; 8];
     for c in n.elements() {
         let Some(&(_, rank, single)) = ranks.iter().find(|(q, _, _)| c.is(*q)) else {
             return Err(Error::UnsupportedContent(format!("{what}: {}", c.name().display())));
         };
-        if rank < cur || (single && seen[rank as usize] > 0) {
+        if rank < cur || (single && seen[rank as usize]) {
             return Err(Error::UnsupportedContent(format!("{what}: {} out of order", c.name().display())));
         }
         cur = rank;
-        seen[rank as usize] += 1;
+        seen[rank as usize] = true;
     }
     Ok(())
 }
@@ -579,7 +585,7 @@ impl Guard {
 /// changes something.
 #[derive(Debug)]
 pub struct SlideMut<'a> {
-    pub(crate) doc: &'a mut XmlDocument,
+    pub(crate) doc: EditPart<'a>,
     pub(crate) info: SlideInfo,
     pub(crate) refs: SlideRefs,
     /// Style ids defined in `ppt/tableStyles.xml`.
@@ -596,7 +602,7 @@ impl<'a> SlideMut<'a> {
 
     /// Read access to the same slide.
     pub fn as_slide(&self) -> Slide<'_> {
-        Slide { doc: self.doc, info: self.info.clone() }
+        Slide { doc: &self.doc, info: self.info.clone() }
     }
 
     /// The shape at `path` (from [`crate::ShapeRef::path`]).
@@ -633,13 +639,13 @@ impl<'a> SlideMut<'a> {
         }
         ids.reverse(); // own id first, then enclosing groups
         let guard = Guard::new(&self.refs, &ids);
-        Ok(ShapeMut { doc: &mut *self.doc, path: p.to_vec(), guard, styles: &self.table_styles, tables: &mut *self.tables })
+        Ok(ShapeMut { doc: self.doc.reborrow(), path: p.to_vec(), guard, styles: &self.table_styles, tables: &mut *self.tables })
     }
 
     /// The shape with this `cNvPr@id` ([`Error::ShapeNotFound`],
     /// [`Error::AmbiguousShapeId`], [`Error::InsideAlternateContent`]).
     pub fn shape_mut_by_id(&mut self, id: u32) -> Result<ShapeMut<'_>> {
-        let found = find_by_id(read::shapes_of(self.doc), id)?.ok_or(Error::ShapeNotFound)?;
+        let found = find_by_id(read::shapes_of(&self.doc), id)?.ok_or(Error::ShapeNotFound)?;
         if *found.kind() == read::ShapeKind::AlternateContent {
             return Err(Error::InsideAlternateContent);
         }
@@ -651,7 +657,7 @@ impl<'a> SlideMut<'a> {
 /// A shape opened for editing.
 #[derive(Debug)]
 pub struct ShapeMut<'a> {
-    doc: &'a mut XmlDocument,
+    doc: EditPart<'a>,
     path: Vec<usize>,
     guard: Guard,
     styles: &'a [String],
@@ -673,7 +679,7 @@ impl ShapeMut<'_> {
         let (i, _) = n.indexed_elements().find(|(_, c)| c.is(pml::TextBody::QNAME)).ok_or(Error::NoTextBody)?;
         let mut path = self.path.clone();
         path.push(i);
-        Ok(TextBodyMut { doc: &mut *self.doc, path, guard: self.guard.clone() })
+        Ok(TextBodyMut { doc: self.doc.reborrow(), path, guard: self.guard.clone() })
     }
 
     /// The table of a table graphic frame, for structure and property
@@ -695,7 +701,7 @@ impl ShapeMut<'_> {
         let mut tbl = self.path.clone();
         tbl.extend([gi, di, ti]);
         let deleted = self.tables.deleted.entry(self.guard.shape_id).or_default();
-        Ok(TableMut { doc: &mut *self.doc, frame: self.path.clone(), tbl, guard: self.guard.clone(), styles: self.styles, deleted })
+        Ok(TableMut { doc: &mut self.doc, frame: self.path.clone(), tbl, guard: self.guard.clone(), styles: self.styles, deleted })
     }
 
     /// The text body of table cell (`row`-th `a:tr`, `col`-th `a:tc`).
@@ -731,21 +737,21 @@ impl ShapeMut<'_> {
         let bi = find(tc, dml::TextBody::QNAME).ok_or(Error::NoTextBody)?;
         let mut path = self.path.clone();
         path.extend([gi, di, ti, ri, ci, bi]);
-        Ok(TextBodyMut { doc: &mut *self.doc, path, guard: self.guard.clone() })
+        Ok(TextBodyMut { doc: self.doc.reborrow(), path, guard: self.guard.clone() })
     }
 }
 
 /// A text body opened for editing (`p:txBody` or a cell's `a:txBody`).
 #[derive(Debug)]
 pub struct TextBodyMut<'a> {
-    doc: &'a mut XmlDocument,
+    doc: EditPart<'a>,
     path: Vec<usize>,
     guard: Guard,
 }
 
 impl<'a> TextBodyMut<'a> {
     /// A body at `path` (a node path from the part root) in `doc`.
-    pub(crate) fn new(doc: &'a mut XmlDocument, path: Vec<usize>, guard: Guard) -> Self {
+    pub(crate) fn new(doc: EditPart<'a>, path: Vec<usize>, guard: Guard) -> Self {
         TextBodyMut { doc, path, guard }
     }
 }
@@ -782,7 +788,7 @@ impl TextBodyMut<'_> {
     /// The `index`-th paragraph.
     pub fn paragraph_mut(&mut self, index: usize) -> Result<ParagraphMut<'_>> {
         self.para_child(index)?;
-        Ok(ParagraphMut { doc: &mut *self.doc, loc: ParaLoc { body: self.path.clone(), guard: self.guard.clone(), index } })
+        Ok(ParagraphMut { doc: self.doc.reborrow(), loc: ParaLoc { body: self.path.clone(), guard: self.guard.clone(), index } })
     }
 
     /// Appends a paragraph after the last `a:p`. `\v` becomes `a:br`. The new
@@ -797,14 +803,14 @@ impl TextBodyMut<'_> {
         let segments = text::paragraph_segments(text)?;
         self.guard.structure()?;
         let count = body_paragraphs(self.node())?.len();
-        check_depth(self.doc, &self.path, 3)?; // a:p / a:r / a:t
-        let mut body = body_lens(self.doc, &self.path)?;
+        check_depth(&self.doc, &self.path, 3)?; // a:p / a:r / a:t
+        let mut body = body_lens(&mut self.doc, &self.path)?;
         with_body!(&mut body, l => {
             let mut p = insert_paragraph_at(l, count)?;
             fill_new_paragraph(&mut p, None, &RunFmt::default(), &segments)?;
         });
         Ok(ParagraphMut {
-            doc: &mut *self.doc,
+            doc: self.doc.reborrow(),
             loc: ParaLoc { body: self.path.clone(), guard: self.guard.clone(), index: count },
         })
     }
@@ -825,7 +831,7 @@ impl TextBodyMut<'_> {
         if !shape.fields.is_empty() {
             return Err(Error::FieldInParagraph { paragraph: index });
         }
-        let mut body = body_lens(self.doc, &self.path)?;
+        let mut body = body_lens(&mut self.doc, &self.path)?;
         with_body!(&mut body, l => { l.remove_at(child); });
         Ok(())
     }
@@ -866,7 +872,7 @@ impl TextBodyMut<'_> {
         } else {
             self.guard.structure()?;
         }
-        let doc: &XmlDocument = self.doc;
+        let doc: &XmlDocument = &self.doc;
         let para_path = |child: usize| [self.path.as_slice(), &[child]].concat();
         let mut plans = Vec::new();
         for (k, &child) in paras.iter().enumerate() {
@@ -901,7 +907,7 @@ impl TextBodyMut<'_> {
         // refused by the core, before anything else changed), then rewrite,
         // then remove surplus paragraphs from the end. Inserts go after the
         // range, so the range's child indices stay valid.
-        let mut body = body_lens(self.doc, &self.path)?;
+        let mut body = body_lens(&mut self.doc, &self.path)?;
         with_body!(&mut body, l => {
             for (j, segs) in extra.iter().enumerate() {
                 let mut p = insert_paragraph_at(l, start + len + j)?;
@@ -909,12 +915,12 @@ impl TextBodyMut<'_> {
             }
         });
         for (k, plan) in plans.iter().enumerate() {
-            let body = body_lens(self.doc, &self.path)?;
+            let body = body_lens(&mut self.doc, &self.path)?;
             let mut p = with_body!(body, l => paragraph_at(l, paras[k])?);
             apply_paragraph(&mut p, plan, &lines[k])?;
         }
         if lines.len() < paras.len() {
-            let mut body = body_lens(self.doc, &self.path)?;
+            let mut body = body_lens(&mut self.doc, &self.path)?;
             for &child in paras[lines.len()..].iter().rev() {
                 with_body!(&mut body, l => { l.remove_at(child); });
             }
@@ -956,17 +962,17 @@ impl ParaLoc {
 /// A paragraph opened for editing.
 #[derive(Debug)]
 pub struct ParagraphMut<'b> {
-    doc: &'b mut XmlDocument,
+    doc: EditPart<'b>,
     loc: ParaLoc,
 }
 
 impl ParagraphMut<'_> {
     fn node(&self) -> Result<&RawNode> {
-        self.loc.node(self.doc)
+        self.loc.node(&self.doc)
     }
 
     fn lens(&mut self) -> Result<LensMut<'_, Paragraph>> {
-        self.loc.lens(self.doc)
+        self.loc.lens(&mut self.doc)
     }
 
     /// Read access to the current content.
@@ -984,7 +990,7 @@ impl ParagraphMut<'_> {
         if index >= self.run_count()? {
             return Err(Error::RunNotFound(index));
         }
-        Ok(RunMut { doc: &mut *self.doc, loc: self.loc.clone(), index })
+        Ok(RunMut { doc: self.doc.reborrow(), loc: self.loc.clone(), index })
     }
 
     /// Replaces the paragraph's text: the first run keeps its `a:rPr` and
@@ -1005,8 +1011,8 @@ impl ParagraphMut<'_> {
         let segments = text::paragraph_segments(text)?;
         self.loc.guard.text()?;
         let mut path = self.loc.body.clone();
-        path.push(self.loc.child(self.doc)?);
-        let plan = plan_paragraph(ParaAt::new(self.doc, &path), self.loc.index, &segments)?;
+        path.push(self.loc.child(&self.doc)?);
+        let plan = plan_paragraph(ParaAt::new(&self.doc, &path), self.loc.index, &segments)?;
         let mut p = self.lens()?;
         apply_paragraph(&mut p, &plan, &segments)
     }
@@ -1021,8 +1027,8 @@ impl ParagraphMut<'_> {
         self.loc.guard.text()?;
         para_shape(self.node()?)?;
         let mut path = self.loc.body.clone();
-        path.push(self.loc.child(self.doc)?);
-        check_depth(self.doc, &path, 2)?; // a:r / a:t
+        path.push(self.loc.child(&self.doc)?);
+        check_depth(&self.doc, &path, 2)?; // a:r / a:t
         let mut p = self.lens()?;
         append_run(&mut p, text, None)
     }
@@ -1046,7 +1052,7 @@ impl ParagraphMut<'_> {
             }
         };
         let mut path = self.loc.body.clone();
-        path.push(self.loc.child(self.doc)?);
+        path.push(self.loc.child(&self.doc)?);
         let fmt = match fmt_from {
             None => None,
             Some(r) => {
@@ -1056,8 +1062,8 @@ impl ParagraphMut<'_> {
                 detach::<RunProperties, RunProperties>(self.doc.root(), src, &LINKS, "a:rPr")?
             }
         };
-        check_depth(self.doc, &path, 2)?;
-        check_copies(self.doc, &path, 1, fmt.iter().map(|d| d as &dyn CheckInsert))?;
+        check_depth(&self.doc, &path, 2)?;
+        check_copies(&self.doc, &path, 1, fmt.iter().map(|d| d as &dyn CheckInsert))?;
         let mut p = self.lens()?;
         let mut r = p.insert_by::<Run>(|k, _| k == pos)?;
         if let Some(f) = &fmt {
@@ -1098,7 +1104,7 @@ impl ParagraphMut<'_> {
 /// A run opened for editing.
 #[derive(Debug)]
 pub struct RunMut<'c> {
-    doc: &'c mut XmlDocument,
+    doc: EditPart<'c>,
     loc: ParaLoc,
     index: usize,
 }
@@ -1112,8 +1118,8 @@ impl RunMut<'_> {
     pub fn set_text(&mut self, text: &str) -> Result<()> {
         text::check_run_text(text)?;
         self.loc.guard.text()?;
-        para_shape(self.loc.node(self.doc)?)?;
-        let mut p = self.loc.lens(self.doc)?;
+        para_shape(self.loc.node(&self.doc)?)?;
+        let mut p = self.loc.lens(&mut self.doc)?;
         let mut r = p.nth_child_mut::<Run>(self.index).ok_or(Error::RunNotFound(self.index))?;
         r.get_or_insert::<Text>()?.set_text(text)?;
         Ok(())
