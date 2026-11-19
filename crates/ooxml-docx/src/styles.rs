@@ -33,7 +33,7 @@ pub enum StyleKind {
 }
 
 impl StyleKind {
-    fn of(t: Option<&str>) -> Self {
+    pub(crate) fn of(t: Option<&str>) -> Self {
         match t {
             None | Some("paragraph") => Self::Paragraph,
             Some("character") => Self::Character,
@@ -82,12 +82,12 @@ fn fold(s: &str) -> String {
 
 impl Document {
     /// The parsed styles part's root (`w:styles`), if the package has one.
-    fn styles_root(&self) -> Option<&RawNode> {
+    pub(crate) fn styles_root(&self) -> Option<&RawNode> {
         let root = self.pkg.parsed_part(self.styles_part.as_deref()?)?.root();
         root.is(w("styles")).then_some(root)
     }
 
-    fn style_nodes(&self) -> impl Iterator<Item = &RawNode> {
+    pub(crate) fn style_nodes(&self) -> impl Iterator<Item = &RawNode> {
         self.styles_root().into_iter().flat_map(|r| r.elements().filter(|e| e.is(w("style"))))
     }
 
@@ -319,10 +319,27 @@ pub struct StyleSpec<'a> {
 }
 
 impl Document {
+    pub(crate) fn used_style_ids(&mut self) -> Result<BTreeSet<String>> {
+        use crate::names::descendants;
+
+        let mut used = BTreeSet::new();
+        for part in self.registry_parts(&["styles", "stylesWithEffects", "numbering", "settings"])? {
+            let xml = self.pkg.xml_part(&part)?;
+            for n in descendants(xml.root()).filter(|n| n.name().ns() == NS_W) {
+                let attr = match n.name().local() {
+                    "style" => "styleId",
+                    "pStyle" | "rStyle" | "tblStyle" | "basedOn" | "next" | "link" | "styleLink" | "numStyleLink" | "clickAndTypeStyle" | "defaultTableStyle" => "val",
+                    _ => continue,
+                };
+                used.extend(n.attr(w(attr)).map(fold));
+            }
+        }
+        Ok(used)
+    }
+
     /// Append a custom style and return its id. Requires a styles part.
     pub fn add_style(&mut self, spec: &StyleSpec<'_>) -> Result<String> {
         use crate::format::{apply_ppr, apply_rpr, plan_paragraph, plan_run};
-        use crate::names::descendants;
         use ooxml_core::{NsDecl, RegistryPlan};
         use ooxml_schema::wml::{BasedOn, NextParagraphStyle, PrimaryStyle, Style, StyleName, StyleParagraphProperties, StyleRunProperties, Styles};
 
@@ -359,18 +376,7 @@ impl Document {
         for id in [spec.based_on, spec.next].into_iter().flatten() {
             self.resolve_style(id, spec.kind)?;
         }
-        let mut used = BTreeSet::new();
-        for part in self.registry_parts(&["styles", "stylesWithEffects", "numbering", "settings"])? {
-            let xml = self.pkg.xml_part(&part)?;
-            for n in descendants(xml.root()).filter(|n| n.name().ns() == NS_W) {
-                let attr = match n.name().local() {
-                    "style" => "styleId",
-                    "pStyle" | "rStyle" | "tblStyle" | "basedOn" | "next" | "link" | "styleLink" | "numStyleLink" | "clickAndTypeStyle" | "defaultTableStyle" => "val",
-                    _ => continue,
-                };
-                used.extend(n.attr(w(attr)).map(fold));
-            }
-        }
+        let used = self.used_style_ids()?;
         let id = if let Some(id) = spec.id {
             if used.contains(&fold(id)) {
                 return Err(Error::StyleIdInUse { id: id.into() });

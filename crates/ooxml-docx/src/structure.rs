@@ -86,7 +86,7 @@ pub enum RunPosition {
 }
 
 impl RunPosition {
-    fn para(self) -> ParaRef {
+    pub(crate) fn para(self) -> ParaRef {
         match self {
             Self::EndOf(p) => p,
             Self::After(r) => r.para(),

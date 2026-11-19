@@ -152,8 +152,9 @@ impl Document {
         append_num(&mut numbering, num, abstract_num)?;
 
         let mut plan = RegistryPlan::new(&self.pkg);
-        if let Some(part) = part {
+        let part = if let Some(part) = part {
             plan.stage_part(&self.pkg, &part, xml)?;
+            part
         } else {
             let name = match plan.add_part(
                 &self.pkg,
@@ -173,7 +174,7 @@ impl Document {
                 result => result?,
             };
             let main = self.main_part_name();
-            let id = plan.add_relationship(&self.pkg, Some(main), REL, Target::Part(name))?;
+            let id = plan.add_relationship(&self.pkg, Some(main), REL, Target::Part(name.clone()))?;
             if descendants(self.story_root_node(crate::StoryIndex::MAIN)).any(|node| {
                 node.attrs()
                     .iter()
@@ -181,8 +182,10 @@ impl Document {
             }) {
                 return Err(Error::RelIdReferenced { id });
             }
-        }
+            name
+        };
         self.pkg.apply(plan)?;
+        self.numbering_part = Some(part);
         Ok(num)
     }
 

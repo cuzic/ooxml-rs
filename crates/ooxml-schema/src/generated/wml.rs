@@ -4127,6 +4127,94 @@ impl<'a> DrawingViewMut<'a> {
         self.0.remove::<Inline>()
     }
 }
+/// `w:CT_EdnDocProps/w:endnotePr` — Document-Wide Endnote Properties.
+#[derive(Debug)]
+pub enum EndnoteDocumentWideProperties {}
+impl ooxml_core::ElementSpec for EndnoteDocumentWideProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnotePr");
+    const SDK_NAME: &'static str = "w:CT_EdnDocProps/w:endnotePr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pos")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numFmt")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numStart")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numRestart")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "endnote")],
+                wildcard: None,
+                max_each: Some(3),
+                max_total: Some(3),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<EndnoteDocumentWideProperties> for EndnoteSpecialReference {}
+impl ooxml_core::ChildOf<EndnoteDocumentWideProperties> for NumberingFormat {}
+/// Read-only view of [`EndnoteDocumentWideProperties`].
+#[derive(Clone, Debug)]
+pub struct EndnoteDocumentWidePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, EndnoteDocumentWideProperties>,
+);
+impl<'a> EndnoteDocumentWidePropertiesView<'a> {
+    /// `w:endnote` children in document order.
+    pub fn endnote_special_reference_iter(
+        &self,
+    ) -> impl Iterator<Item = EndnoteSpecialReferenceView<'a>> {
+        self.0.children::<EndnoteSpecialReference>().map(EndnoteSpecialReferenceView)
+    }
+    /// First `w:numFmt` child.
+    pub fn numbering_format(&self) -> Option<NumberingFormatView<'a>> {
+        self.0.child::<NumberingFormat>().map(NumberingFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Empty/w:continuationSeparator` — Continuation Separator Mark.
+#[derive(Debug)]
+pub enum ContinuationSeparatorMark {}
+impl ooxml_core::ElementSpec for ContinuationSeparatorMark {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "continuationSeparator",
+    );
+    const SDK_NAME: &'static str = "w:CT_Empty/w:continuationSeparator";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ContinuationSeparatorMark`].
+#[derive(Clone, Debug)]
+pub struct ContinuationSeparatorMarkView<'a>(
+    pub ooxml_core::Lens<'a, ContinuationSeparatorMark>,
+);
+impl<'a> ContinuationSeparatorMarkView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `w:CT_Empty/w:cr` — Carriage Return.
 #[derive(Debug)]
 pub enum CarriageReturn {}
@@ -4140,6 +4228,44 @@ impl ooxml_core::ElementSpec for CarriageReturn {
 #[derive(Clone, Debug)]
 pub struct CarriageReturnView<'a>(pub ooxml_core::Lens<'a, CarriageReturn>);
 impl<'a> CarriageReturnView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Empty/w:endnoteRef` — Endnote Reference Mark.
+#[derive(Debug)]
+pub enum EndnoteReferenceMark {}
+impl ooxml_core::ElementSpec for EndnoteReferenceMark {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnoteRef");
+    const SDK_NAME: &'static str = "w:CT_Empty/w:endnoteRef";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`EndnoteReferenceMark`].
+#[derive(Clone, Debug)]
+pub struct EndnoteReferenceMarkView<'a>(pub ooxml_core::Lens<'a, EndnoteReferenceMark>);
+impl<'a> EndnoteReferenceMarkView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Empty/w:footnoteRef` — Footnote Reference Mark.
+#[derive(Debug)]
+pub enum FootnoteReferenceMark {}
+impl ooxml_core::ElementSpec for FootnoteReferenceMark {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnoteRef");
+    const SDK_NAME: &'static str = "w:CT_Empty/w:footnoteRef";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FootnoteReferenceMark`].
+#[derive(Clone, Debug)]
+pub struct FootnoteReferenceMarkView<'a>(
+    pub ooxml_core::Lens<'a, FootnoteReferenceMark>,
+);
+impl<'a> FootnoteReferenceMarkView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -4181,6 +4307,24 @@ impl ooxml_core::ElementSpec for NoBreakHyphen {
 #[derive(Clone, Debug)]
 pub struct NoBreakHyphenView<'a>(pub ooxml_core::Lens<'a, NoBreakHyphen>);
 impl<'a> NoBreakHyphenView<'a> {
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_Empty/w:separator` — Footnote/Endnote Separator Mark.
+#[derive(Debug)]
+pub enum SeparatorMark {}
+impl ooxml_core::ElementSpec for SeparatorMark {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "separator");
+    const SDK_NAME: &'static str = "w:CT_Empty/w:separator";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SeparatorMark`].
+#[derive(Clone, Debug)]
+pub struct SeparatorMarkView<'a>(pub ooxml_core::Lens<'a, SeparatorMark>);
+impl<'a> SeparatorMarkView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -4611,6 +4755,71 @@ impl<'a> FootnotesView<'a> {
         self.0.raw()
     }
 }
+/// `w:CT_FtnDocProps/w:footnotePr` — Document-Wide Footnote Properties.
+#[derive(Debug)]
+pub enum FootnoteDocumentWideProperties {}
+impl ooxml_core::ElementSpec for FootnoteDocumentWideProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnotePr");
+    const SDK_NAME: &'static str = "w:CT_FtnDocProps/w:footnotePr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "pos")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numFmt")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numStart")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "numRestart")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "footnote")],
+                wildcard: None,
+                max_each: Some(3),
+                max_total: Some(3),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FootnoteDocumentWideProperties> for FootnoteSpecialReference {}
+impl ooxml_core::ChildOf<FootnoteDocumentWideProperties> for NumberingFormat {}
+/// Read-only view of [`FootnoteDocumentWideProperties`].
+#[derive(Clone, Debug)]
+pub struct FootnoteDocumentWidePropertiesView<'a>(
+    pub ooxml_core::Lens<'a, FootnoteDocumentWideProperties>,
+);
+impl<'a> FootnoteDocumentWidePropertiesView<'a> {
+    /// `w:footnote` children in document order.
+    pub fn footnote_special_reference_iter(
+        &self,
+    ) -> impl Iterator<Item = FootnoteSpecialReferenceView<'a>> {
+        self.0.children::<FootnoteSpecialReference>().map(FootnoteSpecialReferenceView)
+    }
+    /// First `w:numFmt` child.
+    pub fn numbering_format(&self) -> Option<NumberingFormatView<'a>> {
+        self.0.child::<NumberingFormat>().map(NumberingFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `w:CT_FtnEdn/w:endnote` — Endnote Content.
 #[derive(Debug)]
 pub enum Endnote {}
@@ -4865,6 +5074,182 @@ impl<'a> FootnoteView<'a> {
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdnRef/w:endnoteReference` — Endnote Reference.
+#[derive(Debug)]
+pub enum EndnoteReference {}
+impl EndnoteReference {
+    /// `w:customMarkFollows`
+    pub const ATTR_W_CUSTOM_MARK_FOLLOWS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "customMarkFollows",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for EndnoteReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnoteReference");
+    const SDK_NAME: &'static str = "w:CT_FtnEdnRef/w:endnoteReference";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: EndnoteReference::ATTR_W_CUSTOM_MARK_FOLLOWS,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: EndnoteReference::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`EndnoteReference`].
+#[derive(Clone, Debug)]
+pub struct EndnoteReferenceView<'a>(pub ooxml_core::Lens<'a, EndnoteReference>);
+impl<'a> EndnoteReferenceView<'a> {
+    /// `w:customMarkFollows` — Suppress Footnote/Endnote Reference Mark
+    pub fn custom_mark_follows(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                EndnoteReference::ATTR_W_CUSTOM_MARK_FOLLOWS,
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// `w:id` — Footnote/Endnote ID Reference
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(EndnoteReference::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdnRef/w:footnoteReference` — Footnote Reference.
+#[derive(Debug)]
+pub enum FootnoteReference {}
+impl FootnoteReference {
+    /// `w:customMarkFollows`
+    pub const ATTR_W_CUSTOM_MARK_FOLLOWS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "customMarkFollows",
+    );
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for FootnoteReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnoteReference");
+    const SDK_NAME: &'static str = "w:CT_FtnEdnRef/w:footnoteReference";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FootnoteReference::ATTR_W_CUSTOM_MARK_FOLLOWS,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: FootnoteReference::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FootnoteReference`].
+#[derive(Clone, Debug)]
+pub struct FootnoteReferenceView<'a>(pub ooxml_core::Lens<'a, FootnoteReference>);
+impl<'a> FootnoteReferenceView<'a> {
+    /// `w:customMarkFollows` — Suppress Footnote/Endnote Reference Mark
+    pub fn custom_mark_follows(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                FootnoteReference::ATTR_W_CUSTOM_MARK_FOLLOWS,
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// `w:id` — Footnote/Endnote ID Reference
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0.attr_parsed(FootnoteReference::ATTR_W_ID, ooxml_core::value::parse_i64)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdnSepRef/w:endnote` — Special Endnote List.
+#[derive(Debug)]
+pub enum EndnoteSpecialReference {}
+impl EndnoteSpecialReference {
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for EndnoteSpecialReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "endnote");
+    const SDK_NAME: &'static str = "w:CT_FtnEdnSepRef/w:endnote";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: EndnoteSpecialReference::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`EndnoteSpecialReference`].
+#[derive(Clone, Debug)]
+pub struct EndnoteSpecialReferenceView<'a>(
+    pub ooxml_core::Lens<'a, EndnoteSpecialReference>,
+);
+impl<'a> EndnoteSpecialReferenceView<'a> {
+    /// `w:id` — Footnote/Endnote ID
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                EndnoteSpecialReference::ATTR_W_ID,
+                ooxml_core::value::parse_i64,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `w:CT_FtnEdnSepRef/w:footnote` — Special Footnote List.
+#[derive(Debug)]
+pub enum FootnoteSpecialReference {}
+impl FootnoteSpecialReference {
+    /// `w:id`
+    pub const ATTR_W_ID: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+}
+impl ooxml_core::ElementSpec for FootnoteSpecialReference {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "footnote");
+    const SDK_NAME: &'static str = "w:CT_FtnEdnSepRef/w:footnote";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: FootnoteSpecialReference::ATTR_W_ID,
+            ty: ooxml_core::SimpleType::Integer,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`FootnoteSpecialReference`].
+#[derive(Clone, Debug)]
+pub struct FootnoteSpecialReferenceView<'a>(
+    pub ooxml_core::Lens<'a, FootnoteSpecialReference>,
+);
+impl<'a> FootnoteSpecialReferenceView<'a> {
+    /// `w:id` — Footnote/Endnote ID
+    pub fn id(&self) -> Result<Option<i64>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                FootnoteSpecialReference::ATTR_W_ID,
+                ooxml_core::value::parse_i64,
+            )
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -9758,12 +10143,18 @@ impl ooxml_core::ElementSpec for Run {
 }
 impl ooxml_core::ChildOf<Run> for Break {}
 impl ooxml_core::ChildOf<Run> for Drawing {}
+impl ooxml_core::ChildOf<Run> for ContinuationSeparatorMark {}
 impl ooxml_core::ChildOf<Run> for CarriageReturn {}
+impl ooxml_core::ChildOf<Run> for EndnoteReferenceMark {}
+impl ooxml_core::ChildOf<Run> for FootnoteReferenceMark {}
 impl ooxml_core::ChildOf<Run> for LastRenderedPageBreak {}
 impl ooxml_core::ChildOf<Run> for NoBreakHyphen {}
+impl ooxml_core::ChildOf<Run> for SeparatorMark {}
 impl ooxml_core::ChildOf<Run> for SoftHyphen {}
 impl ooxml_core::ChildOf<Run> for TabChar {}
 impl ooxml_core::ChildOf<Run> for FieldChar {}
+impl ooxml_core::ChildOf<Run> for EndnoteReference {}
+impl ooxml_core::ChildOf<Run> for FootnoteReference {}
 impl ooxml_core::ChildOf<Run> for RunProperties {}
 impl ooxml_core::ChildOf<Run> for DeletedFieldCode {}
 impl ooxml_core::ChildOf<Run> for DeletedText {}
@@ -9793,9 +10184,27 @@ impl<'a> RunView<'a> {
     pub fn drawing_iter(&self) -> impl Iterator<Item = DrawingView<'a>> {
         self.0.children::<Drawing>().map(DrawingView)
     }
+    /// `w:continuationSeparator` children in document order.
+    pub fn continuation_separator_mark_iter(
+        &self,
+    ) -> impl Iterator<Item = ContinuationSeparatorMarkView<'a>> {
+        self.0.children::<ContinuationSeparatorMark>().map(ContinuationSeparatorMarkView)
+    }
     /// `w:cr` children in document order.
     pub fn carriage_return_iter(&self) -> impl Iterator<Item = CarriageReturnView<'a>> {
         self.0.children::<CarriageReturn>().map(CarriageReturnView)
+    }
+    /// `w:endnoteRef` children in document order.
+    pub fn endnote_reference_mark_iter(
+        &self,
+    ) -> impl Iterator<Item = EndnoteReferenceMarkView<'a>> {
+        self.0.children::<EndnoteReferenceMark>().map(EndnoteReferenceMarkView)
+    }
+    /// `w:footnoteRef` children in document order.
+    pub fn footnote_reference_mark_iter(
+        &self,
+    ) -> impl Iterator<Item = FootnoteReferenceMarkView<'a>> {
+        self.0.children::<FootnoteReferenceMark>().map(FootnoteReferenceMarkView)
     }
     /// `w:lastRenderedPageBreak` children in document order.
     pub fn last_rendered_page_break_iter(
@@ -9806,6 +10215,10 @@ impl<'a> RunView<'a> {
     /// `w:noBreakHyphen` children in document order.
     pub fn no_break_hyphen_iter(&self) -> impl Iterator<Item = NoBreakHyphenView<'a>> {
         self.0.children::<NoBreakHyphen>().map(NoBreakHyphenView)
+    }
+    /// `w:separator` children in document order.
+    pub fn separator_mark_iter(&self) -> impl Iterator<Item = SeparatorMarkView<'a>> {
+        self.0.children::<SeparatorMark>().map(SeparatorMarkView)
     }
     /// `w:softHyphen` children in document order.
     pub fn soft_hyphen_iter(&self) -> impl Iterator<Item = SoftHyphenView<'a>> {
@@ -9818,6 +10231,18 @@ impl<'a> RunView<'a> {
     /// `w:fldChar` children in document order.
     pub fn field_char_iter(&self) -> impl Iterator<Item = FieldCharView<'a>> {
         self.0.children::<FieldChar>().map(FieldCharView)
+    }
+    /// `w:endnoteReference` children in document order.
+    pub fn endnote_reference_iter(
+        &self,
+    ) -> impl Iterator<Item = EndnoteReferenceView<'a>> {
+        self.0.children::<EndnoteReference>().map(EndnoteReferenceView)
+    }
+    /// `w:footnoteReference` children in document order.
+    pub fn footnote_reference_iter(
+        &self,
+    ) -> impl Iterator<Item = FootnoteReferenceView<'a>> {
+        self.0.children::<FootnoteReference>().map(FootnoteReferenceView)
     }
     /// First `w:rPr` child.
     pub fn run_properties(&self) -> Option<RunPropertiesView<'a>> {
@@ -12996,6 +13421,8 @@ impl ooxml_core::ElementSpec for Settings {
     );
 }
 impl ooxml_core::ChildOf<Settings> for DocumentProtection {}
+impl ooxml_core::ChildOf<Settings> for EndnoteDocumentWideProperties {}
+impl ooxml_core::ChildOf<Settings> for FootnoteDocumentWideProperties {}
 impl ooxml_core::ChildOf<Settings> for TrackRevisions {}
 impl ooxml_core::ChildOf<Settings> for UpdateFieldsOnOpen {}
 /// Read-only view of [`Settings`].
@@ -13005,6 +13432,22 @@ impl<'a> SettingsView<'a> {
     /// First `w:documentProtection` child.
     pub fn document_protection(&self) -> Option<DocumentProtectionView<'a>> {
         self.0.child::<DocumentProtection>().map(DocumentProtectionView)
+    }
+    /// First `w:endnotePr` child.
+    pub fn endnote_document_wide_properties(
+        &self,
+    ) -> Option<EndnoteDocumentWidePropertiesView<'a>> {
+        self.0
+            .child::<EndnoteDocumentWideProperties>()
+            .map(EndnoteDocumentWidePropertiesView)
+    }
+    /// First `w:footnotePr` child.
+    pub fn footnote_document_wide_properties(
+        &self,
+    ) -> Option<FootnoteDocumentWidePropertiesView<'a>> {
+        self.0
+            .child::<FootnoteDocumentWideProperties>()
+            .map(FootnoteDocumentWidePropertiesView)
     }
     /// First `w:trackRevisions` child.
     pub fn track_revisions(&self) -> Option<TrackRevisionsView<'a>> {
@@ -16252,9 +16695,22 @@ const _: () = ooxml_core::schema::assert_spec::<Document>();
 const _: () = ooxml_core::schema::assert_child::<Document, Body>();
 const _: () = ooxml_core::schema::assert_spec::<Drawing>();
 const _: () = ooxml_core::schema::assert_child::<Drawing, Inline>();
+const _: () = ooxml_core::schema::assert_spec::<EndnoteDocumentWideProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndnoteDocumentWideProperties,
+    EndnoteSpecialReference,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    EndnoteDocumentWideProperties,
+    NumberingFormat,
+>();
+const _: () = ooxml_core::schema::assert_spec::<ContinuationSeparatorMark>();
 const _: () = ooxml_core::schema::assert_spec::<CarriageReturn>();
+const _: () = ooxml_core::schema::assert_spec::<EndnoteReferenceMark>();
+const _: () = ooxml_core::schema::assert_spec::<FootnoteReferenceMark>();
 const _: () = ooxml_core::schema::assert_spec::<LastRenderedPageBreak>();
 const _: () = ooxml_core::schema::assert_spec::<NoBreakHyphen>();
+const _: () = ooxml_core::schema::assert_spec::<SeparatorMark>();
 const _: () = ooxml_core::schema::assert_spec::<SoftHyphen>();
 const _: () = ooxml_core::schema::assert_spec::<TabChar>();
 const _: () = ooxml_core::schema::assert_spec::<Endnotes>();
@@ -16263,6 +16719,15 @@ const _: () = ooxml_core::schema::assert_spec::<FieldChar>();
 const _: () = ooxml_core::schema::assert_spec::<RunFonts>();
 const _: () = ooxml_core::schema::assert_spec::<Footnotes>();
 const _: () = ooxml_core::schema::assert_child::<Footnotes, Footnote>();
+const _: () = ooxml_core::schema::assert_spec::<FootnoteDocumentWideProperties>();
+const _: () = ooxml_core::schema::assert_child::<
+    FootnoteDocumentWideProperties,
+    FootnoteSpecialReference,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    FootnoteDocumentWideProperties,
+    NumberingFormat,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Endnote>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, BookmarkEnd>();
@@ -16281,6 +16746,10 @@ const _: () = ooxml_core::schema::assert_child::<Footnote, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, Table>();
+const _: () = ooxml_core::schema::assert_spec::<EndnoteReference>();
+const _: () = ooxml_core::schema::assert_spec::<FootnoteReference>();
+const _: () = ooxml_core::schema::assert_spec::<EndnoteSpecialReference>();
+const _: () = ooxml_core::schema::assert_spec::<FootnoteSpecialReference>();
 const _: () = ooxml_core::schema::assert_spec::<Footer>();
 const _: () = ooxml_core::schema::assert_child::<Footer, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<Footer, BookmarkEnd>();
@@ -16445,12 +16914,18 @@ const _: () = ooxml_core::schema::assert_spec::<PageNumberType>();
 const _: () = ooxml_core::schema::assert_spec::<Run>();
 const _: () = ooxml_core::schema::assert_child::<Run, Break>();
 const _: () = ooxml_core::schema::assert_child::<Run, Drawing>();
+const _: () = ooxml_core::schema::assert_child::<Run, ContinuationSeparatorMark>();
 const _: () = ooxml_core::schema::assert_child::<Run, CarriageReturn>();
+const _: () = ooxml_core::schema::assert_child::<Run, EndnoteReferenceMark>();
+const _: () = ooxml_core::schema::assert_child::<Run, FootnoteReferenceMark>();
 const _: () = ooxml_core::schema::assert_child::<Run, LastRenderedPageBreak>();
 const _: () = ooxml_core::schema::assert_child::<Run, NoBreakHyphen>();
+const _: () = ooxml_core::schema::assert_child::<Run, SeparatorMark>();
 const _: () = ooxml_core::schema::assert_child::<Run, SoftHyphen>();
 const _: () = ooxml_core::schema::assert_child::<Run, TabChar>();
 const _: () = ooxml_core::schema::assert_child::<Run, FieldChar>();
+const _: () = ooxml_core::schema::assert_child::<Run, EndnoteReference>();
+const _: () = ooxml_core::schema::assert_child::<Run, FootnoteReference>();
 const _: () = ooxml_core::schema::assert_child::<Run, RunProperties>();
 const _: () = ooxml_core::schema::assert_child::<Run, DeletedFieldCode>();
 const _: () = ooxml_core::schema::assert_child::<Run, DeletedText>();
@@ -16545,6 +17020,14 @@ const _: () = ooxml_core::schema::assert_child::<SectionProperties, SectionType>
 const _: () = ooxml_core::schema::assert_spec::<SectionType>();
 const _: () = ooxml_core::schema::assert_spec::<Settings>();
 const _: () = ooxml_core::schema::assert_child::<Settings, DocumentProtection>();
+const _: () = ooxml_core::schema::assert_child::<
+    Settings,
+    EndnoteDocumentWideProperties,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    Settings,
+    FootnoteDocumentWideProperties,
+>();
 const _: () = ooxml_core::schema::assert_child::<Settings, TrackRevisions>();
 const _: () = ooxml_core::schema::assert_child::<Settings, UpdateFieldsOnOpen>();
 const _: () = ooxml_core::schema::assert_spec::<SimpleField>();
