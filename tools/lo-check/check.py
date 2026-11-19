@@ -35,10 +35,11 @@ CHECKS = {
     "c": "Forced recalculation",
     "d": "Independent read-back",
 }
-# Export every Calc sheet (option 12 = -1), with raw values (option 9 = false).
 # The default Writer PDF export crashes on the SDK footnote/endnote fixture
 # in LibreOffice 25.2.7.2. This check only needs a plain PDF.
 WRITER_PDF = 'pdf:writer_pdf_Export:{"UseTaggedPDF":{"type":"boolean","value":"false"}}'
+# Export every Calc sheet (option 12 = -1). Calc still formats dates and
+# percentages with option 9 (save as shown) turned off.
 CSV_FILTER = "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,false,false,false,false,-1"
 PROFILE = """<?xml version="1.0" encoding="UTF-8"?>
 <oor:items xmlns:oor="http://openoffice.org/2001/registry">

@@ -23,7 +23,8 @@ packages containing DTDs in OOXML XML parts before importing them.
 `tools/lo-check/expected.json` is copied into the generated bundle. Add or
 update entries when changing manual-check cases. Use the edit and the example's
 checklist to choose representative cells and text. JSON numbers represent
-numeric cells and strings represent literal text. Each spreadsheet entry lists
+numeric cells. Strings can represent literal text or Calc’s CSV output for
+formatted dates and percentages. Each spreadsheet entry lists
 all sheets in workbook order. For uncached formula cells, add an entry keyed
 by `Sheet!A1` with the OOXML result type and value, for example `["n", "10"]`.
 Some exploratory fixtures deliberately exercise application-dependent formula
