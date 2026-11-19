@@ -88,3 +88,22 @@ jobs:
         run: cargo run --release -p ooxml-docx --example docx_manual_check -- "$RUNNER_TEMP/docx-oracle"
       - name: python-docx registry oracle (ADR-0011 §12)
         run: python -I crates/ooxml-docx/tests/oracle/phase2_registries.py "$RUNNER_TEMP/docx-oracle"
+
+  xlsx-readback:
+    name: xlsx table read-back (openpyxl 3.1.5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: install openpyxl
+        run: python -m pip install openpyxl==3.1.5
+      - name: write manual-check cases
+        run: cargo run --release -p ooxml-xlsx --example xlsx_manual_check -- "$RUNNER_TEMP/xlsx-oracle"
+      - name: openpyxl table read-back (ADR-0017 P5b)
+        run: python -I crates/ooxml-xlsx/tests/oracle/tables.py "$RUNNER_TEMP/xlsx-oracle"
