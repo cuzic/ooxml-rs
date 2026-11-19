@@ -173,6 +173,45 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
         done: "Added a footnote and an endnote to the first paragraph".into(),
         check: "Follow both reference marks. The footnote reads D3a inserted footnote. The endnote reads D3a inserted endnote.",
     });
+    let file = "31-comment-thread.docx";
+    let mut doc = synthetic("<w:p><w:r><w:t>Review this phrase today.</w:t></w:r></w:p>")?;
+    let run = doc.paragraph(0).and_then(|p| p.run(0)).ok_or("missing comment anchor")?.run_ref();
+    let comment = |author: &str, text: &str| ooxml_docx::NewComment {
+        author: author.into(),
+        initials: None,
+        date: None,
+        paragraphs: vec![text.into()],
+    };
+    let id = doc.add_comment(
+        ooxml_docx::TextRange::with_offsets(run, 7, run, 18),
+        comment("Ada Lovelace", "D3b review comment."),
+    )?;
+    doc.reply(id, comment("Grace Hopper", "D3b review reply."))?;
+    doc.set_resolved(id, true)?;
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file,
+        fixture: "",
+        done: "Commented on ‘this phrase’, added a reply, and resolved the thread".into(),
+        check: "In the Comments pane, show resolved comments. Ada Lovelace’s comment and Grace Hopper’s reply belong to the same resolved thread on ‘this phrase’.",
+    });
+    let file = "32-comment-local-ignorable.docx";
+    let mut doc = synthetic_with_part(
+        "<w:p><w:commentRangeStart w:id='1'/><w:r><w:t>Existing anchor.</w:t></w:r><w:commentRangeEnd w:id='1'/><w:r><w:commentReference w:id='1'/></w:r></w:p><w:p><w:r><w:t>New anchor.</w:t></w:r></w:p>",
+        Some(("comments", "<w:comment w:id='1' w:author='Existing'><w:p><w:r><w:t>Existing comment.</w:t></w:r></w:p></w:comment>")),
+    )?;
+    let run = doc.paragraph(1).and_then(|p| p.run(0)).ok_or("missing comment anchor")?.run_ref();
+    doc.add_comment(
+        ooxml_docx::TextRange::new(run, run),
+        comment("Ada Lovelace", "D3b paragraph-local ignorable comment."),
+    )?;
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file,
+        fixture: "",
+        done: "Added a comment to a package whose comments root has no ignorable w14 binding".into(),
+        check: "Open the document and verify that both comments are visible on their respective anchors.",
+    });
     Ok(cases)
 }
 
@@ -518,11 +557,15 @@ fn save(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error
 
 /// A minimal package with `body` as the body's inner XML.
 fn synthetic(body: &str) -> Result<Document, Box<dyn std::error::Error>> {
-    synthetic_with_styles(body, None)
+    synthetic_with_part(body, None)
 }
 
 /// [`synthetic`] with `word/styles.xml` holding `styles` (inner XML of `w:styles`).
 fn synthetic_with_styles(body: &str, styles: Option<&str>) -> Result<Document, Box<dyn std::error::Error>> {
+    synthetic_with_part(body, styles.map(|xml| ("styles", xml)))
+}
+
+fn synthetic_with_part(body: &str, related: Option<(&str, &str)>) -> Result<Document, Box<dyn std::error::Error>> {
     const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     let mut parts = vec![
         (
@@ -542,16 +585,18 @@ fn synthetic_with_styles(body: &str, styles: Option<&str>) -> Result<Document, B
             },
         ),
     ];
-    if let Some(st) = styles {
+    let related_name;
+    if let Some((name, inner)) = related {
+        related_name = format!("word/{name}.xml");
         parts[0].1 = parts[0].1.replace(
             "</Types>",
-            r#"<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>"#,
+            &format!(r#"<Override PartName="/{related_name}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.{name}+xml"/></Types>"#),
         );
         parts.push((
             "word/_rels/document.xml.rels",
-            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#.to_owned(),
+            format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/{name}" Target="{name}.xml"/></Relationships>"#),
         ));
-        parts.push(("word/styles.xml", format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="{W}">{st}</w:styles>"#)));
+        parts.push((&related_name, format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:{name} xmlns:w="{W}">{inner}</w:{name}>"#)));
     }
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for (name, content) in parts {

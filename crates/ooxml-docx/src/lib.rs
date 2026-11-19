@@ -67,6 +67,7 @@
 
 mod body;
 mod bookmarks;
+mod comments;
 mod document;
 mod effective;
 mod error;
@@ -84,6 +85,8 @@ mod tables;
 mod text;
 
 pub use bookmarks::{BookmarkId, BookmarkRange};
+pub use comments::{CommentAnchor, CommentId, CommentRef, LocalDateTime, NewComment, TextRange};
+pub use chrono::NaiveDateTime;
 pub use document::{Document, Paragraph, Run};
 pub use effective::{EffectiveParagraph, EffectiveProperties, EffectiveRun, EffectiveValue, Provenance};
 pub use error::{Error, Result};

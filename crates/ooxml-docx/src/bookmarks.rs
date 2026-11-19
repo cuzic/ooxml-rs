@@ -2,7 +2,7 @@
 
 use std::fmt::NumBuffer;
 
-use ooxml_core::{ElementSpec, NsDecl, RawNode, RegistryPlan, XmlDocument};
+use ooxml_core::{ChildOf, ElementSpec, NsDecl, RawNode, RegistryPlan, XmlDocument};
 use ooxml_schema::wml::{
     Break, CarriageReturn, FieldChar, LastRenderedPageBreak, NoBreakHyphen, SimpleField, SoftHyphen, TabChar, Text,
     Body, BookmarkEnd, BookmarkStart, Comment, Endnote, Footer, Footnote, Header, Hyperlink, NS_W, Paragraph, ParagraphProperties, Run,
@@ -35,7 +35,7 @@ pub enum BookmarkRange<'a> {
 }
 
 #[derive(Clone, Copy)]
-enum Boundary {
+pub(crate) enum Boundary {
     Between(usize),
     Inside { child: usize, byte: usize },
 }
@@ -147,14 +147,14 @@ impl Document {
         }
         let mut end_path = last_parent;
         end_path.push(last_item);
-        let index = split_boundary(&mut xml, &end_path, end)?;
+        let index = split_boundary::<Paragraph>(&mut xml, &end_path, end)?;
         let mut p = xml.lens_mut_at::<Paragraph>(&end_path)?;
         p.insert_at_with_ns::<BookmarkEnd>(index, W)?
             .set_attr(W_ID, id.format_into(&mut NumBuffer::new()))?;
 
         let mut start_path = first_parent;
         start_path.push(first_item);
-        let index = split_boundary(&mut xml, &start_path, start)?;
+        let index = split_boundary::<Paragraph>(&mut xml, &start_path, start)?;
         let mut p = xml.lens_mut_at::<Paragraph>(&start_path)?;
         let mut marker = p.insert_at_with_ns::<BookmarkStart>(index, W)?;
         marker.set_attr(W_ID, id.format_into(&mut NumBuffer::new()))?;
@@ -245,31 +245,8 @@ impl Document {
             let root = self.pkg.xml_part(&part)?.root();
             used.field |= in_story && FieldScan::bookmark_targets(root).contains(&name);
             for node in descendants(root).filter(|n| n.name().ns() == NS_W) {
-                let local = node.name().local();
-                if (ANCHORS.contains(&local)
-                    || matches!(
-                        local,
-                        "commentReference"
-                            | "comment"
-                            | "ins"
-                            | "del"
-                            | "moveFrom"
-                            | "moveTo"
-                            | "rPrChange"
-                            | "pPrChange"
-                            | "sectPrChange"
-                            | "tblPrChange"
-                            | "trPrChange"
-                            | "tcPrChange"
-                            | "tblGridChange"
-                            | "numberingChange"
-                            | "cellIns"
-                            | "cellDel"
-                            | "cellMerge"
-                    ))
-                    && let Some(id) = node.attr(W_ID).and_then(|s| s.trim().parse::<u64>().ok())
-                {
-                    used.max = used.max.max(BookmarkId::try_from(id).unwrap_or(BookmarkId::MAX));
+                if let Some(id) = annotation_id(node) {
+                    used.max = used.max.max(id);
                 }
                 if in_story && node.is(BOOKMARK_START) && node.attr(NAME).is_some_and(|n| bookmark_key(n) == name) {
                     used.starts += 1;
@@ -342,7 +319,28 @@ impl Document {
     }
 }
 
-fn split_boundary(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> Result<usize> {
+pub(crate) fn annotation_id(node: &RawNode) -> Option<u32> {
+    if node.name().ns() != NS_W {
+        return None;
+    }
+    let local = node.name().local();
+    if ANCHORS.contains(&local)
+        || matches!(local, "commentReference" | "comment" | "ins" | "del" | "moveFrom"
+            | "moveTo" | "rPrChange" | "pPrChange" | "sectPrChange" | "tblPrChange"
+            | "trPrChange" | "tcPrChange" | "tblGridChange" | "tblPrExChange"
+            | "numberingChange" | "cellIns" | "cellDel" | "cellMerge")
+    {
+        node.attr(W_ID)
+            .and_then(|id| id.trim().parse::<u64>().ok())
+            .map(|id| u32::try_from(id).unwrap_or(u32::MAX))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn split_boundary<P: ElementSpec>(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> Result<usize>
+where Run: ChildOf<P>,
+{
     let (child, byte) = match boundary {
         Boundary::Between(index) => return Ok(index),
         Boundary::Inside { child, byte } => (child, byte),
@@ -379,7 +377,7 @@ fn split_boundary(xml: &mut XmlDocument, path: &[usize], boundary: Boundary) -> 
         offset = past;
     }
 
-    let mut p = xml.lens_mut_at::<Paragraph>(path)?;
+    let mut p = xml.lens_mut_at::<P>(path)?;
     let mut suffix = p.insert_at_with_ns::<Run>(child + 1, W)?;
     if let Some(value) = xml_space {
         suffix.set_attr(ooxml_core::name::XML_SPACE, &value)?;

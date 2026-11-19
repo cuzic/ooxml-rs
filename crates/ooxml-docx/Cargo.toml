@@ -11,6 +11,8 @@ readme = "README.md"
 include = ["src/**/*.rs", "Cargo.toml", "README.md"]
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+getrandom = { workspace = true }
 ooxml-core = { workspace = true }
 ooxml-schema = { workspace = true, features = ["wml", "dml"] }
 thiserror = { workspace = true }

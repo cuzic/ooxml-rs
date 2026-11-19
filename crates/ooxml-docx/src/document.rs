@@ -106,6 +106,7 @@ pub struct Document {
     pub(crate) fields_opt_in: bool,
     pub(crate) update_fields: Option<bool>,
     write_protection: Option<WriteProtection>,
+    comment_protection: Option<String>,
     marked_final: bool,
 }
 
@@ -208,6 +209,16 @@ impl Document {
         for name in theme_part.iter().chain(&numbering_part) {
             let _ = pkg.xml_part(name);
         }
+        // Extension metadata is read by Document::comments without a mutable
+        // borrow. A malformed extension remains available for lossless saving.
+        let main_rels = pkg.relationships(&main)?;
+        let comment_extensions: Vec<_> = main_rels.by_type(crate::comments::EX_REL)
+            .filter_map(|rel| main_rels.resolve(rel))
+            .filter(|part| pkg.contains(part))
+            .collect();
+        for part in comment_extensions {
+            let _ = pkg.xml_part(&part);
+        }
         let custom = CustomProperties::read(&pkg)?;
 
         let mut gates = Vec::new();
@@ -215,6 +226,7 @@ impl Document {
         let mut write_protection = None;
         let mut track_revisions = false;
         let mut protected_edit = None;
+        let mut comment_protection = None;
         let mut even_and_odd = false;
         for name in settings {
             let view = SettingsView(pkg.xml_part(&name)?.lens::<Settings>()?);
@@ -222,13 +234,20 @@ impl Document {
             // a later "on" must not hide behind an earlier "off"), and an
             // invalid ST_OnOff value fails closed: the gate is on.
             track_revisions |= view.0.children::<TrackRevisions>().map(TrackRevisionsView).any(|t| t.val().unwrap_or(true));
-            let restricted_edit = view.0.children::<DocumentProtection>().map(DocumentProtectionView).find_map(|p| {
+            let restrictions = view.0.children::<DocumentProtection>().map(DocumentProtectionView).filter_map(|p| {
                 let enforced = p.enforcement().unwrap_or(Some(true)).unwrap_or(false);
                 let edit = p.edit();
                 let restricted = edit.as_ref().is_some_and(|e| e.known() != Some(DocumentProtectionValues::None));
                 (enforced && restricted).then(|| edit.map(|e| e.as_str().to_owned()).unwrap_or_default())
             });
-            protected_edit = protected_edit.or(restricted_edit);
+            for edit in restrictions {
+                if edit != "comments" && comment_protection.is_none() {
+                    comment_protection = Some(edit.clone());
+                }
+                if protected_edit.is_none() {
+                    protected_edit = Some(edit);
+                }
+            }
             if let Some(u) = view.update_fields_on_open().map(|u| u.val().unwrap_or(true)) {
                 update_fields = Some(update_fields.unwrap_or(false) || u);
             }
@@ -273,6 +292,7 @@ impl Document {
             gates,
             update_fields,
             write_protection,
+            comment_protection,
             marked_final: custom.marked_final,
             settings_parts,
             styles_part,
@@ -336,6 +356,13 @@ impl Document {
             .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
             .find_map(|g| g.error_for(op))
             .map_or(Ok(()), Err)
+    }
+
+    pub(crate) fn comment_write_gate(&self) -> Result<()> {
+        if let Some(edit) = &self.comment_protection {
+            return Err(Error::DocumentProtected { edit: edit.clone() });
+        }
+        Ok(())
     }
 
     /// W1 and W3 only (the `updateFields` opt-in is a write, not gated by

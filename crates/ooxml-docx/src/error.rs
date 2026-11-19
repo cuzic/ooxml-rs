@@ -25,6 +25,30 @@ pub enum Error {
     /// A bookmark cannot be matched to exactly one start and end marker.
     #[error("invalid or ambiguous bookmark {name:?}")]
     InvalidBookmark { name: String },
+    /// Malformed or ambiguous comment data.
+    #[error("invalid comment part or anchor")]
+    InvalidCommentPart,
+    /// A range must cover runs in document order within one story.
+    #[error("invalid comment text range")]
+    InvalidTextRange,
+    /// The requested comment does not exist.
+    #[error("no comment with id {0}")]
+    NoSuchComment(i32),
+    /// The related commentsExtended part uses the pre-release namespace.
+    #[error("legacy commentsExtended part")]
+    LegacyCommentsExtended,
+    /// Phase3 cannot create a reply to a reply.
+    #[error("cannot reply to a reply")]
+    NestedReply,
+    /// A comment's last paragraph cannot acquire a usable paragraph id.
+    #[error("parent comment is not addressable")]
+    ParentNotAddressable,
+    /// The required extension namespace is not ignorable at the edit site.
+    #[error("namespace {0} is not ignorable")]
+    NotIgnorable(&'static str),
+    /// The system could not generate a paragraph or durable id.
+    #[error("could not generate a comment identifier")]
+    CommentIdRandomness,
     /// The annotation registry has reached Word's integer limit.
     #[error("annotation ids exhausted")]
     AnnotationIdsExhausted,

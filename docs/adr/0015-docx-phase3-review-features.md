@@ -333,6 +333,9 @@ pub struct LocalDateTime { pub wall_clock: NaiveDateTime, pub utc_offset_minutes
 
 #### 3.3 Replies, resolve and delete
 
+Adding a comment or replying is refused if a new range boundary or an existing thread anchor,
+respectively, is inside `mc:AlternateContent`.
+
 - **`reply(parent, …)`** writes a new `w:comment` and its `commentEx` with `w15:paraIdParent` =
   the parent's last-paragraph `paraId`.
   - **Anchors** follow the corpus shape (m1):
@@ -1057,3 +1060,42 @@ definitions under the portable built-in names (§3.5), with superscript for
 new reference styles. The new note-related elements stay in the `[read]`
 allowlist because it already generates the `ChildOf` edges used for typed
 insertion and dedicated mutable views are unnecessary.
+
+## Post-acceptance note (D3b, Issue #94)
+
+The SDK input under `reference/openxml-sdk-data/schemas` includes the 2010
+`wordml`, 2012 `wordml`, 2016 `wordml_cid`, and 2018 `wordml_cex` schemas.
+D3b uses the existing WML allowlist group and requires no schema overrides.
+
+`Document::add_comment` takes an inclusive run range via `TextRange::new`.
+`TextRange::with_offsets` takes UTF-8 byte offsets in the boundary runs,
+with an exclusive end. The shared Phase2 splitter preserves run properties.
+The range may cross paragraphs in the main body, including table cells.
+Other stories and text boxes are refused pending manual verification of Word support.
+Comments can be read with
+`Document::comments`, which returns text, author, initials, date, parent,
+resolution and the anchor elements. The reader accepts 2012 and pre-release
+commentsExtended metadata.
+
+Comment edits stage the story, definitions, styles and companions through a
+single registry plan. Existing non-ignorable extension sites are refused.
+A new paragraph can declare its own compatibility namespaces if the
+comments root has no usable binding. Original parent paragraphs must have
+an ignorable binding before a paragraph id can be added. New comment
+paragraphs pair a fresh `paraId` with `textId="77777777"`. Missing styles
+use the built-in names and sizes 20 (annotation text) and 16 (annotation
+reference), in half-points for both script settings.
+
+Comments and replies leave the field text unchanged. They are allowed while
+tracking is enabled and with `none` or `comments` document protection.
+`trackedChanges` protection is refused pending the Word manual check.
+For deletion, a durable id is followed through commentsIds when a mapping
+exists. Entries in commentsExtensible with no corresponding mapping are
+preserved because the package does not identify their owning comment.
+
+Resolution accepts any comment id in a thread and follows the parent chain
+to the root before setting the thread's state. A missing or cyclic parent
+chain is refused. New commentsExtensible entries require a commentsIds
+mapping staged in the same edit. Comment dates require local and UTC years
+in 0000–9999. Replies to block-level range starts return
+`UnsupportedContext`.
