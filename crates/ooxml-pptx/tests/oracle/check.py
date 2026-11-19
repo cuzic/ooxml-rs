@@ -432,6 +432,36 @@ def first_diff(a, b, path='$'):
     return None if a == b else f'{path}: {a!r} != {b!r}'
 
 
+def check_text_formatting(outdir):
+    from pptx import Presentation
+    from pptx.dml.color import RGBColor
+    from pptx.enum.dml import MSO_THEME_COLOR
+    from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+    from pptx.util import Pt
+
+    prs = Presentation(os.path.join(outdir, 'text-formatting.pptx'))
+    body = next(shape.text_frame for shape in prs.slides[0].shapes if shape.has_text_frame)
+    para = body.paragraphs[0]
+    first, second = para.runs
+    assert body.auto_size == MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    assert para.text == 'Lorem ipsum dolor sit amet'
+    assert first.text == 'Lorem'
+    assert para.alignment == PP_ALIGN.CENTER
+    assert para.level == 1
+    assert para.line_spacing == 1.2
+    assert para.space_before == Pt(6)
+    assert para.space_after == Pt(3)
+    assert first.font.name == 'Arial'
+    assert first.font.size == Pt(28)
+    assert first.font.bold is True
+    assert first.font.italic is True
+    assert first.font.underline is True
+    assert first.font.color.rgb == RGBColor(0x12, 0x34, 0x56)
+    assert second.font.color.theme_color == MSO_THEME_COLOR.ACCENT_1
+    assert second.font.color.brightness == 0.2
+    print('P3a python-pptx: direct text formatting read back')
+
+
 def main():
     args = sys.argv[1:]
     site = None
@@ -461,6 +491,7 @@ def main():
                 print(f'FAIL {c["name"]}: {label}: {d}')
     replaces = sum(len(r['replaced']) for c in cases for r in c.get('replace', []))
     print(f'T3 python-pptx: {len(cases)} cases, {edits} edits, {replaces} replaced matches, {failures} failures')
+    check_text_formatting(outdir)
     sys.exit(1 if failures else 0)
 
 

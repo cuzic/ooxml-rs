@@ -17,7 +17,7 @@
 use ooxml_core::{PartContent, QName, RawNode, RegistryPlan, XmlDocument};
 use ooxml_schema::dml;
 
-use super::{Guard, TextBodyMut, node_at};
+use super::{EditPart, Guard, TextBodyMut, node_at};
 use crate::error::{Error, Result};
 use crate::names::{R_NS, REL_DIAGRAM_DATA, REL_DIAGRAM_DRAWING};
 use crate::read::{self, ShapeKind};
@@ -396,7 +396,7 @@ impl SmartArtMut<'_> {
             None => create_body(&mut data, pl, n.pt)?,
         };
         {
-            let mut tb = TextBodyMut { doc: &mut data, path: vec![pl, n.pt, body], guard: self.guard.clone() };
+            let mut tb = TextBodyMut { doc: EditPart::Staged(&mut data), path: vec![pl, n.pt, body], guard: self.guard.clone() };
             f(&mut tb, None)?;
         }
         if nonempty {
@@ -404,7 +404,7 @@ impl SmartArtMut<'_> {
         }
         if let Some(c) = cache.as_mut() {
             for s in &slices {
-                let mut tb = TextBodyMut { doc: c, path: s.body.clone(), guard: self.guard.clone() };
+                let mut tb = TextBodyMut { doc: EditPart::Staged(c), path: s.body.clone(), guard: self.guard.clone() };
                 f(&mut tb, Some((s.start, s.len)))?;
             }
         }

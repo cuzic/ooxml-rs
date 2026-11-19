@@ -18,7 +18,7 @@ use ooxml_schema::pml;
 use crate::deck::{child, p, rel, un};
 use crate::error::{Error, Result};
 use crate::read::{self, ShapeKind, ShapePath, ShapeRef, SlideInfo, TextBodyRef};
-use crate::write::{Guard, TextBodyMut};
+use crate::write::{EditPart, Guard, TextBodyMut};
 
 /// The notes slide part of `slide_part` (the first `notesSlide`
 /// relationship whose target exists).
@@ -133,7 +133,7 @@ impl<'a> NotesRef<'a> {
 /// a setter changes something; only the notes part is ever changed.
 #[derive(Debug)]
 pub struct NotesMut<'a> {
-    pub(crate) doc: &'a mut XmlDocument,
+    pub(crate) doc: EditPart<'a>,
     pub(crate) slide: SlideInfo,
     pub(crate) part: String,
 }
@@ -149,17 +149,17 @@ impl NotesMut<'_> {
     }
     /// Read access to the same notes slide.
     pub fn as_ref(&self) -> NotesRef<'_> {
-        NotesRef { doc: self.doc, slide: self.slide.clone(), part: self.part.clone() }
+        NotesRef { doc: &self.doc, slide: self.slide.clone(), part: self.part.clone() }
     }
     /// The notes body for editing, with every Phase 0 rule of
     /// [`TextBodyMut`].
     ///
     /// Errors: [`Error::NoNotesBody`], [`Error::InsideAlternateContent`].
     pub fn body_mut(&mut self) -> Result<TextBodyMut<'_>> {
-        let loc = body_loc(self.doc)?;
+        let loc = body_loc(&self.doc)?;
         if loc.in_ac {
             return Err(Error::InsideAlternateContent);
         }
-        Ok(TextBodyMut::new(&mut *self.doc, loc.body, Guard::unlocked(loc.shape_id)))
+        Ok(TextBodyMut::new(self.doc.reborrow(), loc.body, Guard::unlocked(loc.shape_id)))
     }
 }
