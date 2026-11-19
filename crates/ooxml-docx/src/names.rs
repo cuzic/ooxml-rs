@@ -9,7 +9,7 @@ pub(crate) fn is<E: ElementSpec>(node: &RawNode) -> bool {
     node.is(E::QNAME)
 }
 
-const fn w(local: &'static str) -> QName {
+pub(crate) const fn w(local: &'static str) -> QName {
     QName::new(NS_W, local)
 }
 
@@ -99,4 +99,19 @@ pub(crate) fn display_name(node: &RawNode) -> String {
         Some(p) => format!("{p}:{}", node.name().local()),
         None => node.name().local().into(),
     }
+}
+
+/// Walk all elements, including markup-compatibility branches.
+pub(crate) fn descendants(root: &RawNode) -> impl Iterator<Item = &RawNode> {
+    let mut stack = vec![root];
+    std::iter::from_fn(move || {
+        let node = stack.pop()?;
+        stack.extend(node.elements());
+        Some(node)
+    })
+}
+
+/// Case folding used for Word bookmark names.
+pub(crate) fn bookmark_key(name: &str) -> String {
+    name.chars().flat_map(char::to_lowercase).collect()
 }

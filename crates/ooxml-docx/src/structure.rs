@@ -223,6 +223,10 @@ impl Document {
     /// property revision), for a neighbour or a paragraph being split.
     pub(crate) fn check_structure_neighbour(&self, at: ParaRef) -> Result<()> {
         let p = self.paragraph_at(at).ok_or(Error::NoSuchParagraph(at.index))?;
+        self.check_paragraph_mark(at, &p, true)
+    }
+
+    pub(crate) fn check_paragraph_mark(&self, at: ParaRef, p: &crate::Paragraph<'_>, structural: bool) -> Result<()> {
         if p.in_separator_note() {
             let ancestor = if self.stories[at.story.0].id.kind == StoryKind::Endnotes {
                 "w:endnote (separator)"
@@ -232,11 +236,11 @@ impl Document {
             return Err(Error::UnsupportedContext { ancestor });
         }
         let info = &self.stories[at.story.0].index.paragraphs[at.index];
-        if info.starts_in_field || p.runs().any(|r| r.in_field()) {
+        if structural && (info.starts_in_field || p.runs().any(|r| r.in_field())) {
             return Err(Error::InsideField);
         }
         if let Some(ppr) = p.raw().elements().find(|e| is::<ParagraphProperties>(e)) {
-            if ppr.elements().any(|e| e.is(w("pPrChange"))) {
+            if structural && ppr.elements().any(|e| e.is(w("pPrChange"))) {
                 return Err(Error::TrackedPropertyChange { element: "w:pPrChange" });
             }
             if let Some(mark) = ppr.elements().find(|e| e.is(w("rPr"))) {

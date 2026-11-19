@@ -456,7 +456,7 @@ fn lexical<T: Copy>(p: &Prop<T>, s: impl Fn(T) -> &'static str) -> Prop<String> 
 }
 
 /// Plans a [`RunFormat`] against a run's `w:rPr` (or none).
-fn plan_run(rpr: Option<&RawNode>, f: &RunFormat) -> Result<ContainerPlan> {
+pub(crate) fn plan_run(rpr: Option<&RawNode>, f: &RunFormat) -> Result<ContainerPlan> {
     let mut pl = Planner::new(rpr);
     pl.on_off(Kind::B, &f.bold)?;
     pl.on_off(Kind::BCs, &f.bold_cs)?;
@@ -540,7 +540,7 @@ fn active(v: &Option<String>, autospacing: bool) -> bool {
 }
 
 /// Plans a [`ParagraphFormat`] against a paragraph's `w:pPr` (or none).
-fn plan_paragraph(ppr: Option<&RawNode>, f: &ParagraphFormat, inherited: Inherited<'_>) -> Result<ContainerPlan> {
+pub(crate) fn plan_paragraph(ppr: Option<&RawNode>, f: &ParagraphFormat, inherited: Inherited<'_>) -> Result<ContainerPlan> {
     let mut pl = Planner::new(ppr);
     pl.on_off(Kind::KeepNext, &f.keep_next)?;
     pl.on_off(Kind::KeepLines, &f.keep_lines)?;
@@ -712,7 +712,7 @@ fn check_rpr(rpr: &LensMut<'_, RunProperties>, op: &PropPlan) -> ooxml_core::Res
         SzCs => FontSizeComplexScript, Highlight => HighlightEl, U => UnderlineEl, VertAlign => VerticalTextAlignment)
 }
 
-fn apply_rpr(rpr: &mut LensMut<'_, RunProperties>, op: &PropPlan) -> Result<()> {
+pub(crate) fn apply_rpr(rpr: &mut LensMut<'_, RunProperties>, op: &PropPlan) -> Result<()> {
     dispatch!(op.kind, apply_one (rpr, op);
         RStyle => RunStyle, RFonts => RunFonts, B => Bold, BCs => BoldComplexScript, I => Italic,
         ICs => ItalicComplexScript, Strike => Strike, Color => ColorEl, Sz => FontSize,
@@ -726,7 +726,7 @@ fn check_ppr(ppr: &LensMut<'_, ParagraphProperties>, op: &PropPlan) -> ooxml_cor
         Ind => Indentation, Jc => Justification)
 }
 
-fn apply_ppr(ppr: &mut LensMut<'_, ParagraphProperties>, op: &PropPlan) -> Result<()> {
+pub(crate) fn apply_ppr(ppr: &mut LensMut<'_, ParagraphProperties>, op: &PropPlan) -> Result<()> {
     dispatch!(op.kind, apply_one (ppr, op);
         PStyle => ParagraphStyleId, KeepNext => KeepNext, KeepLines => KeepLines, Spacing => SpacingBetweenLines,
         Ind => Indentation, Jc => Justification)

@@ -10,6 +10,45 @@ use crate::replace::Refusal;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// A bookmark range crosses a story or block container boundary.
+    #[error("bookmark spans containers")]
+    BookmarkSpansContainers,
+    /// A bookmark is referenced by a field or hyperlink.
+    #[error("bookmark {name:?} is referenced")]
+    BookmarkReferenced { name: String },
+    /// A bookmark name is already defined.
+    #[error("duplicate bookmark name {name:?}")]
+    DuplicateBookmarkName { name: String },
+    /// A field already mentions the requested bookmark name.
+    #[error("bookmark name {name:?} is already referenced by a field")]
+    NameReferencedByField { name: String },
+    /// A bookmark cannot be matched to exactly one start and end marker.
+    #[error("invalid or ambiguous bookmark {name:?}")]
+    InvalidBookmark { name: String },
+    /// The annotation registry has reached Word's integer limit.
+    #[error("annotation ids exhausted")]
+    AnnotationIdsExhausted,
+    /// Numbering definitions or direct numbering are missing or ambiguous.
+    #[error("invalid or ambiguous numbering")]
+    InvalidNumbering,
+    /// A list id is not defined.
+    #[error("unknown numbering id {id}")]
+    UnknownNumId { id: u32 },
+    /// The numbering id registry has reached Word's integer limit.
+    #[error("numbering ids exhausted")]
+    NumberingIdsExhausted,
+    /// There is no usable styles part.
+    #[error("no styles part")]
+    NoStylesPart,
+    /// Word reserves this name for a latent built-in style.
+    #[error("built-in style name {name:?}")]
+    BuiltInStyleName { name: String },
+    /// A style already has this name.
+    #[error("duplicate style name {name:?}")]
+    DuplicateStyleName { name: String },
+    /// A style id is already defined or referenced.
+    #[error("style id {id:?} is already used")]
+    StyleIdInUse { id: String },
     /// An error from `ooxml-core`. Notable cases:
     ///
     /// - O1 [`ooxml_core::Error::EncryptedPackage`] (CFB/OLE file);

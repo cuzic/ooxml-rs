@@ -69,3 +69,22 @@ jobs:
         run: cargo run --release -p ooxml-pptx --example smartart_cases -- "$RUNNER_TEMP/pptx-smartart"
       - name: SmartArt data/cache check
         run: python -I crates/ooxml-pptx/tests/oracle/smartart.py "$RUNNER_TEMP/pptx-smartart" reference/fixtures/pptx
+
+  docx-readback:
+    name: docx registry read-back (python-docx 1.2.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: install python-docx
+        run: python -m pip install python-docx==1.2.0
+      - name: write oracle cases
+        run: cargo run --release -p ooxml-docx --example docx_manual_check -- "$RUNNER_TEMP/docx-oracle"
+      - name: python-docx registry oracle (ADR-0011 §12)
+        run: python -I crates/ooxml-docx/tests/oracle/phase2_registries.py "$RUNNER_TEMP/docx-oracle"
