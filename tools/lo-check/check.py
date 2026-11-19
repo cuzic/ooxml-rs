@@ -5,6 +5,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import csv
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
 import json
 import math
 import os
@@ -35,6 +36,9 @@ XML_NAMESPACES = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
     "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "xdr": "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "rel": "http://schemas.openxmlformats.org/package/2006/relationships",
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
     "p14": "http://schemas.microsoft.com/office/powerpoint/2010/main",
 }
@@ -194,6 +198,14 @@ def check_content(source, expected, profile, scratch, resaved):
     if any(key in expected for key in ("resaved_text", "notes", "comments")):
         require(resaved is not None, "resaved document unavailable")
         check_resaved_content(resaved, expected)
+    if "resaved_xml" in expected or "resaved_sha256" in expected:
+        require(resaved is not None, "resaved document unavailable")
+        preflight(resaved)
+        check_xml(resaved, expected.get("resaved_xml", []))
+        with zipfile.ZipFile(resaved) as archive:
+            for part, digest in expected.get("resaved_sha256", {}).items():
+                actual = sha256(archive.read(part)).hexdigest()
+                require(actual == digest, f"{part}: expected SHA-256 {digest}, got {actual}")
     if source.suffix in SPREADSHEETS:
         sheets = workbook(source)
         require(list(sheets) == list(expected["sheets"]), f"sheet names/order: {list(sheets)!r}")

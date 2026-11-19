@@ -293,6 +293,26 @@
       ["xl/styles.xml", "./x:cellXfs/x:xf[2][@fontId='599']", 1]
     ]
   },
+  "xlsx/32-p5a-images.xlsx": {"sheets": {"Sheet1": {}},
+    "xml": [
+      ["xl/drawings/drawing1.xml", "./xdr:oneCellAnchor/xdr:ext[@cx='914400'][@cy='685800']", 1],
+      ["xl/drawings/drawing1.xml", "./xdr:twoCellAnchor/xdr:to[xdr:col='5'][xdr:row='5'][xdr:colOff='0'][xdr:rowOff='0']", 1]
+    ],
+    "resaved_xml": [
+      ["xl/drawings/drawing1.xml", ".//xdr:pic", 2],
+      ["xl/drawings/drawing1.xml", "./xdr:twoCellAnchor/xdr:from[xdr:col='1'][xdr:row='1']", 1],
+      ["xl/drawings/drawing1.xml", "./xdr:twoCellAnchor/xdr:from[xdr:col='3'][xdr:row='2']", 1],
+      ["xl/drawings/drawing1.xml", ".//xdr:cNvPr[@descr='Blue swatch']", 1],
+      ["xl/drawings/drawing1.xml", "./xdr:twoCellAnchor[1]/xdr:pic/xdr:blipFill/a:blip[@r:embed='rId1']", 1],
+      ["xl/drawings/drawing1.xml", "./xdr:twoCellAnchor[2]/xdr:pic/xdr:blipFill/a:blip[@r:embed='rId2']", 1],
+      ["xl/drawings/_rels/drawing1.xml.rels", "./rel:Relationship[@Id='rId1'][@Target='../media/image1.png']", 1],
+      ["xl/drawings/_rels/drawing1.xml.rels", "./rel:Relationship[@Id='rId2'][@Target='../media/image2.png']", 1]
+    ],
+    "resaved_sha256": {
+      "xl/media/image1.png": "a9c96d0a42f8f0249b5f2791e520c7793e343481d0485540a8a98ba82818e5c0",
+      "xl/media/image2.png": "2274ce002cd66a6d6edc71c3503f5d85b86b420ccffdfe24a164b7532654d889"
+    }
+  },
   "xlsx/32-reverse-reordered.xlsx": {"sheets": {"Sheet1": {}, "Sheet3": {"A1": "sheet3"}, "Sheet2": {"A1": "sheet2"}, "Sheet4": {}}},
   "xlsx/33-delete-ref-errors-3d.xlsx": {"sheets": {"Sheet1": {"A1": 5.0}, "Sheet3": {}, "Defines": {"A1": 1.0}},
     "formulas": {

@@ -18,6 +18,12 @@ artifact holds each failing input and its diagnostics. Each input uses a fresh
 headless profile with macro security set to Very High. The checker rejects
 packages containing DTDs in OOXML XML parts before importing them.
 
+Both LibreOffice workflows cache the release tarball in GitHub Actions under a
+key containing the release version and its pinned SHA-256. A cache hit skips
+the download. A miss uses curl's resume option and up to five retries on
+transfer errors, with a 35-minute per-attempt limit and a 60-minute download
+step limit. Both paths verify SHA-256 before extracting the tarball.
+
 ## Updating the expectations
 
 `tools/lo-check/expected.json` is copied into the generated bundle. Add or
@@ -28,7 +34,12 @@ omitted. For a structure or formatting change outside the exports, use an
 to LibreOffice. `resaved_text`, `notes` (keyed by one-based slide number) and
 `comments` assert text on LibreOffice's same-format output. JSON numbers represent
 numeric cells. Strings can represent literal text or Calc’s CSV output for
-formatted dates and percentages. Each spreadsheet entry lists
+formatted dates and percentages. Use `resaved_xml` to match XML on the resaved
+package and `resaved_sha256` to check the bytes of named parts. Calc rewrites the
+one-cell picture anchor as a two-cell anchor and rounds its geometry. The image
+case checks the original size and end marker on the input, and the number of
+pictures, start markers, alt text and original PNG bytes on the resave. Each
+spreadsheet entry lists
 all sheets in workbook order. For uncached formula cells, add an entry keyed
 by `Sheet!A1` with the OOXML result type and value, for example `["n", "10"]`.
 Some exploratory fixtures deliberately exercise application-dependent formula

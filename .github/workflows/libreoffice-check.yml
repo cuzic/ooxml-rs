@@ -13,11 +13,13 @@ env:
   LANG: C.UTF-8
   LC_ALL: C.UTF-8
   TZ: UTC
+  LO_VERSION: "25.2.7.2"
+  LO_SHA256: 3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581
 
 jobs:
   libreoffice:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -25,31 +27,25 @@ jobs:
       - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
           toolchain: "1.99"
-      - name: Install LibreOffice (pinned version and SHA-256)
-        env:
-          LO_VERSION: "25.2.7.2"
+      - name: Cache LibreOffice tarball
+        id: libreoffice-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/LibreOffice_${{ env.LO_VERSION }}_Linux_x86-64_deb.tar.gz
+          key: libreoffice-linux-x86-64-deb-${{ env.LO_VERSION }}-${{ env.LO_SHA256 }}
+      - name: Download LibreOffice tarball
+        if: steps.libreoffice-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 60
         run: |
-          set -euo pipefail
-          # Same release and checksum as o3-recalc.yml. Fetch ranges in parallel:
-          # the archive throttles individual transfers on hosted runners.
-          sha=3f6a85c57d2d16a222b219b5eb42aacda82fa8ce9590c90e2f9b649c6e3d1581
-          size=208730836
-          chunk=$(((size + 7) / 8))
           tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
           url="https://downloadarchive.documentfoundation.org/libreoffice/old/${LO_VERSION}/deb/x86_64/$tgz"
-          parts=$(mktemp -d "$RUNNER_TEMP/lo-download.XXXXXX")
-          pids=()
-          for i in {0..7}; do
-            start=$((i * chunk))
-            end=$((start + chunk - 1))
-            ((end < size)) || end=$((size - 1))
-            curl -fsSL --retry 2 --max-time 300 --max-filesize "$((end - start + 1))" \
-              --range "$start-$end" --output "$parts/part-$i" "$url" &
-            pids+=("$!")
-          done
-          for pid in "${pids[@]}"; do wait "$pid"; done
-          cat "$parts"/part-* > "$RUNNER_TEMP/$tgz"
-          echo "$sha  $RUNNER_TEMP/$tgz" | sha256sum -c -
+          curl -fsSL --retry 5 --retry-all-errors -C - --connect-timeout 30 \
+            --max-time 2100 --retry-max-time 3500 --output "$RUNNER_TEMP/$tgz" "$url"
+      - name: Install LibreOffice (pinned version and SHA-256)
+        run: |
+          set -euo pipefail
+          tgz="LibreOffice_${LO_VERSION}_Linux_x86-64_deb.tar.gz"
+          echo "$LO_SHA256  $RUNNER_TEMP/$tgz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/lo" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP/lo"
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends poppler-utils fonts-noto-cjk "$RUNNER_TEMP"/lo/*/DEBS/*.deb
