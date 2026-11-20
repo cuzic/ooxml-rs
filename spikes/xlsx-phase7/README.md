@@ -9,7 +9,7 @@ with `python3 -I` from the repository root, passing data directories as argument
 
 | Script | Purpose |
 |---|---|
-| `structural_survey.py [--summary] DIR…` | One JSON line per package. Counts every **reference-bearing place** of ADR-0018 §3's location registry: `sheetData` (`r` on rows and cells, rows/cells without `r`, `spans`), `dimension`, `cols`, merges, hyperlinks, sheet autofilter and sort state, CF (2007 blocks, rules, `sqref` lists, formulas, `cfvo` formulas), DV, worksheet `extLst` (x14 CF/DV `xm:f`/`xm:sqref`, sparklines, other URIs), views (`selection`, `pane`, `topLeftCell`), breaks, `ignoredErrors`, `protectedRanges`, `customSheetViews`, `dataConsolidate`, `scenarios`, OLE/controls, `mc:AlternateContent` (top level, in `sheetData`, in rows), notes and their VML (`x:Row`, `x:Column`, `x:Anchor`, `x:Fmla*`), threaded comments, drawing anchors (kind, `editAs`, AC-wrapped, `textlink`), tables (`ref`, autofilter, totals, types, own `.rels`, calculated-column formulas), charts (`c:f`, `c15:f`, AC, pivot charts, chartEx), pivot caches (source by `ref` or by name/table) and pivot tables, defined names (scope, `_xlnm.*`, constants, relative or unprefixed references), calcChain entries, connections, query tables, `singleXmlCells`, external links, `xr:uid` attributes. **Formula reference forms** per location (cell formulas, names, CF, DV, x14, charts, table formulas), from an approximate lexer: cell, area, whole columns, whole rows, `A1:A1048576`-style full areas, sheet-prefixed, 3-D, external, structured (table-less, `#This Row`/`@`, column ranges), names, `#REF!` (bare and sheet-prefixed), spill (`A1#`), R1C1-shaped names, `INDIRECT`/`OFFSET`/`ROW`/… calls, sheet references inside string literals. **Copy blockers** per sheet (`sheet_copy_blocker.*`, `sheet_copyable`). **Shared groups**: masters, 2-D blocks, sizes, and a **simulation** (`sim_shared_*`): for every multi-row group, insert one row (and, separately, delete one row) in the middle of the group, apply ADR-0018 §3.2's model to each member's own formula, and check whether every member still equals the edited master translated to it (`same`) or the group must be split (`split`). `--summary` adds `#` lines: files and totals per counter, the sheet max-row distribution and the shared-group sizes. |
+| `structural_survey.py [--summary] DIR…` | One JSON line per package. Counts every **reference-bearing place** of ADR-0018 §3's location registry: `sheetData` (`r` on rows and cells, rows/cells without `r`, `spans`), `dimension`, `cols`, merges, hyperlinks, sheet autofilter and sort state, CF (2007 blocks, rules, `sqref` lists, formulas, `cfvo` formulas), DV, worksheet `extLst` (x14 CF/DV `xm:f`/`xm:sqref`, sparklines, other URIs), views (`selection`, `pane`, `topLeftCell`), breaks, `ignoredErrors`, `protectedRanges`, `customSheetViews`, `dataConsolidate`, `scenarios`, OLE/controls, `mc:AlternateContent` (top level, in `sheetData`, in rows), notes and their VML (`x:Row`, `x:Column`, `x:Anchor`, `x:Fmla*`), threaded comments, drawing anchors (kind, `editAs`, AC-wrapped, `textlink`), tables (`ref`, autofilter, totals, types, own `.rels`, calculated-column formulas), charts (`c:f`, `c15:f`, AC, pivot charts, chartEx), pivot caches (source by `ref` or by name/table) and pivot tables, defined names (scope, `_xlnm.*`, constants, relative or unprefixed references), calcChain entries, connections, query tables, `singleXmlCells`, external links, `xr:uid` attributes. **Formula reference forms** per location (cell formulas, names, CF, DV, x14, charts, table formulas), from an approximate lexer: cell, area, whole columns, whole rows, `A1:A1048576`-style full areas, sheet-prefixed, 3-D, external, structured (table-less, `#This Row`/`@`, column ranges), names, `#REF!` (bare and sheet-prefixed), spill (`A1#`), R1C1-shaped names, `INDIRECT`/`OFFSET`/`ROW`/… calls, sheet references inside string literals. **G1 blockers** from the registry's XX set (`sheet_blocker.*`, `sheet_no_blocker`), protection (`sheet_protected*`, `wb_lockStructure`), `codeName`, extension URIs per worksheet (`ext_uri_worksheet.*`). **Copy blockers** per sheet (`sheet_copy_blocker.*`, `sheet_copyable`). **Shared groups**: masters, 2-D blocks, sizes, and a **simulation** (`sim_shared_*`): for every multi-row group, insert one row (and, separately, delete one row) in the middle of the group, apply ADR-0018 §3.2's model to each member's own formula, and check whether every member still equals the edited master translated to it (`same`) or the group must be split (`split`). `--summary` adds `#` lines: files and totals per counter, the sheet max-row distribution and the shared-group sizes. |
 
 Reproducing the ADR's numbers (files are not committed; Apache-2.0 / MIT):
 
@@ -126,9 +126,23 @@ relative component** (0 of 858).
 | query tables / external links / connections | 13 / 14 / 6 | 2 / 10 / 6 |
 | `calcChain.xml` (entries) | 116 (30,875) | 116 |
 
-**Sheets an edit must refuse outright** (ADR-0018 §2.4): a pivot table on the sheet 12 sheets
-(7 files), `mc:AlternateContent` at the top level 2 (2), `dataConsolidate` 1 (1). **798 of 813
-worksheets (98%) have none of these.**
+**Sheets every G1 edit must refuse** (ADR-0018 rev 2: the registry's XX places and §2.4):
+rows or cells without `r` 15 sheets (4 files), `oleObjects` 6 (5), `controls` 2 (2), top-level
+`mc:AlternateContent` 2 (2; the same sheets as `controls`), `dataConsolidate` 1 (1);
+`scenarios` and `webPublishItems` 0. **787 of 813 worksheets (97%) have none.** Pivot tables
+(12 sheets, 7 files) refuse only edits that cross or move them, so they are counted
+separately (`sheet_with_pivot_table`). With rev 2's sticky-end rule (§3.2), `col max="16384"`
+no longer blocks a column insert.
+
+**Protection** (ADR-0018 Q13): 11 protected sheets (5 files); 7 of them (4 files) lock each of
+`insertRows`, `insertColumns`, `deleteRows`, `deleteColumns` (the attributes default to
+locked). `workbookProtection/@lockStructure` in 4 workbooks. **`sheetPr/@codeName`** on 93
+sheets (32 files), 33 of them (8 files) in packages with a VBA project. Workbook `oleSize`: 2.
+
+**Worksheet extension URIs** (`ext/@uri` at any depth): `mac/excel/2008/main` 29 (19 files) and
+`{64002731-A6B0-56B0-2670-7721B7C09600}` 20 (9), both holding only `mx:PLV`; x14 CF
+`{78C0D931-…}` 2 (2); x14 DV `{CCE6A557-…}` 3 (3); sparklines `{05C60535-…}` 1 (1); the cfRule
+`x14:id` link `{B025F937-…}` 2 (2). No other URI.
 
 **Sheets a copy must refuse** (ADR-0018 §4.1; a relationship type outside the copyable set
 `printerSettings`, `drawing`, `vmlDrawing`, `comments`, `threadedComment`, `table`,
@@ -137,11 +151,18 @@ worksheets (98%) have none of these.**
 `control`/`ctrlProp` 2 (2), `package` 2 (2), top-level `mc:AlternateContent` 2 (2). **773 of
 813 worksheets (95%) are copyable** under those rules.
 
-**Shared-group simulation** (one row inserted, or deleted, in the middle of each group): of
-292 groups that span 3 or more rows, **286 stay one group** and **6 (4 files) must be split**
-(6 for the insert and 6 for the delete). The 6 refer to a neighbouring row (`B5-B4`, `+A4+1`,
-`B1+B2`): after the edit the member below the new row still refers to the row above the edit,
-which no single translation of the master can express. 67 groups span fewer than 3 rows.
+**Shared-group simulation.** `#REF!` areas compare equal under translation, and a deleted
+master hands off to the first surviving member (ADR-0003 §4.2). Of 292 groups that span 3 or
+more rows:
+- one row inserted, or deleted, in the middle of the group: **286 stay one group, 6 (4 files)
+  must be split**;
+- one row inserted, or deleted, **at every position** from the lowest row the master refers
+  to through one past the last member (`sim_shared_all_*`; a group counts as split if any
+  position splits it): the **same 286 / 6**.
+
+The 6 refer to a neighbouring row (`B5-B4`, `+A4+1`, `B1+B2`): after the edit the member below
+the new row still refers to the row above the edit, which no single translation of the master
+can express. 67 groups span fewer than 3 rows. Shared master texts with a sheet prefix: 0.
 
 ## Synthetic fixtures (`reference/fixtures/xlsx/synthetic`)
 
@@ -155,6 +176,7 @@ references (2), a 2-D shared block.
 - A reference written in an unusual form (`A1:A1048576`) is counted as a full-column area only
   when it spans the whole axis; none does in the corpus.
 - The simulation models only references without a sheet prefix and edits on rows; columns are
-  symmetrical in the model but not simulated.
+  symmetrical in the model but not simulated. A cross-sheet shared group (none in the corpus)
+  would split at the edit position like the 6 above.
 - Structured references are counted by syntax; whether their table exists is checked against
   the package's table names (all 4,022 cell-formula ones name an existing table).

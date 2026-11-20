@@ -399,6 +399,9 @@ def own_refs(text, sheet):
 def translate(refs, dr, dc):
     out = []
     for area in refs:
+        if area == "#REF!":
+            out.append(area)
+            continue
         a = []
         for axis, i, ab in area:
             if not ab:
@@ -415,6 +418,9 @@ def edit_rows(refs, op, p):
     A single deleted cell becomes '#REF!'; ranges shrink/expand per the ADR's model."""
     out = []
     for area in refs:
+        if area == "#REF!":
+            out.append(area)
+            continue
         rows = [i for axis, i, _ in area if axis == "r"]
         if op == "ins":
             new = [(axis, i + 1 if axis == "r" and i >= p else i, ab) for axis, i, ab in area]
@@ -435,33 +441,50 @@ def edit_rows(refs, op, p):
     return out
 
 
-def simulate_shared(mpos, text, members, sheet, op):
-    """Does a one-row edit in the middle of a shared group keep every member equal to the
-    (edited) master text translated to it? 'same' / 'split' / 'unmodelled' / 'single'."""
+def simulate_shared(mpos, text, members, sheet, op, everywhere=False):
+    """Does a one-row edit keep every surviving member of a shared group equal to the (edited)
+    master text translated to it? `#REF!` tokens compare equal under translation (ADR-0018
+    rev 2 §3.3.2). With everywhere=False the edit is in the middle of the group; with True,
+    at every row from the lowest row the master refers to (or the first member) to one past
+    the last member, and the group counts as split if any position splits it.
+    Returns 'same' / 'split' / 'unmodelled' / 'single'."""
     cells = [mpos] + members
     rows = sorted({r for r, _ in cells})
     if len(rows) < 3:
         return "single"
-    p = rows[len(rows) // 2]
-    if op == "del" and p == mpos[0]:
-        p = rows[len(rows) // 2 + 1]
     base = own_refs(text, sheet)
     if base is None:
         return "unmodelled"
+    if everywhere:
+        lo = min([rows[0]] + [i for area in base for axis, i, _ in area if axis == "r"])
+        positions = range(lo, rows[-1] + 2)
+    else:
+        positions = [rows[len(rows) // 2]]
+    for p in positions:
+        r = one_edit(mpos, base, members, op, p)
+        if r != "same":
+            return r
+    return "same"
+
+
+def one_edit(mpos, base, members, op, p):
     newpos = lambda r: r + 1 if (op == "ins" and r >= p) else (r - 1 if op == "del" and r > p else r)
     mr, mc = mpos
-    m_new = edit_rows(base, op, p)
-    for r, c in members:
-        if op == "del" and r == p:
-            continue
+    survivors = [m for m in [mpos] + members if not (op == "del" and m[0] == p)]
+    if len(survivors) < 2:
+        return "same"
+    # master deleted: hand off to the first remaining member in row-major order (ADR-0003 §4.2)
+    nm = min(survivors)
+    mtext = translate(base, nm[0] - mr, nm[1] - mc)
+    if mtext is None:
+        return "unmodelled"
+    m_new = edit_rows(mtext, op, p)
+    for r, c in survivors:
         eff = translate(base, r - mr, c - mc)
         if eff is None:
             return "unmodelled"
         want = edit_rows(eff, op, p)
-        nr = newpos(r)
-        if any(x == "#REF!" for x in m_new):
-            return "split"
-        got = translate(m_new, nr - newpos(mr), c - mc)
+        got = translate(m_new, newpos(r) - newpos(nm[0]), c - nm[1])
         if got != want:
             return "split"
     return "same"
@@ -485,6 +508,12 @@ def survey(path):
         return None
     cnt = collections.Counter()
     lists = collections.defaultdict(list)
+    vba = any(n.lower().endswith("vbaproject.bin") for n in z.namelist())
+    wp = wbx.find(q("s", "workbookProtection"))
+    if wp is not None and wp.get("lockStructure") in ("1", "true"):
+        cnt["wb_lockStructure"] += 1
+    if wbx.find(q("s", "oleSize")) is not None:
+        cnt["wb_oleSize"] += 1
     wrels = {i: (ty, t) for i, ty, t, ext in p.rels(wb) if not ext}
 
     # tables (names first, for the lexer's classification)
@@ -560,7 +589,7 @@ def survey(path):
             cnt["sheetrel_" + rt] += 1
         blockers = set()
         if rel_types.get("pivotTable"):
-            blockers.add("pivot_table_on_sheet")
+            cnt["sheet_with_pivot_table"] += 1
         # mc:AlternateContent anywhere in the sheet, and where
         for ac in ws.iter(q("mc", "AlternateContent")):
             cnt["ws_ac"] += 1
@@ -633,6 +662,8 @@ def survey(path):
         cnt["rows_without_r"] += rows_no_r
         cnt["cells_without_r"] += cells_no_r
         if rows_no_r or cells_no_r:
+            blockers.add("rows_or_cells_without_r")
+        if rows_no_r or cells_no_r:
             cnt["sheets_with_implicit_positions"] += 1
         cnt["cells"] += ncells
         lists["sheet_maxrow"].append(maxrow)
@@ -652,6 +683,8 @@ def survey(path):
             for op in ("ins", "del"):
                 res = simulate_shared(mpos, text, members.get(si, []), sname, op)
                 cnt["sim_shared_%s_%s" % (op, res)] += 1
+                res = simulate_shared(mpos, text, members.get(si, []), sname, op, everywhere=True)
+                cnt["sim_shared_all_%s_%s" % (op, res)] += 1
         # sheet-level reference places
         el = {
             "dimension": ws.find(q("s", "dimension")),
@@ -697,8 +730,9 @@ def survey(path):
                 cnt[k[:-1] + "_brk"] += len(list(el[k]))
         if el["ignoredErrors"] is not None:
             cnt["ignoredError"] += len(list(el["ignoredErrors"]))
-        if el["scenarios"] is not None:
-            blockers.add("scenarios")
+        for k in ("scenarios", "webPublishItems", "oleObjects", "controls"):
+            if el[k] is not None:
+                blockers.add(k)
         if el["dataConsolidate"] is not None:
             blockers.add("dataConsolidate")
         if el["customSheetViews"] is not None:
@@ -832,6 +866,19 @@ def survey(path):
             cnt["sheet_copy_blocker." + k] += 1
         if not copy_block:
             cnt["sheet_copyable"] += 1
+        prot = ws.find(q("s", "sheetProtection"))
+        if prot is not None and prot.get("sheet") in ("1", "true"):
+            cnt["sheet_protected"] += 1
+            for k in ("insertRows", "insertColumns", "deleteRows", "deleteColumns"):
+                if prot.get(k) not in ("0", "false"):
+                    cnt["sheet_protected_locks_" + k] += 1
+        spr = ws.find(q("s", "sheetPr"))
+        if spr is not None and spr.get("codeName"):
+            cnt["sheet_codeName"] += 1
+            if vba:
+                cnt["sheet_codeName_in_vba_package"] += 1
+        for e in ws.iter(q("s", "ext")):
+            cnt["ext_uri_worksheet." + (e.get("uri") or "?")] += 1
         sheet_blockers.update(blockers)
         for k in blockers:
             cnt["sheet_blocker." + k] += 1
