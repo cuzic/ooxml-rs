@@ -506,6 +506,9 @@ Design: [ADR-0017](../adr/0017-xlsx-phase5-objects.md) (Proposed).
 
 ### Phase7 — structural edits
 
+Design: [ADR-0018](../adr/0018-xlsx-phase7-structural-edits.md) (Proposed). It also covers
+table and table-column renames deferred by ADR-0017.
+
 - **Scope:** insert/delete rows/columns and copy/move sheets, with reference rewriting in every
   part listed under G1, built on the P1 tokenizer and a registry of reference-bearing elements.
 - **Acceptance:** per-part reference rewrite tests; round trip through Excel (XL) on a fixture
