@@ -1,6 +1,6 @@
 # ADR-0018: xlsx Phase7 — structural edits
 
-- Status: **Proposed** (revision 4)
+- Status: **Accepted** (revision 4; Opus review rounds 1–4, owner decisions 2026-11-20)
 - Date: 2026-11-20
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 1–3, T1/T1b/T2, `Err` ⇒
@@ -139,6 +139,7 @@
     2. `Protected` with bytes unchanged in the 4 `lockStructure` workbooks (35 sheets);
     3. today's refusals that become rewrites, checked per place;
     4. 0 refusals other than `Protected` over the 838 renames.
+- **Accepted** (review round 4: Accept, nits n1–n2 applied): status set to Accepted on 2026-11-20.
 
     "Nothing else changes" is corrected to name both intended changes (§2.2), and the
     `lockStructure` change is recorded as a post-acceptance note for ADR-0009.
@@ -216,7 +217,7 @@ packages read**, 813 worksheets, 1,502,954 cells. Reproduction and full tables:
 | `mc:AlternateContent` in sheets | at the top level 2 sheets (both wrap `controls`); **inside `sheetData` or rows: 0**. |
 | Blockers | G1: **787 of 813 worksheets (97%)** have none of the registry's XX places (rows/cells without `r` 15 sheets, `oleObjects` 6, `controls`/top-level AC 2, `dataConsolidate` 1). Pivot tables (12 sheets) refuse only edits that cross or move them. G2: **773 of 813 (95%)** have only copyable relationships (§4.1). |
 | Protection, `codeName` | 11 protected sheets (5 files), 7 of them (4 files) lock row and column inserts and deletes; `lockStructure` in 4 workbooks (Q13). `sheetPr/@codeName` on 93 sheets (32 files), 33 of them in the 8 packages with a VBA project (§4.2). |
-| Sheets named in `app.xml` titles | **25 sheets in 15 packages** are named in prefix form in `docProps/app.xml` titles ("Named Ranges": `Data!Print_Area`); the round-3 review's probe counted 31 / 15 with a broader matcher. The places are L73 (rule K), so they cause no refusal. |
+| Sheets named in `app.xml` titles | **25 sheets in 15 packages** are named in prefix form in `docProps/app.xml` titles ("Named Ranges": `Data!Print_Area`); the round-3 review's probe counted 31 / 15 over a different file set (it included a fuzzing case outside the spike's 343 readable packages, 7 sheets, and missed one package the spike reads, 1 sheet: 31 − 7 + 1 = 25; per file the counts agree). The places are L73 (rule K), so they cause no refusal. |
 | Extension URIs in worksheets | `mac/excel/2008` 29 and `{64002731-…}` 20 (Mac page layout only), x14 CF 2, x14 DV 3, sparklines 1, cfRule `x14:id` link `{B025F937-…}` 2; no other. |
 | `xr:uid` | 64 in sheets (34 files), 40 in tables (7): a copy would duplicate them (§4.3). |
 
@@ -475,7 +476,7 @@ The code and the tests use the data:
       **whatever the rule** (R, D, N, K, –); or
     - in a known non-reference.
 
-    A hit in a dispatched place whose rule is X or XX refuses because of that rule. A hit
+    A hit in a dispatched place whose rule is X or XX applies that rule (X refuses only when the place would change). A hit
     anywhere else, including a registry place that was not dispatched, refuses with
     `Err(UnrewritableReference)` (review round 2 M1, round 3 M1). Rows that can hold a
     sheet name in prefix form but do not change under an operation are dispatched with rule
