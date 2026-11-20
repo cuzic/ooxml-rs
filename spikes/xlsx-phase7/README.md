@@ -110,7 +110,7 @@ relative component** (0 of 858).
 |---|---|---|
 | notes (`comment/@ref`) = VML `x:Row`/`x:Column` pairs | 204 | 27 |
 | VML `x:Anchor` (notes + controls + pictures) | 410 | 37 |
-| VML form controls / `x:Fmla*` | 166 / 57 | 4 / 4 |
+| VML form controls / `x:Fmla*` (all `x:FmlaMacro`; position-bearing `x:FmlaLink`/`Range`/`Txbx`/`Pict`/`Group`: 0) | 166 / 57 | 4 / 4 |
 | threaded comments | 4 | 3 |
 | `twoCellAnchor` (`editAs` twoCell / oneCell / absolute) | 181 (102 / 74 / 5) | 47 |
 | `oneCellAnchor` / `absoluteAnchor` on worksheets | 30 / 1 | 8 / 1 |

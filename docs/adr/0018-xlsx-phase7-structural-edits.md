@@ -1,6 +1,6 @@
 # ADR-0018: xlsx Phase7 — structural edits
 
-- Status: **Proposed** (revision 2)
+- Status: **Proposed** (revision 3)
 - Date: 2026-11-20
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 1–3, T1/T1b/T2, `Err` ⇒
@@ -26,7 +26,7 @@
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.8 (G1, G2), §4, §6 Phase7.
 - Evidence: [`spikes/xlsx-phase7/`](../../spikes/xlsx-phase7/README.md) (corpus survey and a
   shared-formula simulation).
-- Review: [round 1](0018-opus-review-round1.md)
+- Review: [round 1](0018-opus-review-round1.md), [round 2](0018-opus-review-round2.md)
 
 ## Revision history
 
@@ -91,6 +91,42 @@
       owner's decision; §2.1.1 specifies the composition instead.
     - The m2 suggestion to split groups into two at `p`, rather than writing members out, is
       not adopted. Writing members out is simpler and affects only 6 corpus groups.
+
+- **Revision 3** (review round 2: M1–M3, m1–m8, n1–n2). Each fix is in its section.
+  - **M1:** every `Formula`/`Location` row has scope `any`, now including L30, L42, L48, L56
+    and L70 (form controls, chartEx, ctrlProps, webExtensions). A compile-time check on
+    `LOCATIONS` enforces it. A sheet-prefix hit is accepted only in a place that the
+    dispatcher visited for this operation with a rule other than `–`; a hit anywhere else
+    refuses. Oracle 2 gets cross-sheet control cases (§2.2).
+  - **M2:** `EXTENSIONS` follows MS-XLSX §2.2.4.12:
+    - ignoredErrors `{01252117-…}`, protectedRanges `{FC87AEE6-…}`; `{EB79DEF2-…}` dropped;
+    - the URIs of webExtensions, slicerList and timelineRefs added;
+    - the `sortState` and `filterColumn` extensions added.
+
+    Content under a **known** URI that matches no registry place of that URI refuses too,
+    with a unit case for a swapped mapping (§2.2).
+  - **M3:** the registry is a superset of ADR-0009 §6's table:
+    - L71 adds internal relationship targets `#Sheet!A1`, L72 the `@sheet` raw names and L73
+      the `app.xml` titles;
+    - two rule columns, sheet rename and sheet delete, hold ADR-0009's current behaviour;
+    - P7-pre's acceptance is byte-identical ADR-0009 rename and delete output before and
+      after the switch, over the corpus, including the 18 of 838 renames that retarget
+      relationships (§2.2, Delivery).
+  - **Minor and nit fixes, each in its section:**
+    - m1: a wholly deleted range wins over pinning; view cells are clamped on insert (§3.2);
+    - m2: moved formulas on the edited sheet are lexed for position-dependent calls; renames
+      strip only `Everything`, in §3.7 and §5; a copy's strips are stated as an
+      over-approximation;
+    - m3: the apply invariant is restated, and the `cols` split moves to step 3.5;
+    - m4: what P5-pre already provides on main is listed, and there is one staged
+      `workbook.xml` per plan (§2.1.1, Delivery);
+    - m5: the multi-`sqref` refusal covers either anchor (§3.3.4);
+    - m6: `mc:AlternateContent` inside a registry element refuses (L31);
+    - m7: §8 wording for Q2; partial-delete rules for one-cell and note anchors (§3.6.3);
+    - m8: `lockStructure` applies to ADR-0009's sheet operations too; header writes on
+      protected sheets (§2.4, §6, Consequences, Delivery);
+    - n1: L42's corpus count is 0; the 57 are `x:FmlaMacro`;
+    - n2: MS-XLSX is cited.
 
 ## Context
 
@@ -158,7 +194,7 @@ packages read**, 813 worksheets, 1,502,954 cells. Reproduction and full tables:
 | Shared-group simulation | One row inserted (or deleted) in the middle of each of the 292 groups spanning ≥ 3 rows, and separately **at every position** from the lowest referenced row to one past the last member, with `#REF!` comparing equal: **286 stay one group, 6 (4 files) must be split** in both runs (members that refer to a neighbouring row: `B5-B4`, `+A4+1`). |
 | CF / DV | CF 108 blocks (20 files), 131 rules, 11 multi-range `sqref`s; **27 CF formulas with relative references** (8). DV 108 (13), **44 with relative references** (3). x14 CF in 2 files, x14 DV in 3, sparklines 11 (1). |
 | Range features | merges 54,468 (43 files); hyperlinks 113 (15), `location` 38 (3); sheet autofilter 3, `sortState` 7; selections 481, frozen panes 32 (19); `cols` 361 sheets (179 files), 106 `col` up to XFD (44); row breaks 10 (4 files), column breaks 3 (3); `ignoredErrors` 5, `protectedRanges` 4, `customSheetViews` 3 (1), `dataConsolidate` 1, `scenarios`/`cellWatches`/`webPublishItems` 0. |
-| Objects | notes 204 (27 files) with 204 VML `x:Row`/`x:Column`; VML `x:Anchor` 410 (37); VML form controls 166 and `x:Fmla*` 57 (4); threaded comments 4 (3); drawing anchors: `twoCellAnchor` 181 (`editAs` twoCell 102, oneCell 74, absolute 5), `oneCellAnchor` 30, **170 anchors inside `mc:AlternateContent` (4 files)**; tables 61 (29 files): 9 with totals, 13 `queryTable` + 5 `xml`; charts 40 (27 files), 168 sheet-prefixed `c:f`; pivot tables 12 on 12 sheets (7 files), pivot caches 10 (7 sourced by `ref`, 3 by table name); `singleXmlCells` 14 parts (14 files); `calcChain.xml` 116 packages (30,875 entries). |
+| Objects | notes 204 (27 files) with 204 VML `x:Row`/`x:Column`; VML `x:Anchor` 410 (37); VML form controls 166 and `x:Fmla*` 57 (4; all `x:FmlaMacro` macro names, none position-bearing); threaded comments 4 (3); drawing anchors: `twoCellAnchor` 181 (`editAs` twoCell 102, oneCell 74, absolute 5), `oneCellAnchor` 30, **170 anchors inside `mc:AlternateContent` (4 files)**; tables 61 (29 files): 9 with totals, 13 `queryTable` + 5 `xml`; charts 40 (27 files), 168 sheet-prefixed `c:f`; pivot tables 12 on 12 sheets (7 files), pivot caches 10 (7 sourced by `ref`, 3 by table name); `singleXmlCells` 14 parts (14 files); `calcChain.xml` 116 packages (30,875 entries). |
 | `mc:AlternateContent` in sheets | at the top level 2 sheets (both wrap `controls`); **inside `sheetData` or rows: 0**. |
 | Blockers | G1: **787 of 813 worksheets (97%)** have none of the registry's XX places (rows/cells without `r` 15 sheets, `oleObjects` 6, `controls`/top-level AC 2, `dataConsolidate` 1). Pivot tables (12 sheets) refuse only edits that cross or move them. G2: **773 of 813 (95%)** have only copyable relationships (§4.1). |
 | Protection, `codeName` | 11 protected sheets (5 files), 7 of them (4 files) lock row and column inserts and deletes; `lockStructure` in 4 workbooks (Q13). `sheetPr/@codeName` on 93 sheets (32 files), 33 of them in the 8 packages with a VBA project (§4.2). |
@@ -298,19 +334,24 @@ Every operation follows ADR-0017 §2.1, which is ADR-0003 §3.1 for multi-part e
       - formula texts and `f/@ref`/`@r1`/`@r2`;
       - every rewritten place of §2.2 that lives in the sheet part: CF/DV blocks and their
         `extLst` content, sparklines, merges, hyperlinks, views, breaks, `autoFilter`,
-        `dimension`, `cols`;
+        `dimension`, attribute edits of existing `col` elements;
       - on **other** sheets too (B1);
    3. **renumbering**: `row/@r`, `c/@r`, `row/@spans` of surviving nodes;
    4. **removals** of rows, cells and range-feature elements (merges, rules, hyperlinks,
       breaks, sparklines, emptied containers). They run in **descending** index order per
       parent, or as one bulk retain per parent (§3.8), so that no earlier removal shifts a
       later index;
-   5. **insertions** last: new cells of a composed `CellWritePlan` (§2.1.1) and new elements
-      (a new `tablePart` is not needed: table parts are staged).
+   5. **insertions** last:
+      - new cells of a composed `CellWritePlan` (§2.1.1);
+      - the second `col` element of a `cols` split (§3.4);
+      - other new elements (a new `tablePart` is not needed: table parts are staged).
 
-   Steps 1–3 address nodes by pre-edit index and do not add or remove children, so every
-   index stays valid until step 4. Step 4 removes in descending order. Step 5 uses positions
-   that §2.1.1 computes in post-edit coordinates.
+   **Invariant** (review round 2 m3): until step 4, no child is added to or removed from any
+   element whose children are addressed by a recorded index (`sheetData`, its `row`s, and the
+   containers of range features that step 4 removes from). Steps 1–3 do change children
+   elsewhere: strips remove `v`/`is` inside a `c`, and a shared member leaving its group gains
+   `f` text. Those are not addressed by index. Step 4 removes in descending order. Step 5
+   uses positions that §2.1.1 and §3.4 compute in post-edit coordinates.
 
    The census, dependency graph, row index and Phase2 registries are then **rebuilt** from
    the output parts, as ADR-0009 §2 does after a sheet operation. The poison is cleared after
@@ -347,6 +388,16 @@ Two operations also write cells:
 
 Each operation still builds **one** plan. The cell writes are not a second transaction:
 
+**Already on main** (review round 2 m4):
+
+- `apply_writes_with` and `apply_writes_with_insertion` (`edit.rs` L470-489, used by
+  `tables.rs` L468, L661) fold a `CellWritePlan`'s `calcPr` change and calcChain removal into
+  the caller's `RegistryPlan`.
+- Translation copies `#REF!`: the prefixed form is `Area::RefError` (`translate.rs` L47,
+  tested at L102), and the bare form is an error literal.
+
+What P7-pre adds:
+
 - `plan_writes` (ADR-0003 §3.1a) gets a variant `plan_writes_after(edit, writes)`. It takes
   the operation's **index map**, which maps pre-edit to post-edit rows and cells and is
   computed from the structural edit in step 1. It validates the writes against the post-edit
@@ -356,10 +407,13 @@ Each operation still builds **one** plan. The cell writes are not a second trans
   - the census checks use the post-edit positions.
 - Its outputs are **merged** into the operation's plan instead of carrying their own:
   - its `sst` appends and `refs_delta` go into the operation's single `RegistryApply`;
-  - its `calcPr` change goes into the operation's single staged `workbook.xml` (one clone,
-    carrying the names and the `calcPr`);
+  - its `calcPr` change goes into the operation's single staged `workbook.xml`: **one staged
+    clone per plan**, carrying the names and the `calcPr`. Today `apply_writes_with` stages
+    the `CellWritePlan`'s own clone (`edit.rs` L479-481), which would stage `workbook.xml`
+    twice. P7-pre makes it edit the operation's clone instead;
   - its calcChain removal is the operation's (one `remove_parts`);
-  - its strips join step 3.1;
+  - its dependent strips are **subsumed** by §3.7's rule, which is computed on the pre-edit
+    graph. The composed plan does not ask the pre-edit graph about post-edit cells;
   - its cell writes become step 3.5 insertions or step 3.2 rewrites.
 - A rename does not move anything (the index map is the identity), so §6 uses
   `plan_writes_after` with the identity map and the same merging.
@@ -397,8 +451,13 @@ The code and the tests use the data:
   It is defined **by element**, not by searching text for cell-shaped tokens:
   - **Sheet-prefix form** (ADR-0009 §6, unchanged and proven: 0 refusals in 838 renames).
     Every text node and attribute value is searched for the edited sheet's name in prefix
-    form (or, for table renames, `Name[`). A hit must lie in a registry place or a known
-    non-reference. A hit anywhere else refuses with `Err(UnrewritableReference)`.
+    form (or, for table renames, `Name[`). A hit is accepted only if it lies:
+    - in a registry place that the dispatcher **visited for this part in this operation**,
+      with a rule other than `–`; or
+    - in a known non-reference.
+
+    A hit anywhere else, including a registry place that was not dispatched, refuses with
+    `Err(UnrewritableReference)` (review round 2 M1).
   - **Unprefixed positions** are recognised **only in registry places**: places that the
     schemas type as references or formulas (`ST_Ref`, `ST_CellRef`, `ST_Sqref`, `ST_RefA`,
     `ST_Formula` and their derivatives in `sml.xsd`), plus the DrawingML, VML, chart and
@@ -408,10 +467,16 @@ The code and the tests use the data:
   - **Extensions.** Every `ext/@uri`, at any depth, in a part the operation must change has
     to appear in the `EXTENSIONS` table below, as a URI with registry rows or as
     `NOT_APPLICABLE` with a reason.
-    - An unknown URI whose content holds anything reference-shaped (a sheet-prefix hit, or
-      text matching the A1 grammar in an element or attribute named `f`, `sqref`, `ref` or
-      `r`) refuses with `UnrewritableReference { part, location: uri }`.
-    - An unknown URI with no such content is left alone.
+    - **Reference-shaped content** means a sheet-prefix hit, or text matching the A1
+      grammar in an element or attribute named `f`, `sqref`, `ref` or `r`.
+    - It refuses (`UnrewritableReference { part, location: uri + path }`) whenever it lies
+      under an `ext`:
+      - of an **unknown** URI; or
+      - of a **known** URI, at a path that is not a registry place of that URI (review
+        round 2 M2).
+    - So a swapped or incomplete URI entry fails closed, and so does a new
+      reference-bearing child that Microsoft adds under an existing URI.
+    - Content under any URI with no reference-shaped content is left alone.
   - Blind spots, as ADR-0009 §6: binary parts. An unparseable XML part gets a byte scan for the
     prefix form, and a hit refuses.
 - **Schema completeness test.**
@@ -428,25 +493,35 @@ The code and the tests use the data:
     hand-written `EXTENSIONS` table and its own ADR ↔ data test.
 - **ADR ↔ data tests**, as ADR-0014 R2-3: the ids, scopes, parts and paths in the tables below
   equal `LOCATIONS` and `EXTENSIONS`.
+- **Scope check** (compile time, review round 2 M1): an inline `const { … }` over
+  `LOCATIONS` asserts that every row of syntax `Formula` or `Location` has scope `any`.
+- **ADR-0009 ↔ `LOCATIONS` test** (review round 2 M3): every place `sheet_ops/scan.rs`'s
+  `allowed()` accepts today (`scan.rs` L54-72, including the `Relationships`/`Target` arm)
+  maps to a row whose sheet-rename rule is R.
 
-`EXTENSIONS` (worksheet `extLst`, and `ext`s inside elements; MS-XLSX's worksheet extension
-list; review M4):
+`EXTENSIONS` (from [MS-XLSX] §2.2.4.12 "Worksheet", the worksheet extension list, plus the
+`cfRule`, `sortState` and `filterColumn` extensions on the same page; review round 2 M2):
 
-| URI | Content | Rows / rule | Corpus |
+| URI | Element | Rows / rule | Corpus |
 |---|---|---|---|
-| `{78C0D931-6437-407d-A8EE-F0AAD7539E65}` | x14 conditional formatting | L20 | 2 files |
-| `{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}` | x14 data validation | L20 | 3 |
-| `{05C60535-1F16-4fd2-B633-F4F36F0B64E0}` | sparkline groups | L21 | 1 |
-| `{B025F937-C7B1-47D3-B67F-A62EFF666E3E}` | `x14:id` link on a `cfRule` | not applicable: a GUID, no position | 2 |
+| `{78C0D931-6437-407D-A8EE-F0AAD7539E65}` | x14 `conditionalFormattings` | L20 | 2 files |
+| `{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}` | x14 `dataValidations` | L20 | 3 |
+| `{05C60535-1F16-4FD2-B633-F4F36F0B64E0}` | x14 `sparklineGroups` | L21 | 1 |
+| `{FC87AEE6-9EDD-4A0A-B7FB-166176984837}` | x14 `protectedRanges` (`xm:sqref`) | L68 | 0 |
+| `{01252117-D84E-4E92-8308-4BE1C098FCBB}` | x14 `ignoredErrors` (`xm:sqref`) | L69 | 0 |
+| `{F7C9EE02-42E1-4005-9D12-6889AFFD525C}` | x15 `webExtensions` (bindings with `xm:f`) | L70: X | 0 |
+| `{A8765BA9-456A-4DAB-B4F3-ACF838C121DE}` | x14 `slicerList` | not applicable: relationships only (copies with slicers refuse, §4.1) | 0 |
+| `{7E03D99C-DC04-49d9-9315-930204A7B6E9}` | x15 `timelineRefs` | not applicable: relationships only (copies with timelines refuse) | 0 |
+| `{B025F937-C7B1-47D3-B67F-A62EFF666E3E}` (on `cfRule`) | `x14:id` link | not applicable: a GUID, no position | 2 |
+| `{0FC57C36-975A-43D2-8416-536B9B585D1B}` (on `sortState`) | rich sort conditions (with `@ref`) | L74: X while it holds a `ref` | 0 |
+| `{68452572-C921-441B-96FD-77FB3E787301}` (on `filterColumn`) | x14 filter extensions | L74: X while it holds a `ref` | 0 |
 | `http://schemas.microsoft.com/office/mac/excel/2008/main`, `{64002731-A6B0-56B0-2670-7721B7C09600}` | `mx:PLV` (Mac page layout) | not applicable: no position | 19, 9 |
-| `{01252117-D84E-4E92-8308-4BE1C098FCBB}` (*u*) | x14 `protectedRanges` (`xm:sqref`) | L68 | 0 |
-| `{EB79DEF2-80B8-43E5-95BD-54CBDDF9020C}` (*u*: URI as recalled, to be checked against MS-XLSX) | x14 `ignoredErrors` (`xm:sqref`) | L69 | 0 |
-| x15 `webExtensions` | bindings with `xm:f` | L70: X | 0 |
-| x14 `slicerList`, x15 `timelineRefs`, `tableSlicerCache` | relationships only | not applicable (slicers and timelines refuse copies, §4.1) | 0 |
 
-The two x14 URIs marked *(u)* come from MS-XLSX's extension list as remembered. P7-pre checks
-them against the specification before the table becomes data. A wrong URI fails closed, as an
-unknown URI.
+The URIs and element mappings are those of MS-XLSX §2.2.4.12 as fetched by the round-2
+reviewer (learn.microsoft.com, page `07d607af-5618-4ca2-b683-6a78dc0d9627`, updated
+2026-11-18). URIs compare case-insensitively. A unit test feeds `ignoredErrors` content under
+its real URI, which must be rewritten (L69). It feeds the same content under a deliberately
+swapped mapping, which must refuse.
 
 Syntax kinds:
 
@@ -461,7 +536,15 @@ Syntax kinds:
 | `Location` | `Sheet!A1` navigation target | §3.2 cell/range rule; never `#REF!` |
 | `RawName` | a table or sheet name without syntax | renames only |
 
-Rules (columns G1, Copy, Rename), one per row and operation (review n4):
+Rules (columns G1, Copy, table/column rename, sheet rename, sheet delete), one per row and
+operation (review n4). The two sheet columns hold ADR-0009 §5/§6's decided rules (review
+round 2 M3). ADR-0009's implementation still refuses some places its table decides to rewrite:
+DV, CF, x14, table formulas, connection parameters, form controls, `textlink` and
+`c:pivotSource` (its implementation note). P7-pre turns those refusals into the R of this
+table, and **nothing else changes**. Every rename and delete that succeeds today gives
+byte-identical output before and after the switch (Delivery 0). Positional
+rows (`Sqref`, `Range`, `Cell`, `Index`, `Marker`) are "–" for both: a rename does not move
+anything, and a delete removes the sheet's own parts with it.
 
 - **R**: rewrite.
 - **D**: rewrite, and the element is removed when its reference is wholly deleted.
@@ -473,81 +556,85 @@ Rules (columns G1, Copy, Rename), one per row and operation (review n4):
 - **copied**: the copy keeps the value as it is (copy only).
 - **part removed** / **removed on the copy**: as stated.
 
-| # | Part | Place | Syntax | G1 (§3) | Copy (§4) | Table / column rename (§5, §6) | Corpus (count / files) |
-|---|---|---|---|---|---|---|---|
-| L1 | worksheet | `sheetData/row/@r` | `Index(row, 1-based)` | D (row removed) | copied | – | 813 sheets |
-| L2 | worksheet | `row/@spans` | column hint `a:b` | R (column edits) | copied | – | 88,922 / 275 |
-| L3 | worksheet | `row/c/@r` | `Cell` | D (cell removed) | copied | – | 1,502,954 cells |
-| L4 | worksheet (any) | `c/f` text: normal, shared master, array, data-table anchor | `Formula(cell)`; shared: `Formula(master)` | R (§3.3) | R (§4.4) | R | 11,561 / 126 |
-| L5 | worksheet | `c/f/@ref` (shared, array) | `Range` | R; X when an array is split (§3.3.3) | copied | – | 359 + 53 |
-| L6 | worksheet | `c/f/@r1`, `@r2` (data table) | `Cell` | R; X when deleted | copied | – | 0 (1 synthetic) |
-| L7 | worksheet | `dimension/@ref` | `Range` | R | copied | – | 787 |
-| L8 | worksheet | `cols/col/@min`, `@max` | `Index(col, 1-based)` pairs | R (§3.4) | copied | – | 14,555 / 179 |
-| L9 | worksheet | `sheetView/@topLeftCell`, `pane/@topLeftCell`, `customSheetView/@topLeftCell` | `Cell` | R, clamped (§3.5) | copied | – | 81 / 53 (`sheetView` only) |
-| L10 | worksheet | `pane/@xSplit`, `@ySplit` (frozen: a row/column count; split: twips, unchanged) | count | R (§3.5) | copied | – | 32 / 19 |
-| L11 | worksheet | `selection/@activeCell`, `@sqref` | `Cell`, `Sqref` | R, clamped | copied | – | 481 / 272 |
-| L12 | worksheet | `mergeCells/mergeCell/@ref` | `Range` | D (§3.5) | copied | – | 54,468 / 43 |
-| L13 | worksheet | `hyperlinks/hyperlink/@ref` | `Range` | D | copied | – | 113 / 15 |
-| L14 | worksheet (any) | `hyperlink/@location` | `Location` | R; X when its target is deleted (§3.5) | kept (§4.4) | – | 38 / 3 |
-| L15 | worksheet | `autoFilter/@ref`, `filterColumn/@colId`, `autoFilter/sortState/@ref`, `sortCondition/@ref`; top-level `sortState` | `Range`, column offset | R; X header row or a filtered column deleted (§3.5) | copied | – | 3 + 7 |
-| L16 | worksheet | `conditionalFormatting/@sqref` | `Sqref` | D (rule removed when empty) | copied | – | 108 / 20 |
-| L17 | worksheet (any) | `cfRule/formula`, `cfvo/@val` (`type="formula"`) | `Formula(sqref first cell)` | R (§3.3.4) | R | R | 89 / 18, 2 |
-| L18 | worksheet | `dataValidation/@sqref` | `Sqref` | D | copied | – | 108 / 13 |
-| L19 | worksheet (any) | `dataValidation/formula1`, `formula2` | `Formula(sqref first cell)` | R (§3.3.4) | R | R | 122 / 12 |
-| L20 | worksheet; `xm:f` (any) | `extLst` x14 CF/DV: `xm:sqref`, `xm:f`, `x14:cfvo/xm:f` | as L16–L19 | as L16–L19 | R | R | 22 / 6, 25 / 6 (15 sheet-prefixed / 2) |
-| L21 | worksheet; `xm:f` (any) | `extLst` sparklines: `x14:sparkline/xm:f` (data), `xm:sqref` (host), `x14:sparklineGroup/xm:f` (date axis) | `Formula(none)`, `Cell` | R; sparkline removed with its host; X when its data range is wholly deleted (§3.5) | R (retargeted, Q3) | R | 11 / 1 |
-| L22 | worksheet | `rowBreaks/brk/@id`, `colBreaks/brk/@id` (+ `count`, `manualBreakCount`); `brk/@min`, `@max` (extent on the other axis) | `Index(0-based)` | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | 10 + 3 / 4 + 3 |
-| L23 | worksheet | `ignoredErrors/ignoredError/@sqref` | `Sqref` | D | copied | – | 5 / 3 |
-| L24 | worksheet | `protectedRanges/protectedRange/@sqref` | `Sqref` | R; X when it would become empty | copied | – | 4 / 4 |
-| L25 | worksheet | `customSheetViews/customSheetView/…` (`selection`, `pane`, breaks, `autoFilter`) | as L9–L15, L22 | as there | copied | – | 3 / 1 |
-| L26 | worksheet | `cellWatches/cellWatch/@r`, `smartTags/cellSmartTags/@r` | `Cell` | D | copied | – | 0 |
-| L27 | worksheet | `scenarios/scenario/inputCells/@r`, `scenarios/@sqref` | `Cell`, `Sqref` | XX | XX | – | 0 |
-| L28 | worksheet | `dataConsolidate/dataRefs/dataRef/@ref` | `Range` | XX | XX | – | 1 / 1 |
-| L29 | worksheet | `webPublishItems/webPublishItem/@sourceRef` | `Range` | XX | XX | – | 0 |
-| L30 | worksheet | `oleObjects`, `controls` (anchors, `@linkedCell`, `@listFillRange`) | `Marker`, `Formula` | XX | XX | – | 6 / 5, 2 / 2 |
-| L31 | worksheet | `mc:AlternateContent` at the top level, in `sheetData` or in a row | – | XX | XX | – | 2 / 2, 0 |
-| L32 | workbook | `definedName` text (all scopes, `_xlnm.*` included) | `Formula(none)` | R (§3.3.5) | R + local names duplicated (§4.4) | R | 858 / 62 |
-| L33 | workbook | `definedName/@localSheetId`, `workbookView/@activeTab`, `@firstSheet` | position | – | N (ADR-0009 §4) | – | 142 / 24 |
-| L34 | `calcChain.xml` | `c/@r`, `c/@i` | `Cell` | part removed (ADR-0003 §4.3) | part removed | – | 116 |
-| L35 | table | `table/@ref`, `autoFilter/@ref`, `sortState/@ref`, `sortCondition/@ref` | `Range` | R / X (§3.6.1) | N (§4.3) | – | 61 / 29 |
-| L36 | table | `tableColumns/tableColumn` set, `filterColumn/@colId` | columns | R (§3.6.1) | copied | column name: R | 199 / 29 |
-| L37 | table (any) | `calculatedColumnFormula`, `totalsRowFormula` | `Formula(first data row)` | R | R | R | 16 / 8 |
-| L38 | table | `table/@name`, `@displayName` | `RawName` | – | N | R | 61 / 29 |
-| L39 | comments | `comment/@ref` | `Cell` | D (note removed with its VML shape and thread) | copied | – | 204 / 27 |
-| L40 | VML | `x:ClientData/x:Row`, `x:Column` | `Index(0-based)` | R with L39 | copied | – | 204 / 27 |
-| L41 | VML | `x:ClientData/x:Anchor` | `Marker` (8 integers) | R (§3.6.3) | copied | – | 410 / 37 |
-| L42 | VML | `x:FmlaLink`, `x:FmlaRange`, `x:FmlaTxbx`, `x:FmlaPict`, `x:FmlaGroup` | `Formula(none)` | X | XX (controls) | X | 57 / 4 |
-| L43 | threaded comments | `threadedComment/@ref` | `Cell` | D with L39 | N (new GUIDs) | – | 4 / 3 |
-| L44 | drawing | `xdr:twoCellAnchor`/`oneCellAnchor` `xdr:from`, `xdr:to` | `Marker` | R / X (§3.6.3) | copied | – | 181 + 30 / 47 + 8 |
-| L45 | drawing | anchors inside `mc:AlternateContent` | `Marker` | X when they would change | XX | – | 170 / 4 |
-| L46 | drawing, chart user shapes (any) | `xdr:sp/@textlink`, `cdr:sp/@textlink` | `Formula(none)` | R | R | R | 0 |
-| L47 | chart (any) | `c:f`, `c15:f`, `c15:sqref`, `c15:fullRef`, `c15:formulaRef`, `c15:datalabelsRange`, `c15:filteredSeriesTitle`, `c15:filteredCategoryTitle` | `Formula(none)` | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | 174 / 25 |
-| L48 | chartEx | `cx:f` | `Formula(none)` | X | XX | X | 0 |
-| L49 | chart | `c:pivotSource/c:name` | `RawName` | – (pivot rules) | XX | – | 1 / 1 |
-| L50 | pivot cache | `worksheetSource/@ref` (+ `@sheet`) | `Range` | R when moved; X when expanded or shrunk (§3.6.5) | – | – | 7 / 5 |
-| L51 | pivot cache | `worksheetSource/@name` | `RawName` (table or name) | – | – | R (table rename) | 3 / 3 |
-| L52 | pivot table | `location/@ref` and everything inside | `Range` | X if the edit crosses or moves it (§3.6.5) | XX | – | 12 / 7 |
-| L53 | pivot cache | `consolidation/rangeSets/rangeSet/@ref` | `Range` | X | – | – | 0 |
-| L54 | `tableSingleCells` | `singleXmlCell/@r` | `Cell` | R; X when deleted | XX | – | 14 / 14 |
-| L55 | `connections.xml` (any) | `parameter/@cell` | `Formula(none)` | R | – | R | 12 / 1 |
-| L56 | ctrlProps | `@fmlaLink`, `@fmlaRange`, `@fmlaTxbx`, `@fmlaGroup` | `Formula(none)` | X | XX | X | 0 non-empty |
-| L57 | query table | `queryTable` bound to a `queryTable` table | – | X when its table's `ref` changes | XX | X (rename) | 13 / 2 |
-| L58 | revisions | `xl/revisions/*` | – | XX (`SharedWorkbook`) | XX | XX | 1 / 1 |
-| L59 | `activeX*.bin` | `LinkedCell`, `ListFillRange` (binary) | – | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | 0 |
-| L60 | `externalLink` | another workbook's cells and names | – | – | – | – | 14 / 10 |
-| L61 | `metadata.xml`, `richData/*` | `cm`/`vm` indices (not positions) | – | – (move with the cell) | copied | – | 1, 2 |
-| L62 | workbook | `oleSize/@ref` (visible area of an embedded workbook) | `Range` | R when it names the edited sheet's area *(u: it has no sheet; assumed the first sheet)*; X when its area is changed in any other way | – | – | 2 packages |
-| L63 | workbook | `webPublishObjects/webPublishObject/@sourceObject` | `RawName`/range | X when it names the edited sheet | X | X | 0 |
-| L64 | `connections.xml` | `x15:rangePr/@sourceName`, model connections naming a table (`WorksheetConnection_…`) | `RawName` | – | – | X (table rename; review m13) | 0 |
-| L65 | `volatileDependencies.xml` | `tp/tr/@r` (`CT_VolTopicRef`) | `Cell` | XX when the edited sheet has any | XX | – | 0 |
-| L66 | worksheet | `sheetPr/@codeName` | name | – | removed on the copy (§4.2) | – | 93 / 32 |
-| L67 | worksheet, workbook | `sheetProtection` (`insertRows`, `insertColumns`, `deleteRows`, `deleteColumns`); `workbookProtection/@lockStructure` | flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | 7 / 4; 4 |
-| L68 | worksheet `extLst` | x14 `protectedRanges/protectedRange/xm:sqref` | `Sqref` | as L24 | copied | – | 0 |
-| L69 | worksheet `extLst` | x14 `ignoredErrors/ignoredError/xm:sqref` | `Sqref` | as L23 | copied | – | 0 |
-| L70 | worksheet `extLst` | x15 `webExtensions` bindings (`xm:f`) | `Formula(none)` | X | XX | X | 0 |
+| # | Part | Place | Syntax | G1 (§3) | Copy (§4) | Table / column rename (§5, §6) | Sheet rename (ADR-0009 §6) | Sheet delete (ADR-0009 §5) | Corpus (count / files) |
+|---|---|---|---|---|---|---|---|---|---|
+| L1 | worksheet | `sheetData/row/@r` | `Index(row, 1-based)` | D (row removed) | copied | – | – | – | 813 sheets |
+| L2 | worksheet | `row/@spans` | column hint `a:b` | R (column edits) | copied | – | – | – | 88,922 / 275 |
+| L3 | worksheet | `row/c/@r` | `Cell` | D (cell removed) | copied | – | – | – | 1,502,954 cells |
+| L4 | worksheet (any) | `c/f` text: normal, shared master, array, data-table anchor | `Formula(cell)`; shared: `Formula(master)` | R (§3.3) | R (§4.4) | R | R | R (`#REF!`) | 11,561 / 126 |
+| L5 | worksheet | `c/f/@ref` (shared, array) | `Range` | R; X when an array is split (§3.3.3) | copied | – | – | – | 359 + 53 |
+| L6 | worksheet | `c/f/@r1`, `@r2` (data table) | `Cell` | R; X when deleted | copied | – | – | – | 0 (1 synthetic) |
+| L7 | worksheet | `dimension/@ref` | `Range` | R | copied | – | – | – | 787 |
+| L8 | worksheet | `cols/col/@min`, `@max` | `Index(col, 1-based)` pairs | R (§3.4) | copied | – | – | – | 14,555 / 179 |
+| L9 | worksheet | `sheetView/@topLeftCell`, `pane/@topLeftCell`, `customSheetView/@topLeftCell` | `Cell` | R, clamped (§3.5) | copied | – | – | – | 81 / 53 (`sheetView` only) |
+| L10 | worksheet | `pane/@xSplit`, `@ySplit` (frozen: a row/column count; split: twips, unchanged) | count | R (§3.5) | copied | – | – | – | 32 / 19 |
+| L11 | worksheet | `selection/@activeCell`, `@sqref` | `Cell`, `Sqref` | R, clamped | copied | – | – | – | 481 / 272 |
+| L12 | worksheet | `mergeCells/mergeCell/@ref` | `Range` | D (§3.5) | copied | – | – | – | 54,468 / 43 |
+| L13 | worksheet | `hyperlinks/hyperlink/@ref` | `Range` | D | copied | – | – | – | 113 / 15 |
+| L14 | worksheet (any) | `hyperlink/@location` | `Location` | R; X when its target is deleted (§3.5) | kept (§4.4) | – | R | kept (navigation target, ADR-0009 §5) | 38 / 3 |
+| L15 | worksheet | `autoFilter/@ref`, `filterColumn/@colId`, `autoFilter/sortState/@ref`, `sortCondition/@ref`; top-level `sortState` | `Range`, column offset | R; X header row or a filtered column deleted (§3.5) | copied | – | – | – | 3 + 7 |
+| L16 | worksheet | `conditionalFormatting/@sqref` | `Sqref` | D (rule removed when empty) | copied | – | – | – | 108 / 20 |
+| L17 | worksheet (any) | `cfRule/formula`, `cfvo/@val` (`type="formula"`) | `Formula(sqref first cell)` | R (§3.3.4) | R | R | R | R (`#REF!`) | 89 / 18, 2 |
+| L18 | worksheet | `dataValidation/@sqref` | `Sqref` | D | copied | – | – | – | 108 / 13 |
+| L19 | worksheet (any) | `dataValidation/formula1`, `formula2` | `Formula(sqref first cell)` | R (§3.3.4) | R | R | R | R (`#REF!`) | 122 / 12 |
+| L20 | worksheet; `xm:f` (any) | `extLst` x14 CF/DV: `xm:sqref`, `xm:f`, `x14:cfvo/xm:f` | as L16–L19 | as L16–L19 | R | R | R (`xm:f`) | R (`#REF!`) | 22 / 6, 25 / 6 (15 sheet-prefixed / 2) |
+| L21 | worksheet; `xm:f` (any) | `extLst` sparklines: `x14:sparkline/xm:f` (data), `xm:sqref` (host), `x14:sparklineGroup/xm:f` (date axis) | `Formula(none)`, `Cell` | R; sparkline removed with its host; X when its data range is wholly deleted (§3.5) | R (retargeted, Q3) | R | R (`xm:f`) | R (`#REF!`) | 11 / 1 |
+| L22 | worksheet | `rowBreaks/brk/@id`, `colBreaks/brk/@id` (+ `count`, `manualBreakCount`); `brk/@min`, `@max` (extent on the other axis) | `Index(0-based)` | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | – | – | 10 + 3 / 4 + 3 |
+| L23 | worksheet | `ignoredErrors/ignoredError/@sqref` | `Sqref` | D | copied | – | – | – | 5 / 3 |
+| L24 | worksheet | `protectedRanges/protectedRange/@sqref` | `Sqref` | R; X when it would become empty | copied | – | – | – | 4 / 4 |
+| L25 | worksheet | `customSheetViews/customSheetView/…` (`selection`, `pane`, breaks, `autoFilter`) | as L9–L15, L22 | as there | copied | – | – | – | 3 / 1 |
+| L26 | worksheet | `cellWatches/cellWatch/@r`, `smartTags/cellSmartTags/@r` | `Cell` | D | copied | – | – | – | 0 |
+| L27 | worksheet | `scenarios/scenario/inputCells/@r`, `scenarios/@sqref` | `Cell`, `Sqref` | XX | XX | – | – | – | 0 |
+| L28 | worksheet | `dataConsolidate/dataRefs/dataRef/@ref` | `Range` | XX | XX | – | – | – | 1 / 1 |
+| L29 | worksheet | `webPublishItems/webPublishItem/@sourceRef` | `Range` | XX | XX | – | – | – | 0 |
+| L30 | worksheet; formula attributes (any) | `oleObjects`, `controls` (anchors, `@linkedCell`, `@listFillRange`) | `Marker`, `Formula` | XX | XX | – | R | R (`#REF!`) | 6 / 5, 2 / 2 |
+| L31 | worksheet | `mc:AlternateContent` at the top level, in `sheetData` or in a row; and **anywhere inside a registry element** of a part the operation edits (e.g. the Choice of a `sortState` or `filterColumn` holding x14 `sortCondition/@ref`) | – | XX; X inside a registry element | XX | X inside a registry element | – | – | 2 / 2, 0, 0 |
+| L32 | workbook | `definedName` text (all scopes, `_xlnm.*` included) | `Formula(none)` | R (§3.3.5) | R + local names duplicated (§4.4) | R | R | R (`#REF!`); local names of the sheet removed | 858 / 62 |
+| L33 | workbook | `definedName/@localSheetId`, `workbookView/@activeTab`, `@firstSheet` | position | – | N (ADR-0009 §4) | – | – | N (renumbered) | 142 / 24 |
+| L34 | `calcChain.xml` | `c/@r`, `c/@i` | `Cell` | part removed (ADR-0003 §4.3) | part removed | – | – | part removed | 116 |
+| L35 | table | `table/@ref`, `autoFilter/@ref`, `sortState/@ref`, `sortCondition/@ref` | `Range` | R / X (§3.6.1) | N (§4.3) | – | – | – | 61 / 29 |
+| L36 | table | `tableColumns/tableColumn` set, `filterColumn/@colId` | columns | R (§3.6.1) | copied | column name: R | – | – | 199 / 29 |
+| L37 | table (any) | `calculatedColumnFormula`, `totalsRowFormula` | `Formula(first data row)` | R | R | R | R | R (`#REF!`) | 16 / 8 |
+| L38 | table | `table/@name`, `@displayName` | `RawName` | – | N | R | – | – | 61 / 29 |
+| L39 | comments | `comment/@ref` | `Cell` | D (note removed with its VML shape and thread) | copied | – | – | – | 204 / 27 |
+| L40 | VML | `x:ClientData/x:Row`, `x:Column` | `Index(0-based)` | R with L39 | copied | – | – | – | 204 / 27 |
+| L41 | VML | `x:ClientData/x:Anchor` | `Marker` (8 integers) | R (§3.6.3) | copied | – | – | – | 410 / 37 |
+| L42 | VML (any) | `x:FmlaLink`, `x:FmlaRange`, `x:FmlaTxbx`, `x:FmlaPict`, `x:FmlaGroup` | `Formula(none)` | X | XX (controls) | X | R | R (`#REF!`) | 0 (the 57 `x:Fmla*` in 4 files are all `x:FmlaMacro` macro names, not positions) |
+| L43 | threaded comments | `threadedComment/@ref` | `Cell` | D with L39 | N (new GUIDs) | – | – | – | 4 / 3 |
+| L44 | drawing | `xdr:twoCellAnchor`/`oneCellAnchor` `xdr:from`, `xdr:to` | `Marker` | R / X (§3.6.3) | copied | – | – | – | 181 + 30 / 47 + 8 |
+| L45 | drawing | anchors inside `mc:AlternateContent` | `Marker` | X when they would change | XX | – | – | – | 170 / 4 |
+| L46 | drawing, chart user shapes (any) | `xdr:sp/@textlink`, `cdr:sp/@textlink` | `Formula(none)` | R | R | R | R | R (`#REF!`) | 0 |
+| L47 | chart (any) | `c:f`, `c15:f`, `c15:sqref`, `c15:fullRef`, `c15:formulaRef`, `c15:datalabelsRange`, `c15:filteredSeriesTitle`, `c15:filteredCategoryTitle` | `Formula(none)` | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | R | R (`#REF!`) | 174 / 25 |
+| L48 | chartEx (any) | `cx:f` | `Formula(none)` | X | XX | X | X | X | 0 |
+| L49 | chart | `c:pivotSource/c:name` | `RawName` | – (pivot rules) | XX | – | R; X if the new name needs quotes | X | 1 / 1 |
+| L50 | pivot cache | `worksheetSource/@ref` (+ `@sheet`) | `Range` | R when moved; X when expanded or shrunk (§3.6.5) | – | – | – | – | 7 / 5 |
+| L51 | pivot cache | `worksheetSource/@name` | `RawName` (table or name) | – | – | R (table rename) | – | – | 3 / 3 |
+| L52 | pivot table | `location/@ref` and everything inside | `Range` | X if the edit crosses or moves it (§3.6.5) | XX | – | – | – | 12 / 7 |
+| L53 | pivot cache | `consolidation/rangeSets/rangeSet/@ref` | `Range` | X | – | – | – | – | 0 |
+| L54 | `tableSingleCells` | `singleXmlCell/@r` | `Cell` | R; X when deleted | XX | – | – | – | 14 / 14 |
+| L55 | `connections.xml` (any) | `parameter/@cell` | `Formula(none)` | R | – | R | R | R (`#REF!`) | 12 / 1 |
+| L56 | ctrlProps (any) | `@fmlaLink`, `@fmlaRange`, `@fmlaTxbx`, `@fmlaGroup` | `Formula(none)` | X | XX | X | R | R (`#REF!`) | 0 non-empty |
+| L57 | query table | `queryTable` bound to a `queryTable` table | – | X when its table's `ref` changes | XX | X (rename) | – | – | 13 / 2 |
+| L58 | revisions | `xl/revisions/*` | – | XX (`SharedWorkbook`) | XX | XX | XX | XX | 1 / 1 |
+| L59 | `activeX*.bin` | `LinkedCell`, `ListFillRange` (binary) | – | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | XX (`BinaryReferencesPossible`) | – | 0 |
+| L60 | `externalLink` | another workbook's cells and names | – | – | – | – | – | – | 14 / 10 |
+| L61 | `metadata.xml`, `richData/*` | `cm`/`vm` indices (not positions) | – | – (move with the cell) | copied | – | – | – | 1, 2 |
+| L62 | workbook | `oleSize/@ref` (visible area of an embedded workbook) | `Range` | R when it names the edited sheet's area *(u: it has no sheet; assumed the first sheet)*; X when its area is changed in any other way | – | – | – | – | 2 packages |
+| L63 | workbook | `webPublishObjects/webPublishObject/@sourceObject` | `RawName`/range | X when it names the edited sheet | X | X | X | X | 0 |
+| L64 | `connections.xml` | `x15:rangePr/@sourceName`, model connections naming a table (`WorksheetConnection_…`) | `RawName` | – | – | X (table rename; review m13) | – | – | 0 |
+| L65 | `volatileDependencies.xml` | `tp/tr/@r` (`CT_VolTopicRef`) | `Cell` | XX when the edited sheet has any | XX | – | – | – | 0 |
+| L66 | worksheet | `sheetPr/@codeName` | name | – | removed on the copy (§4.2) | – | – | – | 93 / 32 |
+| L67 | worksheet, workbook | `sheetProtection` (`insertRows`, `insertColumns`, `deleteRows`, `deleteColumns`); `workbookProtection/@lockStructure` | flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | Protected under `lockStructure` (m8) | Protected under `lockStructure` (m8) | 7 / 4; 4 |
+| L68 | worksheet `extLst` | x14 `protectedRanges/protectedRange/xm:sqref` | `Sqref` | as L24 | copied | – | – | – | 0 |
+| L69 | worksheet `extLst` | x14 `ignoredErrors/ignoredError/xm:sqref` | `Sqref` | as L23 | copied | – | – | – | 0 |
+| L70 | worksheet `extLst` (any) | x15 `webExtensions` bindings (`xm:f`) | `Formula(none)` | X | XX | X | R | R (`#REF!`) | 0 |
+| L71 | sheet `.rels`, drawing `.rels` (any) | Internal relationship `Target="#Sheet!A1"` (shape and cell hyperlinks) | `Location` | R through `set_relationship_target` in the operation's `RegistryPlan`; X when the target is wholly deleted (as L14) | kept | – | R (`set_relationship_target`) | kept (ADR-0009 §5) | 18 renames of 838 retarget one (ADR-0009 §6) |
+| L72 | pivot cache, worksheet | `worksheetSource/@sheet`, `consolidation/rangeSets/rangeSet/@sheet`, `dataConsolidate/dataRefs/dataRef/@sheet` | `RawName` | – (positions are L50/L53/L28) | – | – | R for `worksheetSource/@sheet`; X for `rangeSet`/`dataRef` | X (`SheetIsPivotSource` / `UnrewritableReference`) | 5 / 0 / 0 |
+| L73 | `docProps/app.xml` | worksheet titles (`vt:lpstr`), "Named Ranges" titles (`'1'!Print_Area`) | `RawName`, `Location` | – | N (ADR-0009 §11) | – | R | R (title removed) | 294 with titles, 32 |
+| L74 | worksheet, table | `sortState/extLst` `{0FC57C36-…}`, `filterColumn/extLst` `{68452572-…}` | `Range` | X while it holds a `ref` | copied | – | – | – | 0 |
 
 Known non-references (ADR-0009 §6): cell values, shared strings, comment and note text,
-formula string literals (`INDIRECT("A1")`), `docProps`.
+formula string literals (`INDIRECT("A1")`), `docProps` other than L73's `app.xml` titles.
 
 #### 2.3 One rewriter per syntax
 
@@ -590,6 +677,9 @@ Refused before anything changes, with `Err` and every byte unchanged:
   operation. Also `copy_sheet` in a workbook with `workbookProtection/@lockStructure`. Both
   give `Err(Protected { scope, operation })`, with no override (7 sheets in 4 files, 4
   workbooks).
+- For consistency, P7-pre makes **ADR-0009's add, delete, rename and move sheet** refuse with
+  `Protected` under `lockStructure` too (review round 2 m8). That changes the behaviour of
+  existing operations (Consequences).
 
 ### 3. Insert and delete rows and columns
 
@@ -629,6 +719,17 @@ start may have been moved. Only on range." For formulas, `token.cxx` L2956, L296
 (`lcl_MoveEnd`, `refupdat.cxx` L49-67, `bCut`). Phase7 does the same everywhere a range lives:
 formulas, `cols` (106 `col max="16384"` in 44 files), `dimension`, `selection`, every `sqref`,
 breaks' `@max`.
+
+**Precedence** (review round 2 m1): **wholly deleted wins over pinning.** A range whose every
+row is deleted is deleted (`#REF!`, or the element removed) even when its end is the last row.
+Deleting rows `p..1048576` under `A1048570:A1048576` deletes it; LO marks it `UR_INVALID`
+before applying the sticky end (`refupdat.cxx` L252-266). Pinning applies only to a range
+that keeps at least one row.
+
+**View cells** (`sheetView`/`pane` `topLeftCell`, `selection/@activeCell`, L9, L11) are not
+refused at the edge: on an insert they are **clamped** to the last row/column, as they are
+clamped to the first surviving cell on a delete. A cursor saved on the last row must not
+block every row insert.
 
 These are LO's rules with its `ExpandRefs` option off (§Reference libraries). Inserting at the
 first row of a range moves it; inserting just below it does not grow it. Excel behaves the same
@@ -735,8 +836,12 @@ references. After the edit:
 - if the `sqref` becomes empty, the rule is removed (§3.5);
 - **a `sqref` with several ranges** (11 CF and 6 DV in the corpus) whose first range's
   top-left cell is deleted, and whose formula has relative references, is **refused**
-  (`StructureBlocked`). Excel may anchor such a rule at the bounding box's top-left instead;
-  both readings agree while the anchor survives (review m4).
+  (`StructureBlocked`). Excel may anchor such a rule at the bounding box's top-left instead.
+  The two readings agree only while **both** candidate anchors survive. For
+  `sqref="B5:B10 A3:A4"`, deleting row 3 removes the bounding-box anchor `A3` and keeps the
+  first-range anchor `B5`. So a multi-range `sqref` with relative references refuses when
+  **either** the first range's top-left **or** the bounding box's top-left is deleted
+  (review m4; round 2 m5). XL item 6 decides the reading.
 
 The scope rule of §2.2 applies here: a CF, DV, x14 or sparkline formula **on another sheet**
 that names the edited sheet is rewritten like a cell formula, with no re-anchoring, because its
@@ -770,7 +875,8 @@ first data cell and the totals cell *(u)*; their A1 references are rare (6 texts
   that is allowed, it is a hint).
 - **`cols`**: a `col` range on the edited axis is rewritten with the range rule on columns,
   except that an insert strictly inside a `col` range **splits** it around the new columns
-  instead of expanding it. New rows and columns therefore get the default format (no `row` or
+  instead of expanding it. The split edits the existing `col`'s `max` in step 3.2 and inserts
+  the second `col` in step 3.5 (§2.1). New rows and columns therefore get the default format (no `row` or
   `col` element), by the owner's decision on Q1. Excel formats them like their neighbours by
   default *(u)*; copying the format can be added later without breaking anything.
   `col max="16384"` stays pinned (§3.2).
@@ -834,9 +940,16 @@ A marker is (cell index, offset in EMU or pixels). For each anchor on the edited
   same amount (size kept);
 - `editAs="absolute"` and `absoluteAnchor`: unchanged;
 - a delete that **fully contains** an anchored object (both markers in the deleted rows) is
-  refused (`ObjectInDeletedRange { part, what }`), by the owner's decision on Q2. A marker
-  that is in the deleted rows while the other is not moves to the first surviving row with
-  offset 0 (the object shrinks). Excel either deletes such objects or collapses them *(u)*;
+  refused (`ObjectInDeletedRange { part, what }`), by the owner's decision on Q2. Excel either
+  deletes such objects or collapses them *(u)*;
+- **partial deletes** (one corner in the deleted band; review round 2 m7):
+  - `twoCell`: the corner in the band moves to the first surviving row/column with offset 0,
+    so the object shrinks;
+  - `oneCell` and `oneCellAnchor`: if `from` is in the band, it moves to the first surviving
+    row with offset 0 and `to` moves by the same amount, so the size is kept. If only `to`
+    is in the band, nothing moves;
+  - a note's `x:Anchor` follows its note's cell (below), so a corner in the band takes the
+    same shift as the note's cell; a note whose own cell is deleted goes with it (§3.6.2);
 - VML `x:Anchor` (left column, offset, top row, offset, right column, offset, bottom row,
   offset) is rewritten **only for `Note` shapes**. It moves with its note (both corners by the
   cell rule, offsets kept), so the note box stays next to its cell. The rule does **not** read
@@ -890,7 +1003,10 @@ in `connections.xml` follows §3.3; ctrlProps and VML `x:Fmla*` that would chang
     the edited sheet;
   - it is **position-dependent or unresolvable**: `Everything` in the census (`INDIRECT`,
     `OFFSET` with text, unknown names; ADR-0003 §2.2), or a call to `ROW`, `COLUMN`, `CELL`
-    or `ADDRESS` without a reference argument, on the edited sheet;
+    or `ADDRESS` without a reference argument, on the edited sheet. The census has no
+    function flags, and `=ROW()` has no precedents, so **every formula cell on the edited
+    sheet at or after `p` is lexed** to find these calls: one lex per moved formula, done in
+    step 1 (review round 2 m2);
 
   and, transitively, **every dependent of those formulas** (ADR-0003 §3.2).
 - This is deliberately not smarter than that. Whole-column references whose content shifts
@@ -902,8 +1018,11 @@ in `connections.xml` follows §3.3; ctrlProps and VML `x:Fmla*` that would chang
 - The set is computed from the census precedents and the name/table resolution of ADR-0003
   §2.4 before the edit, in step 1 (§2.1). Strips are step 3.1, at pre-edit indices, on every
   sheet. `KeepStaleCaches` and manual calculation are honoured as ADR-0009 §2 does.
-- A copy (§4.5) and the renames (§5, §6) use the same rule with "the copied sheet" or "the
-  renamed table" in place of the edited sheet.
+- A copy (§4.5) uses the same rule with "the copied sheet" in place of the edited sheet. That
+  is a deliberate over-approximation, since the copy's values equal the source's except for
+  position-dependent formulas.
+- **Renames do not change values** (§5, §6): they strip only the `Everything` formulas (and
+  their dependents), whose string arguments may name the old table or column.
 - **Phase2**: `sst/@count` is lowered for deleted and stripped `t="s"` cells through the
   operation's `RegistryApply` (§2.1). No string or style entry is removed (Layer 3
   append-only).
@@ -1056,8 +1175,9 @@ The source sheet part is not touched: it stays byte-identical.
   `WorksheetConnection_…`; L64; review m13).
 - **Closed-world scan** (§2.2) for `old[` and bare `old` tokens outside registry places;
   a formula that does not lex and mentions `old` refuses.
-- **Phase1**: values do not change, but `Everything` formulas are seeded (a string that names
-  the table no longer resolves), as for a sheet rename (ADR-0009 §6).
+- **Phase1**: values do not change. Only `Everything` formulas and their dependents are
+  stripped (a string that names the table no longer resolves), as for a sheet rename
+  (ADR-0009 §6) and as §3.7 states for renames.
 
 Microsoft documents that Excel rewrites "all structured references" on a rename (§Reference
 libraries); POI rewrites none.
@@ -1074,6 +1194,11 @@ libraries); POI rewrites none.
   into the operation's plan with the identity index map (§2.1.1): Phase5's header sync, with
   the decoded name as the header text. A table without a header row writes only the
   attribute.
+- **Protection** (Q13; review round 2 m8): on a protected sheet (`sheetProtection/@sheet="1"`)
+  the header write refuses with `Protected` **unless the header cell is unlocked**: its style's
+  `xf` has `protection/@locked="0"`. That is a lookup in the Phase2 style registry, which is
+  cheap. A table without a header row writes no cell and is not refused. Inserting table
+  columns (§3.6.1) on a protected sheet is already refused by `insertColumns` (§2.4).
 - **Rewrites**: every column element of every structured reference that resolves to this table
   (tokens naming the table, and table-less tokens in formulas inside the table's range: its
   cells, calculated columns, totals), including both endpoints of column ranges and the
@@ -1104,7 +1229,7 @@ New variants:
 | `ShiftOffSheet { what }` | an insert would push content (a `row`/`c` or an object with content), a single-cell reference or a range start past the last row or column (§3.2) |
 | `ArrayFormulaSplit { cell }` | an edit splits a multi-cell array, data table or spill range (§3.3.3) |
 | `TableStructure { table, reason }` | header or totals row, every data row, or the last column of a table deleted (§3.6.1) |
-| `ObjectInDeletedRange { part, what }` | a drawing or VML anchor in deleted rows or columns (§3.6.3) |
+| `ObjectInDeletedRange { part, what }` | a drawing or VML object that lies **wholly inside** the deleted rows or columns (Q2; §3.6.3) |
 | `ReferenceDeleted { part, location }` | a reference that cannot become `#REF!` would be deleted: chart series, sparkline data, pivot source, data-table input, `singleXmlCell`, a hyperlink target, a print area or print titles |
 | `StructureBlocked { part, place }` | a registry place marked X/XX (§2.2), a pivot crossed, an autofilter header or filtered column deleted, a protected range emptied, a multi-range `sqref` re-anchor (§3.3.4), a non-empty new merge anchor (§3.5), a note before P5c |
 | `Protected { scope, operation }` | sheet protection locks the G1 operation, or `lockStructure` blocks a copy (Q13; §2.4) |
@@ -1133,7 +1258,9 @@ Reused: `UnrewritableReference`, `MissingReference`, `PartNotEditable`, `SharedW
    edited sheet (review B1). It also has sticky-end ranges (`A2:A1048576`,
    `col min=3 max=16384`; review M1) and cache cases: `MATCH(x,A:A,0)`, `ROWS(name)`,
    `ROWS(Table1)`, `SUM(Table1[Qty])` and a formula on another sheet that refers to none of
-   these, which must keep its cache (review M2). After an edit, a test parser written from §3.2's table (not
+   these, which must keep its cache (review M2). It also has a VML form control and a
+   ctrlProp on a second sheet linked to the edited sheet, which must refuse, and a
+   `#Sheet!A1` relationship target (review round 2 M1, M3). After an edit, a test parser written from §3.2's table (not
    from the implementation; its own small A1 parser in `tests/common`) checks for each
    reference that the set of *surviving* tagged cells it covers equals the set it covered
    before, that it covers no other tagged cell, and that it is `#REF!`/removed exactly when
@@ -1188,7 +1315,8 @@ Reused: `UnrewritableReference`, `MissingReference`, `PartNotEditable`, `SharedW
     - the re-anchoring;
     - the VML renumbering;
     - the `#REF!` prefix rule;
-    - the in-place step order.
+    - the in-place step order: a mutation that moves the strips after step 3.4 must fail
+      (review round 2 m3).
 11. **Excel checks (XL, owner)**: open without repair and save back, for each operation on a
     fixture with formulas (relative, absolute, whole columns, 3-D, names), shared groups
     (including the neighbour-row case), CF/DV with relative formulas, merges, hyperlinks,
@@ -1216,16 +1344,26 @@ A prerequisite PR and four PRs:
 
 0. **P7-pre** (no new public G1/G2 API):
    - the location registry as data (`locations.rs`, with scopes) and the `EXTENSIONS` table,
-     with their ADR ↔ data and XSD-completeness tests, and a check of the *(u)* x14 URIs
-     against MS-XLSX;
+     with their ADR ↔ data, scope and XSD-completeness tests;
    - the completeness scan of §2.2 reading them;
-   - ADR-0009's rename and delete extended to the registry's formula rows on every sheet (DV,
-     CF, x14, sparklines, table formulas, connection parameters), removing the refusals of the
-     ADR-0009 implementation note;
+   - ADR-0009's rename and delete switched to `LOCATIONS` (the two sheet columns of §2.2),
+     which extends them to the registry's formula rows on every sheet (DV, CF, x14,
+     sparklines, table formulas, connection parameters, form controls), removing the
+     refusals of the ADR-0009 implementation note;
+   - **acceptance** (review round 2 M3), over the corpus:
+     - every ADR-0009 rename and delete that succeeds before the switch gives
+       byte-identical output after it, including the 18 of 838 renames that retarget a
+       relationship (L71);
+     - ADR-0009's measurement is unchanged: 0 refusals in 838 renames;
+     - the ADR-0009 ↔ `LOCATIONS` test passes;
    - the structured-reference sub-grammar moved to `formula/` with token spans;
    - `shift_area` (sticky ends, clipping) and the rewriters of §2.3, with unit tests;
-   - `#REF!` pass-through in ADR-0003 §4.2's translation;
-   - the composed `CellWritePlan` variant (§2.1.1);
+   - a test that the shared-group check relies on: translation copies `#REF!` (already on
+     main, `translate.rs` L47, L102);
+   - the composed `CellWritePlan` variant (§2.1.1): the index map, and editing the
+     operation's single staged `workbook.xml` instead of `apply_writes_with`'s own clone
+     (folding `calcPr`/calcChain is already on main, `edit.rs` L470-489);
+   - the `lockStructure` refusal for ADR-0009's sheet operations (§2.4);
    - core: a public bulk child removal on `LensMut` (§3.8).
 
    Needed by every later PR.
@@ -1243,7 +1381,8 @@ A prerequisite PR and four PRs:
    composed `CellWritePlan` (Q11); notes; threaded comments; drawing and VML anchors; charts;
    pivot caches; `singleXmlCells`; connections (§3.6).
 3. **P7c** (after P7-pre, in parallel with P7a): table rename and column rename (§5, §6).
-4. **P7d** (after P7-pre and P5c): copy sheet (§4).
+4. **P7d** (after P7-pre and P5c): copy sheet (§4), including the `lockStructure` refusal
+   (Q13).
 
 ## Alternatives considered
 
@@ -1278,6 +1417,9 @@ A prerequisite PR and four PRs:
   or move it.
 - Ranges pinned to the sheet edge (`col max="16384"` in 44 files) no longer block column
   inserts.
+- **Behaviour change to existing operations** (Q13, review round 2 m8): ADR-0009's add,
+  delete, rename and move sheet start refusing with `Protected` in the 4 corpus workbooks with
+  `lockStructure`, where they succeed today.
 - Every formula whose references touch the edited sheet loses its cached value, even when its
   value did not change. That is the price of a rule that is simple enough to be sound (§3.7).
 - A G1 edit on a large sheet re-renders the open tags of every later row and cell; deferred
@@ -1356,8 +1498,9 @@ defaults, which the owner may still override. Q12 was changed to fail closed (re
   `index.rs`, `edit.rs` (L106-137 `CellWritePlan`/`StripPlan`/`strip_cells`, L438-443
   `refs_delta`); `crates/ooxml-core/src/xml/write.rs`, `xml/node.rs` (L68, L100-106),
   `lens.rs` (L1208, L1235), `package/add.rs` (`RegistryPlan`).
-- [MS-XLSX] worksheet extension list (x14 `protectedRanges`, `ignoredErrors`, x15
-  `webExtensions`): URIs as recalled, to be checked in P7-pre (*u*).
+- [MS-XLSX] §2.2.4.12 "Worksheet" (the worksheet, `cfRule`, `sortState` and `filterColumn`
+  extension lists), learn.microsoft.com page `07d607af-5618-4ca2-b683-6a78dc0d9627`, updated
+  2026-11-18, as fetched by the round-2 reviewer.
 - Corpus: POI `test-data/spreadsheet` at the POI commit above; calamine fixtures in
   `reference/fixtures/xlsx/calamine/`; synthetic fixtures in
   `reference/fixtures/xlsx/synthetic/`.

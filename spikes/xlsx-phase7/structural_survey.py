@@ -800,6 +800,7 @@ def survey(path):
                 cnt["vml_x_Column"] += len(re.findall(r"<x:Column>", vt))
                 cnt["vml_x_Anchor"] += len(re.findall(r"<x:Anchor>", vt))
                 cnt["vml_fmla"] += len(re.findall(r"<x:Fmla\w+>", vt))
+                cnt["vml_fmla_position"] += len(re.findall(r"<x:Fmla(?:Link|Range|Txbx|Pict|Group)>", vt))
                 cnt["vml_note"] += len(re.findall(r'ObjectType="Note"', vt))
                 cnt["vml_control"] += len(re.findall(r'ObjectType="(?:Checkbox|Button|Drop|List|Radio|Spin|Scroll|Label|GBox|Edit|Dialog)"', vt))
             elif rt == "threadedComment":
