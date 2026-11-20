@@ -569,6 +569,18 @@ def survey(path):
         ty, t = wrels.get(rid, (None, None))
         sheet_list.append((s.get("name"), ty, t))
     nsheets = sum(1 for _, ty, _ in sheet_list if ty == "worksheet")
+    if cnt["wb_lockStructure"]:
+        cnt["wb_lockStructure_sheets"] += len(sheet_list)
+    # sheets named in prefix form in docProps/app.xml titles ("Named Ranges": 'Data'!Print_Area)
+    appx = p.xml("docProps/app.xml")
+    if appx is not None:
+        titles = [e.text or "" for e in appx.iter() if local(e.tag) == "lpstr"]
+        for sname, _, _ in sheet_list:
+            if not sname:
+                continue
+            forms = ((sname + "!").lower(), ("'" + sname.replace("'", "''") + "'!").lower())
+            if any(f in t.lower() for t in titles for f in forms):
+                cnt["sheet_named_in_app_titles"] += 1
     cnt["worksheets"] += nsheets
     sheet_blockers = collections.Counter()
 

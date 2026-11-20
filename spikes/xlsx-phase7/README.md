@@ -137,7 +137,7 @@ no longer blocks a column insert.
 **Protection** (ADR-0018 Q13): 11 protected sheets (5 files); 7 of them (4 files) lock each of
 `insertRows`, `insertColumns`, `deleteRows`, `deleteColumns` (the attributes default to
 locked). `workbookProtection/@lockStructure` in 4 workbooks. **`sheetPr/@codeName`** on 93
-sheets (32 files), 33 of them (8 files) in packages with a VBA project. Workbook `oleSize`: 2.
+sheets (32 files), 33 of them (8 files) in packages with a VBA project. Workbook `oleSize`: 2. The 4 `lockStructure` workbooks hold **35 sheets** (`wb_lockStructure_sheets`). **25 sheets in 15 packages** are named in prefix form in `docProps/app.xml` titles (`sheet_named_in_app_titles`, case-insensitive substring match).
 
 **Worksheet extension URIs** (`ext/@uri` at any depth): `mac/excel/2008/main` 29 (19 files) and
 `{64002731-A6B0-56B0-2670-7721B7C09600}` 20 (9), both holding only `mx:PLV`; x14 CF

@@ -1,6 +1,6 @@
 # ADR-0018: xlsx Phase7 — structural edits
 
-- Status: **Proposed** (revision 3)
+- Status: **Proposed** (revision 4)
 - Date: 2026-11-20
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 1–3, T1/T1b/T2, `Err` ⇒
@@ -26,7 +26,7 @@
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) §2.8 (G1, G2), §4, §6 Phase7.
 - Evidence: [`spikes/xlsx-phase7/`](../../spikes/xlsx-phase7/README.md) (corpus survey and a
   shared-formula simulation).
-- Review: [round 1](0018-opus-review-round1.md), [round 2](0018-opus-review-round2.md)
+- Review: [round 1](0018-opus-review-round1.md), [round 2](0018-opus-review-round2.md), [round 3](0018-opus-review-round3.md)
 
 ## Revision history
 
@@ -128,6 +128,24 @@
     - n1: L42's corpus count is 0; the 57 are `x:FmlaMacro`;
     - n2: MS-XLSX is cited.
 
+- **Revision 4** (review round 3: M1, M2; m1, n1).
+  - **M1:** a sheet-prefix hit is accepted when its `(row, part)` was **dispatched**, whatever
+    the rule; only X/XX refuse. Rows that hold the sheet name but do not change under G1 get
+    the new rule **K** (dispatched, kept): L49 (pivot-chart source), L60 (external links) and
+    L73 (`app.xml` titles). The known non-references are now `scan.rs`'s set, copied verbatim
+    with file and line. Corpus effect: 0 additional G1 refusals (§2.2; Context; oracle 7).
+  - **M2:** P7-pre's acceptance is split into four clauses (Delivery 0):
+    1. byte-identical output outside `lockStructure` workbooks;
+    2. `Protected` with bytes unchanged in the 4 `lockStructure` workbooks (35 sheets);
+    3. today's refusals that become rewrites, checked per place;
+    4. 0 refusals other than `Protected` over the 838 renames.
+
+    "Nothing else changes" is corrected to name both intended changes (§2.2), and the
+    `lockStructure` change is recorded as a post-acceptance note for ADR-0009.
+  - **m1:** L32 and L73 are marked `(any)`, so the compile-time scope check holds for every
+    `Formula`/`Location` row without exemptions.
+  - **n1:** the Context table records how many sheets `app.xml` titles name in prefix form.
+
 ## Context
 
 Phase0–5 edit values, formulas, registries, sheets, range features and objects. None of them
@@ -198,6 +216,7 @@ packages read**, 813 worksheets, 1,502,954 cells. Reproduction and full tables:
 | `mc:AlternateContent` in sheets | at the top level 2 sheets (both wrap `controls`); **inside `sheetData` or rows: 0**. |
 | Blockers | G1: **787 of 813 worksheets (97%)** have none of the registry's XX places (rows/cells without `r` 15 sheets, `oleObjects` 6, `controls`/top-level AC 2, `dataConsolidate` 1). Pivot tables (12 sheets) refuse only edits that cross or move them. G2: **773 of 813 (95%)** have only copyable relationships (§4.1). |
 | Protection, `codeName` | 11 protected sheets (5 files), 7 of them (4 files) lock row and column inserts and deletes; `lockStructure` in 4 workbooks (Q13). `sheetPr/@codeName` on 93 sheets (32 files), 33 of them in the 8 packages with a VBA project (§4.2). |
+| Sheets named in `app.xml` titles | **25 sheets in 15 packages** are named in prefix form in `docProps/app.xml` titles ("Named Ranges": `Data!Print_Area`); the round-3 review's probe counted 31 / 15 with a broader matcher. The places are L73 (rule K), so they cause no refusal. |
 | Extension URIs in worksheets | `mac/excel/2008` 29 and `{64002731-…}` 20 (Mac page layout only), x14 CF 2, x14 DV 3, sparklines 1, cfRule `x14:id` link `{B025F937-…}` 2; no other. |
 | `xr:uid` | 64 in sheets (34 files), 40 in tables (7): a copy would duplicate them (§4.3). |
 
@@ -451,13 +470,19 @@ The code and the tests use the data:
   It is defined **by element**, not by searching text for cell-shaped tokens:
   - **Sheet-prefix form** (ADR-0009 §6, unchanged and proven: 0 refusals in 838 renames).
     Every text node and attribute value is searched for the edited sheet's name in prefix
-    form (or, for table renames, `Name[`). A hit is accepted only if it lies:
-    - in a registry place that the dispatcher **visited for this part in this operation**,
-      with a rule other than `–`; or
+    form (or, for table renames, `Name[`). A hit is accepted iff it lies:
+    - in a registry place whose `(row, part)` is in the operation's **dispatch set**,
+      **whatever the rule** (R, D, N, K, –); or
     - in a known non-reference.
 
-    A hit anywhere else, including a registry place that was not dispatched, refuses with
-    `Err(UnrewritableReference)` (review round 2 M1).
+    A hit in a dispatched place whose rule is X or XX refuses because of that rule. A hit
+    anywhere else, including a registry place that was not dispatched, refuses with
+    `Err(UnrewritableReference)` (review round 2 M1, round 3 M1). Rows that can hold a
+    sheet name in prefix form but do not change under an operation are dispatched with rule
+    **K** for it, not left out. In the corpus this rule adds **0** G1 refusals:
+    - the 25 sheets named in `app.xml` titles hit L73 (K);
+    - the pivot-chart source name hits L49 (K);
+    - external links hit L60 (K) or are non-references.
   - **Unprefixed positions** are recognised **only in registry places**: places that the
     schemas type as references or formulas (`ST_Ref`, `ST_CellRef`, `ST_Sqref`, `ST_RefA`,
     `ST_Formula` and their derivatives in `sml.xsd`), plus the DrawingML, VML, chart and
@@ -494,7 +519,8 @@ The code and the tests use the data:
 - **ADR ↔ data tests**, as ADR-0014 R2-3: the ids, scopes, parts and paths in the tables below
   equal `LOCATIONS` and `EXTENSIONS`.
 - **Scope check** (compile time, review round 2 M1): an inline `const { … }` over
-  `LOCATIONS` asserts that every row of syntax `Formula` or `Location` has scope `any`.
+  `LOCATIONS` asserts that every row of syntax `Formula` or `Location` has scope `any`. There
+  are no exemptions: single-part rows (L32, L73) are marked `any` too (review round 3 m1).
 - **ADR-0009 ↔ `LOCATIONS` test** (review round 2 M3): every place `sheet_ops/scan.rs`'s
   `allowed()` accepts today (`scan.rs` L54-72, including the `Relationships`/`Target` arm)
   maps to a row whose sheet-rename rule is R.
@@ -540,9 +566,15 @@ Rules (columns G1, Copy, table/column rename, sheet rename, sheet delete), one p
 operation (review n4). The two sheet columns hold ADR-0009 §5/§6's decided rules (review
 round 2 M3). ADR-0009's implementation still refuses some places its table decides to rewrite:
 DV, CF, x14, table formulas, connection parameters, form controls, `textlink` and
-`c:pivotSource` (its implementation note). P7-pre turns those refusals into the R of this
-table, and **nothing else changes**. Every rename and delete that succeeds today gives
-byte-identical output before and after the switch (Delivery 0). Positional
+`c:pivotSource` (its implementation note). P7-pre makes exactly **two intended changes** to
+ADR-0009's output:
+1. those refusals become the R of this table;
+2. under `workbookProtection/@lockStructure`, operations that succeed today refuse with
+   `Protected` (Q13, §2.4).
+
+Everything else, and every rename and delete that succeeds today in a workbook without
+`lockStructure`, gives byte-identical output before and after the switch (Delivery 0,
+clauses 1–4; review round 3 M2). Positional
 rows (`Sqref`, `Range`, `Cell`, `Index`, `Marker`) are "–" for both: a rename does not move
 anything, and a delete removes the sheet's own parts with it.
 
@@ -551,7 +583,9 @@ anything, and a delete removes the sheet's own parts with it.
 - **X**: the operation refuses if this place would change.
 - **XX**: the operation refuses if the place exists on the edited or copied sheet (or, for
   workbook parts, in the package).
-- **–**: unaffected.
+- **–**: unaffected, and not dispatched for this operation.
+- **K**: dispatched and kept. The place can hold the sheet's name in prefix form, so the
+  scan must accept it, but the operation does not change it (round 3 M1).
 - **N**: renumbered or duplicated as stated in §4.
 - **copied**: the copy keeps the value as it is (copy only).
 - **part removed** / **removed on the copy**: as stated.
@@ -589,7 +623,7 @@ anything, and a delete removes the sheet's own parts with it.
 | L29 | worksheet | `webPublishItems/webPublishItem/@sourceRef` | `Range` | XX | XX | – | – | – | 0 |
 | L30 | worksheet; formula attributes (any) | `oleObjects`, `controls` (anchors, `@linkedCell`, `@listFillRange`) | `Marker`, `Formula` | XX | XX | – | R | R (`#REF!`) | 6 / 5, 2 / 2 |
 | L31 | worksheet | `mc:AlternateContent` at the top level, in `sheetData` or in a row; and **anywhere inside a registry element** of a part the operation edits (e.g. the Choice of a `sortState` or `filterColumn` holding x14 `sortCondition/@ref`) | – | XX; X inside a registry element | XX | X inside a registry element | – | – | 2 / 2, 0, 0 |
-| L32 | workbook | `definedName` text (all scopes, `_xlnm.*` included) | `Formula(none)` | R (§3.3.5) | R + local names duplicated (§4.4) | R | R | R (`#REF!`); local names of the sheet removed | 858 / 62 |
+| L32 | workbook (any) | `definedName` text (all scopes, `_xlnm.*` included) | `Formula(none)` | R (§3.3.5) | R + local names duplicated (§4.4) | R | R | R (`#REF!`); local names of the sheet removed | 858 / 62 |
 | L33 | workbook | `definedName/@localSheetId`, `workbookView/@activeTab`, `@firstSheet` | position | – | N (ADR-0009 §4) | – | – | N (renumbered) | 142 / 24 |
 | L34 | `calcChain.xml` | `c/@r`, `c/@i` | `Cell` | part removed (ADR-0003 §4.3) | part removed | – | – | part removed | 116 |
 | L35 | table | `table/@ref`, `autoFilter/@ref`, `sortState/@ref`, `sortCondition/@ref` | `Range` | R / X (§3.6.1) | N (§4.3) | – | – | – | 61 / 29 |
@@ -606,7 +640,7 @@ anything, and a delete removes the sheet's own parts with it.
 | L46 | drawing, chart user shapes (any) | `xdr:sp/@textlink`, `cdr:sp/@textlink` | `Formula(none)` | R | R | R | R | R (`#REF!`) | 0 |
 | L47 | chart (any) | `c:f`, `c15:f`, `c15:sqref`, `c15:fullRef`, `c15:formulaRef`, `c15:datalabelsRange`, `c15:filteredSeriesTitle`, `c15:filteredCategoryTitle` | `Formula(none)` | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | R | R (`#REF!`) | 174 / 25 |
 | L48 | chartEx (any) | `cx:f` | `Formula(none)` | X | XX | X | X | X | 0 |
-| L49 | chart | `c:pivotSource/c:name` | `RawName` | – (pivot rules) | XX | – | R; X if the new name needs quotes | X | 1 / 1 |
+| L49 | chart (any) | `c:pivotSource/c:name` | `RawName` | K (pivot rules apply to the pivot table) | XX | – | R; X if the new name needs quotes | X | 1 / 1 |
 | L50 | pivot cache | `worksheetSource/@ref` (+ `@sheet`) | `Range` | R when moved; X when expanded or shrunk (§3.6.5) | – | – | – | – | 7 / 5 |
 | L51 | pivot cache | `worksheetSource/@name` | `RawName` (table or name) | – | – | R (table rename) | – | – | 3 / 3 |
 | L52 | pivot table | `location/@ref` and everything inside | `Range` | X if the edit crosses or moves it (§3.6.5) | XX | – | – | – | 12 / 7 |
@@ -617,7 +651,7 @@ anything, and a delete removes the sheet's own parts with it.
 | L57 | query table | `queryTable` bound to a `queryTable` table | – | X when its table's `ref` changes | XX | X (rename) | – | – | 13 / 2 |
 | L58 | revisions | `xl/revisions/*` | – | XX (`SharedWorkbook`) | XX | XX | XX | XX | 1 / 1 |
 | L59 | `activeX*.bin` | `LinkedCell`, `ListFillRange` (binary) | – | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | XX (`BinaryReferencesPossible`) | – | 0 |
-| L60 | `externalLink` | another workbook's cells and names | – | – | – | – | – | – | 14 / 10 |
+| L60 | `externalLink` (any) | another workbook's cells and names | – | K | – | – | – | – | 14 / 10 |
 | L61 | `metadata.xml`, `richData/*` | `cm`/`vm` indices (not positions) | – | – (move with the cell) | copied | – | – | – | 1, 2 |
 | L62 | workbook | `oleSize/@ref` (visible area of an embedded workbook) | `Range` | R when it names the edited sheet's area *(u: it has no sheet; assumed the first sheet)*; X when its area is changed in any other way | – | – | – | – | 2 packages |
 | L63 | workbook | `webPublishObjects/webPublishObject/@sourceObject` | `RawName`/range | X when it names the edited sheet | X | X | X | X | 0 |
@@ -630,11 +664,25 @@ anything, and a delete removes the sheet's own parts with it.
 | L70 | worksheet `extLst` (any) | x15 `webExtensions` bindings (`xm:f`) | `Formula(none)` | X | XX | X | R | R (`#REF!`) | 0 |
 | L71 | sheet `.rels`, drawing `.rels` (any) | Internal relationship `Target="#Sheet!A1"` (shape and cell hyperlinks) | `Location` | R through `set_relationship_target` in the operation's `RegistryPlan`; X when the target is wholly deleted (as L14) | kept | – | R (`set_relationship_target`) | kept (ADR-0009 §5) | 18 renames of 838 retarget one (ADR-0009 §6) |
 | L72 | pivot cache, worksheet | `worksheetSource/@sheet`, `consolidation/rangeSets/rangeSet/@sheet`, `dataConsolidate/dataRefs/dataRef/@sheet` | `RawName` | – (positions are L50/L53/L28) | – | – | R for `worksheetSource/@sheet`; X for `rangeSet`/`dataRef` | X (`SheetIsPivotSource` / `UnrewritableReference`) | 5 / 0 / 0 |
-| L73 | `docProps/app.xml` | worksheet titles (`vt:lpstr`), "Named Ranges" titles (`'1'!Print_Area`) | `RawName`, `Location` | – | N (ADR-0009 §11) | – | R | R (title removed) | 294 with titles, 32 |
+| L73 | `docProps/app.xml` (any) | worksheet titles (`vt:lpstr`), "Named Ranges" titles (`'1'!Print_Area`) | `RawName`, `Location` | K | N (ADR-0009 §11) | – | R | R (title removed) | 294 with titles, 32 |
 | L74 | worksheet, table | `sortState/extLst` `{0FC57C36-…}`, `filterColumn/extLst` `{68452572-…}` | `Range` | X while it holds a `ref` | copied | – | – | – | 0 |
 
-Known non-references (ADR-0009 §6): cell values, shared strings, comment and note text,
-formula string literals (`INDIRECT("A1")`), `docProps` other than L73's `app.xml` titles.
+Known non-references (review round 3 M1). These are `scan.rs`'s `NonReference` set, copied
+verbatim from its classification (`sheet_ops/mod.rs` L1129-1137; doc comment `scan.rs`
+L33-35), plus the in-part non-references of `scan.rs` L62-65:
+
+- parts whose name starts with `docProps/`, other than L73's `app.xml` titles, which are
+  dispatched instead;
+- content types ending in `sharedStrings+xml`;
+- content types containing `comments` (notes) or `threadedcomments`;
+- content types ending in `person+xml`;
+- content types ending in `externalLink+xml` ("another workbook's names and sheets"), also
+  dispatched as L60 (K);
+- in worksheets: cell values `c/v`, inline-string text `c/is/t` and `c/is/r/t`;
+- in formulas: string literals (`INDIRECT("A1")`) and external `[n]` references
+  (ADR-0009 §6).
+
+The ADR-0009 ↔ `LOCATIONS` test asserts this set as well.
 
 #### 2.3 One rewriter per syntax
 
@@ -1288,7 +1336,8 @@ Reused: `UnrewritableReference`, `MissingReference`, `PartNotEditable`, `SharedW
      formulas, charts) is checked independently, in the output: each reference to the edited
      sheet, evaluated as a set of pre-edit cells, equals the input reference under §3.2
      (review B1).
-   - Refusal reasons are counted and compared with the spike's blocker counts.
+   - Refusal reasons are counted and compared with the spike's blocker counts. A refusal
+     that names a K or `–` place must not occur (review round 3 M1).
    - Explicit cases:
      - a package with `col max="16384"`;
      - an `.xlsm` with `codeName`s;
@@ -1350,12 +1399,26 @@ A prerequisite PR and four PRs:
      which extends them to the registry's formula rows on every sheet (DV, CF, x14,
      sparklines, table formulas, connection parameters, form controls), removing the
      refusals of the ADR-0009 implementation note;
-   - **acceptance** (review round 2 M3), over the corpus:
-     - every ADR-0009 rename and delete that succeeds before the switch gives
-       byte-identical output after it, including the 18 of 838 renames that retarget a
-       relationship (L71);
-     - ADR-0009's measurement is unchanged: 0 refusals in 838 renames;
+   - **acceptance** (review round 2 M3, round 3 M2), over the corpus, in four clauses:
+     1. every ADR-0009 rename and delete that succeeds today **in a workbook without
+        `lockStructure`** gives byte-identical output and an equal `RewrittenLocation` list
+        after the switch. That includes the 18 of 838 renames that retarget a relationship
+        (L71);
+     2. in the **4 workbooks with `lockStructure` (35 sheets)**, every rename, delete, add
+        and move refuses with `Err(Protected)`, output byte-identical to the input. Those are
+        `CVLKRA-KYC_Download_File_Structure_V3.1.xlsx` 30,
+        `workbookProtection-workbook_password_user_range-2010.xlsx` 3,
+        `workbookProtection-workbook_password-2013.xlsx` 1 and
+        `workbookProtection_workbook_structure_protected.xlsx` 1 (spike
+        `wb_lockStructure_sheets`);
+     3. every operation that refuses today either still refuses with the same error, or
+        succeeds and changes only registry places listed in ADR-0009's implementation note.
+        Each changed place is checked against its expected rewrite (oracle 7's per-place
+        check);
+     4. "0 refusals in 838 renames" becomes **0 refusals other than `Protected` (35)**;
      - the ADR-0009 ↔ `LOCATIONS` test passes;
+     - ADR-0009 gets a post-acceptance note recording the `lockStructure` refusal, which
+       changes an Accepted ADR's behaviour;
    - the structured-reference sub-grammar moved to `formula/` with token spans;
    - `shift_area` (sticky ends, clipping) and the rewriters of §2.3, with unit tests;
    - a test that the shared-group check relies on: translation copies `#REF!` (already on
