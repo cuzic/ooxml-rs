@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_xlsx::{CellRange, Col, Table, TableStyle, Total, Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
+use ooxml_xlsx::{Comment, Note, PersonId, CellRange, Col, Table, TableStyle, Total, Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
 
 type BoxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// (original for `originals/`, edited output)
@@ -452,6 +452,24 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     table.save(out_dir.join(P5B_CASE.out))?;
     md.push_str("\n## Phase 5b — tables (ADR-0017)\n\n");
     writeln!(md, "- [ ] Open `{}` without repair. {} {}", P5B_CASE.out, P5B_CASE.edits, P5B_CASE.look_for)?;
+    md.push_str("\n## Phase 5c — notes and threads (ADR-0017)\n\n");
+    let mut note = Workbook::new()?;
+    let mut ws = note.worksheet()?;
+    ws.write_string(1, 1, "Budget")?;
+    ws.add_note(CellIndex::parse("B2")?, Note::new("Quarterly budget").author("Ana"))?;
+    note.save(out_dir.join("40-p5c-note.xlsx"))?;
+    md.push_str("- [ ] Open `40-p5c-note.xlsx` without repair. Hover over B2 to read Ana's note, ‘Quarterly budget’.\n");
+
+    let mut thread = Workbook::new()?;
+    let ana = thread.person("Ana", PersonId::None)?;
+    let sam = thread.person("Sam", PersonId::None)?;
+    let mut ws = thread.worksheet()?;
+    ws.write_string(2, 3, "Review")?;
+    let at = CellIndex::parse("D3")?;
+    ws.add_comment(at, Comment::new("Looks wrong").by(ana))?;
+    ws.reply(at, Comment::new("Fixed").by(sam))?;
+    thread.save(out_dir.join("41-p5c-thread.xlsx"))?;
+    md.push_str("- [ ] Open `41-p5c-thread.xlsx` without repair. D3 has Ana's ‘Looks wrong’ thread and Sam's ‘Fixed’ reply. In an older Excel version, check that the fallback note shows both messages. Save and reopen.\n");
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
@@ -462,7 +480,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .chain(P2_CASES.iter().map(|c| c.out))
         .chain(P3_CASES.iter().map(|c| c.out))
         .chain(P4_CASES.iter().map(|c| c.out))
-        .chain(["32-p5a-images.xlsx", P5B_CASE.out])
+        .chain(["32-p5a-images.xlsx", P5B_CASE.out, "40-p5c-note.xlsx", "41-p5c-thread.xlsx"])
         .collect();
     for out in &outs {
         let path = out_dir.join(out);

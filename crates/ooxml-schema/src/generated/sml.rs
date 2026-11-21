@@ -14,6 +14,8 @@ pub const NS_X14AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/20
 pub const NS_X15: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
 /// `x15ac`: `http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac`
 pub const NS_X15AC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac";
+/// `xltc`: `http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments`
+pub const NS_XLTC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
 /// `x:ST_IconSetType` — Icon Set Type.
@@ -1456,6 +1458,69 @@ impl ooxml_core::EnumType for SpaceProcessingModeValues {
     }
     fn index(self) -> usize {
         self as usize
+    }
+}
+/// `x:CT_Authors/x:authors` — Authors.
+#[derive(Debug)]
+pub enum Authors {}
+impl ooxml_core::ElementSpec for Authors {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "authors");
+    const SDK_NAME: &'static str = "x:CT_Authors/x:authors";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "author")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Authors> for Author {}
+/// Read-only view of [`Authors`].
+#[derive(Clone, Debug)]
+pub struct AuthorsView<'a>(pub ooxml_core::Lens<'a, Authors>);
+impl<'a> AuthorsView<'a> {
+    /// `x:author` children in document order.
+    pub fn author_iter(&self) -> impl Iterator<Item = AuthorView<'a>> {
+        self.0.children::<Author>().map(AuthorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Authors`]. Reads go through [`AuthorsViewMut::as_view`].
+#[derive(Debug)]
+pub struct AuthorsViewMut<'a>(pub ooxml_core::LensMut<'a, Authors>);
+impl<'a> AuthorsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AuthorsView<'_> {
+        AuthorsView(self.0.as_lens())
+    }
+    /// First `x:author` child matching `pred`, mutably.
+    pub fn author_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AuthorViewMut<'_>> {
+        self.0.child_mut_by::<Author>(pred).map(AuthorViewMut)
+    }
+    /// Inserts a `x:author` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_author_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AuthorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Author>(before).map(AuthorViewMut)
+    }
+    /// Appends a `x:author` at the end of its slot.
+    pub fn insert_author(&mut self) -> Result<AuthorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Author>().map(AuthorViewMut)
+    }
+    /// Removes the first `x:author` child.
+    pub fn remove_author(&mut self) -> bool {
+        self.0.remove::<Author>()
     }
 }
 /// `x:CT_AutoFilter/x:autoFilter` — AutoFilter Settings.
@@ -6665,6 +6730,295 @@ impl<'a> ColumnsViewMut<'a> {
     /// Removes the first `x:col` child.
     pub fn remove_column(&mut self) -> bool {
         self.0.remove::<Column>()
+    }
+}
+/// `x:CT_Comment/x:comment` — Comment.
+#[derive(Debug)]
+pub enum Comment {}
+impl Comment {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `authorId`
+    pub const ATTR_AUTHOR_ID: ooxml_core::QName = ooxml_core::QName::new("", "authorId");
+    /// `guid`
+    pub const ATTR_GUID: ooxml_core::QName = ooxml_core::QName::new("", "guid");
+    /// `shapeId`
+    pub const ATTR_SHAPE_ID: ooxml_core::QName = ooxml_core::QName::new("", "shapeId");
+}
+impl ooxml_core::ElementSpec for Comment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "comment");
+    const SDK_NAME: &'static str = "x:CT_Comment/x:comment";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_AUTHOR_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_GUID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Comment::ATTR_SHAPE_ID,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "text")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "commentPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Comment> for CommentText {}
+/// Read-only view of [`Comment`].
+#[derive(Clone, Debug)]
+pub struct CommentView<'a>(pub ooxml_core::Lens<'a, Comment>);
+impl<'a> CommentView<'a> {
+    /// `ref` — Cell Reference
+    pub fn reference(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_REF)
+    }
+    /// `authorId` — Author Id
+    pub fn author_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Comment::ATTR_AUTHOR_ID, ooxml_core::value::parse_u32)
+    }
+    /// `guid` — Unique Identifier for Comment
+    pub fn guid(&self) -> Option<&'a str> {
+        self.0.attr(Comment::ATTR_GUID)
+    }
+    /// `shapeId` — shapeId
+    pub fn shape_id(&self) -> Result<Option<u32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(Comment::ATTR_SHAPE_ID, ooxml_core::value::parse_u32)
+    }
+    /// First `x:text` child.
+    pub fn comment_text(&self) -> Option<CommentTextView<'a>> {
+        self.0.child::<CommentText>().map(CommentTextView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Comment`]. Reads go through [`CommentViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentViewMut<'a>(pub ooxml_core::LensMut<'a, Comment>);
+impl<'a> CommentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentView<'_> {
+        CommentView(self.0.as_lens())
+    }
+    /// Sets `ref` — Cell Reference
+    pub fn set_reference(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_reference(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_REF)
+    }
+    /// Sets `authorId` — Author Id
+    pub fn set_author_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Comment::ATTR_AUTHOR_ID, s))
+    }
+    /// Removes `authorId`.
+    pub fn remove_author_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_AUTHOR_ID)
+    }
+    /// Sets `guid` — Unique Identifier for Comment
+    pub fn set_guid(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Comment::ATTR_GUID, v)
+    }
+    /// Removes `guid`.
+    pub fn remove_guid(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_GUID)
+    }
+    /// Sets `shapeId` — shapeId
+    pub fn set_shape_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(v, |s| self.0.set_attr(Comment::ATTR_SHAPE_ID, s))
+    }
+    /// Removes `shapeId`.
+    pub fn remove_shape_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Comment::ATTR_SHAPE_ID)
+    }
+    /// First `x:text` child, mutably.
+    pub fn comment_text_mut(&mut self) -> Option<CommentTextViewMut<'_>> {
+        self.0.child_mut::<CommentText>().map(CommentTextViewMut)
+    }
+    /// Existing `x:text` child, or a new one in schema position.
+    pub fn get_or_insert_comment_text(
+        &mut self,
+    ) -> Result<CommentTextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CommentText>().map(CommentTextViewMut)
+    }
+    /// Removes the first `x:text` child.
+    pub fn remove_comment_text(&mut self) -> bool {
+        self.0.remove::<CommentText>()
+    }
+}
+/// `x:CT_CommentList/x:commentList` — List of Comments.
+#[derive(Debug)]
+pub enum CommentList {}
+impl ooxml_core::ElementSpec for CommentList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "commentList");
+    const SDK_NAME: &'static str = "x:CT_CommentList/x:commentList";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "comment")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentList> for Comment {}
+/// Read-only view of [`CommentList`].
+#[derive(Clone, Debug)]
+pub struct CommentListView<'a>(pub ooxml_core::Lens<'a, CommentList>);
+impl<'a> CommentListView<'a> {
+    /// `x:comment` children in document order.
+    pub fn comment_iter(&self) -> impl Iterator<Item = CommentView<'a>> {
+        self.0.children::<Comment>().map(CommentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentList`]. Reads go through [`CommentListViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentListViewMut<'a>(pub ooxml_core::LensMut<'a, CommentList>);
+impl<'a> CommentListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentListView<'_> {
+        CommentListView(self.0.as_lens())
+    }
+    /// First `x:comment` child matching `pred`, mutably.
+    pub fn comment_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentViewMut<'_>> {
+        self.0.child_mut_by::<Comment>(pred).map(CommentViewMut)
+    }
+    /// Inserts a `x:comment` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Comment>(before).map(CommentViewMut)
+    }
+    /// Appends a `x:comment` at the end of its slot.
+    pub fn insert_comment(&mut self) -> Result<CommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Comment>().map(CommentViewMut)
+    }
+    /// Removes the first `x:comment` child.
+    pub fn remove_comment(&mut self) -> bool {
+        self.0.remove::<Comment>()
+    }
+}
+/// `x:CT_Comments/x:comments` — Comments.
+#[derive(Debug)]
+pub enum Comments {}
+impl ooxml_core::ElementSpec for Comments {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "comments");
+    const SDK_NAME: &'static str = "x:CT_Comments/x:comments";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "authors")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "commentList")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Comments> for Authors {}
+impl ooxml_core::ChildOf<Comments> for CommentList {}
+/// Read-only view of [`Comments`].
+#[derive(Clone, Debug)]
+pub struct CommentsView<'a>(pub ooxml_core::Lens<'a, Comments>);
+impl<'a> CommentsView<'a> {
+    /// First `x:authors` child.
+    pub fn authors(&self) -> Option<AuthorsView<'a>> {
+        self.0.child::<Authors>().map(AuthorsView)
+    }
+    /// First `x:commentList` child.
+    pub fn comment_list(&self) -> Option<CommentListView<'a>> {
+        self.0.child::<CommentList>().map(CommentListView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Comments`]. Reads go through [`CommentsViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentsViewMut<'a>(pub ooxml_core::LensMut<'a, Comments>);
+impl<'a> CommentsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentsView<'_> {
+        CommentsView(self.0.as_lens())
+    }
+    /// First `x:authors` child, mutably.
+    pub fn authors_mut(&mut self) -> Option<AuthorsViewMut<'_>> {
+        self.0.child_mut::<Authors>().map(AuthorsViewMut)
+    }
+    /// Existing `x:authors` child, or a new one in schema position.
+    pub fn get_or_insert_authors(
+        &mut self,
+    ) -> Result<AuthorsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Authors>().map(AuthorsViewMut)
+    }
+    /// Removes the first `x:authors` child.
+    pub fn remove_authors(&mut self) -> bool {
+        self.0.remove::<Authors>()
+    }
+    /// First `x:commentList` child, mutably.
+    pub fn comment_list_mut(&mut self) -> Option<CommentListViewMut<'_>> {
+        self.0.child_mut::<CommentList>().map(CommentListViewMut)
+    }
+    /// Existing `x:commentList` child, or a new one in schema position.
+    pub fn get_or_insert_comment_list(
+        &mut self,
+    ) -> Result<CommentListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CommentList>().map(CommentListViewMut)
+    }
+    /// Removes the first `x:commentList` child.
+    pub fn remove_comment_list(&mut self) -> bool {
+        self.0.remove::<CommentList>()
     }
 }
 /// `x:CT_ConditionalFormatting/x:conditionalFormatting` — Conditional Formatting.
@@ -14877,6 +15231,104 @@ impl<'a> SharedStringItemViewMut<'a> {
         self.0.remove::<Text>()
     }
 }
+/// `x:CT_Rst/x:text` — Comment Text.
+#[derive(Debug)]
+pub enum CommentText {}
+impl ooxml_core::ElementSpec for CommentText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "text");
+    const SDK_NAME: &'static str = "x:CT_Rst/x:text";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "t")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "r")],
+                wildcard: None,
+                max_each: Some(32767),
+                max_total: Some(32767),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "rPh")],
+                wildcard: None,
+                max_each: Some(32767),
+                max_total: Some(32767),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "phoneticPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CommentText> for Run {}
+impl ooxml_core::ChildOf<CommentText> for Text {}
+/// Read-only view of [`CommentText`].
+#[derive(Clone, Debug)]
+pub struct CommentTextView<'a>(pub ooxml_core::Lens<'a, CommentText>);
+impl<'a> CommentTextView<'a> {
+    /// `x:r` children in document order.
+    pub fn run_iter(&self) -> impl Iterator<Item = RunView<'a>> {
+        self.0.children::<Run>().map(RunView)
+    }
+    /// First `x:t` child.
+    pub fn text(&self) -> Option<TextView<'a>> {
+        self.0.child::<Text>().map(TextView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentText`]. Reads go through [`CommentTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentTextViewMut<'a>(pub ooxml_core::LensMut<'a, CommentText>);
+impl<'a> CommentTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentTextView<'_> {
+        CommentTextView(self.0.as_lens())
+    }
+    /// First `x:r` child matching `pred`, mutably.
+    pub fn run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunViewMut<'_>> {
+        self.0.child_mut_by::<Run>(pred).map(RunViewMut)
+    }
+    /// Inserts a `x:r` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Run>(before).map(RunViewMut)
+    }
+    /// Appends a `x:r` at the end of its slot.
+    pub fn insert_run(&mut self) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Run>().map(RunViewMut)
+    }
+    /// Removes the first `x:r` child.
+    pub fn remove_run(&mut self) -> bool {
+        self.0.remove::<Run>()
+    }
+    /// First `x:t` child, mutably.
+    pub fn text_mut(&mut self) -> Option<TextViewMut<'_>> {
+        self.0.child_mut::<Text>().map(TextViewMut)
+    }
+    /// Existing `x:t` child, or a new one in schema position.
+    pub fn get_or_insert_text(&mut self) -> Result<TextViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Text>().map(TextViewMut)
+    }
+    /// Removes the first `x:t` child.
+    pub fn remove_text(&mut self) -> bool {
+        self.0.remove::<Text>()
+    }
+}
 /// `x:CT_Selection/x:selection` — Selection.
 #[derive(Debug)]
 pub enum Selection {}
@@ -21250,6 +21702,73 @@ impl<'a> CellFormatViewMut<'a> {
         self.0.remove::<Protection>()
     }
 }
+/// `x:CT_Xstring/x:author` — Author.
+#[derive(Debug)]
+pub enum Author {}
+impl Author {
+    /// `xml:space`
+    pub const ATTR_XML_SPACE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_XML,
+        "space",
+    );
+}
+impl ooxml_core::ElementSpec for Author {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "author");
+    const SDK_NAME: &'static str = "x:CT_Xstring/x:author";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Author::ATTR_XML_SPACE,
+            ty: ooxml_core::SimpleType::Enum(
+                <SpaceProcessingModeValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Text(
+        ooxml_core::SimpleType::String,
+    );
+}
+/// Read-only view of [`Author`].
+#[derive(Clone, Debug)]
+pub struct AuthorView<'a>(pub ooxml_core::Lens<'a, Author>);
+impl<'a> AuthorView<'a> {
+    /// `xml:space` — Content Contains Significant Whitespace
+    pub fn space(&self) -> Option<ooxml_core::EnumValue<'a, SpaceProcessingModeValues>> {
+        self.0.attr_enum(Author::ATTR_XML_SPACE)
+    }
+    /// Text content.
+    pub fn text(&self) -> std::borrow::Cow<'a, str> {
+        self.0.text()
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Author`]. Reads go through [`AuthorViewMut::as_view`].
+#[derive(Debug)]
+pub struct AuthorViewMut<'a>(pub ooxml_core::LensMut<'a, Author>);
+impl<'a> AuthorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AuthorView<'_> {
+        AuthorView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — Content Contains Significant Whitespace
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Author::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Author::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
+    }
+}
 /// `x:CT_Xstring/x:evenFooter` — Even Page Footer.
 #[derive(Debug)]
 pub enum EvenFooter {}
@@ -21987,6 +22506,436 @@ impl<'a> CellValueViewMut<'a> {
         self.0.set_text(v)
     }
 }
+/// `xltc:CT_Person/xltc:person` — Defines the Person Class.
+#[derive(Debug)]
+pub enum Person {}
+impl Person {
+    /// `displayName`
+    pub const ATTR_DISPLAY_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "displayName",
+    );
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `userId`
+    pub const ATTR_USER_ID: ooxml_core::QName = ooxml_core::QName::new("", "userId");
+    /// `providerId`
+    pub const ATTR_PROVIDER_ID: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "providerId",
+    );
+}
+impl ooxml_core::ElementSpec for Person {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_XLTC, "person");
+    const SDK_NAME: &'static str = "xltc:CT_Person/xltc:person";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Person::ATTR_DISPLAY_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Person::ATTR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Person::ATTR_USER_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: Person::ATTR_PROVIDER_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`Person`].
+#[derive(Clone, Debug)]
+pub struct PersonView<'a>(pub ooxml_core::Lens<'a, Person>);
+impl<'a> PersonView<'a> {
+    /// `displayName` — displayName
+    pub fn display_name(&self) -> Option<&'a str> {
+        self.0.attr(Person::ATTR_DISPLAY_NAME)
+    }
+    /// `id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(Person::ATTR_ID)
+    }
+    /// `userId` — userId
+    pub fn user_id(&self) -> Option<&'a str> {
+        self.0.attr(Person::ATTR_USER_ID)
+    }
+    /// `providerId` — providerId
+    pub fn provider_id(&self) -> Option<&'a str> {
+        self.0.attr(Person::ATTR_PROVIDER_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Person`]. Reads go through [`PersonViewMut::as_view`].
+#[derive(Debug)]
+pub struct PersonViewMut<'a>(pub ooxml_core::LensMut<'a, Person>);
+impl<'a> PersonViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PersonView<'_> {
+        PersonView(self.0.as_lens())
+    }
+    /// Sets `displayName` — displayName
+    pub fn set_display_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Person::ATTR_DISPLAY_NAME, v)
+    }
+    /// Removes `displayName`.
+    pub fn remove_display_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Person::ATTR_DISPLAY_NAME)
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Person::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Person::ATTR_ID)
+    }
+    /// Sets `userId` — userId
+    pub fn set_user_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Person::ATTR_USER_ID, v)
+    }
+    /// Removes `userId`.
+    pub fn remove_user_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Person::ATTR_USER_ID)
+    }
+    /// Sets `providerId` — providerId
+    pub fn set_provider_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Person::ATTR_PROVIDER_ID, v)
+    }
+    /// Removes `providerId`.
+    pub fn remove_provider_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Person::ATTR_PROVIDER_ID)
+    }
+}
+/// `xltc:CT_PersonList/xltc:personList` — Defines the PersonList Class.
+#[derive(Debug)]
+pub enum PersonList {}
+impl ooxml_core::ElementSpec for PersonList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_XLTC, "personList");
+    const SDK_NAME: &'static str = "xltc:CT_PersonList/xltc:personList";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "person")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<PersonList> for Person {}
+/// Read-only view of [`PersonList`].
+#[derive(Clone, Debug)]
+pub struct PersonListView<'a>(pub ooxml_core::Lens<'a, PersonList>);
+impl<'a> PersonListView<'a> {
+    /// `xltc:person` children in document order.
+    pub fn person_iter(&self) -> impl Iterator<Item = PersonView<'a>> {
+        self.0.children::<Person>().map(PersonView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`PersonList`]. Reads go through [`PersonListViewMut::as_view`].
+#[derive(Debug)]
+pub struct PersonListViewMut<'a>(pub ooxml_core::LensMut<'a, PersonList>);
+impl<'a> PersonListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> PersonListView<'_> {
+        PersonListView(self.0.as_lens())
+    }
+    /// First `xltc:person` child matching `pred`, mutably.
+    pub fn person_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<PersonViewMut<'_>> {
+        self.0.child_mut_by::<Person>(pred).map(PersonViewMut)
+    }
+    /// Inserts a `xltc:person` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_person_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<PersonViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Person>(before).map(PersonViewMut)
+    }
+    /// Appends a `xltc:person` at the end of its slot.
+    pub fn insert_person(&mut self) -> Result<PersonViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Person>().map(PersonViewMut)
+    }
+    /// Removes the first `xltc:person` child.
+    pub fn remove_person(&mut self) -> bool {
+        self.0.remove::<Person>()
+    }
+}
+/// `xltc:CT_ThreadedComment/xltc:threadedComment` — Defines the ThreadedComment Class.
+#[derive(Debug)]
+pub enum ThreadedComment {}
+impl ThreadedComment {
+    /// `ref`
+    pub const ATTR_REF: ooxml_core::QName = ooxml_core::QName::new("", "ref");
+    /// `dT`
+    pub const ATTR_D_T: ooxml_core::QName = ooxml_core::QName::new("", "dT");
+    /// `personId`
+    pub const ATTR_PERSON_ID: ooxml_core::QName = ooxml_core::QName::new("", "personId");
+    /// `id`
+    pub const ATTR_ID: ooxml_core::QName = ooxml_core::QName::new("", "id");
+    /// `parentId`
+    pub const ATTR_PARENT_ID: ooxml_core::QName = ooxml_core::QName::new("", "parentId");
+    /// `done`
+    pub const ATTR_DONE: ooxml_core::QName = ooxml_core::QName::new("", "done");
+}
+impl ooxml_core::ElementSpec for ThreadedComment {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_XLTC, "threadedComment");
+    const SDK_NAME: &'static str = "xltc:CT_ThreadedComment/xltc:threadedComment";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ThreadedComment::ATTR_REF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ThreadedComment::ATTR_D_T,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ThreadedComment::ATTR_PERSON_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ThreadedComment::ATTR_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ThreadedComment::ATTR_PARENT_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ThreadedComment::ATTR_DONE,
+            ty: ooxml_core::SimpleType::Boolean,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "text")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "mentions")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`ThreadedComment`].
+#[derive(Clone, Debug)]
+pub struct ThreadedCommentView<'a>(pub ooxml_core::Lens<'a, ThreadedComment>);
+impl<'a> ThreadedCommentView<'a> {
+    /// `ref` — ref
+    pub fn ref_(&self) -> Option<&'a str> {
+        self.0.attr(ThreadedComment::ATTR_REF)
+    }
+    /// `dT` — dT
+    pub fn d_t(&self) -> Option<&'a str> {
+        self.0.attr(ThreadedComment::ATTR_D_T)
+    }
+    /// `personId` — personId
+    pub fn person_id(&self) -> Option<&'a str> {
+        self.0.attr(ThreadedComment::ATTR_PERSON_ID)
+    }
+    /// `id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(ThreadedComment::ATTR_ID)
+    }
+    /// `parentId` — parentId
+    pub fn parent_id(&self) -> Option<&'a str> {
+        self.0.attr(ThreadedComment::ATTR_PARENT_ID)
+    }
+    /// `done` — done
+    pub fn done(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0.attr_parsed(ThreadedComment::ATTR_DONE, ooxml_core::value::parse_bool)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ThreadedComment`]. Reads go through [`ThreadedCommentViewMut::as_view`].
+#[derive(Debug)]
+pub struct ThreadedCommentViewMut<'a>(pub ooxml_core::LensMut<'a, ThreadedComment>);
+impl<'a> ThreadedCommentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ThreadedCommentView<'_> {
+        ThreadedCommentView(self.0.as_lens())
+    }
+    /// Sets `ref` — ref
+    pub fn set_ref(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ThreadedComment::ATTR_REF, v)
+    }
+    /// Removes `ref`.
+    pub fn remove_ref(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ThreadedComment::ATTR_REF)
+    }
+    /// Sets `dT` — dT
+    pub fn set_d_t(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ThreadedComment::ATTR_D_T, v)
+    }
+    /// Removes `dT`.
+    pub fn remove_d_t(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ThreadedComment::ATTR_D_T)
+    }
+    /// Sets `personId` — personId
+    pub fn set_person_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ThreadedComment::ATTR_PERSON_ID, v)
+    }
+    /// Removes `personId`.
+    pub fn remove_person_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ThreadedComment::ATTR_PERSON_ID)
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ThreadedComment::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ThreadedComment::ATTR_ID)
+    }
+    /// Sets `parentId` — parentId
+    pub fn set_parent_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ThreadedComment::ATTR_PARENT_ID, v)
+    }
+    /// Removes `parentId`.
+    pub fn remove_parent_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ThreadedComment::ATTR_PARENT_ID)
+    }
+    /// Sets `done` — done
+    pub fn set_done(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ThreadedComment::ATTR_DONE, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `done`.
+    pub fn remove_done(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ThreadedComment::ATTR_DONE)
+    }
+}
+/// `xltc:CT_ThreadedComments/xltc:ThreadedComments` — Defines the ThreadedComments Class.
+#[derive(Debug)]
+pub enum ThreadedComments {}
+impl ooxml_core::ElementSpec for ThreadedComments {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_XLTC, "ThreadedComments");
+    const SDK_NAME: &'static str = "xltc:CT_ThreadedComments/xltc:ThreadedComments";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "threadedComment")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_XLTC, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ThreadedComments> for ThreadedComment {}
+/// Read-only view of [`ThreadedComments`].
+#[derive(Clone, Debug)]
+pub struct ThreadedCommentsView<'a>(pub ooxml_core::Lens<'a, ThreadedComments>);
+impl<'a> ThreadedCommentsView<'a> {
+    /// `xltc:threadedComment` children in document order.
+    pub fn threaded_comment_iter(
+        &self,
+    ) -> impl Iterator<Item = ThreadedCommentView<'a>> {
+        self.0.children::<ThreadedComment>().map(ThreadedCommentView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ThreadedComments`]. Reads go through [`ThreadedCommentsViewMut::as_view`].
+#[derive(Debug)]
+pub struct ThreadedCommentsViewMut<'a>(pub ooxml_core::LensMut<'a, ThreadedComments>);
+impl<'a> ThreadedCommentsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ThreadedCommentsView<'_> {
+        ThreadedCommentsView(self.0.as_lens())
+    }
+    /// First `xltc:threadedComment` child matching `pred`, mutably.
+    pub fn threaded_comment_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ThreadedCommentViewMut<'_>> {
+        self.0.child_mut_by::<ThreadedComment>(pred).map(ThreadedCommentViewMut)
+    }
+    /// Inserts a `xltc:threadedComment` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_threaded_comment_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ThreadedCommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<ThreadedComment>(before).map(ThreadedCommentViewMut)
+    }
+    /// Appends a `xltc:threadedComment` at the end of its slot.
+    pub fn insert_threaded_comment(
+        &mut self,
+    ) -> Result<ThreadedCommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<ThreadedComment>().map(ThreadedCommentViewMut)
+    }
+    /// Removes the first `xltc:threadedComment` child.
+    pub fn remove_threaded_comment(&mut self) -> bool {
+        self.0.remove::<ThreadedComment>()
+    }
+}
+const _: () = ooxml_core::schema::assert_spec::<Authors>();
+const _: () = ooxml_core::schema::assert_child::<Authors, Author>();
 const _: () = ooxml_core::schema::assert_spec::<AutoFilter>();
 const _: () = ooxml_core::schema::assert_child::<AutoFilter, FilterColumn>();
 const _: () = ooxml_core::schema::assert_child::<AutoFilter, SortState>();
@@ -22069,6 +23018,13 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_child::<ColorScale, Color>();
 const _: () = ooxml_core::schema::assert_spec::<Columns>();
 const _: () = ooxml_core::schema::assert_child::<Columns, Column>();
+const _: () = ooxml_core::schema::assert_spec::<Comment>();
+const _: () = ooxml_core::schema::assert_child::<Comment, CommentText>();
+const _: () = ooxml_core::schema::assert_spec::<CommentList>();
+const _: () = ooxml_core::schema::assert_child::<CommentList, Comment>();
+const _: () = ooxml_core::schema::assert_spec::<Comments>();
+const _: () = ooxml_core::schema::assert_child::<Comments, Authors>();
+const _: () = ooxml_core::schema::assert_child::<Comments, CommentList>();
 const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatting>();
 const _: () = ooxml_core::schema::assert_child::<
     ConditionalFormatting,
@@ -22211,6 +23167,9 @@ const _: () = ooxml_core::schema::assert_child::<InlineString, Text>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringItem>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringItem, Run>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringItem, Text>();
+const _: () = ooxml_core::schema::assert_spec::<CommentText>();
+const _: () = ooxml_core::schema::assert_child::<CommentText, Run>();
+const _: () = ooxml_core::schema::assert_child::<CommentText, Text>();
 const _: () = ooxml_core::schema::assert_spec::<Selection>();
 const _: () = ooxml_core::schema::assert_spec::<Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SheetData>();
@@ -22302,6 +23261,7 @@ const _: () = ooxml_core::schema::assert_spec::<WorksheetSource>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormat>();
 const _: () = ooxml_core::schema::assert_child::<CellFormat, Alignment>();
 const _: () = ooxml_core::schema::assert_child::<CellFormat, Protection>();
+const _: () = ooxml_core::schema::assert_spec::<Author>();
 const _: () = ooxml_core::schema::assert_spec::<EvenFooter>();
 const _: () = ooxml_core::schema::assert_spec::<EvenHeader>();
 const _: () = ooxml_core::schema::assert_spec::<FirstFooter>();
@@ -22313,3 +23273,9 @@ const _: () = ooxml_core::schema::assert_spec::<OddFooter>();
 const _: () = ooxml_core::schema::assert_spec::<OddHeader>();
 const _: () = ooxml_core::schema::assert_spec::<Text>();
 const _: () = ooxml_core::schema::assert_spec::<CellValue>();
+const _: () = ooxml_core::schema::assert_spec::<Person>();
+const _: () = ooxml_core::schema::assert_spec::<PersonList>();
+const _: () = ooxml_core::schema::assert_child::<PersonList, Person>();
+const _: () = ooxml_core::schema::assert_spec::<ThreadedComment>();
+const _: () = ooxml_core::schema::assert_spec::<ThreadedComments>();
+const _: () = ooxml_core::schema::assert_child::<ThreadedComments, ThreadedComment>();
