@@ -162,7 +162,7 @@ pub fn field_code(instruction: &str) -> String {
 /// code is typed by hand (review round 3, m9). Whether Word itself reads the
 /// typographic ones as quotes is *(u)*; treating them as quotes makes the
 /// argument match the lists, and anything unexpected is refused anyway.
-const QUOTES: &[char] = &['"', '\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}', '\u{FF02}'];
+pub(crate) const QUOTES: &[char] = &['"', '\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}', '\u{FF02}'];
 
 /// Typographic quotation marks: one of them opens, any of them closes.
 const TYPOGRAPHIC_QUOTES: &[char] = &['\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}'];
@@ -426,6 +426,7 @@ pub(crate) struct FieldScan {
     codes: Vec<String>,
     scopes: Vec<Scope>,
     bookmark_targets: Option<BTreeSet<String>>,
+    sequence: Option<(String, usize)>,
 }
 
 /// How the scan reads an element's children: as the body walk does, or —
@@ -463,6 +464,30 @@ impl FieldScan {
 
     fn collect(root: &RawNode, collect_bookmarks: bool) -> Self {
         let mut s = FieldScan { bookmark_targets: collect_bookmarks.then(BTreeSet::new), ..Self::default() };
+        s.walk(root, None);
+        for open in std::mem::take(&mut s.stack) {
+            s.finish(open);
+        }
+        s
+    }
+
+    /// Field state at a direct-child insertion boundary, and the number of
+    /// completed SEQ fields in this story before that boundary.
+    pub(crate) fn before_insertion(
+        root: &RawNode,
+        paragraph: &RawNode,
+        index: usize,
+        sequence: Option<&str>,
+    ) -> (bool, usize) {
+        let mut scan = Self {
+            sequence: sequence.map(|name| (normalize_name(name), 0)),
+            ..Self::default()
+        };
+        scan.walk(root, Some((paragraph, index)));
+        (!scan.stack.is_empty(), scan.sequence.map_or(0, |(_, count)| count))
+    }
+
+    fn walk(&mut self, root: &RawNode, stop: Option<(&RawNode, usize)>) {
         let root_mode = if is::<ooxml_schema::wml::Document>(root) { Mode::Document } else { Mode::Block };
         let mut containers = 0u32;
         // (node, index of the next child to visit, mode for its children,
@@ -470,10 +495,16 @@ impl FieldScan {
         let mut walk: Vec<(&RawNode, usize, ScanMode, u32, bool)> = vec![(root, 0, ScanMode::Walk(root_mode), 0, false)];
         while let Some((node, next, mode, container, _)) = walk.last_mut() {
             let (mode, container) = (*mode, *container);
-            match next_element(node, *next) {
+            let next_child = next_element(node, *next);
+            if stop.is_some_and(|(parent, index)| {
+                std::ptr::eq(*node, parent) && next_child.is_none_or(|(i, _)| i >= index)
+            }) {
+                return;
+            }
+            match next_child {
                 Some((i, child)) => {
                     *next = i + 1;
-                    s.markup(child, mode, container);
+                    self.markup(child, mode, container);
                     let (child_mode, child_container) = match mode.descend(child) {
                         Some(m) => (m, container),
                         None => {
@@ -481,20 +512,25 @@ impl FieldScan {
                             (ScanMode::Foreign, containers)
                         }
                     };
-                    let scoped = s.scope(child);
+                    let scoped = self.scope(child);
                     walk.push((child, 0, child_mode, child_container, scoped));
                 }
                 None => {
                     if let Some((.., true)) = walk.pop() {
-                        s.scopes.pop();
+                        self.scopes.pop();
                     }
                 }
             }
         }
-        for open in std::mem::take(&mut s.stack) {
-            s.finish(open);
+    }
+
+    fn count_sequence(&mut self, instruction: &str) {
+        if let Some((name, count)) = &mut self.sequence {
+            let (code, rest) = split_code(instruction);
+            if code == "SEQ" && first_argument(rest).as_ref() == Some(name) {
+                *count += 1;
+            }
         }
-        s
     }
 
     fn finish(&mut self, open: Open) {
@@ -503,6 +539,9 @@ impl FieldScan {
             () if open.calculated && field_code(&open.instruction) == "FORMTEXT" => CALCULATED_FORM_FIELD.into(),
             () => key(&open.instruction, open.nested),
         };
+        if !open.revised && !open.nested {
+            self.count_sequence(&open.instruction);
+        }
         self.record_bookmark_target(&open.instruction);
         self.codes.push(key);
     }
@@ -545,6 +584,7 @@ impl FieldScan {
         let in_run = matches!(parent, ScanMode::Walk(Mode::Run));
         if is::<SimpleField>(node) {
             let instruction = node.attr(SimpleField::ATTR_W_INSTR).unwrap_or_default();
+            self.count_sequence(instruction);
             self.record_bookmark_target(instruction);
             self.codes.push(field_key(instruction));
         } else if is::<FieldChar>(node) {

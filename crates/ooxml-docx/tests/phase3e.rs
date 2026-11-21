@@ -1,0 +1,355 @@
+mod common;
+
+use std::io::{Cursor, Write};
+
+use ooxml_docx::{Document, Error, FieldSpec, ParaRef, RunPosition, RunRef, StoryIndex};
+use zip::write::SimpleFileOptions;
+
+const MAIN: &str = "word/document.xml";
+const PLAIN: &str = "<w:p><w:r><w:t>Plain</w:t></w:r></w:p>";
+const REFRESH: &str = "<w:updateFields w:val='true'/>";
+
+fn end(index: usize) -> RunPosition {
+    RunPosition::EndOf(ParaRef::new(StoryIndex::MAIN, index))
+}
+
+fn reference(name: &str) -> FieldSpec {
+    FieldSpec::Ref {
+        bookmark: name.into(),
+        hyperlink: false,
+    }
+}
+
+fn sequence(name: &str) -> FieldSpec {
+    FieldSpec::Seq {
+        identifier: name.into(),
+    }
+}
+
+fn assert_refusal(
+    input: &[u8],
+    opt_in: bool,
+    at: RunPosition,
+    spec: FieldSpec,
+    check: impl FnOnce(Error),
+) {
+    let mut doc = Document::from_bytes(input.to_vec()).unwrap();
+    if opt_in {
+        doc.enable_update_fields_on_open().unwrap();
+    }
+    let before = if opt_in {
+        doc.to_bytes().unwrap()
+    } else {
+        input.to_vec()
+    };
+    check(doc.insert_field(at, spec).unwrap_err());
+    assert_eq!(doc.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn refuses_unsafe_fields_without_mutating_the_package() {
+    let plain = common::docx(PLAIN, Some(""), None);
+    for picture in ["yyyy\"mm", "yyyy\\mm", "yyyy“mm"] {
+        assert_refusal(
+            &plain,
+            false,
+            end(0),
+            FieldSpec::Date {
+                format: picture.into(),
+            },
+            |error| {
+                std::assert_matches!(
+                    error,
+                    Error::InvalidValue {
+                        what: "field argument",
+                        ..
+                    }
+                );
+            },
+        );
+    }
+    assert_refusal(
+        &plain,
+        false,
+        end(0),
+        FieldSpec::Date {
+            format: "dddd".into(),
+        },
+        |error| {
+            std::assert_matches!(error, Error::UnsupportedDateFormat { token } if token == "dddd");
+        },
+    );
+    assert_refusal(&plain, true, end(0), reference("Missing"), |error| {
+        std::assert_matches!(error, Error::UnknownBookmark { name } if name == "Missing");
+    });
+    assert_refusal(
+        &plain,
+        true,
+        end(0),
+        FieldSpec::PageRef {
+            bookmark: "Missing".into(),
+            hyperlink: false,
+        },
+        |error| {
+            std::assert_matches!(error, Error::UnknownBookmark { name } if name == "Missing");
+        },
+    );
+    assert_refusal(
+        &plain,
+        true,
+        end(0),
+        FieldSpec::Toc {
+            levels: (3, 1),
+            hyperlinks: false,
+        },
+        |error| {
+            std::assert_matches!(
+                error,
+                Error::InvalidValue {
+                    what: "TOC heading levels",
+                    ..
+                }
+            );
+        },
+    );
+    for name in ["Words", "Unknown Property"] {
+        assert_refusal(
+            &plain,
+            true,
+            end(0),
+            FieldSpec::DocProperty { name: name.into() },
+            |error| {
+                std::assert_matches!(error, Error::StaleFieldRisk { codes } if codes == [format!("DOCPROPERTY {}", name.to_uppercase())]);
+            },
+        );
+    }
+    for settings in [None, Some("<w:updateFields w:val='false'/>"), Some(REFRESH)] {
+        let input = common::docx(PLAIN, settings, None);
+        for (spec, code) in [
+            (reference("Missing"), "REF"),
+            (
+                FieldSpec::PageRef {
+                    bookmark: "Missing".into(),
+                    hyperlink: false,
+                },
+                "PAGEREF",
+            ),
+            (sequence("Figure"), "SEQ"),
+            (
+                FieldSpec::Toc {
+                    levels: (1, 3),
+                    hyperlinks: false,
+                },
+                "TOC",
+            ),
+        ] {
+            assert_refusal(&input, false, end(0), spec, |error| {
+                std::assert_matches!(error, Error::StaleFieldRisk { codes } if codes == [code]);
+            });
+        }
+    }
+    let tracking = common::docx(PLAIN, Some("<w:trackRevisions/>"), None);
+    assert_refusal(&tracking, false, end(0), FieldSpec::Page, |error| {
+        std::assert_matches!(error, Error::TrackRevisionsOn);
+    });
+    for edit in ["readOnly", "forms", "trackedChanges", "comments"] {
+        let protected = common::docx(
+            PLAIN,
+            Some(&format!(
+                "<w:documentProtection w:enforcement='true' w:edit='{edit}'/>"
+            )),
+            None,
+        );
+        assert_refusal(&protected, false, end(0), FieldSpec::Page, |error| {
+            std::assert_matches!(error, Error::DocumentProtected { edit: actual } if actual == edit);
+        });
+    }
+    let field = common::docx(
+        "<w:p><w:r><w:fldChar w:fldCharType='begin'/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType='end'/></w:r></w:p>",
+        None,
+        None,
+    );
+    assert_refusal(
+        &field,
+        false,
+        RunPosition::After(RunRef::new(ParaRef::new(StoryIndex::MAIN, 0), 1)),
+        FieldSpec::Page,
+        |error| {
+            std::assert_matches!(error, Error::InsideField);
+        },
+    );
+}
+
+#[test]
+fn pagination_cache_copies_format_and_changes_only_the_target_paragraph() {
+    let first = "<w:p><w:r><w:t>Unchanged before</w:t></w:r></w:p>";
+    let last = "<w:p><w:r><w:t>Unchanged after</w:t></w:r></w:p>";
+    let input = common::docx(
+        &format!(
+            "{first}<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anchor</w:t></w:r><w:r><w:t>Suffix</w:t></w:r></w:p>{last}"
+        ),
+        Some("<w:documentProtection w:enforcement='true' w:edit='none'/>"),
+        Some(PLAIN),
+    );
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let at = RunPosition::After(RunRef::new(ParaRef::new(StoryIndex::MAIN, 1), 0));
+    doc.insert_field_with_page_cache(at, FieldSpec::NumPages, 42)
+        .unwrap();
+    let out = doc.to_bytes().unwrap();
+    let orig_entries = common::entries(&input);
+    let out_entries = common::entries(&out);
+    assert_eq!(orig_entries.len(), out_entries.len());
+    for (original, output) in orig_entries.iter().zip(&out_entries) {
+        if original.0 != MAIN {
+            assert_eq!(original, output);
+        }
+    }
+    let before = String::from_utf8(common::part(&input, MAIN)).unwrap();
+    let after = String::from_utf8(common::part(&out, MAIN)).unwrap();
+    let prefix = before.split_once(first).unwrap().0.len() + first.len();
+    let suffix = before.split_once(last).unwrap().1.len() + last.len();
+    assert!(after.starts_with(&before[..prefix]));
+    assert!(after.ends_with(&before[before.len() - suffix..]));
+    let xml = roxmltree::Document::parse(&after).unwrap();
+    let cache = xml
+        .descendants()
+        .find(|node| node.has_tag_name((common::W_NS, "t")) && node.text() == Some("42"))
+        .unwrap();
+    assert!(
+        cache
+            .parent()
+            .unwrap()
+            .descendants()
+            .any(|node| node.has_tag_name((common::W_NS, "b")))
+    );
+    assert_eq!(
+        Document::from_bytes(out)
+            .unwrap()
+            .paragraphs()
+            .nth(1)
+            .unwrap()
+            .text(),
+        "Anchor42Suffix"
+    );
+}
+
+#[test]
+fn sequence_counts_only_earlier_matching_fields_in_the_story() {
+    let seed = |name| {
+        format!("<w:fldSimple w:instr=' SEQ {name} '><w:r><w:t>77</w:t></w:r></w:fldSimple>")
+    };
+    let body = format!(
+        "<w:p>{}{}<w:r><w:t>Anchor</w:t></w:r>{}</w:p><w:p>{}</w:p>",
+        seed("fIGure"),
+        seed("Other"),
+        seed("Figure"),
+        seed("Figure")
+    );
+    let header = format!("<w:p>{}</w:p>", seed("Figure"));
+    let input = common::docx(&body, Some(""), Some(&header));
+    let mut doc = Document::from_bytes(input).unwrap();
+    doc.enable_update_fields_on_open().unwrap();
+    let anchor = doc
+        .paragraphs()
+        .next()
+        .unwrap()
+        .runs()
+        .find(|run| run.text() == "Anchor")
+        .unwrap()
+        .run_ref();
+    doc.insert_field(RunPosition::After(anchor), sequence("Figure"))
+        .unwrap();
+    doc.insert_field(end(0), sequence("Figure")).unwrap();
+    let output = Document::from_bytes(doc.to_bytes().unwrap()).unwrap();
+    assert_eq!(output.paragraphs().next().unwrap().text(), "7777Anchor2774");
+}
+
+#[test]
+fn bookmark_result_uses_current_text_and_pageref_uses_a_placeholder() {
+    let input = common::docx(
+        concat!(
+            "<w:p><w:r><w:t>Before</w:t></w:r><w:bookmarkStart w:id='04' w:name='Target'/>",
+            "<w:r><w:t>One</w:t><w:tab/></w:r><w:del><w:r><w:delText>Deleted</w:delText></w:r></w:del>",
+            "<w:ins><w:r><w:t>Two</w:t></w:r></w:ins><w:bookmarkEnd w:id='04'/><w:r><w:t>After</w:t></w:r></w:p>",
+            "<w:p/><w:p/>"
+        ),
+        Some(""),
+        None,
+    );
+    let mut doc = Document::from_bytes(input).unwrap();
+    doc.enable_update_fields_on_open().unwrap();
+    doc.insert_field(end(1), reference("target")).unwrap();
+    doc.insert_field(
+        end(2),
+        FieldSpec::PageRef {
+            bookmark: "Target".into(),
+            hyperlink: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(doc.paragraphs().nth(1).unwrap().text(), "One\tTwo");
+    assert_eq!(doc.paragraphs().nth(2).unwrap().text(), "?");
+}
+
+fn with_properties(body: &str) -> Vec<u8> {
+    let input = common::docx(PLAIN, Some(""), None);
+    let rels = common::part(&input, "_rels/.rels");
+    let rels = std::str::from_utf8(&rels).unwrap().replace(
+        "</Relationships>",
+        concat!(
+            "<Relationship Id='rId2' Type='http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties' Target='metadata/core.xml'/>",
+            "<Relationship Id='rId3' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties' Target='metadata/custom.xml'/>",
+            "</Relationships>"
+        ),
+    );
+    let input = common::with_part(&input, "_rels/.rels", rels.as_bytes());
+    let mut archive = zip::ZipArchive::new(Cursor::new(input)).unwrap();
+    let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    for index in 0..archive.len() {
+        zip.raw_copy_file(archive.by_index_raw(index).unwrap())
+            .unwrap();
+    }
+    let custom = format!(
+        "<Properties xmlns='http://schemas.openxmlformats.org/officeDocument/2006/custom-properties' xmlns:vt='http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes'>{body}</Properties>"
+    );
+    for (part, xml) in [
+        (
+            "metadata/core.xml",
+            "<coreProperties xmlns='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' xmlns:dc='http://purl.org/dc/elements/1.1/'><dc:title>Core &amp; title</dc:title></coreProperties>",
+        ),
+        ("metadata/custom.xml", &custom),
+    ] {
+        zip.start_file(part, SimpleFileOptions::default()).unwrap();
+        zip.write_all(xml.as_bytes()).unwrap();
+    }
+    zip.finish().unwrap().into_inner()
+}
+
+#[test]
+fn docproperty_reads_relationship_targets_and_respects_linked_shadowing() {
+    let property = |name: &str| FieldSpec::DocProperty { name: name.into() };
+    let input =
+        with_properties("<property name='Client Name'><vt:lpwstr>A &amp; B</vt:lpwstr></property>");
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    doc.insert_field(end(0), property("Title")).unwrap();
+    doc.insert_field(end(0), property("Client Name")).unwrap();
+    let output = doc.to_bytes().unwrap();
+    assert_eq!(
+        Document::from_bytes(output.clone())
+            .unwrap()
+            .paragraphs()
+            .next()
+            .unwrap()
+            .text(),
+        "PlainCore & titleA & B"
+    );
+    for part in ["metadata/core.xml", "metadata/custom.xml", "_rels/.rels"] {
+        assert_eq!(common::part(&input, part), common::part(&output, part));
+    }
+    let linked = with_properties(
+        "<property name='Title' linkTarget='Bookmark'><vt:lpwstr>Linked</vt:lpwstr></property>",
+    );
+    assert_refusal(&linked, true, end(0), property("Title"), |error| {
+        std::assert_matches!(error, Error::StaleFieldRisk { codes } if codes == ["DOCPROPERTY TITLE"]);
+    });
+}

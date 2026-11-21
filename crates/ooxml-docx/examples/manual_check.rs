@@ -214,6 +214,7 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
     });
     tracked_cases(out, &mut cases)?;
     control_cases(out, &mut cases)?;
+    field_cases(out, &mut cases)?;
     Ok(cases)
 }
 
@@ -696,6 +697,67 @@ fn control_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
+fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{FieldSpec, ParaRef, RunPosition, StoryIndex};
+
+    const BOOKMARK: &str = "<w:p><w:bookmarkStart w:id='0' w:name='FieldTarget'/><w:r><w:t>Reference target</w:t></w:r><w:bookmarkEnd w:id='0'/></w:p>";
+    const RELS: &str = concat!(
+        "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>",
+        "<Relationship Id='rId1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='word/document.xml'/>",
+        "<Relationship Id='rId2' Type='http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties' Target='docProps/core.xml'/>",
+        "</Relationships>",
+    );
+    const CORE: &str = "<cp:coreProperties xmlns:cp='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' xmlns:dc='http://purl.org/dc/elements/1.1/'><dc:title>Field property value</dc:title></cp:coreProperties>";
+
+    let variants = [
+        ("43-field-page.docx", "Page: ", FieldSpec::Page, false),
+        ("44-field-numpages.docx", "Pages: ", FieldSpec::NumPages, false),
+        ("45-field-sectionpages.docx", "Section pages: ", FieldSpec::SectionPages, false),
+        ("46-field-date.docx", "", FieldSpec::Date { format: "[yyyy-MM-dd]".into() }, false),
+        ("47-field-time.docx", "", FieldSpec::Time { format: "(HH:mm)".into() }, false),
+        ("48-field-docproperty.docx", "", FieldSpec::DocProperty { name: "Title".into() }, false),
+        ("49-field-ref.docx", "Reference: ", FieldSpec::Ref { bookmark: "FieldTarget".into(), hyperlink: true }, true),
+        ("50-field-pageref.docx", "Reference page: ", FieldSpec::PageRef { bookmark: "FieldTarget".into(), hyperlink: false }, true),
+        ("51-field-seq.docx", "Sequence: ", FieldSpec::Seq { identifier: "Figure".into() }, true),
+        ("52-field-toc.docx", "", FieldSpec::Toc { levels: (1, 3), hyperlinks: true }, true),
+    ];
+    for (file, label, spec, opt_in) in variants {
+        let paragraph = if label.is_empty() {
+            "<w:p/>".into()
+        } else {
+            format!("<w:p><w:r><w:t xml:space='preserve'>{label}</w:t></w:r></w:p>")
+        };
+        let bookmark = matches!(spec, FieldSpec::Ref { .. } | FieldSpec::PageRef { .. });
+        let body = if bookmark { format!("{BOOKMARK}{paragraph}") } else { paragraph };
+        let mut doc = if matches!(spec, FieldSpec::DocProperty { .. }) {
+            synthetic_with_extra_parts(
+                &body,
+                None,
+                [("_rels/.rels", RELS.into()), ("docProps/core.xml", CORE.into())],
+                &[("/docProps/core.xml", "application/vnd.openxmlformats-package.core-properties+xml")],
+            )?
+        } else if opt_in {
+            synthetic_with_part(&body, Some(("settings", "")))?
+        } else {
+            synthetic(&body)?
+        };
+        if opt_in {
+            doc.enable_update_fields_on_open()?;
+        }
+        let at = RunPosition::EndOf(ParaRef::new(StoryIndex::MAIN, usize::from(bookmark)));
+        let done = format!("Inserted the complex field {spec:?}");
+        doc.insert_field(at, spec)?;
+        save(&doc, out, file)?;
+        cases.push(Case {
+            file,
+            fixture: "",
+            done,
+            check: "Verify the display, toggle field codes to inspect the instruction, then update the field.",
+        });
+    }
+    Ok(())
+}
+
 /// `Document`, so a reopened copy is gated again).
 fn save_ungated(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
     doc.save(out.join(file))?;
@@ -766,9 +828,9 @@ fn synthetic_with_extra_parts(
         );
     }
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let parts = parts.into_iter().map(|(name, xml)| (name.to_owned(), xml));
-    let extra = extra.into_iter().map(|(name, xml)| (name.to_owned(), xml));
-    for (name, content) in parts.chain(extra) {
+    let extra: Vec<_> = extra.into_iter().collect();
+    parts.retain(|(name, _)| !extra.iter().any(|(extra_name, _)| name == extra_name));
+    for (name, content) in parts.into_iter().chain(extra) {
         z.start_file(name, zip::write::SimpleFileOptions::default())?;
         z.write_all(content.as_bytes())?;
     }

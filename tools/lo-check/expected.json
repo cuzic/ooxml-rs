@@ -178,6 +178,56 @@
     "text": ["Wrapped paragraph"],
     "xml": [["word/document.xml", "./w:body/w:sdt/w:sdtContent/w:p/w:r/w:t[.='Wrapped paragraph']", 1]]
   },
+  "docx/43-field-page.docx": {
+    "text": ["Page: 1"],
+    "pdf_text": ["Page: 1"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' PAGE ']", 1]]
+  },
+  "docx/44-field-numpages.docx": {
+    "text": ["Pages: 1"],
+    "pdf_text": ["Pages: 1"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' NUMPAGES ']", 1]]
+  },
+  "docx/45-field-sectionpages.docx": {
+    "text": ["Section pages: 1"],
+    "pdf_text": ["Section pages: 1"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' SECTIONPAGES ']", 1]]
+  },
+  "docx/46-field-date.docx": {
+    "text": ["[", "]"],
+    "pdf_text": ["[", "]"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' DATE \\@ \"[yyyy-MM-dd]\" ']", 1]]
+  },
+  "docx/47-field-time.docx": {
+    "text": ["(", ")"],
+    "pdf_text": ["(", ")"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' TIME \\@ \"(HH:mm)\" ']", 1]]
+  },
+  "docx/48-field-docproperty.docx": {
+    "text": ["Field property value"],
+    "pdf_text": ["Field property value"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' DOCPROPERTY \"Title\" ']", 1]]
+  },
+  "docx/49-field-ref.docx": {
+    "text": ["Reference: Reference target"],
+    "pdf_text": ["Reference: Reference target"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' REF \"FieldTarget\" \\h ']", 1]]
+  },
+  "docx/50-field-pageref.docx": {
+    "text": ["Reference page: 1"],
+    "pdf_text": ["Reference page: 1"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' PAGEREF \"FieldTarget\" ']", 1], ["word/document.xml", ".//w:t[.='?']", 1]]
+  },
+  "docx/51-field-seq.docx": {
+    "text": ["Sequence: 1"],
+    "pdf_text": ["Sequence: 1"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' SEQ \"Figure\" ']", 1]]
+  },
+  "docx/52-field-toc.docx": {
+    "text": ["Table of contents — update this field."],
+    "pdf_text": ["Table of contents — update this field."],
+    "xml": [["word/document.xml", ".//w:instrText[.=' TOC \\o \"1-3\" \\h ']", 1], ["word/document.xml", ".//w:t[.='Table of contents — update this field.']", 1]]
+  },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},
