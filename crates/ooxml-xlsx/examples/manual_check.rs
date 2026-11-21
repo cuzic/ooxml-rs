@@ -1052,7 +1052,7 @@ const P2_CASES: &[P2Case] = &[
         out: "35-p2-japanese-default-font.xlsx",
         input: "template whose default font is 游ゴシック 11 (`charset=\"128\"`), with 游ゴシック as the theme's Jpan minor font",
         edits: "**XL (f), Japanese.** B1 = 1234.5678 with only a number format; B2 with `with_default_font_of(..).set_bold()`",
-        look_for: "A1's Japanese text is drawn in 游ゴシック; B1 has A1's font and shows 1,234.568; B2 is the same font **bold**, 11 pt. Japanese-UI Excel names the font 游ゴシック; an English UI names the theme's Latin font (Calibri) for all three. No repair dialog.",
+        look_for: "A1's Japanese text is drawn in 游ゴシック; B1 has A1's font and shows 1,234.568; B2 is the same font **bold**, 11 pt. Japanese-UI Excel is expected to name the font 游ゴシック; Excel 365 with an English UI named Calibri (the theme's Latin font) for all three (checked 2026-11-21). No repair dialog.",
         build: p2_japanese_default_font,
     },
     P2Case {
