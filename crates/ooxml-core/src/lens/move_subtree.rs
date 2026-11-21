@@ -288,7 +288,7 @@ impl<E: ElementSpec> LensMut<'_, E> {
         };
         let same_parent = src_parent == self.path.as_slice();
         let skip = same_parent.then_some(src_index);
-        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, before, skip)?;
+        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, before, skip, false)?;
         let dst_index = match skip {
             Some(s) if s < index => index - 1,
             _ => index,

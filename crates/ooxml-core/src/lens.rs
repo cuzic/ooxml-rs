@@ -714,7 +714,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         q: QName,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<Placement> {
-        self.place_skipping(slots, slot, q, before, None)
+        self.place_skipping(slots, slot, q, before, None, false)
     }
 
     /// [`Self::place`] as if the child item at `skip` were absent (a child
@@ -727,6 +727,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         q: QName,
         mut before: impl FnMut(usize, &RawNode) -> bool,
         skip: Option<usize>,
+        rank_alternate_content: bool,
     ) -> Result<Placement> {
         let node = self.node();
         let mut cur = 0usize;
@@ -736,10 +737,28 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             if Some(i) == skip {
                 continue;
             }
-            if child.is(MC_ALTERNATE_CONTENT) {
-                return Err(Error::UnresolvedSibling(E::QNAME));
-            }
-            let cands = Self::candidates(slots, &child.name);
+            let cands = if child.is(MC_ALTERNATE_CONTENT) {
+                if !rank_alternate_content {
+                    return Err(Error::UnresolvedSibling(E::QNAME));
+                }
+                let mut rank: Option<usize> = None;
+                for branch in child.elements().filter(|branch| {
+                    branch.is(QName::new(MC_NS, "Choice")) || branch.is(QName::new(MC_NS, "Fallback"))
+                }) {
+                    let mut ranks = branch.elements().flat_map(|element| Self::candidates(slots, &element.name));
+                    if let Some(first) = ranks.next() {
+                        // Every branch must precede the insertion. A later
+                        // rank may hide a singleton or change the order.
+                        if first >= slot || ranks.any(|rank| rank >= slot) {
+                            return Err(Error::UnresolvedSibling(E::QNAME));
+                        }
+                        rank = Some(rank.map_or(first, |before| before.min(first)));
+                    }
+                }
+                vec![rank.ok_or(Error::UnresolvedSibling(E::QNAME))?]
+            } else {
+                Self::candidates(slots, &child.name)
+            };
             if cands.is_empty() {
                 continue; // unlisted: attached to the listed sibling before it
             }
@@ -794,6 +813,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         slot: usize,
         before: impl FnMut(usize, &RawNode) -> bool,
         decls: &[NsDecl<'_>],
+        rank_alternate_content: bool,
     ) -> Result<InsertPlan> {
         // The request is checked first, so a bad `NsDecl` fails whatever the
         // document looks like.
@@ -805,7 +825,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         let slots = self.slots()?;
-        let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
+        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, before, None, rank_alternate_content)?;
         let (name, declarations) = self.plan_name::<C>(decls)?;
         Ok(InsertPlan { index, name, declarations })
     }
@@ -835,7 +855,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         before: impl FnMut(usize, &RawNode) -> bool,
         decls: &[NsDecl<'_>],
     ) -> Result<LensMut<'_, C>> {
-        let InsertPlan { index, name, declarations } = self.plan_insert::<C>(slot, before, decls)?;
+        let plan = self.plan_insert::<C>(slot, before, decls, false)?;
+        Ok(self.apply_insert(plan))
+    }
+
+    fn apply_insert<C: ElementSpec>(&mut self, plan: InsertPlan) -> LensMut<'_, C> {
+        let InsertPlan { index, name, declarations } = plan;
         let parent = self.node_mut();
         if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
             parent.mark_own_dirty(); // self-closing parent gains its first child
@@ -844,7 +869,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         node.attrs = declarations.into_boxed_slice();
         parent.insert_child(index, RawItem::Element(node));
         self.mark_path();
-        Ok(self.descend(index))
+        self.descend(index)
     }
 
     /// The slot of a new `C` (unique, else an error).
@@ -1015,6 +1040,18 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         self.insert_by::<C>(|_, _| false)
     }
 
+    /// Inserts a child after ranked `mc:AlternateContent` siblings.
+    ///
+    /// A wrapper ranks at the earliest schema slot of the first listed element
+    /// in its branches. If no branch supplies a rank or one can occupy the
+    /// target slot or a later slot, insertion is refused. The wrapper is kept
+    /// intact. Ordinary insertion methods continue to refuse these siblings.
+    pub fn insert_after_alternate_content<C: ChildOf<E>>(&mut self) -> Result<LensMut<'_, C>> {
+        let slot = self.unique_slot::<C>()?;
+        let plan = self.plan_insert::<C>(slot, |_, _| false, &[], true)?;
+        Ok(self.apply_insert(plan))
+    }
+
     /// [`Self::insert`] with namespace declarations ([`Self::insert_by_with_ns`]).
     pub fn insert_with_ns<C: ChildOf<E>>(&mut self, decls: &[NsDecl<'_>]) -> Result<LensMut<'_, C>> {
         self.insert_by_with_ns::<C>(|_, _| false, decls)
@@ -1084,7 +1121,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         decls: &[NsDecl<'_>],
     ) -> Result<Vec<(String, String)>> {
         let slot = self.unique_slot::<C>()?;
-        self.plan_insert::<C>(slot, before, decls).map(|p| plain(p.declarations))
+        self.plan_insert::<C>(slot, before, decls, false).map(|p| plain(p.declarations))
     }
 
     /// `Ok(())` exactly when [`Self::insert`] would succeed.
@@ -1112,7 +1149,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         decls: &[NsDecl<'_>],
     ) -> Result<Vec<(String, String)>> {
         let slot = self.given_slot::<C>(slot)?;
-        self.plan_insert::<C>(slot, before, decls).map(|p| plain(p.declarations))
+        self.plan_insert::<C>(slot, before, decls, false).map(|p| plain(p.declarations))
     }
 
     /// `Ok(())` exactly when [`Self::get_or_insert`] would succeed.

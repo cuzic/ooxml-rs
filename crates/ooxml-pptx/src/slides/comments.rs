@@ -204,7 +204,11 @@ fn insert_creation_id(doc: &mut XmlDocument, id: u32) -> Result<()> {
     let mut data = slide
         .child_mut::<pml::CommonSlideData>()
         .ok_or_else(|| Error::UnsupportedContent("missing p:cSld".into()))?;
-    let mut list = data.get_or_insert::<pml::CommonSlideDataExtensionList>()?;
+    let mut list = if child(data.node(), pml::CommonSlideDataExtensionList::QNAME).is_some() {
+        data.get_or_insert::<pml::CommonSlideDataExtensionList>()?
+    } else {
+        data.insert_after_alternate_content::<pml::CommonSlideDataExtensionList>()?
+    };
     let mut ext = list.insert::<pml::CommonSlideDataExtension>()?;
     ext.set_attr(q("", "uri"), CREATION_EXT)?;
     let mut creation = ext.insert_with_ns::<pml::CreationId>(&[NsDecl::new("p14", P14_NS)])?;
@@ -285,10 +289,13 @@ fn root_declarations(
 
 /// Inserts a fixed-form element at the end of a validated list, preserving
 /// its original spelling, including any aliases on the existing root.
-fn append_xml(doc: &XmlDocument, fragment: &str) -> Result<Vec<u8>> {
+fn append_xml(
+    doc: &XmlDocument,
+    fragment: &str,
+    options: &ooxml_core::ParseOptions,
+) -> Result<XmlDocument> {
     let xml = doc.serialize();
-    let options = ooxml_core::ParseOptions::default().with_max_depth(doc.max_depth());
-    let parsed = XmlDocument::parse_with(xml.as_bytes(), &options)?;
+    let parsed = XmlDocument::parse_with(xml.as_bytes(), options)?;
     let root = parsed.root();
     let span = root.span().expect("parsed root has a span");
     let mut output = xml;
@@ -305,13 +312,19 @@ fn append_xml(doc: &XmlDocument, fragment: &str) -> Result<Vec<u8>> {
             &format!(">{fragment}</{close}>"),
         );
     }
-    XmlDocument::parse_with(output.as_bytes(), &options)?;
-    Ok(output.into_bytes())
+    Ok(XmlDocument::parse_with(output.as_bytes(), options)?)
 }
 
-fn new_list(kind: CommentPart, fragment: &str) -> Vec<u8> {
+fn new_list(
+    kind: CommentPart,
+    fragment: &str,
+    options: &ooxml_core::ParseOptions,
+) -> Result<XmlDocument> {
     let list = kind.list();
-    format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<p188:{list} xmlns:a=\"{A_NS}\" xmlns:r=\"{R_NS}\" xmlns:p188=\"{P188_NS}\">{fragment}</p188:{list}>").into_bytes()
+    let xml = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<p188:{list} xmlns:a=\"{A_NS}\" xmlns:r=\"{R_NS}\" xmlns:p188=\"{P188_NS}\">{fragment}</p188:{list}>"
+    );
+    Ok(XmlDocument::parse_with(xml.as_bytes(), options)?)
 }
 
 fn target(
@@ -558,13 +571,17 @@ fn stage_author(
         escape_attr(provider)
     );
     if let Some((part, doc)) = part.zip(doc) {
-        plan.stage_part(pkg, &part, append_xml(&doc, &fragment)?)?;
+        plan.stage_part(
+            pkg,
+            &part,
+            append_xml(&doc, &fragment, &pkg.parse_options())?,
+        )?;
     } else {
         let part = plan.add_part(
             pkg,
             PartNameRequest::Exact("ppt/authors.xml".into()),
             AUTHORS_CT,
-            new_list(kind, &fragment),
+            new_list(kind, &fragment, &pkg.parse_options())?,
         )?;
         plan.add_relationship(pkg, Some(main), AUTHORS_REL, Target::Part(part))?;
     }
@@ -656,7 +673,11 @@ impl crate::Presentation {
             "<p188:cm{declarations} id=\"{id}\" authorId=\"{author_id}\" created=\"{created}\">{anchor}{body}</p188:cm>"
         );
         if let Some((part, existing)) = part.zip(existing) {
-            plan.stage_part(&self.pkg, &part, append_xml(&existing, &fragment)?)?;
+            plan.stage_part(
+                &self.pkg,
+                &part,
+                append_xml(&existing, &fragment, &self.pkg.parse_options())?,
+            )?;
         } else {
             if extension(slide.root(), P_NS, COMMENT_EXT).next().is_some() {
                 return Err(kind.error(&source, "comment extension without a relationship"));
@@ -670,7 +691,7 @@ impl crate::Presentation {
                     "ppt/comments/modernComment_{slide_id:X}_{c_id:X}.xml"
                 )),
                 COMMENTS_CT,
-                new_list(kind, &fragment),
+                new_list(kind, &fragment, &self.pkg.parse_options())?,
             )?;
             let rid = plan.add_relationship(
                 &self.pkg,
@@ -686,7 +707,11 @@ impl crate::Presentation {
                 declarations.push(NsDecl::new("r", R_NS));
             }
             let mut root = slide.lens_mut::<pml::Slide>()?;
-            let mut list = root.get_or_insert::<pml::SlideExtensionList>()?;
+            let mut list = if child(root.node(), pml::SlideExtensionList::QNAME).is_some() {
+                root.get_or_insert::<pml::SlideExtensionList>()?
+            } else {
+                root.insert_after_alternate_content::<pml::SlideExtensionList>()?
+            };
             let mut ext = list.insert::<pml::SlideExtension>()?;
             ext.set_attr(q("", "uri"), COMMENT_EXT)?;
             let mut rel = ext.insert_with_ns::<pml::CommentRelationship>(&declarations)?;
@@ -821,24 +846,62 @@ mod tests {
     }
 
     #[test]
+    fn comment_extension_follows_alternate_content() {
+        let mut deck = open("poi/bug68703.pptx");
+        let source = deck.slides[0].part.clone().unwrap();
+        let before = deck.tree(&source).unwrap();
+        let alternate = before
+            .root()
+            .elements()
+            .find(|node| node.is(q(MC_NS, "AlternateContent")))
+            .unwrap();
+        let span = alternate.span().unwrap();
+        let original = before.source()[span.start..span.end()].to_owned();
+        deck.add_comment(0, CommentAnchor::Slide, comment())
+            .unwrap();
+        let after = deck.tree(&source).unwrap().serialize();
+        assert!(after.contains(&original));
+        assert!(after.find(&original).unwrap() < after.find(COMMENT_EXT).unwrap());
+    }
+
+    #[test]
     fn account_identity_uses_provider_and_user() {
         let mut deck = open("poi/sample.pptx");
         let mut c = comment();
-        c.author.identity = AuthorIdentity::Account { user_id: "user".into(), provider_id: "AD".into() };
-        deck.add_comment(0, CommentAnchor::Slide, c.clone()).unwrap();
+        c.author.identity = AuthorIdentity::Account {
+            user_id: "user".into(),
+            provider_id: "AD".into(),
+        };
+        deck.add_comment(0, CommentAnchor::Slide, c.clone())
+            .unwrap();
         let first = deck.pkg.read_part("ppt/authors.xml").unwrap();
         c.author.name = "Renamed Display Name".into();
-        deck.add_comment(0, CommentAnchor::Slide, c.clone()).unwrap();
+        deck.add_comment(0, CommentAnchor::Slide, c.clone())
+            .unwrap();
         assert_eq!(deck.pkg.read_part("ppt/authors.xml").unwrap(), first);
-        c.author.identity = AuthorIdentity::Account { user_id: "user".into(), provider_id: "Other".into() };
-        deck.add_comment(0, CommentAnchor::Slide, c.clone()).unwrap();
+        c.author.identity = AuthorIdentity::Account {
+            user_id: "user".into(),
+            provider_id: "Other".into(),
+        };
+        deck.add_comment(0, CommentAnchor::Slide, c.clone())
+            .unwrap();
         let view = deck.deck().unwrap();
         let comments = view.slide(0).unwrap().comments().unwrap();
-        let authors: Vec<_> = comments.iter().map(|c| c.author.as_ref().unwrap()).collect();
+        let authors: Vec<_> = comments
+            .iter()
+            .map(|c| c.author.as_ref().unwrap())
+            .collect();
         assert_eq!(authors[0], authors[1]);
         assert_ne!(authors[1].id, authors[2].id);
-        c.author.identity = AuthorIdentity::Account { user_id: "user".into(), provider_id: "None".into() };
-        refuses(&mut deck, |e| assert_matches!(e, Error::InvalidCommentAuthor { .. }), |d| d.add_comment(0, CommentAnchor::Slide, c));
+        c.author.identity = AuthorIdentity::Account {
+            user_id: "user".into(),
+            provider_id: "None".into(),
+        };
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::InvalidCommentAuthor { .. }),
+            |d| d.add_comment(0, CommentAnchor::Slide, c),
+        );
     }
 
     #[test]
@@ -908,6 +971,68 @@ mod tests {
     }
 
     #[test]
+    fn structural_refusals_are_atomic() {
+        let mut deck = open("project/powerpoint-shape-comment.pptx");
+        let source = deck.slides[0].part.clone().unwrap();
+        let part = target(
+            &deck.pkg,
+            &source,
+            MODERN_COMMENTS_REL,
+            CommentPart::Threads,
+        )
+        .unwrap()
+        .unwrap();
+        let xml = String::from_utf8(deck.pkg.read_part(&part).unwrap()).unwrap();
+        for fragment in [
+            "<p188:extLst/>",
+            "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"/>",
+        ] {
+            let patched = xml.replace("</p188:cmLst>", &format!("{fragment}</p188:cmLst>"));
+            deck.pkg.set_part(&part, patched.into_bytes()).unwrap();
+            deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+            refuses(
+                &mut deck,
+                |e| assert_matches!(e, Error::CommentPartNotEditable { .. }),
+                |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+            );
+        }
+        deck.pkg.set_part(&part, xml.into_bytes()).unwrap();
+        let authors = String::from_utf8(deck.pkg.read_part("ppt/authors.xml").unwrap()).unwrap();
+        let duplicate = &authors
+            [authors.find("<p188:author ").unwrap()..authors.find("</p188:authorLst>").unwrap()];
+        deck.pkg
+            .set_part(
+                "ppt/authors.xml",
+                authors
+                    .replace(
+                        "</p188:authorLst>",
+                        &format!("{duplicate}</p188:authorLst>"),
+                    )
+                    .into_bytes(),
+            )
+            .unwrap();
+        deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::AuthorsPartNotEditable { .. }),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+        deck.pkg
+            .set_part("ppt/authors.xml", authors.into_bytes())
+            .unwrap();
+        let slide = String::from_utf8(deck.pkg.read_part(&source).unwrap()).unwrap();
+        let invalid = slide.replace("val=\"3181846367\"", "val=\"not-a-u32\"");
+        assert_ne!(slide, invalid);
+        deck.pkg.set_part(&source, invalid.into_bytes()).unwrap();
+        deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::UnsupportedContent(_)),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+    }
+
+    #[test]
     fn unrelated_ids_and_unreadable_parts() {
         // SYNTHETIC: an unreferenced comment part still owns its GUID.
         let mut deck = open("poi/sample.pptx");
@@ -918,7 +1043,7 @@ mod tests {
                 &deck.pkg,
                 PartNameRequest::Exact("ppt/comments/orphan.xml".into()),
                 COMMENTS_CT,
-                new_list(CommentPart::Threads, fragment),
+                new_list(CommentPart::Threads, fragment, &deck.pkg.parse_options()).unwrap(),
             )
             .unwrap();
         deck.pkg.apply(plan).unwrap();

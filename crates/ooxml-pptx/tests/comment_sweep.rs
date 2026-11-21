@@ -72,7 +72,10 @@ fn add_comments_to_corpus() {
     let (mut unopened, mut unavailable, mut legacy, mut added) = (0, 0, 0, 0);
     for path in files {
         let bytes = std::fs::read(&path).unwrap();
-        let hash: String = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect();
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
         if !seen.insert(hash.clone()) {
             continue;
         }
