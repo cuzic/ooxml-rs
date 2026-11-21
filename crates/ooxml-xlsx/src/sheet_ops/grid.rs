@@ -146,11 +146,14 @@ impl Band {
         Ok(index.map(|index| self.with_index(cell, index)))
     }
 
-    fn blocked(self, range: CellRange, what: &str) -> Result<()> {
+    fn blocked(self, range: CellRange, part: &str, what: &str) -> Result<()> {
         let last = self.index(range.last);
         self.after(last, what)?;
         if last >= self.at {
-            return Err(Error::StructureBlocked { what: what.into() });
+            return Err(Error::StructureBlocked {
+                part: part.into(),
+                place: what.into(),
+            });
         }
         Ok(())
     }
@@ -262,6 +265,7 @@ impl FormulaContext<'_> {
                 })
             {
                 return Err(Error::ReferenceDeleted {
+                    part: part.into(),
                     location: location.into(),
                 });
             }
@@ -398,13 +402,15 @@ impl GridPlan {
         };
         if data.elements().any(is_alternate_content) {
             return Err(Error::StructureBlocked {
-                what: "alternate sheetData content".into(),
+                part: part.into(),
+                place: "alternate sheetData content".into(),
             });
         }
         for (ri, row) in data.indexed_elements().filter(|(_, n)| n.is(tag("row"))) {
             if row.elements().any(is_alternate_content) {
                 return Err(Error::StructureBlocked {
-                    what: "alternate row content".into(),
+                    part: part.into(),
+                    place: "alternate row content".into(),
                 });
             }
             let old = xml_row(row, part)?;
@@ -447,7 +453,10 @@ impl GridPlan {
                 match band.cell(from)? {
                     Some(to) if to != from => plan.cells.push((ri, ci, to.to_string())),
                     None => {
-                        plan.deleted_strings += i64::from(cell.attr(attr("t")) == Some("s"));
+                        plan.deleted_strings += i64::from(
+                            cell.attr(attr("t"))
+                                .is_some_and(|value| value.trim() == "s"),
+                        );
                         if row_number.is_some() {
                             drop.push(ci);
                             removed(report, part, format!("cell {from}"));
@@ -697,6 +706,7 @@ fn plan_formulas(
                     if let Some(before) = node.attr(attr(input)) {
                         let old = CellIndex::parse(before)?;
                         let new = ctx.band.cell(old)?.ok_or_else(|| Error::ReferenceDeleted {
+                            part: part.into(),
                             location: format!("{} formula/@{input}", cell.at),
                         })?;
                         if old != new {
@@ -909,8 +919,11 @@ impl Workbook {
         let worksheet = self.pkg.xml_part(&part)?;
         if worksheet.root().elements().any(|node| {
             node.is(tag("sheetProtection"))
-                && matches!(node.attr(attr("sheet")), Some("1" | "true"))
-                && !matches!(node.attr(attr(operation)), Some("0" | "false"))
+                && matches!(node.attr(attr("sheet")).map(str::trim), Some("1" | "true"))
+                && !matches!(
+                    node.attr(attr(operation)).map(str::trim),
+                    Some("0" | "false")
+                )
         }) {
             return Err(Error::Protected {
                 scope: "worksheet",
@@ -934,7 +947,7 @@ impl Workbook {
         self.load_context(sheet)?;
         let context = &self.contexts[&sheet];
         for table in &context.tables {
-            band.blocked(table.range, &format!("table {}", table.name))?;
+            band.blocked(table.range, &table.part, &format!("table {}", table.name))?;
         }
         let sheet_names: Vec<_> = self.sheets.iter().map(|entry| entry.name.clone()).collect();
         let ctx = FormulaContext {
@@ -963,12 +976,13 @@ impl Workbook {
             }
         }
         let (mut formulas, seeds, chain) = plan_formulas(self, &ctx, &mut report)?;
-        if formulas
+        if let Some((index, _)) = formulas
             .keys()
-            .any(|(index, _)| self.sheets[*index].kind != SheetKind::Worksheet)
+            .find(|(index, _)| self.sheets[*index].kind != SheetKind::Worksheet)
         {
             return Err(Error::StructureBlocked {
-                what: "formula on a non-worksheet sheet".into(),
+                part: self.sheets[*index].part.clone().expect("formula part"),
+                place: "formula on a non-worksheet sheet".into(),
             });
         }
         let mut patches = Vec::new();

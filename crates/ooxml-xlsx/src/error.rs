@@ -15,11 +15,21 @@ pub enum Error {
     #[error("structural edit would shift {what} off the sheet")]
     ShiftOffSheet { what: String },
     /// A structural edit would change an unsupported object or feature.
-    #[error("structural edit blocked by {what}")]
-    StructureBlocked { what: String },
+    #[error("structural edit blocked by {place} in {part}")]
+    StructureBlocked {
+        /// OPC part containing the object or feature.
+        part: String,
+        /// Object or feature that blocks the edit.
+        place: String,
+    },
     /// A structural edit would delete a required reference.
-    #[error("structural edit would delete the reference at {location}")]
-    ReferenceDeleted { location: String },
+    #[error("structural edit would delete the reference at {location} in {part}")]
+    ReferenceDeleted {
+        /// OPC part containing the reference.
+        part: String,
+        /// Location of the reference.
+        location: String,
+    },
     /// A structural edit crosses an array or data-table result range.
     #[error("structural edit splits the formula range at {cell}")]
     ArrayFormulaSplit { cell: String },

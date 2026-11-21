@@ -185,7 +185,8 @@ impl Planner<'_, '_> {
 
     fn blocked(&self, what: &str) -> Error {
         Error::StructureBlocked {
-            what: format!("{} {what}", self.part),
+            part: self.part.into(),
+            place: what.into(),
         }
     }
 
@@ -463,6 +464,7 @@ impl Planner<'_, '_> {
             }
             if row.id == 21 && after.contains("#REF!") && !before.contains("#REF!") {
                 return Err(Error::ReferenceDeleted {
+                    part: self.part.into(),
                     location: local.into(),
                 });
             }
@@ -626,6 +628,7 @@ impl Planner<'_, '_> {
             .rewrite(target, self.sheet, None, self.part, "hyperlink target")?
         {
             Some(after) if after.ends_with("#REF!") => Err(Error::ReferenceDeleted {
+                part: self.part.into(),
                 location: format!("hyperlink {before}"),
             }),
             Some(after) => Ok(Rewrite::New(format!("{hash}{after}"))),
@@ -712,6 +715,17 @@ impl Planner<'_, '_> {
                     });
                 }
                 self.add(node, path, Some("max"), max, band.at.to_string())?;
+                return Ok(false);
+            }
+            // A full-width formatting record must still leave the new
+            // leading columns at their default format.
+            if matches!(band.shift, Shift::Insert { .. })
+                && band.at == 0
+                && lo == 0
+                && hi == MAX_COLS - 1
+            {
+                let first = band.after(lo, "column formatting")?.expect("insertion");
+                self.add(node, path, Some("min"), min, (first + 1).to_string())?;
                 return Ok(false);
             }
             let Some((first, last)) = numeric_shift(band, lo, hi)? else {
@@ -825,7 +839,14 @@ pub(super) fn objects(
             let rels = wb.pkg.relationships(name)?;
             for rel in rels.iter() {
                 if let Some(target) = rels.resolve(rel) {
-                    ownership.insert(target, sheet);
+                    ownership
+                        .entry(target)
+                        .and_modify(|owner| {
+                            if sheet == ctx.edited {
+                                *owner = sheet;
+                            }
+                        })
+                        .or_insert(sheet);
                 }
             }
         }
@@ -865,7 +886,12 @@ pub(super) fn objects(
         let doc = match wb.pkg.xml_part(&name) {
             Ok(doc) => doc,
             Err(_) if !own && kind == PartKind::Vml => continue,
-            Err(error) => return Err(error.into()),
+            Err(error) => {
+                return Err(Error::PartNotEditable {
+                    part: name,
+                    reason: error.to_string(),
+                });
+            }
         };
         let object_kind = if chart { PartKind::Chart } else { kind };
         if own || pivot_cache {
@@ -897,7 +923,8 @@ pub(super) fn objects(
         && wb.pkg.relationships(part)?.iter().next().is_none()
     {
         return Err(Error::StructureBlocked {
-            what: "unresolved pivot table".into(),
+            part: part.into(),
+            place: "unresolved pivot table".into(),
         });
     }
     Ok(())
@@ -913,7 +940,7 @@ fn check_object(node: &RawNode, own: bool, ctx: &FormulaContext<'_>, part: &str)
                 .is_some_and(|sheet| ctx.sheet(sheet) == Some(ctx.edited))))
         && let Some(reference) = node.attr(attr("ref"))
     {
-        band.blocked(CellRange::parse(reference)?, part)?;
+        band.blocked(CellRange::parse(reference)?, part, local)?;
     }
     if own && matches!(local, "from" | "to") {
         let coordinate = match band.axis {
@@ -944,7 +971,10 @@ fn check_object(node: &RawNode, own: bool, ctx: &FormulaContext<'_>, part: &str)
             Axis::Column => 0,
         };
         if markers.len() != 8 {
-            return Err(Error::StructureBlocked { what: part.into() });
+            return Err(Error::StructureBlocked {
+                part: part.into(),
+                place: "anchor".into(),
+            });
         }
         for marker in [markers[coordinate], markers[coordinate + 4]] {
             check_marker(band, marker, part)?;
@@ -961,6 +991,7 @@ fn check_object(node: &RawNode, own: bool, ctx: &FormulaContext<'_>, part: &str)
                 last: cell,
             },
             part,
+            local,
         )?;
     }
     for child in node.elements() {
@@ -973,10 +1004,16 @@ fn check_marker(band: Band, coordinate: &str, part: &str) -> Result<()> {
     let index = coordinate
         .trim()
         .parse::<u32>()
-        .map_err(|_| Error::StructureBlocked { what: part.into() })?;
+        .map_err(|_| Error::StructureBlocked {
+            part: part.into(),
+            place: "anchor".into(),
+        })?;
     band.after(index, part)?;
     if index >= band.at {
-        return Err(Error::StructureBlocked { what: part.into() });
+        return Err(Error::StructureBlocked {
+            part: part.into(),
+            place: "anchor".into(),
+        });
     }
     Ok(())
 }
@@ -1019,7 +1056,10 @@ pub(super) fn relationships(
                 });
             }
             if after.ends_with("#REF!") {
-                return Err(Error::ReferenceDeleted { location });
+                return Err(Error::ReferenceDeleted {
+                    part: part.into(),
+                    location,
+                });
             }
             let after = format!("#{after}");
             plan.set_relationship_target(&wb.pkg, source, &rel.id, &after)?;

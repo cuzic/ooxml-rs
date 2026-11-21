@@ -96,6 +96,9 @@ fn cross_sheet_rules_and_sticky_ranges_shift() {
     );
     assert!(other.contains("sqref=\"B1:B4\""));
     assert!(text(&bytes, data).contains("sqref=\"A3:A1048576\""));
+    wb.worksheet_mut("Data").unwrap().delete_rows(0, 1).unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    assert!(text(&bytes, data).contains("sqref=\"A2:A1048576\""));
 }
 
 #[test]
@@ -378,4 +381,47 @@ fn linked_x14_rules_follow_their_2007_rule_on_deletion() {
     let data = text(&wb.to_bytes().unwrap(), part);
     assert!(!data.contains("conditionalFormatting"), "{data}");
     assert!(!data.contains("extLst"), "{data}");
+}
+
+#[test]
+fn cross_sheet_x14_and_table_formulas_shift() {
+    use ooxml_xlsx::{CellRange, Col, Table};
+    let base = book();
+    let other = "xl/worksheets/sheet2.xml";
+    let xml = text(&base, other).replace("</worksheet>", concat!(
+        r#"<extLst><ext uri="{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">"#,
+        r#"<x14:dataValidations count="1"><x14:dataValidation type="custom"><x14:formula1><xm:f>Data!A2&gt;0</xm:f></x14:formula1><xm:sqref>D2</xm:sqref></x14:dataValidation></x14:dataValidations>"#,
+        r#"</ext></extLst></worksheet>"#,
+    ));
+    let mut wb = Workbook::from_bytes(rebuild(&base, &[(other, xml.into_bytes())])).unwrap();
+    wb.worksheet_mut("Other")
+        .unwrap()
+        .add_table(
+            Table::new(CellRange::parse("A4:B7").unwrap())
+                .columns([Col::new("Input"), Col::new("Result").formula("Data!A2")]),
+        )
+        .unwrap();
+    wb.worksheet_mut("Data").unwrap().insert_rows(1, 1).unwrap();
+    let saved = wb.to_bytes().unwrap();
+    let xml = text(&saved, other);
+    assert!(xml.contains("<xm:f>Data!A3&gt;0</xm:f>"), "{xml}");
+    assert!(xml.contains("<xm:sqref>D2</xm:sqref>"), "{xml}");
+    let xml = text(&saved, "xl/tables/table1.xml");
+    assert!(
+        xml.contains("<calculatedColumnFormula>Data!A3</calculatedColumnFormula>"),
+        "{xml}"
+    );
+}
+
+#[test]
+fn deleting_shared_string_cells_updates_the_reference_count() {
+    let mut wb = Workbook::new().unwrap();
+    let mut sheet = wb.worksheet().unwrap();
+    sheet.write_string(0, 0, "Same").unwrap();
+    sheet.write_string(1, 0, "Same").unwrap();
+    sheet.delete_rows(0, 1).unwrap();
+    let saved = wb.to_bytes().unwrap();
+    let xml = text(&saved, "xl/sharedStrings.xml");
+    assert!(xml.contains("count=\"1\""), "{xml}");
+    assert!(xml.contains("uniqueCount=\"1\""), "{xml}");
 }
