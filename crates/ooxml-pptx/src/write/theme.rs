@@ -64,20 +64,19 @@ impl From<ThemeColor> for WriteColor {
     }
 }
 
-/// The three typeface attributes in a major or minor theme font collection.
+/// Changes to the typeface attributes in a major or minor theme font collection.
 ///
-/// Each setter replaces all three values. An empty string clears the
-/// corresponding typeface, including the empty strings supplied by
-/// `ThemeFonts::default()`. Use literal font names. Theme references such as
-/// `+mj-lt` are rejected.
+/// `None` preserves the corresponding typeface. `Some("")` explicitly clears
+/// it. Use literal font names. Theme reference prefixes `+mj-` and `+mn-` are
+/// rejected after trimming surrounding whitespace and ignoring ASCII case.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ThemeFonts<'a> {
     /// Latin typeface.
-    pub latin: &'a str,
+    pub latin: Option<&'a str>,
     /// East Asian typeface.
-    pub east_asian: &'a str,
+    pub east_asian: Option<&'a str>,
     /// Complex-script typeface.
-    pub complex_script: &'a str,
+    pub complex_script: Option<&'a str>,
 }
 
 /// Options for opening a slide master's theme for editing.
@@ -169,21 +168,12 @@ impl ThemeMut<'_> {
     /// Changes one colour in the base theme.
     pub fn set_color(&mut self, slot: ThemeColorSlot, value: ThemeColor) -> Result<()> {
         self.edit(|mut elements| {
-            let mut scheme = elements
-                .child_mut::<dml::ColorScheme>()
-                .ok_or_else(incomplete_theme)?;
+            let mut scheme = theme_child::<_, dml::ColorScheme>(&mut elements)?;
             macro_rules! slots {
                 ($($slot:ident: $spec:ident),* $(,)?) => {
                     match slot {
                         $(ThemeColorSlot::$slot => {
-                            if scheme.node().elements()
-                                .filter(|node| node.is(MC_ALTERNATE_CONTENT))
-                                .flat_map(RawNode::elements)
-                                .any(|branch| child(branch, dml::$spec::QNAME).is_some())
-                            {
-                                return Err(alternate_color());
-                            }
-                            let mut node = scheme.child_mut::<dml::$spec>().ok_or_else(incomplete_theme)?;
+                            let mut node = theme_child::<_, dml::$spec>(&mut scheme)?;
                             set_color(&mut node, value)
                         })*
                     }
@@ -206,48 +196,31 @@ impl ThemeMut<'_> {
         })
     }
 
-    /// Changes the major Latin, East Asian and complex-script typefaces.
+    /// Changes the specified major Latin, East Asian and complex-script typefaces.
     pub fn set_major_font(&mut self, fonts: ThemeFonts<'_>) -> Result<()> {
         self.set_fonts::<dml::MajorFont>(fonts)
     }
 
-    /// Changes the minor Latin, East Asian and complex-script typefaces.
+    /// Changes the specified minor Latin, East Asian and complex-script typefaces.
     pub fn set_minor_font(&mut self, fonts: ThemeFonts<'_>) -> Result<()> {
         self.set_fonts::<dml::MinorFont>(fonts)
     }
 
-    fn set_fonts<E: ChildOf<dml::FontScheme> + ElementSpec>(
-        &mut self,
-        fonts: ThemeFonts<'_>,
-    ) -> Result<()>
+    fn set_fonts<E: ChildOf<dml::FontScheme>>(&mut self, fonts: ThemeFonts<'_>) -> Result<()>
     where
         dml::LatinFont: ChildOf<E>,
         dml::EastAsianFont: ChildOf<E>,
         dml::ComplexScriptFont: ChildOf<E>,
     {
+        if fonts == ThemeFonts::default() {
+            return Ok(());
+        }
         self.edit(|mut elements| {
-            let mut scheme = elements
-                .child_mut::<dml::FontScheme>()
-                .ok_or_else(incomplete_theme)?;
-            let mut collection = scheme.child_mut::<E>().ok_or_else(incomplete_theme)?;
-            set_typeface(
-                collection
-                    .child_mut::<dml::LatinFont>()
-                    .ok_or_else(incomplete_theme)?,
-                fonts.latin,
-            )?;
-            set_typeface(
-                collection
-                    .child_mut::<dml::EastAsianFont>()
-                    .ok_or_else(incomplete_theme)?,
-                fonts.east_asian,
-            )?;
-            set_typeface(
-                collection
-                    .child_mut::<dml::ComplexScriptFont>()
-                    .ok_or_else(incomplete_theme)?,
-                fonts.complex_script,
-            )
+            let mut scheme = theme_child::<_, dml::FontScheme>(&mut elements)?;
+            let mut collection = theme_child::<_, E>(&mut scheme)?;
+            set_typeface::<_, dml::LatinFont>(&mut collection, fonts.latin)?;
+            set_typeface::<_, dml::EastAsianFont>(&mut collection, fonts.east_asian)?;
+            set_typeface::<_, dml::ComplexScriptFont>(&mut collection, fonts.complex_script)
         })
     }
 
@@ -257,11 +230,7 @@ impl ThemeMut<'_> {
     ) -> Result<()> {
         let mut doc = self.pkg.xml_part(&self.part)?.clone();
         let mut theme = doc.lens_mut::<dml::Theme>()?;
-        edit(
-            theme
-                .child_mut::<dml::ThemeElements>()
-                .ok_or_else(incomplete_theme)?,
-        )?;
+        edit(theme_child::<_, dml::ThemeElements>(&mut theme)?)?;
         if doc.is_dirty() {
             let mut plan = RegistryPlan::new(self.pkg);
             plan.stage_part(self.pkg, &self.part, doc)?;
@@ -279,8 +248,39 @@ fn alternate_color() -> Error {
     Error::UnsupportedContent("theme colour slot or value is wrapped in mc:AlternateContent".into())
 }
 
-fn set_typeface<E: ElementSpec>(mut node: LensMut<'_, E>, value: &str) -> Result<()> {
-    if value.starts_with("+mj-") || value.starts_with("+mn-") {
+fn theme_child<'a, P: ElementSpec, C: ChildOf<P>>(
+    parent: &'a mut LensMut<'_, P>,
+) -> Result<LensMut<'a, C>> {
+    if parent
+        .node()
+        .elements()
+        .filter(|node| node.is(MC_ALTERNATE_CONTENT))
+        .flat_map(RawNode::elements)
+        .any(|branch| child(branch, C::QNAME).is_some())
+    {
+        return Err(Error::UnsupportedContent(format!(
+            "theme element {} is wrapped in mc:AlternateContent",
+            C::QNAME.local
+        )));
+    }
+    parent.child_mut::<C>().ok_or_else(incomplete_theme)
+}
+
+fn set_typeface<P: ElementSpec, C: ChildOf<P>>(
+    collection: &mut LensMut<'_, P>,
+    value: Option<&str>,
+) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let mut node = theme_child::<_, C>(collection)?;
+    if value
+        .trim()
+        .get(..4)
+        .is_some_and(|prefix| {
+            prefix.eq_ignore_ascii_case("+mj-") || prefix.eq_ignore_ascii_case("+mn-")
+        })
+    {
         return Err(Error::ValueOutOfRange { what: "typeface" });
     }
     let attr = un("typeface");

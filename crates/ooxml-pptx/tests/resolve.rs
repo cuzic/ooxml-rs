@@ -838,7 +838,12 @@ fn theme_edit_keeps_direct_provenance_and_respects_override() {
         let before = read(&mut p);
         let mut theme = p.master_theme_mut(0).unwrap();
         theme.set_color(ThemeColorSlot::Accent1, ThemeColor::Rgb([1, 42, 79])).unwrap();
-        theme.set_major_font(ThemeFonts { latin: "Test theme typeface", ..ThemeFonts::default() }).unwrap();
+        theme
+            .set_major_font(ThemeFonts {
+                latin: Some("Test theme typeface"),
+                ..ThemeFonts::default()
+            })
+            .unwrap();
         let mut reopened = Presentation::from_bytes(p.to_bytes().unwrap()).unwrap();
         let after = read(&mut reopened);
         if !has_override {

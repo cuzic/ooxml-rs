@@ -252,7 +252,8 @@ fn style_refusals_preserve_package_bytes() {
         deck.master_theme_mut(0)
             .unwrap()
             .set_major_font(ThemeFonts {
-                latin: "Changed",
+                latin: Some("Changed"),
+                east_asian: Some("Yu Gothic"),
                 ..ThemeFonts::default()
             }),
         Err(Error::UnsupportedContent(_))
@@ -305,9 +306,9 @@ fn theme_changes_only_requested_colour_and_font_attributes() {
     let mut theme = deck.master_theme_mut(0).unwrap();
     theme
         .set_minor_font(ThemeFonts {
-            latin: "Verdana",
-            east_asian: "Yu Gothic",
-            complex_script: "Arial",
+            latin: Some("Verdana"),
+            east_asian: Some("Yu Gothic"),
+            complex_script: Some("Arial"),
         })
         .unwrap();
     theme
@@ -321,6 +322,56 @@ fn theme_changes_only_requested_colour_and_font_attributes() {
     for name in ["Verdana", "Yu Gothic", "Arial"] {
         assert!(output.contains(&format!("typeface=\"{name}\"")));
     }
+}
+
+#[test]
+fn theme_font_update_preserves_omitted_typefaces_and_can_clear_one() {
+    let mut pkg = fixture(styles_theme_case::THEME_FIXTURE);
+    let original_fonts = r#"<a:ea typeface="游ゴシック Light"/><a:cs typeface="Arial"/>"#;
+    replace(
+        &mut pkg,
+        THEME,
+        r#"<a:ea typeface=""/><a:cs typeface=""/>"#,
+        original_fonts,
+    );
+    let original = xml(&pkg, THEME);
+    let before = pkg.to_bytes().unwrap();
+    let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+
+    deck.master_theme_mut(0)
+        .unwrap()
+        .set_major_font(ThemeFonts::default())
+        .unwrap();
+    assert_eq!(deck.to_bytes().unwrap(), before);
+
+    deck.master_theme_mut(0)
+        .unwrap()
+        .set_major_font(ThemeFonts {
+            latin: Some("Meiryo"),
+            ..ThemeFonts::default()
+        })
+        .unwrap();
+    let expected = original.replacen(
+        r#"<a:latin typeface="Calibri"/>"#,
+        r#"<a:latin typeface="Meiryo"/>"#,
+        1,
+    );
+    assert_ne!(expected, original);
+    let after = Package::from_bytes(deck.to_bytes().unwrap()).unwrap();
+    assert_other_parts(&pkg, &after, &[THEME]);
+    assert_eq!(xml(&after, THEME), expected);
+
+    deck.master_theme_mut(0)
+        .unwrap()
+        .set_major_font(ThemeFonts {
+            east_asian: Some(""),
+            ..ThemeFonts::default()
+        })
+        .unwrap();
+    assert_eq!(
+        xml(deck.package(), THEME),
+        expected.replacen("游ゴシック Light", "", 1)
+    );
 }
 
 #[test]
@@ -409,7 +460,50 @@ fn alternate_theme_color_is_refused_without_changes() {
                 .unwrap()
                 .set_color(ThemeColorSlot::Accent2, ThemeColor::Rgb([1, 2, 3])),
             Err(Error::UnsupportedContent(message))
-                if message.contains("theme colour") && message.contains("mc:AlternateContent")
+                if message.contains("mc:AlternateContent")
+        );
+        assert_eq!(deck.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
+fn wrapped_theme_scheme_and_typeface_are_refused_without_changes() {
+    let pkg = fixture(styles_theme_case::THEME_FIXTURE);
+    let source = xml(&pkg, THEME);
+    let doc = XmlDocument::parse(source.as_bytes()).unwrap();
+
+    for name in ["clrScheme", "latin"] {
+        let mut pkg = fixture(styles_theme_case::THEME_FIXTURE);
+        let mut node = doc.root();
+        let path: &[&str] = if name == "clrScheme" {
+            &["themeElements", "clrScheme"]
+        } else {
+            &["themeElements", "fontScheme", "majorFont", "latin"]
+        };
+        for local in path {
+            node = node
+                .elements()
+                .find(|node| node.is(QName::new(A, local)))
+                .unwrap();
+        }
+        let span = node.span().unwrap();
+        let element = &source[span.start..span.end()];
+        replace(&mut pkg, THEME, element, &alternate_content(element));
+        let before = pkg.to_bytes().unwrap();
+        let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+        let mut theme = deck.master_theme_mut(0).unwrap();
+        let result = if name == "clrScheme" {
+            theme.set_color(ThemeColorSlot::Accent1, ThemeColor::Rgb([1, 2, 3]))
+        } else {
+            theme.set_major_font(ThemeFonts {
+                latin: Some("Meiryo"),
+                ..ThemeFonts::default()
+            })
+        };
+        assert_matches!(
+            result,
+            Err(Error::UnsupportedContent(message))
+                if message.contains(name) && message.contains("mc:AlternateContent")
         );
         assert_eq!(deck.to_bytes().unwrap(), before);
     }
@@ -425,21 +519,23 @@ fn theme_typeface_references_are_refused_without_changes() {
         deck.master_theme_mut(0)
             .unwrap()
             .set_major_font(ThemeFonts {
-                latin: "Georgia",
-                east_asian: "+mj-ea",
-                complex_script: "Arial",
+                latin: Some("Georgia"),
+                east_asian: Some("+mj-ea"),
+                complex_script: Some("Arial"),
             }),
         Err(Error::ValueOutOfRange { what: "typeface" })
     );
     assert_eq!(deck.to_bytes().unwrap(), before);
-    assert_matches!(
-        deck.master_theme_mut(0)
-            .unwrap()
-            .set_minor_font(ThemeFonts {
-                latin: "+mn-lt",
-                ..ThemeFonts::default()
-            }),
-        Err(Error::ValueOutOfRange { what: "typeface" })
-    );
-    assert_eq!(deck.to_bytes().unwrap(), before);
+    for reference in ["+mn-lt", "+MJ-LT", " +mj-lt", "\t+Mn-Cs \n"] {
+        assert_matches!(
+            deck.master_theme_mut(0)
+                .unwrap()
+                .set_minor_font(ThemeFonts {
+                    latin: Some(reference),
+                    ..ThemeFonts::default()
+                }),
+            Err(Error::ValueOutOfRange { what: "typeface" })
+        );
+        assert_eq!(deck.to_bytes().unwrap(), before);
+    }
 }

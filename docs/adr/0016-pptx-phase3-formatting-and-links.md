@@ -604,12 +604,14 @@ fonts the override replaces (review m14). ADR-0008 does not apply
 incoming theme relationships from other slide, notes and handout masters
 by source content type. Adding a table style refuses a direct
 `mc:AlternateContent` child of `a:tblStyleLst`. Editing a theme colour
-refuses a selected slot or colour wrapped in `mc:AlternateContent`. Both
-report `UnsupportedContent`. Newly created table style parts use the
-same XML declaration as new slides. The font setters replace all three
-typefaces. Empty strings clear their respective typefaces, including
-those supplied by `ThemeFonts::default()`. Theme font reference prefixes
-`+mj-` and `+mn-` are refused with `ValueOutOfRange`.
+refuses `a:clrScheme`, the selected slot, or its colour value when wrapped
+in `mc:AlternateContent`. Font edits also refuse wrapped elements on the
+path to a selected typeface. These refusals report `UnsupportedContent`.
+Newly created table style parts use the same XML declaration as new slides.
+Each field of `ThemeFonts` is an `Option<&str>`. `None` preserves the
+current typeface and `Some("")` explicitly clears it. Theme font reference
+prefixes `+mj-` and `+mn-` are refused with `ValueOutOfRange` after
+trimming surrounding whitespace and ignoring ASCII case.
 
 ### 11. Errors
 
