@@ -149,6 +149,9 @@ names = [
 [read]
 names = [
     # ADR-0017 §3.3, ECMA-376 §18.9.
+    "x:CT_MetadataBlocks/x:cellMetadata",
+    "x:CT_ExtensionList/x:extLst",
+    "x:CT_Extension/x:ext",
     "x:CT_Metadata/x:metadata",
     "x:CT_MetadataTypes/x:metadataTypes",
     "x:CT_MetadataType/x:metadataType",

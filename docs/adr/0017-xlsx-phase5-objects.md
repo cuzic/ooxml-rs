@@ -1041,3 +1041,23 @@ A prerequisite PR plus five PRs, each with its oracles:
   is refused. An orphan VML note shape at the target cell also prevents insertion.
 - Identifier scans seed the workbook's in-memory allocation state on first use.
   Removed thread GUIDs and shape numbers stay reserved for the current session.
+
+### Post-acceptance note — P5d (Issue #108)
+
+`Worksheet::add_sparklines` takes a `SparklineGroup` with sheet-qualified A1
+sources and single-cell destinations. Groups can select the plot type,
+individual point markers, ARGB colors, axis scaling and empty-cell handling.
+An empty group or non-finite custom axis bound returns `InvalidSparklineGroup`.
+
+`CellMut::set_dynamic_formula` writes the file form of a formula with an
+anchor-only array reference and reuses the first compatible XLDAPR cell metadata
+block in document order. Metadata updates, calcChain removal and calcPr updates
+share the cell write's registry transaction. Dependency invalidation includes
+the potential spill area. Adjacent writes remain legal outside any recorded
+result range. Excel computes the spill and can report `#SPILL!` when occupied
+cells block it. Future-function prefixes follow Q7.
+
+Dynamic array writes require explicit row and cell references on the target
+sheet so that the reopened formula census can resolve the new anchor. They
+use Phase1's dimension maintenance and cache stripping, including the cache
+type attribute and the shared-string reference count when applicable.

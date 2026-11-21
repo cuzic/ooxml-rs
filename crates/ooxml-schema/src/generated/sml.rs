@@ -1563,6 +1563,7 @@ impl ooxml_core::ElementSpec for AutoFilter {
         ],
     );
 }
+impl ooxml_core::ChildOf<AutoFilter> for ExtensionList {}
 impl ooxml_core::ChildOf<AutoFilter> for FilterColumn {}
 impl ooxml_core::ChildOf<AutoFilter> for SortState {}
 /// Read-only view of [`AutoFilter`].
@@ -1572,6 +1573,10 @@ impl<'a> AutoFilterView<'a> {
     /// `ref` — Cell or Range Reference
     pub fn reference(&self) -> Option<&'a str> {
         self.0.attr(AutoFilter::ATTR_REF)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// `x:filterColumn` children in document order.
     pub fn filter_column_iter(&self) -> impl Iterator<Item = FilterColumnView<'a>> {
@@ -1747,6 +1752,7 @@ impl ooxml_core::ElementSpec for WorkbookViewElement {
         ],
     );
 }
+impl ooxml_core::ChildOf<WorkbookViewElement> for ExtensionList {}
 /// Read-only view of [`WorkbookViewElement`].
 #[derive(Clone, Debug)]
 pub struct WorkbookViewElementView<'a>(pub ooxml_core::Lens<'a, WorkbookViewElement>);
@@ -1858,6 +1864,10 @@ impl<'a> WorkbookViewElementView<'a> {
                 "true",
                 ooxml_core::value::parse_bool,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -3886,6 +3896,7 @@ impl ooxml_core::ElementSpec for Cell {
     );
 }
 impl ooxml_core::ChildOf<Cell> for CellFormula {}
+impl ooxml_core::ChildOf<Cell> for ExtensionList {}
 impl ooxml_core::ChildOf<Cell> for InlineString {}
 impl ooxml_core::ChildOf<Cell> for CellValue {}
 /// Read-only view of [`Cell`].
@@ -3919,6 +3930,10 @@ impl<'a> CellView<'a> {
     /// First `x:f` child.
     pub fn cell_formula(&self) -> Option<CellFormulaView<'a>> {
         self.0.child::<CellFormula>().map(CellFormulaView)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// First `x:is` child.
     pub fn inline_string(&self) -> Option<InlineStringView<'a>> {
@@ -4769,6 +4784,7 @@ impl ooxml_core::ElementSpec for CellStyle {
         ],
     );
 }
+impl ooxml_core::ChildOf<CellStyle> for ExtensionList {}
 /// Read-only view of [`CellStyle`].
 #[derive(Clone, Debug)]
 pub struct CellStyleView<'a>(pub ooxml_core::Lens<'a, CellStyle>);
@@ -4796,6 +4812,10 @@ impl<'a> CellStyleView<'a> {
     /// `customBuiltin` — Custom Built In
     pub fn custom_builtin(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
         self.0.attr_parsed(CellStyle::ATTR_CUSTOM_BUILTIN, ooxml_core::value::parse_bool)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -5709,6 +5729,7 @@ impl ooxml_core::ElementSpec for ConditionalFormatValueObject {
         ],
     );
 }
+impl ooxml_core::ChildOf<ConditionalFormatValueObject> for ExtensionList {}
 /// Read-only view of [`ConditionalFormatValueObject`].
 #[derive(Clone, Debug)]
 pub struct ConditionalFormatValueObjectView<'a>(
@@ -5733,6 +5754,10 @@ impl<'a> ConditionalFormatValueObjectView<'a> {
                 "true",
                 ooxml_core::value::parse_bool,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -6967,6 +6992,7 @@ impl ooxml_core::ElementSpec for Comments {
 }
 impl ooxml_core::ChildOf<Comments> for Authors {}
 impl ooxml_core::ChildOf<Comments> for CommentList {}
+impl ooxml_core::ChildOf<Comments> for ExtensionList {}
 /// Read-only view of [`Comments`].
 #[derive(Clone, Debug)]
 pub struct CommentsView<'a>(pub ooxml_core::Lens<'a, Comments>);
@@ -6978,6 +7004,10 @@ impl<'a> CommentsView<'a> {
     /// First `x:commentList` child.
     pub fn comment_list(&self) -> Option<CommentListView<'a>> {
         self.0.child::<CommentList>().map(CommentListView)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7066,6 +7096,7 @@ impl ooxml_core::ElementSpec for ConditionalFormatting {
     );
 }
 impl ooxml_core::ChildOf<ConditionalFormatting> for ConditionalFormattingRule {}
+impl ooxml_core::ChildOf<ConditionalFormatting> for ExtensionList {}
 /// Read-only view of [`ConditionalFormatting`].
 #[derive(Clone, Debug)]
 pub struct ConditionalFormattingView<'a>(
@@ -7090,6 +7121,10 @@ impl<'a> ConditionalFormattingView<'a> {
         &self,
     ) -> impl Iterator<Item = ConditionalFormattingRuleView<'a>> {
         self.0.children::<ConditionalFormattingRule>().map(ConditionalFormattingRuleView)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7407,6 +7442,7 @@ impl ooxml_core::ElementSpec for CustomWorkbookView {
         ],
     );
 }
+impl ooxml_core::ChildOf<CustomWorkbookView> for ExtensionList {}
 /// Read-only view of [`CustomWorkbookView`].
 #[derive(Clone, Debug)]
 pub struct CustomWorkbookViewView<'a>(pub ooxml_core::Lens<'a, CustomWorkbookView>);
@@ -7602,6 +7638,10 @@ impl<'a> CustomWorkbookViewView<'a> {
     /// `showObjects` — Show Objects (default `all`)
     pub fn show_objects(&self) -> ooxml_core::EnumValue<'a, ObjectDisplayValues> {
         self.0.attr_enum_or(CustomWorkbookView::ATTR_SHOW_OBJECTS, "all")
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -8975,6 +9015,7 @@ impl ooxml_core::ElementSpec for DifferentialFormat {
 impl ooxml_core::ChildOf<DifferentialFormat> for Border {}
 impl ooxml_core::ChildOf<DifferentialFormat> for Alignment {}
 impl ooxml_core::ChildOf<DifferentialFormat> for Protection {}
+impl ooxml_core::ChildOf<DifferentialFormat> for ExtensionList {}
 impl ooxml_core::ChildOf<DifferentialFormat> for Fill {}
 impl ooxml_core::ChildOf<DifferentialFormat> for Font {}
 impl ooxml_core::ChildOf<DifferentialFormat> for NumberingFormat {}
@@ -8993,6 +9034,10 @@ impl<'a> DifferentialFormatView<'a> {
     /// First `x:protection` child.
     pub fn protection(&self) -> Option<ProtectionView<'a>> {
         self.0.child::<Protection>().map(ProtectionView)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// First `x:fill` child.
     pub fn fill(&self) -> Option<FillView<'a>> {
@@ -9196,6 +9241,79 @@ impl<'a> DifferentialFormatsViewMut<'a> {
         self.0.remove::<DifferentialFormat>()
     }
 }
+/// `x:CT_Extension/x:ext` — Extension.
+#[derive(Debug)]
+pub enum Extension {}
+impl Extension {
+    /// `uri`
+    pub const ATTR_URI: ooxml_core::QName = ooxml_core::QName::new("", "uri");
+}
+impl ooxml_core::ElementSpec for Extension {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "ext");
+    const SDK_NAME: &'static str = "x:CT_Extension/x:ext";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Extension::ATTR_URI,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[],
+                wildcard: Some(ooxml_core::Wildcard::Any),
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`Extension`].
+#[derive(Clone, Debug)]
+pub struct ExtensionView<'a>(pub ooxml_core::Lens<'a, Extension>);
+impl<'a> ExtensionView<'a> {
+    /// `uri` — URI
+    pub fn uri(&self) -> Option<&'a str> {
+        self.0.attr(Extension::ATTR_URI)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_ExtensionList/x:extLst` — Defines the ExtensionList Class.
+#[derive(Debug)]
+pub enum ExtensionList {}
+impl ooxml_core::ElementSpec for ExtensionList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "extLst");
+    const SDK_NAME: &'static str = "x:CT_ExtensionList/x:extLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "ext")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<ExtensionList> for Extension {}
+/// Read-only view of [`ExtensionList`].
+#[derive(Clone, Debug)]
+pub struct ExtensionListView<'a>(pub ooxml_core::Lens<'a, ExtensionList>);
+impl<'a> ExtensionListView<'a> {
+    /// `x:ext` children in document order.
+    pub fn extension_iter(&self) -> impl Iterator<Item = ExtensionView<'a>> {
+        self.0.children::<Extension>().map(ExtensionView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
 /// `x:CT_Fill/x:fill` — Fill.
 #[derive(Debug)]
 pub enum Fill {}
@@ -9397,6 +9515,7 @@ impl ooxml_core::ElementSpec for FilterColumn {
         ],
     );
 }
+impl ooxml_core::ChildOf<FilterColumn> for ExtensionList {}
 /// Read-only view of [`FilterColumn`].
 #[derive(Clone, Debug)]
 pub struct FilterColumnView<'a>(pub ooxml_core::Lens<'a, FilterColumn>);
@@ -9422,6 +9541,10 @@ impl<'a> FilterColumnView<'a> {
                 "true",
                 ooxml_core::value::parse_bool,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -10197,6 +10320,7 @@ impl ooxml_core::ElementSpec for FutureMetadata {
         ],
     );
 }
+impl ooxml_core::ChildOf<FutureMetadata> for ExtensionList {}
 impl ooxml_core::ChildOf<FutureMetadata> for FutureMetadataBlock {}
 /// Read-only view of [`FutureMetadata`].
 #[derive(Clone, Debug)]
@@ -10214,6 +10338,10 @@ impl<'a> FutureMetadataView<'a> {
                 "0",
                 ooxml_core::value::parse_u32,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// `x:bk` children in document order.
     pub fn future_metadata_block_iter(
@@ -10244,10 +10372,15 @@ impl ooxml_core::ElementSpec for FutureMetadataBlock {
         ],
     );
 }
+impl ooxml_core::ChildOf<FutureMetadataBlock> for ExtensionList {}
 /// Read-only view of [`FutureMetadataBlock`].
 #[derive(Clone, Debug)]
 pub struct FutureMetadataBlockView<'a>(pub ooxml_core::Lens<'a, FutureMetadataBlock>);
 impl<'a> FutureMetadataBlockView<'a> {
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
@@ -11265,16 +11398,26 @@ impl ooxml_core::ElementSpec for Metadata {
         ],
     );
 }
+impl ooxml_core::ChildOf<Metadata> for ExtensionList {}
 impl ooxml_core::ChildOf<Metadata> for FutureMetadata {}
+impl ooxml_core::ChildOf<Metadata> for CellMetadata {}
 impl ooxml_core::ChildOf<Metadata> for ValueMetadata {}
 impl ooxml_core::ChildOf<Metadata> for MetadataTypes {}
 /// Read-only view of [`Metadata`].
 #[derive(Clone, Debug)]
 pub struct MetadataView<'a>(pub ooxml_core::Lens<'a, Metadata>);
 impl<'a> MetadataView<'a> {
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
     /// `x:futureMetadata` children in document order.
     pub fn future_metadata_iter(&self) -> impl Iterator<Item = FutureMetadataView<'a>> {
         self.0.children::<FutureMetadata>().map(FutureMetadataView)
+    }
+    /// First `x:cellMetadata` child.
+    pub fn cell_metadata(&self) -> Option<CellMetadataView<'a>> {
+        self.0.child::<CellMetadata>().map(CellMetadataView)
     }
     /// First `x:valueMetadata` child.
     pub fn value_metadata(&self) -> Option<ValueMetadataView<'a>> {
@@ -11315,6 +11458,53 @@ impl<'a> MetadataBlockView<'a> {
     /// `x:rc` children in document order.
     pub fn metadata_record_iter(&self) -> impl Iterator<Item = MetadataRecordView<'a>> {
         self.0.children::<MetadataRecord>().map(MetadataRecordView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// `x:CT_MetadataBlocks/x:cellMetadata` — Cell Metadata.
+#[derive(Debug)]
+pub enum CellMetadata {}
+impl CellMetadata {
+    /// `count`
+    pub const ATTR_COUNT: ooxml_core::QName = ooxml_core::QName::new("", "count");
+}
+impl ooxml_core::ElementSpec for CellMetadata {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_X, "cellMetadata");
+    const SDK_NAME: &'static str = "x:CT_MetadataBlocks/x:cellMetadata";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CellMetadata::ATTR_COUNT,
+            ty: ooxml_core::SimpleType::UInt32,
+            default: Some("0"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_X, "bk")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<CellMetadata> for MetadataBlock {}
+/// Read-only view of [`CellMetadata`].
+#[derive(Clone, Debug)]
+pub struct CellMetadataView<'a>(pub ooxml_core::Lens<'a, CellMetadata>);
+impl<'a> CellMetadataView<'a> {
+    /// `count` — Metadata Block Count (default `0`)
+    pub fn count(&self) -> Result<u32, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(CellMetadata::ATTR_COUNT, "0", ooxml_core::value::parse_u32)
+    }
+    /// `x:bk` children in document order.
+    pub fn metadata_block_iter(&self) -> impl Iterator<Item = MetadataBlockView<'a>> {
+        self.0.children::<MetadataBlock>().map(MetadataBlockView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -14822,6 +15012,7 @@ impl ooxml_core::ElementSpec for Row {
     );
 }
 impl ooxml_core::ChildOf<Row> for Cell {}
+impl ooxml_core::ChildOf<Row> for ExtensionList {}
 /// Read-only view of [`Row`].
 #[derive(Clone, Debug)]
 pub struct RowView<'a>(pub ooxml_core::Lens<'a, Row>);
@@ -14894,6 +15085,10 @@ impl<'a> RowView<'a> {
     /// `x:c` children in document order.
     pub fn cell_iter(&self) -> impl Iterator<Item = CellView<'a>> {
         self.0.children::<Cell>().map(CellView)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -17203,6 +17398,7 @@ impl ooxml_core::ElementSpec for SheetViewElement {
         ],
     );
 }
+impl ooxml_core::ChildOf<SheetViewElement> for ExtensionList {}
 impl ooxml_core::ChildOf<SheetViewElement> for Pane {}
 impl ooxml_core::ChildOf<SheetViewElement> for Selection {}
 /// Read-only view of [`SheetViewElement`].
@@ -17368,6 +17564,10 @@ impl<'a> SheetViewElementView<'a> {
                 SheetViewElement::ATTR_WORKBOOK_VIEW_ID,
                 ooxml_core::value::parse_u32,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// First `x:pane` child.
     pub fn pane(&self) -> Option<PaneView<'a>> {
@@ -17681,11 +17881,16 @@ impl ooxml_core::ElementSpec for SheetViews {
         ],
     );
 }
+impl ooxml_core::ChildOf<SheetViews> for ExtensionList {}
 impl ooxml_core::ChildOf<SheetViews> for SheetViewElement {}
 /// Read-only view of [`SheetViews`].
 #[derive(Clone, Debug)]
 pub struct SheetViewsView<'a>(pub ooxml_core::Lens<'a, SheetViews>);
 impl<'a> SheetViewsView<'a> {
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
     /// `x:sheetView` children in document order.
     pub fn sheet_view_iter(&self) -> impl Iterator<Item = SheetViewElementView<'a>> {
         self.0.children::<SheetViewElement>().map(SheetViewElementView)
@@ -17850,6 +18055,7 @@ impl ooxml_core::ElementSpec for SortState {
         ],
     );
 }
+impl ooxml_core::ChildOf<SortState> for ExtensionList {}
 /// Read-only view of [`SortState`].
 #[derive(Clone, Debug)]
 pub struct SortStateView<'a>(pub ooxml_core::Lens<'a, SortState>);
@@ -17879,6 +18085,10 @@ impl<'a> SortStateView<'a> {
     /// `ref` — Sort Range
     pub fn reference(&self) -> Option<&'a str> {
         self.0.attr(SortState::ATTR_REF)
+    }
+    /// `x:extLst` children in document order.
+    pub fn extension_list_iter(&self) -> impl Iterator<Item = ExtensionListView<'a>> {
+        self.0.children::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -17929,6 +18139,7 @@ impl ooxml_core::ElementSpec for SharedStringTable {
         ],
     );
 }
+impl ooxml_core::ChildOf<SharedStringTable> for ExtensionList {}
 impl ooxml_core::ChildOf<SharedStringTable> for SharedStringItem {}
 /// Read-only view of [`SharedStringTable`].
 #[derive(Clone, Debug)]
@@ -17945,6 +18156,10 @@ impl<'a> SharedStringTableView<'a> {
                 SharedStringTable::ATTR_UNIQUE_COUNT,
                 ooxml_core::value::parse_u32,
             )
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// `x:si` children in document order.
     pub fn shared_string_item_iter(
@@ -18803,6 +19018,7 @@ impl ooxml_core::ElementSpec for TableColumn {
         ],
     );
 }
+impl ooxml_core::ChildOf<TableColumn> for ExtensionList {}
 impl ooxml_core::ChildOf<TableColumn> for CalculatedColumnFormula {}
 impl ooxml_core::ChildOf<TableColumn> for TotalsRowFormula {}
 /// Read-only view of [`TableColumn`].
@@ -18874,6 +19090,10 @@ impl<'a> TableColumnView<'a> {
     /// `totalsRowCellStyle` — Totals Row Style Name
     pub fn totals_row_cell_style(&self) -> Option<&'a str> {
         self.0.attr(TableColumn::ATTR_TOTALS_ROW_CELL_STYLE)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// First `x:calculatedColumnFormula` child.
     pub fn calculated_column_formula(&self) -> Option<CalculatedColumnFormulaView<'a>> {
@@ -21455,6 +21675,7 @@ impl ooxml_core::ElementSpec for CellFormat {
 }
 impl ooxml_core::ChildOf<CellFormat> for Alignment {}
 impl ooxml_core::ChildOf<CellFormat> for Protection {}
+impl ooxml_core::ChildOf<CellFormat> for ExtensionList {}
 /// Read-only view of [`CellFormat`].
 #[derive(Clone, Debug)]
 pub struct CellFormatView<'a>(pub ooxml_core::Lens<'a, CellFormat>);
@@ -21537,6 +21758,10 @@ impl<'a> CellFormatView<'a> {
     /// First `x:protection` child.
     pub fn protection(&self) -> Option<ProtectionView<'a>> {
         self.0.child::<Protection>().map(ProtectionView)
+    }
+    /// First `x:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -22937,9 +23162,11 @@ impl<'a> ThreadedCommentsViewMut<'a> {
 const _: () = ooxml_core::schema::assert_spec::<Authors>();
 const _: () = ooxml_core::schema::assert_child::<Authors, Author>();
 const _: () = ooxml_core::schema::assert_spec::<AutoFilter>();
+const _: () = ooxml_core::schema::assert_child::<AutoFilter, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<AutoFilter, FilterColumn>();
 const _: () = ooxml_core::schema::assert_child::<AutoFilter, SortState>();
 const _: () = ooxml_core::schema::assert_spec::<WorkbookViewElement>();
+const _: () = ooxml_core::schema::assert_child::<WorkbookViewElement, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<BookViews>();
 const _: () = ooxml_core::schema::assert_child::<BookViews, WorkbookViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<Bold>();
@@ -22972,12 +23199,14 @@ const _: () = ooxml_core::schema::assert_child::<CacheSource, WorksheetSource>()
 const _: () = ooxml_core::schema::assert_spec::<CalculationProperties>();
 const _: () = ooxml_core::schema::assert_spec::<Cell>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellFormula>();
+const _: () = ooxml_core::schema::assert_child::<Cell, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<Cell, InlineString>();
 const _: () = ooxml_core::schema::assert_child::<Cell, CellValue>();
 const _: () = ooxml_core::schema::assert_spec::<Alignment>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormula>();
 const _: () = ooxml_core::schema::assert_spec::<Protection>();
 const _: () = ooxml_core::schema::assert_spec::<CellStyle>();
+const _: () = ooxml_core::schema::assert_child::<CellStyle, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<CellStyleFormats>();
 const _: () = ooxml_core::schema::assert_child::<CellStyleFormats, CellFormat>();
 const _: () = ooxml_core::schema::assert_spec::<CellStyles>();
@@ -23005,6 +23234,10 @@ const _: () = ooxml_core::schema::assert_child::<
     ConditionalFormattingRuleExtension,
 >();
 const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatValueObject>();
+const _: () = ooxml_core::schema::assert_child::<
+    ConditionalFormatValueObject,
+    ExtensionList,
+>();
 const _: () = ooxml_core::schema::assert_spec::<Column>();
 const _: () = ooxml_core::schema::assert_spec::<BackgroundColor>();
 const _: () = ooxml_core::schema::assert_spec::<Color>();
@@ -23025,12 +23258,15 @@ const _: () = ooxml_core::schema::assert_child::<CommentList, Comment>();
 const _: () = ooxml_core::schema::assert_spec::<Comments>();
 const _: () = ooxml_core::schema::assert_child::<Comments, Authors>();
 const _: () = ooxml_core::schema::assert_child::<Comments, CommentList>();
+const _: () = ooxml_core::schema::assert_child::<Comments, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<ConditionalFormatting>();
 const _: () = ooxml_core::schema::assert_child::<
     ConditionalFormatting,
     ConditionalFormattingRule,
 >();
+const _: () = ooxml_core::schema::assert_child::<ConditionalFormatting, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<CustomWorkbookView>();
+const _: () = ooxml_core::schema::assert_child::<CustomWorkbookView, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<CustomWorkbookViews>();
 const _: () = ooxml_core::schema::assert_child::<
     CustomWorkbookViews,
@@ -23055,6 +23291,7 @@ const _: () = ooxml_core::schema::assert_spec::<DifferentialFormat>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Border>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Alignment>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Protection>();
+const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Fill>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, Font>();
 const _: () = ooxml_core::schema::assert_child::<DifferentialFormat, NumberingFormat>();
@@ -23063,11 +23300,15 @@ const _: () = ooxml_core::schema::assert_child::<
     DifferentialFormats,
     DifferentialFormat,
 >();
+const _: () = ooxml_core::schema::assert_spec::<Extension>();
+const _: () = ooxml_core::schema::assert_spec::<ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<ExtensionList, Extension>();
 const _: () = ooxml_core::schema::assert_spec::<Fill>();
 const _: () = ooxml_core::schema::assert_child::<Fill, PatternFill>();
 const _: () = ooxml_core::schema::assert_spec::<Fills>();
 const _: () = ooxml_core::schema::assert_child::<Fills, Fill>();
 const _: () = ooxml_core::schema::assert_spec::<FilterColumn>();
+const _: () = ooxml_core::schema::assert_child::<FilterColumn, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<Font>();
 const _: () = ooxml_core::schema::assert_child::<Font, Bold>();
 const _: () = ooxml_core::schema::assert_child::<Font, Condense>();
@@ -23090,8 +23331,10 @@ const _: () = ooxml_core::schema::assert_spec::<FontSize>();
 const _: () = ooxml_core::schema::assert_spec::<Fonts>();
 const _: () = ooxml_core::schema::assert_child::<Fonts, Font>();
 const _: () = ooxml_core::schema::assert_spec::<FutureMetadata>();
+const _: () = ooxml_core::schema::assert_child::<FutureMetadata, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<FutureMetadata, FutureMetadataBlock>();
 const _: () = ooxml_core::schema::assert_spec::<FutureMetadataBlock>();
+const _: () = ooxml_core::schema::assert_child::<FutureMetadataBlock, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<HeaderFooter>();
 const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenFooter>();
 const _: () = ooxml_core::schema::assert_child::<HeaderFooter, EvenHeader>();
@@ -23114,11 +23357,15 @@ const _: () = ooxml_core::schema::assert_spec::<MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<MergeCells>();
 const _: () = ooxml_core::schema::assert_child::<MergeCells, MergeCell>();
 const _: () = ooxml_core::schema::assert_spec::<Metadata>();
+const _: () = ooxml_core::schema::assert_child::<Metadata, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<Metadata, FutureMetadata>();
+const _: () = ooxml_core::schema::assert_child::<Metadata, CellMetadata>();
 const _: () = ooxml_core::schema::assert_child::<Metadata, ValueMetadata>();
 const _: () = ooxml_core::schema::assert_child::<Metadata, MetadataTypes>();
 const _: () = ooxml_core::schema::assert_spec::<MetadataBlock>();
 const _: () = ooxml_core::schema::assert_child::<MetadataBlock, MetadataRecord>();
+const _: () = ooxml_core::schema::assert_spec::<CellMetadata>();
+const _: () = ooxml_core::schema::assert_child::<CellMetadata, MetadataBlock>();
 const _: () = ooxml_core::schema::assert_spec::<ValueMetadata>();
 const _: () = ooxml_core::schema::assert_child::<ValueMetadata, MetadataBlock>();
 const _: () = ooxml_core::schema::assert_spec::<MetadataRecord>();
@@ -23161,6 +23408,7 @@ const _: () = ooxml_core::schema::assert_child::<RunProperties, Underline>();
 const _: () = ooxml_core::schema::assert_child::<RunProperties, VerticalTextAlignment>();
 const _: () = ooxml_core::schema::assert_spec::<Row>();
 const _: () = ooxml_core::schema::assert_child::<Row, Cell>();
+const _: () = ooxml_core::schema::assert_child::<Row, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<InlineString>();
 const _: () = ooxml_core::schema::assert_child::<InlineString, Run>();
 const _: () = ooxml_core::schema::assert_child::<InlineString, Text>();
@@ -23181,14 +23429,18 @@ const _: () = ooxml_core::schema::assert_child::<SheetProperties, TabColor>();
 const _: () = ooxml_core::schema::assert_child::<SheetProperties, PageSetupProperties>();
 const _: () = ooxml_core::schema::assert_spec::<SheetProtection>();
 const _: () = ooxml_core::schema::assert_spec::<SheetViewElement>();
+const _: () = ooxml_core::schema::assert_child::<SheetViewElement, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SheetViewElement, Pane>();
 const _: () = ooxml_core::schema::assert_child::<SheetViewElement, Selection>();
 const _: () = ooxml_core::schema::assert_spec::<SheetViews>();
+const _: () = ooxml_core::schema::assert_child::<SheetViews, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SheetViews, SheetViewElement>();
 const _: () = ooxml_core::schema::assert_spec::<Sheets>();
 const _: () = ooxml_core::schema::assert_child::<Sheets, Sheet>();
 const _: () = ooxml_core::schema::assert_spec::<SortState>();
+const _: () = ooxml_core::schema::assert_child::<SortState, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<SharedStringTable>();
+const _: () = ooxml_core::schema::assert_child::<SharedStringTable, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SharedStringTable, SharedStringItem>();
 const _: () = ooxml_core::schema::assert_spec::<Stylesheet>();
 const _: () = ooxml_core::schema::assert_child::<Stylesheet, Borders>();
@@ -23205,6 +23457,7 @@ const _: () = ooxml_core::schema::assert_child::<Table, SortState>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableColumns>();
 const _: () = ooxml_core::schema::assert_child::<Table, TableStyleInfo>();
 const _: () = ooxml_core::schema::assert_spec::<TableColumn>();
+const _: () = ooxml_core::schema::assert_child::<TableColumn, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableColumn, CalculatedColumnFormula>();
 const _: () = ooxml_core::schema::assert_child::<TableColumn, TotalsRowFormula>();
 const _: () = ooxml_core::schema::assert_spec::<TableColumns>();
@@ -23261,6 +23514,7 @@ const _: () = ooxml_core::schema::assert_spec::<WorksheetSource>();
 const _: () = ooxml_core::schema::assert_spec::<CellFormat>();
 const _: () = ooxml_core::schema::assert_child::<CellFormat, Alignment>();
 const _: () = ooxml_core::schema::assert_child::<CellFormat, Protection>();
+const _: () = ooxml_core::schema::assert_child::<CellFormat, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<Author>();
 const _: () = ooxml_core::schema::assert_spec::<EvenFooter>();
 const _: () = ooxml_core::schema::assert_spec::<EvenHeader>();

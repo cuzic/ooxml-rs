@@ -502,5 +502,17 @@
       ["xl/comments1.xml", ".//x:comment[@ref='D3']/x:text/x:r/x:t[.='[Threaded comment]\n\nLooks wrong\n\nFixed']", 1],
       ["xl/drawings/vmlDrawing1.vml", ".//{urn:schemas-microsoft-com:office:excel}ClientData[@ObjectType='Note'][{urn:schemas-microsoft-com:office:excel}Row='2'][{urn:schemas-microsoft-com:office:excel}Column='3']", 1]
     ]
+  },
+  "xlsx/42-p5d-sparklines.xlsx": {"sheets": {"Sheet1": {"A1": 3.0, "B1": 1.0, "C1": 2.0}},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//{http://schemas.microsoft.com/office/spreadsheetml/2009/9/main}sparklineGroup", 2],
+      ["xl/worksheets/sheet1.xml", ".//{http://schemas.microsoft.com/office/excel/2006/main}f[.='Sheet1!A1:C1']", 2]
+    ]
+  },
+  "xlsx/43-p5d-dynamic-array.xlsx": {"sheets": {"Sheet1": {"A1": 3.0, "A2": 1.0, "A3": 2.0}},
+    "formulas": {"Sheet1!C1": ["n", "1"]},
+    "xml": [
+      ["xl/worksheets/sheet1.xml", ".//x:c[@r='C1'][@cm='1']/x:f[@t='array'][@ref='C1']", 1]
+    ]
   }
 }
