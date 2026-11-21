@@ -108,6 +108,7 @@ pub struct Document {
     write_protection: Option<WriteProtection>,
     comment_protection: Option<String>,
     tracked_protection: Option<String>,
+    control_value_protection: Option<String>,
     marked_final: bool,
 }
 
@@ -229,6 +230,7 @@ impl Document {
         let mut protected_edit = None;
         let mut comment_protection = None;
         let mut tracked_protection = None;
+        let mut control_value_protection = None;
         let mut even_and_odd = false;
         for name in settings {
             let view = SettingsView(pkg.xml_part(&name)?.lens::<Settings>()?);
@@ -248,6 +250,9 @@ impl Document {
                 }
                 if edit != "comments" && comment_protection.is_none() {
                     comment_protection = Some(edit.clone());
+                }
+                if edit != "forms" && control_value_protection.is_none() {
+                    control_value_protection = Some(edit.clone());
                 }
                 if protected_edit.is_none() {
                     protected_edit = Some(edit);
@@ -299,6 +304,7 @@ impl Document {
             write_protection,
             comment_protection,
             tracked_protection,
+            control_value_protection,
             marked_final: custom.marked_final,
             settings_parts,
             styles_part,
@@ -362,6 +368,24 @@ impl Document {
             .filter(|g| !(self.fields_opt_in && matches!(g, Gate::StaleFieldRisk(_))))
             .find_map(|g| g.error_for(op))
             .map_or(Ok(()), Err)
+    }
+
+    pub(crate) fn control_gate_for(&self, op: Operation, value: bool) -> Result<()> {
+        if !value {
+            return self.write_gate_for(op);
+        }
+        for gate in &self.gates {
+            match gate {
+                Gate::DocumentProtected(_) => {
+                    if let Some(edit) = &self.control_value_protection {
+                        return Err(Error::DocumentProtected { edit: edit.clone() });
+                    }
+                }
+                Gate::StaleFieldRisk(_) if self.fields_opt_in => {}
+                _ => if let Some(error) = gate.error_for(op) { return Err(error) },
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn tracked_protection_gate(&self) -> Result<()> {

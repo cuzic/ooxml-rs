@@ -213,6 +213,7 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
         check: "Open the document and verify that both comments are visible on their respective anchors.",
     });
     tracked_cases(out, &mut cases)?;
+    control_cases(out, &mut cases)?;
     Ok(cases)
 }
 
@@ -631,6 +632,70 @@ fn tracked_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
+fn control_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{ControlSpec, ParaRef, RunRef, StoryIndex, TextRange, WrapTarget};
+
+    let control = |properties: &str| format!(
+        "<w:p><w:sdt><w:sdtPr>{properties}</w:sdtPr><w:sdtContent><w:r><w:t>Before</w:t></w:r></w:sdtContent></w:sdt></w:p>"
+    );
+    let mut record = |doc: &Document, file, done: &str, check| -> Result<(), Box<dyn std::error::Error>> {
+        save(doc, out, file)?;
+        cases.push(Case { file, fixture: "", done: done.into(), check });
+        Ok(())
+    };
+
+    let location = |doc: &Document| doc.content_controls().next().expect("control").location;
+    let mut doc = synthetic(&control("<w:text/><w:showingPlcHdr/>"))?;
+    doc.set_text(location(&doc), "Plain text edited")?;
+    record(&doc, "37-sdt-plain.docx", "Replaced a plain-text placeholder", "The control shows Plain text edited.")?;
+
+    let mut doc = synthetic(&control("<w:date><w:dateFormat w:val='MMMM d, yyyy'/><w:lid w:val='en-US'/></w:date>"))?;
+    doc.set_date(location(&doc), "2026-11-21T00:00:00".parse()?)?;
+    record(&doc, "38-sdt-date.docx", "Set a date using the stored picture", "The date picker shows November 21, 2026.")?;
+
+    let mut doc = synthetic("<w:p><w:r><w:t>☐</w:t></w:r></w:p>")?;
+    let first_run = RunRef::new(ParaRef::new(StoryIndex::MAIN, 0), 0);
+    let target = WrapTarget::Inline(TextRange::new(first_run, first_run));
+    doc.wrap_in_control(target, ControlSpec {
+        kind: ooxml_docx::NewControlKind::Checkbox { checked: false },
+        ..ControlSpec::default()
+    })?;
+    doc.set_checked(location(&doc), true)?;
+    record(&doc, "39-sdt-checkbox.docx", "Created a checkbox and checked it", "The checkbox is checked and displays ☒.")?;
+
+    let mut doc = synthetic(&control("<w:dropDownList><w:listItem w:value='blue' w:displayText='Ocean blue'/></w:dropDownList>"))?;
+    doc.select(location(&doc), "blue")?;
+    record(&doc, "40-sdt-dropdown.docx", "Selected the stored value blue", "The dropdown displays Ocean blue.")?;
+
+    let binding = |prefix: &str| format!(
+        r#"<w:dataBinding w:storeItemID="{{10000000-0000-0000-0000-000000000001}}" w:xpath="/{prefix}:record[1]/{prefix}:value" w:prefixMappings="xmlns:{prefix}='urn:values'"/><w:text/>"#
+    );
+    const PKG: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
+    const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let mut doc = synthetic_with_extra_parts(
+        &(control(&binding("a")) + &control(&binding("b"))),
+        None,
+        [
+            ("word/_rels/document.xml.rels", format!("<Relationships xmlns='{PKG}'><Relationship Id='custom' Type='{REL}/customXml' Target='../customXml/item1.xml'/></Relationships>")),
+            ("customXml/item1.xml", "<record xmlns='urn:values'><value>Before</value></record>".into()),
+            ("customXml/_rels/item1.xml.rels", format!("<Relationships xmlns='{PKG}'><Relationship Id='props' Type='{REL}/customXmlProps' Target='itemProps1.xml'/></Relationships>")),
+            ("customXml/itemProps1.xml", "<ds:datastoreItem xmlns:ds='http://schemas.openxmlformats.org/officeDocument/2006/customXml' ds:itemID='{10000000-0000-0000-0000-000000000001}'/>".into()),
+        ],
+        &[("/customXml/itemProps1.xml", "application/vnd.openxmlformats-officedocument.customXmlProperties+xml")],
+    )?;
+    doc.set_text(location(&doc), "Shared value")?;
+    record(&doc, "41-sdt-bound.docx", "Updated the custom XML element and both bound controls", "Both controls show Shared value before and after reopening.")?;
+
+    let mut doc = synthetic("<w:p><w:r><w:t>Wrapped paragraph</w:t></w:r></w:p>")?;
+    let p = ParaRef::new(StoryIndex::MAIN, 0);
+    doc.wrap_in_control(WrapTarget::Paragraphs { first: p, last: p }, ControlSpec {
+        alias: Some("Wrapped text".into()),
+        ..ControlSpec::default()
+    })?;
+    record(&doc, "42-sdt-wrapped.docx", "Wrapped an existing paragraph in a rich-text control", "Wrapped paragraph is inside the Wrapped text control.")?;
+    Ok(())
+}
+
 /// `Document`, so a reopened copy is gated again).
 fn save_ungated(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
     doc.save(out.join(file))?;
@@ -654,6 +719,15 @@ fn synthetic_with_styles(body: &str, styles: Option<&str>) -> Result<Document, B
 }
 
 fn synthetic_with_part(body: &str, related: Option<(&str, &str)>) -> Result<Document, Box<dyn std::error::Error>> {
+    synthetic_with_extra_parts(body, related, [], &[])
+}
+
+fn synthetic_with_extra_parts(
+    body: &str,
+    related: Option<(&str, &str)>,
+    extra: impl IntoIterator<Item = (&'static str, String)>,
+    overrides: &[(&str, &str)],
+) -> Result<Document, Box<dyn std::error::Error>> {
     const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     let mut parts = vec![
         (
@@ -686,8 +760,15 @@ fn synthetic_with_part(body: &str, related: Option<(&str, &str)>) -> Result<Docu
         ));
         parts.push((&related_name, format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:{name} xmlns:w="{W}">{inner}</w:{name}>"#)));
     }
+    for (part, content_type) in overrides {
+        parts[0].1 = parts[0].1.replace(
+            "</Types>", &format!("<Override PartName='{part}' ContentType='{content_type}'/></Types>"),
+        );
+    }
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    for (name, content) in parts {
+    let parts = parts.into_iter().map(|(name, xml)| (name.to_owned(), xml));
+    let extra = extra.into_iter().map(|(name, xml)| (name.to_owned(), xml));
+    for (name, content) in parts.chain(extra) {
         z.start_file(name, zip::write::SimpleFileOptions::default())?;
         z.write_all(content.as_bytes())?;
     }

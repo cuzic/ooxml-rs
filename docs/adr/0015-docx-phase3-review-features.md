@@ -529,9 +529,9 @@ R3 is lifted for these kinds; every other kind stays refused:
 |---|---|---|
 | `w:text` (plain text) | `set_text` | The content becomes one run with the content's first run's `rPr`. `multiLine` decides whether `\n` maps to `w:br` or is refused. |
 | no kind element (rich text) | `set_text` on a single-paragraph control; runs inside follow R1–R4 as body runs do | Most controls (SDK 1,010) |
-| `w:date` | `set_date(date)` | `w:date/@w:fullDate` (ISO) and the displayed text, formatted with `w:dateFormat` and `w:lid` *(u: Word's format engine; Open question 6)*. A bound date control writes to the store in the form `w:storeMappedDataAs` names (`dateTime`, `date` or `text`). |
+| `w:date` | `set_date(date)` | `w:date/@w:fullDate` (ISO) and the displayed text, formatted with `w:dateFormat` and `w:lid` *(u: Word's format engine; Open question 6)*. Automatic formatting supports Gregorian calendars. A bound date control writes to the store in the form `w:storeMappedDataAs` names (`dateTime`, `date` or `text`). |
 | `w14:checkbox` | `set_checked(bool)` | `w14:checked/@w14:val` and the glyph run from `w14:checkedState`/`uncheckedState` (font and char) |
-| `w:dropDownList`, `w:comboBox` | `select(value)` | The **store** gets the item's `value`; the **display** is its `displayText`, or `value` when `displayText` is absent. A combo box also accepts free text. |
+| `w:dropDownList`, `w:comboBox` | `select(value)` | The **store** gets the item's `value`; the **display** is its `displayText`, or `value` when `displayText` is absent. A combo box also accepts free text. An existing `w:lastValue` is updated to the selected value or free text. |
 | `w:picture`, `w:docPartObj`, `w:docPartList`, `w:citation`, `w:bibliography`, `w:equation`, `w:group`, `w15:repeatingSection` | — | Refused (`UnsupportedControl`) |
 
 - **Placeholders.** When `w:showingPlcHdr` is present (SDK 1,673), setting a value removes it
@@ -997,8 +997,14 @@ owner's decision.
    until then, minimal definitions found by name, with ids derived from the names (§3.5).
 5. **Note separators for new parts.** Proposed: (`-1`, `0`), with footnotes and endnotes created
    as a pair.
-6. **Date formatting** for date controls and DATE fields: implement Word's picture syntax for the
-   common patterns, or require the caller to pass the display text? (Open.)
+6. **Date formatting** (owner decision, 2026-11-20). Support Word picture tokens
+   `y`, `yy`, `yyyy`, `M`, `MM`, `MMM`, `MMMM`, `d`, `dd`, `H`, `HH`, `h`, `hh`, `m`,
+   `mm`, `s`, `ss`, `AM/PM`, and quoted or escaped literals. English month names are
+   available for English `w:lid` values. Other tokens, including Japanese era and weekday
+   names, and month names with non-English `w:lid` values return `UnsupportedDateFormat`.
+   Callers can supply text with `set_date_with_display`. DATE fields remain a D3e task.
+   The D3d post-acceptance note below records Gregorian calendar support and
+   the handling of unquoted non-ASCII literals.
 7. **Core-properties binding.** Proposed: allowed, but it requires `updateFields` when a field
    reads the written property (§6.2, M5).
 8. **Application defaults** without `docDefaults`. Proposed: Times New Roman 10 pt, reported as
@@ -1174,3 +1180,34 @@ target becomes own-dirty when it gains text, using the serializer's
 attribute-spelling preservation. An empty replacement clears the text.
 Open/close tags of other parsed targets and `xml:space` are preserved.
 Acceptance tests cover byte-local edits and byte-identical refusals.
+
+
+### Post-acceptance note: D3d (Issue #106)
+
+- `Document::content_controls` lists controls in story and XML order. `ControlRef`
+  addresses controls independently of optional and duplicate stored IDs. Value edits
+  stage the selected store and all matching stories in one `RegistryPlan`. A locked
+  or unrenderable peer causes the whole edit to be refused.
+- The value editor supports direct text runs in inline controls and controls with a
+  single paragraph, including single-paragraph row and cell controls. Rich text can
+  include hyperlinks and passive range markers. The editor reuses the first run
+  and its properties and preserves the structure of such hyperlinks and markers. For active placeholders, it uses the control's run
+  properties or removes the placeholder's run style from the first run.
+- Input dates are naive date-times interpreted as UTC. Defaults are `M/d/yyyy`,
+  `en-US`, and `dateTime` mapping. Bound checkboxes write `true` or `false`.
+- For §6.1 and Open question 6, `set_date` accepts the Gregorian calendar variants
+  and rejects other calendar values with `UnsupportedDateFormat`. Use
+  `set_date_with_display` to supply the formatted value. Non-ASCII picture
+  characters such as `年`, `月`, and `日` are literals.
+- The wrapper takes a same-paragraph `TextRange` or adjacent sibling paragraphs. It
+  moves the selected elements within their existing part, preserving their spans.
+  Checkbox wrapping (§6.3) preserves the selected text. Callers can select a run
+  containing the desired glyph or call `set_checked` to refresh it.
+  It refuses moves across section breaks and enclosing contexts that would change
+  the meaning of the range. A private projection writes the newly created
+  `sdtPr` children in Transitional XSD order. Existing generated public names stay
+  stable.
+- Tracked row deletion refuses `TrackedPropertyChange { element: "w:vMerge" }`
+  when an untracked deletion would have to promote a surviving continuation to
+  the start of its vertical merge. This preserves the existing merge in the
+  rejected view and avoids an orphaned continuation in the accepted view (#99 m1).
