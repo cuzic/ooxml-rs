@@ -19,7 +19,7 @@ fn generate(path: &Path) {
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let [_, operation, path] = args.as_slice() else {
-        panic!("usage: phase7_bench <generate|baseline|insert|delete> <input.xlsx>");
+        panic!("usage: phase7_bench <generate|baseline|insert|delete|delete-99999> <input.xlsx>");
     };
     let path = Path::new(path);
     if operation == "generate" {
@@ -36,6 +36,9 @@ fn main() {
         }
         "delete" => {
             black_box(wb.worksheet().unwrap().delete_rows(1, 100_000).unwrap());
+        }
+        "delete-99999" => {
+            black_box(wb.worksheet().unwrap().delete_rows(0, 99_999).unwrap());
         }
         _ => panic!("unknown operation {operation}"),
     }

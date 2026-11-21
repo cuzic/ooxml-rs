@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use ooxml_core::{ElementSpec, QName, RawNode, RegistryPlan, XmlDocument};
+use ooxml_core::{ElementSpec, QName, RawItem, RawNode, RegistryPlan, XmlDocument};
 use ooxml_schema::sml;
 
 use super::{Change, NthAt, RewrittenLocation, defined_names, names_lens, same_name};
@@ -432,7 +432,7 @@ impl GridPlan {
                 let mut spans = Vec::new();
                 for span in old_spans.split_ascii_whitespace() {
                     let (lo, hi) = numeric_range(span, ':', 1, MAX_COLS)?;
-                    if let Some((lo, hi)) = numeric_shift(band, lo, hi)? {
+                    if let Some((lo, hi)) = numeric_shift(band, lo, hi, || format!("row {} spans {span}", old + 1))? {
                         spans.push(format!("{}:{}", lo + 1, hi + 1));
                     }
                 }
@@ -511,10 +511,10 @@ impl GridPlan {
             let mut row = sheet_data(doc)?
                 .into_child_at::<sml::Row>(ri)
                 .expect("planned row");
-            remove_indices(&mut row, &indices);
+            remove_indices(&mut row, &indices, false);
         }
         if !self.drop_rows.is_empty() {
-            remove_indices(&mut sheet_data(doc)?, &self.drop_rows);
+            remove_indices(&mut sheet_data(doc)?, &self.drop_rows, true);
         }
         Ok(())
     }
@@ -526,13 +526,22 @@ fn sheet_data(doc: &mut XmlDocument) -> Result<ooxml_core::LensMut<'_, sml::Shee
         .ok_or_else(|| Error::Malformed("planned sheetData".into()))
 }
 
-fn remove_indices<E: ElementSpec>(lens: &mut ooxml_core::LensMut<'_, E>, indices: &[usize]) {
+fn remove_indices<E: ElementSpec>(
+    lens: &mut ooxml_core::LensMut<'_, E>,
+    indices: &[usize],
+    remove_intervening_whitespace: bool,
+) {
     let Some((&last, rest)) = indices.split_last() else {
         return;
     };
     let (mut start, mut end) = (last, last + 1);
     for &index in rest.iter().rev() {
-        if index + 1 == start {
+        if index + 1 == start
+            || (remove_intervening_whitespace
+                && lens.node().children()[index + 1..start].iter().all(|item| {
+                    matches!(item, RawItem::Text(text) if !text.is_cdata() && text.is_whitespace())
+                }))
+        {
             start = index;
         } else {
             assert!(lens.remove_range(start..end));
@@ -558,7 +567,7 @@ fn numeric_range(text: &str, separator: char, base: u32, limit: u32) -> Result<(
     Err(Error::InvalidReference(text.into()))
 }
 
-fn numeric_shift(band: Band, lo: u32, hi: u32) -> Result<Option<(u32, u32)>> {
+fn numeric_shift(band: Band, lo: u32, hi: u32, what: impl FnOnce() -> String) -> Result<Option<(u32, u32)>> {
     use crate::formula::lexer::Comp;
     let component = |idx| Comp { idx, abs: false };
     let area = match band.axis {
@@ -573,7 +582,7 @@ fn numeric_shift(band: Band, lo: u32, hi: u32) -> Result<Option<(u32, u32)>> {
     };
     Ok(
         match shift_area(area, band.axis, band.shift).map_err(|_| Error::ShiftOffSheet {
-            what: "numeric range".into(),
+            what: what(),
         })? {
             AreaOutcome::Unchanged => Some((lo, hi)),
             AreaOutcome::Deleted => None,
@@ -917,7 +926,7 @@ impl Workbook {
         operation: &'static str,
     ) -> Result<StructuralEditReport> {
         let band = Band::new(axis, shift)?;
-        self.sheet_structure_guard(operation)?;
+        self.structural_guard()?;
         let part = self.sheets[sheet].part.clone().expect("worksheet part");
         let worksheet = self.pkg.xml_part(&part)?;
         if worksheet.root().elements().any(|node| {

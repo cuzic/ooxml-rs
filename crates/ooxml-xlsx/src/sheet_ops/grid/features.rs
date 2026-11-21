@@ -44,7 +44,7 @@ macro_rules! elements {
 
         fn drop_items(doc: &mut XmlDocument, path: &[usize], q: QName, indices: &[usize]) -> Result<()> {
             match q {
-                $($key::QNAME => remove_indices(&mut doc.lens_mut_at::<$key>(path)?, indices),)+
+                $($key::QNAME => remove_indices(&mut doc.lens_mut_at::<$key>(path)?, indices, false),)+
                 _ => unreachable!("validated parent"),
             }
             Ok(())
@@ -548,6 +548,19 @@ impl Planner<'_, '_> {
                     let cell = CellIndex::parse(node.attr(attr("activeCell")).unwrap_or("A1"))?;
                     return Ok(Rewrite::New(self.clamp(cell).to_string()));
                 }
+                if local == "selection"
+                    && let Rewrite::New(text) = &result
+                {
+                    let normalized = text
+                        .split_ascii_whitespace()
+                        .map(|item| match item.split_once(':') {
+                            Some((first, last)) if first == last => first,
+                            _ => item,
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    return Ok(Rewrite::New(normalized));
+                }
                 Ok(result)
             }
             Syntax::Count
@@ -591,7 +604,9 @@ impl Planner<'_, '_> {
                 let new = band
                     .after(column, "filter column")?
                     .ok_or_else(|| self.blocked("filter column"))?;
-                let first = numeric_shift(band, filter.first.col, filter.last.col)?
+                let first = numeric_shift(band, filter.first.col, filter.last.col, || {
+                    format!("autoFilter {filter}")
+                })?
                     .expect("surviving filter")
                     .0;
                 Ok(if new - first == old {
@@ -717,6 +732,13 @@ impl Planner<'_, '_> {
                 self.add(node, path, Some("max"), max, band.at.to_string())?;
                 return Ok(false);
             }
+            // Formatting shifted entirely past XFD has no surviving columns.
+            if matches!(band.shift, Shift::Insert { .. })
+                && band.at <= lo
+                && lo + band.count >= MAX_COLS
+            {
+                return Ok(true);
+            }
             // A full-width formatting record must still leave the new
             // leading columns at their default format.
             if matches!(band.shift, Shift::Insert { .. })
@@ -728,7 +750,7 @@ impl Planner<'_, '_> {
                 self.add(node, path, Some("min"), min, (first + 1).to_string())?;
                 return Ok(false);
             }
-            let Some((first, last)) = numeric_shift(band, lo, hi)? else {
+            let Some((first, last)) = numeric_shift(band, lo, hi, || format!("col {min}:{max}"))? else {
                 return Ok(true);
             };
             self.add(node, path, Some("min"), min, (first + 1).to_string())?;
@@ -751,7 +773,7 @@ impl Planner<'_, '_> {
                 let min = node.attr(attr("min")).unwrap_or("0");
                 let max = node.attr(attr("max")).unwrap_or(&end);
                 let (lo, hi) = numeric_range(&format!("{min}:{max}"), ':', 0, band.limit)?;
-                let Some((first, last)) = numeric_shift(band, lo, hi)? else {
+                let Some((first, last)) = numeric_shift(band, lo, hi, || format!("brk {min}:{max}"))? else {
                     return Ok(true);
                 };
                 self.add(node, path, Some("min"), min, first.to_string())?;

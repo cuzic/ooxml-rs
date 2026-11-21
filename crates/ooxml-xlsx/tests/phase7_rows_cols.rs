@@ -101,6 +101,108 @@ fn cross_sheet_rules_and_sticky_ranges_shift() {
     assert!(text(&bytes, data).contains("sqref=\"A2:A1048576\""));
 }
 
+const DATA_PART: &str = "xl/worksheets/sheet1.xml";
+
+fn data_with_features(rows: &str, before: &str, after: &str) -> Vec<u8> {
+    let base = p1::book(&[("Data", rows)], "", "");
+    let xml = text(&base, DATA_PART)
+        .replace("<sheetData>", &format!("{before}<sheetData>"))
+        .replace("</sheetData>", &format!("</sheetData>{after}"));
+    rebuild(&base, &[(DATA_PART, xml.into_bytes())])
+}
+
+#[test]
+fn deleted_anchor_hands_off_to_surviving_cf_and_x14_dv_cells() {
+    let features = r#"<conditionalFormatting sqref="B3:B8"><cfRule type="expression" priority="1"><formula>B3&gt;A3</formula></cfRule></conditionalFormatting>
+<extLst><ext uri="{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">
+<x14:dataValidations count="1"><x14:dataValidation type="custom"><x14:formula1><xm:f>D3&gt;C3</xm:f></x14:formula1><xm:sqref>D3:D8</xm:sqref></x14:dataValidation></x14:dataValidations>
+</ext></extLst>"#;
+    let input = data_with_features("<row r='3'/><row r='4'/>", "", features);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().delete_rows(2, 1).unwrap();
+    let xml = text(&wb.to_bytes().unwrap(), DATA_PART);
+    for expected in [
+        r#"sqref="B3:B7""#,
+        "<formula>B3&gt;A3</formula>",
+        "<xm:sqref>D3:D7</xm:sqref>",
+        "<xm:f>D3&gt;C3</xm:f>",
+    ] {
+        assert!(xml.contains(expected), "{expected}: {xml}");
+    }
+}
+
+#[test]
+fn deleted_anchor_of_multi_area_rule_refuses_atomically() {
+    let features = r#"<conditionalFormatting sqref="B3:B8 B10:B12"><cfRule type="expression" priority="1"><formula>B3&gt;A3</formula></cfRule></conditionalFormatting>"#;
+    let input = data_with_features("<row r='3'/><row r='4'/>", "", features);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    std::assert_matches!(
+        wb.worksheet().unwrap().delete_rows(2, 1),
+        Err(Error::StructureBlocked { .. })
+    );
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn merge_with_a_valued_replacement_anchor_refuses_atomically() {
+    let rows = r#"<row r="3"><c r="B3"><v>1</v></c></row><row r="4"><c r="B4"><v>2</v></c></row>"#;
+    let features = r#"<mergeCells count="1"><mergeCell ref="B3:C5"/></mergeCells>"#;
+    let input = data_with_features(rows, "", features);
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    std::assert_matches!(
+        wb.worksheet().unwrap().delete_rows(2, 1),
+        Err(Error::StructureBlocked { .. })
+    );
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn deleting_formatted_rows_consumes_only_intervening_plain_whitespace() {
+    let rows = "\n  <row r='1'/>\n    <row r='2'/><!-- kept -->\n  <row r='3'/><![CDATA[ ]]><row r='4'/>\n  <row r='5'/>\n";
+    let input = data_with_features(rows, "", "");
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().delete_rows(0, 4).unwrap();
+    let xml = text(&wb.to_bytes().unwrap(), DATA_PART);
+    assert!(
+        xml.contains("<sheetData>\n  <!-- kept -->\n  <![CDATA[ ]]>\n  <row r=\"1\"/>\n</sheetData>"),
+        "{xml}"
+    );
+}
+
+#[test]
+fn column_formatting_entirely_shifted_past_xfd_is_clipped() {
+    let cols = r#"<cols><col min="16383" max="16383" width="11"/><col min="16384" max="16384" width="12"/></cols>"#;
+    let input = data_with_features("<row r='1'/>", cols, "");
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().insert_cols(0, 1).unwrap();
+    let xml = text(&wb.to_bytes().unwrap(), DATA_PART);
+    assert!(
+        xml.contains(r#"<cols><col min="16384" max="16384" width="11"/></cols>"#),
+        "{xml}"
+    );
+}
+
+#[test]
+fn overflowing_numeric_range_identifies_the_element() {
+    let input = data_with_features("<row r='1' spans='16384:16384'/>", "", "");
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    std::assert_matches!(
+        wb.worksheet().unwrap().insert_cols(0, 1),
+        Err(Error::ShiftOffSheet { what }) if what == "row 1 spans 16384:16384"
+    );
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn rewrites_single_cell_selection_without_a_range_separator() {
+    let views = r#"<sheetViews><sheetView workbookViewId="0"><selection activeCell="A1" sqref="A1:A1"/></sheetView></sheetViews>"#;
+    let input = data_with_features("<row r='1'/>", views, "");
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet().unwrap().insert_rows(0, 1).unwrap();
+    let xml = text(&wb.to_bytes().unwrap(), DATA_PART);
+    assert!(xml.contains(r#"activeCell="A2" sqref="A2""#), "{xml}");
+}
+
 #[test]
 fn shared_members_split_when_relative_formulas_diverge() {
     let input = p1::book(
@@ -121,7 +223,7 @@ fn shared_members_split_when_relative_formulas_diverge() {
 }
 
 #[test]
-fn protection_and_off_sheet_refusals_leave_every_byte_unchanged() {
+fn workbook_structure_lock_allows_row_insertion() {
     let base = book();
     let wb_part = "xl/workbook.xml";
     let locked = text(&base, wb_part).replace(
@@ -129,17 +231,14 @@ fn protection_and_off_sheet_refusals_leave_every_byte_unchanged() {
         r#"<workbookProtection lockStructure="1"/><sheets>"#,
     );
     let mut wb = Workbook::from_bytes(rebuild(&base, &[(wb_part, locked.into_bytes())])).unwrap();
-    let before = wb.to_bytes().unwrap();
-    for (_, edit) in OPERATIONS {
-        std::assert_matches!(
-            edit(&mut wb.worksheet_mut("Data").unwrap(), 1, 1),
-            Err(Error::Protected {
-                scope: "workbook",
-                ..
-            })
-        );
-        assert_eq!(wb.to_bytes().unwrap(), before);
-    }
+    wb.worksheet_mut("Data").unwrap().insert_rows(1, 1).unwrap();
+    let saved = wb.to_bytes().unwrap();
+    assert!(text(&saved, wb_part).contains(r#"lockStructure="1""#));
+    assert!(text(&saved, DATA_PART).contains(r#"r="A3""#));
+}
+
+#[test]
+fn off_sheet_refusals_leave_every_byte_unchanged() {
     let edge = p1::book(
         &[(
             "Data",
