@@ -27,10 +27,10 @@ const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const ASVG: &str = "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
 const R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const SML: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-const OFFICE: &str = "urn:schemas-microsoft-com:office:office";
+pub(crate) const OFFICE: &str = "urn:schemas-microsoft-com:office:office";
 const REL_DRAWING: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
-const REL_VML: &str =
+pub(crate) const REL_VML: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing";
 const REL_IMAGE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const REL_HYPERLINK: &str =
@@ -49,7 +49,7 @@ fn child(node: &RawNode, name: QName) -> Option<&RawNode> {
     node.elements().find(|node| node.is(name))
 }
 
-fn walk(root: &RawNode) -> impl Iterator<Item = &RawNode> {
+pub(crate) fn walk(root: &RawNode) -> impl Iterator<Item = &RawNode> {
     let mut pending = vec![root];
     std::iter::from_fn(move || {
         let node = pending.pop()?;
@@ -60,14 +60,14 @@ fn walk(root: &RawNode) -> impl Iterator<Item = &RawNode> {
     })
 }
 
-fn part_error(part: &str, reason: impl std::fmt::Display) -> Error {
+pub(crate) fn part_error(part: &str, reason: impl std::fmt::Display) -> Error {
     Error::PartNotEditable {
         part: part.into(),
         reason: reason.to_string(),
     }
 }
 
-fn internal_target(rels: &Relationships, id: &str, kind: &str) -> Option<String> {
+pub(crate) fn internal_target(rels: &Relationships, id: &str, kind: &str) -> Option<String> {
     let rel = rels.by_id(id)?;
     (rel.rel_type == kind).then(|| rels.resolve(rel)).flatten()
 }
@@ -332,6 +332,7 @@ pub(crate) struct ObjectState {
     shape_high_water: HashMap<String, u32>,
     scanned_shapes: HashSet<String>,
     media: Option<MediaIndex>,
+    allocated_shapes: HashMap<String, HashSet<u32>>,
 }
 
 fn media_part(pkg: &Package, rels: &Relationships, id: &str) -> Option<String> {
@@ -494,12 +495,12 @@ fn drawing_document(pkg: &mut Package, drawing: &str) -> Result<XmlDocument> {
     Ok(doc.clone())
 }
 
-fn shape_number(value: &str) -> Option<u32> {
+pub(crate) fn shape_number(value: &str) -> Option<u32> {
     let (_, number) = value.rsplit_once("_s")?;
     number.parse().ok()
 }
 
-fn vml_max(pkg: &Package, part: &str) -> Result<u32> {
+fn vml_numbers(pkg: &Package, part: &str) -> Result<HashSet<u32>> {
     let canonical = pkg
         .part_name(part)
         .ok_or_else(|| part_error(part, "missing VML part"))?;
@@ -512,8 +513,7 @@ fn vml_max(pkg: &Package, part: &str) -> Result<u32> {
                 .flat_map(|node| [node.attr(attr("id")), node.attr(QName::new(OFFICE, "spid"))])
                 .flatten()
                 .filter_map(shape_number)
-                .max()
-                .unwrap_or_default());
+                .collect());
         }
         Err(error @ ooxml_core::Error::DtdNotAllowed { .. }) => {
             return Err(part_error(part, error));
@@ -542,8 +542,7 @@ fn vml_max(pkg: &Package, part: &str) -> Result<u32> {
                 .parse()
                 .ok()
         })
-        .max()
-        .unwrap_or_default())
+        .collect())
 }
 
 fn shape_max(wb: &mut Workbook, sheet: &str, drawing: Option<&XmlDocument>) -> Result<u32> {
@@ -565,8 +564,16 @@ fn shape_max(wb: &mut Workbook, sheet: &str, drawing: Option<&XmlDocument>) -> R
     if wb.objects.scanned_shapes.contains(sheet) {
         return Ok(max);
     }
+    if let Some(id) = sheet_shape_numbers(wb, sheet)?.into_iter().max() {
+        max = max.max(id);
+    }
+    Ok(max)
+}
+
+fn sheet_shape_numbers(wb: &mut Workbook, sheet: &str) -> Result<HashSet<u32>> {
     let rels = wb.pkg.relationships(sheet)?;
     let doc = wb.pkg.xml_part(sheet)?;
+    let mut numbers = HashSet::new();
     let mut vml = Vec::new();
     for node in walk(doc.root()) {
         if matches!(node.name().local(), "control" | "oleObject")
@@ -575,7 +582,7 @@ fn shape_max(wb: &mut Workbook, sheet: &str, drawing: Option<&XmlDocument>) -> R
                 .attr(attr("shapeId"))
                 .and_then(|id| id.trim().parse::<u32>().ok())
         {
-            max = max.max(id);
+            numbers.insert(id);
         }
         if node.is(sml::LegacyDrawing::QNAME) || node.is(QName::new(SML, "legacyDrawingHF")) {
             let part = node
@@ -586,9 +593,33 @@ fn shape_max(wb: &mut Workbook, sheet: &str, drawing: Option<&XmlDocument>) -> R
         }
     }
     for part in vml {
-        max = max.max(vml_max(&wb.pkg, &part)?);
+        numbers.extend(vml_numbers(&wb.pkg, &part)?);
     }
-    Ok(max)
+    Ok(numbers)
+}
+
+pub(crate) fn note_shape_numbers(wb: &mut Workbook, sheet: &str) -> Result<(u32, HashSet<u32>)> {
+    let mut used = sheet_shape_numbers(wb, sheet)?;
+    let rels = wb.pkg.relationships(sheet)?;
+    for rel in rels.by_type(REL_DRAWING) {
+        let part = rels.resolve(rel).and_then(|part| wb.pkg.part_name(&part).map(str::to_owned))
+            .ok_or_else(|| part_error(sheet, "invalid drawing target"))?;
+        let doc = drawing_document(&mut wb.pkg, &part)?;
+        used.extend(walk(doc.root()).filter(|node| node.is(xdr("cNvPr")))
+            .filter_map(|node| node.attr(attr("id"))?.trim().parse::<u32>().ok()));
+    }
+    if let Some(allocated) = wb.objects.allocated_shapes.get(sheet) {
+        used.extend(allocated);
+    }
+    let high = used.iter().copied().max().unwrap_or(1).max(1)
+        .max(wb.objects.shape_high_water.get(sheet).copied().unwrap_or_default());
+    Ok((high, used))
+}
+
+pub(crate) fn record_shape(wb: &mut Workbook, sheet: &str, id: u32) {
+    wb.objects.allocated_shapes.entry(sheet.into()).or_default().insert(id);
+    let high = wb.objects.shape_high_water.entry(sheet.into()).or_default();
+    *high = (*high).max(id);
 }
 
 impl Worksheet<'_> {
@@ -690,7 +721,7 @@ impl Worksheet<'_> {
                     .set_attr(QName::new(R, "id"), &rel)?;
             }
             wb.objects.scanned_shapes.insert(sheet.clone());
-            wb.objects.shape_high_water.insert(sheet, id);
+            record_shape(wb, &sheet, id);
             let index = wb.objects.media.as_mut().expect("initialized");
             for (bytes, part) in std::iter::once((&image.bytes, media))
                 .chain(image.svg.iter().zip(svg.map(|(_, part)| part)))
@@ -725,14 +756,6 @@ impl Worksheet<'_> {
         let part = drawing_target(&mut wb.pkg, &sheet)?.ok_or(Error::NoSuchImage(id))?;
         let doc = drawing_document(&mut wb.pkg, &part)?;
         let (anchor, picture) = drawing::removable(doc.root(), id).ok_or(Error::NoSuchImage(id))?;
-        // Capture the session high-water even when the first operation is a removal.
-        let high = wb
-            .objects
-            .shape_high_water
-            .get(&sheet)
-            .copied()
-            .unwrap_or_default()
-            .max(id);
         let mut bytes = doc.source().as_bytes().to_vec();
         let span = anchor.span().expect("parsed anchor");
         bytes.drain(span.start..span.end());
@@ -770,7 +793,7 @@ impl Worksheet<'_> {
             }
         }
         wb.apply_registry_edit(plan, |wb| {
-            wb.objects.shape_high_water.insert(sheet, high);
+            record_shape(wb, &sheet, id);
             Ok(())
         })
     }

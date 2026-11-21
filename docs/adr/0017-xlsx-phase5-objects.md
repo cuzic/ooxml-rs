@@ -1024,3 +1024,18 @@ A prerequisite PR plus five PRs, each with its oracles:
   `47dcff769bb395034dddfd59c4609659b6dbc6a4`: files and lines as cited above.
 - Corpus: POI `test-data/spreadsheet` at the same commit; calamine fixtures in
   `reference/fixtures/xlsx/calamine/`.
+
+### Post-acceptance note (P5c)
+
+- `Note::new` creates a hidden note with an empty author. Replies are separated by blank
+  lines in the fallback note, in thread part order. Removing a thread leaves its now-empty
+  part available for subsequent insertions, and leaves the workbook person list intact.
+- `Comment::timestamp` accepts `SystemTime`. Like the default timestamp, it is formatted
+  in UTC at second precision with no zone suffix. The Excel follow-up in §5 remains open.
+- Comments, VML, threaded comments and persons are edited using Layer 2 source spans and
+  staged together. VML's default placement uses the RX start offsets and default cell
+  sizes. The sheet's schema lens checks and inserts `legacyDrawing` when needed.
+- The SpreadsheetML allowlist includes the legacy and Microsoft threaded-comment elements.
+  VML remains outside codegen.
+- A mutable comments, VML, threaded-comment or person part with ambiguous OPC ownership
+  is refused. An orphan VML note shape at the target cell also prevents insertion.

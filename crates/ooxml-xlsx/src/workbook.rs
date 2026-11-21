@@ -133,6 +133,10 @@ pub enum ApplyStep {
     RangeFeature,
     /// Before inserting the worksheet drawing reference.
     ImageDrawing,
+    /// Before inserting the worksheet legacy drawing reference.
+    NoteDrawing,
+    /// Before recording a new note shape number.
+    NoteShape,
     /// Before inserting the worksheet table reference.
     TableParts,
 }
@@ -171,6 +175,8 @@ pub(crate) type ApplyStepHook = ApplyStep;
 pub struct Workbook {
     pub(crate) pkg: Package,
     pub(crate) workbook_part: String,
+    #[cfg(test)]
+    pub(crate) comment_random: Option<fn() -> [u8; 16]>,
     pub(crate) sheets: Vec<SheetEntry>,
     first_visible: usize,
     pub(crate) shared_strings: Option<Vec<String>>,
@@ -237,6 +243,8 @@ impl Workbook {
         let mut wb = Self {
             pkg,
             workbook_part: l.workbook_part,
+            #[cfg(test)]
+            comment_random: None,
             sheets: l.sheets,
             first_visible: l.first_visible,
             shared_strings: l.shared_strings,

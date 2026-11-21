@@ -5,8 +5,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// W3CDTF UTC timestamp, e.g. `2026-11-16T09:30:00Z`.
 pub(crate) fn w3cdtf(t: SystemTime) -> String {
-    let secs = t.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-    let (days, rem) = ((secs / 86_400) as i64, secs % 86_400);
+    let secs = match t.duration_since(UNIX_EPOCH) {
+        Ok(duration) => i128::from(duration.as_secs()),
+        Err(error) => {
+            let duration = error.duration();
+            -i128::from(duration.as_secs()) - i128::from(duration.subsec_nanos() != 0)
+        }
+    };
+    let (days, rem) = (secs.div_euclid(86_400) as i64, secs.rem_euclid(86_400));
     // Civil date from days since 1970-01-01 (H. Hinnant's algorithm).
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
