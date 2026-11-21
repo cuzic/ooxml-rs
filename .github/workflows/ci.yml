@@ -106,4 +106,4 @@ jobs:
       - name: write manual-check cases
         run: cargo run --release -p ooxml-xlsx --example xlsx_manual_check -- "$RUNNER_TEMP/xlsx-oracle"
       - name: openpyxl table read-back (ADR-0017 P5b)
-        run: python -I crates/ooxml-xlsx/tests/oracle/tables.py "$RUNNER_TEMP/xlsx-oracle"
+        run: python -I crates/ooxml-xlsx/tests/oracle/tables.py "$RUNNER_TEMP/xlsx-oracle" && python -I crates/ooxml-xlsx/tests/oracle/comments.py "$RUNNER_TEMP/xlsx-oracle"

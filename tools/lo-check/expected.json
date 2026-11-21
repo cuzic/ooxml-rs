@@ -489,5 +489,17 @@
       ["xl/tables/table1.xml", ".//x:tableColumns/x:tableColumn[@name='Market']", 1],
       ["xl/tables/table1.xml", ".//x:autoFilter[@ref='A1:D3']", 1]
     ]
+  },
+  "xlsx/40-p5c-note.xlsx": {"sheets": {"Sheet1": {"B2": "Budget"}},
+    "xml": [
+      ["xl/comments1.xml", ".//x:comment[@ref='B2']/x:text/x:r/x:t[.='Quarterly budget']", 1],
+      ["xl/drawings/vmlDrawing1.vml", ".//{urn:schemas-microsoft-com:office:excel}ClientData[@ObjectType='Note'][{urn:schemas-microsoft-com:office:excel}Row='1'][{urn:schemas-microsoft-com:office:excel}Column='1']", 1]
+    ]
+  },
+  "xlsx/41-p5c-thread.xlsx": {"sheets": {"Sheet1": {"D3": "Review"}},
+    "xml": [
+      ["xl/comments1.xml", ".//x:comment[@ref='D3']/x:text/x:r/x:t[.='[Threaded comment]\n\nLooks wrong\n\nFixed']", 1],
+      ["xl/drawings/vmlDrawing1.vml", ".//{urn:schemas-microsoft-com:office:excel}ClientData[@ObjectType='Note'][{urn:schemas-microsoft-com:office:excel}Row='2'][{urn:schemas-microsoft-com:office:excel}Column='3']", 1]
+    ]
   }
 }

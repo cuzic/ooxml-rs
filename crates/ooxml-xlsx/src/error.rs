@@ -24,6 +24,15 @@ pub enum Error {
         /// The requested operation.
         operation: &'static str,
     },
+    /// The cell already has a legacy note.
+    #[error("the cell already has a note")]
+    NoteExists,
+    /// The cell already has a thread and its fallback is managed by that thread.
+    #[error("the cell has a threaded comment")]
+    ThreadedComment,
+    /// The cell has no note or thread for this operation.
+    #[error("the cell has no matching note or thread")]
+    NoSuchNote,
     /// Unsupported image format.
     #[error("unrecognized image format")]
     ImageFormat,

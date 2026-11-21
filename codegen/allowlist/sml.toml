@@ -12,6 +12,17 @@ names = [
     # ADR-0017 §3, ECMA-376 §18.3 and §18.9.
     "x:CT_Drawing/x:drawing",
     "x:CT_LegacyDrawing/x:legacyDrawing",
+    # ADR-0017 §§4–5, ECMA-376 SpreadsheetML and the SDK xltc schema.
+    "x:CT_Comments/x:comments",
+    "x:CT_Authors/x:authors",
+    "x:CT_Xstring/x:author",
+    "x:CT_CommentList/x:commentList",
+    "x:CT_Comment/x:comment",
+    "x:CT_Rst/x:text",
+    "xltc:CT_ThreadedComments/xltc:ThreadedComments",
+    "xltc:CT_ThreadedComment/xltc:threadedComment",
+    "xltc:CT_PersonList/xltc:personList",
+    "xltc:CT_Person/xltc:person",
     "x:CT_Worksheet/x:worksheet",
     "x:CT_SheetDimension/x:dimension",
     "x:CT_SheetData/x:sheetData",
