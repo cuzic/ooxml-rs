@@ -72,7 +72,16 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
    GitHub の自動付け替えに頼らず、明示的に付け替えてからブランチを消す（以前、付け替え前の削除で
    積み上げ PR が close されたことがある）。マージが拒否されたときは付け替えない。
 6. CI が落ちた原因が PR と無関係（flaky など）なら、マージせずに原因を直す PR を別に作る。
+7. **マージ後の片付け**（ストレージが逼迫するので必ずやる）。消すのは、HEAD が `origin/main` に含まれ、
+   未コミットの変更がなく、どのプロセスも使っていないものだけ:
+   - このブランチの `git worktree`（`git worktree remove <path>` のあと `git branch -d <branch>`）
+   - レビューや Codex 用にスクラッチ領域へ作ったクローン（`rev*`、`review*`、`cx-*` など）と、その build target
+   - Codex が作った `/tmp/ooxml-*` の作業ディレクトリのうち、この PR の分
+
+   owner の環境では、`gh pr merge` の後に PostToolUse hook がこの片付けを自動で行い、残したもの（未マージ、
+   未コミットの変更あり、使用中）を一覧で返す。hook が動かない環境では手で行う。
+   残ったものは報告に書き、消すかどうかは owner に聞く。
 
 ## 報告
 
-マージした PR、付け替えた PR、残った follow-up（Minor）を 1 行ずつ。
+マージした PR、付け替えた PR、残った follow-up（Minor）、片付けで消したものと残したものを 1 行ずつ。

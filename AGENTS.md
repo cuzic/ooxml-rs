@@ -47,6 +47,9 @@ cargo xtask codegen --check
   エンティティ解決なし、DTD を含む part は読み飛ばす。ダウンロードしたものを実行しない。
 - プローブや一時ファイルはリポジトリの外（スクラッチ領域）に置く。リポジトリに `PWNED` のような
   検証用の残骸を残さない。
+- 作業用のクローン、`/tmp` の作業ディレクトリ、build target（`CARGO_TARGET_DIR`）は、PR を作るか更新して
+  報告を書いたら消す。PR 本文で参照する成果物だけは残してよい。1 つの作業で数十 GB になることがあり、
+  残すとディスクが埋まる。
 - 生成物（`crates/ooxml-schema/src/generated/`、`crates/ooxml-core/src/generated/parts.rs`、
   `codegen/report.txt`）は手で直さず、
   `codegen/allowlist/*.toml` や `codegen/overrides.toml` を直して `cargo xtask codegen` で再生成する。
