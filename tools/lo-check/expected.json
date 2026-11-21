@@ -228,6 +228,15 @@
     "pdf_text": ["Table of contents — update this field."],
     "xml": [["word/document.xml", ".//w:instrText[.=' TOC \\o \"1-3\" \\h ']", 1], ["word/document.xml", ".//w:t[.='Table of contents — update this field.']", 1]]
   },
+  "docx/53-field-docproperty-createtime.docx": {
+    "text": ["Created: 11/22/2003"],
+    "pdf_text": ["Created: 11/22/2003"],
+    "xml": [
+      ["word/document.xml", ".//w:instrText[.=' DOCPROPERTY \"CreateTime\" ']", 1],
+      ["word/document.xml", ".//w:fldChar[@w:fldCharType='begin'][@w:dirty='true']", 1],
+      ["word/document.xml", ".//w:t", 1]
+    ]
+  },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},

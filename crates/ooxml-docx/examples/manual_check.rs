@@ -707,8 +707,16 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
         "<Relationship Id='rId2' Type='http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties' Target='docProps/core.xml'/>",
         "</Relationships>",
     );
-    const CORE: &str = "<cp:coreProperties xmlns:cp='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' xmlns:dc='http://purl.org/dc/elements/1.1/'><dc:title>Field property value</dc:title></cp:coreProperties>";
+    const CORE: &str = concat!(
+        "<cp:coreProperties xmlns:cp='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' ",
+        "xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:dcterms='http://purl.org/dc/terms/' ",
+        "xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>",
+        "<dc:title>Field property value</dc:title>",
+        "<dcterms:created xsi:type='dcterms:W3CDTF'>2003-11-22T13:14:15Z</dcterms:created>",
+        "</cp:coreProperties>",
+    );
 
+    const CREATED: &str = "53-field-docproperty-createtime.docx";
     let variants = [
         ("43-field-page.docx", "Page: ", FieldSpec::Page, false),
         ("44-field-numpages.docx", "Pages: ", FieldSpec::NumPages, false),
@@ -720,6 +728,7 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
         ("50-field-pageref.docx", "Reference page: ", FieldSpec::PageRef { bookmark: "FieldTarget".into(), hyperlink: false }, true),
         ("51-field-seq.docx", "Sequence: ", FieldSpec::Seq { identifier: "Figure".into() }, true),
         ("52-field-toc.docx", "", FieldSpec::Toc { levels: (1, 3), hyperlinks: true }, true),
+        (CREATED, "Created: ", FieldSpec::DocProperty { name: "CreateTime".into() }, false),
     ];
     for (file, label, spec, opt_in) in variants {
         let paragraph = if label.is_empty() {
@@ -752,7 +761,16 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
             file,
             fixture: "",
             done,
-            check: "Verify the display, toggle field codes to inspect the instruction, then update the field.",
+            check: if file == CREATED {
+                concat!(
+                    "On first open, record the Word version and locale, any update prompt, and what appears ",
+                    "after Created (blank, a date for 22 November 2003, or another result). ",
+                    "Use Alt+F9 to show field codes, put the cursor inside DOCPROPERTY CreateTime, ",
+                    "and press F9 to update it. Return to the field result and record the new display.",
+                )
+            } else {
+                "Verify the display, toggle field codes to inspect the instruction, then update the field."
+            },
         });
     }
     Ok(())
