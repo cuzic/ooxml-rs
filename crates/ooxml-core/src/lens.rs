@@ -1215,6 +1215,21 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         true
     }
 
+    /// Removes a contiguous range of child items in one pass.
+    ///
+    /// Indices count elements, text and markup. Returns false for an invalid
+    /// range. An empty range is valid and leaves the document untouched.
+    pub fn remove_range(&mut self, range: std::ops::Range<usize>) -> bool {
+        if range.start > range.end || range.end > self.node().children().len() {
+            return false;
+        }
+        if !range.is_empty() {
+            self.node_mut().splice_children(range, std::iter::empty());
+            self.mark_path();
+        }
+        true
+    }
+
     // ---- attributes ----
 
     /// Refusals shared by `set_attr` and `remove_attr`: an incomplete spec,

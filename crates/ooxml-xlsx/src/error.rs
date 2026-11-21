@@ -16,6 +16,14 @@ pub enum Error {
         /// Why it cannot be edited.
         reason: String,
     },
+    /// Workbook or worksheet protection forbids this operation.
+    #[error("{scope} protection forbids {operation}")]
+    Protected {
+        /// The protected scope.
+        scope: &'static str,
+        /// The requested operation.
+        operation: &'static str,
+    },
     /// Unsupported image format.
     #[error("unrecognized image format")]
     ImageFormat,

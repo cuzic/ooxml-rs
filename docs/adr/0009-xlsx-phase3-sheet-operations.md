@@ -1059,3 +1059,17 @@ pending the owner's confirmation.
   Microsoft KB 159756, "XL97: Cannot Rename Worksheet to History":
   <https://techshelps.github.io/MSDN/KB/Source/excel/q159756.htm>.
 - Corpus measurements: `spikes/xlsx-phase3/sheet_ops_survey.py`.
+
+### Post-acceptance note — ADR-0018 sheet-name locations and structure protection
+
+Sheet addition, deletion (including strict deletion), rename and move refuse with
+`Protected { scope: "workbook", operation }` when
+`workbookProtection/@lockStructure` is true. The guard runs before staging writes.
+`lockWindows` alone does not trigger it.
+
+The sheet-name pass rewrites CF and DV formulas (L17, L19), registered x14 CF/DV
+and sparkline formulas (L20, L21), worksheet controls (L30), table column
+formulas (L37), VML controls (L42), drawing text links (L46), connection cell
+parameters (L55) and control property formulas (L56). A pivot chart source
+(L49) can be renamed when the new name needs no quoting. Removing the pivot
+chart source sheet remains a refusal.

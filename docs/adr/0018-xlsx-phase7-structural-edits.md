@@ -1568,3 +1568,18 @@ defaults, which the owner may still override. Q12 was changed to fail closed (re
 - Corpus: POI `test-data/spreadsheet` at the POI commit above; calamine fixtures in
   `reference/fixtures/xlsx/calamine/`; synthetic fixtures in
   `reference/fixtures/xlsx/synthetic/`.
+
+### P7-pre implementation note — sheet operations and bulk removal
+
+The sheet-name dispatch matches qualified XML element paths and checks the
+enclosing extension URI for x14 formulas. The new formula locations splice
+escaped text or attribute values into the staged XML. Existing typed writers
+retain their report labels and ordering. The structural range helper retains the
+original endpoint order and absolute flags, using spatial order for clipping and
+pinning. A cell write plan requests the full-calc flag, which can be applied to
+the operation's staged workbook document.
+
+Core exposes `LensMut::remove_range` over child-item indices (including text and
+markup). Invalid ranges return false and empty ranges succeed without dirtying
+the tree. The fuzz oracle compares the bulk operation with descending
+`remove_at` calls.

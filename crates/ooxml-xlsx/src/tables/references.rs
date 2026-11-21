@@ -4,125 +4,12 @@ use super::{Write, attr};
 use crate::edit::CellOp;
 use crate::formula::lexer::{Prefix, TokKind, lex};
 use crate::formula::precedents::fold;
+use crate::formula::structured::parse;
+pub(super) use crate::formula::structured::specifier;
 use crate::workbook::TableHeader;
 use crate::{CellIndex, Error, Result, Workbook};
 use ooxml_core::{ElementSpec, RawNode, XmlDocument};
 use std::collections::HashSet;
-
-pub(super) fn specifier(name: &str, nested: bool) -> String {
-    let double = !nested
-        && (name.trim() != name
-            || name.contains([
-                '\t', '\n', '\r', ',', ':', '.', '[', ']', '#', '\'', '"', '{', '}', '$', '^', '&',
-                '*', '+', '=', '-', '>', '<', '/', '@',
-            ]));
-    let mut result = String::from(if double { "[[" } else { "[" });
-    for c in name.chars() {
-        if matches!(c, '\'' | '#' | '[' | ']' | '@') {
-            result.push('\'');
-        }
-        result.push(c);
-    }
-    result.push_str(if double { "]]" } else { "]" });
-    result
-}
-
-#[derive(Default)]
-struct Items {
-    selectors: Vec<&'static str>,
-    columns: Vec<String>,
-}
-
-impl Items {
-    fn item(&mut self, item: &str) -> Option<()> {
-        match fold(item).as_str() {
-            "#this row" | "@" => self.selectors.push("#This Row"),
-            "#all" => self.selectors.push("#All"),
-            "#data" => self.selectors.push("#Data"),
-            "#headers" => self.selectors.push("#Headers"),
-            "#totals" => self.selectors.push("#Totals"),
-            _ if item.starts_with(['#', '@']) || item.is_empty() => return None,
-            _ => {
-                let mut decoded = String::new();
-                let mut chars = item.chars();
-                while let Some(c) = chars.next() {
-                    match c {
-                        '\'' => decoded.push(
-                            chars
-                                .next()
-                                .filter(|c| matches!(c, '\'' | '#' | '[' | ']' | '@'))?,
-                        ),
-                        '[' | ']' => return None,
-                        _ => decoded.push(c),
-                    }
-                }
-                self.columns.push(decoded);
-            }
-        }
-        Some(())
-    }
-}
-
-/// Takes a bracketed item, skipping closing brackets that are escaped.
-fn take_item(text: &str) -> Option<(&str, &str)> {
-    let text = text.strip_prefix('[')?;
-    let mut chars = text.char_indices();
-    while let Some((i, c)) = chars.next() {
-        match c {
-            '\'' => {
-                chars.next()?;
-            }
-            ']' => return Some((&text[..i], &text[i + 1..])),
-            '[' => return None,
-            _ => {}
-        }
-    }
-    None
-}
-
-fn parse(spec: &str) -> Option<Items> {
-    let mut rest = spec.strip_circumfix('[', ']')?;
-    let mut result = Items::default();
-    if let Some(row) = rest.strip_prefix('@') {
-        result.selectors.push("#This Row");
-        rest = row;
-        if rest.is_empty() {
-            return Some(result);
-        }
-    }
-    if !rest.trim_start().starts_with('[') {
-        let selectors = result.selectors.len();
-        result.item(rest)?;
-        if selectors != 0 && result.columns.is_empty() {
-            return None;
-        }
-        return Some(result);
-    }
-    rest = rest.trim_start();
-    loop {
-        let (item, tail) = take_item(rest)?;
-        if !result.columns.is_empty() {
-            return None;
-        }
-        result.item(item)?;
-        let mut tail = tail.trim_start();
-        if let Some(range) = tail.strip_prefix(':') {
-            let (end, remaining) = take_item(range.trim_start())?;
-            result.item(end)?;
-            if result.columns.len() != 2 {
-                return None;
-            }
-            tail = remaining.trim_start();
-        }
-        if tail.is_empty() {
-            return match result.selectors.as_slice() {
-                [] | [_] | ["#Headers", "#Data"] | ["#Data", "#Totals"] => Some(result),
-                _ => None,
-            };
-        }
-        rest = tail.strip_prefix(',')?.trim_start();
-    }
-}
 
 pub(super) fn calculated(text: &str, name: &str, columns: &HashSet<String>) -> Result<String> {
     let text = text.strip_prefix('=').unwrap_or(text);
@@ -136,9 +23,11 @@ pub(super) fn calculated(text: &str, name: &str, columns: &HashSet<String>) -> R
     let mut pos = 0;
     for token in tokens.iter().filter(|t| matches!(t.kind, TokKind::Opaque)) {
         let raw = &text[token.start..token.end];
-        let Some(i) = raw.find('[') else { continue };
-        let items = parse(&raw[i..]).ok_or_else(|| invalid("invalid structured reference"))?;
-        if i != 0 && fold(&raw[..i]) != own_name {
+        if !raw.contains('[') {
+            continue;
+        }
+        let items = parse(raw).ok_or_else(|| invalid("invalid structured reference"))?;
+        if !items.table_span.is_empty() && fold(&raw[items.table_span.clone()]) != own_name {
             continue;
         }
         if items

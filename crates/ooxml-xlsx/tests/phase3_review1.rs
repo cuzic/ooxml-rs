@@ -40,14 +40,16 @@ fn two_sheets() -> Vec<u8> {
 // ---- B1: every formula-bearing element is rewritten or refused ----
 
 #[test]
-fn x14_formulas_refuse() {
+fn x14_formulas_require_the_registered_uri_and_path() {
     let base = two_sheets();
     let dv = r#"<sheetData/><extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}"><x14:dataValidations count="1"><x14:dataValidation type="list"><x14:formula1><xm:f>Data!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>A1</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst>"#;
     let sp = r#"<sheetData/><extLst><ext uri="{05C60535-1F16-4fd2-B633-F4F36F0B64E0}"><x14:sparklineGroups><x14:sparklineGroup><x14:sparklines><x14:sparkline><xm:f>Data!A1:E1</xm:f><xm:sqref>F1</xm:sqref></x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext></extLst>"#;
     // an SML-namespace <f> outside sheetData/row/c (not what the rewriter edits)
     let stray = r#"<sheetData/><extLst><ext uri="{X}"><f>Data!A1</f></ext></extLst>"#;
     for inner in [dv, sp] {
-        let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", ws(inner))]);
+        let wrong_uri = inner.replace(r#"uri="{"#, r#"uri="{wrong-"#);
+        assert_ne!(wrong_uri, inner);
+        let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", ws(&wrong_uri))]);
         assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
         assert_matches!(refuses(&input, |wb| wb.delete_sheet("Data")), Error::UnrewritableReference { .. });
     }
@@ -306,43 +308,43 @@ fn rows() -> Vec<Row> {
             label: "DV formula1",
             edits: vec![(SHEET2, w(r#"<sheetData/><dataValidations count="1"><dataValidation type="list" sqref="A1"><formula1>'Sheet 1'!$A$1:$A$3</formula1></dataValidation></dataValidations>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "CF formula",
             edits: vec![(SHEET2, w(r#"<sheetData/><conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>'Sheet 1'!A1&gt;0</formula></cfRule></conditionalFormatting>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "x14 xm:f",
             edits: vec![(SHEET2, w(r#"<sheetData/><extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}"><x14:dataValidations count="1"><x14:dataValidation><x14:formula1><xm:f>'Sheet 1'!$A$1</xm:f></x14:formula1></x14:dataValidation></x14:dataValidations></ext></extLst>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "table calculatedColumnFormula",
             edits: vec![("xl/tables/table9.xml", format!(r#"<table xmlns="{WS_NS}" id="9" name="T9" displayName="T9" ref="A1:A3"><tableColumns count="1"><tableColumn id="1" name="x"><calculatedColumnFormula>'Sheet 1'!A1</calculatedColumnFormula></tableColumn></tableColumns></table>"#))],
             types: vec![("xl/tables/table9.xml", TABLE_CT)],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "connections parameter/@cell",
             edits: vec![("xl/connections.xml", format!(r#"<connections xmlns="{WS_NS}"><connection id="1" name="q"><parameters count="1"><parameter name="p" cell="'Sheet 1'!$A$1"/></parameters></connection></connections>"#))],
             types: vec![("xl/connections.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml")],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "ctrlProps @fmlaLink",
             edits: vec![("xl/ctrlProps/ctrlProp1.xml", r#"<formControlPr xmlns="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" objectType="CheckBox" fmlaLink="'Sheet 1'!$A$1"/>"#.into())],
             types: vec![("xl/ctrlProps/ctrlProp1.xml", "application/vnd.ms-excel.controlproperties+xml")],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "VML x:FmlaLink",
             edits: vec![("xl/drawings/vmlDrawing1.vml", r#"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:x="urn:schemas-microsoft-com:office:excel"><v:shape><x:ClientData ObjectType="Checkbox"><x:FmlaLink>'Sheet 1'!$A$1</x:FmlaLink></x:ClientData></v:shape></xml>"#.into())],
             types: vec![("xl/drawings/vmlDrawing1.vml", "application/vnd.openxmlformats-officedocument.vmlDrawing")],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "VML that does not parse",
@@ -354,7 +356,7 @@ fn rows() -> Vec<Row> {
             label: "xdr:sp/@textlink",
             edits: vec![("xl/drawings/drawing1.xml", r#"<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"><xdr:sp textlink="'Sheet 1'!$A$1"/></xdr:wsDr>"#.into())],
             types: vec![("xl/drawings/drawing1.xml", DRAWING_CT)],
-            rewritten: false,
+            rewritten: true,
         },
         Row { label: "hyperlink/@location", edits: vec![(SHEET2, w(r#"<sheetData/><hyperlinks><hyperlink ref="A1" location="'Sheet 1'!B2"/></hyperlinks>"#))], types: vec![], rewritten: true },
         Row {
@@ -380,37 +382,37 @@ fn rows() -> Vec<Row> {
             label: "2007 cfvo/@val",
             edits: vec![(SHEET2, w(r#"<sheetData/><conditionalFormatting sqref="A1"><cfRule type="colorScale" priority="1"><colorScale><cfvo type="formula" val="'Sheet 1'!$A$1"/><cfvo type="max"/><color rgb="FF000000"/><color rgb="FFFFFFFF"/></colorScale></cfRule></conditionalFormatting>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "x14 sparkline xm:f",
             edits: vec![(SHEET2, w(r#"<sheetData/><extLst><ext uri="{05C60535-1F16-4fd2-B633-F4F36F0B64E0}"><x14:sparklineGroups><x14:sparklineGroup><x14:sparklines><x14:sparkline><xm:f>'Sheet 1'!A1:E1</xm:f><xm:sqref>F1</xm:sqref></x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext></extLst>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "x14 CF xm:f",
             edits: vec![(SHEET2, w(r#"<sheetData/><extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}"><x14:conditionalFormattings><x14:conditionalFormatting><x14:cfRule type="expression" priority="1" id="{0}"><xm:f>'Sheet 1'!A1&gt;0</xm:f></x14:cfRule><xm:sqref>A1</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "table totalsRowFormula",
             edits: vec![("xl/tables/table9.xml", format!(r#"<table xmlns="{WS_NS}" id="9" name="T9" displayName="T9" ref="A1:A3"><tableColumns count="1"><tableColumn id="1" name="x" totalsRowFunction="custom"><totalsRowFormula>SUM('Sheet 1'!A1)</totalsRowFormula></tableColumn></tableColumns></table>"#))],
             types: vec![("xl/tables/table9.xml", TABLE_CT)],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "controlPr/@linkedCell",
             edits: vec![(SHEET2, w(r#"<sheetData/><controls><control shapeId="1025" r:id="rId9" name="c"><controlPr linkedCell="'Sheet 1'!$A$1"/></control></controls>"#))],
             types: vec![],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "cdr:sp/@textlink",
             edits: vec![("xl/drawings/drawing9.xml", r#"<c:userShapes xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:cdr="http://schemas.openxmlformats.org/drawingml/2006/chartDrawing"><cdr:relSizeAnchor><cdr:sp textlink="'Sheet 1'!$A$1"/></cdr:relSizeAnchor></c:userShapes>"#.into())],
             types: vec![("xl/drawings/drawing9.xml", "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml")],
-            rewritten: false,
+            rewritten: true,
         },
         Row {
             label: "workbook extLst",

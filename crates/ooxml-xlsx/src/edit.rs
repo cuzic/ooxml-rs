@@ -107,9 +107,8 @@ pub(crate) struct CellWritePlan {
     writes: Vec<PlannedWrite>,
     strip: StripPlan,
     handoffs: Vec<(String, HandOff)>,
-    /// `workbook.xml` with `calcPr/@fullCalcOnLoad`, cloned from the
-    /// current state.
-    staged: Option<XmlDocument>,
+    /// Whether the operation needs `calcPr/@fullCalcOnLoad`.
+    full_calc_on_load: bool,
     /// `calcChain.xml`, to remove.
     chain: Option<String>,
     registry: RegistryApply,
@@ -143,6 +142,13 @@ pub(crate) fn strip_cells(doc: &mut XmlDocument, positions: &[(usize, usize)]) -
         c.remove_data_type()?;
     }
     Ok(shared)
+}
+
+fn set_full_calc_on_load(doc: &mut XmlDocument) -> Result<()> {
+    let mut workbook = doc.lens_mut::<sml::Workbook>()?;
+    let mut calc = workbook.get_or_insert::<sml::CalculationProperties>()?;
+    calc.set_attr(sml::CalculationProperties::ATTR_FULL_CALC_ON_LOAD, "1")?;
+    Ok(())
 }
 
 fn xml_char_ok(c: char) -> bool {
@@ -420,19 +426,8 @@ impl Workbook {
             CalcPolicy::KeepStaleCaches => StripPlan::default(),
         };
 
-        // ---- calcPr on a clone of workbook.xml (cloned from the current state) ----
         let needs_calc = new_table || !others.is_empty() || formula_set_changes;
-        let staged = if needs_calc && !self.calc.manual && !self.calc.full_calc_on_load {
-            let mut doc: XmlDocument = self.pkg.xml_part(&self.workbook_part)?.clone();
-            {
-                let mut wb = doc.lens_mut::<sml::Workbook>()?;
-                let mut calc = wb.get_or_insert::<sml::CalculationProperties>()?;
-                calc.set_attr(sml::CalculationProperties::ATTR_FULL_CALC_ON_LOAD, "1")?;
-            }
-            Some(doc)
-        } else {
-            None
-        };
+        let full_calc_on_load = needs_calc && !self.calc.manual && !self.calc.full_calc_on_load;
 
         // ---- calcChain ----
         let chain = if formula_set_changes { self.calc_chain.clone() } else { None };
@@ -441,7 +436,7 @@ impl Workbook {
         }
         registry.refs_delta -= strip.shared_refs;
         registry.refs_changed |= strip.shared_refs != 0;
-        Ok(CellWritePlan { writes: planned, strip, handoffs, staged, chain, registry })
+        Ok(CellWritePlan { writes: planned, strip, handoffs, full_calc_on_load, chain, registry })
     }
 
     /// Applies a plan on its own: the calcChain removal and `workbook.xml`
@@ -450,11 +445,18 @@ impl Workbook {
         if plan.writes.is_empty() {
             return Ok(());
         }
+        let staged = if plan.full_calc_on_load {
+            let mut doc = self.pkg.xml_part(&self.workbook_part)?.clone();
+            set_full_calc_on_load(&mut doc)?;
+            Some(doc)
+        } else {
+            None
+        };
         // Poisoned *before* apply and cleared only on success: a panic inside
         // apply (a bug) that a caller catches also leaves the workbook
         // poisoned (review R3-m3).
         self.poisoned = Some("an edit was interrupted while being applied".into());
-        let result = self.apply_steps(plan, false);
+        let result = self.apply_steps(plan, false, staged);
         self.finish_apply(result)
     }
 
@@ -468,24 +470,32 @@ impl Workbook {
     /// `StalePlan` from `Package::apply` is also an ordinary `Err`: it is
     /// returned before anything changes, so the poison is cleared.
     pub(crate) fn apply_writes_with(&mut self, plan: CellWritePlan, registry: ooxml_core::RegistryPlan) -> Result<()> {
-        self.apply_writes_with_insertion(plan, registry, |_| Ok(()))
+        self.apply_writes_with_insertion(plan, registry, None, |_| Ok(()))
     }
 
     pub(crate) fn apply_writes_with_insertion(
         &mut self,
         plan: CellWritePlan,
         mut registry: ooxml_core::RegistryPlan,
+        mut staged_workbook: Option<XmlDocument>,
         insert: impl FnOnce(&mut Self) -> Result<()>,
     ) -> Result<()> {
-        if let Some(doc) = &plan.staged {
-            registry.stage_part(&self.pkg, &self.workbook_part, doc.clone())?;
+        if plan.full_calc_on_load {
+            let doc = match &mut staged_workbook {
+                Some(doc) => doc,
+                None => staged_workbook.insert(self.pkg.xml_part(&self.workbook_part)?.clone()),
+            };
+            set_full_calc_on_load(doc)?;
+        }
+        if let Some(doc) = staged_workbook {
+            registry.stage_part(&self.pkg, &self.workbook_part, doc)?;
         }
         if let Some(p) = &plan.chain {
             registry.remove_parts(&self.pkg, &[p.as_str()], &[REL_CALC_CHAIN])?;
         }
         self.apply_registry_edit(registry, |wb| {
             insert(wb)?;
-            wb.apply_steps(plan, true)
+            wb.apply_steps(plan, true, None)
         })
     }
 
@@ -656,14 +666,14 @@ impl Workbook {
     /// The in-place steps of §3.1, in order. With `registry_done`, the
     /// calcChain removal and `workbook.xml` were applied by
     /// `Package::apply`; only the in-memory state follows them.
-    fn apply_steps(&mut self, plan: CellWritePlan, registry_done: bool) -> Result<()> {
+    fn apply_steps(&mut self, plan: CellWritePlan, registry_done: bool, staged: Option<XmlDocument>) -> Result<()> {
         use crate::workbook::ApplyStepHook as Step;
-        let CellWritePlan { writes, strip, handoffs, staged, chain, registry } = plan;
+        let CellWritePlan { writes, strip, handoffs, full_calc_on_load, chain, registry } = plan;
         if registry_done {
             if chain.is_some() {
                 self.calc_chain = None;
             }
-            if staged.is_some() {
+            if full_calc_on_load {
                 self.calc.full_calc_on_load = true;
             }
         } else {
@@ -974,6 +984,22 @@ mod tests {
             // the workbook stays usable on both paths
             b.edit_cell(sheet(&b, "Sheet1"), CellIndex::parse("A2").unwrap(), CellOp::Number("1".into())).unwrap();
         }
+    }
+
+    #[test]
+    fn calc_flag_is_applied_to_the_callers_workbook() {
+        let input = synthetic("o1_no_calcpr.xlsx");
+        let mut book = Workbook::from_bytes(input).unwrap();
+        let plan = book.plan_writes(writes(&book)).unwrap();
+        let mut workbook = book.pkg.xml_part(&book.workbook_part).unwrap().clone();
+        let mut properties = workbook.lens_mut::<sml::Workbook>().unwrap()
+            .get_or_insert::<sml::WorkbookProperties>().unwrap();
+        properties.set_attr(QName::new("", "date1904"), "1").unwrap();
+        let registry = ooxml_core::RegistryPlan::new(&book.pkg);
+        book.apply_writes_with_insertion(plan, registry, Some(workbook), |_| Ok(())).unwrap();
+        let xml = book.pkg.xml_part(&book.workbook_part).unwrap().serialize();
+        assert!(xml.contains("date1904=\"1\""), "{xml}");
+        assert!(xml.contains("fullCalcOnLoad=\"1\""), "{xml}");
     }
 
     /// A refusal while folding (here: the caller's transaction already

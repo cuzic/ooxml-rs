@@ -68,6 +68,7 @@ mod images;
 pub use images::{Anchor, CellImage, EditAs, Image, ImageInfo, ImageMedia, Marker, Size};
 mod index;
 mod layout;
+mod locations;
 mod protect;
 mod range;
 mod rangefmla;
