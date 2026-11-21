@@ -280,7 +280,7 @@ pub enum Error {
         /// Zero-based index in the master list.
         index: usize,
     },
-    /// Another slide master or notes master uses the same theme.
+    /// Another slide, notes or handout master uses the same theme.
     #[error("theme is shared by multiple masters")]
     SharedTheme,
     /// A table style id neither defined in `ppt/tableStyles.xml` nor

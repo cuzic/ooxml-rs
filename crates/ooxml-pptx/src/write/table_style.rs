@@ -1,5 +1,6 @@
 //! Table style definitions (ADR-0016 §9).
 
+use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{
     ChildOf, ElementSpec, LensMut, Package, PartNameRequest, RegistryPlan, Target, XmlDocument,
 };
@@ -8,7 +9,8 @@ use sha2::{Digest, Sha256};
 
 use super::{ColorSpec, LineSpec, RunFill, ThemeFont};
 use crate::builtin_styles::builtin;
-use crate::error::Result;
+use crate::deck::child;
+use crate::error::{Error, Result};
 use crate::names::A_NS;
 
 const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
@@ -165,14 +167,22 @@ impl crate::Presentation {
                 if let Some(target) = rels.resolve(rel) {
                     self.pkg.free_part_name(PartNameRequest::Exact(target))?;
                 }
-                return Err(crate::Error::UnsupportedContent(
+                return Err(Error::UnsupportedContent(
                     "tableStyles relationship has no internal target part".into(),
                 ));
             }
             XmlDocument::parse(
-                format!("<a:tblStyleLst xmlns:a=\"{A_NS}\" def=\"{DEFAULT_STYLE}\"/>").as_bytes(),
+                format!(
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<a:tblStyleLst xmlns:a=\"{A_NS}\" def=\"{DEFAULT_STYLE}\"/>"
+                )
+                .as_bytes(),
             )?
         };
+        if child(doc.root(), MC_ALTERNATE_CONTENT).is_some() {
+            return Err(Error::UnsupportedContent(
+                "a:tblStyleLst contains mc:AlternateContent".into(),
+            ));
+        }
         let id = style_id(&definition.name, &style_ids(&doc)?);
         let mut list = doc.lens_mut::<dml::TableStyleList>()?;
         let mut entry = dml::TableStyleEntryViewMut(list.insert::<dml::TableStyleEntry>()?);

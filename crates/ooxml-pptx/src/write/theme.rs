@@ -1,6 +1,7 @@
 //! Minimal editing of the theme reached from a slide master (ADR-0016 §10).
 
-use ooxml_core::{ChildOf, ElementSpec, LensMut, Package, QName, RegistryPlan};
+use ooxml_core::name::MC_ALTERNATE_CONTENT;
+use ooxml_core::{ChildOf, ElementSpec, LensMut, Package, QName, RawNode, RegistryPlan};
 use ooxml_schema::dml;
 
 use super::formatting::remove_choices;
@@ -13,6 +14,8 @@ const CT_MASTER: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml";
 const CT_NOTES_MASTER: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml";
+const CT_HANDOUT_MASTER: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.handoutMaster+xml";
 
 /// A physical slot in the theme colour scheme.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,6 +65,11 @@ impl From<ThemeColor> for WriteColor {
 }
 
 /// The three typeface attributes in a major or minor theme font collection.
+///
+/// Each setter replaces all three values. An empty string clears the
+/// corresponding typeface, including the empty strings supplied by
+/// `ThemeFonts::default()`. Use literal font names. Theme references such as
+/// `+mj-lt` are rejected.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ThemeFonts<'a> {
     /// Latin typeface.
@@ -75,7 +83,7 @@ pub struct ThemeFonts<'a> {
 /// Options for opening a slide master's theme for editing.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ThemeOptions {
-    /// Allow editing a theme also used by another slide or notes master.
+    /// Allow editing a theme also used by another slide, notes or handout master.
     pub allow_shared: bool,
 }
 
@@ -89,7 +97,7 @@ pub struct ThemeMut<'a> {
 
 impl Presentation {
     /// Opens the theme of the zero-based slide master in `p:sldMasterIdLst`.
-    /// Refuses themes shared with a second slide or notes master.
+    /// Refuses themes shared with another slide, notes or handout master.
     pub fn master_theme_mut(&mut self, master: usize) -> Result<ThemeMut<'_>> {
         self.master_theme_mut_with(master, ThemeOptions::default())
     }
@@ -142,7 +150,7 @@ impl Presentation {
                         self.pkg.part_name(source) != Some(master.as_str())
                             && matches!(
                                 self.pkg.content_type(source),
-                                Some(CT_MASTER | CT_NOTES_MASTER)
+                                Some(CT_MASTER | CT_NOTES_MASTER | CT_HANDOUT_MASTER)
                             )
                     })
             })
@@ -161,11 +169,20 @@ impl ThemeMut<'_> {
     /// Changes one colour in the base theme.
     pub fn set_color(&mut self, slot: ThemeColorSlot, value: ThemeColor) -> Result<()> {
         self.edit(|mut elements| {
-            let mut scheme = elements.child_mut::<dml::ColorScheme>().ok_or_else(incomplete_theme)?;
+            let mut scheme = elements
+                .child_mut::<dml::ColorScheme>()
+                .ok_or_else(incomplete_theme)?;
             macro_rules! slots {
                 ($($slot:ident: $spec:ident),* $(,)?) => {
                     match slot {
                         $(ThemeColorSlot::$slot => {
+                            if scheme.node().elements()
+                                .filter(|node| node.is(MC_ALTERNATE_CONTENT))
+                                .flat_map(RawNode::elements)
+                                .any(|branch| child(branch, dml::$spec::QNAME).is_some())
+                            {
+                                return Err(alternate_color());
+                            }
                             let mut node = scheme.child_mut::<dml::$spec>().ok_or_else(incomplete_theme)?;
                             set_color(&mut node, value)
                         })*
@@ -258,7 +275,14 @@ fn incomplete_theme() -> Error {
     Error::UnsupportedContent("theme is missing a required colour or font element".into())
 }
 
+fn alternate_color() -> Error {
+    Error::UnsupportedContent("theme colour slot or value is wrapped in mc:AlternateContent".into())
+}
+
 fn set_typeface<E: ElementSpec>(mut node: LensMut<'_, E>, value: &str) -> Result<()> {
+    if value.starts_with("+mj-") || value.starts_with("+mn-") {
+        return Err(Error::ValueOutOfRange { what: "typeface" });
+    }
     let attr = un("typeface");
     if node.node().attr(attr) != Some(value) {
         node.preserve_attribute_spelling();
@@ -272,6 +296,9 @@ where
     dml::RgbColorModelHex: ChildOf<E>,
     dml::SystemColor: ChildOf<E>,
 {
+    if child(node.node(), MC_ALTERNATE_CONTENT).is_some() {
+        return Err(alternate_color());
+    }
     let spec = ColorSpec::from(WriteColor::from(color));
     if spec.matches(node.node()) {
         return Ok(());

@@ -152,7 +152,11 @@ fn missing_style_part_registers_exact_name_and_keeps_default() {
     let saved = Package::from_bytes(deck.to_bytes().unwrap()).unwrap();
     assert_eq!(style_target(&saved), STYLES);
     assert_eq!(saved.content_type(STYLES), Some(STYLES_CT));
-    let doc = XmlDocument::parse(&saved.read_part(STYLES).unwrap()).unwrap();
+    let style_xml = xml(&saved, STYLES);
+    assert!(
+        style_xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n")
+    );
+    let doc = XmlDocument::parse(style_xml.as_bytes()).unwrap();
     assert_eq!(
         doc.root().attr(QName::new("", "def")),
         Some("{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}")
@@ -320,15 +324,35 @@ fn theme_changes_only_requested_colour_and_font_attributes() {
 }
 
 #[test]
-fn shared_theme_requires_opt_in() {
-    let mut pkg = fixture("python-pptx/sld-notes.pptx");
-    let notes_rels = "ppt/notesMasters/_rels/notesMaster1.xml.rels";
-    replace(
-        &mut pkg,
-        notes_rels,
+fn theme_shared_with_notes_master_requires_opt_in() {
+    assert_shared_theme(
+        "python-pptx/sld-notes.pptx",
+        "ppt/notesMasters/_rels/notesMaster1.xml.rels",
         "../theme/theme2.xml",
-        "../theme/theme1.xml",
     );
+}
+
+#[test]
+fn theme_shared_with_handout_master_requires_opt_in() {
+    assert_shared_theme(
+        "poi/45545_Comment.pptx",
+        "ppt/handoutMasters/_rels/handoutMaster1.xml.rels",
+        "../theme/theme3.xml",
+    );
+}
+
+#[test]
+fn theme_shared_with_another_slide_master_requires_opt_in() {
+    assert_shared_theme(
+        "poi/bug68703.pptx",
+        "ppt/slideMasters/_rels/slideMaster2.xml.rels",
+        "../theme/theme2.xml",
+    );
+}
+
+fn assert_shared_theme(fixture_name: &str, rels: &str, old_target: &str) {
+    let mut pkg = fixture(fixture_name);
+    replace(&mut pkg, rels, old_target, "../theme/theme1.xml");
     let before = pkg.to_bytes().unwrap();
     let mut deck = Presentation::from_bytes(before.clone()).unwrap();
     assert_matches!(deck.master_theme_mut(0), Err(Error::SharedTheme));
@@ -341,4 +365,81 @@ fn shared_theme_requires_opt_in() {
     let after = Package::from_bytes(deck.to_bytes().unwrap()).unwrap();
     assert_other_parts(&pkg, &after, &[THEME]);
     assert!(xml(&after, THEME).contains("val=\"010203\""));
+}
+
+fn alternate_content(contents: &str) -> String {
+    format!(
+        r#"<compat:AlternateContent xmlns:compat="{}"><compat:Choice Requires="a">{contents}</compat:Choice><compat:Fallback>{contents}</compat:Fallback></compat:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    )
+}
+
+#[test]
+fn table_style_list_with_alternate_content_is_refused_without_changes() {
+    let mut pkg = fixture(styles_theme_case::TABLE_FIXTURE);
+    let style_xml = xml(&pkg, STYLES);
+    let doc = XmlDocument::parse(style_xml.as_bytes()).unwrap();
+    let span = doc.root().elements().next().unwrap().span().unwrap();
+    let entry = &style_xml[span.start..span.end()];
+    replace(&mut pkg, STYLES, entry, &alternate_content(entry));
+    let before = pkg.to_bytes().unwrap();
+    let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+    assert_matches!(
+        deck.add_table_style(TableStyleDef::default()),
+        Err(Error::UnsupportedContent(message))
+            if message.contains("a:tblStyleLst") && message.contains("mc:AlternateContent")
+    );
+    assert_eq!(deck.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn alternate_theme_color_is_refused_without_changes() {
+    let color = r#"<a:srgbClr val="C0504D"/>"#;
+    let slot = format!("<a:accent2>{color}</a:accent2>");
+    for replacement in [
+        alternate_content(&slot),
+        format!("<a:accent2>{}</a:accent2>", alternate_content(color)),
+    ] {
+        let mut pkg = fixture(styles_theme_case::THEME_FIXTURE);
+        replace(&mut pkg, THEME, &slot, &replacement);
+        let before = pkg.to_bytes().unwrap();
+        let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+        assert_matches!(
+            deck.master_theme_mut(0)
+                .unwrap()
+                .set_color(ThemeColorSlot::Accent2, ThemeColor::Rgb([1, 2, 3])),
+            Err(Error::UnsupportedContent(message))
+                if message.contains("theme colour") && message.contains("mc:AlternateContent")
+        );
+        assert_eq!(deck.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
+fn theme_typeface_references_are_refused_without_changes() {
+    let before = fixture(styles_theme_case::THEME_FIXTURE)
+        .to_bytes()
+        .unwrap();
+    let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+    assert_matches!(
+        deck.master_theme_mut(0)
+            .unwrap()
+            .set_major_font(ThemeFonts {
+                latin: "Georgia",
+                east_asian: "+mj-ea",
+                complex_script: "Arial",
+            }),
+        Err(Error::ValueOutOfRange { what: "typeface" })
+    );
+    assert_eq!(deck.to_bytes().unwrap(), before);
+    assert_matches!(
+        deck.master_theme_mut(0)
+            .unwrap()
+            .set_minor_font(ThemeFonts {
+                latin: "+mn-lt",
+                ..ThemeFonts::default()
+            }),
+        Err(Error::ValueOutOfRange { what: "typeface" })
+    );
+    assert_eq!(deck.to_bytes().unwrap(), before);
 }
