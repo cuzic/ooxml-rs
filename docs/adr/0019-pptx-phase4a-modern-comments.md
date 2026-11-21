@@ -1,6 +1,7 @@
 # ADR-0019: PowerPoint Phase 4a — writing modern comments
 
-- Status: **Draft** (revision 2)
+- Status: **Proposed** (revision 3): converged in review round 2,
+  awaiting the owner's decisions on Q1–Q8
 - Date: 2026-11-21
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): T2 locality,
@@ -34,7 +35,8 @@
   - LibreOffice `2e885d0b` export source (§11).
   - Open XML SDK schema data in `reference/openxml-sdk-data/`.
 - Review: [round 1](0019-opus-review-round1.md) (not converged: M1;
-  m1–m10, n1–n3)
+  m1–m10, n1–n3), [round 2](0019-opus-review-round2.md) (converged:
+  m11–m14, n4–n5 applied in revision 3)
 
 ## Revision history
 
@@ -58,6 +60,18 @@
   | n1 provenance of the 4 v4 ids | 1 from the PowerPoint fixture, 3 from `modern-comments.pptx` | Context |
   | n2 spike counts both AC branches | README note | spike README |
   | n3 initials for Japanese names | *(u)*, checked by F2 and M4 | §4 |
+
+- **Revision 3** (after `0019-opus-review-round2.md`: converged, Minor and
+  nits only). Status: Proposed, awaiting the owner's decisions on Q1–Q8.
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | m11 text rules differ from ADR-0005, so read-back text with `a:br` cannot be written | comment text follows `TextBodyMut::set_text`'s table: `\v` → `a:br`, `\r\n`/`\r` → `\n`, `\t` allowed; the rationale is that precedent | §5 |
+  | m12 no same-value rule for text edits | normalised text equal to the stored text → `Ok`, byte-identical; tests for `a\nb` and `a\r\nb` | §5, §11.2 |
+  | m13 the id scan refused too broadly | only modern comment and authors parts; refused only when a part does not parse; ids collected from parts with AC or unknown children; legacy parts not scanned (no GUIDs); the add/delete asymmetry stated | §5, §8, §9 |
+  | m14 "edited elements satisfy every invariant" brings back I3/I6 false positives | created elements satisfy every invariant; edited elements only for what was written | §11.3 |
+  | n4 the fallback LibreOffice oracle cannot be byte-identical (LibreOffice rewrites comment parts) | fallback is "opens and re-saves without error" only | §11.5 |
+  | n5 "survey lists as non-conforming" is not an output of the survey | committed allowlist file of (deck, error) pairs | §11.6 |
 
 ## Context
 
@@ -375,11 +389,20 @@ GUIDs, braced and upper-case. This is PowerPoint's form for comments
 - A failure is `Error::Random(String)`, as in xlsx.
 - **Uniqueness:** each candidate is checked, case-insensitively, against
   every `p188:cm@id`, `p188:reply@id` and `p188:author@id` in **every**
-  part with the comments or authors content type. Every part is scanned,
-  not just the related ones (ADR-0017 review m10). A part in that scan
-  that cannot be read refuses the write (`CommentPartNotEditable` /
-  `AuthorsPartNotEditable`), even on another slide: its ids are unknown.
-  This is fail closed, and acceptable because the API is new. The check also covers
+  part with the **modern** comments content type
+  (`application/vnd.ms-powerpoint.comments+xml`) or the authors content
+  type. Every such part is scanned, not just the related ones (ADR-0017
+  review m10). Legacy comment and author parts are not scanned: they
+  carry no GUIDs.
+  - The scan is a read, not an edit. It collects `@id`s even from parts
+    that §9 would refuse to **edit** (AC, unknown children, children out of
+    order).
+  - Only a part that does not **parse** (malformed, or past the depth
+    limit) refuses the add or reply, even on another slide, because its
+    ids are unknown. The error is `CommentPartNotEditable` /
+    `AuthorsPartNotEditable` with `reason` = `"id scan: <part> does not
+    parse"`. This is fail closed, and acceptable because the API is new.
+  - The check also covers
   every id given out or removed in this session (a session set, seeded on
   first use like P5c). Up to 32 draws are made, then `Error::Random`.
 - A `#[cfg(test)]` hook injects a deterministic byte source, as in xlsx.
@@ -408,12 +431,14 @@ is not required to follow its parent's (0 corpus violations; not enforced).
 
 - `\n` separates paragraphs, as PowerPoint and LibreOffice write one
   `a:p` per line.
-- `\r\n` and a lone `\r` are normalised to `\n` before splitting. A
-  literal `\r` in `a:t` would come back as `\n` from any XML parser
-  (end-of-line normalisation), so writing it raw could not round-trip, and
-  refusing it would make text pasted from Windows fail. Normalising keeps
-  the text the caller sees on read-back equal to what it wrote, up to line
-  endings.
+- **The character rules are ADR-0005's `TextBodyMut::set_text` table**
+  (`text.rs`), so that text read with `Slide::comments()` can be written
+  back unchanged:
+  - `\r\n` and a lone `\r` become `\n`;
+  - `\v` becomes an `a:br` inside the paragraph. The reader returns
+    `a:br` as `\u{b}` (`read.rs`), and §5's plain body allows `a:br`;
+  - `\t` is kept as text;
+  - any other character invalid in XML is `InvalidXmlChar`.
 - A new body is
   `<p188:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="…"/><a:t>…</a:t></a:r></a:p>…</p188:txBody>`.
   - `lang` is the caller's `NewComment::lang`, else `en-US`. PowerPoint
@@ -422,7 +447,6 @@ is not required to follow its parent's (0 corpus violations; not enforced).
     `InvalidCommentLang`.
   - An empty line is `<a:p><a:endParaRPr lang="…"/></a:p>`.
 - Empty text is refused (`EmptyCommentText`; PowerPoint cannot post one).
-- `\v`, `\t` and characters invalid in XML are `InvalidXmlChar`.
 
 **Editing text** replaces the `a:p` children of the target's
 `p188:txBody`. `a:bodyPr`/`a:lstStyle` are kept, as is the first run's
@@ -437,6 +461,13 @@ is not required to follow its parent's (0 corpus violations; not enforced).
   that points into the text *(u)*.
 
 Other attributes (`likes`, `tags`, task attributes) are kept.
+
+**Same text.** If the normalised new text equals the text
+`Slide::comments()` returns for the target, `set_comment_text` returns
+`Ok` and changes nothing: the output is byte-identical. Without this rule a
+rewrite would drop the later paragraphs' `a:pPr`/`a:rPr`. The comparison
+uses the normalised string, so `a\r\nb` equals a stored `a\nb`. The
+body checks above run first, so a body that is not plain is still refused.
 
 **Status (Q7).**
 
@@ -521,11 +552,16 @@ Corpus: legacy comments in 5 decks. There are 0 decks with both kinds, and
   `delete_slide` that removes a modern comment part. So the ids of a
   deleted slide's comments stay reserved for the session, as removed thread
   GUIDs do in xlsx P5c.
-  - **No new `Err` in `delete_slide`.** When it seeds the set, it reserves
-    the ids of every comment and authors part it can read and **skips** the
-    rest. An unreadable part is not a refusal there.
+  - **No new `Err` in `delete_slide`.** When it seeds the set, it uses the
+    same scan as §5 (modern comment and authors parts, ids collected from
+    every part that parses) and **skips** a part that does not parse. That
+    is not a refusal there.
   - The reservation is insurance for the deterministic test source: two
     random v4 ids collide with probability about 2^-122.
+  - **The asymmetry is intended.** An add or reply creates a new id, so it
+    fails closed when some ids are unknown. `delete_slide` creates none:
+    it only reserves ids, so an existing operation must not gain an error
+    for a part it does not need.
 - **`duplicate_slide`.** It already drops comments and gives the copy a new
   `p14:creationId`, so a comment added to the copy gets a different part name.
 - **`move_slide`.** Monikers name `sldId`/`cId`, not positions, so nothing
@@ -549,8 +585,8 @@ New variants. Every one of them is raised before `apply`, so each has an
 | `CommentNotFound { id }` | no `p188:cm`/`p188:reply` with that id (case-insensitive) in the slide's modern comment parts; a thread operation (reply, resolve) given a reply id |
 | `UnsupportedCommentAnchor(String)` | text-range anchor requested; a nested shape; a moniker kind not yet confirmed (§2); `p:contentPart`; the target inside AC (also `InsideAlternateContent`, Phase 0's error, which takes precedence) |
 | `LegacyCommentsOnSlide { slide }` | §7 |
-| `CommentPartNotEditable { part, reason }` | the part is missing, unreadable, beyond the depth limit, or its root is not `p188:cmLst`; an unknown child of `cmLst`; `mc:AlternateContent` anywhere in it; the part is the target of more than one relationship, or of a relationship from another slide (ownership ambiguous, ADR-0017 P5c note); the slide has two or more modern relationships (add only); `p:ext{6950BFC3-…}` without a relationship; a prefix bound to another URI (§3.1); the edited `p188:cm`/`p188:reply` has children out of schema order; any unreadable comment part in the package-wide id scan (§5); deleting the last thread when the `p:ext` holding its `commentRel` has other children (§6) |
-| `AuthorsPartNotEditable { part, reason }` | the same structural reasons for the authors part, including any child of `authorLst` other than `p188:author` (§4); two authors relationships; a duplicate author `id`; an unreadable authors part during the id scan (§5) |
+| `CommentPartNotEditable { part, reason }` | the part is missing, unreadable, beyond the depth limit, or its root is not `p188:cmLst`; an unknown child of `cmLst`; `mc:AlternateContent` anywhere in it; the part is the target of more than one relationship, or of a relationship from another slide (ownership ambiguous, ADR-0017 P5c note); the slide has two or more modern relationships (add only); `p:ext{6950BFC3-…}` without a relationship; a prefix bound to another URI (§3.1); the edited `p188:cm`/`p188:reply` has children out of schema order; a modern comment part in the package-wide id scan that does not parse (`reason` "id scan: …", §5); deleting the last thread when the `p:ext` holding its `commentRel` has other children (§6) |
+| `AuthorsPartNotEditable { part, reason }` | the same structural reasons for the authors part, including any child of `authorLst` other than `p188:author` (§4); two authors relationships; a duplicate author `id`; an authors part in the id scan that does not parse (§5) |
 | `InvalidCommentAuthor { reason }` | §4 validation |
 | `EmptyCommentText` | §5 |
 | `CommentBodyNotPlain { id }` | §5 |
@@ -642,12 +678,15 @@ impl Presentation {
    - a forced `Random` failure;
    - an unreadable comment part on another slide, for add (refused) and
      for `delete_slide` (still `Ok`, §8);
-   - `\r\n` text read back as `\n`; out-of-range `created`; bad `lang`
-     and `initials`;
+   - `\r\n` text read back as `\n`, `\v` read back as `\u{b}` (an
+     `a:br`); out-of-range `created`; bad `lang` and `initials`;
    - a `p14:creationId` outside `p:cSld/p:extLst`, and one that is not a
      u32.
 
-   Two `Ok` tests are named here because they guard M1 and m2:
+   Three `Ok` tests are named here because they guard M1, m2 and m12:
+   - **same text**: on a thread whose stored text is `a\nb`,
+     `set_comment_text("a\nb")` and `set_comment_text("a\r\nb")` both
+     return `Ok` and leave the output byte-identical;
    - **two modern relationships on one slide** (`SYNTHETIC:` from the
      project fixture: a second part and `commentRel`). Deleting the last
      thread of one part removes that part, its relationship and its
@@ -687,8 +726,11 @@ impl Presentation {
    - duplicate ids (I4);
    - the all-zero `creationId` of `modern-comments.pptx` (I6);
    - duplicate `p14:creationId`s from slide-copying tools (I12).
-   Elements this session created or edited must satisfy every invariant
-   outright.
+   **Elements this session created** must satisfy every invariant outright.
+   **Elements it edited** (a `p188:cm` that gained a reply, a new status
+   or a new body) are checked only for what was written: the new
+   attribute, child or body. So replying to a thread with an all-zero
+   `creationId` (I6) or an unresolved `authorId` (I3) passes.
 
    It runs in the CI python-pptx job on the `oracle_cases` outputs. There,
    python-pptx 1.0.2 also opens every output, and its slide and shape lists
@@ -710,12 +752,11 @@ impl Presentation {
      `project/powerpoint-shape-comment.pptx` and `libreoffice/modern-comments.pptx`
      through the key, to confirm that 25.2 imports `p188` comments, and to
      record how replies come out (threaded or flat) *(u)*.
-   - **If 25.2 does not import them,** the oracle is reduced, and the ADR
-     says so in a post-acceptance note: LibreOffice opens and re-saves the
-     case without crashing, and the comment and authors parts of the
-     **input** pass through to `--convert-to pptx` output byte-identical.
-     The latter only applies if LibreOffice keeps parts it does not
-     understand; otherwise the check is "opens without error".
+   - **If 25.2 does not import them,** the oracle is reduced to "opens and
+     re-saves without error", and a post-acceptance note says so.
+     LibreOffice rewrites the comment parts when it saves pptx
+     (`pptx-epptooxml.cxx` L2342–2355), so a byte comparison of them is
+     not possible.
 6. **Corpus sweep** over the 748 decks of the spike, adding the committed
    fixtures:
    - on slide 1 (or the first slide that §7 allows), add a slide comment
@@ -723,19 +764,24 @@ impl Presentation {
      unresolve and delete;
    - save, reopen, and run 1, 3 and 4;
    - refusals must be byte-identical and are counted by variant;
-   - **allowlist.** Only these refusals are allowed, and any other
-     variant, or any `Ok` that breaks oracle 1 or 3, fails the sweep:
+   - **allowlist.** The allowed refusals are a committed file of
+     (deck, error) pairs, `crates/ooxml-pptx/tests/data/comment_sweep_allowlist.txt`:
+     one `<deck sha256> <step> <variant>` per line, each with a reason
+     comment. Any refusal not listed fails the sweep. So does a listed pair
+     that no longer occurs, so the list cannot go stale, and so does any
+     `Ok` that breaks oracle 1 or 3. The variants expected to appear in it:
      - `ShapeNotFound`, when the slide has no top-level `p:sp` (the shape
        step only);
      - `UnsupportedContent`, for a `p14:creationId` outside its place or not
        a u32 (§3.2);
      - `CreationIdsExhausted`;
-     - `CommentPartNotEditable` / `AuthorsPartNotEditable`, only for decks
-       whose existing parts the survey lists as non-conforming;
-     - `InsideAlternateContent` / `UnsupportedCommentAnchor` never occur,
-       because the step picks a top-level `p:sp` outside AC.
-     `LegacyCommentsOnSlide` cannot occur because the step skips such
-     slides. A separate case asserts it on `45545_Comment.pptx`.
+     - `CommentPartNotEditable` / `AuthorsPartNotEditable`, for the decks
+       whose existing parts §9 refuses to edit.
+
+     These are never listed: `InsideAlternateContent` and
+     `UnsupportedCommentAnchor`, because the step picks a top-level `p:sp`
+     outside AC; and `LegacyCommentsOnSlide`, because the step skips such
+     slides. A separate case asserts that refusal on `45545_Comment.pptx`.
 7. **Mutation tests** (hand-made, each must fail a test):
    - the uniqueness scan limited to related parts;
    - lower-case GUIDs;
