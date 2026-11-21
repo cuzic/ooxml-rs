@@ -70,6 +70,28 @@ fn legacy_and_modern_comments() {
 }
 
 #[test]
+fn modern_shape_comment_survives_title_edit() {
+    for fixture in ["libreoffice/modern-comments.pptx", "project/powerpoint-shape-comment.pptx"] {
+        let mut p = open(fixture);
+        let d = p.deck().unwrap();
+        let comments = d.slide(0).unwrap().comments().unwrap();
+        assert_eq!(comments.len(), 1, "{fixture}");
+        assert!(comments[0].modern, "{fixture}");
+        assert_eq!(comments[0].anchor, Anchor::Shapes(vec![2]), "{fixture}");
+
+        p.slide_mut(0).unwrap().shape_mut_by_id(2).unwrap().text_body_mut().unwrap().set_text("Hello, edited").unwrap();
+        let mut reopened = Presentation::from_bytes(p.to_bytes().unwrap()).unwrap();
+        let slide = reopened.slide(0).unwrap();
+        assert_eq!(slide.shape_by_id(2).unwrap().unwrap().text_body().unwrap().text(), "Hello, edited", "{fixture}");
+        let d = reopened.deck().unwrap();
+        let comments = d.slide(0).unwrap().comments().unwrap();
+        assert_eq!(comments.len(), 1, "{fixture}");
+        assert!(comments[0].modern, "{fixture}");
+        assert_eq!(comments[0].anchor, Anchor::Shapes(vec![2]), "{fixture}");
+    }
+}
+
+#[test]
 fn transitions_choose_branches_by_uri() {
     let mut p = open("libreoffice/airplane-transition.pptx");
     let d = p.deck().unwrap();

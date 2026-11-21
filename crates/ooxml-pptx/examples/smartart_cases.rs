@@ -15,7 +15,7 @@ fn main() {
     let dir = std::env::args().nth(1).expect("usage: smartart_cases <out-dir>");
     std::fs::create_dir_all(&dir).unwrap();
     let mut files: Vec<String> = Vec::new();
-    for d in ["libreoffice", "open-xml-sdk", "poi", "python-pptx"] {
+    for d in ["libreoffice", "open-xml-sdk", "poi", "project", "python-pptx"] {
         for e in std::fs::read_dir(format!("{FIX}/{d}")).unwrap() {
             let p = e.unwrap().path();
             if p.extension().is_some_and(|x| x == "pptx") {
