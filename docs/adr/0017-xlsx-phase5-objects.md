@@ -1051,7 +1051,11 @@ An empty group or non-finite custom axis bound returns `InvalidSparklineGroup`.
 
 `CellMut::set_dynamic_formula` writes the file form of a formula with an
 anchor-only array reference and reuses the first compatible XLDAPR cell metadata
-block in document order. Metadata updates, calcChain removal and calcPr updates
+block in document order. A block is compatible when its XLDAPR properties have
+`fDynamic` set to true and `fCollapsed` absent or set to false. The formula
+census uses `fDynamic` alone to identify dynamic anchors. When creating a
+metadata part, the writer falls back to `metadataN.xml` if `metadata.xml`
+is already in use. Metadata updates, calcChain removal and calcPr updates
 share the cell write's registry transaction. Dependency invalidation includes
 the potential spill area. Adjacent writes remain legal outside any recorded
 result range. Excel computes the spill and can report `#SPILL!` when occupied
