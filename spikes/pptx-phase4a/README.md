@@ -36,6 +36,40 @@ What it counts:
 - coverage of `p14:creationId` (slides) and `a16:creationId` (shapes), and
   shapes at the top level of `p:spTree` against nested in groups.
 
+## P4a-0 evidence (`p4a0/`)
+
+Inputs and COM probes behind ADR-0019's P4a-0 post-acceptance note (items 5,
+9 and 10). They were made on 2026-11-21 in the same PowerPoint
+16.0.20326.20318 as the fixtures. They are evidence, not test fixtures, so
+no test reads them.
+
+| File | What it is |
+|---|---|
+| `probe-p1.pptx` … `probe-p5.pptx`, `probe-author-one.pptx`, `probe-ada-lovelace.pptx` | A new blank deck each, with one slide comment added through COM `Comments.Add2(10, 10, name, initials, text, providerId, userId)` with the dummy identities of the note's table, then `SaveAs`. They show the author-id derivation (item 5) and supply the replacement ids used in `reference/fixtures/pptx/project/` |
+| `rederive-in.pptx` | `project/powerpoint-slide-comment.pptx` with the author id replaced by the random v4 `{0F1E2D3C-4B5A-4978-8695-A4B3C2D1E0F9}` (made on Linux) |
+| `rederive-out.pptx` | `rederive-in.pptx` opened in PowerPoint and saved with `SaveAs`: the id is kept |
+| `mixed-deck-input.pptx` | The hand-made mixed deck (item 10), made by `python3 -I p4a0/make_mixed_input.py ../../reference/fixtures/pptx/poi/45545_Comment.pptx p4a0/mixed-deck-input.pptx`. PowerPoint's save of it is `project/powerpoint-mixed-deck-resaved.pptx`. Derived from an Apache-2.0 POI file (`reference/fixtures/pptx/LICENSES/apache-poi-*`) |
+| `make_mixed_input.py` | The script above (standard library only) |
+
+**Anonymised:** `docProps/core.xml` `dc:creator` and `cp:lastModifiedBy`
+named the signed-in account in the PowerPoint-saved decks and became
+`Author One`. Every author in these files is a dummy identity. The files
+were grepped for the account's name, email and author id.
+
+```
+a3df7a180c4a1e29ad977cdc82377fc2d41b1841452597ee8efb98d71ac1cb33  mixed-deck-input.pptx
+1ea28d847ce54edbea4aeafaaf5f862b9c13cefedca80488664589af2eefd42f  probe-ada-lovelace.pptx
+a56378a7ccab913989a6d9c5cb72497784dd27a45870148dcf08c9fd9fb334e1  probe-author-one.pptx
+51e83bbe1bc045cf0c44a82120d5cbbf1f6ba9d3103bfe0c964260dbf1a3018b  probe-p1.pptx
+0e551ccbf8ed2ebbc8df546ded0550a3c2125ae0a6f0d00664b7aad0dd2df239  probe-p2.pptx
+b92e1f00b8c1c1a0d32702cf154862bf591657f496084e1de0f6fad346f0c673  probe-p3.pptx
+47d9ef3fe20e99d00bfbc4538c01763c1fc8a5c178c97ff3f47d3cd28a906531  probe-p4.pptx
+840e73d574f5bc6cc611c8c1a37ab2b24f17a1132ef876ffa6c29b620121b146  probe-p5.pptx
+a0fafface82c507e4242a15a21d15e0b1152ac2c2d22df7e24adf82fb8441fe1  rederive-in.pptx
+e02fb843b59dc09c26d13c3066c85e86b56b29a3cb68f113c9d8bbfbb3a34b19  rederive-out.pptx
+1aab44da5f384a4c9d4c4a59cb508c8b4720ee678f0e98fdc3c12820fe4cfda5  make_mixed_input.py
+```
+
 ## Corpora (downloaded to scratch, not committed)
 
 These are the ADR-0008 sources, widened to every `.pptx` at the same pins.
