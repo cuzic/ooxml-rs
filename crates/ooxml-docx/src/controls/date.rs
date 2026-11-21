@@ -2,6 +2,26 @@ use chrono::{NaiveDateTime, Timelike};
 
 use crate::{Error, Result};
 
+pub(super) fn format_in_calendar(
+    date: NaiveDateTime,
+    picture: &str,
+    language: &str,
+    calendar: &str,
+) -> Result<String> {
+    if !matches!(
+        calendar,
+        "gregorian"
+            | "gregorianArabic"
+            | "gregorianMeFrench"
+            | "gregorianUs"
+            | "gregorianXlitEnglish"
+            | "gregorianXlitFrench"
+    ) {
+        return Err(unsupported(calendar));
+    }
+    format(date, picture, language)
+}
+
 pub(super) fn format(date: NaiveDateTime, picture: &str, language: &str) -> Result<String> {
     let mut remaining = picture;
     let mut display = String::new();
@@ -20,7 +40,7 @@ pub(super) fn format(date: NaiveDateTime, picture: &str, language: &str) -> Resu
         } else if let Some(rest) = remaining.strip_prefix("AM/PM") {
             display.push_str(if date.hour() < 12 { "AM" } else { "PM" });
             remaining = rest;
-        } else if first.is_alphabetic() {
+        } else if first.is_ascii_alphabetic() {
             let end = start
                 .find(|c| c != first)
                 .map_or(remaining.len(), |i| i + first.len_utf8());

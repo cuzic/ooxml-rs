@@ -92,6 +92,9 @@ pub struct ControlSpec {
 
 impl Document {
     /// Wraps an inline range or adjacent paragraphs in a content control.
+    ///
+    /// Wrapping preserves the selected text, including for a checkbox. Select text
+    /// with the desired glyph or call [Self::set_checked] to refresh it.
     pub fn wrap_in_control(&mut self, target: WrapTarget, spec: ControlSpec) -> Result<SdtId> {
         self.wrap_with_ids(target, spec, || {
             let mut bytes = [0; 4];
@@ -479,8 +482,37 @@ fn properties(xml: &mut XmlDocument, path: &[usize], spec: &ControlSpec, id: Sdt
 }
 
 #[cfg(test)]
+#[path = "../../tests/common/mod.rs"]
+mod test_package;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wrap_skips_ids_in_other_stories() {
+        let input = test_package::docx(
+            "<w:p><w:r><w:t>body</w:t></w:r></w:p>",
+            None,
+            Some(
+                "<w:sdt><w:sdtPr><w:id w:val='27'/></w:sdtPr><w:sdtContent><w:p/></w:sdtContent></w:sdt>",
+            ),
+        );
+        let mut doc = Document::from_bytes(input).unwrap();
+        let paragraph = ParaRef::new(crate::StoryIndex::MAIN, 0);
+        let mut ids = [27, 28].into_iter();
+        let id = doc
+            .wrap_with_ids(
+                WrapTarget::Paragraphs {
+                    first: paragraph,
+                    last: paragraph,
+                },
+                ControlSpec::default(),
+                || Ok(ids.next().unwrap()),
+            )
+            .unwrap();
+        assert_eq!(id, SdtId(28));
+    }
 
     #[test]
     fn skips_zero_and_existing_ids() {

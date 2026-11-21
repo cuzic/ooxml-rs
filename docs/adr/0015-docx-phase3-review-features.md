@@ -529,9 +529,9 @@ R3 is lifted for these kinds; every other kind stays refused:
 |---|---|---|
 | `w:text` (plain text) | `set_text` | The content becomes one run with the content's first run's `rPr`. `multiLine` decides whether `\n` maps to `w:br` or is refused. |
 | no kind element (rich text) | `set_text` on a single-paragraph control; runs inside follow R1–R4 as body runs do | Most controls (SDK 1,010) |
-| `w:date` | `set_date(date)` | `w:date/@w:fullDate` (ISO) and the displayed text, formatted with `w:dateFormat` and `w:lid` *(u: Word's format engine; Open question 6)*. A bound date control writes to the store in the form `w:storeMappedDataAs` names (`dateTime`, `date` or `text`). |
+| `w:date` | `set_date(date)` | `w:date/@w:fullDate` (ISO) and the displayed text, formatted with `w:dateFormat` and `w:lid` *(u: Word's format engine; Open question 6)*. Automatic formatting supports Gregorian calendars. A bound date control writes to the store in the form `w:storeMappedDataAs` names (`dateTime`, `date` or `text`). |
 | `w14:checkbox` | `set_checked(bool)` | `w14:checked/@w14:val` and the glyph run from `w14:checkedState`/`uncheckedState` (font and char) |
-| `w:dropDownList`, `w:comboBox` | `select(value)` | The **store** gets the item's `value`; the **display** is its `displayText`, or `value` when `displayText` is absent. A combo box also accepts free text. |
+| `w:dropDownList`, `w:comboBox` | `select(value)` | The **store** gets the item's `value`; the **display** is its `displayText`, or `value` when `displayText` is absent. A combo box also accepts free text. An existing `w:lastValue` is updated to the selected value or free text. |
 | `w:picture`, `w:docPartObj`, `w:docPartList`, `w:citation`, `w:bibliography`, `w:equation`, `w:group`, `w15:repeatingSection` | — | Refused (`UnsupportedControl`) |
 
 - **Placeholders.** When `w:showingPlcHdr` is present (SDK 1,673), setting a value removes it
@@ -1003,6 +1003,8 @@ owner's decision.
    available for English `w:lid` values. Other tokens, including Japanese era and weekday
    names, and month names with non-English `w:lid` values return `UnsupportedDateFormat`.
    Callers can supply text with `set_date_with_display`. DATE fields remain a D3e task.
+   The D3d post-acceptance note below records Gregorian calendar support and
+   the handling of unquoted non-ASCII literals.
 7. **Core-properties binding.** Proposed: allowed, but it requires `updateFields` when a field
    reads the written property (§6.2, M5).
 8. **Application defaults** without `docDefaults`. Proposed: Times New Roman 10 pt, reported as
@@ -1193,8 +1195,14 @@ Acceptance tests cover byte-local edits and byte-identical refusals.
   properties or removes the placeholder's run style from the first run.
 - Input dates are naive date-times interpreted as UTC. Defaults are `M/d/yyyy`,
   `en-US`, and `dateTime` mapping. Bound checkboxes write `true` or `false`.
+- For §6.1 and Open question 6, `set_date` accepts the Gregorian calendar variants
+  and rejects other calendar values with `UnsupportedDateFormat`. Use
+  `set_date_with_display` to supply the formatted value. Non-ASCII picture
+  characters such as `年`, `月`, and `日` are literals.
 - The wrapper takes a same-paragraph `TextRange` or adjacent sibling paragraphs. It
   moves the selected elements within their existing part, preserving their spans.
+  Checkbox wrapping (§6.3) preserves the selected text. Callers can select a run
+  containing the desired glyph or call `set_checked` to refresh it.
   It refuses moves across section breaks and enclosing contexts that would change
   the meaning of the range. A private projection writes the newly created
   `sdtPr` children in Transitional XSD order. Existing generated public names stay

@@ -260,7 +260,7 @@ fn core_properties_follow_package_relationship_and_gate_fields_in_other_stories(
         "/p:coreProperties[1]/v:title[1]",
         "xmlns:p='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' xmlns:v='http://purl.org/dc/elements/1.1/'",
     );
-    for instruction in ["TITLE", "DOCPROPERTY Title"] {
+    for instruction in ["TITLE", "DOCPROPERTY Title", "INFO Title"] {
         let header = para(&format!(
             "<w:fldSimple w:instr='{instruction}'>{}</w:fldSimple>",
             run("old")
@@ -275,7 +275,7 @@ fn core_properties_follow_package_relationship_and_gate_fields_in_other_stories(
         let control = doc.content_controls().next().unwrap().location;
         assert_matches!(
             doc.set_text(control, "new"),
-            Err(Error::StaleFieldRisk { .. })
+            Err(Error::StaleFieldRisk { codes }) if codes == [instruction.to_ascii_uppercase()]
         );
         assert_eq!(doc.to_bytes().unwrap(), input);
         doc.enable_update_fields_on_open().unwrap();
@@ -359,11 +359,16 @@ fn wrapping_must_match_existing_binding() {
         }),
         ..ControlSpec::default()
     };
-    assert_matches!(
-        doc.wrap_in_control(WrapTarget::Inline(TextRange::new(r, r)), spec.clone()),
-        Err(Error::BindingMismatch)
-    );
-    assert_eq!(doc.to_bytes().unwrap(), input);
+    for target in [
+        WrapTarget::Inline(TextRange::new(r, r)),
+        WrapTarget::Paragraphs { first: p, last: p },
+    ] {
+        assert_matches!(
+            doc.wrap_in_control(target, spec.clone()),
+            Err(Error::BindingMismatch)
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
     doc.set_run_text_at(r, "old").unwrap();
     doc.wrap_in_control(WrapTarget::Inline(TextRange::new(r, r)), spec)
         .unwrap();
@@ -549,4 +554,205 @@ fn an_uneditable_bound_peer_refuses_the_whole_transaction() {
         assert_eq!(std::mem::discriminant(&error), std::mem::discriminant(&expected), "{error:?}");
         assert_eq!(doc.to_bytes().unwrap(), input);
     }
+}
+
+#[test]
+fn non_gregorian_date_edits_require_a_display() {
+    let date = "2026-11-21T06:07:08".parse().unwrap();
+    for calendar in [
+        "hijri", "hebrew", "taiwan", "japan", "thai", "korea", "saka", "none",
+    ] {
+        let properties = format!(
+            "<w:date><w:dateFormat w:val='yyyy/MM/dd'/><w:lid w:val='en-US'/><w:calendar w:val='{calendar}'/></w:date>"
+        );
+        let input = docx(&para(&sdt(&properties, &run("old"))), None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let control = doc.content_controls().next().unwrap().location;
+        assert_matches!(
+            doc.set_date(control, date),
+            Err(Error::UnsupportedDateFormat { token }) if token == calendar
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input, "{calendar}");
+        doc.set_date_with_display(control, date, "formatted")
+            .unwrap();
+        assert_eq!(doc.paragraph(0).unwrap().text(), "formatted");
+    }
+}
+
+#[test]
+fn gregorian_date_pictures_accept_japanese_literals() {
+    for calendar in [
+        "gregorian",
+        "gregorianUs",
+        "gregorianMeFrench",
+        "gregorianArabic",
+        "gregorianXlitEnglish",
+        "gregorianXlitFrench",
+    ] {
+        let properties = format!(
+            "<w:date><w:dateFormat w:val='yyyy年M月d日'/><w:lid w:val='ja-JP'/><w:calendar w:val='{calendar}'/></w:date>"
+        );
+        let mut doc =
+            Document::from_bytes(docx(&para(&sdt(&properties, &run("old"))), None, None)).unwrap();
+        let control = doc.content_controls().next().unwrap().location;
+        doc.set_date(control, "2026-03-02T06:07:08".parse().unwrap())
+            .unwrap();
+        assert_eq!(doc.paragraph(0).unwrap().text(), "2026年3月2日");
+    }
+}
+
+#[test]
+fn list_selection_updates_existing_last_value() {
+    for (list, value, display) in [
+        ("dropDownList", "k1", "One"),
+        ("comboBox", "k1", "One"),
+        ("comboBox", "free & text", "free & text"),
+    ] {
+        for last_value in [" w:lastValue='k2'", ""] {
+            let properties = format!(
+                "<w:{list}{last_value}><w:listItem w:value='k1' w:displayText='One'/><w:listItem w:value='k2' w:displayText='Two'/></w:{list}>"
+            );
+            let input = docx(&para(&sdt(&properties, &run("Two"))), None, None);
+            let mut doc = Document::from_bytes(input).unwrap();
+            let control = doc.content_controls().next().unwrap().location;
+            doc.select(control, value).unwrap();
+            assert_eq!(doc.paragraph(0).unwrap().text(), display);
+            let output = String::from_utf8(part(&doc.to_bytes().unwrap(), MAIN)).unwrap();
+            let tree = roxmltree::Document::parse(&output).unwrap();
+            let node = tree
+                .descendants()
+                .find(|n| n.has_tag_name((W_NS, list)))
+                .unwrap();
+            assert_eq!(
+                node.attribute((W_NS, "lastValue")),
+                (!last_value.is_empty()).then_some(value),
+            );
+        }
+    }
+}
+
+#[test]
+fn inline_wrap_refuses_field_runs_and_enclosing_controls() {
+    let begin = "<w:r><w:fldChar w:fldCharType='begin'/></w:r>";
+    let instruction = "<w:r><w:instrText> DATE </w:instrText></w:r>";
+    let separator = "<w:r><w:fldChar w:fldCharType='separate'/></w:r>";
+    let end = "<w:r><w:fldChar w:fldCharType='end'/></w:r>";
+    let body = para(&format!(
+        "{begin}{instruction}{separator}{}{end}",
+        run("result")
+    ));
+    let input = docx(&body, None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let paragraph = ParaRef::new(StoryIndex::MAIN, 0);
+    for index in [1, 3] {
+        let run = RunRef::new(paragraph, index);
+        assert_matches!(
+            doc.wrap_in_control(
+                WrapTarget::Inline(TextRange::new(run, run)),
+                ControlSpec::default()
+            ),
+            Err(Error::InsideField)
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+
+    let input = docx(&para(&sdt("<w:text/>", &run("inside"))), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let run = RunRef::new(paragraph, 0);
+    assert_matches!(
+        doc.wrap_in_control(
+            WrapTarget::Inline(TextRange::new(run, run)),
+            ControlSpec::default()
+        ),
+        Err(Error::UnsupportedContext { ancestor: "w:sdt" })
+    );
+    assert_eq!(doc.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn block_wrap_refuses_fields_and_revisions() {
+    let field = format!(
+        "{}{}",
+        para(
+            "<w:r><w:fldChar w:fldCharType='begin'/></w:r><w:r><w:instrText> DATE </w:instrText></w:r><w:r><w:fldChar w:fldCharType='separate'/></w:r>"
+        ),
+        para(&format!(
+            "{}<w:r><w:fldChar w:fldCharType='end'/></w:r>",
+            run("result")
+        )),
+    );
+    let move_from = format!(
+        "<w:moveFromRangeStart w:id='1' w:name='moved' w:author='A'/>{}<w:moveFromRangeEnd w:id='1'/>",
+        para(&run("moved")),
+    );
+    let revised_mark = para(&format!(
+        "<w:pPr><w:rPr><w:ins w:id='1' w:author='A'/></w:rPr></w:pPr>{}",
+        run("revised"),
+    ));
+    for (body, index, inside_field) in [
+        (field, 1, true),
+        (move_from, 0, false),
+        (revised_mark, 0, false),
+    ] {
+        let input = docx(&body, None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let paragraph = ParaRef::new(StoryIndex::MAIN, index);
+        let result = doc.wrap_in_control(
+            WrapTarget::Paragraphs {
+                first: paragraph,
+                last: paragraph,
+            },
+            ControlSpec::default(),
+        );
+        if inside_field {
+            assert_matches!(result, Err(Error::InsideField));
+        } else {
+            assert_matches!(result, Err(Error::InsideRevision { .. }));
+        }
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+}
+
+#[test]
+fn block_wrap_refuses_invalid_ranges() {
+    let p = para(&run("text"));
+    for (body, last_index) in [
+        (sdt("", &p), 0),
+        (
+            para("<w:pPr><w:sectPr/></w:pPr><w:r><w:t>section</w:t></w:r>"),
+            0,
+        ),
+        (
+            format!("{p}<w:bookmarkStart w:id='1' w:name='gap'/><w:bookmarkEnd w:id='1'/>{p}"),
+            1,
+        ),
+    ] {
+        let input = docx(&body, None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let first = ParaRef::new(StoryIndex::MAIN, 0);
+        let last = ParaRef::new(StoryIndex::MAIN, last_index);
+        assert_matches!(
+            doc.wrap_in_control(
+                WrapTarget::Paragraphs { first, last },
+                ControlSpec::default()
+            ),
+            Err(Error::InvalidTextRange)
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+
+    let input = docx(&p, None, Some(&p));
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let header = doc.stories().nth(1).unwrap().index();
+    assert_matches!(
+        doc.wrap_in_control(
+            WrapTarget::Paragraphs {
+                first: ParaRef::new(StoryIndex::MAIN, 0),
+                last: ParaRef::new(header, 0),
+            },
+            ControlSpec::default()
+        ),
+        Err(Error::InvalidTextRange)
+    );
+    assert_eq!(doc.to_bytes().unwrap(), input);
 }

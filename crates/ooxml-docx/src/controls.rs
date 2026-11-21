@@ -14,8 +14,8 @@ use ooxml_core::{
     ChildOf, Detached, ElementSpec, LensMut, QName, RawNode, RegistryPlan, XmlDocument,
 };
 use ooxml_schema::wml::{
-    Checked, Paragraph, Run, RunFonts, RunProperties, SdtContentCheckBox, SdtContentDate,
-    SdtContentRun, SdtProperties, ShowingPlaceholder,
+    Checked, Paragraph, Run, RunFonts, RunProperties, SdtContentCheckBox, SdtContentComboBox,
+    SdtContentDate, SdtContentDropDownList, SdtContentRun, SdtProperties, ShowingPlaceholder,
 };
 
 use crate::document::{node_at, write_pieces};
@@ -166,6 +166,8 @@ enum Value<'a> {
 enum State {
     None,
     Date(String),
+    DropDownSelection,
+    ComboBoxSelection,
     Checked(bool, String),
 }
 
@@ -209,19 +211,28 @@ fn render(pr: &RawNode, kind: ControlKind, value: Value<'_>) -> Result<Rendered>
                 "comboBox"
             };
             let list = child(pr, w(local)).ok_or(Error::UnsupportedControl)?;
-            if let Some(item) = list
+            let display = match list
                 .elements()
                 .find(|n| n.is(w("listItem")) && n.attr(w("value")) == Some(value))
             {
-                Ok(text(item.attr(w("displayText")).unwrap_or(value), value))
-            } else if kind == ControlKind::ComboBox {
-                Ok(text(value, value))
-            } else {
-                Err(Error::InvalidValue {
-                    what: "content control list item",
-                    value: value.into(),
-                })
+                Some(item) => item.attr(w("displayText")).unwrap_or(value),
+                None if kind == ControlKind::ComboBox => value,
+                None => {
+                    return Err(Error::InvalidValue {
+                        what: "content control list item",
+                        value: value.into(),
+                    });
+                }
+            };
+            let mut rendered = text(display, value);
+            if list.attr(w("lastValue")).is_some() {
+                rendered.state = if kind == ControlKind::DropDown {
+                    State::DropDownSelection
+                } else {
+                    State::ComboBoxSelection
+                };
             }
+            Ok(rendered)
         }
         (ControlKind::Date, Value::Date(date, display)) => render_date(pr, date, display),
         (ControlKind::Date, Value::Store(value)) => {
@@ -253,20 +264,21 @@ fn is_true(value: &str) -> bool {
     matches!(value, "1" | "true" | "on")
 }
 
-fn date_picture(pr: &RawNode) -> Option<(&str, &str)> {
+fn date_picture(pr: &RawNode) -> Option<(&str, &str, &str)> {
     let date = child(pr, w("date"))?;
     Some((
         val(date, w("dateFormat")).unwrap_or("M/d/yyyy"),
         val(date, w("lid")).unwrap_or("en-US"),
+        val(date, w("calendar")).unwrap_or("gregorian"),
     ))
 }
 
 fn render_date(pr: &RawNode, date: NaiveDateTime, display: Option<&str>) -> Result<Rendered> {
     let node = child(pr, w("date")).ok_or(Error::UnsupportedControl)?;
-    let (picture, language) = date_picture(pr).ok_or(Error::UnsupportedControl)?;
+    let (picture, language, calendar) = date_picture(pr).ok_or(Error::UnsupportedControl)?;
     let display = match display {
         Some(display) => display.into(),
-        None => date::format(date, picture, language)?,
+        None => date::format_in_calendar(date, picture, language, calendar)?,
     };
     let store = date::mapped(
         date,
@@ -337,6 +349,8 @@ impl Document {
     }
 
     /// Sets a date and formats its displayed value using the Word picture.
+    ///
+    /// Use [Self::set_date_with_display] to supply display text for another calendar.
     pub fn set_date(&mut self, control: ControlRef, date: NaiveDateTime) -> Result<()> {
         self.edit_control(control, Value::Date(date, None))
     }
@@ -592,6 +606,14 @@ fn apply(xml: &mut XmlDocument, path: &[usize], value: &Rendered) -> Result<()> 
             .child_mut::<SdtContentDate>()
             .ok_or(Error::UnsupportedControl)?
             .set_attr(w("fullDate"), date)?,
+        State::DropDownSelection => pr
+            .child_mut::<SdtContentDropDownList>()
+            .ok_or(Error::UnsupportedControl)?
+            .set_attr(w("lastValue"), &value.store)?,
+        State::ComboBoxSelection => pr
+            .child_mut::<SdtContentComboBox>()
+            .ok_or(Error::UnsupportedControl)?
+            .set_attr(w("lastValue"), &value.store)?,
         State::Checked(checked, _) => pr
             .child_mut::<SdtContentCheckBox>()
             .ok_or(Error::UnsupportedControl)?
