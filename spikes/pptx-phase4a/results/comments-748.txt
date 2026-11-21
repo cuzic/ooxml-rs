@@ -1,0 +1,124 @@
+decks.authors_without_modern_comments                                                                1   e.g. sd_qa_unit_data_pptx_tdf147586.pptx
+decks.commentAuthors_without_legacy_comments                                                         32
+decks.legacy.producer=LibreOffice/24.2.3.2$Linux_X86_64 LibreOffice_project/420$Build-2              1   e.g. sd_qa_unit_data_pptx_pres-with-notes.pptx
+decks.legacy.producer=LibreOfficeDev/5.5.0.0.alpha0$Linux_X86_64 LibreOffice_project/59c3fe83ea86c45a92bb04abf3137f875a80ce02 1   e.g. sd_qa_unit_data_pptx_tdf89064.pptx
+decks.legacy.producer=Microsoft Office PowerPoint                                                    2   e.g. sd_qa_unit_data_pptx_tdf91060.pptx, ShapeCrawler.Tests_Assets_autoshapes_autoshape-case008_text-frame.pptx
+decks.legacy.producer=Microsoft PowerPoint 7.0                                                       1   e.g. 45545_Comment.pptx
+decks.modern.producer=Microsoft Office PowerPoint                                                    2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+decks.with_legacy_comments                                                                           5   e.g. 45545_Comment.pptx, sd_qa_unit_data_pptx_pres-with-notes.pptx, sd_qa_unit_data_pptx_tdf89064.pptx
+decks.with_modern_comments                                                                           2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+files.duplicate_sha256                                                                               44
+files.listed                                                                                         888
+legacy.author                                                                                        63
+legacy.author.@clrIdx=present                                                                        63
+legacy.author.@id=present                                                                            63
+legacy.author.@initials=present                                                                      63
+legacy.author.@lastIdx=present                                                                       63
+legacy.author.@name=present                                                                          63
+legacy.author.clrIdx_differs_from_id                                                                 37
+legacy.author.clrIdx_equals_id                                                                       26
+legacy.author.ext_uri={19B8F6BF-5375-455C-9EA6-DF929625EA0E}                                         20
+legacy.author.p15_presenceInfo.providerId=AD                                                         13
+legacy.author.p15_presenceInfo.providerId=None                                                       4   e.g. bug65551.pptx, test-data_slideshow_ArtisticEffectSample.pptx, ShapeCrawler.Tests_Assets_084_charts.pptx
+legacy.author.p15_presenceInfo.providerId=Windows Live                                               3   e.g. ShapeCrawler.Tests_Assets_084_charts.pptx
+legacy.author.p15_presenceInfo.userId=S::upn::guid                                                   10
+legacy.author.p15_presenceInfo.userId=equals_name                                                    4   e.g. bug65551.pptx, test-data_slideshow_ArtisticEffectSample.pptx, ShapeCrawler.Tests_Assets_084_charts.pptx
+legacy.author.p15_presenceInfo.userId=hex16                                                          3   e.g. ShapeCrawler.Tests_Assets_084_charts.pptx
+legacy.author.p15_presenceInfo.userId=other                                                          3   e.g. ShapeCrawler.Tests_Assets_018.pptx, ShapeCrawler.Tests_Assets_029.pptx, ShapeCrawler.Tests_Assets_autoshapes_autoshape-grouping.pptx
+legacy.authors_ct=application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml    37
+legacy.authors_part                                                                                  37
+legacy.authors_part_name=ppt/commentAuthors.xml                                                      37
+legacy.cm                                                                                            11
+legacy.cm.@idx=present                                                                               11
+legacy.cm.date=frac3_zone_none                                                                       8
+legacy.cm.date=frac9_zone_none                                                                       3   e.g. sd_qa_unit_data_pptx_pres-with-notes.pptx, sd_qa_unit_data_pptx_tdf89064.pptx
+legacy.cm.pos=present                                                                                11
+legacy.comment_ct=application/vnd.openxmlformats-officedocument.presentationml.comments+xml          7
+legacy.comment_part                                                                                  7
+legacy.part_name_form=commentN                                                                       7
+modern.ac_moniker.creationId=all_zero                                                                1   e.g. modern-comments.pptx
+modern.ac_moniker.creationId=matches_a16                                                             1   e.g. powerpoint-shape-comment.pptx
+modern.ac_moniker=ac:spMk_on_p:sp_top                                                                2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.author                                                                                        3   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.@id=present                                                                            3   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.@initials=present                                                                      3   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.@name=present                                                                          3   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.@providerId=absent                                                                     1   e.g. modern-comments.pptx
+modern.author.@providerId=present                                                                    2   e.g. powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.@userId=absent                                                                         1   e.g. modern-comments.pptx
+modern.author.@userId=present                                                                        2   e.g. powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.id_case=upper                                                                          3   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.id_form=braced_guid                                                                    3
+modern.author.id_variant=other                                                                       2   e.g. modern-comments.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.id_variant=rfc4122                                                                     1   e.g. powerpoint-shape-comment.pptx
+modern.author.id_version_nibble=3                                                                    1   e.g. modern-comments.pptx
+modern.author.id_version_nibble=A                                                                    1   e.g. powerpoint-shape-comment.pptx
+modern.author.id_version_nibble=F                                                                    1   e.g. sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.providerId=AD                                                                          1   e.g. sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.providerId=None                                                                        1   e.g. powerpoint-shape-comment.pptx
+modern.author.userId=S::upn::guid                                                                    1   e.g. sd_qa_unit_data_pptx_tdf147586.pptx
+modern.author.userId=absent                                                                          1   e.g. modern-comments.pptx
+modern.author.userId=equals_name                                                                     1   e.g. powerpoint-shape-comment.pptx
+modern.authors_ct=application/vnd.ms-powerpoint.authors+xml                                          3
+modern.authors_part                                                                                  3   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx, sd_qa_unit_data_pptx_tdf147586.pptx
+modern.authors_part_name=ppt/authors.xml                                                             3
+modern.authors_root=p188:authorLst                                                                   3
+modern.cm                                                                                            2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.anchor=ac:deMkLst                                                                          2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.anchor_count=1                                                                             2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.anchor_monikers=ac:deMkLst[pc:docMk,pc:sldMk,ac:spMk]                                      2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.child_sequence=ANCHOR,replyLst,txBody                                                      1   e.g. modern-comments.pptx
+modern.cm.child_sequence=ANCHOR,txBody                                                               1   e.g. powerpoint-shape-comment.pptx
+modern.cm.date=frac3_zone_none                                                                       2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.id_case=upper                                                                              2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.id_form=braced_guid                                                                        2
+modern.cm.id_variant=rfc4122                                                                         2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.id_version_nibble=4                                                                        2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.pos=absent                                                                                 2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.cm.replies=0                                                                                  1   e.g. powerpoint-shape-comment.pptx
+modern.cm.replies=2                                                                                  1   e.g. modern-comments.pptx
+modern.cm.status=None                                                                                2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.comment_ct=application/vnd.ms-powerpoint.comments+xml                                         2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.comment_local_decl_on_moniker=ac                                                              2
+modern.comment_local_decl_on_moniker=pc                                                              4
+modern.comment_part                                                                                  2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.comment_root=p188:cmLst                                                                       2
+modern.comment_root_declares=a                                                                       2
+modern.comment_root_declares=p188                                                                    2
+modern.comment_root_declares=r                                                                       2
+modern.part_name=sldIdHex_match_cIdHex_match                                                         2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.part_name_hex_case=upper                                                                      2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.reply                                                                                         2
+modern.reply.child_sequence=txBody                                                                   2   e.g. modern-comments.pptx
+modern.reply.date=frac3_zone_none                                                                    2   e.g. modern-comments.pptx
+modern.reply.id_case=upper                                                                           2   e.g. modern-comments.pptx
+modern.reply.id_form=braced_guid                                                                     2
+modern.reply.id_variant=rfc4122                                                                      2   e.g. modern-comments.pptx
+modern.reply.id_version_nibble=4                                                                     2   e.g. modern-comments.pptx
+modern.reply.status=None                                                                             2   e.g. modern-comments.pptx
+modern.sldMk.cId_matches_slide                                                                       2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.sldMk.sldId_matches_slide                                                                     2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.slide.commentRel_count=1                                                                      2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.slide.extLst_is_last=True                                                                     2
+modern.slide_ext_uri={6950BFC3-D8DA-4A85-94F7-54DA5524770B}                                          2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.txBody.children=a:bodyPr,a:lstStyle,a:p                                                       4
+modern.txBody.p                                                                                      4
+modern.txBody.p_child=a:r                                                                            4   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+modern.txBody.rPr_attrs=lang                                                                         4
+packages.cfb_encrypted_or_binary                                                                     1   e.g. test_DocumentFormat.OpenXml.Tests.Assets_assets_TestFiles_encrypted_pptx.pptx
+packages.not_zip                                                                                     11
+packages.read                                                                                        748
+packages.strict                                                                                      84
+presentation.ext_uri={2D200454-40CA-4A62-9FC3-DE9A4176ACB9}                                          56
+presentation.ext_uri={521415D9-36F7-43E2-AB2F-B90AF26B5E84}                                          21
+presentation.ext_uri={EFAFB233-063F-42B5-8137-9DF3F51BA10A}                                          291
+shapes.depth=nested                                                                                  2738
+shapes.depth=top                                                                                     4891
+shapes.with_a16_creationId                                                                           1217
+shapes.without_a16_creationId                                                                        6412
+slides                                                                                               1580
+slides.with_modern_comments                                                                          2   e.g. modern-comments.pptx, powerpoint-shape-comment.pptx
+slides.with_p14_creationId                                                                           820
+slides.without_p14_creationId                                                                        760
+viewProps.showComments=0                                                                             1   e.g. ShapeCrawler.Tests_Assets_074_google_slides.pptx
+viewProps.showComments=1                                                                             1   e.g. sd_qa_unit_data_pptx_tdf128550.pptx
