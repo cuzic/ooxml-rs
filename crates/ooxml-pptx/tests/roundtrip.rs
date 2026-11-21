@@ -1,4 +1,4 @@
-//! ADR-0005 §7 L1, T1, T1b on all 23 fixtures: reading never changes a
+//! ADR-0005 §7 L1, T1, T1b on all 24 fixtures: reading never changes a
 //! byte; an unedited package passes through per entry (name, method,
 //! CRC-32, compressed bytes); every slide part re-serializes to its source
 //! (T1) and, force-re-rendered, re-parses to the same tree (T1b); after an
@@ -76,7 +76,7 @@ fn l1_t1_reading_changes_nothing() {
         assert_eq!(entries(&out), entries(&input), "{f}: L1 passthrough after reading");
     }
     eprintln!("L1/T1: {} fixtures, {slides} slide parts, {chars} bytes of text read", cases::FIXTURES.len());
-    assert_eq!(slides, 79, "slide parts in the 23 fixtures (zipfile count)");
+    assert_eq!(slides, 80, "slide parts in the 24 fixtures (zipfile count)");
 }
 
 #[test]

@@ -906,7 +906,7 @@ fn shape_ids_cover_spid_and_comment_monikers() {
 #[test]
 fn sweep_every_fixture_slide() {
     let mut files = Vec::new();
-    for d in ["libreoffice", "open-xml-sdk", "poi", "python-pptx"] {
+    for d in ["libreoffice", "open-xml-sdk", "poi", "project", "python-pptx"] {
         for e in std::fs::read_dir(format!("{FIX}/{d}")).unwrap() {
             let p = e.unwrap().path();
             if p.extension().is_some_and(|x| x == "pptx") {
