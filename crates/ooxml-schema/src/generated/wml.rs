@@ -32,6 +32,33 @@ pub const NS_WP: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordpr
 pub const NS_WP14: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing";
 /// `xml`: `http://www.w3.org/XML/1998/namespace`
 pub const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+/// `w14:ST_OnOff` — OnOffValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum OnOffValues {
+    /// `true`
+    True,
+    /// `false`
+    False,
+    /// `0`
+    Zero,
+    /// `1`
+    One,
+}
+impl ooxml_core::EnumType for OnOffValues {
+    const VALUES: &'static [&'static str] = &["true", "false", "0", "1"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::True),
+            1 => Some(Self::False),
+            2 => Some(Self::Zero),
+            3 => Some(Self::One),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_BlackWhiteMode` — Black and White Mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlackWhiteModeValues {
@@ -682,6 +709,62 @@ impl ooxml_core::EnumType for ThemeFontValues {
             5 => Some(Self::MinorBidi),
             6 => Some(Self::MinorAscii),
             7 => Some(Self::MinorHighAnsi),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_Lock` — LockingValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LockingValues {
+    /// `sdtLocked`
+    SdtLocked,
+    /// `contentLocked`
+    ContentLocked,
+    /// `unlocked`
+    Unlocked,
+    /// `sdtContentLocked`
+    SdtContentLocked,
+}
+impl ooxml_core::EnumType for LockingValues {
+    const VALUES: &'static [&'static str] = &[
+        "sdtLocked",
+        "contentLocked",
+        "unlocked",
+        "sdtContentLocked",
+    ];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::SdtLocked),
+            1 => Some(Self::ContentLocked),
+            2 => Some(Self::Unlocked),
+            3 => Some(Self::SdtContentLocked),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+/// `w:ST_SdtDateMappingType` — DateFormatValues.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DateFormatValues {
+    /// `text`
+    Text,
+    /// `date`
+    Date,
+    /// `dateTime`
+    DateTime,
+}
+impl ooxml_core::EnumType for DateFormatValues {
+    const VALUES: &'static [&'static str] = &["text", "date", "dateTime"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::Text),
+            1 => Some(Self::Date),
+            2 => Some(Self::DateTime),
             _ => None,
         }
     }
@@ -2735,6 +2818,300 @@ impl<'a> NonVisualPicturePropertiesViewMut<'a> {
         self.0.remove::<NonVisualPictureDrawingProperties>()
     }
 }
+/// `w14:CT_OnOff/w14:checked` — Defines the Checked Class.
+#[derive(Debug)]
+pub enum Checked {}
+impl Checked {
+    /// `w14:val`
+    pub const ATTR_W14_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "val");
+}
+impl ooxml_core::ElementSpec for Checked {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "checked");
+    const SDK_NAME: &'static str = "w14:CT_OnOff/w14:checked";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Checked::ATTR_W14_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <OnOffValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Checked`].
+#[derive(Clone, Debug)]
+pub struct CheckedView<'a>(pub ooxml_core::Lens<'a, Checked>);
+impl<'a> CheckedView<'a> {
+    /// `w14:val` — val
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, OnOffValues>> {
+        self.0.attr_enum(Checked::ATTR_W14_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Checked`]. Reads go through [`CheckedViewMut::as_view`].
+#[derive(Debug)]
+pub struct CheckedViewMut<'a>(pub ooxml_core::LensMut<'a, Checked>);
+impl<'a> CheckedViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CheckedView<'_> {
+        CheckedView(self.0.as_lens())
+    }
+    /// Sets `w14:val` — val
+    pub fn set_val(&mut self, v: OnOffValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Checked::ATTR_W14_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w14:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Checked::ATTR_W14_VAL)
+    }
+}
+/// `w14:CT_SdtCheckbox/w14:checkbox` — Defines the SdtContentCheckBox Class.
+#[derive(Debug)]
+pub enum SdtContentCheckBox {}
+impl ooxml_core::ElementSpec for SdtContentCheckBox {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "checkbox");
+    const SDK_NAME: &'static str = "w14:CT_SdtCheckbox/w14:checkbox";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W14, "checked")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W14, "checkedState")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W14, "uncheckedState")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtContentCheckBox> for Checked {}
+impl ooxml_core::ChildOf<SdtContentCheckBox> for CheckedState {}
+impl ooxml_core::ChildOf<SdtContentCheckBox> for UncheckedState {}
+/// Read-only view of [`SdtContentCheckBox`].
+#[derive(Clone, Debug)]
+pub struct SdtContentCheckBoxView<'a>(pub ooxml_core::Lens<'a, SdtContentCheckBox>);
+impl<'a> SdtContentCheckBoxView<'a> {
+    /// First `w14:checked` child.
+    pub fn checked(&self) -> Option<CheckedView<'a>> {
+        self.0.child::<Checked>().map(CheckedView)
+    }
+    /// First `w14:checkedState` child.
+    pub fn checked_state(&self) -> Option<CheckedStateView<'a>> {
+        self.0.child::<CheckedState>().map(CheckedStateView)
+    }
+    /// First `w14:uncheckedState` child.
+    pub fn unchecked_state(&self) -> Option<UncheckedStateView<'a>> {
+        self.0.child::<UncheckedState>().map(UncheckedStateView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentCheckBox`]. Reads go through [`SdtContentCheckBoxViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentCheckBoxViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SdtContentCheckBox>,
+);
+impl<'a> SdtContentCheckBoxViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentCheckBoxView<'_> {
+        SdtContentCheckBoxView(self.0.as_lens())
+    }
+    /// First `w14:checked` child, mutably.
+    pub fn checked_mut(&mut self) -> Option<CheckedViewMut<'_>> {
+        self.0.child_mut::<Checked>().map(CheckedViewMut)
+    }
+    /// Existing `w14:checked` child, or a new one in schema position.
+    pub fn get_or_insert_checked(
+        &mut self,
+    ) -> Result<CheckedViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Checked>().map(CheckedViewMut)
+    }
+    /// Removes the first `w14:checked` child.
+    pub fn remove_checked(&mut self) -> bool {
+        self.0.remove::<Checked>()
+    }
+    /// First `w14:checkedState` child, mutably.
+    pub fn checked_state_mut(&mut self) -> Option<CheckedStateViewMut<'_>> {
+        self.0.child_mut::<CheckedState>().map(CheckedStateViewMut)
+    }
+    /// Existing `w14:checkedState` child, or a new one in schema position.
+    pub fn get_or_insert_checked_state(
+        &mut self,
+    ) -> Result<CheckedStateViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CheckedState>().map(CheckedStateViewMut)
+    }
+    /// Removes the first `w14:checkedState` child.
+    pub fn remove_checked_state(&mut self) -> bool {
+        self.0.remove::<CheckedState>()
+    }
+    /// First `w14:uncheckedState` child, mutably.
+    pub fn unchecked_state_mut(&mut self) -> Option<UncheckedStateViewMut<'_>> {
+        self.0.child_mut::<UncheckedState>().map(UncheckedStateViewMut)
+    }
+    /// Existing `w14:uncheckedState` child, or a new one in schema position.
+    pub fn get_or_insert_unchecked_state(
+        &mut self,
+    ) -> Result<UncheckedStateViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<UncheckedState>().map(UncheckedStateViewMut)
+    }
+    /// Removes the first `w14:uncheckedState` child.
+    pub fn remove_unchecked_state(&mut self) -> bool {
+        self.0.remove::<UncheckedState>()
+    }
+}
+/// `w14:CT_SdtCheckboxSymbol/w14:checkedState` — Defines the CheckedState Class.
+#[derive(Debug)]
+pub enum CheckedState {}
+impl CheckedState {
+    /// `w14:font`
+    pub const ATTR_W14_FONT: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "font");
+    /// `w14:val`
+    pub const ATTR_W14_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "val");
+}
+impl ooxml_core::ElementSpec for CheckedState {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "checkedState");
+    const SDK_NAME: &'static str = "w14:CT_SdtCheckboxSymbol/w14:checkedState";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CheckedState::ATTR_W14_FONT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: CheckedState::ATTR_W14_VAL,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CheckedState`].
+#[derive(Clone, Debug)]
+pub struct CheckedStateView<'a>(pub ooxml_core::Lens<'a, CheckedState>);
+impl<'a> CheckedStateView<'a> {
+    /// `w14:font` — font
+    pub fn font(&self) -> Option<&'a str> {
+        self.0.attr(CheckedState::ATTR_W14_FONT)
+    }
+    /// `w14:val` — val
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(CheckedState::ATTR_W14_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CheckedState`]. Reads go through [`CheckedStateViewMut::as_view`].
+#[derive(Debug)]
+pub struct CheckedStateViewMut<'a>(pub ooxml_core::LensMut<'a, CheckedState>);
+impl<'a> CheckedStateViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CheckedStateView<'_> {
+        CheckedStateView(self.0.as_lens())
+    }
+    /// Sets `w14:font` — font
+    pub fn set_font(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CheckedState::ATTR_W14_FONT, v)
+    }
+    /// Removes `w14:font`.
+    pub fn remove_font(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CheckedState::ATTR_W14_FONT)
+    }
+    /// Sets `w14:val` — val
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CheckedState::ATTR_W14_VAL, v)
+    }
+    /// Removes `w14:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CheckedState::ATTR_W14_VAL)
+    }
+}
+/// `w14:CT_SdtCheckboxSymbol/w14:uncheckedState` — Defines the UncheckedState Class.
+#[derive(Debug)]
+pub enum UncheckedState {}
+impl UncheckedState {
+    /// `w14:font`
+    pub const ATTR_W14_FONT: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "font");
+    /// `w14:val`
+    pub const ATTR_W14_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "val");
+}
+impl ooxml_core::ElementSpec for UncheckedState {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W14, "uncheckedState");
+    const SDK_NAME: &'static str = "w14:CT_SdtCheckboxSymbol/w14:uncheckedState";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: UncheckedState::ATTR_W14_FONT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: UncheckedState::ATTR_W14_VAL,
+            ty: ooxml_core::SimpleType::HexBinary,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`UncheckedState`].
+#[derive(Clone, Debug)]
+pub struct UncheckedStateView<'a>(pub ooxml_core::Lens<'a, UncheckedState>);
+impl<'a> UncheckedStateView<'a> {
+    /// `w14:font` — font
+    pub fn font(&self) -> Option<&'a str> {
+        self.0.attr(UncheckedState::ATTR_W14_FONT)
+    }
+    /// `w14:val` — val
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(UncheckedState::ATTR_W14_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`UncheckedState`]. Reads go through [`UncheckedStateViewMut::as_view`].
+#[derive(Debug)]
+pub struct UncheckedStateViewMut<'a>(pub ooxml_core::LensMut<'a, UncheckedState>);
+impl<'a> UncheckedStateViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> UncheckedStateView<'_> {
+        UncheckedStateView(self.0.as_lens())
+    }
+    /// Sets `w14:font` — font
+    pub fn set_font(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(UncheckedState::ATTR_W14_FONT, v)
+    }
+    /// Removes `w14:font`.
+    pub fn remove_font(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(UncheckedState::ATTR_W14_FONT)
+    }
+    /// Sets `w14:val` — val
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(UncheckedState::ATTR_W14_VAL, v)
+    }
+    /// Removes `w14:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(UncheckedState::ATTR_W14_VAL)
+    }
+}
 /// `w15:CT_CommentEx/w15:commentEx` — Defines the CommentEx Class.
 #[derive(Debug)]
 pub enum CommentEx {}
@@ -3684,6 +4061,7 @@ impl ooxml_core::ChildOf<Body> for DeletedRun {}
 impl ooxml_core::ChildOf<Body> for InsertedRun {}
 impl ooxml_core::ChildOf<Body> for MoveFromRun {}
 impl ooxml_core::ChildOf<Body> for MoveToRun {}
+impl ooxml_core::ChildOf<Body> for SdtBlock {}
 impl ooxml_core::ChildOf<Body> for SectionProperties {}
 impl ooxml_core::ChildOf<Body> for Table {}
 /// Read-only view of [`Body`].
@@ -3729,6 +4107,10 @@ impl<'a> BodyView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// First `w:sectPr` child.
     pub fn section_properties(&self) -> Option<SectionPropertiesView<'a>> {
@@ -3918,6 +4300,30 @@ impl<'a> BodyViewMut<'a> {
     /// Removes the first `w:ins` child.
     pub fn remove_inserted_run(&mut self) -> bool {
         self.0.remove::<InsertedRun>()
+    }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_block_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtBlockViewMut<'_>> {
+        self.0.child_mut_by::<SdtBlock>(pred).map(SdtBlockViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_block_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtBlock>(before).map(SdtBlockViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_block(
+        &mut self,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtBlock>().map(SdtBlockViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_block(&mut self) -> bool {
+        self.0.remove::<SdtBlock>()
     }
     /// First `w:sectPr` child, mutably.
     pub fn section_properties_mut(&mut self) -> Option<SectionPropertiesViewMut<'_>> {
@@ -4384,6 +4790,7 @@ impl ooxml_core::ChildOf<Comment> for BookmarkEnd {}
 impl ooxml_core::ChildOf<Comment> for CommentRangeEnd {}
 impl ooxml_core::ChildOf<Comment> for CommentRangeStart {}
 impl ooxml_core::ChildOf<Comment> for Paragraph {}
+impl ooxml_core::ChildOf<Comment> for SdtBlock {}
 impl ooxml_core::ChildOf<Comment> for Table {}
 /// Read-only view of [`Comment`].
 #[derive(Clone, Debug)]
@@ -4432,6 +4839,10 @@ impl<'a> CommentView<'a> {
     /// `w:p` children in document order.
     pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
         self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
@@ -4610,6 +5021,30 @@ impl<'a> CommentViewMut<'a> {
     pub fn remove_paragraph(&mut self) -> bool {
         self.0.remove::<Paragraph>()
     }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_block_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtBlockViewMut<'_>> {
+        self.0.child_mut_by::<SdtBlock>(pred).map(SdtBlockViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_block_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtBlock>(before).map(SdtBlockViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_block(
+        &mut self,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtBlock>().map(SdtBlockViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_block(&mut self) -> bool {
+        self.0.remove::<SdtBlock>()
+    }
     /// First `w:tbl` child matching `pred`, mutably.
     pub fn table_mut_by(
         &mut self,
@@ -4694,6 +5129,99 @@ impl<'a> CommentsViewMut<'a> {
     /// Removes the first `w:comment` child.
     pub fn remove_comment(&mut self) -> bool {
         self.0.remove::<Comment>()
+    }
+}
+/// `w:CT_DataBinding/w:dataBinding` — Defines the DataBinding Class.
+#[derive(Debug)]
+pub enum DataBinding {}
+impl DataBinding {
+    /// `w:prefixMappings`
+    pub const ATTR_W_PREFIX_MAPPINGS: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "prefixMappings",
+    );
+    /// `w:xpath`
+    pub const ATTR_W_XPATH: ooxml_core::QName = ooxml_core::QName::new(NS_W, "xpath");
+    /// `w:storeItemID`
+    pub const ATTR_W_STORE_ITEM_ID: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "storeItemID",
+    );
+}
+impl ooxml_core::ElementSpec for DataBinding {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "dataBinding");
+    const SDK_NAME: &'static str = "w:CT_DataBinding/w:dataBinding";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DataBinding::ATTR_W_PREFIX_MAPPINGS,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataBinding::ATTR_W_XPATH,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: DataBinding::ATTR_W_STORE_ITEM_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`DataBinding`].
+#[derive(Clone, Debug)]
+pub struct DataBindingView<'a>(pub ooxml_core::Lens<'a, DataBinding>);
+impl<'a> DataBindingView<'a> {
+    /// `w:prefixMappings` — XML Namespace Prefix Mappings
+    pub fn prefix_mappings(&self) -> Option<&'a str> {
+        self.0.attr(DataBinding::ATTR_W_PREFIX_MAPPINGS)
+    }
+    /// `w:xpath` — XPath
+    pub fn x_path(&self) -> Option<&'a str> {
+        self.0.attr(DataBinding::ATTR_W_XPATH)
+    }
+    /// `w:storeItemID` — Custom XML Data Storage ID
+    pub fn store_item_id(&self) -> Option<&'a str> {
+        self.0.attr(DataBinding::ATTR_W_STORE_ITEM_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DataBinding`]. Reads go through [`DataBindingViewMut::as_view`].
+#[derive(Debug)]
+pub struct DataBindingViewMut<'a>(pub ooxml_core::LensMut<'a, DataBinding>);
+impl<'a> DataBindingViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DataBindingView<'_> {
+        DataBindingView(self.0.as_lens())
+    }
+    /// Sets `w:prefixMappings` — XML Namespace Prefix Mappings
+    pub fn set_prefix_mappings(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataBinding::ATTR_W_PREFIX_MAPPINGS, v)
+    }
+    /// Removes `w:prefixMappings`.
+    pub fn remove_prefix_mappings(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataBinding::ATTR_W_PREFIX_MAPPINGS)
+    }
+    /// Sets `w:xpath` — XPath
+    pub fn set_x_path(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataBinding::ATTR_W_XPATH, v)
+    }
+    /// Removes `w:xpath`.
+    pub fn remove_x_path(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataBinding::ATTR_W_XPATH)
+    }
+    /// Sets `w:storeItemID` — Custom XML Data Storage ID
+    pub fn set_store_item_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DataBinding::ATTR_W_STORE_ITEM_ID, v)
+    }
+    /// Removes `w:storeItemID`.
+    pub fn remove_store_item_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DataBinding::ATTR_W_STORE_ITEM_ID)
     }
 }
 /// `w:CT_DecimalNumber/w:gridAfter` — Defines the GridAfter Class.
@@ -4841,6 +5369,55 @@ impl<'a> GridSpanViewMut<'a> {
     /// Removes `w:val`.
     pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(GridSpan::ATTR_W_VAL)
+    }
+}
+/// `w:CT_DecimalNumber/w:id` — Defines the SdtId Class.
+#[derive(Debug)]
+pub enum SdtId {}
+impl SdtId {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for SdtId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "id");
+    const SDK_NAME: &'static str = "w:CT_DecimalNumber/w:id";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtId::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Int32,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SdtId`].
+#[derive(Clone, Debug)]
+pub struct SdtIdView<'a>(pub ooxml_core::Lens<'a, SdtId>);
+impl<'a> SdtIdView<'a> {
+    /// `w:val` — Decimal Number Value
+    pub fn val(&self) -> Result<Option<i32>, ooxml_core::AttrError> {
+        self.0.attr_parsed(SdtId::ATTR_W_VAL, ooxml_core::value::parse_i32)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtId`]. Reads go through [`SdtIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtIdViewMut<'a>(pub ooxml_core::LensMut<'a, SdtId>);
+impl<'a> SdtIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtIdView<'_> {
+        SdtIdView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Decimal Number Value
+    pub fn set_val(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(v, |s| self.0.set_attr(SdtId::ATTR_W_VAL, s))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtId::ATTR_W_VAL)
     }
 }
 /// `w:CT_DecimalNumber/w:startOverride` — Numbering Level Starting Value Override.
@@ -6140,6 +6717,7 @@ impl ooxml_core::ChildOf<Endnote> for DeletedRun {}
 impl ooxml_core::ChildOf<Endnote> for InsertedRun {}
 impl ooxml_core::ChildOf<Endnote> for MoveFromRun {}
 impl ooxml_core::ChildOf<Endnote> for MoveToRun {}
+impl ooxml_core::ChildOf<Endnote> for SdtBlock {}
 impl ooxml_core::ChildOf<Endnote> for Table {}
 /// Read-only view of [`Endnote`].
 #[derive(Clone, Debug)]
@@ -6192,6 +6770,10 @@ impl<'a> EndnoteView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
@@ -6284,6 +6866,7 @@ impl ooxml_core::ChildOf<Footnote> for DeletedRun {}
 impl ooxml_core::ChildOf<Footnote> for InsertedRun {}
 impl ooxml_core::ChildOf<Footnote> for MoveFromRun {}
 impl ooxml_core::ChildOf<Footnote> for MoveToRun {}
+impl ooxml_core::ChildOf<Footnote> for SdtBlock {}
 impl ooxml_core::ChildOf<Footnote> for Table {}
 /// Read-only view of [`Footnote`].
 #[derive(Clone, Debug)]
@@ -6336,6 +6919,10 @@ impl<'a> FootnoteView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
@@ -6585,6 +7172,7 @@ impl ooxml_core::ChildOf<Footer> for DeletedRun {}
 impl ooxml_core::ChildOf<Footer> for InsertedRun {}
 impl ooxml_core::ChildOf<Footer> for MoveFromRun {}
 impl ooxml_core::ChildOf<Footer> for MoveToRun {}
+impl ooxml_core::ChildOf<Footer> for SdtBlock {}
 impl ooxml_core::ChildOf<Footer> for Table {}
 /// Read-only view of [`Footer`].
 #[derive(Clone, Debug)]
@@ -6629,6 +7217,10 @@ impl<'a> FooterView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
@@ -6702,6 +7294,7 @@ impl ooxml_core::ChildOf<Header> for DeletedRun {}
 impl ooxml_core::ChildOf<Header> for InsertedRun {}
 impl ooxml_core::ChildOf<Header> for MoveFromRun {}
 impl ooxml_core::ChildOf<Header> for MoveToRun {}
+impl ooxml_core::ChildOf<Header> for SdtBlock {}
 impl ooxml_core::ChildOf<Header> for Table {}
 /// Read-only view of [`Header`].
 #[derive(Clone, Debug)]
@@ -6746,6 +7339,10 @@ impl<'a> HeaderView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
@@ -7195,6 +7792,7 @@ impl ooxml_core::ChildOf<Hyperlink> for DeletedRun {}
 impl ooxml_core::ChildOf<Hyperlink> for InsertedRun {}
 impl ooxml_core::ChildOf<Hyperlink> for MoveFromRun {}
 impl ooxml_core::ChildOf<Hyperlink> for MoveToRun {}
+impl ooxml_core::ChildOf<Hyperlink> for SdtRun {}
 impl ooxml_core::ChildOf<Hyperlink> for SimpleField {}
 /// Read-only view of [`Hyperlink`].
 #[derive(Clone, Debug)]
@@ -7267,6 +7865,10 @@ impl<'a> HyperlinkView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
     }
     /// `w:fldSimple` children in document order.
     pub fn simple_field_iter(&self) -> impl Iterator<Item = SimpleFieldView<'a>> {
@@ -7522,6 +8124,28 @@ impl<'a> HyperlinkViewMut<'a> {
     /// Removes the first `w:ins` child.
     pub fn remove_inserted_run(&mut self) -> bool {
         self.0.remove::<InsertedRun>()
+    }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtRunViewMut<'_>> {
+        self.0.child_mut_by::<SdtRun>(pred).map(SdtRunViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtRun>(before).map(SdtRunViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_run(&mut self) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtRun>().map(SdtRunViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_run(&mut self) -> bool {
+        self.0.remove::<SdtRun>()
     }
 }
 /// `w:CT_Ind/w:ind` — Defines the Indentation Class.
@@ -7880,6 +8504,55 @@ impl<'a> JustificationViewMut<'a> {
         self.0.remove_attr(Justification::ATTR_W_VAL)
     }
 }
+/// `w:CT_Lang/w:lid` — Language ID for Phonetic Guide.
+#[derive(Debug)]
+pub enum LanguageId {}
+impl LanguageId {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for LanguageId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "lid");
+    const SDK_NAME: &'static str = "w:CT_Lang/w:lid";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: LanguageId::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`LanguageId`].
+#[derive(Clone, Debug)]
+pub struct LanguageIdView<'a>(pub ooxml_core::Lens<'a, LanguageId>);
+impl<'a> LanguageIdView<'a> {
+    /// `w:val` — Language Code
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(LanguageId::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LanguageId`]. Reads go through [`LanguageIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct LanguageIdViewMut<'a>(pub ooxml_core::LensMut<'a, LanguageId>);
+impl<'a> LanguageIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LanguageIdView<'_> {
+        LanguageIdView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Language Code
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(LanguageId::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(LanguageId::ATTR_W_VAL)
+    }
+}
 /// `w:CT_LevelJustification/w:lvlJc` — Justification.
 #[derive(Debug)]
 pub enum LevelJustification {}
@@ -8133,6 +8806,57 @@ impl<'a> LineNumberTypeViewMut<'a> {
     /// Removes `w:restart`.
     pub fn remove_restart(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(LineNumberType::ATTR_W_RESTART)
+    }
+}
+/// `w:CT_Lock/w:lock` — Defines the Lock Class.
+#[derive(Debug)]
+pub enum Lock {}
+impl Lock {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Lock {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "lock");
+    const SDK_NAME: &'static str = "w:CT_Lock/w:lock";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Lock::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <LockingValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Lock`].
+#[derive(Clone, Debug)]
+pub struct LockView<'a>(pub ooxml_core::Lens<'a, Lock>);
+impl<'a> LockView<'a> {
+    /// `w:val` — Locking Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, LockingValues>> {
+        self.0.attr_enum(Lock::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Lock`]. Reads go through [`LockViewMut::as_view`].
+#[derive(Debug)]
+pub struct LockViewMut<'a>(pub ooxml_core::LensMut<'a, Lock>);
+impl<'a> LockViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LockView<'_> {
+        LockView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Locking Type
+    pub fn set_val(&mut self, v: LockingValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Lock::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Lock::ATTR_W_VAL)
     }
 }
 /// `w:CT_LongHexNumber/w:nsid` — Abstract Numbering Definition Identifier.
@@ -9928,6 +10652,63 @@ impl<'a> KeepNextViewMut<'a> {
         self.0.remove_attr(KeepNext::ATTR_W_VAL)
     }
 }
+/// `w:CT_OnOff/w:showingPlcHdr` — Defines the ShowingPlaceholder Class.
+#[derive(Debug)]
+pub enum ShowingPlaceholder {}
+impl ShowingPlaceholder {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for ShowingPlaceholder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "showingPlcHdr");
+    const SDK_NAME: &'static str = "w:CT_OnOff/w:showingPlcHdr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ShowingPlaceholder::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: Some("true"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ShowingPlaceholder`].
+#[derive(Clone, Debug)]
+pub struct ShowingPlaceholderView<'a>(pub ooxml_core::Lens<'a, ShowingPlaceholder>);
+impl<'a> ShowingPlaceholderView<'a> {
+    /// `w:val` — On/Off Value (default `true`)
+    pub fn val(&self) -> Result<bool, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed_or(
+                ShowingPlaceholder::ATTR_W_VAL,
+                "true",
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ShowingPlaceholder`]. Reads go through [`ShowingPlaceholderViewMut::as_view`].
+#[derive(Debug)]
+pub struct ShowingPlaceholderViewMut<'a>(
+    pub ooxml_core::LensMut<'a, ShowingPlaceholder>,
+);
+impl<'a> ShowingPlaceholderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ShowingPlaceholderView<'_> {
+        ShowingPlaceholderView(self.0.as_lens())
+    }
+    /// Sets `w:val` — On/Off Value (default `true`)
+    pub fn set_val(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(ShowingPlaceholder::ATTR_W_VAL, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ShowingPlaceholder::ATTR_W_VAL)
+    }
+}
 /// `w:CT_OnOff/w:strike` — Defines the Strike Class.
 #[derive(Debug)]
 pub enum Strike {}
@@ -10276,6 +11057,7 @@ impl ooxml_core::ChildOf<Paragraph> for DeletedRun {}
 impl ooxml_core::ChildOf<Paragraph> for InsertedRun {}
 impl ooxml_core::ChildOf<Paragraph> for MoveFromRun {}
 impl ooxml_core::ChildOf<Paragraph> for MoveToRun {}
+impl ooxml_core::ChildOf<Paragraph> for SdtRun {}
 impl ooxml_core::ChildOf<Paragraph> for SimpleField {}
 /// Read-only view of [`Paragraph`].
 #[derive(Clone, Debug)]
@@ -10364,6 +11146,10 @@ impl<'a> ParagraphView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
     }
     /// `w:fldSimple` children in document order.
     pub fn simple_field_iter(&self) -> impl Iterator<Item = SimpleFieldView<'a>> {
@@ -10660,6 +11446,28 @@ impl<'a> ParagraphViewMut<'a> {
     /// Removes the first `w:ins` child.
     pub fn remove_inserted_run(&mut self) -> bool {
         self.0.remove::<InsertedRun>()
+    }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtRunViewMut<'_>> {
+        self.0.child_mut_by::<SdtRun>(pred).map(SdtRunViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtRun>(before).map(SdtRunViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_run(&mut self) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtRun>().map(SdtRunViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_run(&mut self) -> bool {
+        self.0.remove::<SdtRun>()
     }
 }
 /// `w:CT_PPr/w:pPr` — Paragraph Properties.
@@ -15680,6 +16488,7 @@ impl ooxml_core::ChildOf<DeletedRun> for DeletedRun {}
 impl ooxml_core::ChildOf<DeletedRun> for InsertedRun {}
 impl ooxml_core::ChildOf<DeletedRun> for MoveFromRun {}
 impl ooxml_core::ChildOf<DeletedRun> for MoveToRun {}
+impl ooxml_core::ChildOf<DeletedRun> for SdtRun {}
 /// Read-only view of [`DeletedRun`].
 #[derive(Clone, Debug)]
 pub struct DeletedRunView<'a>(pub ooxml_core::Lens<'a, DeletedRun>);
@@ -15739,6 +16548,10 @@ impl<'a> DeletedRunView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -15951,6 +16764,28 @@ impl<'a> DeletedRunViewMut<'a> {
     pub fn remove_inserted_run(&mut self) -> bool {
         self.0.remove::<InsertedRun>()
     }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtRunViewMut<'_>> {
+        self.0.child_mut_by::<SdtRun>(pred).map(SdtRunViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtRun>(before).map(SdtRunViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_run(&mut self) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtRun>().map(SdtRunViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_run(&mut self) -> bool {
+        self.0.remove::<SdtRun>()
+    }
 }
 /// `w:CT_RunTrackChange/w:ins` — Inserted Run Content.
 #[derive(Debug)]
@@ -16070,6 +16905,7 @@ impl ooxml_core::ChildOf<InsertedRun> for DeletedRun {}
 impl ooxml_core::ChildOf<InsertedRun> for InsertedRun {}
 impl ooxml_core::ChildOf<InsertedRun> for MoveFromRun {}
 impl ooxml_core::ChildOf<InsertedRun> for MoveToRun {}
+impl ooxml_core::ChildOf<InsertedRun> for SdtRun {}
 /// Read-only view of [`InsertedRun`].
 #[derive(Clone, Debug)]
 pub struct InsertedRunView<'a>(pub ooxml_core::Lens<'a, InsertedRun>);
@@ -16129,6 +16965,10 @@ impl<'a> InsertedRunView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -16341,6 +17181,28 @@ impl<'a> InsertedRunViewMut<'a> {
     pub fn remove_inserted_run(&mut self) -> bool {
         self.0.remove::<InsertedRun>()
     }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtRunViewMut<'_>> {
+        self.0.child_mut_by::<SdtRun>(pred).map(SdtRunViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtRun>(before).map(SdtRunViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_run(&mut self) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtRun>().map(SdtRunViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_run(&mut self) -> bool {
+        self.0.remove::<SdtRun>()
+    }
 }
 /// `w:CT_RunTrackChange/w:moveFrom` — Move Source Run Content.
 #[derive(Debug)]
@@ -16460,6 +17322,7 @@ impl ooxml_core::ChildOf<MoveFromRun> for DeletedRun {}
 impl ooxml_core::ChildOf<MoveFromRun> for InsertedRun {}
 impl ooxml_core::ChildOf<MoveFromRun> for MoveFromRun {}
 impl ooxml_core::ChildOf<MoveFromRun> for MoveToRun {}
+impl ooxml_core::ChildOf<MoveFromRun> for SdtRun {}
 /// Read-only view of [`MoveFromRun`].
 #[derive(Clone, Debug)]
 pub struct MoveFromRunView<'a>(pub ooxml_core::Lens<'a, MoveFromRun>);
@@ -16519,6 +17382,10 @@ impl<'a> MoveFromRunView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -16643,6 +17510,7 @@ impl ooxml_core::ChildOf<MoveToRun> for DeletedRun {}
 impl ooxml_core::ChildOf<MoveToRun> for InsertedRun {}
 impl ooxml_core::ChildOf<MoveToRun> for MoveFromRun {}
 impl ooxml_core::ChildOf<MoveToRun> for MoveToRun {}
+impl ooxml_core::ChildOf<MoveToRun> for SdtRun {}
 /// Read-only view of [`MoveToRun`].
 #[derive(Clone, Debug)]
 pub struct MoveToRunView<'a>(pub ooxml_core::Lens<'a, MoveToRun>);
@@ -16703,9 +17571,685 @@ impl<'a> MoveToRunView<'a> {
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
     }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
+    }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// `w:CT_SdtBlock/w:sdt` — Defines the SdtBlock Class.
+///
+/// The SDK base class is not in the schema data: attributes are incomplete and attribute writes are refused.
+#[derive(Debug)]
+pub enum SdtBlock {}
+impl ooxml_core::ElementSpec for SdtBlock {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "sdt");
+    const SDK_NAME: &'static str = "w:CT_SdtBlock/w:sdt";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sdtPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sdtEndPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sdtContent")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+    const ATTRS_INCOMPLETE: bool = true;
+}
+impl ooxml_core::ChildOf<SdtBlock> for BookmarkStart {}
+impl ooxml_core::ChildOf<SdtBlock> for BookmarkEnd {}
+impl ooxml_core::ChildOf<SdtBlock> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<SdtBlock> for CommentRangeStart {}
+impl ooxml_core::ChildOf<SdtBlock> for SdtContentBlock {}
+impl ooxml_core::ChildOf<SdtBlock> for SdtProperties {}
+/// Read-only view of [`SdtBlock`].
+#[derive(Clone, Debug)]
+pub struct SdtBlockView<'a>(pub ooxml_core::Lens<'a, SdtBlock>);
+impl<'a> SdtBlockView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
+    }
+    /// First `w:sdtContent` child.
+    pub fn sdt_content_block(&self) -> Option<SdtContentBlockView<'a>> {
+        self.0.child::<SdtContentBlock>().map(SdtContentBlockView)
+    }
+    /// First `w:sdtPr` child.
+    pub fn sdt_properties(&self) -> Option<SdtPropertiesView<'a>> {
+        self.0.child::<SdtProperties>().map(SdtPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtBlock`]. Reads go through [`SdtBlockViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtBlockViewMut<'a>(pub ooxml_core::LensMut<'a, SdtBlock>);
+impl<'a> SdtBlockViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtBlockView<'_> {
+        SdtBlockView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
+    }
+    /// First `w:sdtContent` child, mutably.
+    pub fn sdt_content_block_mut(&mut self) -> Option<SdtContentBlockViewMut<'_>> {
+        self.0.child_mut::<SdtContentBlock>().map(SdtContentBlockViewMut)
+    }
+    /// Existing `w:sdtContent` child, or a new one in schema position.
+    pub fn get_or_insert_sdt_content_block(
+        &mut self,
+    ) -> Result<SdtContentBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SdtContentBlock>().map(SdtContentBlockViewMut)
+    }
+    /// Removes the first `w:sdtContent` child.
+    pub fn remove_sdt_content_block(&mut self) -> bool {
+        self.0.remove::<SdtContentBlock>()
+    }
+    /// First `w:sdtPr` child, mutably.
+    pub fn sdt_properties_mut(&mut self) -> Option<SdtPropertiesViewMut<'_>> {
+        self.0.child_mut::<SdtProperties>().map(SdtPropertiesViewMut)
+    }
+    /// Existing `w:sdtPr` child, or a new one in schema position.
+    pub fn get_or_insert_sdt_properties(
+        &mut self,
+    ) -> Result<SdtPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SdtProperties>().map(SdtPropertiesViewMut)
+    }
+    /// Removes the first `w:sdtPr` child.
+    pub fn remove_sdt_properties(&mut self) -> bool {
+        self.0.remove::<SdtProperties>()
+    }
+}
+/// `w:CT_SdtComboBox/w:comboBox` — Defines the SdtContentComboBox Class.
+#[derive(Debug)]
+pub enum SdtContentComboBox {}
+impl SdtContentComboBox {
+    /// `w:lastValue`
+    pub const ATTR_W_LAST_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "lastValue",
+    );
+}
+impl ooxml_core::ElementSpec for SdtContentComboBox {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "comboBox");
+    const SDK_NAME: &'static str = "w:CT_SdtComboBox/w:comboBox";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtContentComboBox::ATTR_W_LAST_VALUE,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "listItem")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtContentComboBox> for ListItem {}
+/// Read-only view of [`SdtContentComboBox`].
+#[derive(Clone, Debug)]
+pub struct SdtContentComboBoxView<'a>(pub ooxml_core::Lens<'a, SdtContentComboBox>);
+impl<'a> SdtContentComboBoxView<'a> {
+    /// `w:lastValue` — Combo Box Last Saved Value (default ``)
+    pub fn last_value(&self) -> &'a str {
+        self.0.attr(SdtContentComboBox::ATTR_W_LAST_VALUE).unwrap_or("")
+    }
+    /// `w:listItem` children in document order.
+    pub fn list_item_iter(&self) -> impl Iterator<Item = ListItemView<'a>> {
+        self.0.children::<ListItem>().map(ListItemView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentComboBox`]. Reads go through [`SdtContentComboBoxViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentComboBoxViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SdtContentComboBox>,
+);
+impl<'a> SdtContentComboBoxViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentComboBoxView<'_> {
+        SdtContentComboBoxView(self.0.as_lens())
+    }
+    /// Sets `w:lastValue` — Combo Box Last Saved Value (default ``)
+    pub fn set_last_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SdtContentComboBox::ATTR_W_LAST_VALUE, v)
+    }
+    /// Removes `w:lastValue`.
+    pub fn remove_last_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtContentComboBox::ATTR_W_LAST_VALUE)
+    }
+    /// First `w:listItem` child matching `pred`, mutably.
+    pub fn list_item_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ListItemViewMut<'_>> {
+        self.0.child_mut_by::<ListItem>(pred).map(ListItemViewMut)
+    }
+    /// Inserts a `w:listItem` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_list_item_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ListItemViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<ListItem>(before).map(ListItemViewMut)
+    }
+    /// Appends a `w:listItem` at the end of its slot.
+    pub fn insert_list_item(
+        &mut self,
+    ) -> Result<ListItemViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<ListItem>().map(ListItemViewMut)
+    }
+    /// Removes the first `w:listItem` child.
+    pub fn remove_list_item(&mut self) -> bool {
+        self.0.remove::<ListItem>()
+    }
+}
+/// `w:CT_SdtContentBlock/w:sdtContent` — Block-Level Structured Document Tag Content.
+#[derive(Debug)]
+pub enum SdtContentBlock {}
+impl ooxml_core::ElementSpec for SdtContentBlock {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "sdtContent");
+    const SDK_NAME: &'static str = "w:CT_SdtContentBlock/w:sdtContent";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "customXml"),
+                    ooxml_core::QName::new(NS_W, "sdt"),
+                    ooxml_core::QName::new(NS_W, "p"),
+                    ooxml_core::QName::new(NS_W, "tbl"),
+                    ooxml_core::QName::new(NS_W, "proofErr"),
+                    ooxml_core::QName::new(NS_W, "permStart"),
+                    ooxml_core::QName::new(NS_W, "permEnd"),
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "ins"),
+                    ooxml_core::QName::new(NS_W, "del"),
+                    ooxml_core::QName::new(NS_W, "moveFrom"),
+                    ooxml_core::QName::new(NS_W, "moveTo"),
+                    ooxml_core::QName::new(NS_W, "contentPart"),
+                    ooxml_core::QName::new(NS_W14, "conflictIns"),
+                    ooxml_core::QName::new(NS_W14, "conflictDel"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtContentBlock> for BookmarkStart {}
+impl ooxml_core::ChildOf<SdtContentBlock> for BookmarkEnd {}
+impl ooxml_core::ChildOf<SdtContentBlock> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<SdtContentBlock> for CommentRangeStart {}
+impl ooxml_core::ChildOf<SdtContentBlock> for Paragraph {}
+impl ooxml_core::ChildOf<SdtContentBlock> for DeletedRun {}
+impl ooxml_core::ChildOf<SdtContentBlock> for InsertedRun {}
+impl ooxml_core::ChildOf<SdtContentBlock> for MoveFromRun {}
+impl ooxml_core::ChildOf<SdtContentBlock> for MoveToRun {}
+impl ooxml_core::ChildOf<SdtContentBlock> for SdtBlock {}
+impl ooxml_core::ChildOf<SdtContentBlock> for Table {}
+/// Read-only view of [`SdtContentBlock`].
+#[derive(Clone, Debug)]
+pub struct SdtContentBlockView<'a>(pub ooxml_core::Lens<'a, SdtContentBlock>);
+impl<'a> SdtContentBlockView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
+    }
+    /// `w:p` children in document order.
+    pub fn paragraph_iter(&self) -> impl Iterator<Item = ParagraphView<'a>> {
+        self.0.children::<Paragraph>().map(ParagraphView)
+    }
+    /// `w:del` children in document order.
+    pub fn deleted_run_iter(&self) -> impl Iterator<Item = DeletedRunView<'a>> {
+        self.0.children::<DeletedRun>().map(DeletedRunView)
+    }
+    /// `w:ins` children in document order.
+    pub fn inserted_run_iter(&self) -> impl Iterator<Item = InsertedRunView<'a>> {
+        self.0.children::<InsertedRun>().map(InsertedRunView)
+    }
+    /// `w:moveFrom` children in document order.
+    pub fn move_from_run_iter(&self) -> impl Iterator<Item = MoveFromRunView<'a>> {
+        self.0.children::<MoveFromRun>().map(MoveFromRunView)
+    }
+    /// `w:moveTo` children in document order.
+    pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
+        self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
+    }
+    /// `w:tbl` children in document order.
+    pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
+        self.0.children::<Table>().map(TableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentBlock`]. Reads go through [`SdtContentBlockViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentBlockViewMut<'a>(pub ooxml_core::LensMut<'a, SdtContentBlock>);
+impl<'a> SdtContentBlockViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentBlockView<'_> {
+        SdtContentBlockView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
+    }
+    /// First `w:p` child matching `pred`, mutably.
+    pub fn paragraph_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ParagraphViewMut<'_>> {
+        self.0.child_mut_by::<Paragraph>(pred).map(ParagraphViewMut)
+    }
+    /// Inserts a `w:p` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_paragraph_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Paragraph>(before).map(ParagraphViewMut)
+    }
+    /// Appends a `w:p` at the end of its slot.
+    pub fn insert_paragraph(
+        &mut self,
+    ) -> Result<ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Paragraph>().map(ParagraphViewMut)
+    }
+    /// Removes the first `w:p` child.
+    pub fn remove_paragraph(&mut self) -> bool {
+        self.0.remove::<Paragraph>()
+    }
+    /// First `w:del` child matching `pred`, mutably.
+    pub fn deleted_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DeletedRunViewMut<'_>> {
+        self.0.child_mut_by::<DeletedRun>(pred).map(DeletedRunViewMut)
+    }
+    /// Inserts a `w:del` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_deleted_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DeletedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DeletedRun>(before).map(DeletedRunViewMut)
+    }
+    /// Appends a `w:del` at the end of its slot.
+    pub fn insert_deleted_run(
+        &mut self,
+    ) -> Result<DeletedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DeletedRun>().map(DeletedRunViewMut)
+    }
+    /// Removes the first `w:del` child.
+    pub fn remove_deleted_run(&mut self) -> bool {
+        self.0.remove::<DeletedRun>()
+    }
+    /// First `w:ins` child matching `pred`, mutably.
+    pub fn inserted_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InsertedRunViewMut<'_>> {
+        self.0.child_mut_by::<InsertedRun>(pred).map(InsertedRunViewMut)
+    }
+    /// Inserts a `w:ins` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inserted_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InsertedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<InsertedRun>(before).map(InsertedRunViewMut)
+    }
+    /// Appends a `w:ins` at the end of its slot.
+    pub fn insert_inserted_run(
+        &mut self,
+    ) -> Result<InsertedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<InsertedRun>().map(InsertedRunViewMut)
+    }
+    /// Removes the first `w:ins` child.
+    pub fn remove_inserted_run(&mut self) -> bool {
+        self.0.remove::<InsertedRun>()
+    }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_block_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtBlockViewMut<'_>> {
+        self.0.child_mut_by::<SdtBlock>(pred).map(SdtBlockViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_block_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtBlock>(before).map(SdtBlockViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_block(
+        &mut self,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtBlock>().map(SdtBlockViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_block(&mut self) -> bool {
+        self.0.remove::<SdtBlock>()
+    }
+    /// First `w:tbl` child matching `pred`, mutably.
+    pub fn table_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableViewMut<'_>> {
+        self.0.child_mut_by::<Table>(pred).map(TableViewMut)
+    }
+    /// Inserts a `w:tbl` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Table>(before).map(TableViewMut)
+    }
+    /// Appends a `w:tbl` at the end of its slot.
+    pub fn insert_table(&mut self) -> Result<TableViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Table>().map(TableViewMut)
+    }
+    /// Removes the first `w:tbl` child.
+    pub fn remove_table(&mut self) -> bool {
+        self.0.remove::<Table>()
     }
 }
 /// `w:CT_SdtContentRun/w:sdtContent` — Inline-Level Structured Document Tag Content.
@@ -16797,6 +18341,7 @@ impl ooxml_core::ChildOf<SdtContentRun> for DeletedRun {}
 impl ooxml_core::ChildOf<SdtContentRun> for InsertedRun {}
 impl ooxml_core::ChildOf<SdtContentRun> for MoveFromRun {}
 impl ooxml_core::ChildOf<SdtContentRun> for MoveToRun {}
+impl ooxml_core::ChildOf<SdtContentRun> for SdtRun {}
 impl ooxml_core::ChildOf<SdtContentRun> for SimpleField {}
 /// Read-only view of [`SdtContentRun`].
 #[derive(Clone, Debug)]
@@ -16846,6 +18391,10 @@ impl<'a> SdtContentRunView<'a> {
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
     }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
+    }
     /// `w:fldSimple` children in document order.
     pub fn simple_field_iter(&self) -> impl Iterator<Item = SimpleFieldView<'a>> {
         self.0.children::<SimpleField>().map(SimpleFieldView)
@@ -16853,6 +18402,1132 @@ impl<'a> SdtContentRunView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentRun`]. Reads go through [`SdtContentRunViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentRunViewMut<'a>(pub ooxml_core::LensMut<'a, SdtContentRun>);
+impl<'a> SdtContentRunViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentRunView<'_> {
+        SdtContentRunView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:hyperlink` child matching `pred`, mutably.
+    pub fn hyperlink_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<HyperlinkViewMut<'_>> {
+        self.0.child_mut_by::<Hyperlink>(pred).map(HyperlinkViewMut)
+    }
+    /// Inserts a `w:hyperlink` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_hyperlink_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Hyperlink>(before).map(HyperlinkViewMut)
+    }
+    /// Appends a `w:hyperlink` at the end of its slot.
+    pub fn insert_hyperlink(
+        &mut self,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Hyperlink>().map(HyperlinkViewMut)
+    }
+    /// Removes the first `w:hyperlink` child.
+    pub fn remove_hyperlink(&mut self) -> bool {
+        self.0.remove::<Hyperlink>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
+    }
+    /// First `w:r` child matching `pred`, mutably.
+    pub fn run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<RunViewMut<'_>> {
+        self.0.child_mut_by::<Run>(pred).map(RunViewMut)
+    }
+    /// Inserts a `w:r` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Run>(before).map(RunViewMut)
+    }
+    /// Appends a `w:r` at the end of its slot.
+    pub fn insert_run(&mut self) -> Result<RunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Run>().map(RunViewMut)
+    }
+    /// Removes the first `w:r` child.
+    pub fn remove_run(&mut self) -> bool {
+        self.0.remove::<Run>()
+    }
+    /// First `w:del` child matching `pred`, mutably.
+    pub fn deleted_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DeletedRunViewMut<'_>> {
+        self.0.child_mut_by::<DeletedRun>(pred).map(DeletedRunViewMut)
+    }
+    /// Inserts a `w:del` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_deleted_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<DeletedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<DeletedRun>(before).map(DeletedRunViewMut)
+    }
+    /// Appends a `w:del` at the end of its slot.
+    pub fn insert_deleted_run(
+        &mut self,
+    ) -> Result<DeletedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<DeletedRun>().map(DeletedRunViewMut)
+    }
+    /// Removes the first `w:del` child.
+    pub fn remove_deleted_run(&mut self) -> bool {
+        self.0.remove::<DeletedRun>()
+    }
+    /// First `w:ins` child matching `pred`, mutably.
+    pub fn inserted_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<InsertedRunViewMut<'_>> {
+        self.0.child_mut_by::<InsertedRun>(pred).map(InsertedRunViewMut)
+    }
+    /// Inserts a `w:ins` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_inserted_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<InsertedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<InsertedRun>(before).map(InsertedRunViewMut)
+    }
+    /// Appends a `w:ins` at the end of its slot.
+    pub fn insert_inserted_run(
+        &mut self,
+    ) -> Result<InsertedRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<InsertedRun>().map(InsertedRunViewMut)
+    }
+    /// Removes the first `w:ins` child.
+    pub fn remove_inserted_run(&mut self) -> bool {
+        self.0.remove::<InsertedRun>()
+    }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_run_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtRunViewMut<'_>> {
+        self.0.child_mut_by::<SdtRun>(pred).map(SdtRunViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_run_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtRun>(before).map(SdtRunViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_run(&mut self) -> Result<SdtRunViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtRun>().map(SdtRunViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_run(&mut self) -> bool {
+        self.0.remove::<SdtRun>()
+    }
+}
+/// `w:CT_SdtDate/w:date` — Defines the SdtContentDate Class.
+#[derive(Debug)]
+pub enum SdtContentDate {}
+impl SdtContentDate {
+    /// `w:fullDate`
+    pub const ATTR_W_FULL_DATE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "fullDate",
+    );
+}
+impl ooxml_core::ElementSpec for SdtContentDate {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "date");
+    const SDK_NAME: &'static str = "w:CT_SdtDate/w:date";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtContentDate::ATTR_W_FULL_DATE,
+            ty: ooxml_core::SimpleType::DateTime,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "dateFormat")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "lid")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "storeMappedDataAs")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "calendar")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtContentDate> for LanguageId {}
+impl ooxml_core::ChildOf<SdtContentDate> for SdtDateMappingType {}
+impl ooxml_core::ChildOf<SdtContentDate> for DateFormat {}
+/// Read-only view of [`SdtContentDate`].
+#[derive(Clone, Debug)]
+pub struct SdtContentDateView<'a>(pub ooxml_core::Lens<'a, SdtContentDate>);
+impl<'a> SdtContentDateView<'a> {
+    /// `w:fullDate` — Last Known Date in XML Schema DateTime Format
+    pub fn full_date(&self) -> Option<&'a str> {
+        self.0.attr(SdtContentDate::ATTR_W_FULL_DATE)
+    }
+    /// First `w:lid` child.
+    pub fn language_id(&self) -> Option<LanguageIdView<'a>> {
+        self.0.child::<LanguageId>().map(LanguageIdView)
+    }
+    /// First `w:storeMappedDataAs` child.
+    pub fn sdt_date_mapping_type(&self) -> Option<SdtDateMappingTypeView<'a>> {
+        self.0.child::<SdtDateMappingType>().map(SdtDateMappingTypeView)
+    }
+    /// First `w:dateFormat` child.
+    pub fn date_format(&self) -> Option<DateFormatView<'a>> {
+        self.0.child::<DateFormat>().map(DateFormatView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentDate`]. Reads go through [`SdtContentDateViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentDateViewMut<'a>(pub ooxml_core::LensMut<'a, SdtContentDate>);
+impl<'a> SdtContentDateViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentDateView<'_> {
+        SdtContentDateView(self.0.as_lens())
+    }
+    /// Sets `w:fullDate` — Last Known Date in XML Schema DateTime Format
+    pub fn set_full_date(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SdtContentDate::ATTR_W_FULL_DATE, v)
+    }
+    /// Removes `w:fullDate`.
+    pub fn remove_full_date(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtContentDate::ATTR_W_FULL_DATE)
+    }
+    /// First `w:lid` child, mutably.
+    pub fn language_id_mut(&mut self) -> Option<LanguageIdViewMut<'_>> {
+        self.0.child_mut::<LanguageId>().map(LanguageIdViewMut)
+    }
+    /// Existing `w:lid` child, or a new one in schema position.
+    pub fn get_or_insert_language_id(
+        &mut self,
+    ) -> Result<LanguageIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LanguageId>().map(LanguageIdViewMut)
+    }
+    /// Removes the first `w:lid` child.
+    pub fn remove_language_id(&mut self) -> bool {
+        self.0.remove::<LanguageId>()
+    }
+    /// First `w:storeMappedDataAs` child, mutably.
+    pub fn sdt_date_mapping_type_mut(
+        &mut self,
+    ) -> Option<SdtDateMappingTypeViewMut<'_>> {
+        self.0.child_mut::<SdtDateMappingType>().map(SdtDateMappingTypeViewMut)
+    }
+    /// Existing `w:storeMappedDataAs` child, or a new one in schema position.
+    pub fn get_or_insert_sdt_date_mapping_type(
+        &mut self,
+    ) -> Result<SdtDateMappingTypeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SdtDateMappingType>().map(SdtDateMappingTypeViewMut)
+    }
+    /// Removes the first `w:storeMappedDataAs` child.
+    pub fn remove_sdt_date_mapping_type(&mut self) -> bool {
+        self.0.remove::<SdtDateMappingType>()
+    }
+    /// First `w:dateFormat` child, mutably.
+    pub fn date_format_mut(&mut self) -> Option<DateFormatViewMut<'_>> {
+        self.0.child_mut::<DateFormat>().map(DateFormatViewMut)
+    }
+    /// Existing `w:dateFormat` child, or a new one in schema position.
+    pub fn get_or_insert_date_format(
+        &mut self,
+    ) -> Result<DateFormatViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<DateFormat>().map(DateFormatViewMut)
+    }
+    /// Removes the first `w:dateFormat` child.
+    pub fn remove_date_format(&mut self) -> bool {
+        self.0.remove::<DateFormat>()
+    }
+}
+/// `w:CT_SdtDateMappingType/w:storeMappedDataAs` — Custom XML Data Date Storage Format.
+#[derive(Debug)]
+pub enum SdtDateMappingType {}
+impl SdtDateMappingType {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for SdtDateMappingType {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "storeMappedDataAs");
+    const SDK_NAME: &'static str = "w:CT_SdtDateMappingType/w:storeMappedDataAs";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtDateMappingType::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::Enum(
+                <DateFormatValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SdtDateMappingType`].
+#[derive(Clone, Debug)]
+pub struct SdtDateMappingTypeView<'a>(pub ooxml_core::Lens<'a, SdtDateMappingType>);
+impl<'a> SdtDateMappingTypeView<'a> {
+    /// `w:val` — Date Storage Type
+    pub fn val(&self) -> Option<ooxml_core::EnumValue<'a, DateFormatValues>> {
+        self.0.attr_enum(SdtDateMappingType::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtDateMappingType`]. Reads go through [`SdtDateMappingTypeViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtDateMappingTypeViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SdtDateMappingType>,
+);
+impl<'a> SdtDateMappingTypeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtDateMappingTypeView<'_> {
+        SdtDateMappingTypeView(self.0.as_lens())
+    }
+    /// Sets `w:val` — Date Storage Type
+    pub fn set_val(&mut self, v: DateFormatValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SdtDateMappingType::ATTR_W_VAL, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtDateMappingType::ATTR_W_VAL)
+    }
+}
+/// `w:CT_SdtDropDownList/w:dropDownList` — Defines the SdtContentDropDownList Class.
+#[derive(Debug)]
+pub enum SdtContentDropDownList {}
+impl SdtContentDropDownList {
+    /// `w:lastValue`
+    pub const ATTR_W_LAST_VALUE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "lastValue",
+    );
+}
+impl ooxml_core::ElementSpec for SdtContentDropDownList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "dropDownList");
+    const SDK_NAME: &'static str = "w:CT_SdtDropDownList/w:dropDownList";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtContentDropDownList::ATTR_W_LAST_VALUE,
+            ty: ooxml_core::SimpleType::String,
+            default: Some(""),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "listItem")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtContentDropDownList> for ListItem {}
+/// Read-only view of [`SdtContentDropDownList`].
+#[derive(Clone, Debug)]
+pub struct SdtContentDropDownListView<'a>(
+    pub ooxml_core::Lens<'a, SdtContentDropDownList>,
+);
+impl<'a> SdtContentDropDownListView<'a> {
+    /// `w:lastValue` — Drop-down List Last Saved Value (default ``)
+    pub fn last_value(&self) -> &'a str {
+        self.0.attr(SdtContentDropDownList::ATTR_W_LAST_VALUE).unwrap_or("")
+    }
+    /// `w:listItem` children in document order.
+    pub fn list_item_iter(&self) -> impl Iterator<Item = ListItemView<'a>> {
+        self.0.children::<ListItem>().map(ListItemView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentDropDownList`]. Reads go through [`SdtContentDropDownListViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentDropDownListViewMut<'a>(
+    pub ooxml_core::LensMut<'a, SdtContentDropDownList>,
+);
+impl<'a> SdtContentDropDownListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentDropDownListView<'_> {
+        SdtContentDropDownListView(self.0.as_lens())
+    }
+    /// Sets `w:lastValue` — Drop-down List Last Saved Value (default ``)
+    pub fn set_last_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SdtContentDropDownList::ATTR_W_LAST_VALUE, v)
+    }
+    /// Removes `w:lastValue`.
+    pub fn remove_last_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtContentDropDownList::ATTR_W_LAST_VALUE)
+    }
+    /// First `w:listItem` child matching `pred`, mutably.
+    pub fn list_item_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ListItemViewMut<'_>> {
+        self.0.child_mut_by::<ListItem>(pred).map(ListItemViewMut)
+    }
+    /// Inserts a `w:listItem` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_list_item_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<ListItemViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<ListItem>(before).map(ListItemViewMut)
+    }
+    /// Appends a `w:listItem` at the end of its slot.
+    pub fn insert_list_item(
+        &mut self,
+    ) -> Result<ListItemViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<ListItem>().map(ListItemViewMut)
+    }
+    /// Removes the first `w:listItem` child.
+    pub fn remove_list_item(&mut self) -> bool {
+        self.0.remove::<ListItem>()
+    }
+}
+/// `w:CT_SdtListItem/w:listItem` — Combo Box List Item.
+#[derive(Debug)]
+pub enum ListItem {}
+impl ListItem {
+    /// `w:displayText`
+    pub const ATTR_W_DISPLAY_TEXT: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "displayText",
+    );
+    /// `w:value`
+    pub const ATTR_W_VALUE: ooxml_core::QName = ooxml_core::QName::new(NS_W, "value");
+}
+impl ooxml_core::ElementSpec for ListItem {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "listItem");
+    const SDK_NAME: &'static str = "w:CT_SdtListItem/w:listItem";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: ListItem::ATTR_W_DISPLAY_TEXT,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: ListItem::ATTR_W_VALUE,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`ListItem`].
+#[derive(Clone, Debug)]
+pub struct ListItemView<'a>(pub ooxml_core::Lens<'a, ListItem>);
+impl<'a> ListItemView<'a> {
+    /// `w:displayText` — List Entry Display Text
+    pub fn display_text(&self) -> Option<&'a str> {
+        self.0.attr(ListItem::ATTR_W_DISPLAY_TEXT)
+    }
+    /// `w:value` — List Entry Value
+    pub fn value(&self) -> Option<&'a str> {
+        self.0.attr(ListItem::ATTR_W_VALUE)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`ListItem`]. Reads go through [`ListItemViewMut::as_view`].
+#[derive(Debug)]
+pub struct ListItemViewMut<'a>(pub ooxml_core::LensMut<'a, ListItem>);
+impl<'a> ListItemViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ListItemView<'_> {
+        ListItemView(self.0.as_lens())
+    }
+    /// Sets `w:displayText` — List Entry Display Text
+    pub fn set_display_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ListItem::ATTR_W_DISPLAY_TEXT, v)
+    }
+    /// Removes `w:displayText`.
+    pub fn remove_display_text(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ListItem::ATTR_W_DISPLAY_TEXT)
+    }
+    /// Sets `w:value` — List Entry Value
+    pub fn set_value(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ListItem::ATTR_W_VALUE, v)
+    }
+    /// Removes `w:value`.
+    pub fn remove_value(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ListItem::ATTR_W_VALUE)
+    }
+}
+/// `w:CT_SdtPr/w:sdtPr` — Structured Document Tag Properties.
+///
+/// Content model unsupported for insertion (ECMA order disagreement (rPr, alias)).
+#[derive(Debug)]
+pub enum SdtProperties {}
+impl ooxml_core::ElementSpec for SdtProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "sdtPr");
+    const SDK_NAME: &'static str = "w:CT_SdtPr/w:sdtPr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Unsupported(
+        &[
+            ooxml_core::QName::new(NS_W14, "checkbox"),
+            ooxml_core::QName::new(NS_W14, "entityPicker"),
+            ooxml_core::QName::new(NS_W15, "appearance"),
+            ooxml_core::QName::new(NS_W15, "color"),
+            ooxml_core::QName::new(NS_W15, "dataBinding"),
+            ooxml_core::QName::new(NS_W15, "repeatingSection"),
+            ooxml_core::QName::new(NS_W15, "repeatingSectionItem"),
+            ooxml_core::QName::new(NS_W15, "webExtensionCreated"),
+            ooxml_core::QName::new(NS_W15, "webExtensionLinked"),
+            ooxml_core::QName::new(NS_W, "alias"),
+            ooxml_core::QName::new(NS_W, "bibliography"),
+            ooxml_core::QName::new(NS_W, "citation"),
+            ooxml_core::QName::new(NS_W, "comboBox"),
+            ooxml_core::QName::new(NS_W, "dataBinding"),
+            ooxml_core::QName::new(NS_W, "date"),
+            ooxml_core::QName::new(NS_W, "docPartList"),
+            ooxml_core::QName::new(NS_W, "docPartObj"),
+            ooxml_core::QName::new(NS_W, "dropDownList"),
+            ooxml_core::QName::new(NS_W, "equation"),
+            ooxml_core::QName::new(NS_W, "group"),
+            ooxml_core::QName::new(NS_W, "id"),
+            ooxml_core::QName::new(NS_W, "lock"),
+            ooxml_core::QName::new(NS_W, "picture"),
+            ooxml_core::QName::new(NS_W, "placeholder"),
+            ooxml_core::QName::new(NS_W, "rPr"),
+            ooxml_core::QName::new(NS_W, "richText"),
+            ooxml_core::QName::new(NS_W, "showingPlcHdr"),
+            ooxml_core::QName::new(NS_W, "tag"),
+            ooxml_core::QName::new(NS_W, "temporary"),
+            ooxml_core::QName::new(NS_W, "text"),
+        ],
+    );
+}
+impl ooxml_core::ChildOf<SdtProperties> for SdtContentCheckBox {}
+impl ooxml_core::ChildOf<SdtProperties> for DataBinding {}
+impl ooxml_core::ChildOf<SdtProperties> for SdtId {}
+impl ooxml_core::ChildOf<SdtProperties> for Lock {}
+impl ooxml_core::ChildOf<SdtProperties> for ShowingPlaceholder {}
+impl ooxml_core::ChildOf<SdtProperties> for RunProperties {}
+impl ooxml_core::ChildOf<SdtProperties> for SdtContentComboBox {}
+impl ooxml_core::ChildOf<SdtProperties> for SdtContentDate {}
+impl ooxml_core::ChildOf<SdtProperties> for SdtContentDropDownList {}
+impl ooxml_core::ChildOf<SdtProperties> for SdtContentText {}
+impl ooxml_core::ChildOf<SdtProperties> for SdtAlias {}
+impl ooxml_core::ChildOf<SdtProperties> for Tag {}
+/// Read-only view of [`SdtProperties`].
+#[derive(Clone, Debug)]
+pub struct SdtPropertiesView<'a>(pub ooxml_core::Lens<'a, SdtProperties>);
+impl<'a> SdtPropertiesView<'a> {
+    /// `w14:checkbox` children in document order.
+    pub fn sdt_content_check_box_iter(
+        &self,
+    ) -> impl Iterator<Item = SdtContentCheckBoxView<'a>> {
+        self.0.children::<SdtContentCheckBox>().map(SdtContentCheckBoxView)
+    }
+    /// `w:dataBinding` children in document order.
+    pub fn data_binding_iter(&self) -> impl Iterator<Item = DataBindingView<'a>> {
+        self.0.children::<DataBinding>().map(DataBindingView)
+    }
+    /// `w:id` children in document order.
+    pub fn sdt_id_iter(&self) -> impl Iterator<Item = SdtIdView<'a>> {
+        self.0.children::<SdtId>().map(SdtIdView)
+    }
+    /// `w:lock` children in document order.
+    pub fn lock_iter(&self) -> impl Iterator<Item = LockView<'a>> {
+        self.0.children::<Lock>().map(LockView)
+    }
+    /// `w:showingPlcHdr` children in document order.
+    pub fn showing_placeholder_iter(
+        &self,
+    ) -> impl Iterator<Item = ShowingPlaceholderView<'a>> {
+        self.0.children::<ShowingPlaceholder>().map(ShowingPlaceholderView)
+    }
+    /// `w:rPr` children in document order.
+    pub fn run_properties_iter(&self) -> impl Iterator<Item = RunPropertiesView<'a>> {
+        self.0.children::<RunProperties>().map(RunPropertiesView)
+    }
+    /// `w:comboBox` children in document order.
+    pub fn sdt_content_combo_box_iter(
+        &self,
+    ) -> impl Iterator<Item = SdtContentComboBoxView<'a>> {
+        self.0.children::<SdtContentComboBox>().map(SdtContentComboBoxView)
+    }
+    /// `w:date` children in document order.
+    pub fn sdt_content_date_iter(&self) -> impl Iterator<Item = SdtContentDateView<'a>> {
+        self.0.children::<SdtContentDate>().map(SdtContentDateView)
+    }
+    /// `w:dropDownList` children in document order.
+    pub fn sdt_content_drop_down_list_iter(
+        &self,
+    ) -> impl Iterator<Item = SdtContentDropDownListView<'a>> {
+        self.0.children::<SdtContentDropDownList>().map(SdtContentDropDownListView)
+    }
+    /// `w:text` children in document order.
+    pub fn sdt_content_text_iter(&self) -> impl Iterator<Item = SdtContentTextView<'a>> {
+        self.0.children::<SdtContentText>().map(SdtContentTextView)
+    }
+    /// `w:alias` children in document order.
+    pub fn sdt_alias_iter(&self) -> impl Iterator<Item = SdtAliasView<'a>> {
+        self.0.children::<SdtAlias>().map(SdtAliasView)
+    }
+    /// `w:tag` children in document order.
+    pub fn tag_iter(&self) -> impl Iterator<Item = TagView<'a>> {
+        self.0.children::<Tag>().map(TagView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtProperties`]. Reads go through [`SdtPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, SdtProperties>);
+impl<'a> SdtPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtPropertiesView<'_> {
+        SdtPropertiesView(self.0.as_lens())
+    }
+    /// First `w14:checkbox` child matching `pred`, mutably.
+    pub fn sdt_content_check_box_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtContentCheckBoxViewMut<'_>> {
+        self.0.child_mut_by::<SdtContentCheckBox>(pred).map(SdtContentCheckBoxViewMut)
+    }
+    /// Removes the first `w14:checkbox` child.
+    pub fn remove_sdt_content_check_box(&mut self) -> bool {
+        self.0.remove::<SdtContentCheckBox>()
+    }
+    /// First `w:dataBinding` child matching `pred`, mutably.
+    pub fn data_binding_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<DataBindingViewMut<'_>> {
+        self.0.child_mut_by::<DataBinding>(pred).map(DataBindingViewMut)
+    }
+    /// Removes the first `w:dataBinding` child.
+    pub fn remove_data_binding(&mut self) -> bool {
+        self.0.remove::<DataBinding>()
+    }
+    /// First `w:id` child matching `pred`, mutably.
+    pub fn sdt_id_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtIdViewMut<'_>> {
+        self.0.child_mut_by::<SdtId>(pred).map(SdtIdViewMut)
+    }
+    /// Removes the first `w:id` child.
+    pub fn remove_sdt_id(&mut self) -> bool {
+        self.0.remove::<SdtId>()
+    }
+    /// First `w:lock` child matching `pred`, mutably.
+    pub fn lock_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<LockViewMut<'_>> {
+        self.0.child_mut_by::<Lock>(pred).map(LockViewMut)
+    }
+    /// Removes the first `w:lock` child.
+    pub fn remove_lock(&mut self) -> bool {
+        self.0.remove::<Lock>()
+    }
+    /// First `w:showingPlcHdr` child matching `pred`, mutably.
+    pub fn showing_placeholder_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ShowingPlaceholderViewMut<'_>> {
+        self.0.child_mut_by::<ShowingPlaceholder>(pred).map(ShowingPlaceholderViewMut)
+    }
+    /// Removes the first `w:showingPlcHdr` child.
+    pub fn remove_showing_placeholder(&mut self) -> bool {
+        self.0.remove::<ShowingPlaceholder>()
+    }
+    /// First `w:comboBox` child matching `pred`, mutably.
+    pub fn sdt_content_combo_box_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtContentComboBoxViewMut<'_>> {
+        self.0.child_mut_by::<SdtContentComboBox>(pred).map(SdtContentComboBoxViewMut)
+    }
+    /// Removes the first `w:comboBox` child.
+    pub fn remove_sdt_content_combo_box(&mut self) -> bool {
+        self.0.remove::<SdtContentComboBox>()
+    }
+    /// First `w:date` child matching `pred`, mutably.
+    pub fn sdt_content_date_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtContentDateViewMut<'_>> {
+        self.0.child_mut_by::<SdtContentDate>(pred).map(SdtContentDateViewMut)
+    }
+    /// Removes the first `w:date` child.
+    pub fn remove_sdt_content_date(&mut self) -> bool {
+        self.0.remove::<SdtContentDate>()
+    }
+    /// First `w:dropDownList` child matching `pred`, mutably.
+    pub fn sdt_content_drop_down_list_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtContentDropDownListViewMut<'_>> {
+        self.0
+            .child_mut_by::<SdtContentDropDownList>(pred)
+            .map(SdtContentDropDownListViewMut)
+    }
+    /// Removes the first `w:dropDownList` child.
+    pub fn remove_sdt_content_drop_down_list(&mut self) -> bool {
+        self.0.remove::<SdtContentDropDownList>()
+    }
+    /// First `w:text` child matching `pred`, mutably.
+    pub fn sdt_content_text_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtContentTextViewMut<'_>> {
+        self.0.child_mut_by::<SdtContentText>(pred).map(SdtContentTextViewMut)
+    }
+    /// Removes the first `w:text` child.
+    pub fn remove_sdt_content_text(&mut self) -> bool {
+        self.0.remove::<SdtContentText>()
+    }
+    /// First `w:alias` child matching `pred`, mutably.
+    pub fn sdt_alias_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtAliasViewMut<'_>> {
+        self.0.child_mut_by::<SdtAlias>(pred).map(SdtAliasViewMut)
+    }
+    /// Removes the first `w:alias` child.
+    pub fn remove_sdt_alias(&mut self) -> bool {
+        self.0.remove::<SdtAlias>()
+    }
+    /// First `w:tag` child matching `pred`, mutably.
+    pub fn tag_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TagViewMut<'_>> {
+        self.0.child_mut_by::<Tag>(pred).map(TagViewMut)
+    }
+    /// Removes the first `w:tag` child.
+    pub fn remove_tag(&mut self) -> bool {
+        self.0.remove::<Tag>()
+    }
+}
+/// `w:CT_SdtRun/w:sdt` — Defines the SdtRun Class.
+///
+/// The SDK base class is not in the schema data: attributes are incomplete and attribute writes are refused.
+#[derive(Debug)]
+pub enum SdtRun {}
+impl ooxml_core::ElementSpec for SdtRun {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "sdt");
+    const SDK_NAME: &'static str = "w:CT_SdtRun/w:sdt";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sdtPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sdtEndPr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_W, "sdtContent")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_W, "bookmarkStart"),
+                    ooxml_core::QName::new(NS_W, "bookmarkEnd"),
+                    ooxml_core::QName::new(NS_W, "commentRangeStart"),
+                    ooxml_core::QName::new(NS_W, "commentRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "moveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlDelRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveFromRangeEnd"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeStart"),
+                    ooxml_core::QName::new(NS_W, "customXmlMoveToRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictInsRangeEnd"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeStart"),
+                    ooxml_core::QName::new(NS_W14, "customXmlConflictDelRangeEnd"),
+                ],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+    const ATTRS_INCOMPLETE: bool = true;
+}
+impl ooxml_core::ChildOf<SdtRun> for BookmarkStart {}
+impl ooxml_core::ChildOf<SdtRun> for BookmarkEnd {}
+impl ooxml_core::ChildOf<SdtRun> for CommentRangeEnd {}
+impl ooxml_core::ChildOf<SdtRun> for CommentRangeStart {}
+impl ooxml_core::ChildOf<SdtRun> for SdtContentRun {}
+impl ooxml_core::ChildOf<SdtRun> for SdtProperties {}
+/// Read-only view of [`SdtRun`].
+#[derive(Clone, Debug)]
+pub struct SdtRunView<'a>(pub ooxml_core::Lens<'a, SdtRun>);
+impl<'a> SdtRunView<'a> {
+    /// `w:bookmarkStart` children in document order.
+    pub fn bookmark_start_iter(&self) -> impl Iterator<Item = BookmarkStartView<'a>> {
+        self.0.children::<BookmarkStart>().map(BookmarkStartView)
+    }
+    /// `w:bookmarkEnd` children in document order.
+    pub fn bookmark_end_iter(&self) -> impl Iterator<Item = BookmarkEndView<'a>> {
+        self.0.children::<BookmarkEnd>().map(BookmarkEndView)
+    }
+    /// `w:commentRangeEnd` children in document order.
+    pub fn comment_range_end_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeEndView<'a>> {
+        self.0.children::<CommentRangeEnd>().map(CommentRangeEndView)
+    }
+    /// `w:commentRangeStart` children in document order.
+    pub fn comment_range_start_iter(
+        &self,
+    ) -> impl Iterator<Item = CommentRangeStartView<'a>> {
+        self.0.children::<CommentRangeStart>().map(CommentRangeStartView)
+    }
+    /// First `w:sdtContent` child.
+    pub fn sdt_content_run(&self) -> Option<SdtContentRunView<'a>> {
+        self.0.child::<SdtContentRun>().map(SdtContentRunView)
+    }
+    /// First `w:sdtPr` child.
+    pub fn sdt_properties(&self) -> Option<SdtPropertiesView<'a>> {
+        self.0.child::<SdtProperties>().map(SdtPropertiesView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtRun`]. Reads go through [`SdtRunViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtRunViewMut<'a>(pub ooxml_core::LensMut<'a, SdtRun>);
+impl<'a> SdtRunViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtRunView<'_> {
+        SdtRunView(self.0.as_lens())
+    }
+    /// First `w:bookmarkStart` child matching `pred`, mutably.
+    pub fn bookmark_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkStartViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkStart>(pred).map(BookmarkStartViewMut)
+    }
+    /// Inserts a `w:bookmarkStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkStart>(before).map(BookmarkStartViewMut)
+    }
+    /// Appends a `w:bookmarkStart` at the end of its slot.
+    pub fn insert_bookmark_start(
+        &mut self,
+    ) -> Result<BookmarkStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkStart>().map(BookmarkStartViewMut)
+    }
+    /// Removes the first `w:bookmarkStart` child.
+    pub fn remove_bookmark_start(&mut self) -> bool {
+        self.0.remove::<BookmarkStart>()
+    }
+    /// First `w:bookmarkEnd` child matching `pred`, mutably.
+    pub fn bookmark_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<BookmarkEndViewMut<'_>> {
+        self.0.child_mut_by::<BookmarkEnd>(pred).map(BookmarkEndViewMut)
+    }
+    /// Inserts a `w:bookmarkEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_bookmark_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<BookmarkEnd>(before).map(BookmarkEndViewMut)
+    }
+    /// Appends a `w:bookmarkEnd` at the end of its slot.
+    pub fn insert_bookmark_end(
+        &mut self,
+    ) -> Result<BookmarkEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<BookmarkEnd>().map(BookmarkEndViewMut)
+    }
+    /// Removes the first `w:bookmarkEnd` child.
+    pub fn remove_bookmark_end(&mut self) -> bool {
+        self.0.remove::<BookmarkEnd>()
+    }
+    /// First `w:commentRangeEnd` child matching `pred`, mutably.
+    pub fn comment_range_end_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeEndViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeEnd>(pred).map(CommentRangeEndViewMut)
+    }
+    /// Inserts a `w:commentRangeEnd` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_end_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeEnd>(before).map(CommentRangeEndViewMut)
+    }
+    /// Appends a `w:commentRangeEnd` at the end of its slot.
+    pub fn insert_comment_range_end(
+        &mut self,
+    ) -> Result<CommentRangeEndViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeEnd>().map(CommentRangeEndViewMut)
+    }
+    /// Removes the first `w:commentRangeEnd` child.
+    pub fn remove_comment_range_end(&mut self) -> bool {
+        self.0.remove::<CommentRangeEnd>()
+    }
+    /// First `w:commentRangeStart` child matching `pred`, mutably.
+    pub fn comment_range_start_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentRangeStartViewMut<'_>> {
+        self.0.child_mut_by::<CommentRangeStart>(pred).map(CommentRangeStartViewMut)
+    }
+    /// Inserts a `w:commentRangeStart` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_range_start_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentRangeStart>(before).map(CommentRangeStartViewMut)
+    }
+    /// Appends a `w:commentRangeStart` at the end of its slot.
+    pub fn insert_comment_range_start(
+        &mut self,
+    ) -> Result<CommentRangeStartViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentRangeStart>().map(CommentRangeStartViewMut)
+    }
+    /// Removes the first `w:commentRangeStart` child.
+    pub fn remove_comment_range_start(&mut self) -> bool {
+        self.0.remove::<CommentRangeStart>()
+    }
+    /// First `w:sdtContent` child, mutably.
+    pub fn sdt_content_run_mut(&mut self) -> Option<SdtContentRunViewMut<'_>> {
+        self.0.child_mut::<SdtContentRun>().map(SdtContentRunViewMut)
+    }
+    /// Existing `w:sdtContent` child, or a new one in schema position.
+    pub fn get_or_insert_sdt_content_run(
+        &mut self,
+    ) -> Result<SdtContentRunViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SdtContentRun>().map(SdtContentRunViewMut)
+    }
+    /// Removes the first `w:sdtContent` child.
+    pub fn remove_sdt_content_run(&mut self) -> bool {
+        self.0.remove::<SdtContentRun>()
+    }
+    /// First `w:sdtPr` child, mutably.
+    pub fn sdt_properties_mut(&mut self) -> Option<SdtPropertiesViewMut<'_>> {
+        self.0.child_mut::<SdtProperties>().map(SdtPropertiesViewMut)
+    }
+    /// Existing `w:sdtPr` child, or a new one in schema position.
+    pub fn get_or_insert_sdt_properties(
+        &mut self,
+    ) -> Result<SdtPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SdtProperties>().map(SdtPropertiesViewMut)
+    }
+    /// Removes the first `w:sdtPr` child.
+    pub fn remove_sdt_properties(&mut self) -> bool {
+        self.0.remove::<SdtProperties>()
+    }
+}
+/// `w:CT_SdtText/w:text` — Defines the SdtContentText Class.
+#[derive(Debug)]
+pub enum SdtContentText {}
+impl SdtContentText {
+    /// `w:multiLine`
+    pub const ATTR_W_MULTI_LINE: ooxml_core::QName = ooxml_core::QName::new(
+        NS_W,
+        "multiLine",
+    );
+}
+impl ooxml_core::ElementSpec for SdtContentText {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "text");
+    const SDK_NAME: &'static str = "w:CT_SdtText/w:text";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtContentText::ATTR_W_MULTI_LINE,
+            ty: ooxml_core::SimpleType::OnOff,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SdtContentText`].
+#[derive(Clone, Debug)]
+pub struct SdtContentTextView<'a>(pub ooxml_core::Lens<'a, SdtContentText>);
+impl<'a> SdtContentTextView<'a> {
+    /// `w:multiLine` — Allow Soft Line Breaks
+    pub fn multi_line(&self) -> Result<Option<bool>, ooxml_core::AttrError> {
+        self.0
+            .attr_parsed(
+                SdtContentText::ATTR_W_MULTI_LINE,
+                ooxml_core::value::parse_on_off,
+            )
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtContentText`]. Reads go through [`SdtContentTextViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtContentTextViewMut<'a>(pub ooxml_core::LensMut<'a, SdtContentText>);
+impl<'a> SdtContentTextViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtContentTextView<'_> {
+        SdtContentTextView(self.0.as_lens())
+    }
+    /// Sets `w:multiLine` — Allow Soft Line Breaks
+    pub fn set_multi_line(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                SdtContentText::ATTR_W_MULTI_LINE,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `w:multiLine`.
+    pub fn remove_multi_line(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtContentText::ATTR_W_MULTI_LINE)
     }
 }
 /// `w:CT_SectPr/w:sectPr` — Section Properties.
@@ -18113,6 +20788,7 @@ impl ooxml_core::ChildOf<SimpleField> for DeletedRun {}
 impl ooxml_core::ChildOf<SimpleField> for InsertedRun {}
 impl ooxml_core::ChildOf<SimpleField> for MoveFromRun {}
 impl ooxml_core::ChildOf<SimpleField> for MoveToRun {}
+impl ooxml_core::ChildOf<SimpleField> for SdtRun {}
 impl ooxml_core::ChildOf<SimpleField> for SimpleField {}
 /// Read-only view of [`SimpleField`].
 #[derive(Clone, Debug)]
@@ -18173,6 +20849,10 @@ impl<'a> SimpleFieldView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_run_iter(&self) -> impl Iterator<Item = SdtRunView<'a>> {
+        self.0.children::<SdtRun>().map(SdtRunView)
     }
     /// `w:fldSimple` children in document order.
     pub fn simple_field_iter(&self) -> impl Iterator<Item = SimpleFieldView<'a>> {
@@ -18425,6 +21105,104 @@ impl<'a> SpacingBetweenLinesViewMut<'a> {
         self.0.remove_attr(SpacingBetweenLines::ATTR_W_LINE_RULE)
     }
 }
+/// `w:CT_String/w:alias` — Defines the SdtAlias Class.
+#[derive(Debug)]
+pub enum SdtAlias {}
+impl SdtAlias {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for SdtAlias {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "alias");
+    const SDK_NAME: &'static str = "w:CT_String/w:alias";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: SdtAlias::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`SdtAlias`].
+#[derive(Clone, Debug)]
+pub struct SdtAliasView<'a>(pub ooxml_core::Lens<'a, SdtAlias>);
+impl<'a> SdtAliasView<'a> {
+    /// `w:val` — String Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(SdtAlias::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`SdtAlias`]. Reads go through [`SdtAliasViewMut::as_view`].
+#[derive(Debug)]
+pub struct SdtAliasViewMut<'a>(pub ooxml_core::LensMut<'a, SdtAlias>);
+impl<'a> SdtAliasViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> SdtAliasView<'_> {
+        SdtAliasView(self.0.as_lens())
+    }
+    /// Sets `w:val` — String Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(SdtAlias::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(SdtAlias::ATTR_W_VAL)
+    }
+}
+/// `w:CT_String/w:dateFormat` — Date Display Mask.
+#[derive(Debug)]
+pub enum DateFormat {}
+impl DateFormat {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for DateFormat {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "dateFormat");
+    const SDK_NAME: &'static str = "w:CT_String/w:dateFormat";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: DateFormat::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`DateFormat`].
+#[derive(Clone, Debug)]
+pub struct DateFormatView<'a>(pub ooxml_core::Lens<'a, DateFormat>);
+impl<'a> DateFormatView<'a> {
+    /// `w:val` — String Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(DateFormat::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`DateFormat`]. Reads go through [`DateFormatViewMut::as_view`].
+#[derive(Debug)]
+pub struct DateFormatViewMut<'a>(pub ooxml_core::LensMut<'a, DateFormat>);
+impl<'a> DateFormatViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> DateFormatView<'_> {
+        DateFormatView(self.0.as_lens())
+    }
+    /// Sets `w:val` — String Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(DateFormat::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(DateFormat::ATTR_W_VAL)
+    }
+}
 /// `w:CT_String/w:pStyle` — Defines the ParagraphStyleId Class.
 #[derive(Debug)]
 pub enum ParagraphStyleId {}
@@ -18472,6 +21250,55 @@ impl<'a> ParagraphStyleIdViewMut<'a> {
     /// Removes `w:val`.
     pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(ParagraphStyleId::ATTR_W_VAL)
+    }
+}
+/// `w:CT_String/w:tag` — Defines the Tag Class.
+#[derive(Debug)]
+pub enum Tag {}
+impl Tag {
+    /// `w:val`
+    pub const ATTR_W_VAL: ooxml_core::QName = ooxml_core::QName::new(NS_W, "val");
+}
+impl ooxml_core::ElementSpec for Tag {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_W, "tag");
+    const SDK_NAME: &'static str = "w:CT_String/w:tag";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: Tag::ATTR_W_VAL,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`Tag`].
+#[derive(Clone, Debug)]
+pub struct TagView<'a>(pub ooxml_core::Lens<'a, Tag>);
+impl<'a> TagView<'a> {
+    /// `w:val` — String Value
+    pub fn val(&self) -> Option<&'a str> {
+        self.0.attr(Tag::ATTR_W_VAL)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Tag`]. Reads go through [`TagViewMut::as_view`].
+#[derive(Debug)]
+pub struct TagViewMut<'a>(pub ooxml_core::LensMut<'a, Tag>);
+impl<'a> TagViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TagView<'_> {
+        TagView(self.0.as_lens())
+    }
+    /// Sets `w:val` — String Value
+    pub fn set_val(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Tag::ATTR_W_VAL, v)
+    }
+    /// Removes `w:val`.
+    pub fn remove_val(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Tag::ATTR_W_VAL)
     }
 }
 /// `w:CT_String253/w:basedOn` — Parent Style ID.
@@ -19807,6 +22634,7 @@ impl ooxml_core::ChildOf<TableCell> for DeletedRun {}
 impl ooxml_core::ChildOf<TableCell> for InsertedRun {}
 impl ooxml_core::ChildOf<TableCell> for MoveFromRun {}
 impl ooxml_core::ChildOf<TableCell> for MoveToRun {}
+impl ooxml_core::ChildOf<TableCell> for SdtBlock {}
 impl ooxml_core::ChildOf<TableCell> for Table {}
 impl ooxml_core::ChildOf<TableCell> for TableCellProperties {}
 /// Read-only view of [`TableCell`].
@@ -19852,6 +22680,10 @@ impl<'a> TableCellView<'a> {
     /// `w:moveTo` children in document order.
     pub fn move_to_run_iter(&self) -> impl Iterator<Item = MoveToRunView<'a>> {
         self.0.children::<MoveToRun>().map(MoveToRunView)
+    }
+    /// `w:sdt` children in document order.
+    pub fn sdt_block_iter(&self) -> impl Iterator<Item = SdtBlockView<'a>> {
+        self.0.children::<SdtBlock>().map(SdtBlockView)
     }
     /// `w:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
@@ -20041,6 +22873,30 @@ impl<'a> TableCellViewMut<'a> {
     /// Removes the first `w:ins` child.
     pub fn remove_inserted_run(&mut self) -> bool {
         self.0.remove::<InsertedRun>()
+    }
+    /// First `w:sdt` child matching `pred`, mutably.
+    pub fn sdt_block_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<SdtBlockViewMut<'_>> {
+        self.0.child_mut_by::<SdtBlock>(pred).map(SdtBlockViewMut)
+    }
+    /// Inserts a `w:sdt` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_sdt_block_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<SdtBlock>(before).map(SdtBlockViewMut)
+    }
+    /// Appends a `w:sdt` at the end of its slot.
+    pub fn insert_sdt_block(
+        &mut self,
+    ) -> Result<SdtBlockViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<SdtBlock>().map(SdtBlockViewMut)
+    }
+    /// Removes the first `w:sdt` child.
+    pub fn remove_sdt_block(&mut self) -> bool {
+        self.0.remove::<SdtBlock>()
     }
     /// First `w:tbl` child matching `pred`, mutably.
     pub fn table_mut_by(
@@ -21711,6 +24567,13 @@ const _: () = ooxml_core::schema::assert_child::<
     NonVisualPictureProperties,
     NonVisualPictureDrawingProperties,
 >();
+const _: () = ooxml_core::schema::assert_spec::<Checked>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentCheckBox>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentCheckBox, Checked>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentCheckBox, CheckedState>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentCheckBox, UncheckedState>();
+const _: () = ooxml_core::schema::assert_spec::<CheckedState>();
+const _: () = ooxml_core::schema::assert_spec::<UncheckedState>();
 const _: () = ooxml_core::schema::assert_spec::<CommentEx>();
 const _: () = ooxml_core::schema::assert_spec::<CommentsEx>();
 const _: () = ooxml_core::schema::assert_child::<CommentsEx, CommentEx>();
@@ -21742,6 +24605,7 @@ const _: () = ooxml_core::schema::assert_child::<Body, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Body, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Body, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<Body, SectionProperties>();
 const _: () = ooxml_core::schema::assert_child::<Body, Table>();
 const _: () = ooxml_core::schema::assert_spec::<BookmarkStart>();
@@ -21753,12 +24617,15 @@ const _: () = ooxml_core::schema::assert_child::<Comment, BookmarkEnd>();
 const _: () = ooxml_core::schema::assert_child::<Comment, CommentRangeEnd>();
 const _: () = ooxml_core::schema::assert_child::<Comment, CommentRangeStart>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<Comment, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<Comment, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Comments>();
 const _: () = ooxml_core::schema::assert_child::<Comments, Comment>();
+const _: () = ooxml_core::schema::assert_spec::<DataBinding>();
 const _: () = ooxml_core::schema::assert_spec::<GridAfter>();
 const _: () = ooxml_core::schema::assert_spec::<GridBefore>();
 const _: () = ooxml_core::schema::assert_spec::<GridSpan>();
+const _: () = ooxml_core::schema::assert_spec::<SdtId>();
 const _: () = ooxml_core::schema::assert_spec::<StartOverrideNumberingValue>();
 const _: () = ooxml_core::schema::assert_spec::<DocumentProtection>();
 const _: () = ooxml_core::schema::assert_spec::<Document>();
@@ -21809,6 +24676,7 @@ const _: () = ooxml_core::schema::assert_child::<Endnote, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Endnote, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<Endnote, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Footnote>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, BookmarkStart>();
@@ -21820,6 +24688,7 @@ const _: () = ooxml_core::schema::assert_child::<Footnote, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Footnote, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<Footnote, Table>();
 const _: () = ooxml_core::schema::assert_spec::<EndnoteReference>();
 const _: () = ooxml_core::schema::assert_spec::<FootnoteReference>();
@@ -21835,6 +24704,7 @@ const _: () = ooxml_core::schema::assert_child::<Footer, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Footer, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Footer, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<Footer, Table>();
 const _: () = ooxml_core::schema::assert_spec::<Header>();
 const _: () = ooxml_core::schema::assert_child::<Header, BookmarkStart>();
@@ -21846,6 +24716,7 @@ const _: () = ooxml_core::schema::assert_child::<Header, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Header, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Header, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Header, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Header, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<Header, Table>();
 const _: () = ooxml_core::schema::assert_spec::<FooterReference>();
 const _: () = ooxml_core::schema::assert_spec::<HeaderReference>();
@@ -21863,12 +24734,15 @@ const _: () = ooxml_core::schema::assert_child::<Hyperlink, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Hyperlink, SdtRun>();
 const _: () = ooxml_core::schema::assert_child::<Hyperlink, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<Indentation>();
 const _: () = ooxml_core::schema::assert_spec::<Justification>();
+const _: () = ooxml_core::schema::assert_spec::<LanguageId>();
 const _: () = ooxml_core::schema::assert_spec::<LevelJustification>();
 const _: () = ooxml_core::schema::assert_spec::<LevelText>();
 const _: () = ooxml_core::schema::assert_spec::<LineNumberType>();
+const _: () = ooxml_core::schema::assert_spec::<Lock>();
 const _: () = ooxml_core::schema::assert_spec::<Nsid>();
 const _: () = ooxml_core::schema::assert_spec::<Level>();
 const _: () = ooxml_core::schema::assert_child::<Level, LevelJustification>();
@@ -21911,6 +24785,7 @@ const _: () = ooxml_core::schema::assert_spec::<Italic>();
 const _: () = ooxml_core::schema::assert_spec::<ItalicComplexScript>();
 const _: () = ooxml_core::schema::assert_spec::<KeepLines>();
 const _: () = ooxml_core::schema::assert_spec::<KeepNext>();
+const _: () = ooxml_core::schema::assert_spec::<ShowingPlaceholder>();
 const _: () = ooxml_core::schema::assert_spec::<Strike>();
 const _: () = ooxml_core::schema::assert_spec::<TrackRevisions>();
 const _: () = ooxml_core::schema::assert_spec::<UpdateFieldsOnOpen>();
@@ -21927,6 +24802,7 @@ const _: () = ooxml_core::schema::assert_child::<Paragraph, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<Paragraph, SdtRun>();
 const _: () = ooxml_core::schema::assert_child::<Paragraph, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphProperties>();
 const _: () = ooxml_core::schema::assert_child::<ParagraphProperties, Indentation>();
@@ -22196,6 +25072,7 @@ const _: () = ooxml_core::schema::assert_child::<DeletedRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<DeletedRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<DeletedRun, SdtRun>();
 const _: () = ooxml_core::schema::assert_spec::<InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, BookmarkEnd>();
@@ -22206,6 +25083,7 @@ const _: () = ooxml_core::schema::assert_child::<InsertedRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<InsertedRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<InsertedRun, SdtRun>();
 const _: () = ooxml_core::schema::assert_spec::<MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, BookmarkEnd>();
@@ -22216,6 +25094,7 @@ const _: () = ooxml_core::schema::assert_child::<MoveFromRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveFromRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<MoveFromRun, SdtRun>();
 const _: () = ooxml_core::schema::assert_spec::<MoveToRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, BookmarkEnd>();
@@ -22226,6 +25105,28 @@ const _: () = ooxml_core::schema::assert_child::<MoveToRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<MoveToRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<MoveToRun, SdtRun>();
+const _: () = ooxml_core::schema::assert_spec::<SdtBlock>();
+const _: () = ooxml_core::schema::assert_child::<SdtBlock, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtBlock, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtBlock, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtBlock, CommentRangeStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtBlock, SdtContentBlock>();
+const _: () = ooxml_core::schema::assert_child::<SdtBlock, SdtProperties>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentComboBox>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentComboBox, ListItem>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentBlock>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, CommentRangeStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, Paragraph>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, DeletedRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, InsertedRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, MoveFromRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, SdtBlock>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentBlock, Table>();
 const _: () = ooxml_core::schema::assert_spec::<SdtContentRun>();
 const _: () = ooxml_core::schema::assert_child::<SdtContentRun, BookmarkStart>();
 const _: () = ooxml_core::schema::assert_child::<SdtContentRun, Hyperlink>();
@@ -22237,7 +25138,40 @@ const _: () = ooxml_core::schema::assert_child::<SdtContentRun, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<SdtContentRun, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<SdtContentRun, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<SdtContentRun, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentRun, SdtRun>();
 const _: () = ooxml_core::schema::assert_child::<SdtContentRun, SimpleField>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentDate>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentDate, LanguageId>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentDate, SdtDateMappingType>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentDate, DateFormat>();
+const _: () = ooxml_core::schema::assert_spec::<SdtDateMappingType>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentDropDownList>();
+const _: () = ooxml_core::schema::assert_child::<SdtContentDropDownList, ListItem>();
+const _: () = ooxml_core::schema::assert_spec::<ListItem>();
+const _: () = ooxml_core::schema::assert_spec::<SdtProperties>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, SdtContentCheckBox>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, DataBinding>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, SdtId>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, Lock>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, ShowingPlaceholder>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, RunProperties>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, SdtContentComboBox>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, SdtContentDate>();
+const _: () = ooxml_core::schema::assert_child::<
+    SdtProperties,
+    SdtContentDropDownList,
+>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, SdtContentText>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, SdtAlias>();
+const _: () = ooxml_core::schema::assert_child::<SdtProperties, Tag>();
+const _: () = ooxml_core::schema::assert_spec::<SdtRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtRun, BookmarkStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtRun, BookmarkEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtRun, CommentRangeEnd>();
+const _: () = ooxml_core::schema::assert_child::<SdtRun, CommentRangeStart>();
+const _: () = ooxml_core::schema::assert_child::<SdtRun, SdtContentRun>();
+const _: () = ooxml_core::schema::assert_child::<SdtRun, SdtProperties>();
+const _: () = ooxml_core::schema::assert_spec::<SdtContentText>();
 const _: () = ooxml_core::schema::assert_spec::<SectionProperties>();
 const _: () = ooxml_core::schema::assert_child::<SectionProperties, FooterReference>();
 const _: () = ooxml_core::schema::assert_child::<SectionProperties, HeaderReference>();
@@ -22268,9 +25202,13 @@ const _: () = ooxml_core::schema::assert_child::<SimpleField, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<SimpleField, SdtRun>();
 const _: () = ooxml_core::schema::assert_child::<SimpleField, SimpleField>();
 const _: () = ooxml_core::schema::assert_spec::<SpacingBetweenLines>();
+const _: () = ooxml_core::schema::assert_spec::<SdtAlias>();
+const _: () = ooxml_core::schema::assert_spec::<DateFormat>();
 const _: () = ooxml_core::schema::assert_spec::<ParagraphStyleId>();
+const _: () = ooxml_core::schema::assert_spec::<Tag>();
 const _: () = ooxml_core::schema::assert_spec::<BasedOn>();
 const _: () = ooxml_core::schema::assert_spec::<NextParagraphStyle>();
 const _: () = ooxml_core::schema::assert_spec::<RunStyle>();
@@ -22310,6 +25248,7 @@ const _: () = ooxml_core::schema::assert_child::<TableCell, DeletedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, InsertedRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, MoveFromRun>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, MoveToRun>();
+const _: () = ooxml_core::schema::assert_child::<TableCell, SdtBlock>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, Table>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TableCellProperties>();
 const _: () = ooxml_core::schema::assert_spec::<TableCellProperties>();

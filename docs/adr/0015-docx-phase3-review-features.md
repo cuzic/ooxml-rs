@@ -997,8 +997,12 @@ owner's decision.
    until then, minimal definitions found by name, with ids derived from the names (§3.5).
 5. **Note separators for new parts.** Proposed: (`-1`, `0`), with footnotes and endnotes created
    as a pair.
-6. **Date formatting** for date controls and DATE fields: implement Word's picture syntax for the
-   common patterns, or require the caller to pass the display text? (Open.)
+6. **Date formatting** (owner decision, 2026-11-20). Support Word picture tokens
+   `y`, `yy`, `yyyy`, `M`, `MM`, `MMM`, `MMMM`, `d`, `dd`, `H`, `HH`, `h`, `hh`, `m`,
+   `mm`, `s`, `ss`, `AM/PM`, and quoted or escaped literals. English month names are
+   available for English `w:lid` values. Other tokens, including Japanese era and weekday
+   names, and month names with non-English `w:lid` values return `UnsupportedDateFormat`.
+   Callers can supply text with `set_date_with_display`. DATE fields remain a D3e task.
 7. **Core-properties binding.** Proposed: allowed, but it requires `updateFields` when a field
    reads the written property (§6.2, M5).
 8. **Application defaults** without `docDefaults`. Proposed: Times New Roman 10 pt, reported as
@@ -1174,3 +1178,28 @@ target becomes own-dirty when it gains text, using the serializer's
 attribute-spelling preservation. An empty replacement clears the text.
 Open/close tags of other parsed targets and `xml:space` are preserved.
 Acceptance tests cover byte-local edits and byte-identical refusals.
+
+
+### Post-acceptance note: D3d (Issue #106)
+
+- `Document::content_controls` lists controls in story and XML order. `ControlRef`
+  addresses controls independently of optional and duplicate stored IDs. Value edits
+  stage the selected store and all matching stories in one `RegistryPlan`. A locked
+  or unrenderable peer causes the whole edit to be refused.
+- The value editor supports direct text runs in inline controls and controls with a
+  single paragraph, including single-paragraph row and cell controls. Rich text can
+  include hyperlinks and passive range markers. The editor reuses the first run
+  and its properties and preserves the structure of such hyperlinks and markers. For active placeholders, it uses the control's run
+  properties or removes the placeholder's run style from the first run.
+- Input dates are naive date-times interpreted as UTC. Defaults are `M/d/yyyy`,
+  `en-US`, and `dateTime` mapping. Bound checkboxes write `true` or `false`.
+- The wrapper takes a same-paragraph `TextRange` or adjacent sibling paragraphs. It
+  moves the selected elements within their existing part, preserving their spans.
+  It refuses moves across section breaks and enclosing contexts that would change
+  the meaning of the range. A private projection writes the newly created
+  `sdtPr` children in Transitional XSD order. Existing generated public names stay
+  stable.
+- Tracked row deletion refuses `TrackedPropertyChange { element: "w:vMerge" }`
+  when an untracked deletion would have to promote a surviving continuation to
+  the start of its vertical merge. This preserves the existing merge in the
+  rejected view and avoids an orphaned continuation in the accepted view (#99 m1).

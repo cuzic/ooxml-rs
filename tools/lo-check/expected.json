@@ -145,6 +145,39 @@
       ["word/document.xml", "./w:body/w:sectPr", 1]
     ]
   },
+  "docx/37-sdt-plain.docx": {
+    "text": ["Plain text edited"],
+    "xml": [["word/document.xml", ".//w:sdtContent/w:r/w:t[.='Plain text edited']", 1]]
+  },
+  "docx/38-sdt-date.docx": {
+    "text": ["November 21, 2026"],
+    "xml": [
+      ["word/document.xml", ".//w:date[@w:fullDate='2026-11-21T00:00:00Z']", 1],
+      ["word/document.xml", ".//w:sdtContent/w:r/w:t[.='November 21, 2026']", 1]
+    ]
+  },
+  "docx/39-sdt-checkbox.docx": {
+    "text": ["☒"],
+    "xml": [
+      ["word/document.xml", ".//{http://schemas.microsoft.com/office/word/2010/wordml}checked[@{http://schemas.microsoft.com/office/word/2010/wordml}val='1']", 1],
+      ["word/document.xml", ".//w:sdtContent/w:r/w:t[.='☒']", 1]
+    ]
+  },
+  "docx/40-sdt-dropdown.docx": {
+    "text": ["Ocean blue"],
+    "xml": [["word/document.xml", ".//w:sdtContent/w:r/w:t[.='Ocean blue']", 1]]
+  },
+  "docx/41-sdt-bound.docx": {
+    "text": ["Shared value"],
+    "xml": [
+      ["word/document.xml", ".//w:sdtContent/w:r/w:t[.='Shared value']", 2],
+      ["customXml/item1.xml", "./{urn:values}value[.='Shared value']", 1]
+    ]
+  },
+  "docx/42-sdt-wrapped.docx": {
+    "text": ["Wrapped paragraph"],
+    "xml": [["word/document.xml", "./w:body/w:sdt/w:sdtContent/w:p/w:r/w:t[.='Wrapped paragraph']", 1]]
+  },
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},

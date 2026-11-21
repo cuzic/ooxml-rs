@@ -24,6 +24,24 @@ def check(directory):
     ]
     print("python-docx paragraph-local mc:Ignorable read-back passed")
 
+    check_controls(Path(directory))
+
+
+def check_controls(directory):
+    cases = {
+        "37-sdt-plain.docx": ["Plain text edited"],
+        "38-sdt-date.docx": ["November 21, 2026"],
+        "39-sdt-checkbox.docx": ["☒"],
+        "40-sdt-dropdown.docx": ["Ocean blue"],
+        "41-sdt-bound.docx": ["Shared value", "Shared value"],
+        "42-sdt-wrapped.docx": ["Wrapped paragraph"],
+    }
+    for name, values in cases.items():
+        doc = read(directory / name)
+        paragraphs = doc.element.xpath(".//w:p[ancestor::w:sdt or w:sdt]")
+        assert ["".join(p.xpath(".//w:t/text()")) for p in paragraphs] == values, name
+    print("python-docx content control read-back passed")
+
 
 def read(path):
     # Preflight ZIP XML without resolving entities, and never hand a part

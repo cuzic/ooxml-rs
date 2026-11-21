@@ -576,30 +576,15 @@ impl Document {
             check_removable(r)?;
         }
         check_anchor_pairs(&removed)?;
-        // vMerge repairs: (row item, cell item) of continues that become restarts
         let mut repairs = Vec::new();
-        if let Some(next) = grid.rows.get(range.end) {
-            for c in &next.cells {
-                if c.vmerge != Some(VMerge::Continue) {
-                    continue;
-                }
-                // Follow the original chain only through the deleted rows.
-                // A gap or a different span ends the chain.
-                let boundary = grid.rows[range.clone()].iter().rev().map(|row| {
-                    row.cell_at(c.start)
-                        .filter(|cell| cell.start == c.start && cell.span == c.span)
-                        .and_then(|cell| cell.vmerge)
-                }).find(|&merge| merge != Some(VMerge::Continue));
-                if boundary == Some(Some(VMerge::Restart)) {
-                    let tr = tbl.children()[next.item].as_element().expect("row");
-                    if let Some(revision) = row_revision(tr) {
-                        return Err(Error::RevisionInRange { element: format!("w:{}", revision.name().local()) });
-                    }
-                    let tc = tr.children()[c.item].as_element().expect("cell");
-                    check_cell_property_revisions(tc)?;
-                    repairs.push((next.item, c.item));
-                }
+        for (next, c) in merge_restarts_after_deletion(&grid, range.clone()) {
+            let tr = tbl.children()[next.item].as_element().expect("row");
+            if let Some(revision) = row_revision(tr) {
+                return Err(Error::RevisionInRange { element: format!("w:{}", revision.name().local()) });
             }
+            let tc = tr.children()[c.item].as_element().expect("cell");
+            check_cell_property_revisions(tc)?;
+            repairs.push((next.item, c.item));
         }
         let xml = self.pkg.xml_part_mut(&part)?;
         let mut tl = crate::structure::table_lens(xml, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;
@@ -1003,6 +988,9 @@ impl TrackedChanges<'_> {
         }) {
             return Err(Error::TableWouldBeEmpty);
         }
+        if merge_restarts_after_deletion(&grid, range.clone()).next().is_some() {
+            return Err(Error::TrackedPropertyChange { element: "w:vMerge" });
+        }
         let rows = &grid.rows[range];
         let removed: Vec<_> = rows.iter().map(row_node).collect();
         check_anchor_pairs(&removed)?;
@@ -1049,6 +1037,28 @@ impl TrackedChanges<'_> {
         self.doc.table_changed(t.story, &path);
         Ok(())
     }
+}
+
+// Follow the original chain through the deleted rows. A gap or a
+// different grid span ends the chain.
+fn merge_restarts_after_deletion(
+    grid: &Grid,
+    range: Range<usize>,
+) -> impl Iterator<Item = (&RowModel, &CellModel)> {
+    grid.rows.get(range.end).into_iter().flat_map(move |next| {
+        let removed = &grid.rows[range.clone()];
+        next.cells.iter().filter_map(move |cell| {
+            if cell.vmerge != Some(VMerge::Continue) {
+                return None;
+            }
+            let boundary = removed.iter().rev().map(|row| {
+                row.cell_at(cell.start)
+                    .filter(|previous| previous.start == cell.start && previous.span == cell.span)
+                    .and_then(|previous| previous.vmerge)
+            }).find(|&merge| merge != Some(VMerge::Continue));
+            (boundary == Some(Some(VMerge::Restart))).then_some((next, cell))
+        })
+    })
 }
 
 /// A row retained in a table's read view, including rows marked as deleted.

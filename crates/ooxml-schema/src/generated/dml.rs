@@ -5919,6 +5919,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::ViewProperties {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Picture {}
 #[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::SdtContentCheckBox {}
+#[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::CommentsEx {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::People {}
@@ -6103,6 +6105,15 @@ impl<'a> GraphicDataView<'a> {
     /// `pic:pic` children in document order.
     pub fn picture_iter(&self) -> impl Iterator<Item = super::wml::PictureView<'a>> {
         self.0.children::<super::wml::Picture>().map(super::wml::PictureView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w14:checkbox` children in document order.
+    pub fn sdt_content_check_box_iter(
+        &self,
+    ) -> impl Iterator<Item = super::wml::SdtContentCheckBoxView<'a>> {
+        self.0
+            .children::<super::wml::SdtContentCheckBox>()
+            .map(super::wml::SdtContentCheckBoxView)
     }
     #[cfg(feature = "wml")]
     /// `w15:commentsEx` children in document order.
@@ -6392,6 +6403,21 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `pic:pic` child.
     pub fn remove_picture(&mut self) -> bool {
         self.0.remove::<super::wml::Picture>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w14:checkbox` child matching `pred`, mutably.
+    pub fn sdt_content_check_box_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::SdtContentCheckBoxViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::wml::SdtContentCheckBox>(pred)
+            .map(super::wml::SdtContentCheckBoxViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w14:checkbox` child.
+    pub fn remove_sdt_content_check_box(&mut self) -> bool {
+        self.0.remove::<super::wml::SdtContentCheckBox>()
     }
     #[cfg(feature = "wml")]
     /// First `w15:commentsEx` child matching `pred`, mutably.
@@ -33052,6 +33078,11 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Picture>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::wml::SdtContentCheckBox,
+>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::CommentsEx>();
 #[cfg(all(feature = "dml", feature = "wml"))]
