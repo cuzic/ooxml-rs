@@ -417,6 +417,15 @@ pub struct FontSize(f64); // finite, 1..=409, Eq/Hash on the bits; serialised sh
     value when that font is expressible, so a bold font keeps the workbook's face and size. The
     API docs show this pattern, and XL item 10(f) checks it. Partial font and alignment setters
     (copy the default entry's bytes and replace one child) are recorded for Phase4.
+  - **Post-acceptance note (issue #115, owner decision 2026-11-21).** `Font::default()`
+    keeps rust_xlsxwriter's `<scheme val="minor"/>`. A real Excel 365 (16.0.20326) shows such
+    a font as the workbook theme's minor font, not the written `Calibri`. In a workbook
+    without `xl/theme/theme1.xml` (POI 62272), it shows Excel's own default (Aptos Narrow).
+    The behaviour is kept: when the workbook's default font is itself a `scheme="minor"`
+    font (Excel's own templates), the new font then shows the same face as the body text,
+    as Excel's own styles do. When the default font has no scheme (POI 62272: Arial 10, no
+    theme), it does not match; `with_default_font_of` is the pattern for that case. The
+    documentation and XL item 10(f) now say so.
   - **Resolution of an unset group.** The new `xf` takes the corresponding id (`numFmtId`,
     `fontId`, `fillId`, `borderId`) by index, and the child elements (`alignment`,
     `protection`) as a byte copy, from the default style: `cellStyleXfs[0]`, or `cellXfs[0]`

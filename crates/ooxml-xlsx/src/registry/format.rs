@@ -11,6 +11,11 @@
 //! `set_bold()` starts from rust_xlsxwriter's Calibri 11, not from the
 //! workbook's font. Start from [`Format::with_default_font_of`] to keep the
 //! workbook's face and size.
+//!
+//! Like rust_xlsxwriter, that default font carries `<scheme val="minor"/>`.
+//! Excel then shows the workbook theme's minor font, not the written
+//! `Calibri`. In a workbook without a theme part, Excel shows its own default
+//! theme's font: Aptos Narrow in Microsoft 365 (issue #115).
 
 /// A colour (ADR-0006 §3: raw values, no palette resolution).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -202,7 +207,8 @@ pub struct Font {
 
 impl Default for Font {
     /// rust_xlsxwriter's default: Calibri 11, theme colour 1, family 2,
-    /// scheme minor.
+    /// scheme minor. Because of `scheme`, Excel displays the theme's minor
+    /// font (see the module docs, issue #115).
     fn default() -> Self {
         Font {
             name: "Calibri".into(),

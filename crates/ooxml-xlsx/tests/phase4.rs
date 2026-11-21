@@ -244,6 +244,38 @@ fn autofilter_creates_or_reuses_the_filter_database_name() {
 }
 
 #[test]
+fn autofilter_quotes_the_sheet_prefix_like_names() {
+    // Issue #112: Excel 365 cannot open `TRUE!$A$1:$B$2` (checked on a real
+    // Excel); the prefix follows the one quoting rule of ADR-0009 §6.
+    for (sheet, prefix) in [
+        ("TRUE", "'TRUE'"),
+        ("false", "'false'"),
+        ("R1C1", "'R1C1'"),
+        ("RC", "'RC'"),
+        ("A1", "'A1'"),
+        ("My Sheet", "'My Sheet'"),
+        ("It's", "'It''s'"),
+        ("Data", "Data"),
+        ("Q1.2024", "Q1.2024"),
+    ] {
+        let escaped = sheet.replace('\'', "&apos;");
+        let input = book(&[(escaped.as_str(), "")], "", "");
+        let (wb, r) = try_on(&input, 0, |ws| ws.set_autofilter("A1:B2"));
+        r.unwrap();
+        let expected = format!(r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">{prefix}!$A$1:$B$2"#);
+        assert_eq!(names(&wb.to_bytes().unwrap()), [expected], "{sheet}");
+    }
+    // a name the old code wrote unquoted is repaired when it is reused (m1)
+    let old = book(&[("TRUE", "")], r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">TRUE!$A$1:$B$2</definedName>"#, "");
+    let (wb, r) = try_on(&old, 0, |ws| ws.set_autofilter("A1:C3"));
+    r.unwrap();
+    assert_eq!(
+        names(&wb.to_bytes().unwrap()),
+        [r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'TRUE'!$A$1:$C$3"#]
+    );
+}
+
+#[test]
 fn autofilter_refusals_change_nothing() {
     let dup = book(
         &[("S", "")],
