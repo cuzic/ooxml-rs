@@ -2,7 +2,7 @@
 
 use ooxml_core::{
     AttrSpec, ChildOf, Content, ElementSpec, NsDecl, PartNameRequest, QName, RawNode, RegistryPlan,
-    SimpleType, Target, XmlDocument,
+    RegistryRefusal, SimpleType, Target, XmlDocument,
 };
 use ooxml_schema::sml;
 
@@ -38,8 +38,8 @@ impl ElementSpec for Properties {
 }
 impl ChildOf<sml::Extension> for Properties {}
 
-pub(crate) fn active(dynamic: Option<&str>, collapsed: Option<&str>) -> bool {
-    matches!(dynamic, Some("1" | "true")) && matches!(collapsed, None | Some("0" | "false"))
+fn uncollapsed(value: Option<&str>) -> bool {
+    matches!(value, None | Some("0" | "false"))
 }
 
 fn active_block(block: &RawNode) -> bool {
@@ -49,11 +49,20 @@ fn active_block(block: &RawNode) -> bool {
         .flat_map(RawNode::elements)
         .filter(|n| n.is(sml::Extension::QNAME))
         .flat_map(RawNode::elements)
-        .any(|n| n.is(Properties::QNAME) && active(n.attr(DYNAMIC), n.attr(COLLAPSED)))
+        .any(|n| {
+            n.is(Properties::QNAME)
+                && matches!(n.attr(DYNAMIC), Some("1" | "true"))
+                && uncollapsed(n.attr(COLLAPSED))
+        })
 }
 
 fn ensure_block(doc: &mut XmlDocument) -> Result<u32> {
-    if let Some(cm) = crate::census::dynamic_array_cms(doc.serialize().as_bytes())
+    if let Some(cm) =
+        crate::census::scan_dynamic_array_cms(doc.serialize().as_bytes(), |properties| {
+            Ok(uncollapsed(
+                crate::census::attr(properties, "fCollapsed")?.as_deref(),
+            ))
+        })
         .map_err(Error::Malformed)?
         .into_iter()
         .min()
@@ -199,11 +208,27 @@ impl CellMut<'_, '_> {
                 registry.stage_part(&wb.pkg, &part, doc)?;
             }
         } else {
-            let name = wb.workbook_part.rsplit_once('/').map_or_else(
-                || "metadata.xml".into(),
-                |(dir, _)| format!("{dir}/metadata.xml"),
-            );
-            let part = registry.add_part(&wb.pkg, PartNameRequest::Exact(name), TYPE, doc)?;
+            let prefix = wb
+                .workbook_part
+                .rsplit_once('/')
+                .map_or_else(|| "metadata".into(), |(dir, _)| format!("{dir}/metadata"));
+            let part = match registry.add_part(
+                &wb.pkg,
+                PartNameRequest::Exact(format!("{prefix}.xml")),
+                TYPE,
+                doc.clone(),
+            ) {
+                Err(ooxml_core::Error::RegistryRefused {
+                    reason: RegistryRefusal::NameInUse { .. },
+                    ..
+                }) => registry.add_part(
+                    &wb.pkg,
+                    PartNameRequest::Numbered(format!("{prefix}{{}}.xml")),
+                    TYPE,
+                    doc,
+                )?,
+                result => result?,
+            };
             registry.add_relationship(
                 &wb.pkg,
                 Some(&wb.workbook_part),
