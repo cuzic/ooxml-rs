@@ -24,13 +24,21 @@ pub(crate) enum PartKind {
     Vml,
     Drawing,
     ChartShapes,
+    CalcChain,
+    Comments,
+    PivotCache,
+    PivotTable,
+    SingleXmlCells,
+    VolatileDependencies,
     Other,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Rule {
+    Refuse,
     Rewrite,
     Keep,
+    Unaffected,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -39,6 +47,8 @@ pub(crate) enum Syntax {
     Location,
     PivotSource,
     Sqref,
+    Cell,
+    Range,
 }
 
 #[derive(Clone, Copy)]
@@ -102,6 +112,14 @@ macro_rules! sqref {
     };
 }
 
+macro_rules! position {
+    ($id:literal, $part:ident, $syntax:ident, $attr:literal; $($name:literal),+) => {
+        Location { id: $id, part: PartKind::$part, path: &[$((SML, $name)),+], attr: Some($attr),
+            syntax: Syntax::$syntax, scope: Scope::Own, rename: Rule::Unaffected, delete: Rule::Unaffected,
+            extension: None }
+    };
+}
+
 const PROTECTED_RANGES: &str = "{FC87AEE6-9EDD-4A0A-B7FB-166176984837}";
 const IGNORED_ERRORS: &str = "{01252117-D84E-4E92-8308-4BE1C098FCBB}";
 
@@ -127,6 +145,54 @@ const EXTENSIONS: &[(&str, &[u8])] = &[
 ];
 
 pub(crate) const LOCATIONS: &[Location] = &[
+    position!(15, Worksheet, Range, "ref"; "worksheet", "autoFilter"),
+    position!(15, Worksheet, Range, "ref"; "worksheet", "autoFilter", "sortState"),
+    position!(15, Worksheet, Range, "ref"; "worksheet", "autoFilter", "sortState", "sortCondition"),
+    position!(15, Worksheet, Range, "ref"; "worksheet", "sortState"),
+    position!(15, Worksheet, Range, "ref"; "worksheet", "sortState", "sortCondition"),
+    position!(25, Worksheet, Range, "ref"; "worksheet", "customSheetViews", "customSheetView", "autoFilter"),
+    position!(25, Worksheet, Range, "ref"; "worksheet", "customSheetViews", "customSheetView", "autoFilter", "sortState"),
+    position!(25, Worksheet, Range, "ref"; "worksheet", "customSheetViews", "customSheetView", "autoFilter", "sortState", "sortCondition"),
+    position!(35, Table, Range, "ref"; "table", "autoFilter"),
+    position!(35, Table, Range, "ref"; "table", "autoFilter", "sortState"),
+    position!(35, Table, Range, "ref"; "table", "autoFilter", "sortState", "sortCondition"),
+    position!(35, Table, Range, "ref"; "table", "sortState"),
+    position!(35, Table, Range, "ref"; "table", "sortState", "sortCondition"),
+    position!(34, CalcChain, Cell, "r"; "calcChain", "c"),
+    position!(34, CalcChain, Cell, "ref"; "calcChain", "c"),
+    position!(39, Comments, Cell, "ref"; "comments", "commentList", "comment"),
+    position!(50, PivotCache, Range, "ref"; "pivotCacheDefinition", "cacheSource", "worksheetSource"),
+    position!(53, PivotCache, Range, "ref"; "pivotCacheDefinition", "cacheSource", "consolidation", "rangeSets", "rangeSet"),
+    position!(52, PivotTable, Range, "ref"; "pivotTableDefinition", "location"),
+    position!(3, Worksheet, Cell, "r"; "worksheet", "sheetData", "row", "c"),
+    position!(7, Worksheet, Range, "ref"; "worksheet", "dimension"),
+    position!(9, Worksheet, Cell, "topLeftCell"; "worksheet", "sheetViews", "sheetView"),
+    position!(9, Worksheet, Cell, "topLeftCell"; "worksheet", "sheetViews", "sheetView", "pane"),
+    position!(9, Worksheet, Cell, "topLeftCell"; "worksheet", "customSheetViews", "customSheetView"),
+    position!(25, Worksheet, Cell, "topLeftCell"; "worksheet", "customSheetViews", "customSheetView", "pane"),
+    position!(11, Worksheet, Cell, "activeCell"; "worksheet", "sheetViews", "sheetView", "selection"),
+    position!(11, Worksheet, Sqref, "sqref"; "worksheet", "sheetViews", "sheetView", "selection"),
+    position!(25, Worksheet, Cell, "activeCell"; "worksheet", "customSheetViews", "customSheetView", "selection"),
+    position!(25, Worksheet, Sqref, "sqref"; "worksheet", "customSheetViews", "customSheetView", "selection"),
+    position!(28, Worksheet, Range, "ref"; "worksheet", "dataConsolidate", "dataRefs", "dataRef"),
+    position!(12, Worksheet, Range, "ref"; "worksheet", "mergeCells", "mergeCell"),
+    position!(26, Worksheet, Cell, "r"; "worksheet", "smartTags", "cellSmartTags"),
+    position!(26, Worksheet, Cell, "r"; "worksheet", "cellWatches", "cellWatch"),
+    position!(18, Worksheet, Sqref, "sqref"; "worksheet", "dataValidations", "dataValidation"),
+    position!(16, Worksheet, Sqref, "sqref"; "worksheet", "conditionalFormatting"),
+    position!(13, Worksheet, Range, "ref"; "worksheet", "hyperlinks", "hyperlink"),
+    position!(5, Worksheet, Range, "ref"; "worksheet", "sheetData", "row", "c", "f"),
+    position!(6, Worksheet, Cell, "r1"; "worksheet", "sheetData", "row", "c", "f"),
+    position!(6, Worksheet, Cell, "r2"; "worksheet", "sheetData", "row", "c", "f"),
+    position!(27, Worksheet, Sqref, "sqref"; "worksheet", "scenarios"),
+    position!(27, Worksheet, Cell, "r"; "worksheet", "scenarios", "scenario", "inputCells"),
+    position!(24, Worksheet, Sqref, "sqref"; "worksheet", "protectedRanges", "protectedRange"),
+    position!(29, Worksheet, Range, "sourceRef"; "worksheet", "webPublishItems", "webPublishItem"),
+    position!(23, Worksheet, Sqref, "sqref"; "worksheet", "ignoredErrors", "ignoredError"),
+    position!(54, SingleXmlCells, Cell, "r"; "singleXmlCells", "singleXmlCell"),
+    position!(35, Table, Range, "ref"; "table"),
+    position!(65, VolatileDependencies, Cell, "r"; "volTypes", "volType", "main", "tp", "tr"),
+    position!(62, Workbook, Range, "ref"; "workbook", "oleSize"),
     location!(4, Worksheet, Formula, Rewrite, None, None; SML:"worksheet", SML:"sheetData", SML:"row", SML:"c", SML:"f"),
     location!(14, Worksheet, Location, Keep, Some("location"), None; SML:"worksheet", SML:"hyperlinks", SML:"hyperlink"),
     location!(17, Worksheet, Formula, Rewrite, None, None; SML:"worksheet", SML:"conditionalFormatting", SML:"cfRule", SML:"formula"),
@@ -138,6 +204,9 @@ pub(crate) const LOCATIONS: &[Location] = &[
     location!(20, Worksheet, Formula, Rewrite, None, Some(URI_CF); SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", X14:"cfRule", XM:"f"),
     location!(20, Worksheet, Formula, Rewrite, None, Some(URI_DV); SML:"worksheet", SML:"extLst", SML:"ext", X14:"dataValidations", X14:"dataValidation", X14:"formula1", XM:"f"),
     location!(20, Worksheet, Formula, Rewrite, None, Some(URI_DV); SML:"worksheet", SML:"extLst", SML:"ext", X14:"dataValidations", X14:"dataValidation", X14:"formula2", XM:"f"),
+    location!(20, Worksheet, Formula, Rewrite, None, Some(URI_CF); SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", X14:"cfRule", X14:"colorScale", X14:"cfvo", XM:"f"),
+    location!(20, Worksheet, Formula, Rewrite, None, Some(URI_CF); SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", X14:"cfRule", X14:"dataBar", X14:"cfvo", XM:"f"),
+    location!(20, Worksheet, Formula, Rewrite, None, Some(URI_CF); SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", X14:"cfRule", X14:"iconSet", X14:"cfvo", XM:"f"),
     sqref!(20, URI_CF; SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", XM:"sqref"),
     sqref!(20, URI_DV; SML:"worksheet", SML:"extLst", SML:"ext", X14:"dataValidations", X14:"dataValidation", XM:"sqref"),
     sqref!(21, SPARKLINE; SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", X14:"sparklines", X14:"sparkline", XM:"sqref"),
@@ -159,7 +228,7 @@ pub(crate) const LOCATIONS: &[Location] = &[
     location!(46, ChartShapes, Formula, Rewrite, Some("textlink"), None; CDR:"sp"),
     location!(47, Chart, Formula, Rewrite, None, None; CHART_NS:"f"),
     location!(47, Chart, Formula, Rewrite, None, None; C15_NS:"f"),
-    location!(49, Chart, PivotSource, Keep, None, None; CHART_NS:"pivotSource", CHART_NS:"name"),
+    location!(49, Chart, PivotSource, Refuse, None, None; CHART_NS:"pivotSource", CHART_NS:"name"),
     location!(55, Connections, Formula, Rewrite, Some("cell"), None; SML:"connections", SML:"connection", SML:"parameters", SML:"parameter"),
     location!(56, Control, Formula, Rewrite, Some("fmlaLink"), None; X14:"formControlPr"),
     location!(56, Control, Formula, Rewrite, Some("fmlaRange"), None; X14:"formControlPr"),
@@ -241,6 +310,7 @@ mod tests {
                     .skip(1)
                     .step_by(2)
             })
+            .filter(|value| value.starts_with('{') || value.starts_with("http://"))
             .collect();
         assert_eq!(uris.len(), EXTENSIONS.len());
         for uri in uris {
@@ -264,5 +334,165 @@ mod tests {
                 count
             );
         }
+    }
+
+    #[test]
+    fn spreadsheet_schema_reference_types_are_classified() {
+        use ooxml_core::{QName, RawNode, XmlDocument};
+
+        const XSD: &str = "http://www.w3.org/2001/XMLSchema";
+        const NAME: QName = QName::new("", "name");
+        const TYPE: QName = QName::new("", "type");
+        const BASE: QName = QName::new("", "base");
+        const TYPES: &[&str] = &["ST_Ref", "ST_CellRef", "ST_Sqref", "ST_RefA", "ST_Formula"];
+        const NOT_APPLICABLE: &[(&str, &str, &str)] = &[
+            (
+                "CT_PivotArea",
+                "offset",
+                "pivot internals are handled by the L52 pivot refusal",
+            ),
+            (
+                "CT_UndoInfo",
+                "dr",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_UndoInfo",
+                "r",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionRowColumn",
+                "ref",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionMove",
+                "source",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionMove",
+                "destination",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionFormatting",
+                "sqref",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionAutoFormatting",
+                "ref",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionComment",
+                "cell",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionDefinedName",
+                "formula",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionDefinedName",
+                "oldFormula",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_RevisionQueryTableField",
+                "ref",
+                "revision history is refused as a shared workbook",
+            ),
+            (
+                "CT_SheetPr",
+                "syncRef",
+                "shared workbook synchronization is covered by L58",
+            ),
+            ("CT_ObjectPr", "macro", "macro name, not a cell position"),
+            ("CT_ControlPr", "macro", "macro name, not a cell position"),
+            (
+                "CT_ExternalCell",
+                "r",
+                "another workbook's cells are covered by L60",
+            ),
+        ];
+        fn descendants(node: &RawNode) -> Vec<&RawNode> {
+            let mut nodes = Vec::new();
+            let mut stack = vec![node];
+            while let Some(node) = stack.pop() {
+                nodes.push(node);
+                stack.extend(node.elements());
+            }
+            nodes
+        }
+        let doc = XmlDocument::parse(include_bytes!(
+            "../../../reference/ecma-376-transitional-xsd/sml.xsd"
+        ))
+        .unwrap();
+        let all = descendants(doc.root());
+        let formula_types: Vec<_> = doc
+            .root()
+            .elements()
+            .filter(|node| node.is(QName::new(XSD, "complexType")))
+            .filter(|node| {
+                descendants(node)
+                    .iter()
+                    .any(|node| node.attr(BASE) == Some("ST_Formula"))
+            })
+            .filter_map(|node| node.attr(NAME))
+            .collect();
+        let mut direct = 0;
+        let mut derived = 0;
+        let mut excluded = 0;
+        for owner in doc.root().elements() {
+            let Some(owner_name) = owner.attr(NAME) else {
+                continue;
+            };
+            for node in descendants(owner) {
+                let (Some(name), Some(ty)) = (node.attr(NAME), node.attr(TYPE)) else {
+                    continue;
+                };
+                let is_attr = node.is(QName::new(XSD, "attribute"));
+                if !is_attr && !node.is(QName::new(XSD, "element")) {
+                    continue;
+                }
+                if TYPES.contains(&ty) {
+                    direct += 1;
+                } else if !is_attr && formula_types.contains(&ty) {
+                    derived += 1;
+                } else {
+                    continue;
+                }
+                if NOT_APPLICABLE
+                    .iter()
+                    .any(|&(o, n, reason)| o == owner_name && n == name && !reason.is_empty())
+                {
+                    excluded += 1;
+                    continue;
+                }
+                let matches = LOCATIONS.iter().any(|row| {
+                    let Some((SML, local)) = row.path.last().copied() else {
+                        return false;
+                    };
+                    if is_attr {
+                        row.attr == Some(name)
+                            && all.iter().any(|element| {
+                                element.is(QName::new(XSD, "element"))
+                                    && element.attr(TYPE) == Some(owner_name)
+                                    && element.attr(NAME) == Some(local)
+                            })
+                    } else {
+                        row.attr.is_none() && row.syntax == Syntax::Formula && local == name
+                    }
+                });
+                assert!(matches, "unclassified {owner_name}/{name} ({ty})");
+            }
+        }
+        assert_eq!(direct, 56);
+        assert_eq!(derived, 4);
+        assert_eq!(excluded, NOT_APPLICABLE.len());
     }
 }

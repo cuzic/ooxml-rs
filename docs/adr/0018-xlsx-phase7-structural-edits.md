@@ -1572,7 +1572,9 @@ defaults, which the owner may still override. Q12 was changed to fail closed (re
 ### P7-pre implementation note — sheet operations and bulk removal
 
 The sheet-name dispatch matches qualified XML element paths and checks the
-enclosing extension URI for x14 formulas. The new formula locations splice
+enclosing extension URI for x14 formulas. The schema audit checks 56 direct reference and formula declarations and four
+elements derived from the formula type against registered locations or explicit
+exclusions. The new formula locations splice
 escaped text or attribute values into the staged XML. Existing typed writers
 retain their report labels and ordering. The structural range helper retains the
 original endpoint order and absolute flags, using spatial order for clipping and

@@ -1639,6 +1639,9 @@ fn collect_registered_formulas(
         rewrite(None, &node.text())?;
     }
     for child in node.elements() {
+        if path.len() == 1 && kind == PartKind::Worksheet && child.is(sml::SheetData::QNAME) {
+            continue;
+        }
         collect_registered_formulas(source, child, path, extension, kind, part, edit, mentions, ranges)?;
     }
     path.pop();

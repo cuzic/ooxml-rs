@@ -25,7 +25,7 @@ fn is(e: Option<&El>, ns: &str, local: &str) -> bool {
 /// attribute `attribute`) at a place this version rewrites or ignores?
 fn allowed(kind: PartKind, stack: &[El], attribute: Option<&str>, uri: Option<&str>) -> bool {
     let at = |k: usize| stack.len().checked_sub(k + 1).and_then(|i| stack.get(i));
-    if locations::find(kind, stack, attribute, uri).is_some() {
+    if locations::find(kind, stack, attribute, uri).is_some_and(|row| row.rename != locations::Rule::Unaffected) {
         return true;
     }
     match (kind, attribute) {
