@@ -1,7 +1,7 @@
 # ADR-0019: PowerPoint Phase 4a — writing modern comments
 
-- Status: **Proposed** (revision 3): converged in review round 2,
-  awaiting the owner's decisions on Q1–Q8
+- Status: **Accepted** (revision 4, owner decisions 2026-11-21): converged
+  in review round 2; Q1–Q4 and Q6–Q8 as recommended, Q5 the alternative
 - Date: 2026-11-21
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): T2 locality,
@@ -72,6 +72,13 @@
   | m14 "edited elements satisfy every invariant" brings back I3/I6 false positives | created elements satisfy every invariant; edited elements only for what was written | §11.3 |
   | n4 the fallback LibreOffice oracle cannot be byte-identical (LibreOffice rewrites comment parts) | fallback is "opens and re-saves without error" only | §11.5 |
   | n5 "survey lists as non-conforming" is not an output of the survey | committed allowlist file of (deck, error) pairs | §11.6 |
+
+- **Revision 4** (owner decisions, 2026-11-21). Status: Accepted.
+
+  | Decision | Change | Where |
+  |---|---|---|
+  | Q1–Q4, Q6–Q8 as recommended, with their written fallbacks | recorded | Owner decisions |
+  | Q5: the alternative | `Account` authors match on (`userId`, `providerId`), `Local` authors on name; kind from `providerId` (`"None"` = Local); a differing display name reuses the author unedited; tests, mutations and invariant I13 | §4, §11.2, §11.3, §11.7, Owner decisions |
 
 ## Context
 
@@ -319,7 +326,7 @@ pub struct CommentAuthor {
 pub enum AuthorIdentity {
     /// default: userId = name, providerId = "None"; final form from P4a-0 F8
     Local,
-    /// e.g. "AD" and "S::<upn>::<guid>"
+    /// e.g. "AD" and "S::<upn>::<guid>"; provider_id must not be "None"
     Account { user_id: String, provider_id: String },
 }
 ```
@@ -343,13 +350,36 @@ pub enum AuthorIdentity {
   PowerPoint files. Whether PowerPoint **writes** it for a signed-out user
   is *(u)*. P4a-0 F8 records it, and its form replaces this default by a
   post-acceptance note before P4a-1 merges.
-- **Matching** (Q5). An existing `p188:author` is reused when `name`,
-  `userId` and `providerId` are all equal (case-sensitive, ADR-0017 §5).
-  - `initials` is not part of the key, and a reused author's initials are
-    never changed.
-  - An author without `userId`/`providerId` (LibreOffice's form) never
-    matches. A new entry is added instead, and the old one is not repaired.
-  - Two existing authors with the same key: the first is used.
+- **Kind of an author** (Q5, owner decision). An author's kind follows
+  from its `providerId`:
+  - `providerId="None"` is **Local**;
+  - any other non-empty `providerId` is **Account**;
+  - an author without `providerId` (LibreOffice's form) has no kind and
+    never matches. A new entry is added instead, and the old one is not
+    repaired.
+
+  The caller's kind is its `AuthorIdentity`. `Account { provider_id:
+  "None", .. }` is refused (`InvalidCommentAuthor`), because it would be
+  Local by this definition.
+- **Matching** (Q5, owner decision). The comparison is case-sensitive and
+  exact.
+  - **Account:** an existing Account author is reused when `userId` and
+    `providerId` are equal. **`name` is not compared.**
+  - **Local:** an existing Local author is reused when `name` is equal.
+    `userId` is not compared, so an author written in F8's form (whatever
+    `userId` PowerPoint uses) still matches by name.
+  - **Display name differs** (Account): the existing author is reused and
+    its `name` is **not** edited. The authors part stays byte-identical,
+    and the comment shows the stored name. Renaming an author is an edit of
+    an existing entry, which §4 never makes (append-only). Read-back via
+    `Slide::comments()` reports the stored name.
+  - `initials` is not part of either key, and a reused author's initials
+    are never changed.
+  - Two existing authors with the same key: the first in document order is
+    used.
+  - Manual check M10 checks the Account rule in PowerPoint: the same
+    account under a different display name is treated as the same user,
+    and PowerPoint adds no second author for it.
 - **New author:**
   - `id` is a new GUID (§5).
   - `initials` is the caller's value, else the upper-cased first letter of
@@ -683,6 +713,14 @@ impl Presentation {
    - a `p14:creationId` outside `p:cSld/p:extLst`, and one that is not a
      u32.
 
+   Author-key tests (Q5): an `Account` author with the same `userId` and
+   `providerId` but a different `name` reuses the existing entry (the
+   authors part stays byte-identical, and the comment's `authorId` is the
+   existing id); the same `userId` under another `providerId` adds an
+   entry; a `Local` author with an equal name but another `userId` is
+   reused; an existing author without `providerId` is never reused;
+   `Account { provider_id: "None" }` is `InvalidCommentAuthor`.
+
    Three `Ok` tests are named here because they guard M1, m2 and m12:
    - **same text**: on a thread whose stored text is `a\nb`,
      `set_comment_text("a\nb")` and `set_comment_text("a\r\nb")` both
@@ -716,9 +754,14 @@ impl Presentation {
      from the SDK data JSON;
    - I10: new part names follow §3.1;
    - I11: CT `Override` ↔ part existence;
-   - I12: `p14:creationId` values are unique across slides.
+   - I12: `p14:creationId` values are unique across slides;
+   - I13: no author this session **added** shares a key (§4: `userId` +
+     `providerId` for Account, `name` for Local) with an author that
+     already existed or that this session added earlier. A new comment or
+     reply whose author key matches an existing author uses that author's
+     id.
 
-   **I3, I4, I6 and I12 compare input and output.** The checker takes
+   **I3, I4, I6, I12 and I13 compare input and output.** The checker takes
    both packages and fails only on a violation that the input does not
    already have. §9 tolerates some existing problems, which are not
    failures:
@@ -788,7 +831,10 @@ impl Presentation {
    - `created` with seconds or with `Z`;
    - lower-case hex in the part name;
    - `replyLst` written after `txBody`;
-   - the author key without `providerId`;
+   - the Account key including `name` (a renamed account would get a
+     second entry);
+   - the Account key without `providerId`;
+   - the Local key including `userId`;
    - `commentRel` with the wrong `r:id`;
    - the `creationId` addition skipped;
    - an empty `replyLst` kept;
@@ -816,7 +862,9 @@ impl Presentation {
    - **M10** open the M4 file signed in as the `Account` author's own
      account. Record whether the comment counts as the user's own (edit,
      resolve, delete offered), and whether PowerPoint adds a second
-     `p188:author` with the same `userId`/`providerId` on save (Q1, Q5).
+     `p188:author` with the same `userId`/`providerId` on save. Then repeat
+     with the account's display name changed in Office, and confirm the
+     same (Q1, Q5).
 
    The cases are added to `examples/manual_check.rs`, with their entries in
    `tools/lo-check/expected.json`.
@@ -907,10 +955,10 @@ Three PRs, in order, each reviewed until converged:
 - The `p188` allowlist moves to `[write]`. Monikers stay template-written,
   so a future anchor kind needs a fixture and a template, not codegen.
 
-## Open questions for the project owner
+## Open questions for the project owner (decided)
 
-Each has a recommended answer, recorded as the proposed default until the
-owner decides.
+The questions as asked, with the recommendation given. The owner's
+answers are in the next section.
 
 - **Q1. Id generation.** *Recommended:* random v4 with a test-only
   deterministic source, checked against every comment and author id in the
@@ -953,6 +1001,34 @@ owner decides.
 - **Q8. Legacy comment edits** (delete or edit an existing `p:cm`).
   *Recommended:* not planned. Revisit if a user asks. Deletion would need
   `lastIdx` and `p15:parentCm` rules.
+
+## Owner decisions (2026-11-21)
+
+- **Q1–Q4 and Q6–Q8: accepted as recommended,** with the fallbacks already
+  written:
+  - **Q1:** random v4 ids, with a test-only deterministic source, checked
+    against the package and the session. If M10 shows that a random author
+    id is not recognised as the signed-in user, author ids need PowerPoint's
+    derivation (a post-acceptance note); comment and reply ids are
+    unaffected.
+  - **Q2:** refuse only on slides with legacy comments. Widen to the whole
+    deck if F6 / M8 shows PowerPoint warning, repairing or converting.
+  - **Q3:** omit `creationId` on the moniker. Add an `a16:creationId` to
+    the shape if M3 shows PowerPoint detaching the comment.
+  - **Q4:** add a `p14:creationId` to slides that lack one (§3.2).
+  - **Q6:** UTC, millisecond precision, no zone, unless F7 shows local
+    time.
+  - **Q7:** unresolve removes `status="resolved"`, unless F3 shows
+    PowerPoint writing `active`.
+  - **Q8:** legacy comment edits are not planned.
+- **Q5: the alternative.** `Account` authors match on (`userId`,
+  `providerId`), and `Local` authors on `name`.
+  - The kind follows from `providerId`: `"None"` is Local, and anything
+    else is Account.
+  - An Account author whose stored display name differs from the caller's
+    is reused, and its name is not edited.
+  - §4, §11.2, §11.3 (I13) and §11.7 implement this, and M10 checks it in
+    PowerPoint.
 
 ## Sources
 
