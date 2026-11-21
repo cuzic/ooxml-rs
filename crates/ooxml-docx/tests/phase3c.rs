@@ -894,6 +894,11 @@ fn tracked_structure_refuses_move_and_custom_xml_ranges() {
         let input = docx(&format!("{start}{A}{end}{B}"), None, None);
         let mut doc = Document::from_bytes(input.clone()).unwrap();
         assert_matches!(
+            doc.track_changes(author(), None).unwrap().delete_paragraph(p(0)),
+            Err(Error::InsideRevision { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+        assert_matches!(
             doc.track_changes(author(), None).unwrap().insert_paragraph(
                 Place::Before(p(0)),
                 "Refused",

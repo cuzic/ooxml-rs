@@ -240,8 +240,9 @@ impl Marks<'_> {
     }
 }
 
+// ADR-0002: these local projections are responsible for the subset proof;
+// generated SameType implementations only cover identical complex types.
 // The snapshot types have narrower schemas than the live properties.
-// The generator only derives SameType for identical SDK complex types.
 // These projections keep the snapshot element's schema and use a checked
 // detach after rejecting revisions and, for pPr, omitting live-only children.
 macro_rules! property_snapshot {
