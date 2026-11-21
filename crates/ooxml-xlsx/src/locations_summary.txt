@@ -1,0 +1,74 @@
+L1|worksheet|`sheetData/row/@r`|`Index(row, 1-based)`|–|–|813 sheets
+L2|worksheet|`row/@spans`|column hint `a:b`|–|–|88,922 / 275
+L3|worksheet|`row/c/@r`|`Cell`|–|–|1,502,954 cells
+L4|worksheet (any)|`c/f` text: normal, shared master, array, data-table anchor|`Formula(cell)`; shared: `Formula(master)`|R|R (`#REF!`)|11,561 / 126
+L5|worksheet|`c/f/@ref` (shared, array)|`Range`|–|–|359 + 53
+L6|worksheet|`c/f/@r1`, `@r2` (data table)|`Cell`|–|–|0 (1 synthetic)
+L7|worksheet|`dimension/@ref`|`Range`|–|–|787
+L8|worksheet|`cols/col/@min`, `@max`|`Index(col, 1-based)` pairs|–|–|14,555 / 179
+L9|worksheet|`sheetView/@topLeftCell`, `pane/@topLeftCell`, `customSheetView/@topLeftCell`|`Cell`|–|–|81 / 53 (`sheetView` only)
+L10|worksheet|`pane/@xSplit`, `@ySplit` (frozen: a row/column count; split: twips, unchanged)|count|–|–|32 / 19
+L11|worksheet|`selection/@activeCell`, `@sqref`|`Cell`, `Sqref`|–|–|481 / 272
+L12|worksheet|`mergeCells/mergeCell/@ref`|`Range`|–|–|54,468 / 43
+L13|worksheet|`hyperlinks/hyperlink/@ref`|`Range`|–|–|113 / 15
+L14|worksheet (any)|`hyperlink/@location`|`Location`|R|kept (navigation target, ADR-0009 §5)|38 / 3
+L15|worksheet|`autoFilter/@ref`, `filterColumn/@colId`, `autoFilter/sortState/@ref`, `sortCondition/@ref`; top-level `sortState`|`Range`, column offset|–|–|3 + 7
+L16|worksheet|`conditionalFormatting/@sqref`|`Sqref`|–|–|108 / 20
+L17|worksheet (any)|`cfRule/formula`, `cfvo/@val` (`type="formula"`)|`Formula(sqref first cell)`|R|R (`#REF!`)|89 / 18, 2
+L18|worksheet|`dataValidation/@sqref`|`Sqref`|–|–|108 / 13
+L19|worksheet (any)|`dataValidation/formula1`, `formula2`|`Formula(sqref first cell)`|R|R (`#REF!`)|122 / 12
+L20|worksheet; `xm:f` (any)|`extLst` x14 CF/DV: `xm:sqref`, `xm:f`, `x14:cfvo/xm:f`|as L16–L19|R (`xm:f`)|R (`#REF!`)|22 / 6, 25 / 6 (15 sheet-prefixed / 2)
+L21|worksheet; `xm:f` (any)|`extLst` sparklines: `x14:sparkline/xm:f` (data), `xm:sqref` (host), `x14:sparklineGroup/xm:f` (date axis)|`Formula(none)`, `Cell`|R (`xm:f`)|R (`#REF!`)|11 / 1
+L22|worksheet|`rowBreaks/brk/@id`, `colBreaks/brk/@id` (+ `count`, `manualBreakCount`); `brk/@min`, `@max` (extent on the other axis)|`Index(0-based)`|–|–|10 + 3 / 4 + 3
+L23|worksheet|`ignoredErrors/ignoredError/@sqref`|`Sqref`|–|–|5 / 3
+L24|worksheet|`protectedRanges/protectedRange/@sqref`|`Sqref`|–|–|4 / 4
+L25|worksheet|`customSheetViews/customSheetView/…` (`selection`, `pane`, breaks, `autoFilter`)|as L9–L15, L22|–|–|3 / 1
+L26|worksheet|`cellWatches/cellWatch/@r`, `smartTags/cellSmartTags/@r`|`Cell`|–|–|0
+L27|worksheet|`scenarios/scenario/inputCells/@r`, `scenarios/@sqref`|`Cell`, `Sqref`|–|–|0
+L28|worksheet|`dataConsolidate/dataRefs/dataRef/@ref`|`Range`|–|–|1 / 1
+L29|worksheet|`webPublishItems/webPublishItem/@sourceRef`|`Range`|–|–|0
+L30|worksheet; formula attributes (any)|`oleObjects`, `controls` (anchors, `@linkedCell`, `@listFillRange`)|`Marker`, `Formula`|R|R (`#REF!`)|6 / 5, 2 / 2
+L31|worksheet|`mc:AlternateContent` at the top level, in `sheetData` or in a row; and **anywhere inside a registry element** of a part the operation edits (e.g. the Choice of a `sortState` or `filterColumn` holding x14 `sortCondition/@ref`)|–|–|–|2 / 2, 0, 0
+L32|workbook (any)|`definedName` text (all scopes, `_xlnm.*` included)|`Formula(none)`|R|R (`#REF!`); local names of the sheet removed|858 / 62
+L33|workbook|`definedName/@localSheetId`, `workbookView/@activeTab`, `@firstSheet`|position|–|N (renumbered)|142 / 24
+L34|`calcChain.xml`|`c/@r`, `c/@i`|`Cell`|–|part removed|116
+L35|table|`table/@ref`, `autoFilter/@ref`, `sortState/@ref`, `sortCondition/@ref`|`Range`|–|–|61 / 29
+L36|table|`tableColumns/tableColumn` set, `filterColumn/@colId`|columns|–|–|199 / 29
+L37|table (any)|`calculatedColumnFormula`, `totalsRowFormula`|`Formula(first data row)`|R|R (`#REF!`)|16 / 8
+L38|table|`table/@name`, `@displayName`|`RawName`|–|–|61 / 29
+L39|comments|`comment/@ref`|`Cell`|–|–|204 / 27
+L40|VML|`x:ClientData/x:Row`, `x:Column`|`Index(0-based)`|–|–|204 / 27
+L41|VML|`x:ClientData/x:Anchor`|`Marker` (8 integers)|–|–|410 / 37
+L42|VML (any)|`x:FmlaLink`, `x:FmlaRange`, `x:FmlaTxbx`, `x:FmlaPict`, `x:FmlaGroup`|`Formula(none)`|R|R (`#REF!`)|0 (the 57 `x:Fmla*` in 4 files are all `x:FmlaMacro` macro names, not positions)
+L43|threaded comments|`threadedComment/@ref`|`Cell`|–|–|4 / 3
+L44|drawing|`xdr:twoCellAnchor`/`oneCellAnchor` `xdr:from`, `xdr:to`|`Marker`|–|–|181 + 30 / 47 + 8
+L45|drawing|anchors inside `mc:AlternateContent`|`Marker`|–|–|170 / 4
+L46|drawing, chart user shapes (any)|`xdr:sp/@textlink`, `cdr:sp/@textlink`|`Formula(none)`|R|R (`#REF!`)|0
+L47|chart (any)|`c:f`, `c15:f`, `c15:sqref`, `c15:fullRef`, `c15:formulaRef`, `c15:datalabelsRange`, `c15:filteredSeriesTitle`, `c15:filteredCategoryTitle`|`Formula(none)`|R|R (`#REF!`)|174 / 25
+L48|chartEx (any)|`cx:f`|`Formula(none)`|X|X|0
+L49|chart (any)|`c:pivotSource/c:name`|`RawName`|R; X if the new name needs quotes|X|1 / 1
+L50|pivot cache|`worksheetSource/@ref` (+ `@sheet`)|`Range`|–|–|7 / 5
+L51|pivot cache|`worksheetSource/@name`|`RawName` (table or name)|–|–|3 / 3
+L52|pivot table|`location/@ref` and everything inside|`Range`|–|–|12 / 7
+L53|pivot cache|`consolidation/rangeSets/rangeSet/@ref`|`Range`|–|–|0
+L54|`tableSingleCells`|`singleXmlCell/@r`|`Cell`|–|–|14 / 14
+L55|`connections.xml` (any)|`parameter/@cell`|`Formula(none)`|R|R (`#REF!`)|12 / 1
+L56|ctrlProps (any)|`@fmlaLink`, `@fmlaRange`, `@fmlaTxbx`, `@fmlaGroup`|`Formula(none)`|R|R (`#REF!`)|0 non-empty
+L57|query table|`queryTable` bound to a `queryTable` table|–|–|–|13 / 2
+L58|revisions|`xl/revisions/*`|–|–|–|1 / 1
+L59|`activeX*.bin`|`LinkedCell`, `ListFillRange` (binary)|–|–|–|0
+L60|`externalLink` (any)|another workbook's cells and names|–|–|–|14 / 10
+L61|`metadata.xml`, `richData/*`|`cm`/`vm` indices (not positions)|–|–|–|1, 2
+L62|workbook|`oleSize/@ref` (visible area of an embedded workbook)|`Range`|–|–|2 packages
+L63|workbook|`webPublishObjects/webPublishObject/@sourceObject`|`RawName`/range|–|–|0
+L64|`connections.xml`|`x15:rangePr/@sourceName`, model connections naming a table (`WorksheetConnection_…`)|`RawName`|–|–|0
+L65|`volatileDependencies.xml`|`tp/tr/@r` (`CT_VolTopicRef`)|`Cell`|–|–|0
+L66|worksheet|`sheetPr/@codeName`|name|–|–|93 / 32
+L67|worksheet, workbook|`sheetProtection` (`insertRows`, `insertColumns`, `deleteRows`, `deleteColumns`); `workbookProtection/@lockStructure`|flags|Protected under `lockStructure` (m8)|Protected under `lockStructure` (m8)|7 / 4; 4
+L68|worksheet `extLst`|x14 `protectedRanges/protectedRange/xm:sqref`|`Sqref`|–|–|0
+L69|worksheet `extLst`|x14 `ignoredErrors/ignoredError/xm:sqref`|`Sqref`|–|–|0
+L70|worksheet `extLst` (any)|x15 `webExtensions` bindings (`xm:f`)|`Formula(none)`|R|R (`#REF!`)|0
+L71|sheet `.rels`, drawing `.rels` (any)|Internal relationship `Target="#Sheet!A1"` (shape and cell hyperlinks)|`Location`|R (`set_relationship_target`)|kept (ADR-0009 §5)|18 renames of 838 retarget one (ADR-0009 §6)
+L72|pivot cache, worksheet|`worksheetSource/@sheet`, `consolidation/rangeSets/rangeSet/@sheet`, `dataConsolidate/dataRefs/dataRef/@sheet`|`RawName`|R for `worksheetSource/@sheet`; X for `rangeSet`/`dataRef`|X (`SheetIsPivotSource` / `UnrewritableReference`)|5 / 0 / 0
+L73|`docProps/app.xml` (any)|worksheet titles (`vt:lpstr`), "Named Ranges" titles (`'1'!Print_Area`)|`RawName`, `Location`|R|R (title removed)|294 with titles, 32
+L74|worksheet, table|`sortState/extLst` `{0FC57C36-…}`, `filterColumn/extLst` `{68452572-…}`|`Range`|–|–|0

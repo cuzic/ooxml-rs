@@ -650,12 +650,12 @@ anything, and a delete removes the sheet's own parts with it.
 | L55 | `connections.xml` (any) | `parameter/@cell` | `Formula(none)` | R | – | R | R | R (`#REF!`) | 12 / 1 |
 | L56 | ctrlProps (any) | `@fmlaLink`, `@fmlaRange`, `@fmlaTxbx`, `@fmlaGroup` | `Formula(none)` | X | XX | X | R | R (`#REF!`) | 0 non-empty |
 | L57 | query table | `queryTable` bound to a `queryTable` table | – | X when its table's `ref` changes | XX | X (rename) | – | – | 13 / 2 |
-| L58 | revisions | `xl/revisions/*` | – | XX (`SharedWorkbook`) | XX | XX | XX | XX | 1 / 1 |
-| L59 | `activeX*.bin` | `LinkedCell`, `ListFillRange` (binary) | – | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | XX (`BinaryReferencesPossible`) | – | 0 |
+| L58 | revisions | `xl/revisions/*` | – | XX (`SharedWorkbook`) | XX | XX | – | – | 1 / 1 |
+| L59 | `activeX*.bin` | `LinkedCell`, `ListFillRange` (binary) | – | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | – | – | 0 |
 | L60 | `externalLink` (any) | another workbook's cells and names | – | K | – | – | – | – | 14 / 10 |
 | L61 | `metadata.xml`, `richData/*` | `cm`/`vm` indices (not positions) | – | – (move with the cell) | copied | – | – | – | 1, 2 |
 | L62 | workbook | `oleSize/@ref` (visible area of an embedded workbook) | `Range` | R when it names the edited sheet's area *(u: it has no sheet; assumed the first sheet)*; X when its area is changed in any other way | – | – | – | – | 2 packages |
-| L63 | workbook | `webPublishObjects/webPublishObject/@sourceObject` | `RawName`/range | X when it names the edited sheet | X | X | X | X | 0 |
+| L63 | workbook | `webPublishObjects/webPublishObject/@sourceObject` | `RawName`/range | X when it names the edited sheet | X | X | – | – | 0 |
 | L64 | `connections.xml` | `x15:rangePr/@sourceName`, model connections naming a table (`WorksheetConnection_…`) | `RawName` | – | – | X (table rename; review m13) | – | – | 0 |
 | L65 | `volatileDependencies.xml` | `tp/tr/@r` (`CT_VolTopicRef`) | `Cell` | XX when the edited sheet has any | XX | – | – | – | 0 |
 | L66 | worksheet | `sheetPr/@codeName` | name | – | removed on the copy (§4.2) | – | – | – | 93 / 32 |
@@ -689,6 +689,9 @@ The ADR-0009 ↔ `LOCATIONS` test asserts this set as well.
 that share operation rules. The following table expands them into dispatch
 entries. An empty path denotes a package-level location. Sheet dispatch rules
 describe how the sheet-operation XML scanner classifies that exact path.
+L58 and L59 are covered by the shared-workbook and binary-reference guards
+respectively. For L63, the generic sheet-prefix scan refuses a matching
+reference.
 Structural rule details remain in the summary.
 
 <!-- BEGIN QUALIFIED LOCATIONS -->
@@ -1786,9 +1789,15 @@ original endpoint order and absolute flags, using spatial order for clipping and
 pinning. `plan_writes_after` uses the structural index map to find
 pre-edit census entries, and plans insertions and overwrites on the staged
 worksheet at post-edit coordinates. Its shared-string appends and reference
-deltas join the structural registry apply. The caller owns calcChain removal
-and dependent cache strips. The full-calc flag is written to the operation's
-single staged workbook document.
+deltas join the structural registry apply. The caller plans materialization
+and cache stripping for writes on the structurally edited sheet. Writes on
+other sheets get the ordinary shared-formula hand-off, dependent cache strips
+and calcChain removal. The combined transaction removes the chain once, and
+uses the staged coordinates for any affected caches on the shifted sheet.
+Numeric position attributes use their original base, including the
+one-based `col/@min` and `@max`. A surviving range ending in a deleted
+interval clips to the position immediately before the deletion. The full-calc
+flag is written to the operation's single staged workbook document.
 
 Delivery 0 clause 4 is measured against main on the POI and calamine corpus
 of 334 editable workbooks and 811 sheets. The 10 non-`Protected` rename

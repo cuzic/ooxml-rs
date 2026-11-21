@@ -331,14 +331,27 @@ pub(crate) fn rewrite_structured<'a>(
     Ok(Rewrite::New(rewritten))
 }
 
-/// Rewrite a numeric position. Range ends stay at the edge if the range
-/// survives. The caller checks for a wholly deleted range first.
+#[derive(Clone, Copy)]
+pub(crate) enum IndexBase {
+    Zero,
+    One,
+}
+
+/// Rewrite a numeric position in its original base. Shift coordinates are
+/// zero-based. Range ends stay at the edge if the range survives. The caller
+/// checks for a wholly deleted range first.
 pub(crate) fn rewrite_index(
     index: u32,
+    base: IndexBase,
     axis: Axis,
     edit: Shift,
     range_end: bool,
 ) -> Result<Rewrite, RewriteError> {
+    let offset = match base {
+        IndexBase::Zero => 0,
+        IndexBase::One => 1,
+    };
+    let index = index.checked_sub(offset).ok_or(RewriteError::OffSheet)?;
     let limit = match axis {
         Axis::Row => MAX_ROWS,
         Axis::Column => MAX_COLS,
@@ -347,12 +360,13 @@ pub(crate) fn rewrite_index(
         return Ok(Rewrite::Keep);
     }
     let next = match edit.after(index, limit) {
+        Ok(None) if range_end && let Shift::Delete { at, .. } = edit => at.checked_sub(1),
         Err(_) if range_end && index < limit => Some(limit - 1),
         outcome => outcome?,
     };
     Ok(match next {
         Some(next) if next == index => Rewrite::Keep,
-        Some(next) => Rewrite::New(next.to_string()),
+        Some(next) => Rewrite::New((next + offset).to_string()),
         None => Rewrite::Remove,
     })
 }
@@ -451,7 +465,7 @@ mod tests {
         );
         assert_eq!(rewrite_marker(3, 77, Axis::Column, delete), Ok(None));
         assert_eq!(
-            rewrite_index(5, Axis::Column, delete, false),
+            rewrite_index(5, IndexBase::Zero, Axis::Column, delete, false),
             Ok(Rewrite::New("3".into()))
         );
         assert_eq!(delete.before(3), Some(5));
@@ -462,21 +476,34 @@ mod tests {
         let insert = Shift::Insert { at: 2, count: 2 };
         let delete = Shift::Delete { at: 2, count: 2 };
         assert_eq!(
-            rewrite_index(MAX_COLS - 1, Axis::Column, insert, true),
+            rewrite_index(MAX_COLS - 1, IndexBase::Zero, Axis::Column, insert, true),
             Ok(Rewrite::Keep)
         );
         assert_eq!(
-            rewrite_index(MAX_COLS - 1, Axis::Column, delete, true),
+            rewrite_index(MAX_COLS - 1, IndexBase::Zero, Axis::Column, delete, true),
             Ok(Rewrite::Keep)
         );
         assert_eq!(
-            rewrite_index(MAX_COLS - 2, Axis::Column, insert, true),
+            rewrite_index(MAX_COLS - 2, IndexBase::Zero, Axis::Column, insert, true),
             Ok(Rewrite::New("16383".into()))
         );
         assert_eq!(
-            rewrite_index(MAX_COLS - 1, Axis::Column, insert, false),
+            rewrite_index(MAX_COLS - 1, IndexBase::Zero, Axis::Column, insert, false),
             Err(RewriteError::OffSheet)
         );
+    }
+
+    #[test]
+    fn one_based_column_range_ends_pin_and_clip() {
+        let axis = Axis::Column;
+        let insert = Shift::Insert { at: 2, count: 2 };
+        let delete = Shift::Delete { at: 2, count: 4 };
+        assert_eq!(rewrite_index(16384, IndexBase::One, axis, insert, true), Ok(Rewrite::Keep));
+        assert_eq!(rewrite_index(16384, IndexBase::One, axis, delete, true), Ok(Rewrite::Keep));
+        assert_eq!(rewrite_index(16383, IndexBase::One, axis, insert, true), Ok(Rewrite::New("16384".into())));
+        assert_eq!(rewrite_index(5, IndexBase::One, axis, delete, true), Ok(Rewrite::New("2".into())));
+        assert_eq!(rewrite_index(4, IndexBase::Zero, axis, delete, true), Ok(Rewrite::New("1".into())));
+        assert_eq!(rewrite_index(5, IndexBase::One, axis, delete, false), Ok(Rewrite::Remove));
     }
 
     #[test]

@@ -605,15 +605,41 @@ mod tests {
     }
 
     #[test]
-    fn operation_columns_match_the_location_summary() {
+    fn each_column_matches_the_location_summary() {
+        // The summary uses prose labels for grouped locations and corpus
+        // observations. The qualified table above checks each dispatch entry.
+        let labels = include_str!("locations_summary.txt");
         let summary: Vec<_> = ADR.lines().filter(|line| line.starts_with("| L")
             && line.split('|').count() == 12).collect();
         assert_eq!(summary.len(), OPERATION_RULES.len());
-        for (i, (line, rules)) in summary.into_iter().zip(&OPERATION_RULES).enumerate() {
-            let fields: Vec<_> = line.split('|').map(str::trim).collect();
-            assert_eq!(fields[1], format!("L{}", i + 1));
-            assert_eq!(&fields[5..8], [rules.g1, rules.copy, rules.table_rename], "{}", fields[1]);
-            assert!(LOCATIONS.iter().any(|row| usize::from(row.id) == i + 1), "{}", fields[1]);
+        assert_eq!(labels.lines().count(), OPERATION_RULES.len());
+        let rows = summary.into_iter().zip(labels.lines()).zip(&OPERATION_RULES);
+        for (index, ((line, labels), rules)) in rows.enumerate() {
+            let mut expected: Vec<_> = labels.split('|').collect();
+            expected.splice(4..4, [rules.g1, rules.copy, rules.table_rename]);
+            let actual: Vec<_> = line.trim_matches('|').split('|').map(str::trim).collect();
+            assert_eq!(actual, expected, "{}", expected[0]);
+            assert_eq!(expected[0], format!("L{}", index + 1));
+
+            for (deleting, label) in [(false, actual[7]), (true, actual[8])] {
+                let dispatch = LOCATIONS.iter()
+                    .filter(|location| usize::from(location.id) == index + 1)
+                    .map(|location| match location.sheet_rule(deleting) {
+                        Rule::Keep if location.scope == Scope::Own => Rule::Unaffected,
+                        rule => rule,
+                    });
+                let (mut rewrites, mut refuses, mut keeps) = (false, false, false);
+                for rule in dispatch {
+                    rewrites |= rule == Rule::Rewrite;
+                    refuses |= rule == Rule::Refuse;
+                    keeps |= rule == Rule::Keep;
+                }
+                assert_eq!(
+                    (rewrites, refuses, keeps),
+                    (label.starts_with('R'), label.starts_with('X') || label.contains("; X for "), label.starts_with("kept")),
+                    "{}: {label}", expected[0]
+                );
+            }
         }
     }
 

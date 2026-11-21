@@ -1069,11 +1069,13 @@ Sheet addition, deletion (including strict deletion), rename and move refuse wit
 
 The sheet-name pass rewrites CF and DV formulas (L17, L19), registered x14 CF/DV
 and sparkline formulas (L20, L21), worksheet controls in direct paths and in
-both `mc:AlternateContent` branches (L30), table column
+both branches of one `mc:AlternateContent` wrapper (L30), table column
 formulas (L37), VML controls (L42), drawing text links (L46), connection cell
 parameters (L55) and control property formulas (L56). A pivot chart source
 (L49) can be renamed when the new name needs no quoting. Removing the pivot
-chart source sheet remains a refusal.
+chart source sheet remains a refusal. A matching reference under a nested
+`mc:AlternateContent` (for example inside `controls`) still returns
+`UnrewritableReference`.
 
 Sheet rename and deletion use the sheet-prefix scan for extension formulas.
 A matching sheet prefix in an unregistered URI or element path is refused
