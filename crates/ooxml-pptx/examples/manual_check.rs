@@ -7,7 +7,7 @@
 //! cargo run -p ooxml-pptx --example pptx_manual_check -- <outdir>
 //! ```
 //!
-//! Inputs are the third-party fixtures in `reference/fixtures/pptx/`; the
+//! Inputs are the fixtures in `reference/fixtures/pptx/`; the
 //! outputs are for local inspection only and are not redistributed.
 
 use std::fmt::Write as _;

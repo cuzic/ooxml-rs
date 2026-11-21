@@ -140,24 +140,31 @@ fn pick(blocks: &[u32], high: u32, used: &HashSet<u32>) -> Option<u32> {
         .or_else(|| in_blocks(blocks, 1, used))
 }
 
-fn layout(block: u32) -> String {
+fn layout(block: u32, namespaces: &str) -> String {
     format!(
-        "<o:shapelayout xmlns:o=\"{OFFICE}\" xmlns:v=\"{V}\" v:ext=\"edit\"><o:idmap v:ext=\"edit\" data=\"{block}\"/></o:shapelayout>"
+        "<o:shapelayout{namespaces} v:ext=\"edit\"><o:idmap v:ext=\"edit\" data=\"{block}\"/></o:shapelayout>"
     )
 }
 
-fn note_type() -> String {
+fn note_type(namespaces: &str) -> String {
     format!(
         concat!(
-            "<v:shapetype xmlns:v=\"{}\" xmlns:o=\"{}\" id=\"_x0000_t202\" coordsize=\"21600,21600\"",
+            "<v:shapetype{} id=\"_x0000_t202\" coordsize=\"21600,21600\"",
             " o:spt=\"202\" path=\"m,l,21600r21600,l21600,xe\"><v:stroke joinstyle=\"miter\"/>",
             "<v:path gradientshapeok=\"t\" o:connecttype=\"rect\"/></v:shapetype>"
         ),
-        V, OFFICE
+        namespaces
     )
 }
 
-fn shape(at: CellIndex, id: u32, shape_type: &str, visible: bool) -> String {
+fn shape(
+    at: CellIndex,
+    id: u32,
+    shape_type: &str,
+    visible: bool,
+    namespaces: &str,
+    z_index: i64,
+) -> String {
     let CellIndex { row, col } = at;
     let (left, x_offset) = if col >= MAX_COLS - 3 {
         (col - 3, 49)
@@ -187,17 +194,16 @@ fn shape(at: CellIndex, id: u32, shape_type: &str, visible: bool) -> String {
     let shape_type = xml::attribute(shape_type);
     format!(
         concat!(
-            "<v:shape xmlns:v=\"{v}\" xmlns:o=\"{o}\" xmlns:x=\"{x}\" id=\"_x0000_s{id}\" o:spid=\"_x0000_s{id}\" type=\"#{shape_type}\"",
-            " style=\"position:absolute;margin-left:{margin_left}pt;margin-top:{margin_top}pt;width:96pt;height:55.5pt;z-index:1;visibility:{visibility}\"",
+            "<v:shape{namespaces} id=\"_x0000_s{id}\" o:spid=\"_x0000_s{id}\" type=\"#{shape_type}\"",
+            " style=\"position:absolute;margin-left:{margin_left}pt;margin-top:{margin_top}pt;width:96pt;height:55.5pt;z-index:{z_index};visibility:{visibility}\"",
             " fillcolor=\"#ffffe1\" o:insetmode=\"auto\"><v:fill color2=\"#ffffe1\"/>",
             "<v:shadow on=\"t\" color=\"black\" obscured=\"t\"/><v:path o:connecttype=\"none\"/>",
             "<v:textbox style=\"mso-direction-alt:auto\"><div style=\"text-align:left\"></div></v:textbox>",
             "<x:ClientData ObjectType=\"Note\"><x:MoveWithCells/><x:SizeWithCells/><x:Anchor>{anchor}</x:Anchor>",
             "<x:AutoFill>False</x:AutoFill><x:Row>{row}</x:Row><x:Column>{col}</x:Column>{marker}</x:ClientData></v:shape>"
         ),
-        v = V,
-        o = OFFICE,
-        x = X,
+        namespaces = namespaces,
+        z_index = z_index,
         id = id,
         shape_type = shape_type,
         visibility = visibility,
@@ -233,6 +239,29 @@ pub(super) fn append(
     let mut prefix = String::new();
     let (part, doc) = existing.map_or((sheet, None), |(part, doc)| (part.as_str(), Some(doc)));
     let root = doc.map(XmlDocument::root);
+    let vo = format!(" xmlns:v=\"{V}\" xmlns:o=\"{OFFICE}\"");
+    let vox = format!("{vo} xmlns:x=\"{X}\"");
+    let child_vo = if root.is_some() { vo.as_str() } else { "" };
+    let child_vox = if root.is_some() { vox.as_str() } else { "" };
+    let z_index = root
+        .into_iter()
+        .flat_map(walk)
+        .filter(|node| node.is(QName::new(V, "shape")))
+        .filter_map(|node| {
+            node.attr(attr("style"))?.rsplit(';').find_map(|property| {
+                let (name, value) = property.split_once(':')?;
+                if name.trim().eq_ignore_ascii_case("z-index") {
+                    value.trim().parse::<i64>().ok()
+                } else {
+                    None
+                }
+            })
+        })
+        .max()
+        .unwrap_or_default()
+        .max(0)
+        .checked_add(1)
+        .ok_or_else(|| part_error(part, "VML z-index exhausted"))?;
     if let Some(doc) = doc
         && note_shape(part, doc, at)?.is_some()
     {
@@ -304,9 +333,13 @@ pub(super) fn append(
                 "<o:idmap xmlns:o=\"{OFFICE}\" xmlns:v=\"{V}\" v:ext=\"edit\" data=\"{block}\"/>"
             )));
         } else if let Some(root) = root.filter(|root| root.elements().next().is_some()) {
-            edits.push(xml::insert(root, root.elements().next(), layout(block)));
+            edits.push(xml::insert(
+                root,
+                root.elements().next(),
+                layout(block, child_vo),
+            ));
         } else {
-            prefix.push_str(&layout(block));
+            prefix.push_str(&layout(block, child_vo));
         }
         id
     };
@@ -326,15 +359,15 @@ pub(super) fn append(
         {
             return Err(part_error(part, "note shapetype id is already used"));
         }
-        prefix.push_str(&note_type());
+        prefix.push_str(&note_type(child_vo));
         "_x0000_t202"
     };
-    prefix.push_str(&shape(at, id, shape_type, visible));
+    prefix.push_str(&shape(at, id, shape_type, visible, child_vox, z_index));
     let addition = if let Some(root) = root {
         edits.push(xml::insert(root, None, prefix));
         Addition::Existing(edits)
     } else {
-        Addition::New(format!("<xml>{prefix}</xml>"))
+        Addition::New(format!("<xml{vox}>{prefix}</xml>"))
     };
     Ok(AddShape {
         id,

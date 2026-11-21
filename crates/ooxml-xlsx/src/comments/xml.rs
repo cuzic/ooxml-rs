@@ -17,6 +17,18 @@ pub(super) const fn attr(name: &'static str) -> QName {
     QName::new("", name)
 }
 
+pub(super) fn default_namespace(node: &RawNode) -> Option<&str> {
+    node.attr(QName::new("http://www.w3.org/2000/xmlns/", "xmlns"))
+}
+
+pub(super) fn namespace_declaration(bound: Option<&str>, expected: &str) -> String {
+    if bound == Some(expected) {
+        String::new()
+    } else {
+        format!(" xmlns=\"{expected}\"")
+    }
+}
+
 pub(super) fn child(node: &RawNode, name: QName) -> Option<&RawNode> {
     node.elements().find(|node| node.is(name))
 }
