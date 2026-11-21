@@ -58,6 +58,7 @@
 mod census;
 mod core_props;
 mod edit;
+mod dynamic;
 mod error;
 mod escape;
 mod formula;
@@ -75,6 +76,8 @@ mod range;
 mod rangefmla;
 mod validation;
 mod x14;
+mod sparklines;
+pub use sparklines::{SparklineAxis, SparklineColors, SparklineEmptyCells, SparklineGroup, SparklineType};
 mod reference;
 mod sheet_ops;
 mod registry;

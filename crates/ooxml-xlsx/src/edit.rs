@@ -14,7 +14,7 @@ use crate::formula::parse::parse;
 use crate::formula::precedents::Rect;
 use crate::formula::translate::translate;
 use crate::graph::{Graph, precedents_of};
-use crate::reference::{CellIndex, CellRange};
+use crate::reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
 use crate::registry::strings::{SharedStrings, StringPlan};
 use crate::registry::styles::{StylePlan, StyleRequest, Styles};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, Workbook};
@@ -30,6 +30,7 @@ pub(crate) enum CellOp {
     Text(String),
     /// Formula text, without `=`.
     Formula(String),
+    DynamicFormula(String, u32),
     RemoveFormula,
     /// Removes the value and formula (`v`, `is`, `f`, `t`) of an existing
     /// cell, keeping its style: `merge_clearing` (ADR-0014 §3). Unlike
@@ -321,7 +322,7 @@ impl Workbook {
                     let anchor = self.census.get(a).expect("alive").at.to_string();
                     return Err(Error::ArrayResultCell { cell, anchor });
                 }
-                if let CellOp::Formula(text) = &op {
+                if let CellOp::Formula(text) | CellOp::DynamicFormula(text, _) = &op {
                     let bad = |reason: String| Error::InvalidFormula { text: text.clone(), reason };
                     if let Some(ch) = text.chars().find(|c| !xml_char_ok(*c)) {
                         return Err(bad(format!("character U+{:04X} cannot be stored in XML", ch as u32)));
@@ -352,6 +353,7 @@ impl Workbook {
             self.plan_registries(&part, at, &mut target_plan, &op, extra, &mut registry)?;
             formula_set_changes |= match op {
                 CellOp::Formula(_) => target.is_none(),
+                CellOp::DynamicFormula(..) => true,
                 _ => target.is_some(),
             };
 
@@ -359,6 +361,9 @@ impl Workbook {
             if let Some(fid) = target {
                 let c = self.census.get(fid).expect("alive").clone();
                 if let FKind::Shared { si, master } = c.kind {
+                    if master && matches!(op, CellOp::DynamicFormula(..)) {
+                        return Err(Error::SharedFormulaMaster { cell, reason: "dynamic array would replace a shared formula master".into() });
+                    }
                     if !groups.insert((sheet, si)) {
                         return Err(Error::SharedFormulaMaster {
                             cell,
@@ -372,7 +377,9 @@ impl Workbook {
             }
 
             // ---- dependents (union) ----
-            let d = if !style_only || self.style_sensitive()? {
+            let d = if matches!(op, CellOp::DynamicFormula(..)) {
+                self.dependents_of_seeds(&[], vec![Rect { sheet, r1: at.row, c1: at.col, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 }])
+            } else if !style_only || self.style_sensitive()? {
                 self.compute_dependents(sheet, at)
             } else {
                 DepSet::default()
@@ -758,20 +765,21 @@ impl Workbook {
             }
         }
         for w in writes {
-            if w.target.is_some() || matches!(w.op, CellOp::Formula(_)) {
+            if w.target.is_some() || matches!(w.op, CellOp::Formula(_) | CellOp::DynamicFormula(..)) {
                 self.style_sensitive = None;
             }
             if let Some(fid) = w.target {
                 self.census.remove(fid);
             }
-            if let CellOp::Formula(text) = w.op {
+            let dynamic = matches!(w.op, CellOp::DynamicFormula(..));
+            if let CellOp::Formula(text) | CellOp::DynamicFormula(text, _) = w.op {
                 let c = FCell {
                     sheet: w.sheet,
                     at: w.at,
-                    kind: FKind::Normal,
-                    range: None,
+                    kind: if dynamic { FKind::Array } else { FKind::Normal },
+                    range: dynamic.then_some(CellRange { first: w.at, last: w.at }),
                     volatile: false,
-                    dynamic: false,
+                    dynamic,
                     spill_error: false,
                     ambiguous_group: false,
                     has_cache: false,

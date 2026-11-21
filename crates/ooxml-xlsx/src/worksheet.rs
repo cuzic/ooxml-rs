@@ -242,7 +242,7 @@ pub(crate) struct TargetPlan {
 /// ooxml-core's non-mutating `check_insert_at` (O(1), no scan of the rows).
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
-        CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) => Some(t.as_str()),
+        CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) | CellOp::DynamicFormula(t, _) => Some(t.as_str()),
         CellOp::RemoveFormula | CellOp::Clear | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     };
     if let Some(t) = text
@@ -273,7 +273,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
     let new_child = match op {
         CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) | CellOp::InlineRich(_) => Some(sml::InlineString::QNAME),
-        CellOp::Formula(_) => Some(sml::CellFormula::QNAME),
+        CellOp::Formula(_) | CellOp::DynamicFormula(..) => Some(sml::CellFormula::QNAME),
         CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
@@ -325,7 +325,7 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
     let first = |q: QName| c.indexed_elements().find(|(_, n)| n.is(q)).map(|(i, _)| i);
     match op {
         CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => first(sml::CellValue::QNAME),
-        CellOp::Formula(_) => first(sml::CellFormula::QNAME),
+        CellOp::Formula(_) | CellOp::DynamicFormula(..) => first(sml::CellFormula::QNAME),
         CellOp::Text(_) => first(sml::InlineString::QNAME).filter(|&i| {
             let is = c.children()[i].as_element().expect("element");
             let mut kids = is.elements();
@@ -415,7 +415,10 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     crate::registry::strings::build_run(&mut is.0, r)?;
                 }
             }
-            CellOp::Formula(text) => {
+            CellOp::Formula(text) | CellOp::DynamicFormula(text, _) => {
+                if let CellOp::DynamicFormula(_, cm) = op {
+                    c.set_cell_meta_index(*cm)?;
+                }
                 c.remove_data_type()?;
                 let mut f = c.get_or_insert_cell_formula()?;
                 if reused {
@@ -432,6 +435,10 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     f.remove_r2()?;
                     f.remove_calculate_cell()?;
                     f.remove_bx()?;
+                }
+                if matches!(op, CellOp::DynamicFormula(..)) {
+                    f.set_formula_type(sml::CellFormulaValues::Array)?;
+                    f.set_reference(&at.to_string())?;
                 }
                 f.set_text(text)?;
             }

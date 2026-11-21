@@ -1,9 +1,12 @@
-"""Read xlsx_manual_check's generated table with openpyxl 3.1.5."""
+"""Read the P5b and P5d manual-check workbooks with openpyxl 3.1.5."""
 
 from pathlib import Path
 import sys
+import xml.etree.ElementTree as ET
+from zipfile import ZipFile
 
 from openpyxl import load_workbook
+from openpyxl.worksheet.formula import ArrayFormula
 
 
 def main(directory: Path) -> None:
@@ -29,5 +32,33 @@ def main(directory: Path) -> None:
     print("openpyxl table read-back passed")
 
 
+def check_phase5d(directory: Path) -> None:
+    dynamic = load_workbook(directory / "43-p5d-dynamic-array.xlsx")
+    try:
+        formula = dynamic.active["C1"].value
+        assert isinstance(formula, ArrayFormula)
+        assert (formula.ref, formula.text) == ("C1", "=_xlfn._xlws.SORT(A1:A3)")
+    finally:
+        dynamic.close()
+
+    path = directory / "42-p5d-sparklines.xlsx"
+    sparklines = load_workbook(path)
+    sparklines.close()
+    ns = {
+        "x14": "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main",
+        "xm": "http://schemas.microsoft.com/office/excel/2006/main",
+    }
+    with ZipFile(path) as archive:
+        xml = ET.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+    groups = xml.findall(".//x14:sparklineGroup", ns)
+    assert [group.attrib["type"] for group in groups] == ["line", "column"]
+    assert [group.findtext(".//xm:f", namespaces=ns) for group in groups] == ["Sheet1!A1:C1"] * 2
+    assert [group.findtext(".//xm:sqref", namespaces=ns) for group in groups] == ["D1", "E1"]
+    print("openpyxl P5d read-back passed")
+
+
+
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    directory = Path(sys.argv[1])
+    main(directory)
+    check_phase5d(directory)
