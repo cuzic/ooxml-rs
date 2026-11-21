@@ -1099,3 +1099,23 @@ chain is refused. New commentsExtensible entries require a commentsIds
 mapping staged in the same edit. Comment dates require local and UTC years
 in 0000–9999. Replies to block-level range starts return
 `UnsupportedContext`.
+
+## Post-acceptance note (schemaless leaf text, Issue #105)
+
+Core implements the §6.2 (a) prerequisite independently of D3d. Both
+`XmlDocument::check_set_leaf_text` and `set_leaf_text` resolve `LeafStep`
+by namespace URI and local name, with zero-based indexing among matching
+element siblings. The root has index zero. An empty path or a missing
+step returns `NoSuchElement`. The shared preflight returns `TypedNamespace`
+for a matched element in the static namespace list (vendored SDK and
+Transitional XSD targets, plus Markup Compatibility), `NotLeaf` for
+non-text children, `NilElement` for a true `xsi:nil` (including the XSD
+boolean spelling `1`), or the existing `InvalidXmlChar` for invalid
+replacement text.
+
+A same-value edit preserves the source spelling. For a changed value,
+the target and ancestors become subtree-dirty. An originally self-closing
+target becomes own-dirty when it gains text, using the serializer's
+attribute-spelling preservation. An empty replacement clears the text.
+Open/close tags of other parsed targets and `xml:space` are preserved.
+Acceptance tests cover byte-local edits and byte-identical refusals.
