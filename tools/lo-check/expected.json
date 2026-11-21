@@ -194,9 +194,9 @@
     "xml": [["word/document.xml", ".//w:instrText[.=' SECTIONPAGES ']", 1]]
   },
   "docx/46-field-date.docx": {
-    "text": ["[", "]"],
-    "pdf_text": ["[", "]"],
-    "xml": [["word/document.xml", ".//w:instrText[.=' DATE \\@ \"[yyyy-MM-dd]\" ']", 1]]
+    "text": ["(", ")", "-"],
+    "pdf_text": ["(", ")", "-"],
+    "xml": [["word/document.xml", ".//w:instrText[.=' DATE \\@ \"(yyyy-MM-dd)\" ']", 1]]
   },
   "docx/47-field-time.docx": {
     "text": ["(", ")"],
@@ -214,7 +214,7 @@
     "xml": [["word/document.xml", ".//w:instrText[.=' REF \"FieldTarget\" \\h ']", 1]]
   },
   "docx/50-field-pageref.docx": {
-    "text": ["Reference page: 1"],
+    "text": ["Reference page: ?"],
     "pdf_text": ["Reference page: 1"],
     "xml": [["word/document.xml", ".//w:instrText[.=' PAGEREF \"FieldTarget\" ']", 1], ["word/document.xml", ".//w:t[.='?']", 1]]
   },

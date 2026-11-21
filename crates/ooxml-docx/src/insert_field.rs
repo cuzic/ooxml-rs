@@ -332,7 +332,9 @@ impl Document {
                     if node.is(w("bookmarkEnd")) && node.attr(w("id")) == Some(id) {
                         return Ok(text);
                     }
-                    if !node.is(w("delText")) {
+                    if node.is(w("p")) {
+                        text.push('\n');
+                    } else if !node.is(w("delText")) {
                         text.push_str(&run_child_text(node));
                     }
                 } else if node.is(w("bookmarkStart"))

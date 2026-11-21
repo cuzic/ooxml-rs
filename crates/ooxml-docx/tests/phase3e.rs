@@ -181,6 +181,35 @@ fn refuses_unsafe_fields_without_mutating_the_package() {
 }
 
 #[test]
+fn field_insertion_uses_the_text_gate_and_rejects_a_non_pagination_override() {
+    let input = common::docx(
+        "<w:p><w:fldSimple w:instr=' SEQ Figure '><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p><w:p/>",
+        None,
+        None,
+    );
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let error = doc
+        .insert_field_with_page_cache(
+            end(1),
+            FieldSpec::Time {
+                format: "HH:mm".into(),
+            },
+            3,
+        )
+        .unwrap_err();
+    std::assert_matches!(
+        error,
+        Error::InvalidValue {
+            what: "pagination field",
+            ..
+        }
+    );
+    assert_eq!(doc.to_bytes().unwrap(), input);
+    doc.insert_field(end(1), FieldSpec::Page).unwrap();
+    assert_eq!(doc.paragraphs().nth(1).unwrap().text(), "1");
+}
+
+#[test]
 fn pagination_cache_copies_format_and_changes_only_the_target_paragraph() {
     let first = "<w:p><w:r><w:t>Unchanged before</w:t></w:r></w:p>";
     let last = "<w:p><w:r><w:t>Unchanged after</w:t></w:r></w:p>";
@@ -270,7 +299,8 @@ fn bookmark_result_uses_current_text_and_pageref_uses_a_placeholder() {
         concat!(
             "<w:p><w:r><w:t>Before</w:t></w:r><w:bookmarkStart w:id='04' w:name='Target'/>",
             "<w:r><w:t>One</w:t><w:tab/></w:r><w:del><w:r><w:delText>Deleted</w:delText></w:r></w:del>",
-            "<w:ins><w:r><w:t>Two</w:t></w:r></w:ins><w:bookmarkEnd w:id='04'/><w:r><w:t>After</w:t></w:r></w:p>",
+            "<w:ins><w:r><w:t>Two</w:t></w:r></w:ins></w:p>",
+            "<w:p><w:r><w:t>Three</w:t></w:r><w:bookmarkEnd w:id='04'/><w:r><w:t>After</w:t></w:r></w:p>",
             "<w:p/><w:p/>"
         ),
         Some(""),
@@ -278,17 +308,17 @@ fn bookmark_result_uses_current_text_and_pageref_uses_a_placeholder() {
     );
     let mut doc = Document::from_bytes(input).unwrap();
     doc.enable_update_fields_on_open().unwrap();
-    doc.insert_field(end(1), reference("target")).unwrap();
+    doc.insert_field(end(2), reference("target")).unwrap();
     doc.insert_field(
-        end(2),
+        end(3),
         FieldSpec::PageRef {
             bookmark: "Target".into(),
             hyperlink: true,
         },
     )
     .unwrap();
-    assert_eq!(doc.paragraphs().nth(1).unwrap().text(), "One\tTwo");
-    assert_eq!(doc.paragraphs().nth(2).unwrap().text(), "?");
+    assert_eq!(doc.paragraphs().nth(2).unwrap().text(), "One\tTwo\nThree");
+    assert_eq!(doc.paragraphs().nth(3).unwrap().text(), "?");
 }
 
 fn with_properties(body: &str) -> Vec<u8> {

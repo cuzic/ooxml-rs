@@ -713,7 +713,7 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
         ("43-field-page.docx", "Page: ", FieldSpec::Page, false),
         ("44-field-numpages.docx", "Pages: ", FieldSpec::NumPages, false),
         ("45-field-sectionpages.docx", "Section pages: ", FieldSpec::SectionPages, false),
-        ("46-field-date.docx", "", FieldSpec::Date { format: "[yyyy-MM-dd]".into() }, false),
+        ("46-field-date.docx", "", FieldSpec::Date { format: "(yyyy-MM-dd)".into() }, false),
         ("47-field-time.docx", "", FieldSpec::Time { format: "(HH:mm)".into() }, false),
         ("48-field-docproperty.docx", "", FieldSpec::DocProperty { name: "Title".into() }, false),
         ("49-field-ref.docx", "Reference: ", FieldSpec::Ref { bookmark: "FieldTarget".into(), hyperlink: true }, true),

@@ -50,7 +50,7 @@ def check_fields(directory):
         "43-field-page.docx": r"Page: 1",
         "44-field-numpages.docx": r"Pages: 1",
         "45-field-sectionpages.docx": r"Section pages: 1",
-        "46-field-date.docx": r"\[\d{4}-\d{2}-\d{2}\]",
+        "46-field-date.docx": r"\(\d{4}-\d{2}-\d{2}\)",
         "47-field-time.docx": r"\(\d{2}:\d{2}\)",
         "48-field-docproperty.docx": r"Field property value",
         "49-field-ref.docx": r"Reference: Reference target",
