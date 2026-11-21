@@ -264,7 +264,9 @@ fn geometry_and_paint_are_local_and_idempotent() {
     let output = String::from_utf8(p.package().read_part(SLIDE).unwrap()).unwrap();
     assert!(output.starts_with(prefix));
     assert!(output.ends_with(suffix));
-    assert!(output.contains(r#"name="adj1" fmla="val 35000""#));
+    // Issue #113: the whole list, in the preset's order (PowerPoint refuses
+    // an upArrow whose avLst holds adj1 alone).
+    assert!(output.contains(r#"<a:avLst><a:gd name="adj1" fmla="val 35000"/><a:gd name="adj2" fmla="val 50000"/></a:avLst>"#), "{output}");
     assert!(output.contains(r#"<a:lin ang="5400000""#));
     assert!(output.contains(r#"flipH="1""#));
     assert!(!output.contains("flipV="));
@@ -769,3 +771,61 @@ fn rotated_group_reports_transform_before_fractional_fit() {
         Error::TransformedGroup { group_id: Some(80) }
     );
 }
+
+fn av_list(p: &Presentation) -> String {
+    let xml = String::from_utf8(p.package().read_part(SLIDE).unwrap()).unwrap();
+    let start = xml.find("<a:avLst").expect("avLst");
+    let end = xml[start..].find("</a:avLst>").map_or_else(|| xml[start..].find("/>").unwrap() + 2, |e| e + "</a:avLst>".len());
+    xml[start..start + end].to_owned()
+}
+
+#[test]
+fn set_adjustment_writes_every_guide_of_the_preset() {
+    // Issue #113: a partial avLst makes PowerPoint 365 refuse the file.
+    for (preset, name, value, expected) in [
+        (ShapeTypeValues::RightArrow, "adj2", 30_000, r#"<a:gd name="adj1" fmla="val 50000"/><a:gd name="adj2" fmla="val 30000"/>"#),
+        (ShapeTypeValues::Hexagon, "adj", 10_000, r#"<a:gd name="adj" fmla="val 10000"/><a:gd name="vf" fmla="val 115470"/>"#),
+        (
+            ShapeTypeValues::AccentBorderCallout3,
+            "adj5",
+            1,
+            r#"<a:gd name="adj1" fmla="val 18750"/><a:gd name="adj2" fmla="val -8333"/><a:gd name="adj3" fmla="val 18750"/><a:gd name="adj4" fmla="val -16667"/><a:gd name="adj5" fmla="val 1"/><a:gd name="adj6" fmla="val -16667"/><a:gd name="adj7" fmla="val 112963"/><a:gd name="adj8" fmla="val -8333"/>"#,
+        ),
+    ] {
+        let mut p = synthetic(&member(81, 10, 20, 30, 40));
+        edit(&mut p, 81, |s| {
+            s.set_preset(preset)?;
+            s.set_adjustment(name, value)
+        })
+        .unwrap();
+        assert_eq!(av_list(&p), format!("<a:avLst>{expected}</a:avLst>"), "{preset:?}");
+    }
+}
+
+#[test]
+fn set_adjustment_completes_a_partial_list_in_order() {
+    // A list written elsewhere with an unknown guide and adj2 alone: adj1 goes
+    // after the preset guides before it (none, so first), the unknown guide
+    // keeps its place relative to adj2.
+    let mut p = synthetic(&member(81, 10, 20, 30, 40));
+    edit(&mut p, 81, |s| {
+        s.set_preset(ShapeTypeValues::UpArrow)?;
+        s.set_adjustment("adj2", 40_000)
+    })
+    .unwrap();
+    let bytes = p.to_bytes().unwrap();
+    let xml = String::from_utf8(p.package().read_part(SLIDE).unwrap()).unwrap();
+    let partial = xml.replace(r#"<a:gd name="adj1" fmla="val 50000"/>"#, "").replace(
+        r#"<a:gd name="adj2" fmla="val 40000"/>"#,
+        r#"<a:gd name="x" fmla="val 1"/><a:gd name="adj2" fmla="val 40000"/>"#,
+    );
+    let mut pkg = Package::from_bytes(bytes).unwrap();
+    pkg.set_part(SLIDE, partial.into_bytes()).unwrap();
+    let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    edit(&mut p, 81, |s| s.set_adjustment("adj2", 45_000)).unwrap();
+    assert_eq!(
+        av_list(&p),
+        r#"<a:avLst><a:gd name="adj1" fmla="val 50000"/><a:gd name="x" fmla="val 1"/><a:gd name="adj2" fmla="val 45000"/></a:avLst>"#
+    );
+}
+
