@@ -8,6 +8,9 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// The sparkline group is empty or has a non-finite custom axis bound.
+    #[error("sparkline group must have entries and finite custom axis bounds")]
+    InvalidSparklineGroup,
     /// The object container cannot be edited safely.
     #[error("cannot edit {part}: {reason}")]
     PartNotEditable {

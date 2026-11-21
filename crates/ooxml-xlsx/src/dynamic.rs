@@ -1,0 +1,216 @@
+//! Dynamic-array metadata and the Phase1 cell transaction (ADR-0017 §9).
+
+use ooxml_core::{
+    AttrSpec, ChildOf, Content, ElementSpec, NsDecl, PartNameRequest, QName, RawNode, RegistryPlan,
+    SimpleType, Target, XmlDocument,
+};
+use ooxml_schema::sml;
+
+use crate::edit::{CellOp, Extra};
+use crate::workbook::REL_METADATA;
+use crate::{CellMut, Error, Result, SML_NS};
+
+pub(crate) const XDA: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray";
+const URI: &str = "{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}";
+const TYPE: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml";
+const NAME: QName = QName::new("", "name");
+const COUNT: QName = QName::new("", "count");
+const DYNAMIC: QName = QName::new("", "fDynamic");
+const COLLAPSED: QName = QName::new("", "fCollapsed");
+
+enum Properties {}
+impl ElementSpec for Properties {
+    const QNAME: QName = QName::new(XDA, "dynamicArrayProperties");
+    const SDK_NAME: &'static str = "xda:dynamicArrayProperties";
+    const ATTRS: &'static [AttrSpec] = &[
+        AttrSpec {
+            name: DYNAMIC,
+            ty: SimpleType::String,
+            default: None,
+        },
+        AttrSpec {
+            name: COLLAPSED,
+            ty: SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: Content = Content::Empty;
+}
+impl ChildOf<sml::Extension> for Properties {}
+
+pub(crate) fn active(dynamic: Option<&str>, collapsed: Option<&str>) -> bool {
+    matches!(dynamic, Some("1" | "true")) && matches!(collapsed, None | Some("0" | "false"))
+}
+
+fn active_block(block: &RawNode) -> bool {
+    block
+        .elements()
+        .filter(|n| n.is(sml::ExtensionList::QNAME))
+        .flat_map(RawNode::elements)
+        .filter(|n| n.is(sml::Extension::QNAME))
+        .flat_map(RawNode::elements)
+        .any(|n| n.is(Properties::QNAME) && active(n.attr(DYNAMIC), n.attr(COLLAPSED)))
+}
+
+fn ensure_block(doc: &mut XmlDocument) -> Result<u32> {
+    if let Some(cm) = crate::census::dynamic_array_cms(doc.serialize().as_bytes())
+        .map_err(Error::Malformed)?
+        .into_iter()
+        .min()
+    {
+        return Ok(cm);
+    }
+
+    let mut metadata = doc.lens_mut::<sml::Metadata>()?;
+    let t = {
+        let mut types = metadata.get_or_insert::<sml::MetadataTypes>()?;
+        let existing = types
+            .as_lens()
+            .children::<sml::MetadataType>()
+            .position(|entry| entry.attr(NAME) == Some("XLDAPR"));
+        if let Some(index) = existing {
+            index + 1
+        } else {
+            let count = types.as_lens().children::<sml::MetadataType>().count() + 1;
+            let mut entry = types.insert::<sml::MetadataType>()?;
+            entry.set_attr(NAME, "XLDAPR")?;
+            entry.set_attr(QName::new("", "minSupportedVersion"), "120000")?;
+            for name in [
+                "copy",
+                "pasteAll",
+                "pasteValues",
+                "merge",
+                "splitFirst",
+                "rowColShift",
+                "clearFormats",
+                "clearComments",
+                "assign",
+                "coerce",
+                "cellMeta",
+            ] {
+                entry.set_attr(QName::new("", name), "1")?;
+            }
+            types.set_attr(COUNT, &count.to_string())?;
+            count
+        }
+    };
+    let v = {
+        let mut future = match metadata
+            .child_mut_by::<sml::FutureMetadata>(|n| n.attr(NAME) == Some("XLDAPR"))
+        {
+            Some(future) => future,
+            None => {
+                let mut future = metadata.insert::<sml::FutureMetadata>()?;
+                future.set_attr(NAME, "XLDAPR")?;
+                future
+            }
+        };
+        if let Some(index) = future
+            .as_lens()
+            .children::<sml::FutureMetadataBlock>()
+            .position(|b| active_block(b.raw()))
+        {
+            index
+        } else {
+            let index = future
+                .as_lens()
+                .children::<sml::FutureMetadataBlock>()
+                .count();
+            let mut block = future.insert::<sml::FutureMetadataBlock>()?;
+            let mut list = block.insert::<sml::ExtensionList>()?;
+            let mut ext = list.insert_with_ns::<sml::Extension>(&[NsDecl::new("xda", XDA)])?;
+            ext.set_attr(QName::new("", "uri"), URI)?;
+            let mut properties = ext.insert::<Properties>()?;
+            properties.set_attr(DYNAMIC, "1")?;
+            properties.set_attr(COLLAPSED, "0")?;
+            future.set_attr(COUNT, &(index + 1).to_string())?;
+            index
+        }
+    };
+    let mut cells = metadata.get_or_insert::<sml::CellMetadata>()?;
+    let count = cells.as_lens().children::<sml::MetadataBlock>().count() + 1;
+    let mut block = cells.insert::<sml::MetadataBlock>()?;
+    let mut record = block.insert::<sml::MetadataRecord>()?;
+    record.set_attr(QName::new("", "t"), &t.to_string())?;
+    record.set_attr(QName::new("", "v"), &v.to_string())?;
+    cells.set_attr(COUNT, &count.to_string())?;
+    u32::try_from(count).map_err(|_| Error::Malformed("too many cell metadata blocks".into()))
+}
+
+impl CellMut<'_, '_> {
+    /// Writes an uncached dynamic-array formula in file form, with the
+    /// anchor as its initial array reference. See [`Self::set_formula`]
+    /// for formula syntax and future-function prefixes.
+    ///
+    /// Excel calculates the spill range. A value in the potential range can
+    /// cause `#SPILL!` in Excel. Only an existing recorded result range
+    /// restricts adjacent cell writes.
+    pub fn set_dynamic_formula(self, text: &str) -> Result<()> {
+        let wb = &mut *self.ws.wb;
+        wb.check_editable()?;
+        if wb.census.implicit_references.contains(&self.ws.sheet) {
+            return Err(Error::MissingReference {
+                part: wb.sheets[self.ws.sheet].part.clone().expect("worksheet"),
+                what: "row or cell (a dynamic array requires explicit references)".into(),
+            });
+        }
+        let rels = wb.pkg.relationships(&wb.workbook_part)?;
+        let mut related = rels.by_type(REL_METADATA);
+        let part = match related.next() {
+            None => None,
+            Some(rel) => Some(
+                rels.resolve(rel)
+                    .filter(|_| related.next().is_none())
+                    .ok_or_else(|| Error::PartNotEditable {
+                        part: wb.workbook_part.clone(),
+                        reason: "ambiguous or external sheet metadata relationship".into(),
+                    })?
+                    .to_owned(),
+            ),
+        };
+        let mut doc = if let Some(part) = &part {
+            wb.pkg
+                .xml_part(part)
+                .map_err(|e| Error::PartNotEditable {
+                    part: part.clone(),
+                    reason: e.to_string(),
+                })?
+                .clone()
+        } else {
+            XmlDocument::parse(format!("<metadata xmlns=\"{SML_NS}\"/>").as_bytes())?
+        };
+        if !doc.root().is(sml::Metadata::QNAME) {
+            return Err(Error::PartNotEditable {
+                part: part.expect("only existing metadata can have an unexpected root"),
+                reason: "expected a SpreadsheetML metadata root".into(),
+            });
+        }
+        let cm = ensure_block(&mut doc)?;
+        let text = text.strip_prefix('=').unwrap_or(text);
+        let plan = wb.plan_writes(vec![(
+            self.ws.sheet,
+            self.at,
+            CellOp::DynamicFormula(text.into(), cm),
+            Extra::default(),
+        )])?;
+        let mut registry = RegistryPlan::new(&wb.pkg);
+        if let Some(part) = part {
+            if doc.is_dirty() {
+                registry.stage_part(&wb.pkg, &part, doc)?;
+            }
+        } else {
+            let name = wb.workbook_part.rsplit_once('/').map_or_else(
+                || "metadata.xml".into(),
+                |(dir, _)| format!("{dir}/metadata.xml"),
+            );
+            let part = registry.add_part(&wb.pkg, PartNameRequest::Exact(name), TYPE, doc)?;
+            registry.add_relationship(
+                &wb.pkg,
+                Some(&wb.workbook_part),
+                REL_METADATA,
+                Target::Part(part),
+            )?;
+        }
+        wb.apply_writes_with(plan, registry)
+    }
+}

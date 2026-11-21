@@ -25,7 +25,7 @@ pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/offic
 pub(crate) const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
 const REL_PIVOT_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable";
 const REL_QUERY_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/queryTable";
-const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
+pub(crate) const REL_METADATA: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 const CT_MACROSHEETS: &[&str] = &["application/vnd.ms-excel.macrosheet+xml", "application/vnd.ms-excel.intlmacrosheet+xml"];
 const CT_DIALOGSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml";
@@ -139,6 +139,8 @@ pub enum ApplyStep {
     CommentIndex,
     /// Before inserting the worksheet table reference.
     TableParts,
+    /// Before inserting the worksheet sparkline group.
+    Sparklines,
 }
 
 pub(crate) type ApplyStepHook = ApplyStep;
@@ -366,7 +368,7 @@ impl Workbook {
         self.worksheet_at(i)
     }
 
-    fn sheet_index(&self, name: &str) -> Result<usize> {
+    pub(crate) fn sheet_index(&self, name: &str) -> Result<usize> {
         if let Some(i) = self.sheets.iter().position(|s| s.name == name) {
             return Ok(i);
         }
