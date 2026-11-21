@@ -1,6 +1,6 @@
 use super::{RawItem, RawNode, RawText, XmlDocument, mark_path_dirty};
 use crate::error::{Error, Result};
-use crate::name::{QName, TYPED_ELEMENT_NAMESPACES};
+use crate::name::{MC_NS, QName, TYPED_ELEMENT_NAMESPACES};
 use crate::value::{check_xml_chars, parse_bool};
 
 const XSI_NIL: QName = QName::new("http://www.w3.org/2001/XMLSchema-instance", "nil");
@@ -35,8 +35,9 @@ impl XmlDocument {
     /// [`Error::NoSuchElement`]. Each matched element must be outside the
     /// namespaces reserved for typed editing ([`Error::TypedNamespace`]).
     /// Elements, comments or processing instructions inside the target return
-    /// [`Error::NotLeaf`]. A true `xsi:nil` returns [`Error::NilElement`], and XML
-    /// 1.0 character validation returns [`Error::InvalidXmlChar`].
+    /// [`Error::NotLeaf`]. An `xsi:nil` value other than `false` or `0`
+    /// (after XML whitespace trimming) returns [`Error::NilElement`].
+    /// XML 1.0 character validation returns [`Error::InvalidXmlChar`].
     ///
     /// On error the document is unchanged. Attributes, including `xml:space`,
     /// retain their values, and the original tags are preserved except when a
@@ -85,7 +86,7 @@ impl XmlDocument {
         if node.children().iter().any(|item| !matches!(item, RawItem::Text(_))) {
             return Err(Error::NotLeaf);
         }
-        if node.attr(XSI_NIL).and_then(parse_bool) == Some(true) {
+        if node.attr(XSI_NIL).is_some_and(|value| parse_bool(value) != Some(false)) {
             return Err(Error::NilElement);
         }
         check_xml_chars(value)?;
@@ -94,7 +95,9 @@ impl XmlDocument {
 }
 
 fn check_namespace(node: &RawNode) -> Result<()> {
-    if TYPED_ELEMENT_NAMESPACES.contains(&node.name().ns()) {
+    let ns = node.name().ns();
+    // Markup Compatibility has semantics in core even without generated types.
+    if ns == MC_NS || TYPED_ELEMENT_NAMESPACES.contains(&ns) {
         return Err(Error::TypedNamespace);
     }
     Ok(())

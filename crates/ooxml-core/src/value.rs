@@ -41,6 +41,7 @@ pub(crate) fn check_xml_chars(value: &str) -> Result<()> {
         }
     }
 }
+
 /// Identity parser for string-valued attributes.
 pub fn parse_str(s: &str) -> Option<&str> {
     Some(s)

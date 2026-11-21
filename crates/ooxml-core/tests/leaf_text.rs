@@ -76,6 +76,23 @@ fn edits_core_properties_with_different_prefixes() {
 }
 
 #[test]
+fn edits_custom_stores_without_generated_element_types() {
+    for (ns, root, leaf) in [
+        ("http://schemas.microsoft.com/office/2006/coverPageProps", "CoverPageProperties", "Abstract"),
+        ("http://schemas.openxmlformats.org/officeDocument/2006/bibliography", "Sources", "Source"),
+        ("http://schemas.microsoft.com/office/2006/metadata/contentType", "contentType", "name"),
+        ("http://schemas.microsoft.com/office/2006/metadata/customXsn", "customXsn", "xsnLocation"),
+    ] {
+        let xml = format!("<{root} xmlns='{ns}'><{leaf}>old</{leaf}></{root}>");
+        let mut doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+        let path = [step(ns, root, 0), step(ns, leaf, 0)];
+        doc.check_set_leaf_text(&path, "new").unwrap();
+        doc.set_leaf_text(&path, "new").unwrap();
+        assert_eq!(doc.serialize(), xml.replace(">old<", ">new<"));
+    }
+}
+
+#[test]
 fn edits_a_root_leaf_without_a_namespace() {
     let xml = "<title/>";
     let mut doc = XmlDocument::parse(xml.as_bytes()).unwrap();
@@ -132,7 +149,7 @@ fn refuses_children_markup_invalid_characters_and_nil_without_mutation() {
         "é\0",
         Error::InvalidXmlChar { ch: '\0', offset: 2 },
     );
-    for value in ["true", " 1 "] {
+    for value in ["true", " 1 ", "yes", ""] {
         refuses(
             &format!("<root xmlns:i='http://www.w3.org/2001/XMLSchema-instance'><a i:nil='{value}'/></root>"),
             &path,
@@ -140,14 +157,12 @@ fn refuses_children_markup_invalid_characters_and_nil_without_mutation() {
             Error::NilElement,
         );
     }
-    let mut doc =
-        XmlDocument::parse(b"<root xmlns:i='http://www.w3.org/2001/XMLSchema-instance'><a i:nil='false'/></root>")
-            .unwrap();
-    doc.set_leaf_text(&path, "new").unwrap();
-    assert_eq!(
-        doc.serialize(),
-        "<root xmlns:i='http://www.w3.org/2001/XMLSchema-instance'><a i:nil='false'>new</a></root>"
-    );
+    for value in ["false", " 0 "] {
+        let xml = format!("<root xmlns:i='http://www.w3.org/2001/XMLSchema-instance'><a i:nil='{value}'/></root>");
+        let mut doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+        doc.set_leaf_text(&path, "new").unwrap();
+        assert_eq!(doc.serialize(), xml.replace("/>", ">new</a>"));
+    }
 }
 
 #[test]
@@ -172,9 +187,8 @@ fn refuses_typed_intermediates_and_targets_inside_custom_xml() {
         "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
         "http://schemas.openxmlformats.org/presentationml/2006/main",
         "http://schemas.openxmlformats.org/drawingml/2006/main",
-        "urn:schemas-microsoft-com:vml",
         "http://schemas.openxmlformats.org/markup-compatibility/2006",
-        "http://schemas.microsoft.com/office/word/2010/wordml",
+        "http://schemas.microsoft.com/office/word/2012/wordml",
     ] {
         let xml = format!("<root xmlns:t='{ns}'><t:wrapper><a/></t:wrapper><t:a/></root>");
         let root = step("", "root", 0);

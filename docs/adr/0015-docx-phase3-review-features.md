@@ -1147,11 +1147,14 @@ Core implements the §6.2 (a) prerequisite independently of D3d. Both
 by namespace URI and local name, with zero-based indexing among matching
 element siblings. The root has index zero. An empty path or a missing
 step returns `NoSuchElement`. The shared preflight returns `TypedNamespace`
-for a matched element in the static namespace list (vendored SDK and
-Transitional XSD targets, plus Markup Compatibility), `NotLeaf` for
-non-text children, `NilElement` for a true `xsi:nil` (including the XSD
-boolean spelling `1`), or the existing `InvalidXmlChar` for invalid
-replacement text.
+for a matched element in a namespace with an allowlisted, generated
+element type or in Markup Compatibility, which core handles directly.
+The generator produces the namespace table from the resolved allowlists.
+Cover page properties, bibliography, SharePoint metadata and customXsn
+stores can be edited through this API. Preflight returns `NotLeaf` for
+non-text children and `NilElement` when a present `xsi:nil` is neither
+`false` nor `0` after XML whitespace trimming. Invalid replacement text
+returns the existing `InvalidXmlChar`.
 
 A same-value edit preserves the source spelling. For a changed value,
 the target and ancestors become subtree-dirty. An originally self-closing

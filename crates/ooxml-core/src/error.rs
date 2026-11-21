@@ -150,8 +150,8 @@ pub enum Error {
     /// A leaf-text path enters a namespace reserved for typed editing.
     #[error("the leaf-text path contains a typed namespace")]
     TypedNamespace,
-    /// A leaf-text target is marked nil through XML Schema Instance.
-    #[error("the leaf-text target is marked xsi:nil")]
+    /// A leaf-text target has an `xsi:nil` value that is true or invalid.
+    #[error("the leaf-text target has a true or invalid xsi:nil value")]
     NilElement,
     /// [`Lens::detach_as`](crate::Lens::detach_as) refused the subtree
     /// (ADR-0002 post-acceptance note "detach/insert").
