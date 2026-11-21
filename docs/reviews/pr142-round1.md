@@ -1,6 +1,6 @@
 # PR #142 レビュー（Opus, round 1）
 
-対象: `codex/docx-d3e-followups` @ b7ede127556651dc61636e7590b5839178a551c6
+対象: `fix/docx-d3e-followups` @ b7ede127556651dc61636e7590b5839178a551c6
 
 ## 結論（先に）
 m4 と m5 はどちらも挙動で解消を確認した。SEQ の識別子は Unicode の文字で始まる規則に変わり、`図` と `表` を受理する。不正な識別子は byte-identical のまま拒否される。LibreOffice のケースは、空のキャッシュと `w:dirty` だけ（`updateFields` なし）の DOCPROPERTY CreateTime を実際に通している。
