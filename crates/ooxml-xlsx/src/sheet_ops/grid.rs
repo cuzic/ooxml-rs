@@ -880,6 +880,9 @@ fn formula_paths(
     edits: &mut FormulaEdits,
 ) -> Vec<([usize; 3], FormulaEdit)> {
     let mut paths = Vec::new();
+    if edits.is_empty() {
+        return paths;
+    }
     let Some((di, data)) = doc
         .root()
         .indexed_elements()

@@ -425,3 +425,39 @@ fn deleting_shared_string_cells_updates_the_reference_count() {
     assert!(xml.contains("count=\"1\""), "{xml}");
     assert!(xml.contains("uniqueCount=\"1\""), "{xml}");
 }
+
+#[test]
+fn absolute_and_one_cell_drawing_modes_keep_their_position() {
+    use ooxml_xlsx::{Anchor, CellIndex, Image};
+    let mut wb = Workbook::new().unwrap();
+    let image = Image::from_bytes(include_bytes!("images/blue.png").as_slice()).unwrap();
+    wb.worksheet()
+        .unwrap()
+        .insert_image(
+            Anchor::two_cell(
+                CellIndex::parse("A1").unwrap(),
+                CellIndex::parse("D4").unwrap(),
+            ),
+            &image,
+        )
+        .unwrap();
+    let base = wb.to_bytes().unwrap();
+    let part = "xl/drawings/drawing1.xml";
+    let xml = text(&base, part);
+    for (mode, at) in [("absolute", 0), ("oneCell", 1)] {
+        let mut xml = xml.clone();
+        let anchor = xml.find("twoCellAnchor").unwrap() + "twoCellAnchor".len();
+        let end = anchor + xml[anchor..].find('>').unwrap();
+        if let Some(start) = xml[anchor..end].find("editAs=\"") {
+            let start = anchor + start + "editAs=\"".len();
+            let end = start + xml[start..].find('"').unwrap();
+            xml.replace_range(start..end, mode);
+        } else {
+            xml.insert_str(anchor, &format!(" editAs=\"{mode}\""));
+        }
+        let mut wb =
+            Workbook::from_bytes(rebuild(&base, &[(part, xml.as_bytes().to_vec())])).unwrap();
+        wb.worksheet().unwrap().insert_rows(at, 1).unwrap();
+        assert_eq!(text(&wb.to_bytes().unwrap(), part), xml);
+    }
+}

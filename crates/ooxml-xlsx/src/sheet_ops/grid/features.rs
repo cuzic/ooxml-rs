@@ -942,16 +942,27 @@ fn check_object(node: &RawNode, own: bool, ctx: &FormulaContext<'_>, part: &str)
     {
         band.blocked(CellRange::parse(reference)?, part, local)?;
     }
-    if own && matches!(local, "from" | "to") {
+    const DRAWING_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+    if own
+        && node.name().ns() == DRAWING_NS
+        && matches!(local, "oneCellAnchor" | "twoCellAnchor")
+        && node.attr(attr("editAs")) != Some("absolute")
+    {
         let coordinate = match band.axis {
             Axis::Row => "row",
             Axis::Column => "col",
         };
-        if let Some(child) = node
-            .elements()
-            .find(|child| child.name().local() == coordinate)
-        {
-            check_marker(band, &child.text(), part)?;
+        let two_markers = local == "twoCellAnchor" && node.attr(attr("editAs")) != Some("oneCell");
+        for marker in node.elements().filter(|child| {
+            child.is(QName::new(DRAWING_NS, "from"))
+                || two_markers && child.is(QName::new(DRAWING_NS, "to"))
+        }) {
+            if let Some(child) = marker
+                .elements()
+                .find(|child| child.is(QName::new(DRAWING_NS, coordinate)))
+            {
+                check_marker(band, &child.text(), part)?;
+            }
         }
     }
     if own
