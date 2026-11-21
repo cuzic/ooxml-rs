@@ -674,7 +674,13 @@ fn write_cache_run(
     if let State::Checked(_, font) = state {
         let mut properties = run.get_or_insert::<RunProperties>()?;
         let mut fonts = properties.get_or_insert::<RunFonts>()?;
-        for attribute in ["ascii", "hAnsi", "eastAsia", "cs"] {
+        for (attribute, theme) in [
+            ("ascii", "asciiTheme"),
+            ("hAnsi", "hAnsiTheme"),
+            ("eastAsia", "eastAsiaTheme"),
+            ("cs", "cstheme"),
+        ] {
+            fonts.remove_attr(w(theme))?;
             fonts.set_attr(w(attribute), font)?;
         }
     }

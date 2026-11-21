@@ -476,3 +476,77 @@ fn rich_control_preserves_hyperlinks_and_markers() {
     let output = String::from_utf8(part(&doc.to_bytes().unwrap(), MAIN)).unwrap();
     assert!(output.contains("<w:bookmarkStart w:id='7' w:name='anchor'/><w:hyperlink w:anchor='anchor'><w:r><w:t>updated</w:t></w:r></w:hyperlink><w:bookmarkEnd w:id='7'/>"));
 }
+
+#[test]
+fn bound_dates_render_each_picture_and_write_the_selected_mapping() {
+    let binding = bind(ITEM, "/v:root/v:value", "xmlns:v='urn:values'");
+    for (mapping, expected) in [
+        ("dateTime", "2026-11-21T06:07:08Z"),
+        ("date", "2026-11-21"),
+        ("text", "November 21"),
+    ] {
+        let primary = format!(
+            "{binding}<w:date><w:dateFormat w:val='MMMM d'/><w:storeMappedDataAs w:val='{mapping}'/></w:date>"
+        );
+        let peer = format!("{binding}<w:date><w:dateFormat w:val='yyyy-MM-dd'/></w:date>");
+        let body = format!(
+            "{}{}{}",
+            para(&sdt(&primary, &run("old"))),
+            para(&sdt(&peer, &run("old"))),
+            para(&sdt(&format!("{binding}<w:text/>"), &run("old"))),
+        );
+        let mut doc =
+            Document::from_bytes(with_store(&docx(&body, None, None), STORE, OLD, false)).unwrap();
+        let control = doc.content_controls().next().unwrap().location;
+        doc.set_date(control, "2026-11-21T06:07:08".parse().unwrap())
+            .unwrap();
+        assert_eq!(
+            doc.paragraphs().map(|p| p.text()).collect::<Vec<_>>(),
+            ["November 21", "2026-11-21", expected],
+        );
+        assert_eq!(
+            part(&doc.to_bytes().unwrap(), STORE),
+            OLD.replacen("old", expected, 1).as_bytes()
+        );
+    }
+}
+
+#[test]
+fn checkbox_uses_the_declared_glyph_and_font_over_theme_fonts() {
+    let body = para(&sdt(
+        &format!(
+            "<c:checkbox xmlns:c='{W14}'><c:checked c:val='0'/><c:checkedState c:val='2605' c:font='DejaVu Sans'/></c:checkbox>"
+        ),
+        "<w:r><w:rPr><w:rFonts w:asciiTheme='majorHAnsi'/></w:rPr><w:t>old</w:t></w:r>",
+    ));
+    let mut doc = Document::from_bytes(docx(&body, None, None)).unwrap();
+    let control = doc.content_controls().next().unwrap().location;
+    doc.set_checked(control, true).unwrap();
+    assert_eq!(doc.paragraph(0).unwrap().text(), "★");
+    let output = String::from_utf8(part(&doc.to_bytes().unwrap(), MAIN)).unwrap();
+    let tree = roxmltree::Document::parse(&output).unwrap();
+    let font = tree
+        .descendants()
+        .find(|node| node.has_tag_name((W_NS, "rFonts")))
+        .unwrap();
+    assert_eq!(font.attribute((W_NS, "ascii")), Some("DejaVu Sans"));
+    assert!(font.attribute((W_NS, "asciiTheme")).is_none());
+}
+
+#[test]
+fn an_uneditable_bound_peer_refuses_the_whole_transaction() {
+    let binding = bind(ITEM, "/v:root/v:value", "xmlns:v='urn:values'");
+    let primary = para(&sdt(&format!("{binding}<w:text/>"), &run("old")));
+    for (peer, expected) in [
+        (format!("{binding}<w:text/><w:lock w:val='contentLocked'/>"), Error::ControlLocked),
+        (binding.replace("<w:dataBinding ", "<v15:dataBinding xmlns:v15='http://schemas.microsoft.com/office/word/2012/wordml' "), Error::UnsupportedBinding),
+        (binding.replace("<w:dataBinding ", "<v15:dataBinding xmlns:v15='http://schemas.microsoft.com/office/word/2010/11/wordml' "), Error::UnsupportedBinding),
+    ] {
+        let input = with_store(&docx(&primary, None, Some(&para(&sdt(&peer, &run("old"))))), STORE, OLD, false);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        let control = doc.content_controls().next().unwrap().location;
+        let error = doc.set_text(control, "new").unwrap_err();
+        assert_eq!(std::mem::discriminant(&error), std::mem::discriminant(&expected), "{error:?}");
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+}
