@@ -1819,3 +1819,25 @@ Core exposes `LensMut::remove_range` over child-item indices (including text and
 markup). Invalid ranges return false and empty ranges succeed without dirtying
 the tree. The fuzz oracle compares the bulk operation with descending
 `remove_at` calls.
+
+### P7a implementation note — worksheet grid edits
+
+The four worksheet methods use zero-based coordinates and return a
+`StructuralEditReport`. Its `rewritten` list covers formulas and range
+features, and its `removed` list identifies deleted elements. Routine row
+and cell renumbering is represented by the requested band rather than
+reported once per address. `Workbook::worksheet_mut` is a mutable named
+lookup with the existing `worksheet_by_name` semantics.
+
+A fully deleted dimension is reset to `A1`. The implementation applies
+the workbook `lockStructure` guard to G1, in addition to the operation's
+worksheet protection flag. Content at the grid boundary can cause
+`ShiftOffSheet`; a protected range or an object requiring P7b adjustment
+can cause `StructureBlocked`. A dependency on a deleted required target
+causes `ReferenceDeleted`. A partial edit of an array or data-table range
+causes `ArrayFormulaSplit`.
+
+The apply path keeps worksheet trees in place and removes contiguous
+runs with `LensMut::remove_range`. The available core API removes ranges
+of child items. Interleaved whitespace and comments are retained, so
+formatted XML can require multiple removal calls for a single band.

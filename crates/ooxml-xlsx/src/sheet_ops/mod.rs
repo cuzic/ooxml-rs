@@ -11,6 +11,7 @@
 //! poisons the workbook (ADR-0009 §2).
 
 mod app_xml;
+pub(crate) mod grid;
 mod names;
 
 mod scan;

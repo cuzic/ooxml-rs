@@ -410,7 +410,7 @@ impl Workbook {
 }
 
 /// The `x14:id` a 2007 rule carries, if any.
-fn x14_id(r: &RawNode) -> Option<String> {
+pub(crate) fn x14_id(r: &RawNode) -> Option<String> {
     r.elements()
         .filter(|e| e.name().local() == "extLst")
         .flat_map(|l| l.elements())

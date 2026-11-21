@@ -8,6 +8,22 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// A structural edit has an empty or out-of-bounds band.
+    #[error("invalid structural edit band at {at} with count {count}")]
+    InvalidStructuralBand { at: u32, count: u32 },
+    /// An insertion would push existing content or a reference off the sheet.
+    #[error("structural edit would shift {what} off the sheet")]
+    ShiftOffSheet { what: String },
+    /// A structural edit would change an unsupported object or feature.
+    #[error("structural edit blocked by {what}")]
+    StructureBlocked { what: String },
+    /// A structural edit would delete a required reference.
+    #[error("structural edit would delete the reference at {location}")]
+    ReferenceDeleted { location: String },
+    /// A structural edit crosses an array or data-table result range.
+    #[error("structural edit splits the formula range at {cell}")]
+    ArrayFormulaSplit { cell: String },
+
     /// The sparkline group is empty or has a non-finite custom axis bound.
     #[error("sparkline group must have entries and finite custom axis bounds")]
     InvalidSparklineGroup,
