@@ -127,8 +127,13 @@ fn first_element(n: &RawNode, pred: impl Fn(&RawNode) -> bool) -> Option<&RawNod
 /// whose local name starts with `nv` (`p:nvSpPr`, `p:nvPicPr`,
 /// `p14:nvContentPartPr`, …), then its `cNvPr` child.
 pub(crate) fn c_nv_pr(shape: &RawNode) -> Option<&RawNode> {
-    let nv = first_element(shape, |c| c.name().local().starts_with("nv"))?;
-    first_element(nv, |c| c.name().local() == "cNvPr")
+    crate::write::node_at(shape, &c_nv_pr_path(shape)?)
+}
+
+pub(crate) fn c_nv_pr_path(shape: &RawNode) -> Option<[usize; 2]> {
+    let (i, nv) = shape.indexed_elements().find(|(_, c)| c.name().local().starts_with("nv"))?;
+    let (j, _) = nv.indexed_elements().find(|(_, c)| c.name().local() == "cNvPr")?;
+    Some([i, j])
 }
 
 /// `cNvPr@id` of a shape element.

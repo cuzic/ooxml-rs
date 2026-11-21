@@ -48,7 +48,7 @@ from `spikes/pptx/survey.py` (slide parts only).
 | `python-pptx/sld-notes.pptx` | 22,964 | Mac PowerPoint 14 | slide with and without a notes slide |
 | `open-xml-sdk/animation.pptx` | 100,209 | PowerPoint 14 | animations (`p:timing`) and an AC-wrapped transition |
 | `open-xml-sdk/Of16-01.pptx` | 58,675 | PowerPoint 16 | Office 2016 `cx:chart` in `mc:AlternateContent` **directly under `p:spTree`**, picture fallback with the same `cNvPr@id` (`InsideAlternateContent` `Err`) |
-| `libreoffice/modern-comments.pptx` | 29,789 | PowerPoint 16 | modern (p188) comments, `authors.xml`, anchors `pc:sldMk@sldId` and `ac:spMk@id` |
+| `libreoffice/modern-comments.pptx` | 29,789 | PowerPoint 16 | modern (p188) comments, `authors.xml`, anchors `pc:sldMk@sldId` and `ac:spMk@id`. Does not open in PowerPoint 365 16.0.20326 ("file is corrupt", unedited; issue #114) |
 | `libreoffice/airplane-transition.pptx` | 29,755 | PowerPoint 16 | `p15:prstTrans` in AC; only slide part is `slide2.xml` (part names are not `1..N`) |
 | `libreoffice/slide-sections.pptx` | 138,108 | PowerPoint 16 | 2 sections, 7 notes slides, 18 groups, 36 custom geometries, `sldId` gaps (309…404) |
 

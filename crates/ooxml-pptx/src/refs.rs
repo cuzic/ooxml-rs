@@ -41,6 +41,8 @@ pub(crate) struct SlideRefs {
     pub characters: Lock,
     /// Text ranges anchored by modern comments (or unverifiable anchors).
     pub comments: Lock,
+    /// Links anchored by modern comments.
+    pub links: Lock,
     /// Tables with a comment anchored inside them (rows, columns, cells),
     /// or unverifiable anchors: structural edits refused (ADR-0013 §2).
     pub tables: Lock,
@@ -102,12 +104,14 @@ impl SlideRefs {
     ///   every shape is locked.
     pub(crate) fn scan_comments(&mut self, part: Option<&XmlDocument>) {
         let Some(doc) = part else {
+            self.links.all = true;
             self.comments.all = true;
             self.tables.all = true;
             return;
         };
         let root = doc.root();
         if !root.is(QName::new(P188_NS, "cmLst")) {
+            self.links.all = true;
             self.comments.all = true;
             self.tables.all = true;
             return;
@@ -117,6 +121,7 @@ impl SlideRefs {
                 continue;
             }
             if !cm.is(QName::new(P188_NS, "cm")) {
+                self.links.all = true;
                 self.comments.all = true;
                 self.tables.all = true;
                 continue;
@@ -128,6 +133,7 @@ impl SlideRefs {
                 })
                 .collect();
             if anchors.is_empty() {
+                self.links.all = true;
                 self.comments.all = true;
                 self.tables.all = true;
             }
@@ -136,6 +142,29 @@ impl SlideRefs {
                 descendants(a, &mut below);
                 self.scan_table_anchor(a, &below);
                 let c = classify_anchor_descendants(a, &below);
+                let link_anchor = QName::new(AC_NS, "hlinkMkLst");
+                // An unrecognized anchor may refer to a link. The known
+                // text, table and drawing anchors do not lock links.
+                let known_non_link = match a.name().ns() {
+                    PC_NS => matches!(
+                        a.name().local(),
+                        "sldMkLst" | "sldLayoutMkLst" | "sldMasterMkLst"
+                    ),
+                    AC_NS => matches!(
+                        a.name().local(),
+                        "deMkLst" | "txBodyMkLst" | "txMkLst" | "tblMkLst"
+                            | "tcMkLst" | "trMkLst" | "gridColMkLst"
+                    ),
+                    _ => false,
+                };
+                if !known_non_link || below.iter().any(|n| n.is(link_anchor)) {
+                    if c.ids.is_empty() {
+                        self.links.all = true;
+                    }
+                    for id in &c.ids {
+                        self.links.add(Some(id));
+                    }
+                }
                 if c.safe {
                     continue;
                 }
@@ -221,7 +250,8 @@ pub(crate) fn classify_anchor(a: &RawNode) -> AnchorClass<'_> {
 
 fn classify_anchor_descendants<'a>(a: &RawNode, below: &[&'a RawNode]) -> AnchorClass<'a> {
     let text = below.iter().any(|n| n.name().local() == "txMk" || n.attr(QName::new("", "cp")).is_some() || n.attr(QName::new("", "len")).is_some());
-    let safe = (a.is(QName::new(PC_NS, "sldMkLst")) || a.is(QName::new(AC_NS, "deMkLst"))) && !text;
+    let has_link = a.is(QName::new(AC_NS, "hlinkMkLst")) || below.iter().any(|n| n.is(QName::new(AC_NS, "hlinkMkLst")));
+    let safe = !has_link && (a.is(QName::new(PC_NS, "sldMkLst")) || a.is(QName::new(AC_NS, "deMkLst"))) && !text;
     let ids = below.iter().filter(|n| n.name().ns() == AC_NS).filter_map(|n| n.attr(QName::new("", "id"))).collect();
     let cp = below.iter().find_map(|n| n.attr(QName::new("", "cp")));
     let len = below.iter().find_map(|n| n.attr(QName::new("", "len")));

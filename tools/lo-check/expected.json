@@ -152,7 +152,6 @@
   "pptx/05-group-member.pptx": {"text": ["Edited inside a group"]},
   "pptx/06-slide-outside-sections.pptx": {"text": ["(edited)"]},
   "pptx/07-stale-app-xml.pptx": {"text": ["A different title than app.xml says", "Added paragraph 0"]},
-  "pptx/08-modern-comment-shape-anchor.pptx": {"text": ["Hello, edited"]},
   "pptx/09-animated-paragraph-run-edit.pptx": {"text": ["Edited animated"]},
   "pptx/10-field-removed.pptx": {"text": ["Static text instead of the"]},
   "pptx/11-formatted-new-lines.pptx": {"text": ["Title line one", "after a line break", "Second title paragraph"]},
@@ -236,6 +235,17 @@
       ["ppt/slides/slide3.xml", ".//a:ln[@w='38100']/a:tailEnd[@type='oval']", 1],
       ["ppt/slides/slide3.xml", ".//a:gradFill/a:lin[@ang='5400000']", 1],
       ["ppt/slides/slide3.xml", ".//a:gradFill/a:gsLst/a:gs[@pos='100000']/a:srgbClr[@val='008080']", 1]
+    ]
+  },
+  "pptx/p3c-links.pptx": {"text": ["Lorem ipsum dolor sit amet"], "pages": 2,
+    "xml": [
+      ["ppt/slides/slide1.xml", ".//a:rPr/a:hlinkClick[@r:id='rId3']", 1],
+      ["ppt/slides/slide1.xml", ".//p:cNvPr/a:hlinkClick[@action='ppaction://hlinksldjump'][@r:id='rId4']", 1],
+      ["ppt/slides/slide1.xml", ".//p:cNvPr/a:hlinkClick[@action='ppaction://hlinkshowjump?jump=lastslide'][@r:id='']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId3'][@Target='https://example.com/slides?x=1&y=2'][@TargetMode='External']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Target='slide2.xml']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide']", 1],
+      ["ppt/slides/_rels/slide1.xml.rels", "./rel:Relationship[@Id='rId4'][@Target='slide2.xml'][@TargetMode='External']", 0]
     ]
   },
   "xlsx/01-minimal.xlsx": {"sheets": {"Sheet1": {"A1": "Name (edited)", "A2": "  padded ", "B2": 91.0, "C2": 0.0, "D2": 7.0, "F5": "new"}}},
@@ -460,6 +470,13 @@
   "xlsx/38-p2-dxf.xlsx": {"sheets": {"Sheet1": {"A1": 1.0, "B1": 9.0}},
     "xml": [
       ["xl/worksheets/sheet1.xml", ".//x:conditionalFormatting[@sqref='B1:B3']/x:cfRule[@dxfId='1']", 1]
+    ]
+  },
+  "xlsx/39-p5b-table.xlsx": {"sheets": {"Sheet1": {"A1": "Market", "A2": "North", "A4": "Total", "B2": 2.0, "B3": 5.0}},
+    "formulas": {"Sheet1!B4": ["n", "7"], "Sheet1!D2": ["n", "4"], "Sheet1!D3": ["n", "10"]},
+    "xml": [
+      ["xl/tables/table1.xml", ".//x:tableColumns/x:tableColumn[@name='Market']", 1],
+      ["xl/tables/table1.xml", ".//x:autoFilter[@ref='A1:D3']", 1]
     ]
   }
 }

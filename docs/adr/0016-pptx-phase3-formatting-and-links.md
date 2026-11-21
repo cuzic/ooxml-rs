@@ -387,6 +387,12 @@ size or spacing:
   names belong to the old preset). `set_preset` on a shape with
   `a:custGeom` (1,626) is `UnsupportedGeometry` (custom geometry is
   preserved, never replaced implicitly).
+  **Post-acceptance note (issue #113).** `set_adjustment` writes the
+  preset's **whole** guide list: missing guides (including `hf`/`vf`) are
+  inserted with the preset's defaults, in the preset's order, before the
+  named value is set. A real PowerPoint 365 (16.0.20326) refuses to open an
+  `upArrow` or `rightArrow` whose `a:avLst` holds only `adj1` (or only
+  `adj2`), and opens the same shape with both guides or with an empty list.
 - **Preset definitions provenance** (review m8). The file is not in the
   Part 4 download the vendored XSDs come from: it is in ECMA-376 **Part
   1**, 5th edition (the PDF cover says October 2016; Ecma's download
@@ -854,3 +860,37 @@ as an explicit child offset or extent.
 Group fit uses `ValueOutOfRange { what: "exact group fit" }` for
 unrepresentable affine fits. A fit that changes the box of a rotated or
 flipped group returns `TransformedGroup` before exactness is checked.
+
+### Post-acceptance note — P3c hyperlinks and actions
+
+- `RunMut::set_link`, `FieldMut::set_link` and `ShapeMut::set_action`
+  take a click or hover event and an optional `LinkSpec`. Passing
+  `None` clears that event. Reapplying the same settings preserves the
+  existing link element and its relationship.
+- `Presentation::slide_link_target(sldId)` creates the write target
+  `LinkTarget::SlideId`, scoped to the open presentation. The existing
+  read variant `LinkTarget::Slide { slide_id, index }` continues to
+  describe the resolved destination. The setter returns
+  `ForeignLinkSlide` for a target from another session and
+  `LinkSlideNotFound` for a missing slide id. The read variants `Slide`
+  and `Part` return `ReadOnlyLinkTarget` when passed to a setter.
+- For link writes, `InvalidLinkUrl`, `ReadOnlyLinkTarget` and
+  `ForeignLinkSlide` replace §11's `InvalidLinkTarget`.
+  `LinkSlideNotFound` replaces §11's `SlideNotFound` for link targets.
+- URL writes accept a nonempty IRI reference. Supply spaces as
+  `%20`. The setter returns `InvalidLinkUrl` for malformed references
+  or bidirectional formatting characters (U+200E–U+200F,
+  U+202A–U+202E, U+2066–U+2069), and `UnsafeLinkScheme` for the
+  three schemes listed in §7.
+- The staged registry removal uses core's any-attribute scan. A
+  `StillReferenced` result keeps the old relationship and allows the
+  edit to commit. Relationships of other types remain owned by their
+  respective features. Replacing or clearing a link with an `a:snd`
+  child returns `LinkHasSound` and preserves the sound relationship.
+  SmartArt text link edits return `SmartArtLinkUnsupported`.
+- Q3 uses the §7 default. A text link writes the colour extension when
+  `text_color` is true. Replacing or clearing an anchored link returns
+  `CommentAnchoredText`. Unknown comment anchors also lock link
+  replacement and removal under ADR-0005 §6. A known text-range anchor
+  (`ac:txMkLst`) locks text edits. Unsupported action targets return
+  `UnsupportedAction`.

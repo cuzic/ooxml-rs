@@ -1459,6 +1459,110 @@ impl<'a> NonVisualDrawingPropertiesView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`NonVisualDrawingProperties`]. Reads go through [`NonVisualDrawingPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct NonVisualDrawingPropertiesViewMut<'a>(
+    pub ooxml_core::LensMut<'a, NonVisualDrawingProperties>,
+);
+impl<'a> NonVisualDrawingPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NonVisualDrawingPropertiesView<'_> {
+        NonVisualDrawingPropertiesView(self.0.as_lens())
+    }
+    /// Sets `id` — Application defined unique identifier.
+    pub fn set_id(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(NonVisualDrawingProperties::ATTR_ID, s),
+        )
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_ID)
+    }
+    /// Sets `name` — Name compatible with Object Model (non-unique).
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NonVisualDrawingProperties::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_NAME)
+    }
+    /// Sets `descr` — Description of the drawing element. (default ``)
+    pub fn set_description(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NonVisualDrawingProperties::ATTR_DESCR, v)
+    }
+    /// Removes `descr`.
+    pub fn remove_description(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_DESCR)
+    }
+    /// Sets `hidden` — Flag determining to show or hide this element. (default `false`)
+    pub fn set_hidden(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0
+            .set_attr(
+                NonVisualDrawingProperties::ATTR_HIDDEN,
+                ooxml_core::value::format_bool(v),
+            )
+    }
+    /// Removes `hidden`.
+    pub fn remove_hidden(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_HIDDEN)
+    }
+    /// Sets `title` — Title (default ``)
+    pub fn set_title(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NonVisualDrawingProperties::ATTR_TITLE, v)
+    }
+    /// Removes `title`.
+    pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NonVisualDrawingProperties::ATTR_TITLE)
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkClick` child, mutably.
+    pub fn hyperlink_on_click_mut(
+        &mut self,
+    ) -> Option<super::dml::HyperlinkOnClickViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:hlinkClick` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_click(
+        &mut self,
+    ) -> Result<super::dml::HyperlinkOnClickViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::HyperlinkOnClick>()
+            .map(super::dml::HyperlinkOnClickViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:hlinkClick` child.
+    pub fn remove_hyperlink_on_click(&mut self) -> bool {
+        self.0.remove::<super::dml::HyperlinkOnClick>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:hlinkHover` child, mutably.
+    pub fn hyperlink_on_hover_mut(
+        &mut self,
+    ) -> Option<super::dml::HyperlinkOnHoverViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:hlinkHover` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink_on_hover(
+        &mut self,
+    ) -> Result<super::dml::HyperlinkOnHoverViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::HyperlinkOnHover>()
+            .map(super::dml::HyperlinkOnHoverViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:hlinkHover` child.
+    pub fn remove_hyperlink_on_hover(&mut self) -> bool {
+        self.0.remove::<super::dml::HyperlinkOnHover>()
+    }
+}
 /// `a:CT_Point2D/p188:pos` — Defines the Point2DType Class.
 #[derive(Debug)]
 pub enum Point2DType {}

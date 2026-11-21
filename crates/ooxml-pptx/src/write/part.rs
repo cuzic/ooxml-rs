@@ -9,6 +9,8 @@ pub(crate) enum EditPart<'a> {
     Package {
         package: &'a mut Package,
         name: String,
+        slides: &'a [crate::presentation::SlideEntry],
+        link_identity: &'a std::sync::Arc<()>,
     },
     Staged(&'a mut XmlDocument),
 }
@@ -16,9 +18,11 @@ pub(crate) enum EditPart<'a> {
 impl EditPart<'_> {
     pub(crate) fn reborrow(&mut self) -> EditPart<'_> {
         match self {
-            Self::Package { package, name } => EditPart::Package {
+            Self::Package { package, name, slides, link_identity } => EditPart::Package {
                 package,
                 name: name.clone(),
+                slides,
+                link_identity,
             },
             Self::Staged(doc) => EditPart::Staged(doc),
         }
@@ -30,7 +34,7 @@ impl Deref for EditPart<'_> {
 
     fn deref(&self) -> &XmlDocument {
         match self {
-            Self::Package { package, name } => package
+            Self::Package { package, name, .. } => package
                 .parsed_part(name)
                 .expect("part parsed before editing"),
             Self::Staged(doc) => doc,
@@ -41,7 +45,7 @@ impl Deref for EditPart<'_> {
 impl DerefMut for EditPart<'_> {
     fn deref_mut(&mut self) -> &mut XmlDocument {
         match self {
-            Self::Package { package, name } => package
+            Self::Package { package, name, .. } => package
                 .xml_part_mut(name)
                 .expect("part parsed before editing"),
             Self::Staged(doc) => doc,

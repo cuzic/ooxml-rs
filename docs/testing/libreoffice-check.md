@@ -62,6 +62,20 @@ cargo xtask manual-check "$lo_check_tmp/bundle"
   "$lo_check_tmp/failures"
 ```
 
+## XLSX table read-back
+
+CI runs this check in the `xlsx table read-back (openpyxl 3.1.5)` job of
+`.github/workflows/ci.yml`. To run it locally after generating the bundle,
+use openpyxl 3.1.5 to verify the table name,
+column metadata, filter range and calculated-column formulas in the
+original `39-p5b-table.xlsx`:
+
+```sh
+"$lo_check_tmp/venv/bin/python" -I -m pip install openpyxl==3.1.5
+"$lo_check_tmp/venv/bin/python" -I crates/ooxml-xlsx/tests/oracle/tables.py \
+  "$lo_check_tmp/bundle/xlsx"
+```
+
 ## Coverage limits
 
 The bundled manual checklists verify that Excel, Word and PowerPoint open

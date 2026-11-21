@@ -374,7 +374,7 @@ impl ParagraphMut<'_> {
         if image_ids.is_empty() {
             *self.doc = staged;
         } else {
-            let EditPart::Package { package, name } = &mut self.doc else {
+            let EditPart::Package { package, name, .. } = &mut self.doc else {
                 return Err(Error::UnsupportedBullet);
             };
             let mut plan = RegistryPlan::new(package);

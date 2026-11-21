@@ -308,6 +308,24 @@ pub enum Error {
     /// A table on the sheet is used elsewhere (structured references).
     #[error("table {0:?} on the sheet is used elsewhere")]
     TableInUse(String),
+    /// The requested table range cannot be used.
+    #[error("invalid table range: {reason}")]
+    TableRange { reason: &'static str },
+    /// The supplied name is not an Excel table name.
+    #[error("invalid table name: {reason}")]
+    InvalidTableName { reason: &'static str },
+    /// Two table columns have the same name.
+    #[error("duplicate column name: {0}")]
+    DuplicateColumnName(String),
+    /// A column heading cannot be derived from this cell.
+    #[error("header cell is not text: {0}")]
+    HeaderNotText(String),
+    /// A formula uses the column name.
+    #[error("table column is in use: {0}")]
+    ColumnInUse(String),
+    /// The named table is absent from the worksheet.
+    #[error("no such table: {0}")]
+    NoSuchTable(String),
 
     /// A custom workbook view names the sheet as its active sheet.
     #[error("a custom workbook view references the sheet")]

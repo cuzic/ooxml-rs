@@ -261,8 +261,7 @@ impl Workbook {
 
     /// Plans and applies one cell edit with Phase2 registry work.
     pub(crate) fn edit_cell_ext(&mut self, sheet: usize, at: CellIndex, op: CellOp, extra: Extra) -> Result<()> {
-        let plan = self.plan_writes(vec![(sheet, at, op, extra)])?;
-        self.apply_writes(plan)
+        self.write_with_headers(vec![(sheet, at, op, extra)])
     }
 
     /// Runs all the cell checks without applying the plan.
@@ -273,6 +272,15 @@ impl Workbook {
     /// Validates all writes, dependent cache strips and registry changes
     /// before applying any of them (ADR-0003 §3.1a).
     pub(crate) fn plan_writes(&mut self, writes: Vec<(usize, CellIndex, CellOp, Extra)>) -> Result<CellWritePlan> {
+        self.plan_table_writes(writes, &HashSet::new(), false)
+    }
+
+    pub(crate) fn plan_table_writes(
+        &mut self,
+        writes: Vec<(usize, CellIndex, CellOp, Extra)>,
+        headers: &HashSet<(usize, CellIndex)>,
+        new_table: bool,
+    ) -> Result<CellWritePlan> {
         self.check_editable()?;
         let mut registry = RegistryApply::default();
         let mut appends = HashMap::new();
@@ -280,8 +288,10 @@ impl Workbook {
         let mut seen: HashSet<(usize, CellIndex)> = HashSet::new();
         let mut groups: HashSet<(usize, u32)> = HashSet::new();
         let mut handoffs = Vec::new();
-        let mut deps = DepSet::default();
-        let (mut dep_formulas, mut dep_results, mut dep_cells) = (HashSet::new(), HashSet::new(), HashSet::new());
+        let mut deps = if new_table { self.dependents_of_seeds(&[], Vec::new()) } else { DepSet::default() };
+        let mut dep_formulas: HashSet<_> = deps.formulas.iter().copied().collect();
+        let mut dep_results: HashSet<_> = deps.results.iter().map(|(fid, _)| *fid).collect();
+        let mut dep_cells: HashSet<_> = deps.cells.iter().copied().collect();
         let mut formula_set_changes = false;
         for (sheet, at, mut op, mut extra) in writes {
             let part = self.sheets[sheet].part.clone().expect("worksheet");
@@ -298,7 +308,7 @@ impl Workbook {
                 if let Some(m) = ctx.merges.iter().find(|m| m.contains(at) && m.first != at) {
                     return Err(Error::MergedCell { cell, range: m.to_string() });
                 }
-                if let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
+                if !headers.contains(&(sheet, at)) && let Some(t) = ctx.tables.iter().find(|t| t.rows.is_some_and(|r| r.contains(at))) {
                     return Err(Error::TableHeaderCell { cell, table: t.name.clone() });
                 }
                 if let Some(fid) = target {
@@ -411,7 +421,7 @@ impl Workbook {
         };
 
         // ---- calcPr on a clone of workbook.xml (cloned from the current state) ----
-        let needs_calc = !others.is_empty() || formula_set_changes;
+        let needs_calc = new_table || !others.is_empty() || formula_set_changes;
         let staged = if needs_calc && !self.calc.manual && !self.calc.full_calc_on_load {
             let mut doc: XmlDocument = self.pkg.xml_part(&self.workbook_part)?.clone();
             {
@@ -457,15 +467,26 @@ impl Workbook {
     /// A refusal while folding is an ordinary `Err` (nothing changed).
     /// `StalePlan` from `Package::apply` is also an ordinary `Err`: it is
     /// returned before anything changes, so the poison is cleared.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the entry for Phase5 operations (ADR-0017 §2.1); exercised by tests"))]
-    pub(crate) fn apply_writes_with(&mut self, plan: CellWritePlan, mut registry: ooxml_core::RegistryPlan) -> Result<()> {
+    pub(crate) fn apply_writes_with(&mut self, plan: CellWritePlan, registry: ooxml_core::RegistryPlan) -> Result<()> {
+        self.apply_writes_with_insertion(plan, registry, |_| Ok(()))
+    }
+
+    pub(crate) fn apply_writes_with_insertion(
+        &mut self,
+        plan: CellWritePlan,
+        mut registry: ooxml_core::RegistryPlan,
+        insert: impl FnOnce(&mut Self) -> Result<()>,
+    ) -> Result<()> {
         if let Some(doc) = &plan.staged {
             registry.stage_part(&self.pkg, &self.workbook_part, doc.clone())?;
         }
         if let Some(p) = &plan.chain {
             registry.remove_parts(&self.pkg, &[p.as_str()], &[REL_CALC_CHAIN])?;
         }
-        self.apply_registry_edit(registry, |wb| wb.apply_steps(plan, true))
+        self.apply_registry_edit(registry, |wb| {
+            insert(wb)?;
+            wb.apply_steps(plan, true)
+        })
     }
 
     /// Applies a validated registry transaction before the checked in-place edits.

@@ -18,6 +18,8 @@ use ooxml_pptx::{CellFill, Edge, Line, Presentation, ShapeKind, TableColor, Text
 
 #[path = "../tests/oracle/shape_properties_case.rs"]
 mod shape_properties_case;
+#[path = "../tests/oracle/links_case.rs"]
+mod links_case;
 
 type R<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -216,17 +218,11 @@ fn main() -> R {
         });
     }
 
-    // 8. Modern comment anchored to the edited shape (whole-shape anchor)
-    {
-        let mut p = Presentation::open(fixture("libreoffice/modern-comments.pptx"))?;
-        p.slide_mut(0)?.shape_mut_by_id(2)?.text_body_mut()?.set_text("Hello, edited")?;
-        items.push(Item {
-            file: save(&out, "08-modern-comment-shape-anchor", &p)?,
-            source: "libreoffice/modern-comments.pptx",
-            edit: "slide 1: title (shape id 2, anchored by a modern comment as a whole shape: ac:deMkLst/ac:spMk) set to new text".into(),
-            observe: vec!["Opens without a repair prompt.", "The comment thread is still attached to the title shape."],
-        });
-    }
+    // 8. (removed, issue #114) A modern comment anchored to the edited shape.
+    // Its only fixture, libreoffice/modern-comments.pptx, does not open in
+    // PowerPoint 365 (16.0.20326) even unedited, so the check proved nothing;
+    // it returns when the owner supplies a PowerPoint-made file with a
+    // shape-anchored modern comment (the same file ADR-0008 Q6 asks for).
 
     // 9. Run edit in a shape with paragraph-level animation
     {
@@ -510,7 +506,14 @@ fn main() -> R {
                 if !x.contains(from) {
                     return Err(format!("{part}: {from:?} not found").into());
                 }
-                pkg.set_part(part, x.replacen(from, to, 1).into_bytes())?;
+                let y = x.replacen(from, to, 1);
+                // p:txStyles holds at most one of each style (issue #114)
+                for style in ["<p:titleStyle", "<p:bodyStyle", "<p:otherStyle"] {
+                    if y.matches(style).count() > 1 {
+                        return Err(format!("{part}: {style} twice after the edit").into());
+                    }
+                }
+                pkg.set_part(part, y.into_bytes())?;
             }
             Ok(Presentation::from_bytes(pkg.to_bytes()?)?)
         }
@@ -540,6 +543,8 @@ fn main() -> R {
         const SLIDE: &str = "ppt/slides/slide1.xml";
         const MASTER: &str = "ppt/slideMasters/slideMaster1.xml";
         const LAYOUT: &str = "ppt/slideLayouts/slideLayout1.xml";
+        // replaces sample.pptx's empty `<p:otherStyle/>`: `p:txStyles` allows one
+        // `otherStyle`, and PowerPoint refuses a master with two (issue #114)
         let other_style = r#"</p:bodyStyle><p:otherStyle><a:lvl1pPr><a:defRPr sz="4000"/></a:lvl1pPr></p:otherStyle>"#;
         let shapes = r#"<p:sp><p:nvSpPr><p:cNvPr id="90" name="M1 text box"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="5300000"/><a:ext cx="3800000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr wrap="square"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Text box</a:t></a:r></a:p></p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="91" name="M1 shape"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="4600000" y="5300000"/><a:ext cx="3800000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:style><a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style><p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Shape</a:t></a:r></a:p></p:txBody></p:sp></p:spTree>"#;
         type Edit<'e> = (&'e str, &'e str, &'e str);
@@ -548,7 +553,7 @@ fn main() -> R {
             (
                 "17-M1-text-box-shape-styles",
                 "M1: a text box (txBox=\"1\") and an autoshape with p:style/a:fontRef, no size of their own; defaultTextStyle has no size, otherStyle says 40 pt, bodyStyle 32 pt",
-                vec![(MASTER, "</p:bodyStyle>", other_style), (SLIDE, "</p:spTree>", shapes)],
+                vec![(MASTER, "</p:bodyStyle><p:otherStyle/>", other_style), (SLIDE, "</p:spTree>", shapes)],
                 "Q1/Q2: POI order (defaultTextStyle, then otherStyle) predicts 40 pt for both; LibreOffice predicts the application default (18 pt); the ECMA note predicts bodyStyle (32 pt) for the text box",
                 vec!["Opens without a repair prompt.", "Text box size: ____ pt; shape size: ____ pt; shape text colour (white = fontRef lt1?): ____"],
             ),
@@ -849,7 +854,23 @@ fn main() -> R {
         });
     }
 
-    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13) and cross-run find/replace (14–16, ADR-0008 §4), inheritance (17–22, ADR-0008 §7 M1–M7), tables (23–25, ADR-0013), slides as units (26–31, ADR-0012), notes (32, ADR-0008 M4), and SmartArt text (SA1–SA4, ADR-0013) — manual check in Microsoft 365 PowerPoint\n\n");
+    {
+        let source = links_case::FIXTURE;
+        let mut deck = Presentation::open(fixture(source))?;
+        links_case::edit(&mut deck)?;
+        items.push(Item {
+            file: save(&out, links_case::NAME, &deck)?,
+            source,
+            edit: "Link the title text to example.com, the title shape to slide 2, and the body shape to the last slide.".into(),
+            observe: vec![
+                "The title text points to https://example.com/slides?x=1&y=2.",
+                "In Slide Show, clicking the title shape outside the linked text jumps to slide 2.",
+                "In Slide Show, clicking the body shape runs the Last Slide action.",
+            ],
+        });
+    }
+
+    let mut md = String::from("# ooxml-pptx Phase 0 / 0.1 (1–13; no 08, issue #114) and cross-run find/replace (14–16, ADR-0008 §4), inheritance (17–22, ADR-0008 §7 M1–M7), tables (23–25, ADR-0013), slides as units (26–31, ADR-0012), notes (32, ADR-0008 M4), and SmartArt text (SA1–SA4, ADR-0013) — manual check in Microsoft 365 PowerPoint\n\n");
     md.push_str("Generated by `cargo run -p ooxml-pptx --example pptx_manual_check -- <outdir>` (ADR-0005 §7, Manual).\n");
     md.push_str("For each file: open it in current Microsoft 365 PowerPoint (desktop), tick what holds, and write notes for anything else.\n");
     md.push_str("Inputs are third-party fixtures from `reference/fixtures/pptx/` (see its README for licences); do not redistribute the outputs.\n\n");
@@ -865,6 +886,7 @@ fn main() -> R {
     md.push_str("- **Q4a autofit**: `02-autofit-stale.pptx` — when does PowerPoint recompute `a:normAutofit@fontScale`/`lnSpcReduction` after a text change?\n");
     md.push_str("- **Q4b sections**: `06-slide-outside-sections.pptx` — is a slide outside every `p14:section` accepted, repaired, or placed somewhere?\n");
     md.push_str("- **Q4c app.xml**: `07-stale-app-xml.pptx` — do stale `Words`/`Paragraphs`/`TitlesOfParts` matter (prompt, display, recomputed on save)?\n");
+    md.push_str("- **No 08**: the modern-comment check needs a PowerPoint-made file with a comment anchored to a shape (`libreoffice/modern-comments.pptx` does not open in PowerPoint 365, issue #114); please supply one (also ADR-0008 Q6).\n");
     std::fs::write(out.join("CHECKLIST.md"), md)?;
     println!("{} files and CHECKLIST.md written to {}", items.len(), out.display());
     Ok(())

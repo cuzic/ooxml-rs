@@ -14,6 +14,8 @@ mod cases;
 mod model;
 #[path = "../tests/oracle/shape_properties_case.rs"]
 mod shape_properties_case;
+#[path = "../tests/oracle/links_case.rs"]
+mod links_case;
 
 use std::path::PathBuf;
 
@@ -34,6 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut shapes = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(shape_properties_case::FIXTURE))?;
     shape_properties_case::edit(&mut shapes)?;
     shapes.save(out.join(format!("{}.pptx", shape_properties_case::NAME)))?;
+    let mut links = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(links_case::FIXTURE))?;
+    links_case::edit(&mut links)?;
+    links.save(out.join(format!("{}.pptx", links_case::NAME)))?;
     let edits: usize = cases.iter().map(|c| c.edits.len()).sum();
     println!("{} cases, {edits} edits written to {}", cases.len(), out.display());
     Ok(())

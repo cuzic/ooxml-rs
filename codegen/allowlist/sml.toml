@@ -154,6 +154,11 @@ names = [
     "x:CT_TableParts/x:tableParts",
     "x:CT_TablePart/x:tablePart",
     "x:CT_Table/x:table",
+    "x:CT_TableColumns/x:tableColumns",
+    "x:CT_TableColumn/x:tableColumn",
+    "x:CT_TableStyleInfo/x:tableStyleInfo",
+    "x:CT_TableFormula/x:calculatedColumnFormula",
+    "x:CT_TableFormula/x:totalsRowFormula",
     # Phase3 (ADR-0009): views keyed by sheetId, VBA code names.
     "x:CT_CustomWorkbookViews/x:customWorkbookViews",
     "x:CT_CustomWorkbookView/x:customWorkbookView",
