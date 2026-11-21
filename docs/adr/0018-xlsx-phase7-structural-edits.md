@@ -421,7 +421,7 @@ What P7-pre adds:
 - `plan_writes` (ADR-0003 §3.1a) gets a variant `plan_writes_after(edit, writes)`. It takes
   the operation's **index map**, which maps pre-edit to post-edit rows and cells and is
   computed from the structural edit in step 1. It validates the writes against the post-edit
-  view:
+  view. With a structural index map, every write must target the edited sheet:
   - the target cells of new columns do not exist before the edit, so they are planned as
     insertions at their post-edit positions;
   - the census checks use the post-edit positions.
@@ -1790,10 +1790,11 @@ pinning. `plan_writes_after` uses the structural index map to find
 pre-edit census entries, and plans insertions and overwrites on the staged
 worksheet at post-edit coordinates. Its shared-string appends and reference
 deltas join the structural registry apply. The caller plans materialization
-and cache stripping for writes on the structurally edited sheet. Writes on
-other sheets get the ordinary shared-formula hand-off, dependent cache strips
-and calcChain removal. The combined transaction removes the chain once, and
-uses the staged coordinates for any affected caches on the shifted sheet.
+and cache stripping for the structurally edited sheet. A plan with a structural
+index map rejects writes to any other sheet before applying changes. The
+structural operation may stage rewritten formulas on those sheets, and the
+cell planner's pre-edit census would use stale shared-formula text for a hand-off.
+The structural transaction owns the calcChain removal.
 Numeric position attributes use their original base, including the
 one-based `col/@min` and `@max`. A surviving range ending in a deleted
 interval clips to the position immediately before the deletion. The full-calc
