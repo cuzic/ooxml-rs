@@ -152,7 +152,11 @@ fn missing_style_part_registers_exact_name_and_keeps_default() {
     let saved = Package::from_bytes(deck.to_bytes().unwrap()).unwrap();
     assert_eq!(style_target(&saved), STYLES);
     assert_eq!(saved.content_type(STYLES), Some(STYLES_CT));
-    let doc = XmlDocument::parse(&saved.read_part(STYLES).unwrap()).unwrap();
+    let style_xml = xml(&saved, STYLES);
+    assert!(
+        style_xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n")
+    );
+    let doc = XmlDocument::parse(style_xml.as_bytes()).unwrap();
     assert_eq!(
         doc.root().attr(QName::new("", "def")),
         Some("{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}")
@@ -248,7 +252,8 @@ fn style_refusals_preserve_package_bytes() {
         deck.master_theme_mut(0)
             .unwrap()
             .set_major_font(ThemeFonts {
-                latin: "Changed",
+                latin: Some("Changed"),
+                east_asian: Some("Yu Gothic"),
                 ..ThemeFonts::default()
             }),
         Err(Error::UnsupportedContent(_))
@@ -301,9 +306,9 @@ fn theme_changes_only_requested_colour_and_font_attributes() {
     let mut theme = deck.master_theme_mut(0).unwrap();
     theme
         .set_minor_font(ThemeFonts {
-            latin: "Verdana",
-            east_asian: "Yu Gothic",
-            complex_script: "Arial",
+            latin: Some("Verdana"),
+            east_asian: Some("Yu Gothic"),
+            complex_script: Some("Arial"),
         })
         .unwrap();
     theme
@@ -320,15 +325,85 @@ fn theme_changes_only_requested_colour_and_font_attributes() {
 }
 
 #[test]
-fn shared_theme_requires_opt_in() {
-    let mut pkg = fixture("python-pptx/sld-notes.pptx");
-    let notes_rels = "ppt/notesMasters/_rels/notesMaster1.xml.rels";
+fn theme_font_update_preserves_omitted_typefaces_and_can_clear_one() {
+    let mut pkg = fixture(styles_theme_case::THEME_FIXTURE);
+    let original_fonts = r#"<a:ea typeface="游ゴシック Light"/><a:cs typeface="Arial"/>"#;
     replace(
         &mut pkg,
-        notes_rels,
-        "../theme/theme2.xml",
-        "../theme/theme1.xml",
+        THEME,
+        r#"<a:ea typeface=""/><a:cs typeface=""/>"#,
+        original_fonts,
     );
+    let original = xml(&pkg, THEME);
+    let before = pkg.to_bytes().unwrap();
+    let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+
+    deck.master_theme_mut(0)
+        .unwrap()
+        .set_major_font(ThemeFonts::default())
+        .unwrap();
+    assert_eq!(deck.to_bytes().unwrap(), before);
+
+    deck.master_theme_mut(0)
+        .unwrap()
+        .set_major_font(ThemeFonts {
+            latin: Some("Meiryo"),
+            ..ThemeFonts::default()
+        })
+        .unwrap();
+    let expected = original.replacen(
+        r#"<a:latin typeface="Calibri"/>"#,
+        r#"<a:latin typeface="Meiryo"/>"#,
+        1,
+    );
+    assert_ne!(expected, original);
+    let after = Package::from_bytes(deck.to_bytes().unwrap()).unwrap();
+    assert_other_parts(&pkg, &after, &[THEME]);
+    assert_eq!(xml(&after, THEME), expected);
+
+    deck.master_theme_mut(0)
+        .unwrap()
+        .set_major_font(ThemeFonts {
+            east_asian: Some(""),
+            ..ThemeFonts::default()
+        })
+        .unwrap();
+    assert_eq!(
+        xml(deck.package(), THEME),
+        expected.replacen("游ゴシック Light", "", 1)
+    );
+}
+
+#[test]
+fn theme_shared_with_notes_master_requires_opt_in() {
+    assert_shared_theme(
+        "python-pptx/sld-notes.pptx",
+        "ppt/notesMasters/_rels/notesMaster1.xml.rels",
+        "../theme/theme2.xml",
+    );
+}
+
+#[test]
+fn theme_shared_with_handout_master_requires_opt_in() {
+    assert_shared_theme(
+        "poi/45545_Comment.pptx",
+        "ppt/handoutMasters/_rels/handoutMaster1.xml.rels",
+        "../theme/theme3.xml",
+    );
+}
+
+#[test]
+fn theme_shared_with_another_slide_master_requires_opt_in() {
+    assert_shared_theme(
+        "poi/bug68703.pptx",
+        "ppt/slideMasters/_rels/slideMaster2.xml.rels",
+        "../theme/theme2.xml",
+    );
+}
+
+fn assert_shared_theme(fixture_name: &str, rels: &str, old_target: &str) {
+    let mut pkg = fixture(fixture_name);
+    replace(&mut pkg, rels, old_target, "../theme/theme1.xml");
     let before = pkg.to_bytes().unwrap();
     let mut deck = Presentation::from_bytes(before.clone()).unwrap();
     assert_matches!(deck.master_theme_mut(0), Err(Error::SharedTheme));
@@ -341,4 +416,126 @@ fn shared_theme_requires_opt_in() {
     let after = Package::from_bytes(deck.to_bytes().unwrap()).unwrap();
     assert_other_parts(&pkg, &after, &[THEME]);
     assert!(xml(&after, THEME).contains("val=\"010203\""));
+}
+
+fn alternate_content(contents: &str) -> String {
+    format!(
+        r#"<compat:AlternateContent xmlns:compat="{}"><compat:Choice Requires="a">{contents}</compat:Choice><compat:Fallback>{contents}</compat:Fallback></compat:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    )
+}
+
+#[test]
+fn table_style_list_with_alternate_content_is_refused_without_changes() {
+    let mut pkg = fixture(styles_theme_case::TABLE_FIXTURE);
+    let style_xml = xml(&pkg, STYLES);
+    let doc = XmlDocument::parse(style_xml.as_bytes()).unwrap();
+    let span = doc.root().elements().next().unwrap().span().unwrap();
+    let entry = &style_xml[span.start..span.end()];
+    replace(&mut pkg, STYLES, entry, &alternate_content(entry));
+    let before = pkg.to_bytes().unwrap();
+    let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+    assert_matches!(
+        deck.add_table_style(TableStyleDef::default()),
+        Err(Error::UnsupportedContent(message))
+            if message.contains("a:tblStyleLst") && message.contains("mc:AlternateContent")
+    );
+    assert_eq!(deck.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn alternate_theme_color_is_refused_without_changes() {
+    let color = r#"<a:srgbClr val="C0504D"/>"#;
+    let slot = format!("<a:accent2>{color}</a:accent2>");
+    for replacement in [
+        alternate_content(&slot),
+        format!("<a:accent2>{}</a:accent2>", alternate_content(color)),
+    ] {
+        let mut pkg = fixture(styles_theme_case::THEME_FIXTURE);
+        replace(&mut pkg, THEME, &slot, &replacement);
+        let before = pkg.to_bytes().unwrap();
+        let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+        assert_matches!(
+            deck.master_theme_mut(0)
+                .unwrap()
+                .set_color(ThemeColorSlot::Accent2, ThemeColor::Rgb([1, 2, 3])),
+            Err(Error::UnsupportedContent(message))
+                if message.contains("mc:AlternateContent")
+        );
+        assert_eq!(deck.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
+fn wrapped_theme_scheme_and_typeface_are_refused_without_changes() {
+    let pkg = fixture(styles_theme_case::THEME_FIXTURE);
+    let source = xml(&pkg, THEME);
+    let doc = XmlDocument::parse(source.as_bytes()).unwrap();
+
+    for name in ["clrScheme", "latin"] {
+        let mut pkg = fixture(styles_theme_case::THEME_FIXTURE);
+        let mut node = doc.root();
+        let path: &[&str] = if name == "clrScheme" {
+            &["themeElements", "clrScheme"]
+        } else {
+            &["themeElements", "fontScheme", "majorFont", "latin"]
+        };
+        for local in path {
+            node = node
+                .elements()
+                .find(|node| node.is(QName::new(A, local)))
+                .unwrap();
+        }
+        let span = node.span().unwrap();
+        let element = &source[span.start..span.end()];
+        replace(&mut pkg, THEME, element, &alternate_content(element));
+        let before = pkg.to_bytes().unwrap();
+        let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+        let mut theme = deck.master_theme_mut(0).unwrap();
+        let result = if name == "clrScheme" {
+            theme.set_color(ThemeColorSlot::Accent1, ThemeColor::Rgb([1, 2, 3]))
+        } else {
+            theme.set_major_font(ThemeFonts {
+                latin: Some("Meiryo"),
+                ..ThemeFonts::default()
+            })
+        };
+        assert_matches!(
+            result,
+            Err(Error::UnsupportedContent(message))
+                if message.contains(name) && message.contains("mc:AlternateContent")
+        );
+        assert_eq!(deck.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
+fn theme_typeface_references_are_refused_without_changes() {
+    let before = fixture(styles_theme_case::THEME_FIXTURE)
+        .to_bytes()
+        .unwrap();
+    let mut deck = Presentation::from_bytes(before.clone()).unwrap();
+    assert_matches!(
+        deck.master_theme_mut(0)
+            .unwrap()
+            .set_major_font(ThemeFonts {
+                latin: Some("Georgia"),
+                east_asian: Some("+mj-ea"),
+                complex_script: Some("Arial"),
+            }),
+        Err(Error::ValueOutOfRange { what: "typeface" })
+    );
+    assert_eq!(deck.to_bytes().unwrap(), before);
+    for reference in ["+mn-lt", "+MJ-LT", " +mj-lt", "\t+Mn-Cs \n"] {
+        assert_matches!(
+            deck.master_theme_mut(0)
+                .unwrap()
+                .set_minor_font(ThemeFonts {
+                    latin: Some(reference),
+                    ..ThemeFonts::default()
+                }),
+            Err(Error::ValueOutOfRange { what: "typeface" })
+        );
+        assert_eq!(deck.to_bytes().unwrap(), before);
+    }
 }

@@ -59,8 +59,8 @@ pub fn edit_theme(deck: &mut Presentation) -> Result<()> {
     let mut theme = deck.master_theme_mut(0)?;
     theme.set_color(ThemeColorSlot::Accent1, ThemeColor::Rgb([28, 132, 148]))?;
     theme.set_major_font(ThemeFonts {
-        latin: "Georgia",
-        east_asian: "Yu Mincho",
-        complex_script: "Arial",
+        latin: Some("Georgia"),
+        east_asian: Some("Yu Mincho"),
+        complex_script: Some("Arial"),
     })
 }
