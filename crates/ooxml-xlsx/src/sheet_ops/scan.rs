@@ -8,10 +8,10 @@ use quick_xml::events::Event;
 use quick_xml::name::ResolveResult;
 use quick_xml::{NsReader, XmlVersion};
 
-use super::names::mentions_prefix;
+use super::names::{PrefixEdit, mentions_prefix, rewrite_formula};
 use crate::error::{Error, Result};
 use crate::formula::lexer::{Prefix, TokKind, lex};
-use crate::locations::{self, PartKind};
+use crate::locations::{self, PartKind, Rule, Syntax};
 
 const SML: &str = crate::SML_NS;
 /// One open element: namespace URI and local name.
@@ -51,21 +51,29 @@ fn describe(stack: &[El], attribute: Option<&str>) -> String {
 /// allowed places. A part that does not parse as XML is scanned as text
 /// (UTF-8, and UTF-16LE if it has that BOM), and any hit refuses
 /// (review R2-m3).
-pub(crate) fn scan_part(part: &str, bytes: &[u8], kind: PartKind, name: &str, check_extension_positions: bool) -> Result<()> {
+pub(crate) fn scan_part(part: &str, bytes: &[u8], kind: PartKind, name: &str, edit: Option<&PrefixEdit<'_>>) -> Result<()> {
     let refuse = |location: String| Err(Error::UnrewritableReference { part: part.to_owned(), location });
     let check = |value: &str, stack: &[El], attribute: Option<&str>, uri: Option<&str>, supported_target: bool| {
         if guid_shaped(value) {
             return Ok(());
         }
         let field = attribute.or_else(|| stack.last().map(|(_, local)| local.as_str()));
-        let position = check_extension_positions && uri.is_some()
+        let position = edit.is_none() && uri.is_some()
             && field.is_some_and(|field| matches!(field, "f" | "sqref" | "ref" | "r"))
             && lex(value).is_ok_and(|tokens| tokens.iter().any(|token| {
                 matches!(&token.kind, TokKind::Ref(reference) if reference.prefix == Prefix::None)
             }));
         let unknown_position = position && !(supported_target && locations::find(kind, stack, attribute, uri).is_some());
-        let unknown_prefix = !name.is_empty() && mentions_prefix(value, name)
-            && !(supported_target && allowed(kind, stack, attribute, uri));
+        let mut unknown_prefix = false;
+        if let Some(edit) = edit && mentions_prefix(value, name) {
+            unknown_prefix = !(supported_target && allowed(kind, stack, attribute, uri));
+            if supported_target && let Some(row) = locations::find(kind, stack, attribute, uri)
+                && row.syntax == Syntax::Formula
+                && row.sheet_rule(matches!(edit, PrefixEdit::Delete { .. })) == Rule::Refuse
+            {
+                unknown_prefix = !matches!(rewrite_formula(value, edit, &|text| mentions_prefix(text, name)), Ok(None));
+            }
+        }
         if unknown_position || unknown_prefix {
             let location = describe(stack, attribute);
             return refuse(uri.map_or_else(|| location.clone(), |uri| format!("{uri} {location}")));

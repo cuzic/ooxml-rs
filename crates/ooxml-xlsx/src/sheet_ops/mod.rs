@@ -365,7 +365,7 @@ impl Workbook {
             if matches!(kind, PartKind::Worksheet | PartKind::Workbook | PartKind::Table)
                 && doc.source().contains("extLst")
             {
-                scan_part(part, doc.serialize().as_bytes(), kind, "", true)?;
+                scan_part(part, doc.serialize().as_bytes(), kind, "", None)?;
             }
         }
         let Change { docs, bytes, rewritten, .. } = change;
@@ -848,8 +848,8 @@ impl Workbook {
         if self.pkg.part_names().any(|p| self.pkg.content_type(p).is_some_and(|ct| ct.starts_with(CT_ACTIVEX))) {
             return Err(Error::BinaryReferencesPossible);
         }
-        self.closed_world_scan(&old, &[])?;
         let edit = PrefixEdit::Rename { old: fold(&old), new: new_name };
+        self.closed_world_scan(&old, &[], &edit)?;
         let mut change = Change::default();
         let mentions = |t: &str| names::mentions_prefix(t, &old);
         self.rewrite_everywhere(&mut change, &edit, &mentions, &[], &[])?;
@@ -882,7 +882,9 @@ impl Workbook {
         let listed_before = self.listed()?;
         let mut listed_after = listed_before.clone();
         listed_after[i].name = new_name.to_owned();
-        self.stage_app_xml(&mut change, &listed_before, &listed_after, Some(&edit), None)?;
+        if locations::sheet_rewrites(73, false).next().is_some() {
+            self.stage_app_xml(&mut change, &listed_before, &listed_after, Some(&edit), None)?;
+        }
         for (src, id, before, after) in &targets {
             change.rewritten.push(RewrittenLocation {
                 part: ooxml_core::opc::rels_part_name(src.as_deref()),
@@ -1106,13 +1108,10 @@ impl Workbook {
                 continue;
             };
             let mut rewrite = None;
-            let mut stack = vec![(d.root(), Vec::<usize>::new())];
-            while let Some((n, path)) = stack.pop() {
-                for (i, c) in n.indexed_elements() {
-                    let mut pp = path.clone();
-                    pp.push(i);
-                    stack.push((c, pp));
-                }
+            let mut stack = vec![(d.root(), Vec::<(String, String)>::new())];
+            while let Some((n, mut path)) = stack.pop() {
+                path.push((n.name().ns().to_owned(), n.name().local().to_owned()));
+                stack.extend(n.elements().map(|child| (child, path.clone())));
                 let local = n.name().local();
                 if !matches!(local, "worksheetSource" | "rangeSet" | "dataRef") || n.name().ns() != crate::SML_NS {
                     continue;
@@ -1121,7 +1120,8 @@ impl Workbook {
                 if fold(&crate::escape::decode(sheet)) != of || n.attrs().iter().any(|a| a.name().local() == "id" && a.name().ns() == R_NS) {
                     continue;
                 }
-                let at_source = local == "worksheetSource" && pivot && path.len() == 2;
+                let at_source = pivot && locations::find(PartKind::PivotCache, &path, Some("sheet"), None)
+                    .is_some_and(|row| row.id == 72 && row.rename == Rule::Rewrite);
                 if !at_source {
                     return Err(Error::UnrewritableReference { part: p, location: format!("<{local}> attribute sheet") });
                 }
@@ -1155,7 +1155,7 @@ impl Workbook {
             } else {
                 locations::additional_part(&ct)
             };
-            if kind == PartKind::Other {
+            if matches!(kind, PartKind::Other | PartKind::ChartEx) {
                 continue;
             }
             let bytes = if let Some(doc) = change.docs.get(part) {
@@ -1206,7 +1206,7 @@ impl Workbook {
     /// The closed-world scan over every XML part except `skip` (ADR-0009
     /// §6): a mention of `name` in sheet-prefix form outside the places
     /// this version rewrites (or leaves on purpose) refuses.
-    fn closed_world_scan(&self, name: &str, skip: &[String]) -> Result<()> {
+    fn closed_world_scan(&self, name: &str, skip: &[String], edit: &PrefixEdit<'_>) -> Result<()> {
         let worksheets: HashSet<&str> = self.sheets.iter().filter(|s| s.kind == SheetKind::Worksheet).filter_map(|s| s.part.as_deref()).collect();
         for p in self.pkg.part_names() {
             if skip.iter().any(|s| s == p) || Some(p) == self.calc_chain.as_deref() {
@@ -1239,7 +1239,7 @@ impl Workbook {
             } else {
                 locations::additional_part(&essence)
             };
-            scan_part(p, &self.pkg.read_part(p)?, kind, name, false)?;
+            scan_part(p, &self.pkg.read_part(p)?, kind, name, Some(edit))?;
         }
         Ok(())
     }
@@ -1301,12 +1301,12 @@ impl Workbook {
         self.check_tables_and_pivots(&entry.name, &set)?;
         let mut skip = set.clone();
         skip.extend(self.calc_chain.clone());
-        self.closed_world_scan(&entry.name, &skip)?;
         // rewrites
         let order: Vec<String> = self.sheets.iter().map(|s| fold(&s.name)).collect();
         let names: Vec<String> = self.sheets.iter().map(|s| s.name.clone()).collect();
         let worksheet: Vec<bool> = self.sheets.iter().map(|s| s.kind == SheetKind::Worksheet).collect();
         let edit = PrefixEdit::Delete { deleted: d, order, names, worksheet };
+        self.closed_world_scan(&entry.name, &skip, &edit)?;
         let mut change = Change::default();
         if set.iter().any(|p| same_name(p, &part)) {
             change.removed_shared_refs = crate::registry::scan_sheet(&self.pkg.read_part(&part)?)?.shared as i64;
@@ -1349,7 +1349,9 @@ impl Workbook {
         let before = self.listed()?;
         let mut after = before.clone();
         after.remove(d);
-        self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
+        if locations::sheet_rewrites(73, true).next().is_some() {
+            self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
+        }
         let calc_chain = self.calc_chain.clone();
         let set_refs: Vec<String> = set.clone();
         let removed_table_max = self.removed_table_max(&set);

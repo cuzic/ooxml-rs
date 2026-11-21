@@ -872,3 +872,26 @@ fn other_workbooks_do_not_refuse() {
     let input = rebuild(&base, &[("xl/externalLinks/externalLink1.xml", el.into_bytes()), ct_add(&base, &override_("xl/externalLinks/externalLink1.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"))]);
     Workbook::from_bytes(input).unwrap().rename_sheet("Data", "New").unwrap();
 }
+
+#[test]
+fn chart_ex_refuses_only_if_its_formula_would_change() {
+    let base = two_sheets();
+    let part = "xl/charts/chartEx1.xml";
+    let content_type = ct_add(&base, &override_(part, "application/vnd.ms-office.chartex+xml"));
+    for (formula, changes) in [
+        ("Data!A1", true),
+        ("[1]Data!A1", false),
+        (r#""Data!A1""#, false),
+    ] {
+        let chart = format!(r#"<cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:f>{formula}</cx:f></cx:chartSpace>"#);
+        let input = rebuild(&base, &[(part, chart.as_bytes().to_vec()), content_type.clone()]);
+        if changes {
+            assert_matches!(refuses(&input, |wb| wb.rename_sheet("Data", "New")), Error::UnrewritableReference { .. });
+            assert_matches!(refuses(&input, |wb| wb.delete_sheet("Data")), Error::UnrewritableReference { .. });
+        } else {
+            let mut wb = Workbook::from_bytes(input).unwrap();
+            wb.rename_sheet("Data", "New").unwrap();
+            assert_eq!(text(&wb.to_bytes().unwrap(), part), chart);
+        }
+    }
+}

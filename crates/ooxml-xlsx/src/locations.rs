@@ -2,9 +2,11 @@
 
 use crate::SML_NS as SML;
 use crate::x14::{NS_X14 as X14, NS_XM as XM, URI_CF, URI_DV};
+use ooxml_schema::props::{NS_AP as AP, NS_VT as VT};
 
 pub(crate) const CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 pub(crate) const C15_NS: &str = "http://schemas.microsoft.com/office/drawing/2012/chart";
+const CX: &str = "http://schemas.microsoft.com/office/drawing/2014/chartex";
 const VML: &str = "urn:schemas-microsoft-com:office:excel";
 const XDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
 const CDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/chartDrawing";
@@ -18,12 +20,14 @@ pub(crate) enum PartKind {
     NonReference,
     Relationships,
     Chart,
+    ChartEx,
     Table,
     Connections,
     Control,
     Vml,
     Drawing,
     ChartShapes,
+    AppProperties,
     CalcChain,
     Comments,
     PivotCache,
@@ -46,6 +50,7 @@ pub(crate) enum Syntax {
     Formula,
     Location,
     PivotSource,
+    RawName,
     Sqref,
     Cell,
     Range,
@@ -79,7 +84,9 @@ impl Location {
     }
 
     pub(crate) fn accepts_sheet_prefix(&self) -> bool {
-        matches!(self.scope, Scope::Any) && self.rename != Rule::Unaffected
+        matches!(self.scope, Scope::Any)
+            && self.syntax != Syntax::RawName
+            && self.rename != Rule::Unaffected
     }
 
     pub(crate) fn matches(
@@ -91,7 +98,11 @@ impl Location {
     ) -> bool {
         let anchored = !matches!(
             self.part,
-            PartKind::Chart | PartKind::Vml | PartKind::Drawing | PartKind::ChartShapes
+            PartKind::Chart
+                | PartKind::ChartEx
+                | PartKind::Vml
+                | PartKind::Drawing
+                | PartKind::ChartShapes
         );
         self.part == kind
             && self.attr == attr
@@ -240,6 +251,10 @@ pub(crate) const LOCATIONS: &[Location] = &[
     location!(46, ChartShapes, Formula, Rewrite, Some("textlink"), None; CDR:"sp"),
     location!(47, Chart, Formula, Rewrite, None, None; CHART_NS:"f"),
     location!(47, Chart, Formula, Rewrite, None, None; C15_NS:"f"),
+    Location {
+        rename: Rule::Refuse,
+        ..location!(48, ChartEx, Formula, Refuse, None, None; CX:"f")
+    },
     location!(49, Chart, PivotSource, Refuse, None, None; CHART_NS:"pivotSource", CHART_NS:"name"),
     location!(55, Connections, Formula, Rewrite, Some("cell"), None; SML:"connections", SML:"connection", SML:"parameters", SML:"parameter"),
     location!(56, Control, Formula, Rewrite, Some("fmlaLink"), None; X14:"formControlPr"),
@@ -247,6 +262,16 @@ pub(crate) const LOCATIONS: &[Location] = &[
     location!(56, Control, Formula, Rewrite, Some("fmlaTxbx"), None; X14:"formControlPr"),
     location!(56, Control, Formula, Rewrite, Some("fmlaGroup"), None; X14:"formControlPr"),
     location!(71, Relationships, Location, Keep, Some("Target"), None; RELS:"Relationships", RELS:"Relationship"),
+    location!(72, PivotCache, RawName, Refuse, Some("sheet"), None; SML:"pivotCacheDefinition", SML:"cacheSource", SML:"worksheetSource"),
+    Location {
+        rename: Rule::Refuse,
+        ..location!(72, PivotCache, RawName, Refuse, Some("sheet"), None; SML:"pivotCacheDefinition", SML:"cacheSource", SML:"consolidation", SML:"rangeSets", SML:"rangeSet")
+    },
+    Location {
+        rename: Rule::Refuse,
+        ..location!(72, Worksheet, RawName, Refuse, Some("sheet"), None; SML:"worksheet", SML:"dataConsolidate", SML:"dataRefs", SML:"dataRef")
+    },
+    location!(73, AppProperties, Location, Rewrite, None, None; AP:"Properties", AP:"TitlesOfParts", VT:"vector", VT:"lpstr"),
 ];
 
 const _: () = {
@@ -286,6 +311,7 @@ pub(crate) fn additional_part(content_type: &str) -> PartKind {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml" => {
             PartKind::Connections
         }
+        "application/vnd.ms-office.chartex+xml" => PartKind::ChartEx,
         "application/vnd.ms-excel.controlproperties+xml" => PartKind::Control,
         "application/vnd.openxmlformats-officedocument.vmldrawing" => PartKind::Vml,
         "application/vnd.openxmlformats-officedocument.drawing+xml" => PartKind::Drawing,
