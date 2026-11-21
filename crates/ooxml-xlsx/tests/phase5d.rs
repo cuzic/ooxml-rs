@@ -6,7 +6,7 @@ use std::assert_matches;
 
 use common::p1::{SML, book, cell_spans, synthetic, with_part};
 use common::{assert_l1_except, entries, part, read};
-use ooxml_core::{QName, RawNode, XmlDocument};
+use ooxml_core::{Package, PartNameRequest, QName, RawNode, XmlDocument};
 use ooxml_xlsx::{
     __formula_parses, CellIndex, Error, SparklineGroup, SparklineType, Workbook, Worksheet,
 };
@@ -125,6 +125,35 @@ fn sparkline_uses_local_namespaces_and_appends_to_existing_extension() {
         source(&doc, old_group)
     );
     assert_eq!(erase(&out, groups.elements().last().unwrap()), doc.source());
+}
+
+#[test]
+fn sparkline_groups_can_share_a_destination() {
+    let mut wb = Workbook::new().unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    for range in ["Sheet1!A1:C1", "Sheet1!A2:C2"] {
+        spark(&mut ws, "D1", range).unwrap();
+    }
+
+    let out = wb.to_bytes().unwrap();
+    let doc = xml(&out, SHEET);
+    let ext = child(child(doc.root(), SML, "extLst"), SML, "ext");
+    let groups = child(ext, X14, "sparklineGroups");
+    let series: Vec<_> = groups
+        .elements()
+        .map(|group| {
+            let sparkline = child(child(group, X14, "sparklines"), X14, "sparkline");
+            (
+                child(sparkline, XM, "sqref").text(),
+                child(sparkline, XM, "f").text(),
+            )
+        })
+        .collect();
+    assert_eq!(series.len(), 2);
+    for ((dest, source), expected) in series.iter().zip(["Sheet1!A1:C1", "Sheet1!A2:C2"]) {
+        assert_eq!(dest, "D1");
+        assert_eq!(source, expected);
+    }
 }
 
 #[test]
@@ -373,6 +402,103 @@ fn metadata_reuses_only_active_blocks_and_updates_counts() {
         assert!(Workbook::from_bytes(out).unwrap().edit_refusal().is_none());
     }
     assert!(metadata.source().contains("XLDAPR"));
+}
+
+#[test]
+fn collapsed_dynamic_anchor_allows_edits_without_reusing_its_block() {
+    let mut wb = Workbook::new().unwrap();
+    write_dynamic(&mut wb.worksheet().unwrap(), "C1", SORT).unwrap();
+    let input = wb.to_bytes().unwrap();
+    let before = xml(&input, META);
+    let collapsed = before
+        .source()
+        .replace(r#"fCollapsed="0""#, r#"fCollapsed="1""#);
+    assert_ne!(collapsed, before.source());
+    let input = with_part(&input, META, &collapsed);
+
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    wb.worksheet()
+        .unwrap()
+        .cell_mut(0, 5)
+        .unwrap()
+        .set_number(42.0)
+        .unwrap();
+    let edited = wb.to_bytes().unwrap();
+    assert_eq!(part(&edited, META), collapsed.as_bytes());
+    assert_eq!(verify_anchor(&edited, SHEET, "C1", SORT), 1);
+
+    let mut wb = Workbook::from_bytes(edited).unwrap();
+    write_dynamic(&mut wb.worksheet().unwrap(), "E1", SORT).unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert_eq!(verify_anchor(&out, SHEET, "C1", SORT), 1);
+    assert_eq!(verify_anchor(&out, SHEET, "E1", SORT), 2);
+    let doc = xml(&out, META);
+    let future = child(doc.root(), SML, "futureMetadata");
+    assert_eq!(attr(future, "count"), Some("2"));
+    let old = future.elements().next().unwrap();
+    let new = future.elements().nth(1).unwrap();
+    assert!(source(&doc, old).contains(r#"fCollapsed="1""#));
+    assert!(source(&doc, new).contains(r#"fCollapsed="0""#));
+    let cells = child(doc.root(), SML, "cellMetadata");
+    let record = child(cells.elements().nth(1).unwrap(), SML, "rc");
+    assert_eq!(attr(record, "v"), Some("1"));
+    assert!(Workbook::from_bytes(out).unwrap().edit_refusal().is_none());
+}
+
+#[test]
+fn dynamic_array_registers_a_new_part_beside_orphan_metadata() {
+    let workbook = book(&[("Sheet1", "")], "", "");
+    let orphan = format!(r#"<metadata xmlns="{SML}"><!-- orphan --></metadata>"#);
+    let mut pkg = Package::from_bytes(workbook).unwrap();
+    pkg.add_part(
+        PartNameRequest::Exact(META.into()),
+        "application/xml",
+        orphan.as_bytes().to_vec(),
+    )
+    .unwrap();
+    let input = pkg.to_bytes().unwrap();
+    assert_matches!(
+        refusal(&input, |ws| write_dynamic(ws, "C1", "SORT(A1:A3)")),
+        Error::MissingFunctionPrefix { .. }
+    );
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    write_dynamic(&mut wb.worksheet().unwrap(), "C1", SORT).unwrap();
+    let out = wb.to_bytes().unwrap();
+    assert_existing_entries(&input, &out, &[CT, RELS, SHEET, "xl/workbook.xml"]);
+    assert_eq!(part(&out, META), orphan.as_bytes());
+
+    let ns = "http://schemas.openxmlformats.org/package/2006/content-types";
+    let ct = xml(&out, CT);
+    let rels = xml(&out, RELS);
+    let rel_type =
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
+    let mut metadata_rels = rels
+        .root()
+        .elements()
+        .filter(|rel| attr(rel, "Type") == Some(rel_type));
+    let target = attr(metadata_rels.next().unwrap(), "Target").unwrap();
+    assert!(metadata_rels.next().is_none());
+    assert_ne!(target, "metadata.xml");
+    let path = format!("xl/{target}");
+    let absolute = format!("/{path}");
+    let override_ = ct
+        .root()
+        .elements()
+        .find(|e| {
+            e.is(QName::new(ns, "Override")) && attr(e, "PartName") == Some(absolute.as_str())
+        })
+        .unwrap();
+    assert_eq!(
+        attr(override_, "ContentType"),
+        Some("application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml")
+    );
+    let metadata = xml(&out, &path);
+    assert_eq!(
+        attr(child(metadata.root(), SML, "cellMetadata"), "count"),
+        Some("1")
+    );
+    assert_eq!(verify_anchor(&out, SHEET, "C1", SORT), 1);
+    assert!(Workbook::from_bytes(out).unwrap().edit_refusal().is_none());
 }
 
 fn refusal(input: &[u8], edit: impl FnOnce(&mut Worksheet<'_>) -> ooxml_xlsx::Result<()>) -> Error {

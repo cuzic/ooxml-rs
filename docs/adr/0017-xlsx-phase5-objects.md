@@ -1061,3 +1061,6 @@ Dynamic array writes require explicit row and cell references on the target
 sheet so that the reopened formula census can resolve the new anchor. They
 use Phase1's dimension maintenance and cache stripping, including the cache
 type attribute and the shared-string reference count when applicable.
+
+- Microsoft 365 Excel (16.0.20326) opens and preserves two sparkline groups targeting the same cell when saved.
+- Phase3 rename and delete return `UnrewritableReference` for a sheet referenced by a sparkline's `xm:f`.
