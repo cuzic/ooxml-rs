@@ -83,6 +83,23 @@ b81bda36d34258d78329187df6beb99d12bba5a3bd25e7a51506ede016a72191  open-xml-sdk/a
 Verify with `sha256sum -c` after extracting the block above, run from this
 directory.
 
+## Project-made file (`project/`)
+
+`project/powerpoint-shape-comment.pptx` (34,111 bytes,
+SHA-256 `af9e92f61c8418360a97b214ba3aa914bfe8f326cfd08d983e7aa1588a2d6d01`)
+was made by this project in Microsoft 365 PowerPoint 16.0.20326 on
+2026-11-21 (issue #114, ADR-0008 Q6). A new deck with a Title and Content
+slide was created through COM. The title shape was then selected and the
+ribbon's New Comment command run, and the comment was posted through the
+Comments pane's UI Automation controls. The comment part is therefore
+PowerPoint's own: one `p188:cm` anchored to the title shape by
+`ac:deMkLst` / `ac:spMk id="2"`. Only the identity was changed afterwards.
+In `ppt/authors.xml`, name/initials/userId became `Ada Lovelace`/`AL`/`Ada
+Lovelace` and providerId became `None`. In `docProps/core.xml`, creator
+and lastModifiedBy became `Ada Lovelace`. The edited file opens in
+PowerPoint 365, and the comment stays on the shape after a PowerPoint
+save. Licence: the project's own.
+
 ## Synthetic test inputs
 
 Constructs that no file here (or in the 105-file survey corpus) contains
