@@ -12,6 +12,8 @@
 mod cases;
 #[path = "../tests/oracle/model.rs"]
 mod model;
+#[path = "../tests/oracle/notes_creation_case.rs"]
+mod notes_creation_case;
 #[path = "../tests/oracle/shape_properties_case.rs"]
 mod shape_properties_case;
 #[path = "../tests/oracle/links_case.rs"]
@@ -33,6 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     std::fs::write(out.join("cases.json"), serde_json::to_string_pretty(&cases::cases_json(&cases))?)?;
     formatting_case(&out)?;
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../reference/fixtures/pptx")
+        .join(notes_creation_case::FIXTURE);
+    let notes = notes_creation_case::create(&source)?;
+    notes.save(out.join(format!("{}.pptx", notes_creation_case::NAME)))?;
     let mut shapes = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(shape_properties_case::FIXTURE))?;
     shape_properties_case::edit(&mut shapes)?;
     shapes.save(out.join(format!("{}.pptx", shape_properties_case::NAME)))?;

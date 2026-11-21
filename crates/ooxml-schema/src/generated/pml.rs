@@ -5746,6 +5746,119 @@ impl<'a> NotesMasterView<'a> {
         self.0.raw()
     }
 }
+/// `p:CT_NotesMasterIdList/p:notesMasterIdLst` — Defines the NotesMasterIdList Class.
+#[derive(Debug)]
+pub enum NotesMasterIdList {}
+impl ooxml_core::ElementSpec for NotesMasterIdList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "notesMasterIdLst");
+    const SDK_NAME: &'static str = "p:CT_NotesMasterIdList/p:notesMasterIdLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "notesMasterId")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<NotesMasterIdList> for NotesMasterId {}
+/// Read-only view of [`NotesMasterIdList`].
+#[derive(Clone, Debug)]
+pub struct NotesMasterIdListView<'a>(pub ooxml_core::Lens<'a, NotesMasterIdList>);
+impl<'a> NotesMasterIdListView<'a> {
+    /// First `p:notesMasterId` child.
+    pub fn notes_master_id(&self) -> Option<NotesMasterIdView<'a>> {
+        self.0.child::<NotesMasterId>().map(NotesMasterIdView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NotesMasterIdList`]. Reads go through [`NotesMasterIdListViewMut::as_view`].
+#[derive(Debug)]
+pub struct NotesMasterIdListViewMut<'a>(pub ooxml_core::LensMut<'a, NotesMasterIdList>);
+impl<'a> NotesMasterIdListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NotesMasterIdListView<'_> {
+        NotesMasterIdListView(self.0.as_lens())
+    }
+    /// First `p:notesMasterId` child, mutably.
+    pub fn notes_master_id_mut(&mut self) -> Option<NotesMasterIdViewMut<'_>> {
+        self.0.child_mut::<NotesMasterId>().map(NotesMasterIdViewMut)
+    }
+    /// Existing `p:notesMasterId` child, or a new one in schema position.
+    pub fn get_or_insert_notes_master_id(
+        &mut self,
+    ) -> Result<NotesMasterIdViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NotesMasterId>().map(NotesMasterIdViewMut)
+    }
+    /// Removes the first `p:notesMasterId` child.
+    pub fn remove_notes_master_id(&mut self) -> bool {
+        self.0.remove::<NotesMasterId>()
+    }
+}
+/// `p:CT_NotesMasterIdListEntry/p:notesMasterId` — Notes Master ID.
+#[derive(Debug)]
+pub enum NotesMasterId {}
+impl NotesMasterId {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for NotesMasterId {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P, "notesMasterId");
+    const SDK_NAME: &'static str = "p:CT_NotesMasterIdListEntry/p:notesMasterId";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: NotesMasterId::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_P, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+/// Read-only view of [`NotesMasterId`].
+#[derive(Clone, Debug)]
+pub struct NotesMasterIdView<'a>(pub ooxml_core::Lens<'a, NotesMasterId>);
+impl<'a> NotesMasterIdView<'a> {
+    /// `r:id` — Relationship Identifier
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(NotesMasterId::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`NotesMasterId`]. Reads go through [`NotesMasterIdViewMut::as_view`].
+#[derive(Debug)]
+pub struct NotesMasterIdViewMut<'a>(pub ooxml_core::LensMut<'a, NotesMasterId>);
+impl<'a> NotesMasterIdViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> NotesMasterIdView<'_> {
+        NotesMasterIdView(self.0.as_lens())
+    }
+    /// Sets `r:id` — Relationship Identifier
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(NotesMasterId::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(NotesMasterId::ATTR_R_ID)
+    }
+}
 /// `p:CT_NotesSlide/p:notes` — Notes Slide.
 #[derive(Debug)]
 pub enum NotesSlide {}
@@ -6565,6 +6678,7 @@ impl ooxml_core::ElementSpec for Presentation {
     );
 }
 impl ooxml_core::ChildOf<Presentation> for DefaultTextStyle {}
+impl ooxml_core::ChildOf<Presentation> for NotesMasterIdList {}
 impl ooxml_core::ChildOf<Presentation> for PresentationExtensionList {}
 impl ooxml_core::ChildOf<Presentation> for SlideIdList {}
 impl ooxml_core::ChildOf<Presentation> for SlideSize {}
@@ -6684,6 +6798,10 @@ impl<'a> PresentationView<'a> {
     /// First `p:defaultTextStyle` child.
     pub fn default_text_style(&self) -> Option<DefaultTextStyleView<'a>> {
         self.0.child::<DefaultTextStyle>().map(DefaultTextStyleView)
+    }
+    /// First `p:notesMasterIdLst` child.
+    pub fn notes_master_id_list(&self) -> Option<NotesMasterIdListView<'a>> {
+        self.0.child::<NotesMasterIdList>().map(NotesMasterIdListView)
     }
     /// First `p:extLst` child.
     pub fn presentation_extension_list(
@@ -6868,6 +6986,20 @@ impl<'a> PresentationViewMut<'a> {
     /// Removes `conformance`.
     pub fn remove_conformance(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(Presentation::ATTR_CONFORMANCE)
+    }
+    /// First `p:notesMasterIdLst` child, mutably.
+    pub fn notes_master_id_list_mut(&mut self) -> Option<NotesMasterIdListViewMut<'_>> {
+        self.0.child_mut::<NotesMasterIdList>().map(NotesMasterIdListViewMut)
+    }
+    /// Existing `p:notesMasterIdLst` child, or a new one in schema position.
+    pub fn get_or_insert_notes_master_id_list(
+        &mut self,
+    ) -> Result<NotesMasterIdListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NotesMasterIdList>().map(NotesMasterIdListViewMut)
+    }
+    /// Removes the first `p:notesMasterIdLst` child.
+    pub fn remove_notes_master_id_list(&mut self) -> bool {
+        self.0.remove::<NotesMasterIdList>()
     }
     /// First `p:extLst` child, mutably.
     pub fn presentation_extension_list_mut(
@@ -9762,6 +9894,9 @@ const _: () = ooxml_core::schema::assert_spec::<NotesMaster>();
 const _: () = ooxml_core::schema::assert_child::<NotesMaster, ColorMap>();
 const _: () = ooxml_core::schema::assert_child::<NotesMaster, NotesStyle>();
 const _: () = ooxml_core::schema::assert_child::<NotesMaster, CommonSlideData>();
+const _: () = ooxml_core::schema::assert_spec::<NotesMasterIdList>();
+const _: () = ooxml_core::schema::assert_child::<NotesMasterIdList, NotesMasterId>();
+const _: () = ooxml_core::schema::assert_spec::<NotesMasterId>();
 const _: () = ooxml_core::schema::assert_spec::<NotesSlide>();
 const _: () = ooxml_core::schema::assert_child::<NotesSlide, ColorMapOverride>();
 const _: () = ooxml_core::schema::assert_child::<NotesSlide, CommonSlideData>();
@@ -9792,6 +9927,7 @@ const _: () = ooxml_core::schema::assert_child::<
 const _: () = ooxml_core::schema::assert_spec::<PlaceholderShape>();
 const _: () = ooxml_core::schema::assert_spec::<Presentation>();
 const _: () = ooxml_core::schema::assert_child::<Presentation, DefaultTextStyle>();
+const _: () = ooxml_core::schema::assert_child::<Presentation, NotesMasterIdList>();
 const _: () = ooxml_core::schema::assert_child::<
     Presentation,
     PresentationExtensionList,
