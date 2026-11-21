@@ -387,6 +387,12 @@ size or spacing:
   names belong to the old preset). `set_preset` on a shape with
   `a:custGeom` (1,626) is `UnsupportedGeometry` (custom geometry is
   preserved, never replaced implicitly).
+  **Post-acceptance note (issue #113).** `set_adjustment` writes the
+  preset's **whole** guide list: missing guides (including `hf`/`vf`) are
+  inserted with the preset's defaults, in the preset's order, before the
+  named value is set. A real PowerPoint 365 (16.0.20326) refuses to open an
+  `upArrow` or `rightArrow` whose `a:avLst` holds only `adj1` (or only
+  `adj2`), and opens the same shape with both guides or with an empty list.
 - **Preset definitions provenance** (review m8). The file is not in the
   Part 4 download the vendored XSDs come from: it is in ECMA-376 **Part
   1**, 5th edition (the PDF cover says October 2016; Ecma's download

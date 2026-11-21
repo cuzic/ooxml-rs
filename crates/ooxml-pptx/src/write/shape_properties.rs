@@ -851,30 +851,30 @@ impl ShapeMut<'_> {
         Ok(())
     }
 
-    /// Writes a constant adjustment of the current preset, including any
-    /// aspect-ratio guides (`hf` and `vf`) declared by that preset.
+    /// Writes a constant adjustment of the current preset. The adjustment
+    /// list is completed with every guide the preset declares, including its
+    /// aspect-ratio guides (`hf` and `vf`): a guide that is missing is
+    /// inserted with the preset's default, in the preset's order. PowerPoint
+    /// 365 refuses to open a preset whose `a:avLst` holds only some of its
+    /// adjustments (issue #113); an empty list or a complete one opens.
     pub fn set_adjustment(&mut self, name: &str, value: i64) -> Result<()> {
         let geometry = self.preset()?;
         let preset = geometry.and_then(|node| node.attr(PresetGeometry::ATTR_PRST));
-        let valid = preset.and_then(|preset| {
+        let defaults = preset.and_then(|preset| {
             let index = PRESET_ADJUSTMENTS
                 .binary_search_by_key(&preset, |(name, _)| *name)
                 .ok()?;
-            Some(
-                PRESET_ADJUSTMENTS[index]
-                    .1
-                    .iter()
-                    .any(|(guide, _)| *guide == name),
-            )
+            Some(PRESET_ADJUSTMENTS[index].1)
         });
-        if valid != Some(true) {
+        let Some(defaults) = defaults.filter(|d| d.iter().any(|(guide, _)| *guide == name)) else {
             return Err(Error::UnknownAdjustment { name: name.into() });
-        }
+        };
         let named = |node: &RawNode| node.attr(ShapeGuide::ATTR_NAME) == Some(name);
         let mut staged = self.doc.clone();
         let mut props = props_mut(&mut staged, &self.path)?;
         let mut geometry = props.child_mut::<PresetGeometry>().expect("checked preset");
         let mut list = geometry.get_or_insert::<AdjustValueList>()?;
+        complete_adjustments(&mut list, defaults)?;
         let mut guide = if list
             .node()
             .elements()
@@ -898,4 +898,30 @@ impl ShapeMut<'_> {
         self.commit_shape_edit(staged);
         Ok(())
     }
+}
+
+/// Inserts every guide of `defaults` missing from `list`, with its default
+/// value, after the guides that precede it in the preset's order (issue #113).
+/// Guides the preset does not declare are left where they are.
+fn complete_adjustments(
+    list: &mut ooxml_core::LensMut<'_, AdjustValueList>,
+    defaults: &[(&str, i64)],
+) -> Result<()> {
+    let mut cursor = 0;
+    for &(guide, default) in defaults {
+        let at = list.node().children().iter().position(|item| {
+            item.as_element()
+                .is_some_and(|e| e.is(ShapeGuide::QNAME) && e.attr(ShapeGuide::ATTR_NAME) == Some(guide))
+        });
+        match at {
+            Some(index) => cursor = cursor.max(index + 1),
+            None => {
+                let mut new = list.insert_at::<ShapeGuide>(cursor)?;
+                new.set_attr(ShapeGuide::ATTR_NAME, guide)?;
+                new.set_attr(ShapeGuide::ATTR_FMLA, &format!("val {default}"))?;
+                cursor += 1;
+            }
+        }
+    }
+    Ok(())
 }
