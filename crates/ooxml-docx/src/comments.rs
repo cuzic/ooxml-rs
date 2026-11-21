@@ -71,10 +71,10 @@ pub struct NewComment {
 /// A nonempty text range within one story, possibly crossing paragraphs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TextRange {
-    first: RunRef,
-    last: RunRef,
-    start_byte: Option<usize>,
-    end_byte: Option<usize>,
+    pub(crate) first: RunRef,
+    pub(crate) last: RunRef,
+    pub(crate) start_byte: Option<usize>,
+    pub(crate) end_byte: Option<usize>,
 }
 
 impl TextRange {
@@ -349,14 +349,14 @@ fn random_hex(used: &mut BTreeSet<u32>) -> Result<String> {
     }
 }
 
-fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
+pub(crate) fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
     let (local, utc) = if let Some(date) = date {
         let utc = date
             .wall_clock
             .checked_sub_signed(TimeDelta::minutes(i64::from(date.utc_offset_minutes)))
             .filter(|_| (-1439..=1439).contains(&date.utc_offset_minutes))
             .ok_or_else(|| Error::InvalidValue {
-                what: "comment UTC offset",
+                what: "UTC offset",
                 value: format!("{}", date.utc_offset_minutes),
             })?;
         (date.wall_clock, utc)
@@ -367,7 +367,7 @@ fn dates(date: Option<LocalDateTime>) -> Result<(String, String)> {
     for date in [local, utc] {
         if !(0..=9999).contains(&date.year()) {
             return Err(Error::InvalidValue {
-                what: "comment date year",
+                what: "date year",
                 value: date.year().to_string(),
             });
         }

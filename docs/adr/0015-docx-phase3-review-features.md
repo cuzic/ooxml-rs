@@ -440,6 +440,7 @@ t.insert_rows(...)?;              // trPr/ins
 | Replace a run's text | `w:del w:id w:author w:date` around the old run and `w:ins` around a new run with the same `rPr`. In the old run, **every** `w:t` becomes `w:delText` and every `w:instrText` becomes `w:delInstrText`, at any depth in the run. | The old run keeps its rsids and `rPr`. Renaming re-renders that run, which is T2-local. Refused (m8) when the run holds anything but text: `commentReference`, `footnoteReference`, `endnoteReference`, `drawing`, `fldChar`, `sym`, `object` (`RunNotTextOnly`, as R4). |
 | Insert text or runs | `w:ins` around the new runs | |
 | Insert a paragraph N after paragraph P (M1, N1) | `w:ins` around N's runs. **P's** paragraph mark becomes inserted: `w:ins` as the **first** child of `P/w:pPr/w:rPr`, since `CT_ParaRPr` puts `ins`/`del`/`moveFrom`/`moveTo` before `EG_RPrBase`. N takes over P's original mark, **with its properties** (the rule below). When N is first in its container, or follows a table, N's own mark is inserted instead: N's `pPr` is then only `w:rPr` holding that `ins`, and N gets no properties from P. This requires N's **next sibling to be a `w:p`**; a table, several tables or a block `w:sdt` after N refuses (`NoFollowingParagraph`; e.g. a body that ends with a table and then `w:sectPr`, written by other tools; r5). If P has no `pPr` (POI 5,427, SDK 3,784 paragraphs), `pPr` and its `rPr` are created for the `ins` (r2). | Matches Word. Outside tracked rows, the corpora never have a paragraph-mark revision on a container's last paragraph. Rejecting the change removes N's text and P's inserted mark; P and N merge, and the merged paragraph is expected to keep N's mark, which carries P's original `pPr`, so the input comes back *(u: ECMA-376 does not say which mark survives; manual check, r3)*. |
+| Delete a paragraph (D3c implementation) | `w:del` in the paragraph mark and around each run, with `w:t` → `w:delText` | Requires a following paragraph in the same container. Refuses a paragraph carrying `sectPr` to preserve its section break. |
 | Delete text | `w:del` around the runs, with `delText` | Splits at run boundaries (ADR-0011 §9.2) |
 | Change run formatting | `w:rPrChange w:id w:author w:date` holding a copy of the old `rPr`, made with `detach_as` as `CT_RPrOriginal` | Refused when the run already has an `rPrChange` (M3) |
 | Change paragraph properties | `w:pPrChange` with the old `pPr` as `CT_PPrBase`: without `sectPr`, `rPr` and `pPrChange` | Refused when the paragraph already has a `pPrChange` (M3) |
@@ -1099,3 +1100,42 @@ chain is refused. New commentsExtensible entries require a commentsIds
 mapping staged in the same edit. Comment dates require local and UTC years
 in 0000–9999. Replies to block-level range starts return
 `UnsupportedContext`.
+
+## Post-acceptance note (D3c, Issue #98)
+
+`Document::track_changes(Author, Option<LocalDateTime>)` borrows the document
+for a tracked editing session. It exposes run replacement, insertion at a
+`RunPosition`, UTF-8 text-range deletion, paragraph and row edits, and
+direct formatting of runs and paragraphs. The session allows
+`trackedChanges` protection and lifts W1 while applying the usual W2
+operation column. Revision dates use the comment date writer, defaulting to the
+process-local time at session start.
+Each edit stages a story tree, then commits the tree and its annotation id
+high-water mark together after successful validation.
+
+`Run::revision()` reads the nearest enclosing content revision, falling
+back to the run's own formatting change. `Document::table_row` returns a row view whose `Row::is_deleted` reports
+a row deletion without changing table indices. Text edits,
+including Phase0's `set_run_text`, check the enclosing property revisions
+as well as revisions on the run. The story walk records active move and
+custom XML revision ranges.
+
+For N1, the same-part move transfers the original `pPr` from the preceding
+paragraph to the new paragraph, including any section references. The
+preceding paragraph receives a detached copy without `sectPr` and with
+the inserted mark first in its `rPr`. A tracked paragraph deletion uses a
+deleted paragraph mark and deleted runs and requires a following paragraph
+in the same container. It refuses to delete a paragraph with a section
+break. Inserting empty table rows uses the Phase2 row
+template, so the inserted row and its paragraph marks carry revisions.
+Deleted rows retain their cell content and marks in the stored XML.
+Row deletion marks nested rows as well, checks each run against the
+text-only allowlist, and requires at least one live row to remain in the
+target table. Tracked row edits refuse move and custom XML revision ranges
+on the target rows, the template row, or the row insertion position.
+
+The SDK names the child of `pPrChange` `CT_PPrExtended`. The snapshot
+writes the paragraph properties without section, paragraph-mark, or
+previous-revision properties. The generator emits `SameType` only for
+identical complex types. D3c uses local typed projections for detaching
+the two snapshots. Existing generated public names are preserved.

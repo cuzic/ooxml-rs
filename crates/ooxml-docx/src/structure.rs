@@ -110,7 +110,7 @@ pub enum HyperlinkTarget {
 // ---------------------------------------------------------------------
 
 /// A mutable lens on a paragraph container.
-enum Container<'a> {
+pub(crate) enum Container<'a> {
     Body(LensMut<'a, Body>),
     Cell(LensMut<'a, TableCell>),
     Header(LensMut<'a, Header>),
@@ -145,6 +145,8 @@ macro_rules! on_container {
     };
 }
 
+pub(crate) use on_container;
+
 /// `c` itself when `rest` is empty, else the cell reached through
 /// `tbl/tr/tc` triples.
 fn container_below<'a, E>(c: LensMut<'a, E>, rest: &[usize], wrap: fn(LensMut<'a, E>) -> Container<'a>) -> Option<Container<'a>>
@@ -166,7 +168,7 @@ where
 
 /// The container at `path` (from the story root), when it is a body,
 /// header, footer, note, comment or table cell.
-fn container_at<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -> Result<Option<Container<'a>>> {
+pub(crate) fn container_at<'a>(xml: &'a mut XmlDocument, kind: StoryKind, path: &[usize]) -> Result<Option<Container<'a>>> {
     Ok(match kind {
         StoryKind::Main => {
             let Some((&b, rest)) = path.split_first() else { return Ok(None) };
@@ -258,6 +260,12 @@ impl Document {
                     return Err(Error::TrackedPropertyChange { element: "w:rPrChange" });
                 }
             }
+        }
+        if structural {
+            if info.in_revision_range {
+                return Err(Error::InsideRevision { context: crate::RunContext::Direct });
+            }
+            crate::revisions::check_path(self.story_root_node(at.story), &self.stories[at.story.0].index.path(info.frame))?;
         }
         Ok(())
     }
@@ -825,7 +833,7 @@ fn descendant_sectpr(e: &RawNode) -> bool {
 
 /// Item index right after child `item` of the same slot: the next element
 /// sibling, or the end.
-fn next_slot_sibling(parent: &RawNode, item: usize) -> usize {
+pub(crate) fn next_slot_sibling(parent: &RawNode, item: usize) -> usize {
     parent.indexed_elements().find(|(i, _)| *i > item).map_or(parent.children().len(), |(i, _)| i)
 }
 

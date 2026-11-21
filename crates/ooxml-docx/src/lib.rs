@@ -78,6 +78,7 @@ mod names;
 mod numbering;
 mod notes;
 mod replace;
+mod revisions;
 mod story;
 mod structure;
 mod styles;
@@ -85,6 +86,7 @@ mod tables;
 mod text;
 
 pub use bookmarks::{BookmarkId, BookmarkRange};
+pub use revisions::{Author, Revision, RevisionKind, TrackedChanges};
 pub use comments::{CommentAnchor, CommentId, CommentRef, LocalDateTime, NewComment, TextRange};
 pub use chrono::NaiveDateTime;
 pub use document::{Document, Paragraph, Run};
@@ -100,7 +102,7 @@ pub use format::{
 pub use structure::{HyperlinkTarget, ParagraphSpec, Place, RunPosition, SectionBreak};
 pub use images::{DrawingId, ImageSize};
 pub use styles::{StyleInfo, StyleKind, StyleSpec};
-pub use tables::{RowTemplate, TableRef};
+pub use tables::{Row, RowTemplate, TableRef};
 pub use replace::{Match, OnRefused, Refusal, RefusalReason, ReplaceOptions, ReplaceReport, RunFormatting, Scope};
 pub use story::{
     Container, DocumentId, HeaderFooterType, ParaRef, RunRef, SectionUse, Story, StoryId, StoryIndex, StoryKind,

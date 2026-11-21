@@ -460,11 +460,16 @@ fn bookmark_range_checks_fields_and_hyperlink_endpoints() {
         assert_matches!(refusals(&mut doc, |d| d.add_bookmark("Mark", BookmarkRange::Match(&m))), Error::UnsupportedContext { .. });
     }
     let m = doc.find("leftmiddleright", &ReplaceOptions::default()).unwrap().remove(0);
-    doc.add_bookmark("Mark", BookmarkRange::Match(&m)).unwrap();
+    assert_matches!(
+        refusals(&mut doc, |d| d.add_bookmark("Mark", BookmarkRange::Match(&m))),
+        Error::InsideRevision { .. }
+    );
+    let mut doc = open(&body.replace(properties, ""), &[]);
+    let m = doc.find("leftmiddleright", &ReplaceOptions::default()).unwrap().remove(0);
+    let id = doc.add_bookmark("Mark", BookmarkRange::Match(&m)).unwrap();
     let output = xml(&doc, MAIN);
-    assert!(output.contains(properties));
     assert!(output.contains(field));
-    assert!(output.contains(&format!(r#"<w:bookmarkStart w:id="3" w:name="Mark"/><w:r><w:t>left</w:t></w:r>{hyperlink}<w:r><w:t>right</w:t></w:r><w:bookmarkEnd w:id="3"/>"#)));
+    assert!(output.contains(&format!(r#"<w:bookmarkStart w:id="{id}" w:name="Mark"/><w:r><w:t>left</w:t></w:r>{hyperlink}<w:r><w:t>right</w:t></w:r><w:bookmarkEnd w:id="{id}"/>"#)));
 }
 
 #[test]
