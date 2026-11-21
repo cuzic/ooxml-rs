@@ -1060,7 +1060,7 @@ struct CustomProperties {
     names: fields::CustomNames,
     /// `_MarkAsFinal` is true.
     marked_final: bool,
-    field_value: Option<String>,
+    field_value: Option<(String, bool)>,
 }
 
 impl CustomProperties {
@@ -1083,7 +1083,16 @@ impl CustomProperties {
                     out.names.linked.push(normalized.clone());
                 }
                 if field_name == Some(normalized.as_str()) && out.field_value.is_none() {
-                    out.field_value = Some(prop.elements().next().map_or_default(|v| v.text().into_owned()));
+                    out.field_value = Some(prop.elements().next().map_or_default(|value| {
+                        if value.is(QName::new(
+                            "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes",
+                            "filetime",
+                        )) {
+                            (String::new(), true)
+                        } else {
+                            (value.text().into_owned(), false)
+                        }
+                    }));
                 }
                 out.names.all.push(normalized);
                 if name == "_MarkAsFinal" {
@@ -1097,7 +1106,7 @@ impl CustomProperties {
 }
 
 impl Document {
-    pub(crate) fn custom_field_property(&self, instruction: &str, name: &str) -> Result<Option<String>> {
+    pub(crate) fn custom_field_property(&self, instruction: &str, name: &str) -> Result<Option<(String, bool)>> {
         let custom = CustomProperties::read_for_field(&self.pkg, Some(name))?;
         let codes = fields::refused([fields::field_key(instruction)], &custom.names, &Default::default());
         if !codes.is_empty() {

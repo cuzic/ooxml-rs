@@ -240,17 +240,24 @@ fn pagination_cache_copies_format_and_changes_only_the_target_paragraph() {
     assert!(after.starts_with(&before[..prefix]));
     assert!(after.ends_with(&before[before.len() - suffix..]));
     let xml = roxmltree::Document::parse(&after).unwrap();
-    let cache = xml
+    let paragraph = xml
         .descendants()
-        .find(|node| node.has_tag_name((common::W_NS, "t")) && node.text() == Some("42"))
+        .filter(|node| node.has_tag_name((common::W_NS, "p")))
+        .nth(1)
         .unwrap();
-    assert!(
-        cache
-            .parent()
-            .unwrap()
-            .descendants()
-            .any(|node| node.has_tag_name((common::W_NS, "b")))
-    );
+    let runs: Vec<_> = paragraph
+        .children()
+        .filter(|node| node.has_tag_name((common::W_NS, "r")))
+        .collect();
+    assert_eq!(runs.len(), 7);
+    let properties_xml = |run: roxmltree::Node<'_, '_>| {
+        let properties = run.first_element_child().unwrap();
+        assert!(properties.has_tag_name((common::W_NS, "rPr")));
+        &after[properties.range()]
+    };
+    for run in &runs[1..6] {
+        assert_eq!(properties_xml(*run), properties_xml(runs[0]));
+    }
     assert_eq!(
         Document::from_bytes(out)
             .unwrap()
@@ -291,6 +298,53 @@ fn sequence_counts_only_earlier_matching_fields_in_the_story() {
     doc.insert_field(end(0), sequence("Figure")).unwrap();
     let output = Document::from_bytes(doc.to_bytes().unwrap()).unwrap();
     assert_eq!(output.paragraphs().next().unwrap().text(), "7777Anchor2774");
+}
+
+#[test]
+fn sequence_identifier_requires_an_ascii_letter_then_ascii_word_characters() {
+    let input = common::docx(PLAIN, Some(""), None);
+    for name in ["", "1Fig", "_Fig", "My Fig", "Fig-1", "図表"] {
+        assert_refusal(&input, true, end(0), sequence(name), |error| {
+            std::assert_matches!(error, Error::InvalidValue { what: "SEQ identifier", value } if value == name);
+        });
+    }
+    let mut doc = Document::from_bytes(input).unwrap();
+    doc.enable_update_fields_on_open().unwrap();
+    doc.insert_field(end(0), sequence("Figure_12")).unwrap();
+    assert_eq!(doc.paragraphs().next().unwrap().text(), "Plain1");
+}
+
+#[test]
+fn ref_refuses_insertion_inside_the_bookmark_range() {
+    let input = common::docx(
+        concat!(
+            "<w:p><w:r><w:t>Before</w:t></w:r><w:bookmarkStart w:id='1' w:name='Target'/>",
+            "<w:r><w:t>First</w:t></w:r></w:p>",
+            "<w:p><w:r><w:t>Last</w:t></w:r><w:bookmarkEnd w:id='1'/></w:p>",
+        ),
+        Some(REFRESH),
+        None,
+    );
+    let after = |paragraph, run| {
+        RunPosition::After(RunRef::new(ParaRef::new(StoryIndex::MAIN, paragraph), run))
+    };
+    for at in [after(0, 1), end(0), after(1, 0)] {
+        assert_refusal(&input, true, at, reference("target"), |error| {
+            std::assert_matches!(error, Error::InvalidValue { what: "self-referencing REF bookmark", value } if value == "target");
+        });
+    }
+    let mut doc = Document::from_bytes(input).unwrap();
+    doc.enable_update_fields_on_open().unwrap();
+    doc.insert_field(after(0, 0), reference("Target")).unwrap();
+    doc.insert_field(end(1), reference("Target")).unwrap();
+    doc.insert_field(
+        end(0),
+        FieldSpec::PageRef {
+            bookmark: "Target".into(),
+            hyperlink: false,
+        },
+    )
+    .unwrap();
 }
 
 #[test]
@@ -345,7 +399,7 @@ fn with_properties(body: &str) -> Vec<u8> {
     for (part, xml) in [
         (
             "metadata/core.xml",
-            "<coreProperties xmlns='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' xmlns:dc='http://purl.org/dc/elements/1.1/'><dc:title>Core &amp; title</dc:title></coreProperties>",
+            "<coreProperties xmlns='http://schemas.openxmlformats.org/package/2006/metadata/core-properties' xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:dcterms='http://purl.org/dc/terms/'><dc:title>Core &amp; title</dc:title><dcterms:created>2024-01-01T00:00:00Z</dcterms:created><dcterms:modified>2024-02-01T00:00:00Z</dcterms:modified><lastPrinted>2024-03-01T00:00:00Z</lastPrinted></coreProperties>",
         ),
         ("metadata/custom.xml", &custom),
     ] {
@@ -382,4 +436,47 @@ fn docproperty_reads_relationship_targets_and_respects_linked_shadowing() {
     assert_refusal(&linked, true, end(0), property("Title"), |error| {
         std::assert_matches!(error, Error::StaleFieldRisk { codes } if codes == ["DOCPROPERTY TITLE"]);
     });
+}
+
+#[test]
+fn date_properties_have_an_empty_dirty_cache_without_opt_in() {
+    let input = with_properties(concat!(
+        "<property name='Deadline'><vt:filetime>2024-04-01T00:00:00Z</vt:filetime></property>",
+        "<property name='Title'><vt:filetime>2024-05-01T00:00:00Z</vt:filetime></property>",
+        "<property name='Author'><vt:lpwstr>2024-06-01T00:00:00Z</vt:lpwstr></property>",
+    ));
+    let mut doc = Document::from_bytes(input).unwrap();
+    for name in [
+        "CreateTime",
+        "LastSavedTime",
+        "LastPrinted",
+        "Deadline",
+        "Title",
+        "Author",
+    ] {
+        doc.insert_field(end(0), FieldSpec::DocProperty { name: name.into() })
+            .unwrap();
+    }
+    let output = doc.to_bytes().unwrap();
+    let part = common::part(&output, MAIN);
+    let xml = roxmltree::Document::parse(std::str::from_utf8(&part).unwrap()).unwrap();
+    let markers: Vec<_> = xml
+        .descendants()
+        .filter(|node| node.has_tag_name((common::W_NS, "fldChar")))
+        .map(|node| node.attribute((common::W_NS, "dirty")))
+        .collect();
+    assert_eq!(
+        markers,
+        [[Some("true"), None, None]; 5]
+            .into_iter()
+            .flatten()
+            .chain([None; 3])
+            .collect::<Vec<_>>()
+    );
+    let mut reopened = Document::from_bytes(output).unwrap();
+    assert_eq!(
+        reopened.paragraphs().next().unwrap().text(),
+        "Plain2024-06-01T00:00:00Z"
+    );
+    reopened.insert_field(end(0), FieldSpec::Page).unwrap();
 }

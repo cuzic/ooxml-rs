@@ -4,7 +4,7 @@ use std::fmt::NumBuffer;
 
 use chrono::Local;
 use ooxml_core::name::XML_SPACE;
-use ooxml_core::{LensMut, NsDecl, QName, RegistryPlan, XmlDocument};
+use ooxml_core::{LensMut, NsDecl, QName, RawNode, RegistryPlan, XmlDocument};
 use ooxml_schema::wml::{FieldChar, FieldCode, NS_W, Paragraph, Run, RunProperties};
 
 use crate::controls::date;
@@ -26,7 +26,6 @@ const EXTENDED_REL: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties";
 const CORE_NS: &str = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties";
 const DC_NS: &str = "http://purl.org/dc/elements/1.1/";
-const DCTERMS_NS: &str = "http://purl.org/dc/terms/";
 const EXTENDED_NS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
 
@@ -45,12 +44,18 @@ pub enum FieldSpec {
     /// Current local time, using a Word date/time picture.
     Time { format: String },
     /// A property allowed by the document's W2 classifier.
+    /// Date-valued properties have an empty cache and are marked dirty for Word.
     DocProperty { name: String },
     /// Text of an existing bookmark, optionally hyperlinked.
+    /// Insertion inside the target bookmark is refused.
     Ref { bookmark: String, hyperlink: bool },
     /// Page containing an existing bookmark, optionally hyperlinked.
     PageRef { bookmark: String, hyperlink: bool },
     /// Number of preceding fields with this identifier in the story, plus one.
+    /// The identifier starts with an ASCII letter and may contain ASCII
+    /// letters, digits, and underscores. The cache ignores earlier SEQ
+    /// switches such as `\r`, `\c`, and `\h`. The field is marked dirty for Word
+    /// to update.
     Seq { identifier: String },
     /// Table of contents, cached as a placeholder in the target paragraph.
     /// The inclusive heading levels must be in 1–9.
@@ -103,8 +108,10 @@ impl Document {
     /// Content-dependent fields require a session opt-in via
     /// [Self::enable_update_fields_on_open]. They are marked dirty and
     /// participate in the usual stale-field gate on reopening the document.
-    /// The result copies the anchor run's formatting. At paragraph end it
-    /// uses the last element when that element is a direct, unrevised run.
+    /// All five runs copy the anchor run's formatting. At paragraph end they
+    /// use the last element when that element is a direct, unrevised run.
+    /// Paragraphs inside block-level w:sdt or w:customXml return
+    /// [Error::UnsupportedContext].
     pub fn insert_field(&mut self, at: RunPosition, f: FieldSpec) -> Result<()> {
         self.insert_field_impl(at, f, None)
     }
@@ -199,7 +206,8 @@ impl Document {
         if inside_field {
             return Err(Error::InsideField);
         }
-        let (instruction, cached) = self.field_value(f, page_cache.unwrap_or(1), preceding)?;
+        let (instruction, cached, refresh_property) =
+            self.field_value(f, page_cache.unwrap_or(1), preceding, (p.raw(), index))?;
         let pieces = map_text(&cached)?;
         let part = data.id.part.clone();
         let mut xml = self.pkg.parsed_part(&part).expect("parsed story").clone();
@@ -210,26 +218,24 @@ impl Document {
             .map(|properties| properties.detach_as::<RunProperties>(&[]))
             .transpose()?;
         let mut p = xml.lens_mut_at::<Paragraph>(&path)?;
-        marker(
-            &mut p.insert_at_with_ns::<Run>(index, W)?,
-            "begin",
-            dirty.is_some(),
-        )?;
-        let mut run = p.insert_at_with_ns::<Run>(index + 1, W)?;
-        let mut code = run.insert::<FieldCode>()?;
-        code.set_attr(XML_SPACE, "preserve")?;
-        code.set_text(&instruction)?;
-        marker(
-            &mut p.insert_at_with_ns::<Run>(index + 2, W)?,
-            "separate",
-            false,
-        )?;
-        let mut result = p.insert_at_with_ns::<Run>(index + 3, W)?;
-        if let Some(properties) = properties {
-            result.insert_detached(&properties)?;
+        for offset in 0..5 {
+            let mut run = p.insert_at_with_ns::<Run>(index + offset, W)?;
+            if let Some(properties) = &properties {
+                run.insert_detached(properties)?;
+            }
+            match offset {
+                0 => marker(&mut run, "begin", dirty.is_some() || refresh_property)?,
+                1 => {
+                    let mut code = run.insert::<FieldCode>()?;
+                    code.set_attr(XML_SPACE, "preserve")?;
+                    code.set_text(&instruction)?;
+                }
+                2 => marker(&mut run, "separate", false)?,
+                3 => write_pieces(&mut run, &pieces)?,
+                4 => marker(&mut run, "end", false)?,
+                _ => unreachable!(),
+            }
         }
-        write_pieces(&mut result, &pieces)?;
-        marker(&mut p.insert_at_with_ns::<Run>(index + 4, W)?, "end", false)?;
 
         let mut plan = RegistryPlan::new(&self.pkg);
         plan.stage_part(&self.pkg, &part, xml)?;
@@ -244,11 +250,13 @@ impl Document {
         f: FieldSpec,
         page_cache: u32,
         preceding: usize,
-    ) -> Result<(String, String)> {
+        insertion: (&RawNode, usize),
+    ) -> Result<(String, String, bool)> {
         if let Some(code) = f.page_code() {
             return Ok((
                 format!(" {code} "),
                 page_cache.format_into(&mut NumBuffer::new()).into(),
+                false,
             ));
         }
         let pair = match f {
@@ -266,11 +274,11 @@ impl Document {
                 let instruction = format!(" DOCPROPERTY {} ", quote(&name)?);
                 let key = normalize_name(&name);
                 let custom = self.custom_field_property(&instruction, &key)?;
-                let cached = match custom {
+                let (cached, is_date) = match custom {
                     Some(value) => value,
                     None => self.builtin_field_property(&key)?,
                 };
-                (instruction, cached)
+                return Ok((instruction, cached, is_date));
             }
             FieldSpec::Ref {
                 ref bookmark,
@@ -282,17 +290,29 @@ impl Document {
             } => {
                 let code = f.dirty_code().expect("reference field");
                 let target = quote(bookmark)?;
-                let text = self.field_bookmark_text(bookmark)?;
+                let text =
+                    self.field_bookmark_text(bookmark, (code == "REF").then_some(insertion))?;
                 let cached = if code == "REF" { text } else { "?".into() };
                 (
                     format!(" {code} {target}{} ", hyperlink_switch(hyperlink)),
                     cached,
                 )
             }
-            FieldSpec::Seq { identifier } => (
-                format!(" SEQ {} ", quote(&identifier)?),
-                (preceding + 1).format_into(&mut NumBuffer::new()).into(),
-            ),
+            FieldSpec::Seq { identifier } => {
+                let mut bytes = identifier.bytes();
+                if !bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
+                    || !bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+                {
+                    return Err(Error::InvalidValue {
+                        what: "SEQ identifier",
+                        value: identifier,
+                    });
+                }
+                (
+                    format!(" SEQ \"{identifier}\" "),
+                    (preceding + 1).format_into(&mut NumBuffer::new()).into(),
+                )
+            }
             FieldSpec::Toc {
                 levels: (first, last),
                 hyperlinks,
@@ -315,21 +335,36 @@ impl Document {
                 unreachable!("pagination fields handled above")
             }
         };
-        Ok(pair)
+        Ok((pair.0, pair.1, false))
     }
 
-    fn field_bookmark_text(&self, name: &str) -> Result<String> {
+    fn field_bookmark_text(
+        &self,
+        name: &str,
+        insertion: Option<(&RawNode, usize)>,
+    ) -> Result<String> {
         let key = bookmark_key(name);
         for story in self.stories() {
-            let mut nodes = vec![story.raw()];
+            let mut nodes = vec![Some(story.raw())];
             let mut id = None;
+            let mut contains_insertion = false;
             let mut text = String::new();
             while let Some(node) = nodes.pop() {
+                let Some(node) = node else {
+                    contains_insertion = id.is_some();
+                    continue;
+                };
                 if node.is(w("del")) || node.is(w("moveFrom")) {
                     continue;
                 }
                 if let Some(id) = id {
                     if node.is(w("bookmarkEnd")) && node.attr(w("id")) == Some(id) {
+                        if contains_insertion {
+                            return Err(Error::InvalidValue {
+                                what: "self-referencing REF bookmark",
+                                value: name.into(),
+                            });
+                        }
                         return Ok(text);
                     }
                     if node.is(w("p")) {
@@ -344,29 +379,42 @@ impl Document {
                 {
                     id = node.attr(w("id"));
                 }
+                let children = node.children();
+                let boundary = insertion.filter(|(paragraph, _)| std::ptr::eq(node, *paragraph));
+                let (before, after) =
+                    children.split_at(boundary.map_or(children.len(), |(_, i)| i));
                 nodes.extend(
-                    node.children()
+                    after
                         .iter()
                         .rev()
-                        .filter_map(|item| item.as_element()),
+                        .filter_map(|item| item.as_element())
+                        .map(Some),
+                );
+                if boundary.is_some() {
+                    // Visit the insertion boundary between its adjacent children.
+                    nodes.push(None);
+                }
+                nodes.extend(
+                    before
+                        .iter()
+                        .rev()
+                        .filter_map(|item| item.as_element())
+                        .map(Some),
                 );
             }
         }
         Err(Error::UnknownBookmark { name: name.into() })
     }
 
-    fn builtin_field_property(&self, name: &str) -> Result<String> {
+    fn builtin_field_property(&self, name: &str) -> Result<(String, bool)> {
         let (ns, local) = match name {
             "AUTHOR" => (DC_NS, "creator"),
             "CATEGORY" => (CORE_NS, "category"),
             "COMMENTS" => (DC_NS, "description"),
             "COMPANY" => (EXTENDED_NS, "Company"),
-            "CREATETIME" => (DCTERMS_NS, "created"),
             "HYPERLINKBASE" => (EXTENDED_NS, "HyperlinkBase"),
             "KEYWORDS" => (CORE_NS, "keywords"),
-            "LASTPRINTED" => (CORE_NS, "lastPrinted"),
             "LASTSAVEDBY" => (CORE_NS, "lastModifiedBy"),
-            "LASTSAVEDTIME" => (DCTERMS_NS, "modified"),
             "MANAGER" => (EXTENDED_NS, "Manager"),
             "NAMEOFAPPLICATION" => (EXTENDED_NS, "Application"),
             "PAGES" => (EXTENDED_NS, "Pages"),
@@ -376,7 +424,8 @@ impl Document {
             "TEMPLATE" => (EXTENDED_NS, "Template"),
             "TITLE" => (DC_NS, "title"),
             "TOTALEDITINGTIME" => (EXTENDED_NS, "TotalTime"),
-            _ => return Ok(String::new()),
+            "CREATETIME" | "LASTSAVEDTIME" | "LASTPRINTED" => return Ok((String::new(), true)),
+            _ => return Ok((String::new(), false)),
         };
         let relationship = if ns == EXTENDED_NS {
             EXTENDED_REL
@@ -395,10 +444,10 @@ impl Document {
                 .elements()
                 .find(|node| node.is(QName::new(ns, local)))
             {
-                return Ok(value.text().into_owned());
+                return Ok((value.text().into_owned(), false));
             }
         }
-        Ok(String::new())
+        Ok((String::new(), false))
     }
 }
 
