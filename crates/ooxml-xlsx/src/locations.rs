@@ -143,6 +143,8 @@ macro_rules! position {
     };
 }
 
+const X15: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
+const WEB_EXTENSIONS: &str = "{F7C9EE02-42E1-4005-9D12-6889AFFD525C}";
 const PROTECTED_RANGES: &str = "{FC87AEE6-9EDD-4A0A-B7FB-166176984837}";
 const IGNORED_ERRORS: &str = "{01252117-D84E-4E92-8308-4BE1C098FCBB}";
 
@@ -154,7 +156,7 @@ const EXTENSIONS: &[(&str, &[u8])] = &[
     (SPARKLINE, &[21]),
     (PROTECTED_RANGES, &[68]),
     (IGNORED_ERRORS, &[69]),
-    ("{F7C9EE02-42E1-4005-9D12-6889AFFD525C}", &[70]),
+    (WEB_EXTENSIONS, &[70]),
     ("{A8765BA9-456A-4DAB-B4F3-ACF838C121DE}", &[]),
     ("{7E03D99C-DC04-49d9-9315-930204A7B6E9}", &[]),
     ("{B025F937-C7B1-47D3-B67F-A62EFF666E3E}", &[]),
@@ -261,6 +263,7 @@ pub(crate) const LOCATIONS: &[Location] = &[
     location!(56, Control, Formula, Rewrite, Some("fmlaRange"), None; X14:"formControlPr"),
     location!(56, Control, Formula, Rewrite, Some("fmlaTxbx"), None; X14:"formControlPr"),
     location!(56, Control, Formula, Rewrite, Some("fmlaGroup"), None; X14:"formControlPr"),
+    location!(70, Worksheet, Formula, Rewrite, None, Some(WEB_EXTENSIONS); SML:"worksheet", SML:"extLst", SML:"ext", X15:"webExtensions", X15:"webExtension", XM:"f"),
     location!(71, Relationships, Location, Keep, Some("Target"), None; RELS:"Relationships", RELS:"Relationship"),
     location!(72, PivotCache, RawName, Refuse, Some("sheet"), None; SML:"pivotCacheDefinition", SML:"cacheSource", SML:"worksheetSource"),
     Location {

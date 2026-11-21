@@ -262,3 +262,25 @@ fn newly_supported_corpus_locations_match_expected_values() {
         }
     }
 }
+
+#[test]
+fn registered_web_extension_binding_is_rewritten() {
+    let base = common::p1::book(&[("Data", ""), ("Bindings", "")], "", "");
+    let part = "xl/worksheets/sheet2.xml";
+    let sheet = text(&base, part).replace(
+        "</worksheet>",
+        concat!(
+            r#"<extLst><ext uri="{F7C9EE02-42E1-4005-9D12-6889AFFD525C}">"#,
+            r#"<x15:webExtensions xmlns:x15="http://schemas.microsoft.com/office/spreadsheetml/2010/11/main">"#,
+            r#"<x15:webExtension appRef="binding"><xm:f xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">Data!A1</xm:f>"#,
+            "</x15:webExtension></x15:webExtensions></ext></extLst></worksheet>",
+        ),
+    );
+    let input = rebuild(&base, &[(part, sheet.into_bytes())]);
+    let mut book = Workbook::from_bytes(input.clone()).unwrap();
+    assert_eq!(book.rename_sheet("Data", "New").unwrap()[0].after, "New!A1");
+    assert!(text(&book.to_bytes().unwrap(), part).contains(">New!A1</xm:f>"));
+    let mut book = Workbook::from_bytes(input).unwrap();
+    assert_eq!(book.delete_sheet("Data").unwrap()[0].after, "#REF!");
+    assert!(text(&book.to_bytes().unwrap(), part).contains(">#REF!</xm:f>"));
+}
