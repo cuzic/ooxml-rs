@@ -52,8 +52,8 @@ pub enum FieldSpec {
     /// Page containing an existing bookmark, optionally hyperlinked.
     PageRef { bookmark: String, hyperlink: bool },
     /// Number of preceding fields with this identifier in the story, plus one.
-    /// The identifier starts with an ASCII letter and may contain ASCII
-    /// letters, digits, and underscores. The cache ignores earlier SEQ
+    /// The identifier starts with a Unicode letter and may contain Unicode
+    /// letters, numbers, and underscores. The cache ignores earlier SEQ
     /// switches such as `\r`, `\c`, and `\h`. The field is marked dirty for Word
     /// to update.
     Seq { identifier: String },
@@ -299,9 +299,9 @@ impl Document {
                 )
             }
             FieldSpec::Seq { identifier } => {
-                let mut bytes = identifier.bytes();
-                if !bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
-                    || !bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+                let mut chars = identifier.chars();
+                if !chars.next().is_some_and(char::is_alphabetic)
+                    || !chars.all(|ch| ch.is_alphanumeric() || ch == '_')
                 {
                     return Err(Error::InvalidValue {
                         what: "SEQ identifier",

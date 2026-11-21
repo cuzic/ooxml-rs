@@ -228,6 +228,15 @@
     "pdf_text": ["Table of contents — update this field."],
     "xml": [["word/document.xml", ".//w:instrText[.=' TOC \\o \"1-3\" \\h ']", 1], ["word/document.xml", ".//w:t[.='Table of contents — update this field.']", 1]]
   },
+  "docx/53-field-docproperty-createtime.docx": {
+    "text": ["Created: 11/22/2003"],
+    "pdf_text": ["Created: 11/22/2003"],
+    "xml": [
+      ["word/document.xml", ".//w:instrText[.=' DOCPROPERTY \"CreateTime\" ']", 1],
+      ["word/document.xml", ".//w:fldChar[@w:fldCharType='begin'][@w:dirty='true']", 1],
+      ["word/document.xml", ".//w:t", 1]
+    ]
+  },
   "pptx/M1-slide-comment.pptx": {"text": []},
   "pptx/M2-title-comment.pptx": {"text": []},
   "pptx/M3-shape-without-creation-id.pptx": {"text": []},
