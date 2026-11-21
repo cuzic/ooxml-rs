@@ -872,7 +872,15 @@ fn p2_japanese_default_font() -> Built {
     if !s.contains("游ゴシック") {
         return Err("template styles.xml changed".into());
     }
-    let input = with_part(&base, "xl/styles.xml", &s)?;
+    // as in Japanese Excel's own template: the theme names 游ゴシック for the
+    // Jpan script, so Japanese text resolves to it (issue #115)
+    let theme = part_text(&base, "xl/theme/theme1.xml")?;
+    let minor = r#"<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/>"#;
+    if !theme.contains(minor) {
+        return Err("template theme1.xml changed".into());
+    }
+    let theme = theme.replacen(minor, &format!(r#"{minor}<a:font script="Jpan" typeface="游ゴシック"/>"#), 1);
+    let input = with_part(&with_part(&base, "xl/styles.xml", &s)?, "xl/theme/theme1.xml", &theme)?;
     let mut wb = Workbook::from_bytes(input.clone())?;
     let bold = Format::with_default_font_of(&mut wb)?.set_bold();
     {
@@ -960,7 +968,7 @@ const P2_CASES: &[P2Case] = &[
         out: "23-p2-62272-arial-inherit.xlsx",
         input: "`fixtures/xlsx/poi/62272.xlsx`",
         edits: "**XL (f).** A40 = 1234.5678 with only a number format (font inherited); B40 with `with_default_font_of(..).set_bold()`; C40 with `Format::new().set_bold()`",
-        look_for: "A40 is **Arial 10** like its neighbours, shows 1234.568; B40 is **Arial 10 bold**; C40 is Calibri 11 bold (documented: `set_bold()` alone starts from Calibri 11).",
+        look_for: "A40 is **Arial 10** like its neighbours, shows 1234.568; B40 is **Arial 10 bold**; C40 is 11 pt bold in the theme's minor font: this workbook has no theme, so Excel 365 shows Aptos Narrow (`Format::new()` writes Calibri with `scheme=minor`, as rust_xlsxwriter does; issue #115).",
         build: p2_inherit_arial,
     },
     P2Case {
@@ -1042,9 +1050,9 @@ const P2_CASES: &[P2Case] = &[
     },
     P2Case {
         out: "35-p2-japanese-default-font.xlsx",
-        input: "template whose default font is 游ゴシック 11 (`charset=\"128\"`)",
+        input: "template whose default font is 游ゴシック 11 (`charset=\"128\"`), with 游ゴシック as the theme's Jpan minor font",
         edits: "**XL (f), Japanese.** B1 = 1234.5678 with only a number format; B2 with `with_default_font_of(..).set_bold()`",
-        look_for: "B1 is 游ゴシック 11 like A1 and shows 1,234.568; B2 is **游ゴシック 11 bold** (not Calibri). No repair dialog.",
+        look_for: "A1's Japanese text is drawn in 游ゴシック; B1 has A1's font and shows 1,234.568; B2 is the same font **bold**, 11 pt. Japanese-UI Excel names the font 游ゴシック; an English UI names the theme's Latin font (Calibri) for all three. No repair dialog.",
         build: p2_japanese_default_font,
     },
     P2Case {
