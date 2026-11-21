@@ -10,6 +10,7 @@ not contain the files.
 | Script | Usage | Result |
 |---|---|---|
 | `comments_survey.py` | `python3 -I comments_survey.py <dirs/files…>` | [`results/comments-748.txt`](results/comments-748.txt) |
+| `comments_survey.py` (P4a-0 rerun) | `python3 -I comments_survey.py reference/fixtures/pptx/project` | [`results/comments-p4a0-project.txt`](results/comments-p4a0-project.txt): the 10 PowerPoint-made fixtures (ADR-0019 post-acceptance note) |
 
 What it counts:
 
