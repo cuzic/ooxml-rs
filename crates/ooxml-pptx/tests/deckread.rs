@@ -81,6 +81,15 @@ fn modern_shape_comment_survives_title_edit() {
 
         p.slide_mut(0).unwrap().shape_mut_by_id(2).unwrap().text_body_mut().unwrap().set_text("Hello, edited").unwrap();
         let mut reopened = Presentation::from_bytes(p.to_bytes().unwrap()).unwrap();
+        if fixture == "project/powerpoint-shape-comment.pptx" {
+            let part = "ppt/comments/modernComment_100_BDA71F5F.xml";
+            let original = Package::from_bytes(cases::read_fixture(fixture)).unwrap();
+            assert_eq!(
+                reopened.package().read_part(part).unwrap(),
+                original.read_part(part).unwrap(),
+                "{fixture}"
+            );
+        }
         let slide = reopened.slide(0).unwrap();
         assert_eq!(slide.shape_by_id(2).unwrap().unwrap().text_body().unwrap().text(), "Hello, edited", "{fixture}");
         let d = reopened.deck().unwrap();

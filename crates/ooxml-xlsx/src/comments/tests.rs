@@ -148,6 +148,15 @@ fn thread_reply_remove_and_guid_collisions() {
         .unwrap();
     let updated = part(wb.package(), COMMENTS);
     assert_eq!(updated, before.replace("First</t>", "First\n\nReply</t>"));
+    for name in [THREAD, PERSONS] {
+        let document = doc(wb.package(), name);
+        assert!(
+            document
+                .root()
+                .elements()
+                .all(|node| xml::default_namespace(node).is_none())
+        );
+    }
     let replies = part(wb.package(), THREAD);
     assert!(replies.contains(&format!("parentId=\"{root_id}\"")));
     assert!(replies.contains("dT=\"1969-12-31T23:59:59\""));
@@ -168,6 +177,142 @@ fn thread_reply_remove_and_guid_collisions() {
     assert!(doc(wb.package(), PERSONS).root().elements().count() == 3);
     assert!(!part(wb.package(), VML).contains("<v:shape "));
     assert!(part(wb.package(), COMMENTS).contains("<commentList></commentList>"));
+}
+
+#[test]
+fn note_children_reuse_only_the_matching_default_namespace() {
+    let wb = workbook_with_note();
+    let notes = format!(
+        r#"<s:comments xmlns:s="{SML}" xmlns="urn:other"><s:authors xmlns="{SML}"/><s:commentList/></s:comments>"#
+    );
+    let mut wb = with_part(&wb, COMMENTS, notes);
+    let at = cell("B2");
+    wb.worksheet()
+        .unwrap()
+        .add_note(at, Note::new("First").author("Ana"))
+        .unwrap();
+    wb.worksheet().unwrap().set_note_text(at, "Edited").unwrap();
+
+    let notes = doc(wb.package(), COMMENTS);
+    let authors = xml::child(notes.root(), QName::new(SML, "authors")).unwrap();
+    let author = xml::child(authors, QName::new(SML, "author")).unwrap();
+    let list = xml::child(notes.root(), QName::new(SML, "commentList")).unwrap();
+    let note = xml::child(list, QName::new(SML, "comment")).unwrap();
+    let text = xml::child(note, QName::new(SML, "text")).unwrap();
+    assert_eq!(xml::default_namespace(author), None);
+    assert_eq!(xml::default_namespace(note), Some(SML));
+    assert_eq!(xml::default_namespace(text), None);
+    assert_eq!(
+        walk(text)
+            .find(|node| is_local(SML, "t", node))
+            .unwrap()
+            .text(),
+        "Edited"
+    );
+}
+
+#[test]
+fn orphan_fallback_note_can_be_edited_and_removed() {
+    let mut wb = deterministic();
+    let person = wb.person("Ana", PersonId::None).unwrap();
+    let at = cell("B2");
+    wb.worksheet()
+        .unwrap()
+        .add_comment(at, Comment::new("First").by(person))
+        .unwrap();
+    let thread = doc(wb.package(), THREAD);
+    let entry = thread.root().elements().next().unwrap().span().unwrap();
+    let mut orphan = with_part(&wb, THREAD, without(thread.source(), [entry]));
+
+    orphan
+        .worksheet()
+        .unwrap()
+        .set_note_text(at, "Edited")
+        .unwrap();
+    assert!(part(orphan.package(), COMMENTS).contains(">Edited</t>"));
+    assert_eq!(part(orphan.package(), VML), part(wb.package(), VML));
+    orphan.worksheet().unwrap().remove_note(at).unwrap();
+    assert!(part(orphan.package(), COMMENTS).contains("<commentList></commentList>"));
+    assert!(
+        vml::note_shape(VML, &doc(orphan.package(), VML), at)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn fallback_uid_matches_thread_guid_ignoring_case() {
+    let mut wb = deterministic();
+    let person = wb.person("Ana", PersonId::None).unwrap();
+    wb.comment_random = Some(|| [0xab; 16]);
+    let at = cell("B2");
+    wb.worksheet()
+        .unwrap()
+        .add_comment(at, Comment::new("First").by(&person))
+        .unwrap();
+    let threads = doc(wb.package(), THREAD);
+    let id = threads
+        .root()
+        .elements()
+        .next()
+        .unwrap()
+        .attr(xml::attr("id"))
+        .unwrap();
+    let notes = part(wb.package(), COMMENTS).replace(
+        &format!("xr:uid=\"{id}\""),
+        &format!("xr:uid=\"{}\"", id.to_ascii_lowercase()),
+    );
+    let mut wb = with_part(&wb, COMMENTS, notes);
+    wb.worksheet()
+        .unwrap()
+        .reply(at, Comment::new("Reply").by(person))
+        .unwrap();
+    assert!(part(wb.package(), COMMENTS).contains("First\n\nReply</t>"));
+    wb.worksheet().unwrap().remove_comment_thread(at).unwrap();
+    assert!(doc(wb.package(), THREAD).root().elements().next().is_none());
+}
+
+#[test]
+fn new_vml_declares_namespaces_and_appends_shapes_above_existing_ones() {
+    let wb = workbook_with_note();
+    let new = doc(wb.package(), VML);
+    for (prefix, uri) in [("v", V), ("o", OFFICE), ("x", X)] {
+        let name = QName::new(XMLNS, prefix);
+        assert_eq!(new.root().attr(name), Some(uri));
+        assert!(
+            walk(new.root())
+                .skip(1)
+                .all(|node| node.attr(name).is_none())
+        );
+    }
+    assert_eq!(vml_ids(&new).len(), 1);
+    let original = new.source().replace("z-index:1", "Z-INDEX : 42 ");
+    let mut wb = with_part(&wb, VML, original.clone());
+    wb.worksheet()
+        .unwrap()
+        .add_note(cell("B2"), Note::new("Top"))
+        .unwrap();
+
+    let reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    let updated = doc(reopened.package(), VML);
+    assert_eq!(vml_ids(&updated).len(), 2);
+    let shape = vml::note_shape(VML, &updated, cell("B2")).unwrap().unwrap();
+    assert!(
+        shape
+            .attr(xml::attr("style"))
+            .unwrap()
+            .contains(";z-index:43;")
+    );
+    assert_eq!(without(updated.source(), [shape.span().unwrap()]), original);
+
+    let exhausted = original.replace("Z-INDEX : 42 ", &format!("z-index:{}", i64::MAX));
+    let mut wb = with_part(&wb, VML, exhausted);
+    std::assert_matches!(
+        rejected(&mut wb, |wb| wb
+            .worksheet()?
+            .add_note(cell("D4"), Note::new("Overflow"))),
+        Error::PartNotEditable { .. }
+    );
 }
 
 #[test]
@@ -791,7 +936,7 @@ fn check_ids(before: &Package, after: &Package, sheet: &str, wb: &str, new: &[Ce
     }
 }
 
-fn sweep_file(path: &Path, tallies: &mut [usize; 5]) {
+fn sweep_file(path: &Path, tallies: &mut [usize; 6]) {
     let explicit = [
         "BrNotClosed.xlsx",
         "mv-calculator-final-2-20-2013.xlsm",
@@ -844,13 +989,19 @@ fn sweep_file(path: &Path, tallies: &mut [usize; 5]) {
     let thread = cell(&free.next().unwrap());
     let original_bytes = wb.to_bytes().unwrap();
     let before = Package::from_bytes(original_bytes.clone()).unwrap();
-    let mut new = Vec::new();
-    match wb
+    let mut thread_wb = Workbook::from_bytes(original_bytes.clone()).unwrap();
+    let note_added = match wb
         .worksheet_by_index(index)
         .unwrap()
         .add_note(note, Note::new("POI note"))
     {
-        Ok(()) => new.push(note),
+        Ok(()) => {
+            let reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+            assert_locality(&before, reopened.package(), &sheet, &workbook);
+            assert_object_locality(&before, reopened.package(), &sheet, &workbook, &[note]);
+            check_ids(&before, reopened.package(), &sheet, &workbook, &[note]);
+            true
+        }
         Err(error) => {
             assert_eq!(wb.to_bytes().unwrap(), original_bytes, "{name}: {error}");
             eprintln!("{name}: note refused: {error}");
@@ -858,46 +1009,95 @@ fn sweep_file(path: &Path, tallies: &mut [usize; 5]) {
             if name == "BrNotClosed.xlsx" {
                 std::assert_matches!(error, Error::PartNotEditable { .. });
             }
+            false
         }
-    }
-    let before_person = wb.to_bytes().unwrap();
-    match wb.person("POI author", PersonId::None) {
+    };
+    let thread_added = match thread_wb.person("POI author", PersonId::None) {
         Ok(person) => {
-            let before_thread = wb.to_bytes().unwrap();
-            match wb
-                .worksheet_by_index(index)
-                .unwrap()
-                .add_comment(thread, Comment::new("POI thread").by(person))
-            {
-                Ok(()) => new.push(thread),
+            let before_thread = thread_wb.to_bytes().unwrap();
+            let mut ws = thread_wb.worksheet_by_index(index).unwrap();
+            match ws.add_comment(thread, Comment::new("POI thread").by(&person)) {
+                Ok(()) => {
+                    ws.reply(thread, Comment::new("POI reply").by(&person))
+                        .unwrap_or_else(|error| panic!("{name}: reply refused: {error}"));
+                    let mut reopened = Workbook::from_bytes(thread_wb.to_bytes().unwrap()).unwrap();
+                    assert_locality(&before, reopened.package(), &sheet, &workbook);
+                    assert_object_locality(
+                        &before,
+                        reopened.package(),
+                        &sheet,
+                        &workbook,
+                        &[thread],
+                    );
+                    check_ids(&before, reopened.package(), &sheet, &workbook, &[thread]);
+                    let thread_part =
+                        relationship_targets(reopened.package(), &sheet, "threadedComment")
+                            .remove(0);
+                    let thread_doc = doc(reopened.package(), &thread_part);
+                    let entries = threads::at(&thread_part, &thread_doc, thread).unwrap();
+                    assert_eq!(entries.len(), 2, "{name}");
+                    assert_eq!(
+                        entries[1].attr(xml::attr("parentId")),
+                        entries[0].attr(xml::attr("id")),
+                        "{name}"
+                    );
+                    reopened
+                        .worksheet_by_index(index)
+                        .unwrap()
+                        .remove_comment_thread(thread)
+                        .unwrap_or_else(|error| panic!("{name}: thread removal refused: {error}"));
+                    let removed = Workbook::from_bytes(reopened.to_bytes().unwrap()).unwrap();
+                    assert_locality(&before, removed.package(), &sheet, &workbook);
+                    assert_object_locality(&before, removed.package(), &sheet, &workbook, &[]);
+                    let thread_doc = doc(removed.package(), &thread_part);
+                    assert!(
+                        threads::at(&thread_part, &thread_doc, thread)
+                            .unwrap()
+                            .is_empty(),
+                        "{name}"
+                    );
+                    let vml_part =
+                        relationship_targets(removed.package(), &sheet, "vmlDrawing").remove(0);
+                    assert!(
+                        vml::note_shape(&vml_part, &doc(removed.package(), &vml_part), thread)
+                            .unwrap()
+                            .is_none(),
+                        "{name}"
+                    );
+                    true
+                }
                 Err(error) => {
-                    assert_eq!(wb.to_bytes().unwrap(), before_thread, "{name}: {error}");
+                    assert_eq!(
+                        thread_wb.to_bytes().unwrap(),
+                        before_thread,
+                        "{name}: {error}"
+                    );
                     eprintln!("{name}: thread refused: {error}");
                     tallies[3] += 1;
+                    false
                 }
             }
         }
         Err(error) => {
-            assert_eq!(wb.to_bytes().unwrap(), before_person, "{name}: {error}");
+            assert_eq!(
+                thread_wb.to_bytes().unwrap(),
+                original_bytes,
+                "{name}: {error}"
+            );
             eprintln!("{name}: person refused: {error}");
-            tallies[3] += 1;
+            tallies[4] += 1;
+            false
         }
-    }
-    let reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
-    if !new.is_empty() {
-        assert_locality(&before, reopened.package(), &sheet, &workbook);
-        assert_object_locality(&before, reopened.package(), &sheet, &workbook, &new);
-        check_ids(&before, reopened.package(), &sheet, &workbook, &new);
-    }
+    };
     if explicit.contains(&name) {
         assert_eq!(
-            new.len(),
-            if name == "BrNotClosed.xlsx" { 0 } else { 2 },
+            (note_added, thread_added),
+            (name != "BrNotClosed.xlsx", name != "BrNotClosed.xlsx"),
             "{name}"
         );
-        println!("{name}: {} insertions", new.len());
+        println!("{name}: note={note_added}, thread lifecycle={thread_added}");
     }
-    tallies[4] += 1;
+    tallies[5] += 1;
 }
 
 #[test]
@@ -910,15 +1110,22 @@ fn poi_comments_sweep() {
         .filter(|p| p.extension().is_some_and(|e| e == "xlsx" || e == "xlsm"))
         .collect();
     paths.sort();
-    let mut tallies = [0; 5];
+    let mut tallies = [0; 6];
     for path in paths {
         sweep_file(&path, &mut tallies);
     }
-    let [unreadable, no_sheet, note_refused, thread_refused, checked] = tallies;
+    let [
+        unreadable,
+        no_sheet,
+        note_refused,
+        thread_refused,
+        person_refused,
+        checked,
+    ] = tallies;
     println!(
-        "{checked} checked, {unreadable} unreadable, {no_sheet} without a worksheet; {} note successes, {note_refused} refusals; {} thread successes, {thread_refused} refusals",
+        "{checked} checked, {unreadable} unreadable, {no_sheet} without a worksheet; {} note successes, {note_refused} refusals; {} thread lifecycles, {person_refused} person refusals, {thread_refused} add_comment refusals",
         checked - note_refused,
-        checked - thread_refused
+        checked - person_refused - thread_refused
     );
     assert_ne!(checked, 0);
 }
@@ -969,6 +1176,64 @@ fn ambiguous_part_links_and_insertion_slots_are_atomic() {
             .worksheet()?
             .set_note_text(cell("A1"), "Shared")),
         Error::PartNotEditable { .. }
+    );
+
+    let second_sheet = Some("xl/worksheets/sheet2.xml");
+    let mut pkg = Package::from_bytes(original.to_bytes().unwrap()).unwrap();
+    pkg.add_relationship(second_sheet, REL_VML, ooxml_core::Target::Part(VML.into()))
+        .unwrap();
+    let mut shared = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    std::assert_matches!(
+        rejected(&mut shared, |wb| wb
+            .worksheet()?
+            .add_note(cell("B2"), Note::new("Shared"))),
+        Error::PartNotEditable { part, reason } if part == VML && reason == "part ownership is ambiguous"
+    );
+    std::assert_matches!(
+        rejected(&mut shared, |wb| wb.worksheet()?.remove_note(cell("A1"))),
+        Error::PartNotEditable { part, reason } if part == VML && reason == "part ownership is ambiguous"
+    );
+
+    let person = original.person("Ana", PersonId::None).unwrap();
+    original
+        .worksheet()
+        .unwrap()
+        .add_comment(cell("B2"), Comment::new("Thread").by(&person))
+        .unwrap();
+    let mut pkg = Package::from_bytes(original.to_bytes().unwrap()).unwrap();
+    pkg.add_relationship(
+        second_sheet,
+        threads::REL,
+        ooxml_core::Target::Part(THREAD.into()),
+    )
+    .unwrap();
+    let mut shared = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    std::assert_matches!(
+        rejected(&mut shared, |wb| wb
+            .worksheet()?
+            .reply(cell("B2"), Comment::new("Reply").by(&person))),
+        Error::PartNotEditable { part, reason } if part == THREAD && reason == "part ownership is ambiguous"
+    );
+    std::assert_matches!(
+        rejected(&mut shared, |wb| wb
+            .worksheet()?
+            .remove_comment_thread(cell("B2"))),
+        Error::PartNotEditable { part, reason } if part == THREAD && reason == "part ownership is ambiguous"
+    );
+
+    let mut pkg = Package::from_bytes(original.to_bytes().unwrap()).unwrap();
+    pkg.add_relationship(
+        second_sheet,
+        threads::PERSON_REL,
+        ooxml_core::Target::Part(PERSONS.into()),
+    )
+    .unwrap();
+    let mut shared = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    std::assert_matches!(
+        rejected(&mut shared, |wb| wb
+            .person("Sam", PersonId::None)
+            .map(|_| ())),
+        Error::PartNotEditable { part, reason } if part == PERSONS && reason == "part ownership is ambiguous"
     );
 
     let original = Workbook::new().unwrap();

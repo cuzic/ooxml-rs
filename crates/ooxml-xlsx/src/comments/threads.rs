@@ -16,7 +16,8 @@ const TEXT: QName = QName::new(NS, "text");
 const PERSONS: QName = sml::PersonList::QNAME;
 const PERSON: QName = sml::Person::QNAME;
 const PERSON_TYPE: &str = "application/vnd.ms-excel.person+xml";
-const PERSON_REL: &str = "http://schemas.microsoft.com/office/2017/10/relationships/person";
+pub(super) const PERSON_REL: &str =
+    "http://schemas.microsoft.com/office/2017/10/relationships/person";
 pub(super) const ROOT: QName = sml::ThreadedComments::QNAME;
 pub(super) const ENTRY: QName = sml::ThreadedComment::QNAME;
 pub(super) const TYPE: &str = "application/vnd.ms-excel.threadedcomments+xml";
@@ -85,6 +86,7 @@ impl Comment {
         at: CellIndex,
         id: &str,
         parent: Option<&str>,
+        root: Option<&RawNode>,
     ) -> Result<String> {
         let invalid_author = || Error::InvalidSetting {
             what: "comment author".into(),
@@ -106,8 +108,10 @@ impl Comment {
             .map(|id| format!(" parentId=\"{}\"", xml::attribute(id)))
             .unwrap_or_default();
         let text = xml::text(&escape::encode(&self.text));
+        let ns = root
+            .map_or_default(|root| xml::namespace_declaration(xml::default_namespace(root), NS));
         Ok(format!(
-            "<threadedComment xmlns=\"{NS}\" ref=\"{at}\" dT=\"{timestamp}\" personId=\"{person}\" id=\"{id}\"{parent}><text xml:space=\"preserve\">{text}</text></threadedComment>"
+            "<threadedComment{ns} ref=\"{at}\" dT=\"{timestamp}\" personId=\"{person}\" id=\"{id}\"{parent}><text xml:space=\"preserve\">{text}</text></threadedComment>"
         ))
     }
 }
@@ -151,8 +155,11 @@ impl Workbook {
             xml::attribute(user_id),
             xml::attribute(provider_id),
         );
+        let ns = existing.as_ref().map_or_default(|(_, doc)| {
+            xml::namespace_declaration(xml::default_namespace(doc.root()), NS)
+        });
         let markup = format!(
-            "<person xmlns=\"{NS}\" displayName=\"{display}\" id=\"{id}\" userId=\"{user}\" providerId=\"{provider}\"/>"
+            "<person{ns} displayName=\"{display}\" id=\"{id}\" userId=\"{user}\" providerId=\"{provider}\"/>"
         );
         let pkg = &self.pkg;
         let mut plan = RegistryPlan::new(pkg);
