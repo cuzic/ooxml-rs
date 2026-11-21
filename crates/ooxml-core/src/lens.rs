@@ -29,20 +29,8 @@ pub use move_subtree::MoveSource;
 use crate::error::{DetachRefusal, Error, Result};
 use crate::name::{MC_ALTERNATE_CONTENT, MC_NS, QName, RELATIONSHIP_ATTRIBUTES, XML_NS, XML_SPACE, XMLNS_NS, XName};
 use crate::schema::{ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, AttrError, SameType, Slot, UniqueAttr};
-use crate::value::{first_invalid_xml_char, has_edge_ws};
-
-/// Refuses a value that XML 1.0 cannot represent (ADR-0002 post-acceptance
-/// note, "XML characters").
-fn check_xml_chars(value: &str) -> Result<()> {
-    match first_invalid_xml_char(value) {
-        None => Ok(()),
-        Some((offset, ch)) => {
-            core::hint::cold_path();
-            Err(Error::InvalidXmlChar { ch, offset })
-        }
-    }
-}
-use crate::xml::{DocToken, RawAttr, RawItem, RawNode, RawText, node_at, node_at_mut};
+use crate::value::{check_xml_chars, has_edge_ws};
+use crate::xml::{DocToken, RawAttr, RawItem, RawNode, RawText, mark_path_dirty, node_at, node_at_mut};
 
 mod same_part;
 pub use same_part::{SamePartDetached, SamePartOptions, ext_uri};
@@ -617,12 +605,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
 
     /// Sets `subtree_dirty` on this node and every ancestor.
     fn mark_path(&mut self) {
-        let mut n = &mut *self.root;
-        n.mark_subtree_dirty();
-        for &i in &self.path {
-            n = n.child_mut(i).and_then(RawItem::as_element_mut).expect("path points at an element");
-            n.mark_subtree_dirty();
-        }
+        mark_path_dirty(self.root, &self.path);
     }
 
     fn descend<C: ElementSpec>(&mut self, index: usize) -> LensMut<'_, C> {

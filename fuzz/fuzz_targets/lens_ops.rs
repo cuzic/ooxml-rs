@@ -1,6 +1,6 @@
 #![no_main]
 
-//! Lens edit sequences on a small schema: Err => unchanged; output reparses.
+//! Typed lens and schemaless leaf edits: Err => unchanged; output reparses.
 
 use libfuzzer_sys::fuzz_target;
 use ooxml_core::XmlDocument;
@@ -8,6 +8,7 @@ use ooxml_robustness::lens::P;
 
 fuzz_target!(|data: &[u8]| {
     ooxml_robustness::check_lens_ops(data);
+    ooxml_robustness::xml::check_leaf_text(data);
 
     let [start, end, ..] = data else { return };
     let (start, end) = (usize::from(*start) % 10, usize::from(*end) % 10);

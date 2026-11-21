@@ -63,6 +63,7 @@ fn lens_ops() {
         let n = rng.below(96);
         let input = rng.bytes(n);
         guarded("lens_ops", &input, ooxml_robustness::check_lens_ops);
+        guarded("leaf_text", &input, ooxml_robustness::xml::check_leaf_text);
     }
 }
 

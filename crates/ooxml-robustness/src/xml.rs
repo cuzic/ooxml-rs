@@ -1,7 +1,9 @@
 //! `XmlDocument::parse` → serialize (T1) and parse → `force_rerender` →
 //! reparse (T1b).
 
-use ooxml_core::{ParseOptions, RawItem, RawNode, XmlDocument};
+use ooxml_core::{LeafStep, ParseOptions, RawItem, RawNode, XmlDocument};
+
+use crate::input::Input;
 
 /// T1: an accepted input serializes unedited to exactly its own bytes.
 /// Also exercises `Clone`, `Debug`, `Drop` and the read accessors on the
@@ -51,6 +53,79 @@ pub fn check_t1b(data: &[u8]) {
     let mut rr = re.clone();
     rr.force_rerender();
     assert_eq!(rr.serialize(), s, "T1b: re-rendering is not a fixed point");
+}
+
+/// Leaf-text preflight and write must agree. Refusals preserve the source
+/// bytes, and successful writes survive serialization and reparsing.
+pub fn check_leaf_text(data: &[u8]) {
+    let mut input = Input::new(data);
+    let value = input.string();
+    let control_count = input.u8();
+    let controls = input.take(usize::from(control_count));
+    let source = input.rest();
+    let (mut doc, source) = match XmlDocument::parse(source) {
+        Ok(doc) => (doc, source),
+        Err(_) => {
+            // Keep exercising writes when the fuzzer has no well-formed XML yet.
+            let fallback = b"<r xmlns:i='http://www.w3.org/2001/XMLSchema-instance'>\
+                <a/><a>old</a><a i:nil='yes'/><b><!-- keep --></b><c><a/></c></r>";
+            (XmlDocument::parse(fallback).unwrap(), fallback.as_slice())
+        }
+    };
+    let mut controls = Input::new(controls);
+    let mode = controls.u8() % 8;
+    let mut node = doc.root();
+    let mut names = vec![(node.name().clone(), 0)];
+    while let Some(choice) = controls.take(1).first() {
+        let count = node.elements().count();
+        if count == 0 {
+            break;
+        }
+        let position = usize::from(*choice) % count;
+        let child = node.elements().nth(position).unwrap();
+        let index = node
+            .elements()
+            .take(position)
+            .filter(|sibling| sibling.name().ns() == child.name().ns() && sibling.name().local() == child.name().local())
+            .count();
+        names.push((child.name().clone(), index));
+        node = child;
+    }
+    let mut path: Vec<_> = names
+        .iter()
+        .map(|(name, index)| LeafStep { ns: name.ns(), local: name.local(), index: *index })
+        .collect();
+    match mode {
+        0 => path.clear(),
+        1 => path.last_mut().unwrap().index = usize::MAX,
+        _ => {}
+    }
+
+    let checked = doc.check_set_leaf_text(&path, &value);
+    let written = doc.set_leaf_text(&path, &value);
+    let after = doc.serialize();
+    match (checked, written) {
+        (Err(checked), Err(written)) => {
+            assert_eq!(std::mem::discriminant(&checked), std::mem::discriminant(&written));
+            assert_eq!(checked.to_string(), written.to_string());
+            assert_eq!(after.as_bytes(), source);
+        }
+        (Ok(()), Ok(())) => {
+            let reparsed = XmlDocument::parse(after.as_bytes()).expect("leaf-text output must reparse");
+            let mut target = reparsed.root();
+            let root = path.first().expect("successful write must have a root step");
+            assert_eq!((target.name().ns(), target.name().local(), 0), (root.ns, root.local, root.index));
+            for step in &path[1..] {
+                target = target
+                    .elements()
+                    .filter(|child| child.name().ns() == step.ns && child.name().local() == step.local)
+                    .nth(step.index)
+                    .expect("leaf-text target must survive reparsing");
+            }
+            assert_eq!(target.text(), value);
+        }
+        results => panic!("leaf-text preflight and write disagree: {results:?}"),
+    }
 }
 
 /// Structural equality with adjacent character data merged (an edit can

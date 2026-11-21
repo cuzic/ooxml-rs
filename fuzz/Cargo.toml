@@ -82,3 +82,10 @@ path = "fuzz_targets/pptx_edit.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "leaf_text"
+path = "fuzz_targets/leaf_text.rs"
+test = false
+doc = false
+bench = false
