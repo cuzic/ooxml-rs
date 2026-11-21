@@ -332,7 +332,8 @@ pub(crate) struct ObjectState {
     shape_high_water: HashMap<String, u32>,
     scanned_shapes: HashSet<String>,
     media: Option<MediaIndex>,
-    allocated_shapes: HashMap<String, HashSet<u32>>,
+    known_shapes: HashMap<String, HashSet<u32>>,
+    scanned_note_shapes: HashSet<String>,
 }
 
 fn media_part(pkg: &Package, rels: &Relationships, id: &str) -> Option<String> {
@@ -599,6 +600,9 @@ fn sheet_shape_numbers(wb: &mut Workbook, sheet: &str) -> Result<HashSet<u32>> {
 }
 
 pub(crate) fn note_shape_numbers(wb: &mut Workbook, sheet: &str) -> Result<(u32, HashSet<u32>)> {
+    if wb.objects.scanned_note_shapes.contains(sheet) {
+        return Ok((wb.objects.shape_high_water[sheet], wb.objects.known_shapes[sheet].clone()));
+    }
     let mut used = sheet_shape_numbers(wb, sheet)?;
     let rels = wb.pkg.relationships(sheet)?;
     for rel in rels.by_type(REL_DRAWING) {
@@ -608,16 +612,20 @@ pub(crate) fn note_shape_numbers(wb: &mut Workbook, sheet: &str) -> Result<(u32,
         used.extend(walk(doc.root()).filter(|node| node.is(xdr("cNvPr")))
             .filter_map(|node| node.attr(attr("id"))?.trim().parse::<u32>().ok()));
     }
-    if let Some(allocated) = wb.objects.allocated_shapes.get(sheet) {
+    if let Some(allocated) = wb.objects.known_shapes.get(sheet) {
         used.extend(allocated);
     }
     let high = used.iter().copied().max().unwrap_or(1).max(1)
         .max(wb.objects.shape_high_water.get(sheet).copied().unwrap_or_default());
+    wb.objects.shape_high_water.insert(sheet.into(), high);
+    wb.objects.known_shapes.insert(sheet.into(), used.clone());
+    wb.objects.scanned_shapes.insert(sheet.into());
+    wb.objects.scanned_note_shapes.insert(sheet.into());
     Ok((high, used))
 }
 
 pub(crate) fn record_shape(wb: &mut Workbook, sheet: &str, id: u32) {
-    wb.objects.allocated_shapes.entry(sheet.into()).or_default().insert(id);
+    wb.objects.known_shapes.entry(sheet.into()).or_default().insert(id);
     let high = wb.objects.shape_high_water.entry(sheet.into()).or_default();
     *high = (*high).max(id);
 }

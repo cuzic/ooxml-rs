@@ -95,6 +95,7 @@ impl Worksheet<'_> {
         let mut added = None;
         let mut remove_note_shape = false;
         let mut thread_markup = None;
+        let mut new_guid = None;
         let mut remove_thread = false;
         let note_edits = match operation {
             Operation::Add(note) => {
@@ -132,6 +133,7 @@ impl Worksheet<'_> {
                 let edits = notes.append(at, &fallback, Some(&id))?;
                 added = Some(vml::append(wb, &sheet, legacy.as_ref(), at, false)?);
                 thread_markup = Some(markup);
+                new_guid = Some(id);
                 edits
             }
             Operation::Reply(_) | Operation::RemoveThread => {
@@ -146,6 +148,7 @@ impl Worksheet<'_> {
                 if let Operation::Reply(comment) = operation {
                     let reply_id = threads::guid(wb)?;
                     thread_markup = Some(comment.markup(wb, at, &reply_id, Some(id))?);
+                    new_guid = Some(reply_id);
                     let fallback = threads::fallback_text(part, &entries, &comment.text)?;
                     vec![notes.set_text(current, &fallback)?]
                 } else {
@@ -163,7 +166,10 @@ impl Worksheet<'_> {
         } else {
             None
         };
-        if matches!(added, Some((_, vml::Addition::New(_)))) {
+        if matches!(
+            added.as_ref().map(|addition| &addition.part),
+            Some(vml::Addition::New(_))
+        ) {
             wb.pkg
                 .xml_part_mut(&sheet)?
                 .lens_mut::<sml::Worksheet>()?
@@ -196,9 +202,16 @@ impl Worksheet<'_> {
                 markup,
             )?;
         }
+        let mut retired_guids = Vec::new();
         if remove_thread {
             let (part, doc) = thread.as_ref().expect("thread to remove");
             xml::require_owner(pkg, part, &sheet)?;
+            retired_guids.extend(
+                entries
+                    .iter()
+                    .filter_map(|node| node.attr(xml::attr("id")))
+                    .map(str::to_ascii_uppercase),
+            );
             let edits = entries
                 .into_iter()
                 .map(|node| xml::replace(node, String::new()))
@@ -207,9 +220,11 @@ impl Worksheet<'_> {
         }
         let mut relation = None;
         let mut shape = None;
-        if let Some((number, addition)) = added {
-            shape = Some(number);
-            match addition {
+        let mut block = None;
+        if let Some(addition) = added {
+            shape = Some(addition.id);
+            block = addition.new_block;
+            match addition.part {
                 vml::Addition::New(markup) => {
                     match plan.add_default_content_type(pkg, "vml", vml::CONTENT_TYPE) {
                         Ok(_)
@@ -267,8 +282,17 @@ impl Worksheet<'_> {
                     .insert_with_ns::<sml::LegacyDrawing>(&REL_NS)?
                     .set_attr(xml::RID, &rel)?;
             }
-            if shape.is_some() || !retired.is_empty() {
-                wb.fault_point(ApplyStep::NoteShape)?;
+            if shape.is_some()
+                || !retired.is_empty()
+                || new_guid.is_some()
+                || !retired_guids.is_empty()
+            {
+                wb.fault_point(ApplyStep::CommentIndex)?;
+                wb.comment_guids
+                    .extend(new_guid.into_iter().chain(retired_guids));
+                if let Some(block) = block {
+                    wb.vml_block_high = Some(block);
+                }
                 for id in shape.into_iter().chain(retired) {
                     record_shape(wb, &sheet, id);
                 }

@@ -172,7 +172,11 @@ impl Workbook {
                 format!("<personList xmlns=\"{NS}\">{markup}</personList>"),
             )?;
         }
-        self.apply_registry_edit(plan, |_| Ok(()))?;
+        self.apply_registry_edit(plan, |wb| {
+            wb.fault_point(crate::workbook::ApplyStep::CommentIndex)?;
+            wb.comment_guids.insert(id.clone());
+            Ok(())
+        })?;
         Ok(Person(id))
     }
 }
@@ -206,8 +210,11 @@ fn random_bytes(_wb: &Workbook) -> Result<[u8; 16]> {
     Ok(bytes)
 }
 
-pub(super) fn guid(wb: &Workbook) -> Result<String> {
-    let used = known_ids(&wb.pkg)?;
+pub(super) fn guid(wb: &mut Workbook) -> Result<String> {
+    if !wb.comment_guids_scanned {
+        wb.comment_guids.extend(known_ids(&wb.pkg)?);
+        wb.comment_guids_scanned = true;
+    }
     for _ in 0..32 {
         let mut bytes = random_bytes(wb)?;
         bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -216,7 +223,7 @@ pub(super) fn guid(wb: &Workbook) -> Result<String> {
         let id = format!(
             "{{{a:02X}{b:02X}{c:02X}{d:02X}-{e:02X}{f:02X}-{g:02X}{h:02X}-{i:02X}{j:02X}-{k:02X}{l:02X}{m:02X}{n:02X}{o:02X}{p:02X}}}"
         );
-        if !used.contains(&id) {
+        if !wb.comment_guids.contains(&id) {
             return Ok(id);
         }
     }

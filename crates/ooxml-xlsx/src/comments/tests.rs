@@ -348,7 +348,7 @@ fn exhausted_block_is_appended_and_shared_across_sheets() {
 #[test]
 fn post_apply_failure_poisoning_and_stale_plan() {
     use std::panic::{AssertUnwindSafe, catch_unwind};
-    for step in [ApplyStep::NoteDrawing, ApplyStep::NoteShape] {
+    for step in [ApplyStep::NoteDrawing, ApplyStep::CommentIndex] {
         for panic in [false, true] {
             let mut wb = Workbook::new().unwrap();
             if panic {
@@ -1008,4 +1008,49 @@ fn malformed_comment_containers_and_invalid_reference_are_atomic() {
         )),
         Error::OutOfRange { .. }
     );
+}
+
+#[test]
+fn deleting_a_thread_does_not_release_its_guid() {
+    let mut wb = deterministic();
+    let author = wb.person("Ana", PersonId::None).unwrap();
+    wb.comment_random = Some(|| [0x42; 16]);
+    let at = cell("D2");
+    wb.worksheet()
+        .unwrap()
+        .add_comment(at, Comment::new("Start").by(&author))
+        .unwrap();
+
+    // Exercise removal before the reopened workbook has run its first GUID scan.
+    let mut wb = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    wb.worksheet().unwrap().remove_comment_thread(at).unwrap();
+    wb.comment_random = Some(|| [0x42; 16]);
+    std::assert_matches!(
+        rejected(&mut wb, |wb| wb
+            .worksheet()?
+            .add_comment(at, Comment::new("Collision").by(&author))),
+        Error::Random(_)
+    );
+}
+
+#[cfg(feature = "fault-injection")]
+#[test]
+fn person_index_fault_after_apply_poisons() {
+    for panic in [false, true] {
+        let mut wb = Workbook::new().unwrap();
+        if panic {
+            wb.inject_apply_panic(ApplyStep::CommentIndex);
+        } else {
+            wb.inject_apply_failure(ApplyStep::CommentIndex);
+        }
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            wb.person("Ana", PersonId::None)
+        }));
+        if panic {
+            assert!(outcome.is_err());
+        } else {
+            std::assert_matches!(outcome.unwrap(), Err(Error::Poisoned(_)));
+        }
+        std::assert_matches!(wb.to_bytes(), Err(Error::Poisoned(_)));
+    }
 }

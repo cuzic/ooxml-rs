@@ -1039,3 +1039,5 @@ A prerequisite PR plus five PRs, each with its oracles:
   VML remains outside codegen.
 - A mutable comments, VML, threaded-comment or person part with ambiguous OPC ownership
   is refused. An orphan VML note shape at the target cell also prevents insertion.
+- Identifier scans seed the workbook's in-memory allocation state on first use.
+  Removed thread GUIDs and shape numbers stay reserved for the current session.

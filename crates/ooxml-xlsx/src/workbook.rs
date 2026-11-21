@@ -135,8 +135,8 @@ pub enum ApplyStep {
     ImageDrawing,
     /// Before inserting the worksheet legacy drawing reference.
     NoteDrawing,
-    /// Before recording a new note shape number.
-    NoteShape,
+    /// Before recording object identifiers allocated or retired by a comment edit.
+    CommentIndex,
     /// Before inserting the worksheet table reference.
     TableParts,
 }
@@ -175,6 +175,9 @@ pub(crate) type ApplyStepHook = ApplyStep;
 pub struct Workbook {
     pub(crate) pkg: Package,
     pub(crate) workbook_part: String,
+    pub(crate) comment_guids: HashSet<String>,
+    pub(crate) comment_guids_scanned: bool,
+    pub(crate) vml_block_high: Option<u32>,
     #[cfg(test)]
     pub(crate) comment_random: Option<fn() -> [u8; 16]>,
     pub(crate) sheets: Vec<SheetEntry>,
@@ -243,6 +246,9 @@ impl Workbook {
         let mut wb = Self {
             pkg,
             workbook_part: l.workbook_part,
+            comment_guids: HashSet::new(),
+            comment_guids_scanned: false,
+            vml_block_high: None,
             #[cfg(test)]
             comment_random: None,
             sheets: l.sheets,

@@ -215,13 +215,19 @@ pub(super) enum Addition {
     Existing(Vec<Patch>),
 }
 
+pub(super) struct AddShape {
+    pub id: u32,
+    pub new_block: Option<u32>,
+    pub part: Addition,
+}
+
 pub(super) fn append(
     wb: &mut Workbook,
     sheet: &str,
     existing: Option<&(String, XmlDocument)>,
     at: CellIndex,
     visible: bool,
-) -> Result<(u32, Addition)> {
+) -> Result<AddShape> {
     let (high, used) = crate::images::note_shape_numbers(wb, sheet)?;
     let mut edits = Vec::new();
     let mut prefix = String::new();
@@ -252,12 +258,22 @@ pub(super) fn append(
         })
         .transpose()?
         .unwrap_or_default();
+    let mut new_block = None;
     let id = if let Some(id) = pick(&current, high, &used) {
         id
     } else {
-        let block = all_blocks(&wb.pkg)?
+        let max = match wb.vml_block_high {
+            Some(max) => max,
+            None => {
+                let max = all_blocks(&wb.pkg)?;
+                wb.vml_block_high = Some(max);
+                max
+            }
+        };
+        let block = max
             .checked_add(1)
             .ok_or_else(|| part_error(part, "VML block exhausted"))?;
+        new_block = Some(block);
         let id = in_blocks(&[block], 1, &used)
             .ok_or_else(|| part_error(part, "VML block has no free shape number"))?;
         if let Some(map) = map {
@@ -320,7 +336,11 @@ pub(super) fn append(
     } else {
         Addition::New(format!("<xml>{prefix}</xml>"))
     };
-    Ok((id, addition))
+    Ok(AddShape {
+        id,
+        new_block,
+        part: addition,
+    })
 }
 
 pub(super) fn note_shape<'a>(
