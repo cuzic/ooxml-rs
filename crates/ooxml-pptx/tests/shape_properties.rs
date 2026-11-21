@@ -822,6 +822,13 @@ fn set_adjustment_completes_a_partial_list_in_order() {
     let mut pkg = Package::from_bytes(bytes).unwrap();
     pkg.set_part(SLIDE, partial.into_bytes()).unwrap();
     let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    // an adj1-only list (as the old code wrote): adj2 goes after adj1 (m1)
+    let adj1_only = xml.replace(r#"<a:gd name="adj2" fmla="val 40000"/>"#, "");
+    let mut q = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
+    q.set_part(SLIDE, adj1_only.into_bytes()).unwrap();
+    let mut q = Presentation::from_bytes(q.to_bytes().unwrap()).unwrap();
+    edit(&mut q, 81, |s| s.set_adjustment("adj1", 30_000)).unwrap();
+    assert_eq!(av_list(&q), r#"<a:avLst><a:gd name="adj1" fmla="val 30000"/><a:gd name="adj2" fmla="val 50000"/></a:avLst>"#);
     edit(&mut p, 81, |s| s.set_adjustment("adj2", 45_000)).unwrap();
     assert_eq!(
         av_list(&p),
