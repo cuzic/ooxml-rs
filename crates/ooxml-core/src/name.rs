@@ -32,6 +32,10 @@ pub const VML_O_NS: &str = "urn:schemas-microsoft-com:office:office";
 /// would duplicate a reference into Layer 3.
 pub const RELATIONSHIP_ATTRIBUTES: &[(&str, Option<&str>)] =
     &[(R_NS, None), (R_NS_STRICT, None), (VML_O_NS, Some("relid"))];
+
+// Vendored schema namespaces reserved by ADR-0015 §6.2.
+include!("generated/typed_element_namespaces.rs");
+
 /// OPC package relationships (`_rels/*.rels` root namespace).
 pub const PACKAGE_RELATIONSHIPS_NS: &str =
     "http://schemas.openxmlformats.org/package/2006/relationships";

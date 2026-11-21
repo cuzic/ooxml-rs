@@ -5,6 +5,7 @@
 //! that into an [`AttrError`](crate::AttrError) that keeps the raw string.
 
 use core::fmt::NumBuffer;
+use crate::error::{Error, Result};
 
 /// Strips leading/trailing XML whitespace (space, tab, CR, LF).
 pub fn trim_xml_ws(s: &str) -> &str {
@@ -27,6 +28,18 @@ pub const fn is_xml_char(c: char) -> bool {
 /// byte offset.
 pub fn first_invalid_xml_char(s: &str) -> Option<(usize, char)> {
     s.char_indices().find(|&(_, c)| !is_xml_char(c))
+}
+
+/// Refuses a value that XML 1.0 cannot represent (ADR-0002 post-acceptance
+/// note, "XML characters").
+pub(crate) fn check_xml_chars(value: &str) -> Result<()> {
+    match first_invalid_xml_char(value) {
+        None => Ok(()),
+        Some((offset, ch)) => {
+            core::hint::cold_path();
+            Err(Error::InvalidXmlChar { ch, offset })
+        }
+    }
 }
 
 /// Identity parser for string-valued attributes.

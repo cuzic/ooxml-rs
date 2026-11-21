@@ -63,7 +63,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [package_roundtrip, xml_t1, xml_t1b, lens_ops, xlsx_edit, pptx_edit, docx_edit, xlsx_formula_edit, docx_replace]
+        target: [package_roundtrip, xml_t1, xml_t1b, leaf_text, lens_ops, xlsx_edit, pptx_edit, docx_edit, xlsx_formula_edit, docx_replace]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

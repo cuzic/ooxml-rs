@@ -34,4 +34,4 @@ pub use package::{
     RemovedPart, RemovedParts, Target,
 };
 pub use schema::{AttrError, AttrSpec, ChildOf, Content, Detachable, ElementSpec, EnumType, EnumValue, SameType, SimpleType, Slot, UniqueAttr, Wildcard};
-pub use xml::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_PACKAGE_BYTES, DEFAULT_MAX_PART_BYTES, ElementSpan, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
+pub use xml::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_PACKAGE_BYTES, DEFAULT_MAX_PART_BYTES, ElementSpan, LeafStep, ParseOptions, RawAttr, RawItem, RawNode, RawText, XmlDocument};
