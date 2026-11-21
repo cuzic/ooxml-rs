@@ -15,10 +15,11 @@
 //! Bytes before and after the root element (XML declaration, BOM, comments)
 //! are always emitted verbatim.
 //!
-//! The tree is only mutated through [`LensMut`], which owns
-//! the dirty-flag duties (ADR-0002 §4.2).
+//! [`LensMut`] and the schemaless leaf-text API maintain the dirty flags
+//! when editing the tree (ADR-0002 §4.2 and ADR-0015 §6.2).
 
 mod interner;
+mod leaf_text;
 mod node;
 mod parse;
 mod source;
@@ -26,6 +27,7 @@ mod write;
 
 use std::sync::Arc;
 
+pub use leaf_text::LeafStep;
 pub use node::RawNode;
 pub(crate) use source::SStr;
 use std::ops::Range;
@@ -188,6 +190,16 @@ pub(crate) fn node_at_mut<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut 
     })
 }
 
+/// Marks the target and its ancestors dirty, then returns the target.
+pub(crate) fn mark_path_dirty<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut RawNode {
+    root.mark_subtree_dirty();
+    path.iter().fold(root, |node, &index| {
+        let child = node.child_mut(index).and_then(RawItem::as_element_mut).expect("validated element path");
+        child.mark_subtree_dirty();
+        child
+    })
+}
+
 /// Default for [`ParseOptions::max_depth`].
 ///
 /// The deepest element nesting in the parts we test against (Apache POI,
@@ -338,7 +350,7 @@ impl XmlDocument {
         &mut self.root
     }
 
-    /// True if anything was changed through the lens.
+    /// True if the tree has edits to serialize.
     pub fn is_dirty(&self) -> bool {
         self.root.subtree_dirty()
     }

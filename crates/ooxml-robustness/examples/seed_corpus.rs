@@ -129,6 +129,12 @@ fn main() -> std::io::Result<()> {
         println!("{t}: {} XML parts", xml_parts.len());
     }
 
+    let leaf_dir = dir("leaf_text")?;
+    for child in 0..5 {
+        // One text atom ("a"), a valid path mode and the chosen fallback child.
+        std::fs::write(leaf_dir.join(format!("child-{child}")), [1, 0, 2, 2, child])?;
+    }
+
     // Lens: every base document with a few random op sequences.
     let d = dir("lens_ops")?;
     let mut rng = Rng::new(1);
@@ -155,7 +161,7 @@ fn main() -> std::io::Result<()> {
         std::fs::write(dir("docx_edit")?.join(format!("targeted-{i}")), input)?;
     }
     if let Some(max) = max {
-        for t in ["package_roundtrip", "xml_t1", "xml_t1b", "lens_ops", "xlsx_edit", "pptx_edit", "docx_edit", "xlsx_formula_edit", "docx_replace"] {
+        for t in ["package_roundtrip", "xml_t1", "xml_t1b", "leaf_text", "lens_ops", "xlsx_edit", "pptx_edit", "docx_edit", "xlsx_formula_edit", "docx_replace"] {
             println!("{t}: thinned to {}", thin(&out.join(t), max)?);
         }
     }

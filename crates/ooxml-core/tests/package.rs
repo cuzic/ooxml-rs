@@ -5,7 +5,7 @@ use std::assert_matches;
 use std::io::{Cursor, Read, Write};
 use std::path::PathBuf;
 
-use ooxml_core::{Error, Package, PartStateKind, QName, RemoveRefusal};
+use ooxml_core::{Error, LeafStep, Package, PartStateKind, QName, RemoveRefusal};
 use zip::ZipArchive;
 use zip::write::SimpleFileOptions;
 
@@ -60,6 +60,26 @@ fn parsing_for_inspection_does_not_change_output() {
         assert_eq!(pkg.state(name), Some(PartStateKind::Parsed { dirty: false }));
     }
     assert_eq!(entries(&pkg.to_bytes().unwrap()), entries(&input));
+}
+
+#[test]
+fn leaf_text_refuses_opc_metadata_without_changing_package_bytes() {
+    let input = std::fs::read(FIXTURE).unwrap();
+    let mut pkg = Package::from_bytes(input.clone()).unwrap();
+    for (part, ns, root, leaf) in [
+        ("_rels/.rels", "http://schemas.openxmlformats.org/package/2006/relationships", "Relationships", "Relationship"),
+        ("[Content_Types].xml", "http://schemas.openxmlformats.org/package/2006/content-types", "Types", "Default"),
+    ] {
+        let path = [LeafStep { ns, local: root, index: 0 }, LeafStep { ns, local: leaf, index: 0 }];
+        let before = pkg.read_part(part).unwrap();
+        let doc = pkg.xml_part_mut(part).unwrap();
+        assert!(doc.root().elements().any(|child| child.name().local() == leaf));
+        assert_matches!(doc.check_set_leaf_text(&path, "new"), Err(Error::TypedNamespace));
+        assert_matches!(doc.set_leaf_text(&path, "new"), Err(Error::TypedNamespace));
+        assert!(!doc.is_dirty());
+        assert_eq!(pkg.read_part(part).unwrap(), before);
+    }
+    assert_eq!(pkg.to_bytes().unwrap(), input);
 }
 
 #[test]

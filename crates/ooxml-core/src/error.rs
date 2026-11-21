@@ -141,6 +141,18 @@ pub enum Error {
         /// Its byte offset in the value.
         offset: usize,
     },
+    /// A leaf-text path is empty or its requested element does not exist.
+    #[error("no such element on the leaf-text path")]
+    NoSuchElement,
+    /// A leaf-text target contains an element, comment or processing instruction.
+    #[error("the leaf-text target contains non-text children")]
+    NotLeaf,
+    /// A leaf-text path enters a namespace reserved for structured editing.
+    #[error("the leaf-text path contains a typed namespace")]
+    TypedNamespace,
+    /// A leaf-text target has an `xsi:nil` value that is true or invalid.
+    #[error("the leaf-text target has a true or invalid xsi:nil value")]
+    NilElement,
     /// [`Lens::detach_as`](crate::Lens::detach_as) refused the subtree
     /// (ADR-0002 post-acceptance note "detach/insert").
     #[error("cannot detach: {reason} ({name})")]
