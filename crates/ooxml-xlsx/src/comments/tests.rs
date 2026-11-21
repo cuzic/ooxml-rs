@@ -316,6 +316,30 @@ fn new_vml_declares_namespaces_and_appends_shapes_above_existing_ones() {
 }
 
 #[test]
+fn new_vml_shape_uses_positive_z_index_when_existing_shapes_are_negative() {
+    let wb = workbook_with_note();
+    let original = doc(wb.package(), VML)
+        .source()
+        .replace("z-index:1", "z-index:-5");
+    let mut wb = with_part(&wb, VML, original);
+    let at = cell("B2");
+    wb.worksheet()
+        .unwrap()
+        .add_note(at, Note::new("Top"))
+        .unwrap();
+
+    let reopened = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    let updated = doc(reopened.package(), VML);
+    let shape = vml::note_shape(VML, &updated, at).unwrap().unwrap();
+    assert!(
+        shape
+            .attr(xml::attr("style"))
+            .unwrap()
+            .contains(";z-index:1;")
+    );
+}
+
+#[test]
 fn note_thread_refusals_preserve_the_archive() {
     let mut wb = workbook_with_note();
     let person = wb.person("Ana", PersonId::None).unwrap();

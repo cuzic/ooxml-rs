@@ -1067,5 +1067,7 @@ type attribute and the shared-string reference count when applicable.
 - A fallback note without a threaded comment on its cell can be edited and removed as a regular note.
 - Microsoft 365 Excel (16.0.20326) round-trips ST_Xstring escapes in thread text, including literal `_xHHHH_` sequences and control characters.
 - Adding a note to a threaded cell with a fallback note returns `NoteExists`.
-- New VML parts declare `v`, `o` and `x` on their root. New shapes use the maximum numeric z-index plus one (one if absent). If the maximum is `i64::MAX`, the addition is refused.
+- New VML parts declare `v`, `o` and `x` on their root. New shapes use
+  `max(0, existing numeric z-indices) + 1`, so their z-index is at least 1. If the
+  maximum is `i64::MAX`, the addition is refused.
 - Inserted comment, author, text and person elements reuse an in-scope default namespace when it matches their namespace.

@@ -259,6 +259,7 @@ pub(super) fn append(
         })
         .max()
         .unwrap_or_default()
+        .max(0)
         .checked_add(1)
         .ok_or_else(|| part_error(part, "VML z-index exhausted"))?;
     if let Some(doc) = doc
