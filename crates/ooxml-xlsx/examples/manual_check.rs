@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use ooxml_xlsx::{Comment, Note, PersonId, CellRange, Col, Table, TableStyle, Total, Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
+use ooxml_xlsx::{SparklineGroup, SparklineType, Comment, Note, PersonId, CellRange, Col, Table, TableStyle, Total, Anchor, Border, CellIndex, Image, Size, CellValue, Color, ExcelDateTime, Fill, Font, Format, Result, Side, Tint, Underline, Workbook, Worksheet};
 
 type BoxResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// (original for `originals/`, edited output)
@@ -470,6 +470,26 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     ws.reply(at, Comment::new("Fixed").by(sam))?;
     thread.save(out_dir.join("41-p5c-thread.xlsx"))?;
     md.push_str("- [ ] Open `41-p5c-thread.xlsx` without repair. D3 has Ana's ‘Looks wrong’ thread and Sam's ‘Fixed’ reply. In an older Excel version, check that the fallback note shows both messages. Save and reopen.\n");
+    md.push_str("\n## Phase 5d — sparklines and dynamic arrays (ADR-0017)\n\n");
+    let mut sparklines = Workbook::new()?;
+    let mut ws = sparklines.worksheet()?;
+    for (column, value) in [3.0, 1.0, 2.0].into_iter().enumerate() {
+        ws.write_number(0, column as u32, value)?;
+    }
+    ws.add_sparklines(SparklineGroup::new(SparklineType::Line).add("D1", "Sheet1!A1:C1"))?;
+    ws.add_sparklines(SparklineGroup::new(SparklineType::Column).add("E1", "Sheet1!A1:C1"))?;
+    sparklines.save(out_dir.join("42-p5d-sparklines.xlsx"))?;
+    md.push_str("- [ ] Open `42-p5d-sparklines.xlsx` without repair. D1 shows a line and E1 shows columns for A1:C1. Save and reopen.\n");
+
+    let mut dynamic = Workbook::new()?;
+    let mut ws = dynamic.worksheet()?;
+    for (row, value) in [3.0, 1.0, 2.0].into_iter().enumerate() {
+        ws.write_number(row as u32, 0, value)?;
+    }
+    ws.cell_mut(0, 2)?.set_dynamic_formula("_xlfn._xlws.SORT(A1:A3)")?;
+    dynamic.save(out_dir.join("43-p5d-dynamic-array.xlsx"))?;
+    md.push_str("- [ ] Open `43-p5d-dynamic-array.xlsx` without repair. C1 spills the sorted values 1, 2, 3 into C1:C3. Save and reopen.\n");
+
     md.push_str(CHECKLIST_TAIL);
     std::fs::write(out_dir.join("CHECKLIST.md"), md)?;
     // Self-check before handing the bundle over: every output re-opens with
@@ -480,7 +500,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .chain(P2_CASES.iter().map(|c| c.out))
         .chain(P3_CASES.iter().map(|c| c.out))
         .chain(P4_CASES.iter().map(|c| c.out))
-        .chain(["32-p5a-images.xlsx", P5B_CASE.out, "40-p5c-note.xlsx", "41-p5c-thread.xlsx"])
+        .chain(["32-p5a-images.xlsx", P5B_CASE.out, "40-p5c-note.xlsx", "41-p5c-thread.xlsx", "42-p5d-sparklines.xlsx", "43-p5d-dynamic-array.xlsx"])
         .collect();
     for out in &outs {
         let path = out_dir.join(out);

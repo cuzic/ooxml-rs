@@ -806,3 +806,49 @@ fn theme_reference_shape_and_coordinate_raw() {
         assert_eq!(r.value.unwrap_err().raw, "q1");
     });
 }
+
+#[test]
+fn theme_edit_keeps_direct_provenance_and_respects_override() {
+    use ooxml_pptx::{ThemeColor, ThemeColorSlot, ThemeFonts};
+
+    let run = r#"<a:r><a:rPr lang="en-US"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:latin typeface="+mj-lt"/></a:rPr><a:t>x</a:t></a:r>"#;
+    let rels = "ppt/slides/_rels/slide1.xml.rels";
+    let override_rel = r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/themeOverride" Target="../theme/themeOverride1.xml"/></Relationships>"#;
+    for has_override in [false, true] {
+        let mut edits = vec![(SLIDE, TITLE_RUN, run)];
+        if has_override {
+            edits.push((rels, "</Relationships>", override_rel));
+        }
+        let mut p = patched(&edits);
+        let read = |p: &mut Presentation| title_run(p, |rp, _| {
+            if has_override {
+                assert_eq!(rp.latin, Lookup::Unresolved(Reason::ThemeOverride));
+                assert_eq!(rp.fill, Lookup::Unresolved(Reason::ThemeOverride));
+                return None;
+            }
+            assert_eq!(rp.latin.source(), Some(&Source::Direct));
+            assert_eq!(rp.fill.source(), Some(&Source::Direct));
+            let font = rp.latin.value().unwrap();
+            let Some(Fill::Solid(color)) = rp.fill.value() else { panic!("{:?}", rp.fill) };
+            assert_eq!(font.theme_ref, Some("+mj-lt"));
+            assert_eq!(color.val, Some("accent1"));
+            assert_eq!(color.theme_slot.map(|slot| slot.as_str()), Some("accent1"));
+            Some((font.typeface.to_owned(), color.base_rgb.unwrap()))
+        });
+        let before = read(&mut p);
+        let mut theme = p.master_theme_mut(0).unwrap();
+        theme.set_color(ThemeColorSlot::Accent1, ThemeColor::Rgb([1, 42, 79])).unwrap();
+        theme
+            .set_major_font(ThemeFonts {
+                latin: Some("Test theme typeface"),
+                ..ThemeFonts::default()
+            })
+            .unwrap();
+        let mut reopened = Presentation::from_bytes(p.to_bytes().unwrap()).unwrap();
+        let after = read(&mut reopened);
+        if !has_override {
+            assert_ne!(before, after);
+            assert_eq!(after, Some(("Test theme typeface".into(), [1, 42, 79])));
+        }
+    }
+}

@@ -118,6 +118,8 @@ pub(crate) struct Census {
     pub(crate) by_pos: HashMap<(usize, CellIndex), usize>,
     /// Every cell with `vm` (formula or not).
     pub(crate) vm_cells: HashSet<(usize, CellIndex)>,
+    /// Sheets with implicit row or cell references, even without formulas.
+    pub(crate) implicit_references: HashSet<usize>,
     pub(crate) block: Option<EditBlock>,
     /// Some formula has `bx` true.
     pub(crate) bx_any: bool,
@@ -172,7 +174,7 @@ impl Census {
     }
 }
 
-fn attr(e: &BytesStart<'_>, local: &str) -> Result<Option<String>, String> {
+pub(crate) fn attr(e: &BytesStart<'_>, local: &str) -> Result<Option<String>, String> {
     for a in e.attributes().with_checks(true) {
         let a = a.map_err(|e| e.to_string())?;
         if a.key.prefix().is_none() && a.key.local_name().into_inner() == local {
@@ -359,6 +361,9 @@ pub(crate) fn scan_sheet(
             _ => {}
         }
     }
+    if missing_r {
+        census.implicit_references.insert(sheet);
+    }
     if formula_without_r || (missing_r && !found.is_empty()) {
         census.block(EditBlock::MissingReference { part: part.to_owned() });
     }
@@ -480,6 +485,13 @@ fn finish_cell(
 /// `cm` values (1-based `cellMetadata` blocks) that denote an XLDAPR
 /// dynamic array (`xda:dynamicArrayProperties fDynamic="1"`).
 pub(crate) fn dynamic_array_cms(xml: &[u8]) -> Result<HashSet<u32>, String> {
+    scan_dynamic_array_cms(xml, |_| Ok(true))
+}
+
+pub(crate) fn scan_dynamic_array_cms(
+    xml: &[u8],
+    accept_properties: impl Fn(&BytesStart<'_>) -> Result<bool, String>,
+) -> Result<HashSet<u32>, String> {
     let mut reader = NsReader::from_reader(xml);
     let mut types: Vec<String> = Vec::new();
     // futureMetadata name -> per-block "fDynamic"
@@ -515,8 +527,9 @@ pub(crate) fn dynamic_array_cms(xml: &[u8]) -> Result<HashSet<u32>, String> {
                             b.push((t, v));
                         }
                     }
-                    (false, "dynamicArrayProperties") if stack.iter().any(|s| s == "futureMetadata") => {
+                    (false, "dynamicArrayProperties") if matches!(ns, ResolveResult::Bound(n) if n.into_inner() == crate::dynamic::XDA) && stack.iter().rev().map(String::as_str).take(4).eq(["ext", "extLst", "bk", "futureMetadata"]) => {
                         if truthy(attr(e, "fDynamic")?.as_deref())
+                            && accept_properties(e)?
                             && let Some(n) = &cur_future
                             && let Some(last) = future.get_mut(n).and_then(|v| v.last_mut())
                         {

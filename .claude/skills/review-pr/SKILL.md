@@ -73,4 +73,6 @@ converged: yes/no（Blocker n / Major n / Minor n / nit n）
 push が拒否されたら `git pull --no-rebase origin <branch>` してから push し直す（force-push しない）。
 ADR のレビューも同じく、その ADR の PR ブランチに入れる。
 
+push したら、自分のクローンとプローブ用の build target を消す（数 GB になる）。
+
 最後の返答では、結論・判定・指摘を 1 行ずつと、push したコミットの SHA を返す。

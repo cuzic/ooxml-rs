@@ -600,6 +600,19 @@ fonts the override replaces (review m14). ADR-0008 does not apply
 `themeOverride` (§1.4): theme-dependent lookups on such a part stay
 `Unresolved(ThemeOverride)`, and Phase 3 does not change that.
 
+**Post-acceptance note (issue #127).** Shared-theme detection counts
+incoming theme relationships from other slide, notes and handout masters
+by source content type. Adding a table style refuses a direct
+`mc:AlternateContent` child of `a:tblStyleLst`. Editing a theme colour
+refuses `a:clrScheme`, the selected slot, or its colour value when wrapped
+in `mc:AlternateContent`. Font edits also refuse wrapped elements on the
+path to a selected typeface. These refusals report `UnsupportedContent`.
+Newly created table style parts use the same XML declaration as new slides.
+Each field of `ThemeFonts` is an `Option<&str>`. `None` preserves the
+current typeface and `Some("")` explicitly clears it. Theme font reference
+prefixes `+mj-` and `+mn-` are refused with `ValueOutOfRange` after
+trimming surrounding whitespace and ignoring ASCII case.
+
 ### 11. Errors
 
 | Error | When |
@@ -913,3 +926,33 @@ Absent or unusable dimensions use the template dimensions for that size.
 Each new notes slide uses the master's placeholder order and inherits its
 geometry. A master without a body placeholder still gets an editable body
 on the new notes slide. Manual case 33 uses an A4 page and a 16:10 slide.
+
+### Post-acceptance note — P3e table styles and master theme edits
+
+`Presentation::add_table_style` appends the definition via the presentation's
+`tableStyles` relationship. New lists use the §9 default and the exact OPC
+part name. A dangling internal relationship reserves its target name, so
+allocation returns `Core(RegistryRefused { reason: NameInUse, .. })`. An
+external or unresolvable target is refused as `UnsupportedContent`.
+The UUID v8 seed uses the UTF-8 name followed by existing style IDs in document
+order, each preceded by its byte length in big-endian form. The hash includes
+an incrementing attempt counter starting at zero. Comparison with existing
+and built-in IDs trims whitespace and ignores ASCII case.
+
+`master_theme_mut` uses the zero-based index in `p:sldMasterIdLst`.
+`master_theme_mut_with` takes `ThemeOptions { allow_shared: true }` to permit
+editing a theme shared by slide masters or a slide master and a notes master.
+Each setter stages one cloned theme in a registry transaction. A font setter
+changes the three typeface attributes atomically and preserves supplemental
+script fonts. Missing required theme elements are refused with
+`UnsupportedContent`. Theme provenance is reported by the existing resolver
+as `Source`, `Font::theme_ref` and the resolved `Font::typeface`, and
+`Color::theme_slot` / `Color::base_rgb`. Manual cases 34 and 35 cover the two
+edits.
+
+PR #102 follow-up (m1–m3, n1–n2). Notes creation refuses a dangling or external
+`notesSlide` relationship with `UnsupportedContent`. The same error names the
+`notesMasterIdLst` when it occurs inside `mc:AlternateContent`. The fallback
+body for a notes master without a body placeholder has no inherited position
+or size. `notes_mut_or_create` validates the notes master root even when
+reusing an existing notes slide.

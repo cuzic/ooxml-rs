@@ -918,3 +918,46 @@ fn tracked_structure_refuses_move_and_custom_xml_ranges() {
         assert_eq!(doc.to_bytes().unwrap(), input);
     }
 }
+
+#[test]
+fn tracked_delete_refuses_to_orphan_a_vertical_merge() {
+    let body = table()
+        .replacen("<w:tc>", "<w:tc><w:tcPr><w:vMerge w:val='restart'/></w:tcPr>", 1)
+        .replace(&format!("<w:tc>{B}"), &format!("<w:tc><w:tcPr><w:vMerge/></w:tcPr>{B}"));
+    let input = docx(&body, None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let table = TableRef::new(StoryIndex::MAIN, 0);
+    assert_matches!(
+        doc.track_changes(author(), None).unwrap().delete_rows(table, 0..1),
+        Err(Error::TrackedPropertyChange { element: "w:vMerge" })
+    );
+    assert_eq!(doc.to_bytes().unwrap(), input);
+    doc.delete_rows(table, 0..1).unwrap();
+    let output = xml(&doc.to_bytes().unwrap());
+    let tree = roxmltree::Document::parse(&output).unwrap();
+    let merge = tree.descendants().find(|node| w(*node, "vMerge")).unwrap();
+    assert_eq!(merge.attribute((W_NS, "val")), Some("restart"));
+}
+
+#[test]
+fn tracked_insert_refuses_revision_at_boundary_or_marker_in_template() {
+    let start = "<w:customXmlInsRangeStart w:id='11'/>";
+    let end = "<w:customXmlInsRangeEnd w:id='11'/>";
+    let at_end = table().replace("</w:tbl>", &format!("{start}</w:tbl>{end}"));
+    let in_template = table().replacen(
+        "</w:p>",
+        &format!("{start}{end}</w:p>"),
+        1,
+    );
+    for (body, position) in [(at_end, 2), (in_template, 1)] {
+        let input = docx(&body, None, None);
+        let mut doc = Document::from_bytes(input.clone()).unwrap();
+        assert_matches!(
+            doc.track_changes(author(), None).unwrap().insert_rows(
+                TableRef::new(StoryIndex::MAIN, 0), position, 1, RowTemplate::Above,
+            ),
+            Err(Error::InsideRevision { .. })
+        );
+        assert_eq!(doc.to_bytes().unwrap(), input);
+    }
+}

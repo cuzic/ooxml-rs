@@ -1554,6 +1554,30 @@ impl ooxml_core::EnumType for CompoundLineValues {
         self as usize
     }
 }
+/// `a:ST_OnOffStyleType` — On/Off Style Type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BooleanStyleValues {
+    /// `on`
+    On,
+    /// `off`
+    Off,
+    /// `def`
+    Default,
+}
+impl ooxml_core::EnumType for BooleanStyleValues {
+    const VALUES: &'static [&'static str] = &["on", "off", "def"];
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::On),
+            1 => Some(Self::Off),
+            2 => Some(Self::Default),
+            _ => None,
+        }
+    }
+    fn index(self) -> usize {
+        self as usize
+    }
+}
 /// `a:ST_TextVertOverflowType` — Text Vertical Overflow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextVerticalOverflowValues {
@@ -3112,6 +3136,57 @@ impl<'a> ThemeElementsView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`ThemeElements`]. Reads go through [`ThemeElementsViewMut::as_view`].
+#[derive(Debug)]
+pub struct ThemeElementsViewMut<'a>(pub ooxml_core::LensMut<'a, ThemeElements>);
+impl<'a> ThemeElementsViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ThemeElementsView<'_> {
+        ThemeElementsView(self.0.as_lens())
+    }
+    /// First `a:clrScheme` child, mutably.
+    pub fn color_scheme_mut(&mut self) -> Option<ColorSchemeViewMut<'_>> {
+        self.0.child_mut::<ColorScheme>().map(ColorSchemeViewMut)
+    }
+    /// Existing `a:clrScheme` child, or a new one in schema position.
+    pub fn get_or_insert_color_scheme(
+        &mut self,
+    ) -> Result<ColorSchemeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ColorScheme>().map(ColorSchemeViewMut)
+    }
+    /// Removes the first `a:clrScheme` child.
+    pub fn remove_color_scheme(&mut self) -> bool {
+        self.0.remove::<ColorScheme>()
+    }
+    /// First `a:fontScheme` child, mutably.
+    pub fn font_scheme_mut(&mut self) -> Option<FontSchemeViewMut<'_>> {
+        self.0.child_mut::<FontScheme>().map(FontSchemeViewMut)
+    }
+    /// Existing `a:fontScheme` child, or a new one in schema position.
+    pub fn get_or_insert_font_scheme(
+        &mut self,
+    ) -> Result<FontSchemeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FontScheme>().map(FontSchemeViewMut)
+    }
+    /// Removes the first `a:fontScheme` child.
+    pub fn remove_font_scheme(&mut self) -> bool {
+        self.0.remove::<FontScheme>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+}
 /// `a:CT_Blip/a:blip` — Defines the Blip Class.
 #[derive(Debug)]
 pub enum Blip {}
@@ -3665,6 +3740,57 @@ impl<'a> Accent1ColorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Accent1Color`]. Reads go through [`Accent1ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Accent1ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Accent1Color>);
+impl<'a> Accent1ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Accent1ColorView<'_> {
+        Accent1ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_Color2/a:accent2` — Accent 2.
 #[derive(Debug)]
 pub enum Accent2Color {}
@@ -3721,6 +3847,57 @@ impl<'a> Accent2ColorView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Accent2Color`]. Reads go through [`Accent2ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Accent2ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Accent2Color>);
+impl<'a> Accent2ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Accent2ColorView<'_> {
+        Accent2ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_Color2/a:accent3` — Accent 3.
@@ -3781,6 +3958,57 @@ impl<'a> Accent3ColorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Accent3Color`]. Reads go through [`Accent3ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Accent3ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Accent3Color>);
+impl<'a> Accent3ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Accent3ColorView<'_> {
+        Accent3ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_Color2/a:accent4` — Accent 4.
 #[derive(Debug)]
 pub enum Accent4Color {}
@@ -3837,6 +4065,57 @@ impl<'a> Accent4ColorView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Accent4Color`]. Reads go through [`Accent4ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Accent4ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Accent4Color>);
+impl<'a> Accent4ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Accent4ColorView<'_> {
+        Accent4ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_Color2/a:accent5` — Accent 5.
@@ -3897,6 +4176,57 @@ impl<'a> Accent5ColorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Accent5Color`]. Reads go through [`Accent5ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Accent5ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Accent5Color>);
+impl<'a> Accent5ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Accent5ColorView<'_> {
+        Accent5ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_Color2/a:accent6` — Accent 6.
 #[derive(Debug)]
 pub enum Accent6Color {}
@@ -3953,6 +4283,57 @@ impl<'a> Accent6ColorView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Accent6Color`]. Reads go through [`Accent6ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Accent6ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Accent6Color>);
+impl<'a> Accent6ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Accent6ColorView<'_> {
+        Accent6ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_Color2/a:dk1` — Dark 1.
@@ -4013,6 +4394,57 @@ impl<'a> Dark1ColorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Dark1Color`]. Reads go through [`Dark1ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Dark1ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Dark1Color>);
+impl<'a> Dark1ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Dark1ColorView<'_> {
+        Dark1ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_Color2/a:dk2` — Dark 2.
 #[derive(Debug)]
 pub enum Dark2Color {}
@@ -4069,6 +4501,57 @@ impl<'a> Dark2ColorView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Dark2Color`]. Reads go through [`Dark2ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Dark2ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Dark2Color>);
+impl<'a> Dark2ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Dark2ColorView<'_> {
+        Dark2ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_Color2/a:folHlink` — Followed Hyperlink.
@@ -4131,6 +4614,59 @@ impl<'a> FollowedHyperlinkColorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`FollowedHyperlinkColor`]. Reads go through [`FollowedHyperlinkColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct FollowedHyperlinkColorViewMut<'a>(
+    pub ooxml_core::LensMut<'a, FollowedHyperlinkColor>,
+);
+impl<'a> FollowedHyperlinkColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FollowedHyperlinkColorView<'_> {
+        FollowedHyperlinkColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_Color2/a:hlink` — Hyperlink.
 #[derive(Debug)]
 pub enum Hyperlink {}
@@ -4187,6 +4723,57 @@ impl<'a> HyperlinkView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Hyperlink`]. Reads go through [`HyperlinkViewMut::as_view`].
+#[derive(Debug)]
+pub struct HyperlinkViewMut<'a>(pub ooxml_core::LensMut<'a, Hyperlink>);
+impl<'a> HyperlinkViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> HyperlinkView<'_> {
+        HyperlinkView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_Color2/a:lt1` — Light 1.
@@ -4247,6 +4834,57 @@ impl<'a> Light1ColorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Light1Color`]. Reads go through [`Light1ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Light1ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Light1Color>);
+impl<'a> Light1ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Light1ColorView<'_> {
+        Light1ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_Color2/a:lt2` — Light 2.
 #[derive(Debug)]
 pub enum Light2Color {}
@@ -4303,6 +4941,57 @@ impl<'a> Light2ColorView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Light2Color`]. Reads go through [`Light2ColorViewMut::as_view`].
+#[derive(Debug)]
+pub struct Light2ColorViewMut<'a>(pub ooxml_core::LensMut<'a, Light2Color>);
+impl<'a> Light2ColorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Light2ColorView<'_> {
+        Light2ColorView(self.0.as_lens())
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_ColorMapping/a:overrideClrMapping` — Override Color Mapping.
@@ -4682,6 +5371,209 @@ impl<'a> ColorSchemeView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`ColorScheme`]. Reads go through [`ColorSchemeViewMut::as_view`].
+#[derive(Debug)]
+pub struct ColorSchemeViewMut<'a>(pub ooxml_core::LensMut<'a, ColorScheme>);
+impl<'a> ColorSchemeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ColorSchemeView<'_> {
+        ColorSchemeView(self.0.as_lens())
+    }
+    /// Sets `name` — Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(ColorScheme::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(ColorScheme::ATTR_NAME)
+    }
+    /// First `a:accent1` child, mutably.
+    pub fn accent1_color_mut(&mut self) -> Option<Accent1ColorViewMut<'_>> {
+        self.0.child_mut::<Accent1Color>().map(Accent1ColorViewMut)
+    }
+    /// Existing `a:accent1` child, or a new one in schema position.
+    pub fn get_or_insert_accent1_color(
+        &mut self,
+    ) -> Result<Accent1ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Accent1Color>().map(Accent1ColorViewMut)
+    }
+    /// Removes the first `a:accent1` child.
+    pub fn remove_accent1_color(&mut self) -> bool {
+        self.0.remove::<Accent1Color>()
+    }
+    /// First `a:accent2` child, mutably.
+    pub fn accent2_color_mut(&mut self) -> Option<Accent2ColorViewMut<'_>> {
+        self.0.child_mut::<Accent2Color>().map(Accent2ColorViewMut)
+    }
+    /// Existing `a:accent2` child, or a new one in schema position.
+    pub fn get_or_insert_accent2_color(
+        &mut self,
+    ) -> Result<Accent2ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Accent2Color>().map(Accent2ColorViewMut)
+    }
+    /// Removes the first `a:accent2` child.
+    pub fn remove_accent2_color(&mut self) -> bool {
+        self.0.remove::<Accent2Color>()
+    }
+    /// First `a:accent3` child, mutably.
+    pub fn accent3_color_mut(&mut self) -> Option<Accent3ColorViewMut<'_>> {
+        self.0.child_mut::<Accent3Color>().map(Accent3ColorViewMut)
+    }
+    /// Existing `a:accent3` child, or a new one in schema position.
+    pub fn get_or_insert_accent3_color(
+        &mut self,
+    ) -> Result<Accent3ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Accent3Color>().map(Accent3ColorViewMut)
+    }
+    /// Removes the first `a:accent3` child.
+    pub fn remove_accent3_color(&mut self) -> bool {
+        self.0.remove::<Accent3Color>()
+    }
+    /// First `a:accent4` child, mutably.
+    pub fn accent4_color_mut(&mut self) -> Option<Accent4ColorViewMut<'_>> {
+        self.0.child_mut::<Accent4Color>().map(Accent4ColorViewMut)
+    }
+    /// Existing `a:accent4` child, or a new one in schema position.
+    pub fn get_or_insert_accent4_color(
+        &mut self,
+    ) -> Result<Accent4ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Accent4Color>().map(Accent4ColorViewMut)
+    }
+    /// Removes the first `a:accent4` child.
+    pub fn remove_accent4_color(&mut self) -> bool {
+        self.0.remove::<Accent4Color>()
+    }
+    /// First `a:accent5` child, mutably.
+    pub fn accent5_color_mut(&mut self) -> Option<Accent5ColorViewMut<'_>> {
+        self.0.child_mut::<Accent5Color>().map(Accent5ColorViewMut)
+    }
+    /// Existing `a:accent5` child, or a new one in schema position.
+    pub fn get_or_insert_accent5_color(
+        &mut self,
+    ) -> Result<Accent5ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Accent5Color>().map(Accent5ColorViewMut)
+    }
+    /// Removes the first `a:accent5` child.
+    pub fn remove_accent5_color(&mut self) -> bool {
+        self.0.remove::<Accent5Color>()
+    }
+    /// First `a:accent6` child, mutably.
+    pub fn accent6_color_mut(&mut self) -> Option<Accent6ColorViewMut<'_>> {
+        self.0.child_mut::<Accent6Color>().map(Accent6ColorViewMut)
+    }
+    /// Existing `a:accent6` child, or a new one in schema position.
+    pub fn get_or_insert_accent6_color(
+        &mut self,
+    ) -> Result<Accent6ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Accent6Color>().map(Accent6ColorViewMut)
+    }
+    /// Removes the first `a:accent6` child.
+    pub fn remove_accent6_color(&mut self) -> bool {
+        self.0.remove::<Accent6Color>()
+    }
+    /// First `a:dk1` child, mutably.
+    pub fn dark1_color_mut(&mut self) -> Option<Dark1ColorViewMut<'_>> {
+        self.0.child_mut::<Dark1Color>().map(Dark1ColorViewMut)
+    }
+    /// Existing `a:dk1` child, or a new one in schema position.
+    pub fn get_or_insert_dark1_color(
+        &mut self,
+    ) -> Result<Dark1ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Dark1Color>().map(Dark1ColorViewMut)
+    }
+    /// Removes the first `a:dk1` child.
+    pub fn remove_dark1_color(&mut self) -> bool {
+        self.0.remove::<Dark1Color>()
+    }
+    /// First `a:dk2` child, mutably.
+    pub fn dark2_color_mut(&mut self) -> Option<Dark2ColorViewMut<'_>> {
+        self.0.child_mut::<Dark2Color>().map(Dark2ColorViewMut)
+    }
+    /// Existing `a:dk2` child, or a new one in schema position.
+    pub fn get_or_insert_dark2_color(
+        &mut self,
+    ) -> Result<Dark2ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Dark2Color>().map(Dark2ColorViewMut)
+    }
+    /// Removes the first `a:dk2` child.
+    pub fn remove_dark2_color(&mut self) -> bool {
+        self.0.remove::<Dark2Color>()
+    }
+    /// First `a:folHlink` child, mutably.
+    pub fn followed_hyperlink_color_mut(
+        &mut self,
+    ) -> Option<FollowedHyperlinkColorViewMut<'_>> {
+        self.0.child_mut::<FollowedHyperlinkColor>().map(FollowedHyperlinkColorViewMut)
+    }
+    /// Existing `a:folHlink` child, or a new one in schema position.
+    pub fn get_or_insert_followed_hyperlink_color(
+        &mut self,
+    ) -> Result<FollowedHyperlinkColorViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<FollowedHyperlinkColor>()
+            .map(FollowedHyperlinkColorViewMut)
+    }
+    /// Removes the first `a:folHlink` child.
+    pub fn remove_followed_hyperlink_color(&mut self) -> bool {
+        self.0.remove::<FollowedHyperlinkColor>()
+    }
+    /// First `a:hlink` child, mutably.
+    pub fn hyperlink_mut(&mut self) -> Option<HyperlinkViewMut<'_>> {
+        self.0.child_mut::<Hyperlink>().map(HyperlinkViewMut)
+    }
+    /// Existing `a:hlink` child, or a new one in schema position.
+    pub fn get_or_insert_hyperlink(
+        &mut self,
+    ) -> Result<HyperlinkViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Hyperlink>().map(HyperlinkViewMut)
+    }
+    /// Removes the first `a:hlink` child.
+    pub fn remove_hyperlink(&mut self) -> bool {
+        self.0.remove::<Hyperlink>()
+    }
+    /// First `a:lt1` child, mutably.
+    pub fn light1_color_mut(&mut self) -> Option<Light1ColorViewMut<'_>> {
+        self.0.child_mut::<Light1Color>().map(Light1ColorViewMut)
+    }
+    /// Existing `a:lt1` child, or a new one in schema position.
+    pub fn get_or_insert_light1_color(
+        &mut self,
+    ) -> Result<Light1ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Light1Color>().map(Light1ColorViewMut)
+    }
+    /// Removes the first `a:lt1` child.
+    pub fn remove_light1_color(&mut self) -> bool {
+        self.0.remove::<Light1Color>()
+    }
+    /// First `a:lt2` child, mutably.
+    pub fn light2_color_mut(&mut self) -> Option<Light2ColorViewMut<'_>> {
+        self.0.child_mut::<Light2Color>().map(Light2ColorViewMut)
+    }
+    /// Existing `a:lt2` child, or a new one in schema position.
+    pub fn get_or_insert_light2_color(
+        &mut self,
+    ) -> Result<Light2ColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Light2Color>().map(Light2ColorViewMut)
+    }
+    /// Removes the first `a:lt2` child.
+    pub fn remove_light2_color(&mut self) -> bool {
+        self.0.remove::<Light2Color>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+}
 /// `a:CT_ComplementTransform/a:comp` — Complement.
 #[derive(Debug)]
 pub enum Complement {}
@@ -4923,6 +5815,106 @@ impl<'a> MasterColorMappingView<'a> {
         self.0.raw()
     }
 }
+/// `a:CT_FillProperties/a:fill` — Fill.
+#[derive(Debug)]
+pub enum FillProperties {}
+impl ooxml_core::ElementSpec for FillProperties {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "fill");
+    const SDK_NAME: &'static str = "a:CT_FillProperties/a:fill";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "noFill"),
+                    ooxml_core::QName::new(NS_A, "solidFill"),
+                    ooxml_core::QName::new(NS_A, "gradFill"),
+                    ooxml_core::QName::new(NS_A, "blipFill"),
+                    ooxml_core::QName::new(NS_A, "pattFill"),
+                    ooxml_core::QName::new(NS_A, "grpFill"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FillProperties> for GradientFill {}
+impl ooxml_core::ChildOf<FillProperties> for NoFill {}
+impl ooxml_core::ChildOf<FillProperties> for SolidFill {}
+/// Read-only view of [`FillProperties`].
+#[derive(Clone, Debug)]
+pub struct FillPropertiesView<'a>(pub ooxml_core::Lens<'a, FillProperties>);
+impl<'a> FillPropertiesView<'a> {
+    /// First `a:gradFill` child.
+    pub fn gradient_fill(&self) -> Option<GradientFillView<'a>> {
+        self.0.child::<GradientFill>().map(GradientFillView)
+    }
+    /// First `a:noFill` child.
+    pub fn no_fill(&self) -> Option<NoFillView<'a>> {
+        self.0.child::<NoFill>().map(NoFillView)
+    }
+    /// First `a:solidFill` child.
+    pub fn solid_fill(&self) -> Option<SolidFillView<'a>> {
+        self.0.child::<SolidFill>().map(SolidFillView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FillProperties`]. Reads go through [`FillPropertiesViewMut::as_view`].
+#[derive(Debug)]
+pub struct FillPropertiesViewMut<'a>(pub ooxml_core::LensMut<'a, FillProperties>);
+impl<'a> FillPropertiesViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FillPropertiesView<'_> {
+        FillPropertiesView(self.0.as_lens())
+    }
+    /// First `a:gradFill` child, mutably.
+    pub fn gradient_fill_mut(&mut self) -> Option<GradientFillViewMut<'_>> {
+        self.0.child_mut::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Existing `a:gradFill` child, or a new one in schema position.
+    pub fn get_or_insert_gradient_fill(
+        &mut self,
+    ) -> Result<GradientFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<GradientFill>().map(GradientFillViewMut)
+    }
+    /// Removes the first `a:gradFill` child.
+    pub fn remove_gradient_fill(&mut self) -> bool {
+        self.0.remove::<GradientFill>()
+    }
+    /// First `a:noFill` child, mutably.
+    pub fn no_fill_mut(&mut self) -> Option<NoFillViewMut<'_>> {
+        self.0.child_mut::<NoFill>().map(NoFillViewMut)
+    }
+    /// Existing `a:noFill` child, or a new one in schema position.
+    pub fn get_or_insert_no_fill(
+        &mut self,
+    ) -> Result<NoFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<NoFill>().map(NoFillViewMut)
+    }
+    /// Removes the first `a:noFill` child.
+    pub fn remove_no_fill(&mut self) -> bool {
+        self.0.remove::<NoFill>()
+    }
+    /// First `a:solidFill` child, mutably.
+    pub fn solid_fill_mut(&mut self) -> Option<SolidFillViewMut<'_>> {
+        self.0.child_mut::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Existing `a:solidFill` child, or a new one in schema position.
+    pub fn get_or_insert_solid_fill(
+        &mut self,
+    ) -> Result<SolidFillViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SolidFill>().map(SolidFillViewMut)
+    }
+    /// Removes the first `a:solidFill` child.
+    pub fn remove_solid_fill(&mut self) -> bool {
+        self.0.remove::<SolidFill>()
+    }
+}
 /// `a:CT_FixedPercentage/a:alphaOff` — Alpha Offset.
 #[derive(Debug)]
 pub enum AlphaOffset {}
@@ -5050,6 +6042,71 @@ impl<'a> MajorFontView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`MajorFont`]. Reads go through [`MajorFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct MajorFontViewMut<'a>(pub ooxml_core::LensMut<'a, MajorFont>);
+impl<'a> MajorFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MajorFontView<'_> {
+        MajorFontView(self.0.as_lens())
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:cs` child, mutably.
+    pub fn complex_script_font_mut(&mut self) -> Option<ComplexScriptFontViewMut<'_>> {
+        self.0.child_mut::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Existing `a:cs` child, or a new one in schema position.
+    pub fn get_or_insert_complex_script_font(
+        &mut self,
+    ) -> Result<ComplexScriptFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Removes the first `a:cs` child.
+    pub fn remove_complex_script_font(&mut self) -> bool {
+        self.0.remove::<ComplexScriptFont>()
+    }
+    /// First `a:ea` child, mutably.
+    pub fn east_asian_font_mut(&mut self) -> Option<EastAsianFontViewMut<'_>> {
+        self.0.child_mut::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Existing `a:ea` child, or a new one in schema position.
+    pub fn get_or_insert_east_asian_font(
+        &mut self,
+    ) -> Result<EastAsianFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Removes the first `a:ea` child.
+    pub fn remove_east_asian_font(&mut self) -> bool {
+        self.0.remove::<EastAsianFont>()
+    }
+    /// First `a:latin` child, mutably.
+    pub fn latin_font_mut(&mut self) -> Option<LatinFontViewMut<'_>> {
+        self.0.child_mut::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Existing `a:latin` child, or a new one in schema position.
+    pub fn get_or_insert_latin_font(
+        &mut self,
+    ) -> Result<LatinFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Removes the first `a:latin` child.
+    pub fn remove_latin_font(&mut self) -> bool {
+        self.0.remove::<LatinFont>()
+    }
+}
 /// `a:CT_FontCollection/a:minorFont` — Minor fonts.
 #[derive(Debug)]
 pub enum MinorFont {}
@@ -5126,6 +6183,71 @@ impl<'a> MinorFontView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`MinorFont`]. Reads go through [`MinorFontViewMut::as_view`].
+#[derive(Debug)]
+pub struct MinorFontViewMut<'a>(pub ooxml_core::LensMut<'a, MinorFont>);
+impl<'a> MinorFontViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> MinorFontView<'_> {
+        MinorFontView(self.0.as_lens())
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:cs` child, mutably.
+    pub fn complex_script_font_mut(&mut self) -> Option<ComplexScriptFontViewMut<'_>> {
+        self.0.child_mut::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Existing `a:cs` child, or a new one in schema position.
+    pub fn get_or_insert_complex_script_font(
+        &mut self,
+    ) -> Result<ComplexScriptFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ComplexScriptFont>().map(ComplexScriptFontViewMut)
+    }
+    /// Removes the first `a:cs` child.
+    pub fn remove_complex_script_font(&mut self) -> bool {
+        self.0.remove::<ComplexScriptFont>()
+    }
+    /// First `a:ea` child, mutably.
+    pub fn east_asian_font_mut(&mut self) -> Option<EastAsianFontViewMut<'_>> {
+        self.0.child_mut::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Existing `a:ea` child, or a new one in schema position.
+    pub fn get_or_insert_east_asian_font(
+        &mut self,
+    ) -> Result<EastAsianFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<EastAsianFont>().map(EastAsianFontViewMut)
+    }
+    /// Removes the first `a:ea` child.
+    pub fn remove_east_asian_font(&mut self) -> bool {
+        self.0.remove::<EastAsianFont>()
+    }
+    /// First `a:latin` child, mutably.
+    pub fn latin_font_mut(&mut self) -> Option<LatinFontViewMut<'_>> {
+        self.0.child_mut::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Existing `a:latin` child, or a new one in schema position.
+    pub fn get_or_insert_latin_font(
+        &mut self,
+    ) -> Result<LatinFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LatinFont>().map(LatinFontViewMut)
+    }
+    /// Removes the first `a:latin` child.
+    pub fn remove_latin_font(&mut self) -> bool {
+        self.0.remove::<LatinFont>()
     }
 }
 /// `a:CT_FontReference/a:fontRef` — Defines the FontReference Class.
@@ -5208,6 +6330,82 @@ impl<'a> FontReferenceView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`FontReference`]. Reads go through [`FontReferenceViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontReferenceViewMut<'a>(pub ooxml_core::LensMut<'a, FontReference>);
+impl<'a> FontReferenceViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontReferenceView<'_> {
+        FontReferenceView(self.0.as_lens())
+    }
+    /// Sets `idx` — Identifier
+    pub fn set_index(
+        &mut self,
+        v: FontCollectionIndexValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FontReference::ATTR_IDX, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `idx`.
+    pub fn remove_index(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontReference::ATTR_IDX)
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:schemeClr` child, mutably.
+    pub fn scheme_color_mut(&mut self) -> Option<SchemeColorViewMut<'_>> {
+        self.0.child_mut::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Existing `a:schemeClr` child, or a new one in schema position.
+    pub fn get_or_insert_scheme_color(
+        &mut self,
+    ) -> Result<SchemeColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Removes the first `a:schemeClr` child.
+    pub fn remove_scheme_color(&mut self) -> bool {
+        self.0.remove::<SchemeColor>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
+    }
+}
 /// `a:CT_FontScheme/a:fontScheme` — Font Scheme.
 #[derive(Debug)]
 pub enum FontScheme {}
@@ -5274,6 +6472,65 @@ impl<'a> FontSchemeView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`FontScheme`]. Reads go through [`FontSchemeViewMut::as_view`].
+#[derive(Debug)]
+pub struct FontSchemeViewMut<'a>(pub ooxml_core::LensMut<'a, FontScheme>);
+impl<'a> FontSchemeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FontSchemeView<'_> {
+        FontSchemeView(self.0.as_lens())
+    }
+    /// Sets `name` — Name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FontScheme::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FontScheme::ATTR_NAME)
+    }
+    /// First `a:majorFont` child, mutably.
+    pub fn major_font_mut(&mut self) -> Option<MajorFontViewMut<'_>> {
+        self.0.child_mut::<MajorFont>().map(MajorFontViewMut)
+    }
+    /// Existing `a:majorFont` child, or a new one in schema position.
+    pub fn get_or_insert_major_font(
+        &mut self,
+    ) -> Result<MajorFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<MajorFont>().map(MajorFontViewMut)
+    }
+    /// Removes the first `a:majorFont` child.
+    pub fn remove_major_font(&mut self) -> bool {
+        self.0.remove::<MajorFont>()
+    }
+    /// First `a:minorFont` child, mutably.
+    pub fn minor_font_mut(&mut self) -> Option<MinorFontViewMut<'_>> {
+        self.0.child_mut::<MinorFont>().map(MinorFontViewMut)
+    }
+    /// Existing `a:minorFont` child, or a new one in schema position.
+    pub fn get_or_insert_minor_font(
+        &mut self,
+    ) -> Result<MinorFontViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<MinorFont>().map(MinorFontViewMut)
+    }
+    /// Removes the first `a:minorFont` child.
+    pub fn remove_minor_font(&mut self) -> bool {
+        self.0.remove::<MinorFont>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
     }
 }
 /// `a:CT_GammaTransform/a:gamma` — Gamma.
@@ -5884,6 +7141,7 @@ impl ooxml_core::ChildOf<GraphicData> for Blip {}
 impl ooxml_core::ChildOf<GraphicData> for Graphic {}
 impl ooxml_core::ChildOf<GraphicData> for Theme {}
 impl ooxml_core::ChildOf<GraphicData> for Table {}
+impl ooxml_core::ChildOf<GraphicData> for TableStyleList {}
 impl ooxml_core::ChildOf<GraphicData> for HyperlinkColor {}
 impl ooxml_core::ChildOf<GraphicData> for SVGBlip {}
 impl ooxml_core::ChildOf<GraphicData> for DgmDataModelRoot {}
@@ -5918,6 +7176,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::SlideMaster {}
 impl ooxml_core::ChildOf<GraphicData> for super::pml::ViewProperties {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::Picture {}
+#[cfg(all(feature = "dml", feature = "wml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::wml::SdtContentCheckBox {}
 #[cfg(all(feature = "dml", feature = "wml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::wml::CommentsEx {}
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -5978,6 +7238,10 @@ impl<'a> GraphicDataView<'a> {
     /// `a:tbl` children in document order.
     pub fn table_iter(&self) -> impl Iterator<Item = TableView<'a>> {
         self.0.children::<Table>().map(TableView)
+    }
+    /// `a:tblStyleLst` children in document order.
+    pub fn table_style_list_iter(&self) -> impl Iterator<Item = TableStyleListView<'a>> {
+        self.0.children::<TableStyleList>().map(TableStyleListView)
     }
     /// `ahyp:hlinkClr` children in document order.
     pub fn hyperlink_color_iter(&self) -> impl Iterator<Item = HyperlinkColorView<'a>> {
@@ -6103,6 +7367,15 @@ impl<'a> GraphicDataView<'a> {
     /// `pic:pic` children in document order.
     pub fn picture_iter(&self) -> impl Iterator<Item = super::wml::PictureView<'a>> {
         self.0.children::<super::wml::Picture>().map(super::wml::PictureView)
+    }
+    #[cfg(feature = "wml")]
+    /// `w14:checkbox` children in document order.
+    pub fn sdt_content_check_box_iter(
+        &self,
+    ) -> impl Iterator<Item = super::wml::SdtContentCheckBoxView<'a>> {
+        self.0
+            .children::<super::wml::SdtContentCheckBox>()
+            .map(super::wml::SdtContentCheckBoxView)
     }
     #[cfg(feature = "wml")]
     /// `w15:commentsEx` children in document order.
@@ -6237,6 +7510,17 @@ impl<'a> GraphicDataViewMut<'a> {
     pub fn remove_graphic(&mut self) -> bool {
         self.0.remove::<Graphic>()
     }
+    /// First `a:theme` child matching `pred`, mutably.
+    pub fn theme_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<ThemeViewMut<'_>> {
+        self.0.child_mut_by::<Theme>(pred).map(ThemeViewMut)
+    }
+    /// Removes the first `a:theme` child.
+    pub fn remove_theme(&mut self) -> bool {
+        self.0.remove::<Theme>()
+    }
     /// First `a:tbl` child matching `pred`, mutably.
     pub fn table_mut_by(
         &mut self,
@@ -6247,6 +7531,17 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `a:tbl` child.
     pub fn remove_table(&mut self) -> bool {
         self.0.remove::<Table>()
+    }
+    /// First `a:tblStyleLst` child matching `pred`, mutably.
+    pub fn table_style_list_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableStyleListViewMut<'_>> {
+        self.0.child_mut_by::<TableStyleList>(pred).map(TableStyleListViewMut)
+    }
+    /// Removes the first `a:tblStyleLst` child.
+    pub fn remove_table_style_list(&mut self) -> bool {
+        self.0.remove::<TableStyleList>()
     }
     /// First `ahyp:hlinkClr` child matching `pred`, mutably.
     pub fn hyperlink_color_mut_by(
@@ -6392,6 +7687,21 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `pic:pic` child.
     pub fn remove_picture(&mut self) -> bool {
         self.0.remove::<super::wml::Picture>()
+    }
+    #[cfg(feature = "wml")]
+    /// First `w14:checkbox` child matching `pred`, mutably.
+    pub fn sdt_content_check_box_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::wml::SdtContentCheckBoxViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::wml::SdtContentCheckBox>(pred)
+            .map(super::wml::SdtContentCheckBoxViewMut)
+    }
+    #[cfg(feature = "wml")]
+    /// Removes the first `w14:checkbox` child.
+    pub fn remove_sdt_content_check_box(&mut self) -> bool {
+        self.0.remove::<super::wml::SdtContentCheckBox>()
     }
     #[cfg(feature = "wml")]
     /// First `w15:commentsEx` child matching `pred`, mutably.
@@ -10582,6 +11892,45 @@ impl<'a> ThemeView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`Theme`]. Reads go through [`ThemeViewMut::as_view`].
+#[derive(Debug)]
+pub struct ThemeViewMut<'a>(pub ooxml_core::LensMut<'a, Theme>);
+impl<'a> ThemeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> ThemeView<'_> {
+        ThemeView(self.0.as_lens())
+    }
+    /// Sets `name` — name (default ``)
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Theme::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Theme::ATTR_NAME)
+    }
+    /// Sets `thm15:id` — id
+    pub fn set_theme_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Theme::ATTR_THM15_ID, v)
+    }
+    /// Removes `thm15:id`.
+    pub fn remove_theme_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Theme::ATTR_THM15_ID)
+    }
+    /// First `a:themeElements` child, mutably.
+    pub fn theme_elements_mut(&mut self) -> Option<ThemeElementsViewMut<'_>> {
+        self.0.child_mut::<ThemeElements>().map(ThemeElementsViewMut)
+    }
+    /// Existing `a:themeElements` child, or a new one in schema position.
+    pub fn get_or_insert_theme_elements(
+        &mut self,
+    ) -> Result<ThemeElementsViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ThemeElements>().map(ThemeElementsViewMut)
+    }
+    /// Removes the first `a:themeElements` child.
+    pub fn remove_theme_elements(&mut self) -> bool {
+        self.0.remove::<ThemeElements>()
     }
 }
 /// `a:CT_Percentage/a:blue` — Blue.
@@ -17597,6 +18946,229 @@ impl<'a> TableCellViewMut<'a> {
         self.0.remove::<TextBody>()
     }
 }
+/// `a:CT_TableCellBorderStyle/a:tcBdr` — Table Cell Borders.
+#[derive(Debug)]
+pub enum TableCellBorders {}
+impl ooxml_core::ElementSpec for TableCellBorders {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tcBdr");
+    const SDK_NAME: &'static str = "a:CT_TableCellBorderStyle/a:tcBdr";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "left")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "right")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "top")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "bottom")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "insideH")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "insideV")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tl2br")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tr2bl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableCellBorders> for ExtensionList {}
+impl ooxml_core::ChildOf<TableCellBorders> for BottomBorder {}
+impl ooxml_core::ChildOf<TableCellBorders> for InsideHorizontalBorder {}
+impl ooxml_core::ChildOf<TableCellBorders> for InsideVerticalBorder {}
+impl ooxml_core::ChildOf<TableCellBorders> for LeftBorder {}
+impl ooxml_core::ChildOf<TableCellBorders> for RightBorder {}
+impl ooxml_core::ChildOf<TableCellBorders> for TopBorder {}
+/// Read-only view of [`TableCellBorders`].
+#[derive(Clone, Debug)]
+pub struct TableCellBordersView<'a>(pub ooxml_core::Lens<'a, TableCellBorders>);
+impl<'a> TableCellBordersView<'a> {
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:bottom` child.
+    pub fn bottom_border(&self) -> Option<BottomBorderView<'a>> {
+        self.0.child::<BottomBorder>().map(BottomBorderView)
+    }
+    /// First `a:insideH` child.
+    pub fn inside_horizontal_border(&self) -> Option<InsideHorizontalBorderView<'a>> {
+        self.0.child::<InsideHorizontalBorder>().map(InsideHorizontalBorderView)
+    }
+    /// First `a:insideV` child.
+    pub fn inside_vertical_border(&self) -> Option<InsideVerticalBorderView<'a>> {
+        self.0.child::<InsideVerticalBorder>().map(InsideVerticalBorderView)
+    }
+    /// First `a:left` child.
+    pub fn left_border(&self) -> Option<LeftBorderView<'a>> {
+        self.0.child::<LeftBorder>().map(LeftBorderView)
+    }
+    /// First `a:right` child.
+    pub fn right_border(&self) -> Option<RightBorderView<'a>> {
+        self.0.child::<RightBorder>().map(RightBorderView)
+    }
+    /// First `a:top` child.
+    pub fn top_border(&self) -> Option<TopBorderView<'a>> {
+        self.0.child::<TopBorder>().map(TopBorderView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableCellBorders`]. Reads go through [`TableCellBordersViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellBordersViewMut<'a>(pub ooxml_core::LensMut<'a, TableCellBorders>);
+impl<'a> TableCellBordersViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellBordersView<'_> {
+        TableCellBordersView(self.0.as_lens())
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:bottom` child, mutably.
+    pub fn bottom_border_mut(&mut self) -> Option<BottomBorderViewMut<'_>> {
+        self.0.child_mut::<BottomBorder>().map(BottomBorderViewMut)
+    }
+    /// Existing `a:bottom` child, or a new one in schema position.
+    pub fn get_or_insert_bottom_border(
+        &mut self,
+    ) -> Result<BottomBorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<BottomBorder>().map(BottomBorderViewMut)
+    }
+    /// Removes the first `a:bottom` child.
+    pub fn remove_bottom_border(&mut self) -> bool {
+        self.0.remove::<BottomBorder>()
+    }
+    /// First `a:insideH` child, mutably.
+    pub fn inside_horizontal_border_mut(
+        &mut self,
+    ) -> Option<InsideHorizontalBorderViewMut<'_>> {
+        self.0.child_mut::<InsideHorizontalBorder>().map(InsideHorizontalBorderViewMut)
+    }
+    /// Existing `a:insideH` child, or a new one in schema position.
+    pub fn get_or_insert_inside_horizontal_border(
+        &mut self,
+    ) -> Result<InsideHorizontalBorderViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<InsideHorizontalBorder>()
+            .map(InsideHorizontalBorderViewMut)
+    }
+    /// Removes the first `a:insideH` child.
+    pub fn remove_inside_horizontal_border(&mut self) -> bool {
+        self.0.remove::<InsideHorizontalBorder>()
+    }
+    /// First `a:insideV` child, mutably.
+    pub fn inside_vertical_border_mut(
+        &mut self,
+    ) -> Option<InsideVerticalBorderViewMut<'_>> {
+        self.0.child_mut::<InsideVerticalBorder>().map(InsideVerticalBorderViewMut)
+    }
+    /// Existing `a:insideV` child, or a new one in schema position.
+    pub fn get_or_insert_inside_vertical_border(
+        &mut self,
+    ) -> Result<InsideVerticalBorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<InsideVerticalBorder>().map(InsideVerticalBorderViewMut)
+    }
+    /// Removes the first `a:insideV` child.
+    pub fn remove_inside_vertical_border(&mut self) -> bool {
+        self.0.remove::<InsideVerticalBorder>()
+    }
+    /// First `a:left` child, mutably.
+    pub fn left_border_mut(&mut self) -> Option<LeftBorderViewMut<'_>> {
+        self.0.child_mut::<LeftBorder>().map(LeftBorderViewMut)
+    }
+    /// Existing `a:left` child, or a new one in schema position.
+    pub fn get_or_insert_left_border(
+        &mut self,
+    ) -> Result<LeftBorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LeftBorder>().map(LeftBorderViewMut)
+    }
+    /// Removes the first `a:left` child.
+    pub fn remove_left_border(&mut self) -> bool {
+        self.0.remove::<LeftBorder>()
+    }
+    /// First `a:right` child, mutably.
+    pub fn right_border_mut(&mut self) -> Option<RightBorderViewMut<'_>> {
+        self.0.child_mut::<RightBorder>().map(RightBorderViewMut)
+    }
+    /// Existing `a:right` child, or a new one in schema position.
+    pub fn get_or_insert_right_border(
+        &mut self,
+    ) -> Result<RightBorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RightBorder>().map(RightBorderViewMut)
+    }
+    /// Removes the first `a:right` child.
+    pub fn remove_right_border(&mut self) -> bool {
+        self.0.remove::<RightBorder>()
+    }
+    /// First `a:top` child, mutably.
+    pub fn top_border_mut(&mut self) -> Option<TopBorderViewMut<'_>> {
+        self.0.child_mut::<TopBorder>().map(TopBorderViewMut)
+    }
+    /// Existing `a:top` child, or a new one in schema position.
+    pub fn get_or_insert_top_border(
+        &mut self,
+    ) -> Result<TopBorderViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TopBorder>().map(TopBorderViewMut)
+    }
+    /// Removes the first `a:top` child.
+    pub fn remove_top_border(&mut self) -> bool {
+        self.0.remove::<TopBorder>()
+    }
+}
 /// `a:CT_TableCellProperties/a:tcPr` — Table Cell Properties.
 #[derive(Debug)]
 pub enum TableCellProperties {}
@@ -18271,6 +19843,744 @@ impl<'a> TableGridViewMut<'a> {
         self.0.remove::<GridColumn>()
     }
 }
+/// `a:CT_TablePartStyle/a:band1H` — Band 1 Horizontal.
+#[derive(Debug)]
+pub enum Band1Horizontal {}
+impl ooxml_core::ElementSpec for Band1Horizontal {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "band1H");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:band1H";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Band1Horizontal> for TableCellStyle {}
+impl ooxml_core::ChildOf<Band1Horizontal> for TableCellTextStyle {}
+/// Read-only view of [`Band1Horizontal`].
+#[derive(Clone, Debug)]
+pub struct Band1HorizontalView<'a>(pub ooxml_core::Lens<'a, Band1Horizontal>);
+impl<'a> Band1HorizontalView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Band1Horizontal`]. Reads go through [`Band1HorizontalViewMut::as_view`].
+#[derive(Debug)]
+pub struct Band1HorizontalViewMut<'a>(pub ooxml_core::LensMut<'a, Band1Horizontal>);
+impl<'a> Band1HorizontalViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Band1HorizontalView<'_> {
+        Band1HorizontalView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:band1V` — Band 1 Vertical.
+#[derive(Debug)]
+pub enum Band1Vertical {}
+impl ooxml_core::ElementSpec for Band1Vertical {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "band1V");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:band1V";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Band1Vertical> for TableCellStyle {}
+impl ooxml_core::ChildOf<Band1Vertical> for TableCellTextStyle {}
+/// Read-only view of [`Band1Vertical`].
+#[derive(Clone, Debug)]
+pub struct Band1VerticalView<'a>(pub ooxml_core::Lens<'a, Band1Vertical>);
+impl<'a> Band1VerticalView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Band1Vertical`]. Reads go through [`Band1VerticalViewMut::as_view`].
+#[derive(Debug)]
+pub struct Band1VerticalViewMut<'a>(pub ooxml_core::LensMut<'a, Band1Vertical>);
+impl<'a> Band1VerticalViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Band1VerticalView<'_> {
+        Band1VerticalView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:band2H` — Band 2 Horizontal.
+#[derive(Debug)]
+pub enum Band2Horizontal {}
+impl ooxml_core::ElementSpec for Band2Horizontal {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "band2H");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:band2H";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Band2Horizontal> for TableCellStyle {}
+impl ooxml_core::ChildOf<Band2Horizontal> for TableCellTextStyle {}
+/// Read-only view of [`Band2Horizontal`].
+#[derive(Clone, Debug)]
+pub struct Band2HorizontalView<'a>(pub ooxml_core::Lens<'a, Band2Horizontal>);
+impl<'a> Band2HorizontalView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Band2Horizontal`]. Reads go through [`Band2HorizontalViewMut::as_view`].
+#[derive(Debug)]
+pub struct Band2HorizontalViewMut<'a>(pub ooxml_core::LensMut<'a, Band2Horizontal>);
+impl<'a> Band2HorizontalViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Band2HorizontalView<'_> {
+        Band2HorizontalView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:band2V` — Band 2 Vertical.
+#[derive(Debug)]
+pub enum Band2Vertical {}
+impl ooxml_core::ElementSpec for Band2Vertical {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "band2V");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:band2V";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<Band2Vertical> for TableCellStyle {}
+impl ooxml_core::ChildOf<Band2Vertical> for TableCellTextStyle {}
+/// Read-only view of [`Band2Vertical`].
+#[derive(Clone, Debug)]
+pub struct Band2VerticalView<'a>(pub ooxml_core::Lens<'a, Band2Vertical>);
+impl<'a> Band2VerticalView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`Band2Vertical`]. Reads go through [`Band2VerticalViewMut::as_view`].
+#[derive(Debug)]
+pub struct Band2VerticalViewMut<'a>(pub ooxml_core::LensMut<'a, Band2Vertical>);
+impl<'a> Band2VerticalViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> Band2VerticalView<'_> {
+        Band2VerticalView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:firstCol` — First Column.
+#[derive(Debug)]
+pub enum FirstColumn {}
+impl ooxml_core::ElementSpec for FirstColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "firstCol");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:firstCol";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FirstColumn> for TableCellStyle {}
+impl ooxml_core::ChildOf<FirstColumn> for TableCellTextStyle {}
+/// Read-only view of [`FirstColumn`].
+#[derive(Clone, Debug)]
+pub struct FirstColumnView<'a>(pub ooxml_core::Lens<'a, FirstColumn>);
+impl<'a> FirstColumnView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FirstColumn`]. Reads go through [`FirstColumnViewMut::as_view`].
+#[derive(Debug)]
+pub struct FirstColumnViewMut<'a>(pub ooxml_core::LensMut<'a, FirstColumn>);
+impl<'a> FirstColumnViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FirstColumnView<'_> {
+        FirstColumnView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:firstRow` — First Row.
+#[derive(Debug)]
+pub enum FirstRow {}
+impl ooxml_core::ElementSpec for FirstRow {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "firstRow");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:firstRow";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<FirstRow> for TableCellStyle {}
+impl ooxml_core::ChildOf<FirstRow> for TableCellTextStyle {}
+/// Read-only view of [`FirstRow`].
+#[derive(Clone, Debug)]
+pub struct FirstRowView<'a>(pub ooxml_core::Lens<'a, FirstRow>);
+impl<'a> FirstRowView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`FirstRow`]. Reads go through [`FirstRowViewMut::as_view`].
+#[derive(Debug)]
+pub struct FirstRowViewMut<'a>(pub ooxml_core::LensMut<'a, FirstRow>);
+impl<'a> FirstRowViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FirstRowView<'_> {
+        FirstRowView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:lastCol` — Last Column.
+#[derive(Debug)]
+pub enum LastColumn {}
+impl ooxml_core::ElementSpec for LastColumn {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lastCol");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:lastCol";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<LastColumn> for TableCellStyle {}
+impl ooxml_core::ChildOf<LastColumn> for TableCellTextStyle {}
+/// Read-only view of [`LastColumn`].
+#[derive(Clone, Debug)]
+pub struct LastColumnView<'a>(pub ooxml_core::Lens<'a, LastColumn>);
+impl<'a> LastColumnView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LastColumn`]. Reads go through [`LastColumnViewMut::as_view`].
+#[derive(Debug)]
+pub struct LastColumnViewMut<'a>(pub ooxml_core::LensMut<'a, LastColumn>);
+impl<'a> LastColumnViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LastColumnView<'_> {
+        LastColumnView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:lastRow` — Last Row.
+#[derive(Debug)]
+pub enum LastRow {}
+impl ooxml_core::ElementSpec for LastRow {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "lastRow");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:lastRow";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<LastRow> for TableCellStyle {}
+impl ooxml_core::ChildOf<LastRow> for TableCellTextStyle {}
+/// Read-only view of [`LastRow`].
+#[derive(Clone, Debug)]
+pub struct LastRowView<'a>(pub ooxml_core::Lens<'a, LastRow>);
+impl<'a> LastRowView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LastRow`]. Reads go through [`LastRowViewMut::as_view`].
+#[derive(Debug)]
+pub struct LastRowViewMut<'a>(pub ooxml_core::LensMut<'a, LastRow>);
+impl<'a> LastRowViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LastRowView<'_> {
+        LastRowView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
+/// `a:CT_TablePartStyle/a:wholeTbl` — Whole Table.
+#[derive(Debug)]
+pub enum WholeTable {}
+impl ooxml_core::ElementSpec for WholeTable {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "wholeTbl");
+    const SDK_NAME: &'static str = "a:CT_TablePartStyle/a:wholeTbl";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcTxStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcStyle")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<WholeTable> for TableCellStyle {}
+impl ooxml_core::ChildOf<WholeTable> for TableCellTextStyle {}
+/// Read-only view of [`WholeTable`].
+#[derive(Clone, Debug)]
+pub struct WholeTableView<'a>(pub ooxml_core::Lens<'a, WholeTable>);
+impl<'a> WholeTableView<'a> {
+    /// First `a:tcStyle` child.
+    pub fn table_cell_style(&self) -> Option<TableCellStyleView<'a>> {
+        self.0.child::<TableCellStyle>().map(TableCellStyleView)
+    }
+    /// First `a:tcTxStyle` child.
+    pub fn table_cell_text_style(&self) -> Option<TableCellTextStyleView<'a>> {
+        self.0.child::<TableCellTextStyle>().map(TableCellTextStyleView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`WholeTable`]. Reads go through [`WholeTableViewMut::as_view`].
+#[derive(Debug)]
+pub struct WholeTableViewMut<'a>(pub ooxml_core::LensMut<'a, WholeTable>);
+impl<'a> WholeTableViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> WholeTableView<'_> {
+        WholeTableView(self.0.as_lens())
+    }
+    /// First `a:tcStyle` child, mutably.
+    pub fn table_cell_style_mut(&mut self) -> Option<TableCellStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Existing `a:tcStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_style(
+        &mut self,
+    ) -> Result<TableCellStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellStyle>().map(TableCellStyleViewMut)
+    }
+    /// Removes the first `a:tcStyle` child.
+    pub fn remove_table_cell_style(&mut self) -> bool {
+        self.0.remove::<TableCellStyle>()
+    }
+    /// First `a:tcTxStyle` child, mutably.
+    pub fn table_cell_text_style_mut(
+        &mut self,
+    ) -> Option<TableCellTextStyleViewMut<'_>> {
+        self.0.child_mut::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Existing `a:tcTxStyle` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_text_style(
+        &mut self,
+    ) -> Result<TableCellTextStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellTextStyle>().map(TableCellTextStyleViewMut)
+    }
+    /// Removes the first `a:tcTxStyle` child.
+    pub fn remove_table_cell_text_style(&mut self) -> bool {
+        self.0.remove::<TableCellTextStyle>()
+    }
+}
 /// `a:CT_TableProperties/a:tblPr` — Table Properties.
 #[derive(Debug)]
 pub enum TableProperties {}
@@ -18720,6 +21030,770 @@ impl<'a> TableRowViewMut<'a> {
     /// Removes the first `a:tc` child.
     pub fn remove_table_cell(&mut self) -> bool {
         self.0.remove::<TableCell>()
+    }
+}
+/// `a:CT_TableStyle/a:tblStyle` — Table Style.
+#[derive(Debug)]
+pub enum TableStyleEntry {}
+impl TableStyleEntry {
+    /// `styleId`
+    pub const ATTR_STYLE_ID: ooxml_core::QName = ooxml_core::QName::new("", "styleId");
+    /// `styleName`
+    pub const ATTR_STYLE_NAME: ooxml_core::QName = ooxml_core::QName::new(
+        "",
+        "styleName",
+    );
+}
+impl ooxml_core::ElementSpec for TableStyleEntry {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tblStyle");
+    const SDK_NAME: &'static str = "a:CT_TableStyle/a:tblStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableStyleEntry::ATTR_STYLE_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+        ooxml_core::AttrSpec {
+            name: TableStyleEntry::ATTR_STYLE_NAME,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tblBg")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "wholeTbl")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "band1H")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "band2H")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "band1V")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "band2V")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lastCol")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "firstCol")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "lastRow")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "seCell")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "swCell")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "firstRow")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "neCell")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "nwCell")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableStyleEntry> for ExtensionList {}
+impl ooxml_core::ChildOf<TableStyleEntry> for Band1Horizontal {}
+impl ooxml_core::ChildOf<TableStyleEntry> for Band1Vertical {}
+impl ooxml_core::ChildOf<TableStyleEntry> for Band2Horizontal {}
+impl ooxml_core::ChildOf<TableStyleEntry> for Band2Vertical {}
+impl ooxml_core::ChildOf<TableStyleEntry> for FirstColumn {}
+impl ooxml_core::ChildOf<TableStyleEntry> for FirstRow {}
+impl ooxml_core::ChildOf<TableStyleEntry> for LastColumn {}
+impl ooxml_core::ChildOf<TableStyleEntry> for LastRow {}
+impl ooxml_core::ChildOf<TableStyleEntry> for WholeTable {}
+/// Read-only view of [`TableStyleEntry`].
+#[derive(Clone, Debug)]
+pub struct TableStyleEntryView<'a>(pub ooxml_core::Lens<'a, TableStyleEntry>);
+impl<'a> TableStyleEntryView<'a> {
+    /// `styleId` — Style ID
+    pub fn style_id(&self) -> Option<&'a str> {
+        self.0.attr(TableStyleEntry::ATTR_STYLE_ID)
+    }
+    /// `styleName` — Name
+    pub fn style_name(&self) -> Option<&'a str> {
+        self.0.attr(TableStyleEntry::ATTR_STYLE_NAME)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:band1H` child.
+    pub fn band1_horizontal(&self) -> Option<Band1HorizontalView<'a>> {
+        self.0.child::<Band1Horizontal>().map(Band1HorizontalView)
+    }
+    /// First `a:band1V` child.
+    pub fn band1_vertical(&self) -> Option<Band1VerticalView<'a>> {
+        self.0.child::<Band1Vertical>().map(Band1VerticalView)
+    }
+    /// First `a:band2H` child.
+    pub fn band2_horizontal(&self) -> Option<Band2HorizontalView<'a>> {
+        self.0.child::<Band2Horizontal>().map(Band2HorizontalView)
+    }
+    /// First `a:band2V` child.
+    pub fn band2_vertical(&self) -> Option<Band2VerticalView<'a>> {
+        self.0.child::<Band2Vertical>().map(Band2VerticalView)
+    }
+    /// First `a:firstCol` child.
+    pub fn first_column(&self) -> Option<FirstColumnView<'a>> {
+        self.0.child::<FirstColumn>().map(FirstColumnView)
+    }
+    /// First `a:firstRow` child.
+    pub fn first_row(&self) -> Option<FirstRowView<'a>> {
+        self.0.child::<FirstRow>().map(FirstRowView)
+    }
+    /// First `a:lastCol` child.
+    pub fn last_column(&self) -> Option<LastColumnView<'a>> {
+        self.0.child::<LastColumn>().map(LastColumnView)
+    }
+    /// First `a:lastRow` child.
+    pub fn last_row(&self) -> Option<LastRowView<'a>> {
+        self.0.child::<LastRow>().map(LastRowView)
+    }
+    /// First `a:wholeTbl` child.
+    pub fn whole_table(&self) -> Option<WholeTableView<'a>> {
+        self.0.child::<WholeTable>().map(WholeTableView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableStyleEntry`]. Reads go through [`TableStyleEntryViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableStyleEntryViewMut<'a>(pub ooxml_core::LensMut<'a, TableStyleEntry>);
+impl<'a> TableStyleEntryViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableStyleEntryView<'_> {
+        TableStyleEntryView(self.0.as_lens())
+    }
+    /// Sets `styleId` — Style ID
+    pub fn set_style_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableStyleEntry::ATTR_STYLE_ID, v)
+    }
+    /// Removes `styleId`.
+    pub fn remove_style_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableStyleEntry::ATTR_STYLE_ID)
+    }
+    /// Sets `styleName` — Name
+    pub fn set_style_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableStyleEntry::ATTR_STYLE_NAME, v)
+    }
+    /// Removes `styleName`.
+    pub fn remove_style_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableStyleEntry::ATTR_STYLE_NAME)
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:band1H` child, mutably.
+    pub fn band1_horizontal_mut(&mut self) -> Option<Band1HorizontalViewMut<'_>> {
+        self.0.child_mut::<Band1Horizontal>().map(Band1HorizontalViewMut)
+    }
+    /// Existing `a:band1H` child, or a new one in schema position.
+    pub fn get_or_insert_band1_horizontal(
+        &mut self,
+    ) -> Result<Band1HorizontalViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Band1Horizontal>().map(Band1HorizontalViewMut)
+    }
+    /// Removes the first `a:band1H` child.
+    pub fn remove_band1_horizontal(&mut self) -> bool {
+        self.0.remove::<Band1Horizontal>()
+    }
+    /// First `a:band1V` child, mutably.
+    pub fn band1_vertical_mut(&mut self) -> Option<Band1VerticalViewMut<'_>> {
+        self.0.child_mut::<Band1Vertical>().map(Band1VerticalViewMut)
+    }
+    /// Existing `a:band1V` child, or a new one in schema position.
+    pub fn get_or_insert_band1_vertical(
+        &mut self,
+    ) -> Result<Band1VerticalViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Band1Vertical>().map(Band1VerticalViewMut)
+    }
+    /// Removes the first `a:band1V` child.
+    pub fn remove_band1_vertical(&mut self) -> bool {
+        self.0.remove::<Band1Vertical>()
+    }
+    /// First `a:band2H` child, mutably.
+    pub fn band2_horizontal_mut(&mut self) -> Option<Band2HorizontalViewMut<'_>> {
+        self.0.child_mut::<Band2Horizontal>().map(Band2HorizontalViewMut)
+    }
+    /// Existing `a:band2H` child, or a new one in schema position.
+    pub fn get_or_insert_band2_horizontal(
+        &mut self,
+    ) -> Result<Band2HorizontalViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Band2Horizontal>().map(Band2HorizontalViewMut)
+    }
+    /// Removes the first `a:band2H` child.
+    pub fn remove_band2_horizontal(&mut self) -> bool {
+        self.0.remove::<Band2Horizontal>()
+    }
+    /// First `a:band2V` child, mutably.
+    pub fn band2_vertical_mut(&mut self) -> Option<Band2VerticalViewMut<'_>> {
+        self.0.child_mut::<Band2Vertical>().map(Band2VerticalViewMut)
+    }
+    /// Existing `a:band2V` child, or a new one in schema position.
+    pub fn get_or_insert_band2_vertical(
+        &mut self,
+    ) -> Result<Band2VerticalViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Band2Vertical>().map(Band2VerticalViewMut)
+    }
+    /// Removes the first `a:band2V` child.
+    pub fn remove_band2_vertical(&mut self) -> bool {
+        self.0.remove::<Band2Vertical>()
+    }
+    /// First `a:firstCol` child, mutably.
+    pub fn first_column_mut(&mut self) -> Option<FirstColumnViewMut<'_>> {
+        self.0.child_mut::<FirstColumn>().map(FirstColumnViewMut)
+    }
+    /// Existing `a:firstCol` child, or a new one in schema position.
+    pub fn get_or_insert_first_column(
+        &mut self,
+    ) -> Result<FirstColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FirstColumn>().map(FirstColumnViewMut)
+    }
+    /// Removes the first `a:firstCol` child.
+    pub fn remove_first_column(&mut self) -> bool {
+        self.0.remove::<FirstColumn>()
+    }
+    /// First `a:firstRow` child, mutably.
+    pub fn first_row_mut(&mut self) -> Option<FirstRowViewMut<'_>> {
+        self.0.child_mut::<FirstRow>().map(FirstRowViewMut)
+    }
+    /// Existing `a:firstRow` child, or a new one in schema position.
+    pub fn get_or_insert_first_row(
+        &mut self,
+    ) -> Result<FirstRowViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FirstRow>().map(FirstRowViewMut)
+    }
+    /// Removes the first `a:firstRow` child.
+    pub fn remove_first_row(&mut self) -> bool {
+        self.0.remove::<FirstRow>()
+    }
+    /// First `a:lastCol` child, mutably.
+    pub fn last_column_mut(&mut self) -> Option<LastColumnViewMut<'_>> {
+        self.0.child_mut::<LastColumn>().map(LastColumnViewMut)
+    }
+    /// Existing `a:lastCol` child, or a new one in schema position.
+    pub fn get_or_insert_last_column(
+        &mut self,
+    ) -> Result<LastColumnViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LastColumn>().map(LastColumnViewMut)
+    }
+    /// Removes the first `a:lastCol` child.
+    pub fn remove_last_column(&mut self) -> bool {
+        self.0.remove::<LastColumn>()
+    }
+    /// First `a:lastRow` child, mutably.
+    pub fn last_row_mut(&mut self) -> Option<LastRowViewMut<'_>> {
+        self.0.child_mut::<LastRow>().map(LastRowViewMut)
+    }
+    /// Existing `a:lastRow` child, or a new one in schema position.
+    pub fn get_or_insert_last_row(
+        &mut self,
+    ) -> Result<LastRowViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<LastRow>().map(LastRowViewMut)
+    }
+    /// Removes the first `a:lastRow` child.
+    pub fn remove_last_row(&mut self) -> bool {
+        self.0.remove::<LastRow>()
+    }
+    /// First `a:wholeTbl` child, mutably.
+    pub fn whole_table_mut(&mut self) -> Option<WholeTableViewMut<'_>> {
+        self.0.child_mut::<WholeTable>().map(WholeTableViewMut)
+    }
+    /// Existing `a:wholeTbl` child, or a new one in schema position.
+    pub fn get_or_insert_whole_table(
+        &mut self,
+    ) -> Result<WholeTableViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<WholeTable>().map(WholeTableViewMut)
+    }
+    /// Removes the first `a:wholeTbl` child.
+    pub fn remove_whole_table(&mut self) -> bool {
+        self.0.remove::<WholeTable>()
+    }
+}
+/// `a:CT_TableStyleCellStyle/a:tcStyle` — Table Cell Style.
+#[derive(Debug)]
+pub enum TableCellStyle {}
+impl ooxml_core::ElementSpec for TableCellStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tcStyle");
+    const SDK_NAME: &'static str = "a:CT_TableStyleCellStyle/a:tcStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tcBdr")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "fill"),
+                    ooxml_core::QName::new(NS_A, "fillRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "cell3D")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableCellStyle> for FillProperties {}
+impl ooxml_core::ChildOf<TableCellStyle> for TableCellBorders {}
+/// Read-only view of [`TableCellStyle`].
+#[derive(Clone, Debug)]
+pub struct TableCellStyleView<'a>(pub ooxml_core::Lens<'a, TableCellStyle>);
+impl<'a> TableCellStyleView<'a> {
+    /// First `a:fill` child.
+    pub fn fill_properties(&self) -> Option<FillPropertiesView<'a>> {
+        self.0.child::<FillProperties>().map(FillPropertiesView)
+    }
+    /// First `a:tcBdr` child.
+    pub fn table_cell_borders(&self) -> Option<TableCellBordersView<'a>> {
+        self.0.child::<TableCellBorders>().map(TableCellBordersView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableCellStyle`]. Reads go through [`TableCellStyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellStyleViewMut<'a>(pub ooxml_core::LensMut<'a, TableCellStyle>);
+impl<'a> TableCellStyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellStyleView<'_> {
+        TableCellStyleView(self.0.as_lens())
+    }
+    /// First `a:fill` child, mutably.
+    pub fn fill_properties_mut(&mut self) -> Option<FillPropertiesViewMut<'_>> {
+        self.0.child_mut::<FillProperties>().map(FillPropertiesViewMut)
+    }
+    /// Existing `a:fill` child, or a new one in schema position.
+    pub fn get_or_insert_fill_properties(
+        &mut self,
+    ) -> Result<FillPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FillProperties>().map(FillPropertiesViewMut)
+    }
+    /// Removes the first `a:fill` child.
+    pub fn remove_fill_properties(&mut self) -> bool {
+        self.0.remove::<FillProperties>()
+    }
+    /// First `a:tcBdr` child, mutably.
+    pub fn table_cell_borders_mut(&mut self) -> Option<TableCellBordersViewMut<'_>> {
+        self.0.child_mut::<TableCellBorders>().map(TableCellBordersViewMut)
+    }
+    /// Existing `a:tcBdr` child, or a new one in schema position.
+    pub fn get_or_insert_table_cell_borders(
+        &mut self,
+    ) -> Result<TableCellBordersViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TableCellBorders>().map(TableCellBordersViewMut)
+    }
+    /// Removes the first `a:tcBdr` child.
+    pub fn remove_table_cell_borders(&mut self) -> bool {
+        self.0.remove::<TableCellBorders>()
+    }
+}
+/// `a:CT_TableStyleList/a:tblStyleLst` — Table Style List.
+#[derive(Debug)]
+pub enum TableStyleList {}
+impl TableStyleList {
+    /// `def`
+    pub const ATTR_DEF: ooxml_core::QName = ooxml_core::QName::new("", "def");
+}
+impl ooxml_core::ElementSpec for TableStyleList {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tblStyleLst");
+    const SDK_NAME: &'static str = "a:CT_TableStyleList/a:tblStyleLst";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableStyleList::ATTR_DEF,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "tblStyle")],
+                wildcard: None,
+                max_each: None,
+                max_total: None,
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableStyleList> for TableStyleEntry {}
+/// Read-only view of [`TableStyleList`].
+#[derive(Clone, Debug)]
+pub struct TableStyleListView<'a>(pub ooxml_core::Lens<'a, TableStyleList>);
+impl<'a> TableStyleListView<'a> {
+    /// `def` — Default
+    pub fn default(&self) -> Option<&'a str> {
+        self.0.attr(TableStyleList::ATTR_DEF)
+    }
+    /// `a:tblStyle` children in document order.
+    pub fn table_style_entry_iter(
+        &self,
+    ) -> impl Iterator<Item = TableStyleEntryView<'a>> {
+        self.0.children::<TableStyleEntry>().map(TableStyleEntryView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableStyleList`]. Reads go through [`TableStyleListViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableStyleListViewMut<'a>(pub ooxml_core::LensMut<'a, TableStyleList>);
+impl<'a> TableStyleListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableStyleListView<'_> {
+        TableStyleListView(self.0.as_lens())
+    }
+    /// Sets `def` — Default
+    pub fn set_default(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableStyleList::ATTR_DEF, v)
+    }
+    /// Removes `def`.
+    pub fn remove_default(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableStyleList::ATTR_DEF)
+    }
+    /// First `a:tblStyle` child matching `pred`, mutably.
+    pub fn table_style_entry_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TableStyleEntryViewMut<'_>> {
+        self.0.child_mut_by::<TableStyleEntry>(pred).map(TableStyleEntryViewMut)
+    }
+    /// Inserts a `a:tblStyle` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_table_style_entry_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<TableStyleEntryViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<TableStyleEntry>(before).map(TableStyleEntryViewMut)
+    }
+    /// Appends a `a:tblStyle` at the end of its slot.
+    pub fn insert_table_style_entry(
+        &mut self,
+    ) -> Result<TableStyleEntryViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<TableStyleEntry>().map(TableStyleEntryViewMut)
+    }
+    /// Removes the first `a:tblStyle` child.
+    pub fn remove_table_style_entry(&mut self) -> bool {
+        self.0.remove::<TableStyleEntry>()
+    }
+}
+/// `a:CT_TableStyleTextStyle/a:tcTxStyle` — Table Cell Text Style.
+#[derive(Debug)]
+pub enum TableCellTextStyle {}
+impl TableCellTextStyle {
+    /// `b`
+    pub const ATTR_B: ooxml_core::QName = ooxml_core::QName::new("", "b");
+    /// `i`
+    pub const ATTR_I: ooxml_core::QName = ooxml_core::QName::new("", "i");
+}
+impl ooxml_core::ElementSpec for TableCellTextStyle {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "tcTxStyle");
+    const SDK_NAME: &'static str = "a:CT_TableStyleTextStyle/a:tcTxStyle";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: TableCellTextStyle::ATTR_B,
+            ty: ooxml_core::SimpleType::Enum(
+                <BooleanStyleValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("def"),
+        },
+        ooxml_core::AttrSpec {
+            name: TableCellTextStyle::ATTR_I,
+            ty: ooxml_core::SimpleType::Enum(
+                <BooleanStyleValues as ooxml_core::EnumType>::VALUES,
+            ),
+            default: Some("def"),
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "font"),
+                    ooxml_core::QName::new(NS_A, "fontRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "scrgbClr"),
+                    ooxml_core::QName::new(NS_A, "srgbClr"),
+                    ooxml_core::QName::new(NS_A, "hslClr"),
+                    ooxml_core::QName::new(NS_A, "sysClr"),
+                    ooxml_core::QName::new(NS_A, "schemeClr"),
+                    ooxml_core::QName::new(NS_A, "prstClr"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+            ooxml_core::Slot {
+                names: &[ooxml_core::QName::new(NS_A, "extLst")],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TableCellTextStyle> for FontReference {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for HslColor {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for ExtensionList {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for PresetColor {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for RgbColorModelHex {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for RgbColorModelPercentage {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for SchemeColor {}
+impl ooxml_core::ChildOf<TableCellTextStyle> for SystemColor {}
+/// Read-only view of [`TableCellTextStyle`].
+#[derive(Clone, Debug)]
+pub struct TableCellTextStyleView<'a>(pub ooxml_core::Lens<'a, TableCellTextStyle>);
+impl<'a> TableCellTextStyleView<'a> {
+    /// `b` — Bold (default `def`)
+    pub fn bold(&self) -> ooxml_core::EnumValue<'a, BooleanStyleValues> {
+        self.0.attr_enum_or(TableCellTextStyle::ATTR_B, "def")
+    }
+    /// `i` — Italic (default `def`)
+    pub fn italic(&self) -> ooxml_core::EnumValue<'a, BooleanStyleValues> {
+        self.0.attr_enum_or(TableCellTextStyle::ATTR_I, "def")
+    }
+    /// First `a:fontRef` child.
+    pub fn font_reference(&self) -> Option<FontReferenceView<'a>> {
+        self.0.child::<FontReference>().map(FontReferenceView)
+    }
+    /// First `a:hslClr` child.
+    pub fn hsl_color(&self) -> Option<HslColorView<'a>> {
+        self.0.child::<HslColor>().map(HslColorView)
+    }
+    /// First `a:extLst` child.
+    pub fn extension_list(&self) -> Option<ExtensionListView<'a>> {
+        self.0.child::<ExtensionList>().map(ExtensionListView)
+    }
+    /// First `a:prstClr` child.
+    pub fn preset_color(&self) -> Option<PresetColorView<'a>> {
+        self.0.child::<PresetColor>().map(PresetColorView)
+    }
+    /// First `a:srgbClr` child.
+    pub fn rgb_color_model_hex(&self) -> Option<RgbColorModelHexView<'a>> {
+        self.0.child::<RgbColorModelHex>().map(RgbColorModelHexView)
+    }
+    /// First `a:scrgbClr` child.
+    pub fn rgb_color_model_percentage(&self) -> Option<RgbColorModelPercentageView<'a>> {
+        self.0.child::<RgbColorModelPercentage>().map(RgbColorModelPercentageView)
+    }
+    /// First `a:schemeClr` child.
+    pub fn scheme_color(&self) -> Option<SchemeColorView<'a>> {
+        self.0.child::<SchemeColor>().map(SchemeColorView)
+    }
+    /// First `a:sysClr` child.
+    pub fn system_color(&self) -> Option<SystemColorView<'a>> {
+        self.0.child::<SystemColor>().map(SystemColorView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TableCellTextStyle`]. Reads go through [`TableCellTextStyleViewMut::as_view`].
+#[derive(Debug)]
+pub struct TableCellTextStyleViewMut<'a>(
+    pub ooxml_core::LensMut<'a, TableCellTextStyle>,
+);
+impl<'a> TableCellTextStyleViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TableCellTextStyleView<'_> {
+        TableCellTextStyleView(self.0.as_lens())
+    }
+    /// Sets `b` — Bold (default `def`)
+    pub fn set_bold(&mut self, v: BooleanStyleValues) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCellTextStyle::ATTR_B, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `b`.
+    pub fn remove_bold(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellTextStyle::ATTR_B)
+    }
+    /// Sets `i` — Italic (default `def`)
+    pub fn set_italic(
+        &mut self,
+        v: BooleanStyleValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(TableCellTextStyle::ATTR_I, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `i`.
+    pub fn remove_italic(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(TableCellTextStyle::ATTR_I)
+    }
+    /// First `a:fontRef` child, mutably.
+    pub fn font_reference_mut(&mut self) -> Option<FontReferenceViewMut<'_>> {
+        self.0.child_mut::<FontReference>().map(FontReferenceViewMut)
+    }
+    /// Existing `a:fontRef` child, or a new one in schema position.
+    pub fn get_or_insert_font_reference(
+        &mut self,
+    ) -> Result<FontReferenceViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<FontReference>().map(FontReferenceViewMut)
+    }
+    /// Removes the first `a:fontRef` child.
+    pub fn remove_font_reference(&mut self) -> bool {
+        self.0.remove::<FontReference>()
+    }
+    /// First `a:extLst` child, mutably.
+    pub fn extension_list_mut(&mut self) -> Option<ExtensionListViewMut<'_>> {
+        self.0.child_mut::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Existing `a:extLst` child, or a new one in schema position.
+    pub fn get_or_insert_extension_list(
+        &mut self,
+    ) -> Result<ExtensionListViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<ExtensionList>().map(ExtensionListViewMut)
+    }
+    /// Removes the first `a:extLst` child.
+    pub fn remove_extension_list(&mut self) -> bool {
+        self.0.remove::<ExtensionList>()
+    }
+    /// First `a:prstClr` child, mutably.
+    pub fn preset_color_mut(&mut self) -> Option<PresetColorViewMut<'_>> {
+        self.0.child_mut::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Existing `a:prstClr` child, or a new one in schema position.
+    pub fn get_or_insert_preset_color(
+        &mut self,
+    ) -> Result<PresetColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<PresetColor>().map(PresetColorViewMut)
+    }
+    /// Removes the first `a:prstClr` child.
+    pub fn remove_preset_color(&mut self) -> bool {
+        self.0.remove::<PresetColor>()
+    }
+    /// First `a:srgbClr` child, mutably.
+    pub fn rgb_color_model_hex_mut(&mut self) -> Option<RgbColorModelHexViewMut<'_>> {
+        self.0.child_mut::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Existing `a:srgbClr` child, or a new one in schema position.
+    pub fn get_or_insert_rgb_color_model_hex(
+        &mut self,
+    ) -> Result<RgbColorModelHexViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<RgbColorModelHex>().map(RgbColorModelHexViewMut)
+    }
+    /// Removes the first `a:srgbClr` child.
+    pub fn remove_rgb_color_model_hex(&mut self) -> bool {
+        self.0.remove::<RgbColorModelHex>()
+    }
+    /// First `a:schemeClr` child, mutably.
+    pub fn scheme_color_mut(&mut self) -> Option<SchemeColorViewMut<'_>> {
+        self.0.child_mut::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Existing `a:schemeClr` child, or a new one in schema position.
+    pub fn get_or_insert_scheme_color(
+        &mut self,
+    ) -> Result<SchemeColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SchemeColor>().map(SchemeColorViewMut)
+    }
+    /// Removes the first `a:schemeClr` child.
+    pub fn remove_scheme_color(&mut self) -> bool {
+        self.0.remove::<SchemeColor>()
+    }
+    /// First `a:sysClr` child, mutably.
+    pub fn system_color_mut(&mut self) -> Option<SystemColorViewMut<'_>> {
+        self.0.child_mut::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Existing `a:sysClr` child, or a new one in schema position.
+    pub fn get_or_insert_system_color(
+        &mut self,
+    ) -> Result<SystemColorViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<SystemColor>().map(SystemColorViewMut)
+    }
+    /// Removes the first `a:sysClr` child.
+    pub fn remove_system_color(&mut self) -> bool {
+        self.0.remove::<SystemColor>()
     }
 }
 /// `a:CT_TextAutonumberBullet/a:buAutoNum` — Auto-Numbered Bullet.
@@ -29202,6 +32276,360 @@ impl<'a> UnderlineFollowsTextViewMut<'a> {
         UnderlineFollowsTextView(self.0.as_lens())
     }
 }
+/// `a:CT_ThemeableLineStyle/a:bottom` — Bottom Border.
+#[derive(Debug)]
+pub enum BottomBorder {}
+impl ooxml_core::ElementSpec for BottomBorder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "bottom");
+    const SDK_NAME: &'static str = "a:CT_ThemeableLineStyle/a:bottom";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "ln"),
+                    ooxml_core::QName::new(NS_A, "lnRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<BottomBorder> for Outline {}
+/// Read-only view of [`BottomBorder`].
+#[derive(Clone, Debug)]
+pub struct BottomBorderView<'a>(pub ooxml_core::Lens<'a, BottomBorder>);
+impl<'a> BottomBorderView<'a> {
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`BottomBorder`]. Reads go through [`BottomBorderViewMut::as_view`].
+#[derive(Debug)]
+pub struct BottomBorderViewMut<'a>(pub ooxml_core::LensMut<'a, BottomBorder>);
+impl<'a> BottomBorderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> BottomBorderView<'_> {
+        BottomBorderView(self.0.as_lens())
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
+    }
+}
+/// `a:CT_ThemeableLineStyle/a:insideH` — Inside Horizontal Border.
+#[derive(Debug)]
+pub enum InsideHorizontalBorder {}
+impl ooxml_core::ElementSpec for InsideHorizontalBorder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "insideH");
+    const SDK_NAME: &'static str = "a:CT_ThemeableLineStyle/a:insideH";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "ln"),
+                    ooxml_core::QName::new(NS_A, "lnRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<InsideHorizontalBorder> for Outline {}
+/// Read-only view of [`InsideHorizontalBorder`].
+#[derive(Clone, Debug)]
+pub struct InsideHorizontalBorderView<'a>(
+    pub ooxml_core::Lens<'a, InsideHorizontalBorder>,
+);
+impl<'a> InsideHorizontalBorderView<'a> {
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`InsideHorizontalBorder`]. Reads go through [`InsideHorizontalBorderViewMut::as_view`].
+#[derive(Debug)]
+pub struct InsideHorizontalBorderViewMut<'a>(
+    pub ooxml_core::LensMut<'a, InsideHorizontalBorder>,
+);
+impl<'a> InsideHorizontalBorderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> InsideHorizontalBorderView<'_> {
+        InsideHorizontalBorderView(self.0.as_lens())
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
+    }
+}
+/// `a:CT_ThemeableLineStyle/a:insideV` — Inside Vertical Border.
+#[derive(Debug)]
+pub enum InsideVerticalBorder {}
+impl ooxml_core::ElementSpec for InsideVerticalBorder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "insideV");
+    const SDK_NAME: &'static str = "a:CT_ThemeableLineStyle/a:insideV";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "ln"),
+                    ooxml_core::QName::new(NS_A, "lnRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<InsideVerticalBorder> for Outline {}
+/// Read-only view of [`InsideVerticalBorder`].
+#[derive(Clone, Debug)]
+pub struct InsideVerticalBorderView<'a>(pub ooxml_core::Lens<'a, InsideVerticalBorder>);
+impl<'a> InsideVerticalBorderView<'a> {
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`InsideVerticalBorder`]. Reads go through [`InsideVerticalBorderViewMut::as_view`].
+#[derive(Debug)]
+pub struct InsideVerticalBorderViewMut<'a>(
+    pub ooxml_core::LensMut<'a, InsideVerticalBorder>,
+);
+impl<'a> InsideVerticalBorderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> InsideVerticalBorderView<'_> {
+        InsideVerticalBorderView(self.0.as_lens())
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
+    }
+}
+/// `a:CT_ThemeableLineStyle/a:left` — Left Border.
+#[derive(Debug)]
+pub enum LeftBorder {}
+impl ooxml_core::ElementSpec for LeftBorder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "left");
+    const SDK_NAME: &'static str = "a:CT_ThemeableLineStyle/a:left";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "ln"),
+                    ooxml_core::QName::new(NS_A, "lnRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<LeftBorder> for Outline {}
+/// Read-only view of [`LeftBorder`].
+#[derive(Clone, Debug)]
+pub struct LeftBorderView<'a>(pub ooxml_core::Lens<'a, LeftBorder>);
+impl<'a> LeftBorderView<'a> {
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`LeftBorder`]. Reads go through [`LeftBorderViewMut::as_view`].
+#[derive(Debug)]
+pub struct LeftBorderViewMut<'a>(pub ooxml_core::LensMut<'a, LeftBorder>);
+impl<'a> LeftBorderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> LeftBorderView<'_> {
+        LeftBorderView(self.0.as_lens())
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
+    }
+}
+/// `a:CT_ThemeableLineStyle/a:right` — Right Border.
+#[derive(Debug)]
+pub enum RightBorder {}
+impl ooxml_core::ElementSpec for RightBorder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "right");
+    const SDK_NAME: &'static str = "a:CT_ThemeableLineStyle/a:right";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "ln"),
+                    ooxml_core::QName::new(NS_A, "lnRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<RightBorder> for Outline {}
+/// Read-only view of [`RightBorder`].
+#[derive(Clone, Debug)]
+pub struct RightBorderView<'a>(pub ooxml_core::Lens<'a, RightBorder>);
+impl<'a> RightBorderView<'a> {
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`RightBorder`]. Reads go through [`RightBorderViewMut::as_view`].
+#[derive(Debug)]
+pub struct RightBorderViewMut<'a>(pub ooxml_core::LensMut<'a, RightBorder>);
+impl<'a> RightBorderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> RightBorderView<'_> {
+        RightBorderView(self.0.as_lens())
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
+    }
+}
+/// `a:CT_ThemeableLineStyle/a:top` — Top Border.
+#[derive(Debug)]
+pub enum TopBorder {}
+impl ooxml_core::ElementSpec for TopBorder {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_A, "top");
+    const SDK_NAME: &'static str = "a:CT_ThemeableLineStyle/a:top";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Slots(
+        &[
+            ooxml_core::Slot {
+                names: &[
+                    ooxml_core::QName::new(NS_A, "ln"),
+                    ooxml_core::QName::new(NS_A, "lnRef"),
+                ],
+                wildcard: None,
+                max_each: Some(1),
+                max_total: Some(1),
+            },
+        ],
+    );
+}
+impl ooxml_core::ChildOf<TopBorder> for Outline {}
+/// Read-only view of [`TopBorder`].
+#[derive(Clone, Debug)]
+pub struct TopBorderView<'a>(pub ooxml_core::Lens<'a, TopBorder>);
+impl<'a> TopBorderView<'a> {
+    /// First `a:ln` child.
+    pub fn outline(&self) -> Option<OutlineView<'a>> {
+        self.0.child::<Outline>().map(OutlineView)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`TopBorder`]. Reads go through [`TopBorderViewMut::as_view`].
+#[derive(Debug)]
+pub struct TopBorderViewMut<'a>(pub ooxml_core::LensMut<'a, TopBorder>);
+impl<'a> TopBorderViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TopBorderView<'_> {
+        TopBorderView(self.0.as_lens())
+    }
+    /// First `a:ln` child, mutably.
+    pub fn outline_mut(&mut self) -> Option<OutlineViewMut<'_>> {
+        self.0.child_mut::<Outline>().map(OutlineViewMut)
+    }
+    /// Existing `a:ln` child, or a new one in schema position.
+    pub fn get_or_insert_outline(
+        &mut self,
+    ) -> Result<OutlineViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<Outline>().map(OutlineViewMut)
+    }
+    /// Removes the first `a:ln` child.
+    pub fn remove_outline(&mut self) -> bool {
+        self.0.remove::<Outline>()
+    }
+}
 /// `a:CT_Transform2D/a:xfrm` — Defines the Transform2D Class.
 #[derive(Debug)]
 pub enum Transform2D {}
@@ -32948,6 +36376,10 @@ const _: () = ooxml_core::schema::assert_child::<
     DataModelExtension,
 >();
 const _: () = ooxml_core::schema::assert_spec::<MasterColorMapping>();
+const _: () = ooxml_core::schema::assert_spec::<FillProperties>();
+const _: () = ooxml_core::schema::assert_child::<FillProperties, GradientFill>();
+const _: () = ooxml_core::schema::assert_child::<FillProperties, NoFill>();
+const _: () = ooxml_core::schema::assert_child::<FillProperties, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<AlphaOffset>();
 const _: () = ooxml_core::schema::assert_spec::<MajorFont>();
 const _: () = ooxml_core::schema::assert_child::<MajorFont, ExtensionList>();
@@ -33003,6 +36435,7 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, Blip>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Graphic>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Theme>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, Table>();
+const _: () = ooxml_core::schema::assert_child::<GraphicData, TableStyleList>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, HyperlinkColor>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, SVGBlip>();
 const _: () = ooxml_core::schema::assert_child::<GraphicData, DgmDataModelRoot>();
@@ -33052,6 +36485,11 @@ const _: () = ooxml_core::schema::assert_child::<
 >();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::Picture>();
+#[cfg(all(feature = "dml", feature = "wml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::wml::SdtContentCheckBox,
+>();
 #[cfg(all(feature = "dml", feature = "wml"))]
 const _: () = ooxml_core::schema::assert_child::<GraphicData, super::wml::CommentsEx>();
 #[cfg(all(feature = "dml", feature = "wml"))]
@@ -33469,6 +36907,20 @@ const _: () = ooxml_core::schema::assert_spec::<TableCell>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TableCellProperties>();
 const _: () = ooxml_core::schema::assert_child::<TableCell, TextBody>();
+const _: () = ooxml_core::schema::assert_spec::<TableCellBorders>();
+const _: () = ooxml_core::schema::assert_child::<TableCellBorders, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<TableCellBorders, BottomBorder>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellBorders,
+    InsideHorizontalBorder,
+>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellBorders,
+    InsideVerticalBorder,
+>();
+const _: () = ooxml_core::schema::assert_child::<TableCellBorders, LeftBorder>();
+const _: () = ooxml_core::schema::assert_child::<TableCellBorders, RightBorder>();
+const _: () = ooxml_core::schema::assert_child::<TableCellBorders, TopBorder>();
 const _: () = ooxml_core::schema::assert_spec::<TableCellProperties>();
 const _: () = ooxml_core::schema::assert_child::<TableCellProperties, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<
@@ -33494,6 +36946,33 @@ const _: () = ooxml_core::schema::assert_spec::<GridColumn>();
 const _: () = ooxml_core::schema::assert_child::<GridColumn, ExtensionList>();
 const _: () = ooxml_core::schema::assert_spec::<TableGrid>();
 const _: () = ooxml_core::schema::assert_child::<TableGrid, GridColumn>();
+const _: () = ooxml_core::schema::assert_spec::<Band1Horizontal>();
+const _: () = ooxml_core::schema::assert_child::<Band1Horizontal, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<Band1Horizontal, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<Band1Vertical>();
+const _: () = ooxml_core::schema::assert_child::<Band1Vertical, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<Band1Vertical, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<Band2Horizontal>();
+const _: () = ooxml_core::schema::assert_child::<Band2Horizontal, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<Band2Horizontal, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<Band2Vertical>();
+const _: () = ooxml_core::schema::assert_child::<Band2Vertical, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<Band2Vertical, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<FirstColumn>();
+const _: () = ooxml_core::schema::assert_child::<FirstColumn, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<FirstColumn, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<FirstRow>();
+const _: () = ooxml_core::schema::assert_child::<FirstRow, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<FirstRow, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<LastColumn>();
+const _: () = ooxml_core::schema::assert_child::<LastColumn, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<LastColumn, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<LastRow>();
+const _: () = ooxml_core::schema::assert_child::<LastRow, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<LastRow, TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_spec::<WholeTable>();
+const _: () = ooxml_core::schema::assert_child::<WholeTable, TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<WholeTable, TableCellTextStyle>();
 const _: () = ooxml_core::schema::assert_spec::<TableProperties>();
 const _: () = ooxml_core::schema::assert_child::<TableProperties, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<TableProperties, NoFill>();
@@ -33503,6 +36982,34 @@ const _: () = ooxml_core::schema::assert_child::<TableProperties, TableStyleId>(
 const _: () = ooxml_core::schema::assert_spec::<TableRow>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, ExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<TableRow, TableCell>();
+const _: () = ooxml_core::schema::assert_spec::<TableStyleEntry>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, Band1Horizontal>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, Band1Vertical>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, Band2Horizontal>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, Band2Vertical>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, FirstColumn>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, FirstRow>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, LastColumn>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, LastRow>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleEntry, WholeTable>();
+const _: () = ooxml_core::schema::assert_spec::<TableCellStyle>();
+const _: () = ooxml_core::schema::assert_child::<TableCellStyle, FillProperties>();
+const _: () = ooxml_core::schema::assert_child::<TableCellStyle, TableCellBorders>();
+const _: () = ooxml_core::schema::assert_spec::<TableStyleList>();
+const _: () = ooxml_core::schema::assert_child::<TableStyleList, TableStyleEntry>();
+const _: () = ooxml_core::schema::assert_spec::<TableCellTextStyle>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, FontReference>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, HslColor>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, ExtensionList>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, PresetColor>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, RgbColorModelHex>();
+const _: () = ooxml_core::schema::assert_child::<
+    TableCellTextStyle,
+    RgbColorModelPercentage,
+>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, SchemeColor>();
+const _: () = ooxml_core::schema::assert_child::<TableCellTextStyle, SystemColor>();
 const _: () = ooxml_core::schema::assert_spec::<AutoNumberedBullet>();
 const _: () = ooxml_core::schema::assert_spec::<PictureBullet>();
 const _: () = ooxml_core::schema::assert_child::<PictureBullet, Blip>();
@@ -34371,6 +37878,18 @@ const _: () = ooxml_core::schema::assert_child::<UnderlineFill, GradientFill>();
 const _: () = ooxml_core::schema::assert_child::<UnderlineFill, NoFill>();
 const _: () = ooxml_core::schema::assert_child::<UnderlineFill, SolidFill>();
 const _: () = ooxml_core::schema::assert_spec::<UnderlineFollowsText>();
+const _: () = ooxml_core::schema::assert_spec::<BottomBorder>();
+const _: () = ooxml_core::schema::assert_child::<BottomBorder, Outline>();
+const _: () = ooxml_core::schema::assert_spec::<InsideHorizontalBorder>();
+const _: () = ooxml_core::schema::assert_child::<InsideHorizontalBorder, Outline>();
+const _: () = ooxml_core::schema::assert_spec::<InsideVerticalBorder>();
+const _: () = ooxml_core::schema::assert_child::<InsideVerticalBorder, Outline>();
+const _: () = ooxml_core::schema::assert_spec::<LeftBorder>();
+const _: () = ooxml_core::schema::assert_child::<LeftBorder, Outline>();
+const _: () = ooxml_core::schema::assert_spec::<RightBorder>();
+const _: () = ooxml_core::schema::assert_child::<RightBorder, Outline>();
+const _: () = ooxml_core::schema::assert_spec::<TopBorder>();
+const _: () = ooxml_core::schema::assert_child::<TopBorder, Outline>();
 const _: () = ooxml_core::schema::assert_spec::<Transform2D>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Offset>();
 const _: () = ooxml_core::schema::assert_child::<Transform2D, Extents>();

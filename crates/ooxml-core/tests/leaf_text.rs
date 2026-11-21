@@ -95,6 +95,7 @@ fn edits_custom_stores_without_generated_element_types() {
         ("http://schemas.openxmlformats.org/officeDocument/2006/bibliography", "Sources", "Source"),
         ("http://schemas.microsoft.com/office/2006/metadata/contentType", "contentType", "name"),
         ("http://schemas.microsoft.com/office/2006/metadata/customXsn", "customXsn", "xsnLocation"),
+        ("http://schemas.microsoft.com/office/2006/metadata/properties/metaAttributes", "metaAttributes", "attribute"),
         ("http://schemas.microsoft.com/office/2006/metadata/longProperties", "LongProperties", "LongProp"),
     ] {
         let xml = format!("<{root} xmlns='{ns}'><{leaf}>old</{leaf}></{root}>");

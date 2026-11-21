@@ -68,6 +68,7 @@
 mod body;
 mod bookmarks;
 mod comments;
+mod controls;
 mod document;
 mod effective;
 mod error;
@@ -87,6 +88,10 @@ mod text;
 
 pub use bookmarks::{BookmarkId, BookmarkRange};
 pub use revisions::{Author, Revision, RevisionKind, TrackedChanges};
+pub use controls::{
+    Binding, ContentControl, ControlKind, ControlLock, ControlRef, ControlSpec,
+    NewControlKind, SdtId, WrapTarget,
+};
 pub use comments::{CommentAnchor, CommentId, CommentRef, LocalDateTime, NewComment, TextRange};
 pub use chrono::NaiveDateTime;
 pub use document::{Document, Paragraph, Run};

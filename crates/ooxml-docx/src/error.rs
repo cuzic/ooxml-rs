@@ -10,6 +10,28 @@ use crate::replace::Refusal;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Could not obtain randomness for a content control identifier.
+    #[error("could not allocate a random content control identifier")]
+    SdtIdRandomness,
+    /// The content control kind or shape does not support the requested edit.
+    #[error("unsupported content control")]
+    UnsupportedControl,
+    /// The control's contents are locked.
+    #[error("content control is locked")]
+    ControlLocked,
+    /// The binding cannot be resolved to a supported writable store element.
+    #[error("unsupported content control binding")]
+    UnsupportedBinding,
+    /// The wrapped text and the existing store value differ.
+    #[error("content control text differs from the binding value")]
+    BindingMismatch,
+    /// The Word date picture contains a token that cannot be formatted.
+    #[error("unsupported date format token {token:?}")]
+    UnsupportedDateFormat {
+        /// The token that requires caller-supplied display text.
+        token: String,
+    },
+
     /// A tracked mark at this position has no paragraph to merge with.
     #[error("no following paragraph for the tracked paragraph mark")]
     NoFollowingParagraph,

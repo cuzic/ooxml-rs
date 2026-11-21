@@ -11,6 +11,30 @@
 # Word Phase0 write path: append a paragraph to the body; replace run content.
 [write]
 names = [
+    # Word Phase3d (ADR-0015 §6 and §10).
+    "w:CT_SdtRun/w:sdt",
+    "w:CT_SdtBlock/w:sdt",
+    "w:CT_SdtPr/w:sdtPr",
+    "w:CT_SdtContentRun/w:sdtContent",
+    "w:CT_SdtContentBlock/w:sdtContent",
+    "w:CT_DecimalNumber/w:id",
+    "w:CT_String/w:tag",
+    "w:CT_String/w:alias",
+    "w:CT_SdtText/w:text",
+    "w:CT_SdtDate/w:date",
+    "w:CT_String/w:dateFormat",
+    "w:CT_Lang/w:lid",
+    "w:CT_SdtDateMappingType/w:storeMappedDataAs",
+    "w:CT_DataBinding/w:dataBinding",
+    "w:CT_Lock/w:lock",
+    "w:CT_OnOff/w:showingPlcHdr",
+    "w:CT_SdtDropDownList/w:dropDownList",
+    "w:CT_SdtComboBox/w:comboBox",
+    "w:CT_SdtListItem/w:listItem",
+    "w14:CT_SdtCheckbox/w14:checkbox",
+    "w14:CT_OnOff/w14:checked",
+    "w14:CT_SdtCheckboxSymbol/w14:checkedState",
+    "w14:CT_SdtCheckboxSymbol/w14:uncheckedState",
     # Word Phase3c (ADR-0015 §5 and §10).
     "w:CT_RunTrackChange/w:ins",
     "w:CT_RunTrackChange/w:del",
@@ -140,8 +164,6 @@ names = [
 # flags behind the document-level write gates.
 [read]
 names = [
-    # Comment anchors can appear in existing content controls (ADR-0015 §3.3).
-    "w:CT_SdtContentRun/w:sdtContent",
     "w:CT_Document/w:document",
     "w:CT_PPr/w:pPr",
     "w:CT_RPr/w:rPr",

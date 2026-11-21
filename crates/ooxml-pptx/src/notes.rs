@@ -1,11 +1,11 @@
-//! Notes slides: read and edit **existing** notes (ADR-0008 §2).
+//! Read, edit and create notes slides (ADR-0008 §2 and ADR-0016 §8).
 //!
 //! A slide's notes slide is the target of its `…/notesSlide` relationship.
 //! Its **notes body** is the first top-level `p:sp` of the notes shape tree
 //! whose `p:ph@type` is `body` (python-pptx's `notes_placeholder`). The body
 //! is edited with exactly the Phase 0 text API ([`TextBodyMut`]); only the
-//! notes part becomes dirty. Creating a notes slide (part, relationship
-//! pair, content type) is not part of Phase 1.
+//! notes part becomes dirty. Use [`crate::Presentation::ensure_notes_slide`]
+//! to provision a notes slide and its relationships.
 //!
 //! Notes parts carry no `p:timing` and no comment anchors point into them,
 //! so the animation and comment locks of ADR-0005 §6 never apply; a notes

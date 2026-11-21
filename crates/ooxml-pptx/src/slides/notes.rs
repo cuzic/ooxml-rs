@@ -34,6 +34,8 @@ impl crate::Presentation {
     ///
     /// Returns [`Error::NotesWithoutMaster`] if the deck already contains
     /// notes slides but has no presentation-level notes master relationship.
+    /// Refuses dangling notes-slide relationships and notes-master lists
+    /// inside markup-compatibility branches.
     pub fn ensure_notes_slide(&mut self, index: usize) -> Result<()> {
         self.ensure_notes(index)?;
         Ok(())
@@ -41,7 +43,8 @@ impl crate::Presentation {
 
     /// Opens the slide's notes for editing, creating them if needed.
     ///
-    /// Uses the same transaction as [`Self::ensure_notes_slide`].
+    /// Uses the same transaction as [`Self::ensure_notes_slide`], including
+    /// validation of the notes master root when the notes already exist.
     pub fn notes_mut_or_create(&mut self, index: usize) -> Result<NotesMut<'_>> {
         let (slide, part) = self.ensure_notes(index)?;
         Ok(self.notes_handle(slide, part))
@@ -50,9 +53,31 @@ impl crate::Presentation {
     fn ensure_notes(&mut self, index: usize) -> Result<(SlideInfo, String)> {
         let (slide, slide_part) = self.entry(index)?;
         let notes = crate::notes::notes_part(&self.pkg, &slide_part)?;
+        let slide_rels = self.rels_of(&slide_part)?;
+        if let Some(dangling) = slide_rels.by_type(REL_NOTES_SLIDE).find(|rel| {
+            slide_rels
+                .resolve(rel)
+                .is_none_or(|part| !self.pkg.contains(&part))
+        }) {
+            return Err(Error::UnsupportedContent(format!(
+                "notesSlide relationship {} in {slide_part} has no internal target part",
+                dangling.id
+            )));
+        }
         let main = self.main.clone();
         let rels = self.rels_of(&main)?;
         let mut pres = self.tree(&main)?.clone();
+        if pres
+            .root()
+            .elements()
+            .filter(|node| node.is(ooxml_core::name::MC_ALTERNATE_CONTENT))
+            .flat_map(RawNode::elements)
+            .any(|branch| child(branch, p("notesMasterIdLst")).is_some())
+        {
+            return Err(Error::UnsupportedContent(
+                "notesMasterIdLst inside mc:AlternateContent".into(),
+            ));
+        }
         let listed_id = pres
             .lens::<pml::Presentation>()?
             .child::<pml::NotesMasterIdList>()
