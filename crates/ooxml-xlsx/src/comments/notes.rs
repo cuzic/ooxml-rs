@@ -153,7 +153,7 @@ impl<'doc> Notes<'doc> {
         let namespace = |prefix| self.root.attr(QName::new(XMLNS, prefix));
         let xr = namespace("xr");
         let local_xr = self.list.attr(QName::new(XMLNS, "xr"));
-        if xr.into_iter().chain(local_xr).any(|uri| uri != XR) {
+        if local_xr.or(xr).is_some_and(|uri| uri != XR) {
             return Err(part_error(
                 self.part,
                 "xr prefix is bound to another namespace",

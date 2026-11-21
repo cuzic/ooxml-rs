@@ -284,6 +284,24 @@ fn fallback_namespace_is_added_only_when_needed() {
             Error::PartNotEditable { .. }
         );
     }
+    // The effective binding is the one on the insertion parent.
+    let input = comments
+        .replacen("<comments ", "<comments xmlns:xr=\"urn:shadowed\" ", 1)
+        .replacen(
+            "<commentList>",
+            &format!("<commentList xmlns:xr=\"{XR}\">"),
+            1,
+        );
+    let mut wb = with_part(&original, COMMENTS, input);
+    wb.worksheet()
+        .unwrap()
+        .add_comment(cell("D5"), Comment::new("New").by(&p))
+        .unwrap();
+    let result = doc(wb.package(), COMMENTS);
+    let added = walk(result.root())
+        .find(|node| node.attr(xml::attr("ref")) == Some("D5"))
+        .unwrap();
+    assert_eq!(added.attr(QName::new(MC, "Ignorable")), Some("xr"));
 }
 
 #[test]
