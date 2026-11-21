@@ -301,17 +301,38 @@ fn sequence_counts_only_earlier_matching_fields_in_the_story() {
 }
 
 #[test]
-fn sequence_identifier_requires_an_ascii_letter_then_ascii_word_characters() {
+fn sequence_identifier_requires_a_unicode_letter_then_word_characters() {
     let input = common::docx(PLAIN, Some(""), None);
-    for name in ["", "1Fig", "_Fig", "My Fig", "Fig-1", "図表"] {
+    for name in ["", "1Fig", "_Fig", "My Fig", "Fig-1", "1図", "２表", "図 表", "図-表"] {
         assert_refusal(&input, true, end(0), sequence(name), |error| {
             std::assert_matches!(error, Error::InvalidValue { what: "SEQ identifier", value } if value == name);
         });
     }
-    let mut doc = Document::from_bytes(input).unwrap();
-    doc.enable_update_fields_on_open().unwrap();
-    doc.insert_field(end(0), sequence("Figure_12")).unwrap();
-    assert_eq!(doc.paragraphs().next().unwrap().text(), "Plain1");
+    for (name, existing) in [
+        ("Figure_12", "SEQ Figure_12"),
+        ("図", r"SEQ 図 \* ARABIC"),
+        ("表", "SEQ 表"),
+        ("図表_２", "SEQ 図表_２"),
+    ] {
+        let body = format!(
+            "<w:p><w:fldSimple w:instr='{existing}'><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p><w:p/>"
+        );
+        let mut doc = Document::from_bytes(common::docx(&body, Some(""), None)).unwrap();
+        doc.enable_update_fields_on_open().unwrap();
+        doc.insert_field(end(1), sequence(name))
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+
+        let output = doc.to_bytes().unwrap();
+        let part = common::part(&output, MAIN);
+        let xml = roxmltree::Document::parse(std::str::from_utf8(&part).unwrap()).unwrap();
+        let instruction = xml
+            .descendants()
+            .find(|node| node.has_tag_name((common::W_NS, "instrText")))
+            .and_then(|node| node.text());
+        assert_eq!(instruction, Some(format!(r#" SEQ "{name}" "#).as_str()));
+        let reopened = Document::from_bytes(output).unwrap();
+        assert_eq!(reopened.paragraphs().nth(1).unwrap().text(), "2");
+    }
 }
 
 #[test]

@@ -694,6 +694,16 @@ pub enum FieldSpec {
 - **Not in Phase3:** `IF`, `=`, mail-merge fields, `INCLUDETEXT`, form fields, and editing
   existing field instructions.
 
+#### Open question: date-valued DOCPROPERTY refresh (post-acceptance, #139)
+
+Date-valued DOCPROPERTY fields are W2-safe and currently use an empty cache and
+`w:dirty="true"` on the begin marker. Word's first-open behavior with that
+marker alone is unverified. Manual check `53-field-docproperty-createtime.docx`
+records what Word displays before and after F9. The owner will decide whether
+to keep the empty cache or populate it with a date formatted as Word displays it.
+LibreOffice 25.2.7.2 (`C.UTF-8`, UTC) exported this case as
+`Created: 11/22/2003` in both text and PDF, without a manual field update.
+
 ### 8. Effective formatting (read-only resolver)
 
 The scalar formatting API omits properties with child elements, such as `tabs` and `pBdr`.
@@ -1233,11 +1243,12 @@ Acceptance tests cover byte-local edits and byte-identical refusals.
   These properties remain W2-safe and require no session opt-in.
 - REF caches the matched bookmark's current text and refuses insertion
   inside that bookmark with InvalidValue. PAGEREF has a question-mark
-  cache until pagination. SEQ identifiers begin with an ASCII letter and
-  contain only ASCII letters, digits, and underscores. Invalid identifiers
-  return InvalidValue. The cache counts prior completed simple and complex
-  fields with the same normalized identifier in the current story, ignoring
-  switches such as \r, \c, and \h until the field is updated.
+  cache until pagination. SEQ identifiers begin with a Unicode alphabetic
+  character. Subsequent characters may be Unicode alphanumeric characters
+  or underscores. Invalid identifiers return InvalidValue. The cache counts
+  prior completed simple and complex fields with the same normalized
+  identifier in the current story, ignoring switches such as \r, \c, and \h
+  until the field is updated.
 - Content-dependent insertion requires the session opt-in from ADR-0007
   even when the input settings already request updates. Those fields carry
   the dirty flag on the begin marker. Word's treatment of that flag and
